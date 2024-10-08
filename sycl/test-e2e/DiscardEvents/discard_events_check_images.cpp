@@ -12,11 +12,15 @@
 // discard_events.
 
 #include "../helpers.hpp" // for printableVec
-#include <CL/sycl.hpp>
 #include <cassert>
 #include <iostream>
+#include <sycl/accessor_image.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/image.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 1024;
 static constexpr int MAX_ITER_NUM1 = 10;
 static constexpr int MAX_ITER_NUM2 = 10;
@@ -35,7 +39,8 @@ void TestHelper(sycl::queue Q,
   const sycl::image_channel_type ChanType =
       sycl::image_channel_type::signed_int32;
 
-  const sycl::range<2> ImgSize(sqrt(BUFFER_SIZE), sqrt(BUFFER_SIZE));
+  const sycl::range<2> ImgSize(sycl::sqrt(static_cast<float>(BUFFER_SIZE)),
+                               sycl::sqrt(static_cast<float>(BUFFER_SIZE)));
   std::vector<sycl::int4> ImgHostData(
       ImgSize.size(), {InitialVal, InitialVal, InitialVal, InitialVal});
   sycl::image<2> Img(ImgHostData.data(), ChanOrder, ChanType, ImgSize);
@@ -102,7 +107,7 @@ void RunTest_ImageTest(sycl::queue Q) {
       int expected = InitialVal + MAX_ITER_NUM2;
       for (int X = 0; X < ImgSize[0]; ++X)
         for (int Y = 0; Y < ImgSize[1]; ++Y) {
-          sycl::int4 Vec1 = cl::sycl::int4(expected);
+          sycl::int4 Vec1 = sycl::int4(expected);
           sycl::int4 Vec2 = HostAcc.read(sycl::int2{X, Y});
           if (Vec1[0] != Vec2[0] || Vec1[1] != Vec2[1] || Vec1[2] != Vec2[2] ||
               Vec1[3] != Vec2[3]) {
@@ -148,7 +153,7 @@ void RunTest_ImageTest_Mixed(sycl::queue Q) {
       int expected = InitialVal + MAX_ITER_NUM1 + MAX_ITER_NUM2;
       for (int X = 0; X < ImgSize[0]; ++X)
         for (int Y = 0; Y < ImgSize[1]; ++Y) {
-          sycl::int4 Vec1 = cl::sycl::int4(expected);
+          sycl::int4 Vec1 = sycl::int4(expected);
           sycl::int4 Vec2 = HostAcc.read(sycl::int2{X, Y});
           if (Vec1[0] != Vec2[0] || Vec1[1] != Vec2[1] || Vec1[2] != Vec2[2] ||
               Vec1[3] != Vec2[3]) {

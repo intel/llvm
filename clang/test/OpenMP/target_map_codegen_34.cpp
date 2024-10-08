@@ -3,19 +3,19 @@
 #define HEADER
 
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK34 --check-prefix CK34-64
-// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-64
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
-// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
+// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK34 --check-prefix CK34-64
+// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-64
+// RUN: %clang_cc1 -DCK34 -verify -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
+// RUN: %clang_cc1 -DCK34 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK34 --check-prefix CK34-32
 
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK34 -verify -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK34 -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
 // SIMD-ONLY32-NOT: {{__kmpc|__tgt}}
 #ifdef CK34
 
@@ -96,8 +96,8 @@ void default_mapper() {
   // CK34-DAG: [[SZ]] = sub i64 [[C_BEGIN_INTPTR:%.+]], [[S_INTPTR:%.+]]
   // CK34-DAG: [[S_INTPTR]] = ptrtoint ptr [[S_ADDR]] to i64
   // CK34-DAG: [[C_BEGIN_INTPTR]] = ptrtoint ptr [[C_ADDR:%.+]] to i64
-  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 2
-  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 2
+  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   // pass MEMBER_OF_1 | TO {&s, &s.c+1, ((void*)(&s)+31+1-(void*)(&s.c+1))} to copy the data of s.b.
 
@@ -131,8 +131,8 @@ void default_mapper() {
   // CK34-DAG: store ptr [[C_ADDR:%.+]], ptr [[P3]],
   // CK34-DAG: store ptr [[C_DEFAULT_MAPPER:@.+]], ptr [[MF3]],
 
-  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 2
-  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 2
+  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   #pragma omp target map(to: s)
   s.foo();
@@ -186,8 +186,8 @@ void default_mapper() {
   // CK34-DAG: [[SZ]] = sub i64 [[C_BEGIN_INTPTR:%.+]], [[S_INTPTR:%.+]]
   // CK34-DAG: [[S_INTPTR]] = ptrtoint ptr [[S_ADDR]] to i64
   // CK34-DAG: [[C_BEGIN_INTPTR]] = ptrtoint ptr [[C_ADDR:%.+]] to i64
-  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 2
-  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 2
+  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   // pass MEMBER_OF_1 | FROM {&s, &s.c+1, ((void*)(&s)+31+1-(void*)(&s.c+1))} to copy the data of s.b.
 
@@ -221,8 +221,8 @@ void default_mapper() {
   // CK34-DAG: store ptr [[C_ADDR:%.+]], ptr [[P3]],
   // CK34-DAG: store ptr [[C_DEFAULT_MAPPER]], ptr [[MF3]],
 
-  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 2
-  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK34-64-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 2
+  // CK34-32-DAG: [[C_ADDR]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   #pragma omp target map(from: s)
   s.foo();

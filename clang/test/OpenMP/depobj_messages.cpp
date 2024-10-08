@@ -1,13 +1,13 @@
 // RUN: %clang_cc1 -verify=expected,omp50 -fopenmp -fopenmp-version=50 \
 // RUN: -ferror-limit 100 %s -Wuninitialized
-// RUN: %clang_cc1 -verify=expected,omp51 -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -verify=expected,omp51 -fopenmp \
 // RUN: -ferror-limit 100 %s -Wuninitialized
 // RUN: %clang_cc1 -verify=expected,omp52 -fopenmp -fopenmp-version=52 \
 // RUN: -ferror-limit 100 %s -Wuninitialized
 
 // RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-simd -fopenmp-version=50 \
 // RUN: -ferror-limit 100 %s -Wuninitialized
-// RUN: %clang_cc1 -verify=expected,omp51 -fopenmp-simd -fopenmp-version=51 \
+// RUN: %clang_cc1 -verify=expected,omp51 -fopenmp-simd \
 // RUN: -ferror-limit 100 %s -Wuninitialized
 // RUN: %clang_cc1 -verify=expected,omp52 -fopenmp-simd -fopenmp-version=52 \
 // RUN: -ferror-limit 100 %s -Wuninitialized
@@ -59,7 +59,7 @@ T tmain(T argc) {
   switch (argc) {
 #pragma omp depobj(x) depend(in:s)
   case 1:
-#pragma omp depobj(x) depend(in:s)
+#pragma omp depobj(x) depend(in:s) // expected-error {{'#pragma omp depobj' cannot be an immediate substatement}}
     break;
   default: {
 #pragma omp depobj(x) depend(in:s)
@@ -71,7 +71,7 @@ T tmain(T argc) {
 #pragma omp depobj(x) depend(in:s)
     }
 label:
-#pragma omp depobj(x) depend(in:s)
+#pragma omp depobj(x) depend(in:s) // expected-error {{'#pragma omp depobj' cannot be an immediate substatement}}
 label1 : {
 #pragma omp depobj(x) depend(in:s)
 }
@@ -124,7 +124,7 @@ omp_depend_t x;
   switch (argc) {
 #pragma omp depobj(x) depend(in:s)
   case 1:
-#pragma omp depobj(x) depend(in:s)
+#pragma omp depobj(x) depend(in:s) // expected-error {{'#pragma omp depobj' cannot be an immediate substatement}}
     break;
   default: {
 #pragma omp depobj(x) depend(in:s)
@@ -136,7 +136,7 @@ omp_depend_t x;
 #pragma omp depobj(x) depend(in:s)
     }
 label:
-#pragma omp depobj(x) depend(in:s)
+#pragma omp depobj(x) depend(in:s) // expected-error {{'#pragma omp depobj' cannot be an immediate substatement}}
 label1 : {
 #pragma omp depobj(x) depend(in:s)
 }

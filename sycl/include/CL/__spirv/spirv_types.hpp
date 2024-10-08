@@ -8,14 +8,10 @@
 
 #pragma once
 
-#include "sycl/half_type.hpp"
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/half_type.hpp>
+#include <sycl/detail/defines.hpp> // for __has_builtin
 
-#include <complex>
-#include <cstddef>
-#include <cstdint>
+#include <cstddef> // for size_t
+#include <cstdint> // for uint32_t
 
 // TODO: include the header file with SPIR-V declarations from SPIRV-Headers
 // project.
@@ -113,56 +109,45 @@ enum class GroupOperation : uint32_t {
   ClusteredReduce = 3,
 };
 
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 enum class MatrixLayout : uint32_t {
   RowMajor = 0,
   ColumnMajor = 1,
   Packed = 2,
   Dynamic = 3
 };
-#else
-enum class MatrixLayout : uint32_t {
-  RowMajor = 0,
-  ColumnMajor = 1,
-  PackedA = 2,
-  PackedB = 3,
-  Unused = 4
-};
-#endif
 
 enum class MatrixUse : uint32_t { MatrixA = 0, MatrixB = 1, Accumulator = 2 };
 
-struct complex_float {
-  complex_float() = default;
-  complex_float(std::complex<float> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<float>() { return {real, imag}; }
-  float real, imag;
+#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
+enum class MatrixOperands : uint32_t {
+  // SPV_KHR_cooperative_matrix operands
+  NoneKHR = 0,
+  MatrixASignedComponentsKHR = 0x1,
+  MatrixBSignedComponentsKHR = 0x2,
+  MatrixCSignedComponentsKHR = 0x4,
+  MatrixResultSignedComponentsKHR = 0x8,
+  SaturatingAccumulationKHR = 0x10,
+  // SPV_INTEL_joint_matrix operands
+  MatrixAAndBTF32ComponentsINTEL = 0x20,
+  MatrixAAndBBFloat16ComponentsINTEL = 0x40,
+  MatrixCBFloat16ComponentsINTEL = 0x80,
+  MatrixResultBFloat16ComponentsINTEL = 0x100
 };
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
-struct complex_double {
-  complex_double() = default;
-  complex_double(std::complex<double> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<double>() { return {real, imag}; }
-  double real, imag;
-};
+#ifndef __SPIRV_USE_COOPERATIVE_MATRIX
 
-struct complex_half {
-  complex_half() = default;
-  complex_half(std::complex<sycl::half> x) : real(x.real()), imag(x.imag()) {}
-  operator std::complex<sycl::half>() { return {real, imag}; }
-  sycl::half real, imag;
-};
-
-#if (SYCL_EXT_ONEAPI_MATRIX_VERSION > 1)
 template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
           Scope::Flag S = Scope::Flag::Subgroup,
           MatrixUse U = MatrixUse::MatrixA>
 struct __spirv_JointMatrixINTEL;
 #else
-template <typename T, std::size_t R, std::size_t C, MatrixLayout L,
-          Scope::Flag S = Scope::Flag::Subgroup>
-struct __spirv_JointMatrixINTEL;
-#endif // SYCL_EXT_ONEAPI_MATRIX_VERSION
+template <typename T, Scope::Flag S = Scope::Flag::Subgroup, std::size_t R = 1,
+          std::size_t C = 1, MatrixUse U = MatrixUse::MatrixA>
+struct __spirv_CooperativeMatrixKHR;
+#endif // __SPIRV_USE_COOPERATIVE_MATRIX
+
+struct __spirv_TaskSequenceINTEL;
 
 } // namespace __spv
 
@@ -186,12 +171,12 @@ struct ConstantPipeStorage {
 };
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 // Arbitrary precision integer type
 template <int Bits> using ap_int = _BitInt(Bits);
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -200,8 +185,8 @@ template <int Bits> using ap_int = _BitInt(Bits);
 // SPIRV built-in functions.
 // Only in such cases the class is recognized as SPIRV type __ocl_event_t.
 #ifndef __SYCL_DEVICE_ONLY__
-typedef void* __ocl_event_t;
-typedef void* __ocl_sampler_t;
+typedef void *__ocl_event_t;
+typedef void *__ocl_sampler_t;
 // Adding only the datatypes that can be currently used in SYCL,
 // as per SYCL spec 1.2.1
 #define __SYCL_SPV_IMAGE_TYPE(NAME) typedef void *__ocl_##NAME##_t

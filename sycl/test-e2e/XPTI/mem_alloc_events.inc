@@ -1,11 +1,11 @@
 #ifdef XPTI_COLLECTOR
 
-#include "Inputs/buffer_info_collector.cpp"
+#include "Inputs/memory_info_collector.cpp"
 
 #else
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 int main() {

@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2019-2022 Intel Corporation.  All rights reserved.
+Copyright (C) 2019 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -45,7 +45,7 @@ This extension also depends on the following other SYCL extensions:
 * link:../experimental/sycl_ext_oneapi_properties.asciidoc[
   sycl_ext_oneapi_properties]
 
-* link:../proposed/sycl_ext_oneapi_kernel_properties.asciidoc[
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
   sycl_ext_oneapi_kernel_properties]
 
 
@@ -211,6 +211,12 @@ device function.
 NOTE: No special handling is required to detect this case, since
 `sub_group_size_primary` and `sub_group_size_automatic` are simply named
 shorthands for properties associated with `sub_group_size_key`.
+
+The `sub_group_size`, `sub_group_size_primary` and `sub_group_size_automatic`
+properties can be associated with a kernel launch using one of the overloaded
+kernel invocation commands or associated with a kernel definition using the
+`get(properties_tag)` mechanism. The properties can be associated with a device
+function using the `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY` macro.
 
 There are special requirements whenever a device function defined in one
 translation unit makes a call to a device function that is defined in a second

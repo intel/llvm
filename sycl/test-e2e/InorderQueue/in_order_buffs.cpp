@@ -8,7 +8,10 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -51,7 +54,7 @@ int main() {
       cgh.parallel_for<class ordered_reader>(myRange, myKernel);
     });
 
-    auto readBufferB = bufB.get_access<access::mode::read>();
+    auto readBufferB = bufB.get_host_access();
     for (size_t i = 0; i != dataSize; ++i) {
       if (readBufferB[i] != i) {
         std::cout << "Result mismatches " << readBufferB[i] << " vs expected "

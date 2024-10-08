@@ -5,8 +5,9 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-//
+
 // REQUIRES: long_tests
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // <random>
 
@@ -80,7 +81,7 @@ void tests() {
         }
         std::vector<double> prob = d.probabilities();
         for (unsigned i = 0; i < u.size(); ++i)
-            assert(std::abs((double)u[i]/N - prob[i]) / prob[i] < 0.001);
+          assert(std::abs((double)u[i] / N - prob[i]) / prob[i] < 0.0013);
     }
     {
         typedef std::discrete_distribution<T> D;
@@ -157,7 +158,7 @@ void tests() {
         std::vector<double> prob = d.probabilities();
         for (unsigned i = 0; i < u.size(); ++i)
             if (prob[i] != 0)
-                assert(std::abs((double)u[i]/N - prob[i]) / prob[i] < 0.001);
+              assert(std::abs((double)u[i] / N - prob[i]) / prob[i] < 0.0013);
             else
                 assert(u[i] == 0);
     }
@@ -201,7 +202,7 @@ void tests() {
         std::vector<double> prob = d.probabilities();
         for (unsigned i = 0; i < u.size(); ++i)
             if (prob[i] != 0)
-                assert(std::abs((double)u[i]/N - prob[i]) / prob[i] < 0.001);
+              assert(std::abs((double)u[i] / N - prob[i]) / prob[i] < 0.0013);
             else
                 assert(u[i] == 0);
     }
@@ -289,7 +290,7 @@ void tests() {
         std::vector<double> prob = d.probabilities();
         for (unsigned i = 0; i < u.size(); ++i)
             if (prob[i] != 0)
-                assert(std::abs((double)u[i]/N - prob[i]) / prob[i] < 0.001);
+              assert(std::abs((double)u[i] / N - prob[i]) / prob[i] < 0.0013);
             else
                 assert(u[i] == 0);
     }

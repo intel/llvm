@@ -14,9 +14,6 @@
 
 #pragma once
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../../esimd_test_utils.hpp"
 #include "logger.hpp"
 #include "type_coverage.hpp"
@@ -33,9 +30,10 @@ namespace details {
 template <typename T> bool are_bitwise_equal(T lhs, T rhs) {
   constexpr size_t size{sizeof(T)};
 
-  // Such type-punning is OK from the point of strict aliasing rules
-  const auto &lhs_bytes = reinterpret_cast<const unsigned char(&)[size]>(lhs);
-  const auto &rhs_bytes = reinterpret_cast<const unsigned char(&)[size]>(rhs);
+  std::array<char, size> lhs_bytes;
+  std::array<char, size> rhs_bytes;
+  std::memcpy(lhs_bytes.data(), &lhs, size);
+  std::memcpy(rhs_bytes.data(), &rhs, size);
 
   bool result{true};
   for (size_t i = 0; i < size; ++i) {

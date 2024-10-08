@@ -1,9 +1,6 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
-//
-// Missing __spirv_SubgroupBlockReadINTEL, __spirv_SubgroupBlockWriteINTEL on
-// AMD
-// XFAIL: hip_amd
+
 //
 //==----------- load_store.cpp - SYCL sub_group load/store test ------------==//
 //
@@ -14,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "helper.hpp"
-#include <sycl/sycl.hpp>
 
 #include <algorithm>
 
@@ -44,7 +40,7 @@ template <typename T, int N> void check(queue &Queue) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       local_accessor<T, 1> LocalMem({L + max_sg_size * N}, cgh);
       cgh.parallel_for<sycl_subgr<T, N>>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         auto SGid = SG.get_group_id().get(0);
         auto SGsize = SG.get_max_local_range().get(0);
         /* Avoid overlapping data ranges inside and between local groups */
@@ -135,7 +131,7 @@ template <typename T> void check(queue &Queue) {
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       local_accessor<T, 1> LocalMem({L}, cgh);
       cgh.parallel_for<sycl_subgr<T, 0>>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         if (NdItem.get_global_id(0) == 0)
           sgsizeacc[0] = SG.get_max_local_range()[0];
         size_t SGOffset =
@@ -248,6 +244,16 @@ int main() {
       check<aligned_half, 4>(Queue);
       check<aligned_half, 8>(Queue);
       check<aligned_half, 16>(Queue);
+
+      typedef sycl::ext::oneapi::bfloat16 aligned_bfloat16
+          __attribute__((aligned(16)));
+      check<aligned_bfloat16>(Queue);
+      check<aligned_bfloat16, 1>(Queue);
+      check<aligned_bfloat16, 2>(Queue);
+      check<aligned_bfloat16, 3>(Queue);
+      check<aligned_bfloat16, 4>(Queue);
+      check<aligned_bfloat16, 8>(Queue);
+      check<aligned_bfloat16, 16>(Queue);
     }
   }
   if (std::find(Vec.begin(), Vec.end(), "cl_intel_subgroups_long") !=

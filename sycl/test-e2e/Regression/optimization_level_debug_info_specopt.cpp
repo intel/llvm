@@ -1,13 +1,15 @@
-// RUN: %{build} %debug_option -Ofast -o %t.out
+// DEFINE: %{Oz} = %if cl_options %{/clang:-Oz%} %else %{-Oz%}
+// DEFINE: %{O} = %if cl_options %{/clang:-O%} %else %{-O%}
+// RUN: %{build} %debug_option %fp-model-fast -o %t.out
 // RUN: %{build} %debug_option -Os -o %t.out
-// RUN: %{build} %debug_option -Oz -o %t.out
+// RUN: %{build} %debug_option %{Oz} -o %t.out
 // RUN: %{build} %debug_option -Og -o %t.out
-// RUN: %{build} %debug_option -O -o %t.out
+// RUN: %{build} %debug_option %{O} -o %t.out
 
 // NOTE: Tests that debugging information can be generated for all special-name
 // optimization levels.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::queue q;

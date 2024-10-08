@@ -1,19 +1,18 @@
-; RUN: llvm-as -opaque-pointers=0 %s -o %t.bc
-; RUN: llvm-spirv %t.bc -opaque-pointers=0 --spirv-ext=+SPV_INTEL_io_pipes -o %t.spv
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_io_pipes -o %t.spv
 ; RUN: llvm-spirv %t.spv -to-text -o %t.spt
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv -spirv-text -r %t.spt -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-LLVM-DAG: %spirv.ConstantPipeStorage = type { i32, i32, i32 }
-; CHECK-LLVM-DAG: %"[[CL_PIPE_STORAGE_NAME:[^"]+]]" = type { %spirv.PipeStorage addrspace(1)* }
-; CHECK-LLVM-DAG: %spirv.PipeStorage = type opaque
+; CHECK-LLVM-DAG: %"[[CL_PIPE_STORAGE_NAME:[^"]+]]" = type { ptr addrspace(1) }
 ; CHECK-LLVM-DAG: [[CREATOR_NAME:[^ ]+]] = linkonce_odr addrspace(1) global %spirv.ConstantPipeStorage { i32 16, i32 16, i32 1 }, align 4
-; CHECK-LLVM-DAG: @mygpipe = addrspace(1) global %"[[CL_PIPE_STORAGE_NAME]]" { %spirv.PipeStorage addrspace(1)* bitcast (%spirv.ConstantPipeStorage addrspace(1)* [[CREATOR_NAME]] to %spirv.PipeStorage addrspace(1)*) }, align 4, !io_pipe_id ![[IO_MD:[0-9]+]]
+; CHECK-LLVM-DAG: @mygpipe = addrspace(1) global %"[[CL_PIPE_STORAGE_NAME]]" { ptr addrspace(1) [[CREATOR_NAME]] }, align 4, !io_pipe_id ![[IO_MD:[0-9]+]]
 ; CHECK-LLVM: ![[IO_MD]] = !{i32 1}
 
 ; CHECK-SPIRV: 2 Capability PipeStorage
@@ -24,8 +23,8 @@
 ; CHECK-SPIRV: 4 Decorate [[MYPIPE_ID]] IOPipeStorageINTEL 1
 
 ; CHECK-SPIRV: 2 TypePipeStorage [[PIPE_STORAGE_ID:[0-9]+]]
-; CHECK-SPIRV-NEXT: 2 TypePipeStorage [[PIPE_STORAGE_ID_2:[0-9]+]]
-; CHECK-SPIRV: 3 TypeStruct [[CL_PIPE_STORAGE_ID:[0-9]+]] [[PIPE_STORAGE_ID_2]]
+; TODO: struct should have TypePipeStorage, not TypePointer
+; CHECK-SPIRV: 3 TypeStruct [[CL_PIPE_STORAGE_ID:[0-9]+]]
 ; CHECK-SPIRV: 4 TypePointer [[CL_PIPE_STORAGE_PTR_ID:[0-9]+]] 5 [[CL_PIPE_STORAGE_ID]]
 
 ; CHECK-SPIRV: 6 ConstantPipeStorage [[PIPE_STORAGE_ID]] [[CPS_ID:[0-9]+]] 16 16 1
@@ -36,11 +35,11 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 %spirv.ConstantPipeStorage = type { i32, i32, i32 }
-%"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>" = type { %spirv.PipeStorage addrspace(1)* }
+%"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>" = type { ptr addrspace(1) }
 %spirv.PipeStorage = type opaque
 
 @_ZN2cl9__details29OpConstantPipeStorage_CreatorILi16ELi16ELi1EE5valueE = linkonce_odr addrspace(1) global %spirv.ConstantPipeStorage { i32 16, i32 16, i32 1 }, align 4
-@mygpipe = addrspace(1) global %"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>" { %spirv.PipeStorage addrspace(1)* bitcast (%spirv.ConstantPipeStorage addrspace(1)* @_ZN2cl9__details29OpConstantPipeStorage_CreatorILi16ELi16ELi1EE5valueE to %spirv.PipeStorage addrspace(1)*) }, align 4, !io_pipe_id !5
+@mygpipe = addrspace(1) global %"class.cl::pipe_storage<int __attribute__((ext_vector_type(4))), 1>" { ptr addrspace(1) @_ZN2cl9__details29OpConstantPipeStorage_CreatorILi16ELi16ELi1EE5valueE }, align 4, !io_pipe_id !5
 
 ; Function Attrs: nounwind
 define spir_kernel void @worker() {

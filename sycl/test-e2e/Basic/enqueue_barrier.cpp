@@ -1,12 +1,8 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
-
-// The test is failing sporadically on Windows OpenCL RTs
-// Disabling on windows until fixed
-// UNSUPPORTED: windows
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/ext/intel/fpga_device_selector.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::context Context;
@@ -18,7 +14,7 @@ int main() {
       [&](sycl::handler &cgh) { cgh.single_task<class kernel2>([]() {}); });
 
   // call handler::barrier()
-  Q1.submit([&](sycl::handler &cgh) { cgh.barrier(); });
+  Q1.submit([&](sycl::handler &cgh) { cgh.ext_oneapi_barrier(); });
 
   Q1.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel3>([]() {}); });
@@ -38,7 +34,9 @@ int main() {
       [&](sycl::handler &cgh) { cgh.single_task<class kernel6>([]() {}); });
 
   // call handler::barrier(const std::vector<event> &WaitList)
-  Q3.submit([&](sycl::handler &cgh) { cgh.barrier({Event1, Event2}); });
+  Q3.submit([&](sycl::handler &cgh) {
+    cgh.ext_oneapi_barrier({Event1, Event2});
+  });
 
   Q3.submit(
       [&](sycl::handler &cgh) { cgh.single_task<class kernel7>([]() {}); });
@@ -58,7 +56,7 @@ int main() {
   return 0;
 }
 
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
-// CHECK:---> piEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier

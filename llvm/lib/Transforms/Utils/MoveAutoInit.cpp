@@ -14,7 +14,6 @@
 #include "llvm/Transforms/Utils/MoveAutoInit.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/Statistic.h"
-#include "llvm/ADT/StringSet.h"
 #include "llvm/Analysis/MemorySSA.h"
 #include "llvm/Analysis/MemorySSAUpdater.h"
 #include "llvm/Analysis/ValueTracking.h"
@@ -40,9 +39,7 @@ static cl::opt<unsigned> MoveAutoInitThreshold(
 static bool hasAutoInitMetadata(const Instruction &I) {
   return I.hasMetadata(LLVMContext::MD_annotation) &&
          any_of(I.getMetadata(LLVMContext::MD_annotation)->operands(),
-                [](const MDOperand &Op) {
-                  return cast<MDString>(Op.get())->getString() == "auto-init";
-                });
+                [](const MDOperand &Op) { return Op.equalsStr("auto-init"); });
 }
 
 static std::optional<MemoryLocation> writeToAlloca(const Instruction &I) {
@@ -52,7 +49,7 @@ static std::optional<MemoryLocation> writeToAlloca(const Instruction &I) {
   else if (auto *SI = dyn_cast<StoreInst>(&I))
     ML = MemoryLocation::get(SI);
   else
-    assert(false && "memory location set");
+    return std::nullopt;
 
   if (isa<AllocaInst>(getUnderlyingObject(ML.Ptr)))
     return ML;
@@ -167,6 +164,9 @@ static bool runMoveAutoInit(Function &F, DominatorTree &DT, MemorySSA &MSSA) {
         if (TransitiveSuccessors.count(Pred))
           continue;
 
+        if (!DT.isReachableFromEntry(Pred))
+          continue;
+
         DominatingPredecessor =
             DominatingPredecessor
                 ? DT.findNearestCommonDominator(DominatingPredecessor, Pred)
@@ -181,9 +181,10 @@ static bool runMoveAutoInit(Function &F, DominatorTree &DT, MemorySSA &MSSA) {
 
     // CatchSwitchInst blocks can only have one instruction, so they are not
     // good candidates for insertion.
-    while (isa<CatchSwitchInst>(UsersDominator->getFirstInsertionPt())) {
+    while (isa<CatchSwitchInst>(UsersDominator->getFirstNonPHI())) {
       for (BasicBlock *Pred : predecessors(UsersDominator))
-        UsersDominator = DT.findNearestCommonDominator(UsersDominator, Pred);
+        if (DT.isReachableFromEntry(Pred))
+          UsersDominator = DT.findNearestCommonDominator(UsersDominator, Pred);
     }
 
     // We finally found a place where I can be moved while not introducing extra
@@ -204,7 +205,7 @@ static bool runMoveAutoInit(Function &F, DominatorTree &DT, MemorySSA &MSSA) {
   // if two instructions are moved from the same BB to the same BB, we insert
   // the second one in the front, then the first on top of it.
   for (auto &Job : reverse(JobList)) {
-    Job.first->moveBefore(&*Job.second->getFirstInsertionPt());
+    Job.first->moveBefore(*Job.second, Job.second->getFirstInsertionPt());
     MSSAU.moveToPlace(MSSA.getMemoryAccess(Job.first), Job.first->getParent(),
                       MemorySSA::InsertionPlace::Beginning);
   }

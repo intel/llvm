@@ -1,3 +1,8 @@
+// GPU driver had an error in handling of SLM aligned block_loads/stores,
+// which has been fixed only in "1.3.26816", and in win/opencl version going
+// _after_ 101.4575.
+// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+//
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
@@ -8,9 +13,12 @@
  * Test check basic support of local memory access in invoke_simd.
  */
 
+#include "../../ESIMD/esimd_test_utils.hpp"
+
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -44,8 +52,8 @@ ESIMD_INLINE void slm_load_store_test(
     dtype *C, esimd::simd<uint32_t, VL> GlobalByteOffsets) SYCL_ESIMD_FUNCTION {
 
   uint32_t LocalAccOffset =
-      static_cast<uint32_t>(
-          reinterpret_cast<std::uintptr_t>(LocalAcc.get_pointer())) +
+      static_cast<uint32_t>(reinterpret_cast<std::uintptr_t>(
+          LocalAcc.get_multi_ptr<access::decorated::yes>().get())) +
       LAByteOffset;
   auto Local1 = esimd::slm_block_load<dtype, VL>(LocalAccOffset);
   auto Local2 = esimd::slm_block_load<dtype, VL>(LocalAccOffset +
@@ -76,6 +84,7 @@ int main(void) {
   auto Dev = Q.get_device();
   std::cout << "Running on " << Dev.get_info<sycl::info::device::name>()
             << std::endl;
+
   auto DeviceSLMSize = Dev.get_info<sycl::info::device::local_mem_size>();
   std::cout << "Local Memory Size: " << DeviceSLMSize << std::endl;
 

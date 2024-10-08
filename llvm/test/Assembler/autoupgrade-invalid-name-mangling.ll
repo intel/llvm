@@ -1,4 +1,4 @@
-; RUN: not llvm-as -opaque-pointers < %s 2>&1 | FileCheck %s
+; RUN: not llvm-as < %s 2>&1 | FileCheck %s
 
 ; CHECK: Intrinsic called with incompatible signature
 ; CHECK-NEXT: %reg = call i32 @llvm.read_register.i64(

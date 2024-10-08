@@ -3,14 +3,11 @@
 
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-DISABLED
 
-// RUN: %{build} -sycl-std=2017 -o %t.out
-// RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-DISABLED
-
 // RUN: %{build} -sycl-std=2020 -o %t.out
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out | FileCheck %s --check-prefix CHECK-ENABLED
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 range<1> Range1 = {0};
@@ -54,11 +51,11 @@ int main() {
 }
 
 // CHECK-DISABLED:  Run parallel_for
-// CHECK-DISABLED-NOT: parallel_for range adjusted from 1500
+// CHECK-DISABLED-NOT: parallel_for range adjusted at dim 0 from 1500
 // CHECK-DISABLED:  Size seen by user = 1500
 // CHECK-DISABLED-NEXT:  Counter = 1500
 
 // CHECK-ENABLED:  Run parallel_for
-// CHECK-ENABLED-NEXT: parallel_for range adjusted from 1500
+// CHECK-ENABLED-NEXT: parallel_for range adjusted at dim 0 from 1500
 // CHECK-ENABLED-NEXT:  Size seen by user = 1500
 // CHECK-ENABLED-NEXT:  Counter = 1500

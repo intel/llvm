@@ -173,16 +173,14 @@ define void @freeze_extractelement(ptr %origin0, ptr %origin1, ptr %dst) nounwin
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %edx
 ; X86-NEXT:    vmovdqa (%edx), %xmm0
 ; X86-NEXT:    vpand (%ecx), %xmm0, %xmm0
-; X86-NEXT:    vpextrb $6, %xmm0, %ecx
-; X86-NEXT:    movb %cl, (%eax)
+; X86-NEXT:    vpextrb $6, %xmm0, (%eax)
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: freeze_extractelement:
 ; X64:       # %bb.0:
 ; X64-NEXT:    vmovdqa (%rdi), %xmm0
 ; X64-NEXT:    vpand (%rsi), %xmm0, %xmm0
-; X64-NEXT:    vpextrb $6, %xmm0, %eax
-; X64-NEXT:    movb %al, (%rdx)
+; X64-NEXT:    vpextrb $6, %xmm0, (%rdx)
 ; X64-NEXT:    retq
   %i0 = load <16 x i8>, ptr %origin0
   %i1 = load <16 x i8>, ptr %origin1
@@ -280,7 +278,7 @@ define void @freeze_buildvector_single_maybe_poison_operand(ptr %origin, ptr %ds
 ; X86:       # %bb.0:
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
-; X86-NEXT:    vmovdqa {{.*#+}} xmm0 = <u,42,42,42>
+; X86-NEXT:    vbroadcastss {{.*#+}} xmm0 = [42,42,42,42]
 ; X86-NEXT:    vpinsrd $0, (%ecx), %xmm0, %xmm0
 ; X86-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
 ; X86-NEXT:    vmovdqa %xmm0, (%eax)
@@ -288,7 +286,7 @@ define void @freeze_buildvector_single_maybe_poison_operand(ptr %origin, ptr %ds
 ;
 ; X64-LABEL: freeze_buildvector_single_maybe_poison_operand:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa {{.*#+}} xmm0 = <u,42,42,42>
+; X64-NEXT:    vpbroadcastd {{.*#+}} xmm0 = [42,42,42,42]
 ; X64-NEXT:    vpinsrd $0, (%rdi), %xmm0, %xmm0
 ; X64-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [7,7,7,7]
 ; X64-NEXT:    vpand %xmm1, %xmm0, %xmm0
@@ -313,7 +311,7 @@ define void @freeze_buildvector_single_repeated_maybe_poison_operand(ptr %origin
 ; X86-NEXT:    movl {{[0-9]+}}(%esp), %ecx
 ; X86-NEXT:    movl (%ecx), %ecx
 ; X86-NEXT:    andl $15, %ecx
-; X86-NEXT:    vmovdqa {{.*#+}} xmm0 = <u,42,u,u>
+; X86-NEXT:    vbroadcastss {{.*#+}} xmm0 = [42,42,42,42]
 ; X86-NEXT:    vpinsrd $0, %ecx, %xmm0, %xmm0
 ; X86-NEXT:    vpshufd {{.*#+}} xmm0 = xmm0[0,1,0,1]
 ; X86-NEXT:    vpand {{\.?LCPI[0-9]+_[0-9]+}}, %xmm0, %xmm0
@@ -322,7 +320,7 @@ define void @freeze_buildvector_single_repeated_maybe_poison_operand(ptr %origin
 ;
 ; X64-LABEL: freeze_buildvector_single_repeated_maybe_poison_operand:
 ; X64:       # %bb.0:
-; X64-NEXT:    vmovdqa {{.*#+}} xmm0 = <u,42,u,u>
+; X64-NEXT:    vpbroadcastd {{.*#+}} xmm0 = [42,42,42,42]
 ; X64-NEXT:    vpinsrd $0, (%rdi), %xmm0, %xmm0
 ; X64-NEXT:    vpbroadcastq %xmm0, %xmm0
 ; X64-NEXT:    vpbroadcastd {{.*#+}} xmm1 = [7,7,7,7]
@@ -350,7 +348,7 @@ define void @freeze_two_frozen_buildvectors(ptr %origin0, ptr %origin1, ptr %dst
 ; X86-NEXT:    movl (%edx), %edx
 ; X86-NEXT:    andl $15, %edx
 ; X86-NEXT:    vpinsrd $1, %edx, %xmm0, %xmm0
-; X86-NEXT:    vmovdqa {{.*#+}} xmm1 = [7,7,7,7]
+; X86-NEXT:    vbroadcastss {{.*#+}} xmm1 = [7,7,7,7]
 ; X86-NEXT:    vpand %xmm1, %xmm0, %xmm0
 ; X86-NEXT:    vmovdqa %xmm0, (%ecx)
 ; X86-NEXT:    vmovd %edx, %xmm0
@@ -403,7 +401,7 @@ define void @freeze_two_buildvectors_only_one_frozen(ptr %origin0, ptr %origin1,
 ; X86-NEXT:    vmovd %edx, %xmm1
 ; X86-NEXT:    vpshufd {{.*#+}} xmm2 = xmm1[0,0,1,1]
 ; X86-NEXT:    vpblendw {{.*#+}} xmm0 = xmm0[0,1],xmm2[2,3],xmm0[4,5,6,7]
-; X86-NEXT:    vmovdqa {{.*#+}} xmm2 = [7,7,7,7]
+; X86-NEXT:    vbroadcastss {{.*#+}} xmm2 = [7,7,7,7]
 ; X86-NEXT:    vpand %xmm2, %xmm0, %xmm0
 ; X86-NEXT:    vmovdqa %xmm0, (%ecx)
 ; X86-NEXT:    vpshufd {{.*#+}} xmm0 = xmm1[0,1,0,1]
@@ -674,3 +672,23 @@ define void @pr59677(i32 %x, ptr %out) nounwind {
   ret void
 }
 declare <4 x float> @llvm.sin.v4f32(<4 x float>)
+
+; Test that we can eliminate freeze by changing the BUILD_VECTOR to a splat
+; zero vector.
+define void @freeze_buildvector_not_simple_type(ptr %dst) nounwind {
+; X86-LABEL: freeze_buildvector_not_simple_type:
+; X86:       # %bb.0:
+; X86-NEXT:    movl {{[0-9]+}}(%esp), %eax
+; X86-NEXT:    movb $0, 4(%eax)
+; X86-NEXT:    movl $0, (%eax)
+; X86-NEXT:    retl
+;
+; X64-LABEL: freeze_buildvector_not_simple_type:
+; X64:       # %bb.0:
+; X64-NEXT:    movb $0, 4(%rdi)
+; X64-NEXT:    movl $0, (%rdi)
+; X64-NEXT:    retq
+  %i0 = freeze <5 x i8> <i8 poison, i8 0, i8 0, i8 undef, i8 0>
+  store <5 x i8> %i0, ptr %dst
+  ret void
+}

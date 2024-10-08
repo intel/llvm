@@ -1,22 +1,30 @@
-// RUN: %{build} -O3 -o %t.out -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70
+// RUN: %{build} -O3 -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
-//
-// Tracked in the internal bug tracking system.
-// UNSUPPORTED: gpu-intel-pvc
 
 #include "atomic_memory_order.h"
+#include <cmath>
 #include <iostream>
 #include <numeric>
+#include <sycl/aspects.hpp>
 using namespace sycl;
 
 constexpr size_t N_items = 128;
 
 size_t CalculateIterations(device &device, size_t iter_cap) {
-  uint64_t max_chars_alloc =
-      device.get_info<info::device::max_mem_alloc_size>() / sizeof(char);
+  uint64_t max_alloc_size = device.get_info<info::device::max_mem_alloc_size>();
+  // If querying free memory is supported, use that as the max for allocation.
+  if (device.has(aspect::ext_intel_free_memory)) {
+    uint64_t free_memory =
+        device.get_info<ext::intel::info::device::free_memory>();
+    max_alloc_size = std::min(max_alloc_size, free_memory);
+  } else {
+    std::cout << "Warning: free_memory device info query not supported. "
+              << "Beware of allocating too much memory on the device.\n";
+  }
+  uint64_t max_chars_alloc = max_alloc_size / sizeof(char);
   size_t max_iter =
-      (sycl::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
-  return sycl::min(max_iter, iter_cap);
+      (std::sqrt(static_cast<double>(max_chars_alloc)) - 1) / (N_items / 2);
+  return std::min(max_iter, iter_cap);
 }
 
 void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
@@ -39,8 +47,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   });
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access::mode::read>(cgh);
-    auto checked =
-        checked_buf.template get_access<access::mode::discard_write>(cgh);
+    auto checked = checked_buf.template get_access<access::mode::write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items / 2, 32), [=](nd_item<1> it) {
       size_t id = it.get_global_id(0);
       for (int i = 1; i < N_iters; i++) {
@@ -58,7 +65,7 @@ void check(queue &q, buffer<int, 2> &res_buf, size_t N_iters) {
   q.submit([&](handler &cgh) {
     auto res = res_buf.template get_access<access::mode::read>(cgh);
     auto checked = checked_buf.template get_access<access::mode::read>(cgh);
-    auto err = err_buf.template get_access<access::mode::discard_write>(cgh);
+    auto err = err_buf.template get_access<access::mode::write>(cgh);
     cgh.parallel_for(nd_range<1>(N_items / 2, 32), [=](nd_item<1> it) {
       size_t id = it.get_global_id(0);
       for (int i = 1; i < N_iters; i++) {

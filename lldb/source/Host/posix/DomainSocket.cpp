@@ -48,7 +48,8 @@ static bool SetSockAddr(llvm::StringRef name, const size_t name_offset,
     saddr_un_len =
         offsetof(struct sockaddr_un, sun_path) + name_offset + name.size();
 
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__)
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) ||       \
+    defined(__OpenBSD__)
   saddr_un->sun_len = saddr_un_len;
 #endif
 
@@ -73,7 +74,7 @@ Status DomainSocket::Connect(llvm::StringRef name) {
   sockaddr_un saddr_un;
   socklen_t saddr_un_len;
   if (!SetSockAddr(name, GetNameOffset(), &saddr_un, saddr_un_len))
-    return Status("Failed to set socket address");
+    return Status::FromErrorString("Failed to set socket address");
 
   Status error;
   m_socket = CreateSocket(kDomain, kType, 0, m_child_processes_inherit, error);
@@ -90,7 +91,7 @@ Status DomainSocket::Listen(llvm::StringRef name, int backlog) {
   sockaddr_un saddr_un;
   socklen_t saddr_un_len;
   if (!SetSockAddr(name, GetNameOffset(), &saddr_un, saddr_un_len))
-    return Status("Failed to set socket address");
+    return Status::FromErrorString("Failed to set socket address");
 
   DeleteSocketFile(name);
 

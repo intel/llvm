@@ -1,6 +1,6 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s
 
 ; CHECK: [[#GVExpr:]] = !DIGlobalVariableExpression(var: ![[#GV:]], expr: !DIExpression())
@@ -16,7 +16,6 @@ target triple = "spir64-unknown-unknown"
 
 define spir_func void @_Z3barBase() !dbg !12 {
 entry:
-  %0 = getelementptr inbounds [13 x i8], ptr addrspace(2) @.str, i64 0, i64 0
   ret void
 }
 

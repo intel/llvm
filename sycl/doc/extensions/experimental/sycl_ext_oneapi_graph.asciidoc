@@ -1,0 +1,2195 @@
+= sycl_ext_oneapi_graph
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:sectnums:
+:dpcpp: pass:[DPC++]
+
+:blank: pass:[ +]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+== Notice
+
+Copyright (c) 2022-2023 Intel Corporation.  All rights reserved.
+
+NOTE: Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are
+trademarks of The Khronos Group Inc. OpenCL(TM) is a trademark of Apple Inc.
+used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+== Contributors
+
+Pablo Reble, Intel +
+Julian Miller, Intel +
+John Pennycook, Intel +
+Guo Yejun, Intel +
+Dan Holmes, Intel +
+Greg Lueck, Intel +
+Steffen Larsen, Intel +
+Jaime Arteaga Molina, Intel +
+Andrei Elovikov, Intel +
+Ewan Crawford, Codeplay +
+Ben Tracy, Codeplay +
+Duncan McBain, Codeplay +
+Peter Žužek, Codeplay +
+Ruyman Reyes, Codeplay +
+Gordon Brown, Codeplay +
+Erik Tomusk, Codeplay +
+Bjoern Knafla, Codeplay +
+Lukas Sommer, Codeplay +
+Maxime France-Pillois, Codeplay +
+Jack Kirk, Codeplay +
+Ronan Keryell, AMD +
+Andrey Alekseenko, KTH Royal Institute of Technology +
+Fábio Mestre, Codeplay +
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
+
+== Introduction
+
+With command groups SYCL is already able to create an implicit dependency
+graph (in the form of a directed acyclic graph) of kernel execution at runtime,
+as a command group object defines a set of requisites (edges) which must be
+satisfied for commands (nodes) to be executed. However, because command-group
+submission is tied to execution on the queue, without having a prior
+construction step before starting execution, optimization opportunities are
+missed from the runtime not being made aware of a defined dependency graph ahead
+of execution.
+
+The following benefits would become possible if the user could define a
+dependency graph to the SYCL runtime prior to execution:
+
+* Reduction in runtime overhead by only submitting a single graph object, rather
+  than many individual command groups.
+
+* Enable more work to be done ahead of time to improve runtime performance. This
+  early work could be done in a setup phase of the program prior to repeated
+  executions of the graph. Alternately, a future offline AOT compiler in a different
+  process could be run prior to the execution of the application.
+
+* Unlock DMA hardware features through graph analysis by the runtime.
+
+* Graph optimizations become available, including but not limited to:
+** Kernel fusion/fission.
+** Inter-node memory reuse from data staying resident on device.
+** Identification of the peak intermediate output memory requirement, used for
+   more optimal memory allocation.
+
+As well as benefits to the SYCL runtime, there are also advantages to the user
+developing SYCL applications, as repetitive workloads no longer have to
+redundantly issue the same sequence of commands. Instead, a graph is only
+constructed once and submitted for execution as many times as is necessary, only
+changing the data in input buffers or USM allocations. For applications from
+specific domains, such as machine learning, where the same command group pattern
+is run repeatedly for different inputs, this is particularly useful.
+
+=== Requirements
+
+In order to achieve the goals described in previous sections, the following
+requirements were considered:
+
+1. Ability to update parameters of the graph between submissions, without
+   changing the overall graph structure.
+2. Enable low effort porting of existing applications to use the extension.
+3. Profiling, debugging, and tracing functionality at the granularity of graph
+   nodes.
+4. Integrate sub-graphs (previously constructed graphs) when constructing a new
+   graph.
+5. Support the USM model of memory as well as buffer/accessor model.
+6. Compatible with other SYCL extensions and features, e.g. kernel fusion &
+   built-in kernels.
+7. Ability to record a graph with commands submitted to different devices in the
+   same context.
+8. Capability to serialize graphs to a binary format which can then be
+   de-serialized and executed. This is helpful for AOT cases where a graph
+   can be created by an offline tool to be loaded and run without the end-user
+   incurring the overheads of graph creation.
+9. Backend interoperability, the ability to retrieve a native graph object from
+    the graph and use that in a native backend API.
+
+To allow for prototype implementations of this extension to be developed
+quickly for evaluation the scope of this proposal was limited to a subset
+of these requirements. In particular, the serialization functionality (8),
+backend interoperability (9), and a profiling/debugging interface (3) were
+omitted. As these are not easy to abstract over several backends without
+significant investigation. It is also hoped these features can be exposed as
+additive changes to the API, and thus introduced in future versions of the
+extension.
+
+Another reason for deferring a serialize/deserialize API (8) is that its scope
+could extend from emitting the graph in a binary format, to emitting a
+standardized IR format that enables further device specific graph optimizations.
+
+Multi-device support (7) is something that we are considering introducing into
+the extension in later revisions, which may result in API changes. It has been
+planned for to the extent that the definition of a graph node is device
+specific, however currently all nodes in a graph must target the same device
+provided to the graph constructor.
+
+=== Graph Building Mechanisms
+
+This extension contains two different API mechanisms for constructing a graph
+of commands:
+
+1. **Explicit graph building API** - Allows users to specify the exact nodes
+and edges they want to add to the graph.
+
+2. **Queue recording API (aka "Record & Replay")** - Introduces state to a
+`sycl::queue` such that rather than scheduling commands immediately for
+execution, they are added to the graph object instead, with edges captured from
+the dependencies of the command group.
+
+Each of these mechanisms for constructing a graph have their own advantages, so
+having both APIs available allows the user to pick the one which is most
+suitable for them. The queue recording API allows quicker porting of existing
+applications, and can capture external work that is submitted to a queue, for
+example via library function calls. While the explicit API can better express
+what data is internal to the graph for optimization, and dependencies don't need
+to be inferred.
+
+It is valid to combine these two mechanisms, however it is invalid to modify
+a graph using the explicit API while that graph is currently recording commands
+from any queue, for example:
+
+[source, c++]
+----
+graph.begin_recording(queue);
+graph.add(/*command group*/);    // Invalid as graph is recording a queue
+graph.end_recording();
+----
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification section 6.3.3 "Feature test macros".  Therefore, an
+implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_GRAPH` to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's APIs the implementation supports.
+
+Table {counter: tableNumber}. Values of the `SYCL_EXT_ONEAPI_GRAPH` macro.
+[%header,cols="1,5"]
+|===
+|Value |Description
+|1     |Initial extension version. Base features are supported.
+|===
+
+=== SYCL Graph Terminology [[terminology]]
+
+Table {counter: tableNumber}. Terminology.
+[%header,cols="1,3"]
+|===
+| Concept | Description
+
+| Graph
+| A directed and acyclic graph (DAG) of commands (nodes) and their dependencies
+(edges), represented by the `command_graph` class.
+
+| Node
+| A command, which can have different attributes, targeting a specific device.
+
+| Edge
+| Dependency between commands as a happens-before relationship.
+
+|===
+
+==== Explicit Graph Building API
+
+When using the explicit graph building API to construct a graph, nodes and
+edges are captured as follows.
+
+Table {counter: tableNumber}. Explicit Graph Definition.
+[%header,cols="1,3"]
+|===
+| Concept | Description
+
+| Node
+| In the explicit graph building API nodes are created by the user invoking
+methods on a modifiable graph passing a command-group function (CGF). Each node
+represents either a command-group or an empty operation.
+
+| Edge
+| In the explicit graph building API edges are primarily defined by the user
+through newly added interfaces. This is either using the `make_edge()` function
+to define an edge between existing nodes, or using a
+`property::node::depends_on` property list when adding a new node to the graph.
+
+Edges can also be created when explicitly adding nodes to the graph through
+existing SYCL mechanisms for expressing dependencies. Data dependencies from
+accessors to existing nodes in the graph are captured as an edge. Using
+`handler::depends_on()` will also create a graph edge when passed an event
+returned from a queue submission captured by a queue recording to the same
+graph.
+|===
+
+==== Queue Recording API
+
+When using the record & replay API to construct a graph by recording a queue,
+nodes and edges are captured as follows.
+
+Table {counter: tableNumber}. Recorded Graph Definition.
+[%header,cols="1,3"]
+|===
+| Concept | Description
+
+| Node
+| A node in a queue recorded graph represents a command-group submission to the
+device associated with the queue being recorded. Nodes are constructed from
+the command-group functions (CGF) passed to `queue::submit()`, or from the queue
+shortcut equivalents for the defined handler command types. Each submission
+encompasses either one or both of a.) some data movement, b.) a single
+asynchronous command launch. Nodes cannot define forward edges, only backwards.
+That is, nodes can only create dependencies on command-groups that have already
+been submitted.
+
+| Edge
+| An edge in a queue recorded graph is expressed through command group
+dependencies in one of three ways. Firstly, through buffer accessors that
+represent data dependencies between two command groups captured as nodes.
+Secondly, by using the `handler::depends_on()` mechanism inside a command group
+captured as a node. However, for an event passed to `handler::depends_on()` to
+create an edge, it must be an event returned from a queue
+submission captured by the same graph. Otherwise, a synchronous error will be
+thrown with error code `invalid`. `handler::depends_on()` can be
+used to express edges when a user is working with USM memory rather than SYCL
+buffers. Thirdly, for a graph recorded with an in-order queue, an edge is added
+automatically between two sequential command groups submitted to the in-order queue.
+|===
+
+==== Sub-Graph
+
+A node in a graph can take the form of a nested sub-graph. This occurs when
+a command-group submission that invokes `handler::ext_oneapi_graph()` with an
+executable graph object is added to the graph as a node. The child graph node is
+scheduled in the parent graph as-if edges are created to connect the root nodes
+of the child graph with the dependent nodes of the parent graph.
+
+Adding an executable graph as a sub-graph does not affect its existing node
+dependencies, such that it could be submitted in future without any side
+effects of prior uses as a sub-graph.
+
+=== Querying Device Support
+
+Due to the experimental nature of the extension, support is not available across
+all devices.
+
+Table {counter: tableNumber}. Device Support Aspect.
+[%header]
+|===
+| Device Descriptor | Description
+
+|`aspect::ext_oneapi_graph`
+| Indicates that the device supports all the APIs described in this extension.
+|`aspect::ext_oneapi_limited_graph`
+| Indicates that the device supports all the APIs described in this extension
+except for those described in the <<executable-graph-update, Executable Graph
+Update>> section. This is a temporary aspect that we intend to remove once
+devices with full graph support are more prevalent.
+
+|===
+
+
+=== Node
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+enum class node_type {
+  empty,
+  subgraph,
+  kernel,
+  memcpy,
+  memset,
+  memfill,
+  prefetch,
+  memadvise,
+  ext_oneapi_barrier,
+  host_task,
+};
+
+class node {
+public:
+  node() = delete;
+
+  node_type get_type() const;
+
+  std::vector<node> get_predecessors() const;
+
+  std::vector<node> get_successors() const;
+
+  static node get_node_from_event(event nodeEvent);
+
+  template <int Dimensions>
+  void update_nd_range(nd_range<Dimensions> executionRange);
+
+  template <int Dimensions>
+  void update_range(range<Dimensions> executionRange);
+};
+
+}  // sycl::namespace ext::oneapi::experimental
+----
+
+:crs: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:reference-semantics
+
+Node is a class that encapsulates tasks like SYCL kernel functions, or memory
+operations for deferred execution. A graph must
+be created first, the structure of a graph is defined second by adding nodes and
+edges.
+
+The `node` class provides the {crs}[common reference semantics].
+
+==== Node Member Functions
+
+Table {counter: tableNumber}. Member functions of the `node` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+node_type get_type() const;
+----
+|Returns a value representing the type of command this node represents.
+
+|
+[source,c++]
+----
+std::vector<node> get_predecessors() const;
+----
+|Returns a list of the predecessor nodes which this node directly depends on.
+
+|
+[source,c++]
+----
+std::vector<node> get_successors() const;
+----
+|Returns a list of the successor nodes which directly depend on this node.
+
+|
+[source,c++]
+----
+static node get_node_from_event(event nodeEvent);
+----
+|Finds the node associated with an event created from a submission to a queue
+ in the recording state.
+
+Parameters:
+
+* `nodeEvent` - Event returned from a submission to a queue in the recording
+  state.
+
+Returns: Graph node that was created when the command that returned
+`nodeEvent` was submitted.
+
+Exceptions:
+
+* Throws with error code `invalid` if `nodeEvent` is not associated with a
+  graph node.
+
+|
+[source,c++]
+----
+template <int Dimensions>
+void update_nd_range(nd_range<Dimensions> executionRange);
+----
+| Updates the ND-Range for this node with a new value. This new value will not
+affect any executable graphs this node is part of until it is passed to the
+executable graph's update function.
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating kernel nodes.
+
+Parameters:
+
+* `executionRange` - The new value for the ND-Range.
+
+Exceptions:
+
+* Throws with error code `invalid` if `Dimensions` does not match the dimensions
+  of the nd_range the kernel was originally created with.
+
+* Throws with error code `invalid` if the kernel node was originally created
+  with a `sycl::range`.
+
+* Throws with error code `invalid` if the type of the node is not a kernel
+  execution.
+
+|
+[source,c++]
+----
+template <int Dimensions>
+void update_range(range<Dimensions> executionRange);
+----
+| Updates the execution Range for this node with a new value. This new value
+will not affect any executable graphs this node is part of until it is
+passed to the executable graph's update function.
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating kernel nodes.
+
+Parameters:
+
+* `executionRange` - The new value for the Range.
+
+Exceptions:
+
+* Throws with error code `invalid` if `Dimensions` does not match the dimensions
+  of the range the kernel was originally created with.
+
+* Throws with error code `invalid` if the kernel node was originally created
+  with a `sycl::nd_range`.
+
+* Throws with error code `invalid` if the type of the node is not a kernel
+  execution.
+
+|===
+
+==== Dynamic Parameters
+
+[source,c++]
+----
+namespace ext::oneapi::experimental{
+template <typename ValueT>
+class dynamic_parameter {
+public:
+  dynamic_parameter(command_graph<graph_state::modifiable> graph, const ValueT &initialValue);
+
+  void update(const ValueT& newValue);
+};
+}
+----
+
+Dynamic parameters are arguments to a node's command-group which can be updated
+by the user after the node has been added to a graph. Updating the value of a
+dynamic parameter will be reflected in the modifiable graph which contains this
+node. These updated nodes can then be passed to an executable graph to update
+it with new values.
+
+The type of the underlying object a dynamic parameter represents is set at
+compile time using a template parameter. This underlying type can be an
+accessor, a pointer to a USM allocation, scalar passed by value, or a raw byte
+representation of the argument. The raw byte representation is intended to
+enable updating arguments set using
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+
+Dynamic parameters are registered with nodes in a modifiable graph, with each
+registration associating one or more node arguments to the dynamic parameter
+instance. Registration happens inside the command-group that the node
+represents, and is done when dynamic parameters are set as parameters to the
+kernel using `handler::set_arg()`/`handler::set_args()`. It is valid for a node
+argument to be registered with more than one dynamic parameter instance.
+
+See <<executable-graph-update, Executable Graph Update>> for more information
+about updating node parameters.
+
+The `dynamic_parameter` class provides the {crs}[common reference semantics].
+
+Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
+[cols="2a,a"]
+|===
+|Member Function|Description
+
+|
+[source,c++]
+----
+dynamic_parameter(command_graph<graph_state::modifiable> graph, 
+                  const ValueT &initialValue);
+----
+|Constructs a dynamic parameter object that can be registered with command graph
+nodes with an initial value.
+
+Parameters:
+
+* `graph` - Graph containing the nodes which will have dynamic parameters.
+* `initialValue` - Initial value of this parameter.
+
+|
+[source,c++]
+----
+void update(const ValueT& newValue);
+----
+
+|Updates parameters in all nodes registered with this dynamic parameter to
+`newValue`. This new value will be reflected immediately in the modifiable graph
+which contains the registered nodes. The new value will not be reflected in any
+executable graphs created from that modifiable graph until
+`command_graph::update()` is called passing the modified nodes, or a new
+executable graph is finalized from the modifiable graph.
+
+It is not an error if `newValue` is set to the current parameter value in any
+registered nodes.
+
+Parameters:
+
+* `newValue` - Value to update the registered node parameters to.
+
+|===
+
+==== Depends-On Property
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class depends_on {
+  public:
+    template<typename... NodeTN>
+    depends_on(NodeTN... nodes);
+};
+}
+----
+
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on` property to
+be passed here. `depends_on` defines any `node` objects for the created node to
+be dependent on, and therefore form an edge with. These nodes are in addition to
+the dependent nodes identified from the command-group requisites of the created
+node.
+
+==== Depends-On-All-Leaves Property
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::node {
+class depends_on_all_leaves {
+  public:
+    depends_on_all_leaves() = default;
+};
+}
+----
+
+The API for explicitly adding nodes to a `command_graph` includes a
+`property_list` parameter. This extension defines the `depends_on_all_leaves`
+property to be passed here. `depends_on_all_leaves` provides a shortcut for
+adding all the current leaves of a graph as dependencies.
+
+=== Graph
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::experimental {
+// State of a graph
+enum class graph_state {
+  modifiable,
+  executable
+};
+
+// New object representing graph
+template<graph_state State = graph_state::modifiable>
+class command_graph {};
+
+template<>
+class command_graph<graph_state::modifiable> {
+public:
+  command_graph(const context& syclContext, const device& syclDevice,
+                const property_list& propList = {});
+
+  command_graph(const queue& syclQueue,
+                const property_list& propList = {});
+
+  command_graph<graph_state::executable>
+  finalize(const property_list& propList = {}) const;
+
+  void begin_recording(queue& recordingQueue, const property_list& propList = {});
+  void begin_recording(const std::vector<queue>& recordingQueues, const property_list& propList = {});
+
+  void end_recording();
+  void end_recording(queue& recordingQueue);
+  void end_recording(const std::vector<queue>& recordingQueues);
+
+  node add(const property_list& propList = {});
+
+  template<typename T>
+  node add(T cgf, const property_list& propList = {});
+
+  void make_edge(node& src, node& dest);
+
+  void print_graph(std::string path, bool verbose = false) const;
+
+  std::vector<node> get_nodes() const;
+  std::vector<node> get_root_nodes() const;
+};
+
+template<>
+class command_graph<graph_state::executable> {
+public:
+    command_graph() = delete;
+
+    void update(node& node);
+    void update(const std::vector<node>& nodes);
+    void update(const command_graph<graph_state::modifiable>& graph);
+};
+
+}  // namespace sycl::ext::oneapi::experimental
+----
+
+This extension adds a new `command_graph` object which follows the
+{crs}[common reference semantics] of other SYCL runtime objects.
+
+A `command_graph` represents a directed acyclic graph of nodes, where each node
+represents a single command for a specific device or a sub-graph. The execution
+of a graph completes when all its nodes have completed.
+
+A `command_graph` is built up by either recording queue submissions or
+explicitly adding nodes, then once the user is happy that the graph is complete,
+the graph instance is finalized into an executable variant which can have no
+more nodes added to it. Finalization may be a computationally expensive
+operation as the runtime can perform optimizations based on the graph
+structure. After finalization the graph can be submitted for execution on a
+queue one or more times with reduced overhead.
+
+A `command_graph` can be submitted to both in-order and out-of-order queues. Any
+dependencies between the graph and other command-groups submitted to the same 
+queue will be respected. However, the in-order and out-of-order properties of the
+queue have no effect on how the nodes within the graph are executed (e.g. the graph
+nodes without dependency edges may execute out-of-order even when using an in-order
+queue). For further information about how the properties of a queue affect graphs
+<<Queue Properties, see the section on Queue Properties>>
+
+==== Graph State
+
+An instance of a `command_graph` object can be in one of two states:
+
+* **Modifiable** - Graph is under construction and new nodes may be added to it.
+* **Executable** - Graph topology is fixed after finalization and graph is ready to
+  be submitted for execution.
+
+A `command_graph` object is constructed in the _modifiable_ state and is made
+_executable_ by the user invoking `command_graph::finalize()` to create a
+new executable instance of the graph. An executable graph cannot be converted
+to a modifiable graph. After finalizing a graph in the modifiable state, it is
+valid for a user to add additional nodes and finalize again to create subsequent
+executable graphs. The state of a `command_graph` object is made explicit by
+templating on state to make the class strongly typed, with the default template
+argument being `graph_state::modifiable` to reduce code verbosity on
+construction.
+
+.Graph State Diagram
+[source, mermaid]
+....
+graph LR
+    Modifiable -->|Finalize| Executable
+....
+
+==== Executable Graph Update [[executable-graph-update]]
+
+A graph in the executable state can have the configuration of its nodes modified
+using a concept called graph _update_. This avoids a user having to rebuild and
+finalize a new executable graph when only the parameters of graph nodes change
+between submissions.
+
+Updates to a graph will be scheduled after any in-flight executions of the same
+graph and will not affect previous submissions of the same graph. The user is
+not required to wait on any previous submissions of a graph before updating it.
+
+The only type of nodes that are currently able to be updated in a graph are
+kernel execution nodes.
+
+The aspects of a kernel execution node that can be configured during update are:
+
+* Parameters to the kernel.
+* Execution ND-Range of the kernel.
+
+To update an executable graph, the `property::graph::updatable` property must
+have been set when the graph was created during finalization. Otherwise, an
+exception will be thrown if a user tries to update an executable graph. This
+guarantee allows the backend to provide a more optimized implementation, if
+possible.
+
+===== Individual Node Update
+
+Parameters to individual nodes in a graph in the `executable` state can be
+updated between graph executions using dynamic parameters. A `dynamic_parameter`
+object is created with a modifiable state graph and an initial value for the
+parameter. Dynamic parameters can then be registered with nodes in that graph
+when passed to calls to `set_arg()/set_args()`.
+
+Parameter updates are performed using a `dynamic_parameter` instance by calling
+`dynamic_parameter::update()` to update all the parameters of nodes to which the
+`dynamic_parameter` is registered. Updates will not affect any nodes which were
+not registered, even if they use the same parameter value as a
+`dynamic_parameter`.
+
+The other node configuration that can be updated is the execution range of the
+kernel, this can be set through `node::update_nd_range()` or
+`node::update_range()` but does not require any prior registration.
+
+The executable graph can then be updated by passing the updated nodes to
+`command_graph<graph_state::executable>::update(node& node)` or
+`command_graph<graph_state::executable>::update(const std::vector<node>& nodes)`.
+
+Since the structure of the graph became fixed when finalizing, updating
+parameters on a node will not change the already defined dependencies between
+nodes. This is important to note when updating buffer parameters to a node,
+since no edges will be automatically created or removed based on this change.
+Care should be taken that updates of buffer parameters do not change the
+behavior of a graph when executed.
+
+For example, if there are two nodes (NodeA and NodeB) which are connected
+by an edge due to a dependency on the same buffer, both nodes must have
+this buffer parameter updated to the new value. This maintains the correct
+data dependency and prevents unexpected behavior. To achieve this, one
+dynamic parameter for the buffer can be registered with all the nodes which
+use the buffer as a parameter. Then a single `dynamic_parameter::update()` call
+will maintain the graphs data dependencies.
+
+===== Whole Graph Update [[whole-graph-update]]
+
+A graph in the executable state can have all of its nodes updated using the
+`command_graph<graph_state::executable>::update(graph)` method. This method
+takes a source graph in the modifiable state and updates the nodes in the target
+executable state graph to reflect any changes made to the nodes in the source
+graph. The characteristics which will be updated are detailed in the section on
+<<executable-graph-update, Executable Graph Update>>.
+
+Both the source and target graphs for the update must satisfy the following
+conditions:
+
+* Both graphs must have been created with the same device and context.
+* Both graphs must be topologically identical. The graphs are considered
+  topologically identical when:
+
+** Both graphs must have the same number of nodes and edges.
+** Internal edges must be between corresponding nodes in each graph.
+** Nodes must be added in the same order in the two graphs. Nodes may be added
+   via `command_graph::add`, or for a recorded queue via `queue::submit` or
+   queue shortcut functions.
+** Corresponding nodes in each graph must be kernels that have the same type:
+
+*** When the kernel is defined as a lambda, the lambda must be the same.
+*** When the kernel is defined as a named function object, the kernel class
+    must be the same.
+*** When the kernel is defined as a plain function, the function must be the
+    same.
+
+** Edge dependencies for each node in the two graphs must be created in the
+   same order by using the same API invocation to create each edge. See
+   the <<terminology, terminology section>> for an exhaustive definition of
+   how edges are defined in a graph for each of the two graph construction
+   APIs.
+
+Attempting to use whole-graph update with source or target graphs which do not
+satisfy the conditions of topological identity results in undefined behaviour,
+as it may prevent the runtime from pairing nodes in the source and target
+graphs.
+
+It is valid to use nodes that contain dynamic parameters in whole graph updates.
+If a node containing a dynamic parameter is updated through the whole graph
+update API, then any previous updates to the dynamic parameter will be reflected
+in the new graph.
+
+==== Graph Properties [[graph-properties]]
+
+===== No-Cycle-Check Property
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class no_cycle_check {
+  public:
+    no_cycle_check() = default;
+};
+}
+----
+
+The `property::graph::no_cycle_check` property disables any checks if a newly
+added dependency will lead to a cycle in a specific `command_graph` and can be
+passed to a `command_graph` on construction via the property list parameter.
+As a result, no errors are reported when a function tries to create a cyclic
+dependency. Thus, it's the user's responsibility to create an acyclic graph
+for execution when this property is set. Creating a cycle in a `command_graph`
+puts that `command_graph` into an undefined state. Any further operations
+performed on a `command_graph` in this state will result in undefined
+behavior.
+
+===== Assume-Buffer-Outlives-Graph Property [[assume-buffer-outlives-graph-property]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class assume_buffer_outlives_graph {
+  public:
+    assume_buffer_outlives_graph() = default;
+};
+}
+----
+
+The `property::graph::assume_buffer_outlives_graph` property disables
+<<buffer-limitations, restrictions on using buffers>> in a `command_graph` and
+can be passed to a `command_graph` on construction via the property list
+parameter. This property represents a promise from the user that any buffer
+which is used in a graph will be kept alive on the host for the lifetime of the
+graph. Destroying that buffer during the lifetime of a `command_graph`
+constructed with this property results in undefined behavior.
+
+===== Updatable Property [[updatable-property]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class updatable {
+  public:
+    updatable() = default;
+};
+}
+----
+
+The `property::graph::updatable` property enables updating a `command_graph`
+when passed on finalization of a modifiable `command_graph`. For further
+information see <<executable-graph-update, the section on Executable Graph
+Update>>.
+
+==== Enable-Profiling Property [[enable-profiling]]
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::property::graph {
+class enable_profiling {
+  public:
+    enable_profiling() = default;
+};
+}
+----
+
+The `property::graph::enable_profiling` property enables profiling events
+returned from submissions of the executable graph. Passing this property
+implies disabling certain optimizations. As a result, the execution time of a
+graph finalized with profiling enabled is longer than that of a graph without
+profiling capability. An error will be thrown when attempting to profile an
+event from a graph submission that was created without this property.
+
+==== Graph Member Functions
+
+Table {counter: tableNumber}. Constructor of the `command_graph` class.
+[cols="2a,a"]
+|===
+|Constructor|Description
+
+|
+[source,c++]
+----
+command_graph(const context& syclContext,
+              const device& syclDevice,
+              const property_list& propList = {});
+----
+|Creates a SYCL `command_graph` object in the modifiable state for context
+`syclContext` and device `syclDevice`. Zero or more properties can be provided
+to the constructed SYCL `command_graph` via an instance of `property_list`.
+
+Constraints:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclContext` - Context which will be associated with this graph and all
+  nodes within it. This is an immutable characteristic of the graph.
+
+* `syclDevice` - Device that all nodes added to the graph will target,
+  an immutable characteristic of the graph. Must be associated with
+  `syclContext`.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `syclDevice` is not
+associated with `syclContext`.
+
+* Throws synchronously with error code `invalid` if `syclDevice`
+  <<device-info-query, reports this extension as unsupported>>.
+
+|
+[source,c++]
+----
+command_graph(const queue& syclQueue,
+              const property_list& propList = {});
+----
+|Simplified constructor form where `syclQueue` provides the device and context.
+Zero or more properties can be provided to the constructed SYCL `command_graph`
+via an instance of `property_list`.
+
+Constraints:
+
+* This constructor is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `syclQueue` - Queue which provides the SYCL device and context for the graph,
+  which are immutable characteristics of the graph. All other properties of the
+  queue are ignored for the purposes of graph creation. See the
+  <<Queue Properties, Queue Properties>> section for more general information
+  about how queue properties interact with command_graph objects.
+
+* `propList` - Optional parameter for passing properties. Valid `command_graph`
+  constructor properties are listed in Section <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the device associated with
+ `syclQueue` <<device-info-query, reports this extension as unsupported>>.
+
+|===
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+node add(const property_list& propList = {});
+----
+|This creates an empty node which contains no command. Its intended use is
+to make a connection point inside a graph between groups of nodes, and can
+significantly reduce the number of edges ( O(n) vs. O(n^2^) ).
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `propList` - Zero or more properties can be provided to the constructed node
+  via an instance of `property_list`. The `property::node::depends_on` property
+  can be passed here with a list of nodes to create dependency edges on.
+
+
+Returns: The empty node which has been added to the graph.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if a queue is recording
+  commands to the graph.
+
+|
+[source,c++]
+----
+template<typename T>
+node add(T cgf, const property_list& propList = {});
+----
+|The `cgf` command group function behaves in much the same way as the command
+group function passed to `queue::submit` unless explicitly stated otherwise in
+<<extension-interaction, Interaction With Other Extensions>>. Code in the
+function is executed synchronously, before the function returns back to
+`command_graph::add`, with the exception of any SYCL commands (e.g. kernels,
+or explicit memory copy operations). These commands are captured
+into the graph and executed asynchronously when the graph is submitted to a
+queue. The requisites of `cgf` will be used to identify any dependent nodes in
+the graph to form edges with.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `cgf` - Command group function object to be added as a node.
+
+* `propList` - Zero or more properties can be provided to the constructed node
+  via an instance of `property_list`. The `property::node::depends_on` property
+  can be passed here with a list of nodes to create dependency edges on.
+
+Returns: The command-group function object node which has been added to the graph.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if a queue is recording
+  commands to the graph.
+* Throws synchronously with error code `invalid` if the graph wasn't created with
+  the `property::graph::assume_buffer_outlives_graph` property and this command
+  uses a buffer. See the
+  <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+  property for more information.
+* Throws with error code `invalid` if the type of the command-group is not a
+  kernel execution and a `dynamic_parameter` was registered inside `cgf`.
+
+|
+[source,c++]
+----
+void make_edge(node& src, node& dest);
+----
+
+|Creates a dependency between two nodes representing a happens-before relationship.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `src` - Node which will be a dependency of `dest`.
+
+* `dest` - Node which will be dependent on `src`.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if a queue is recording
+  commands to the graph object.
+
+* Throws synchronously with error code `invalid` if `src` or `dest`
+  are not valid nodes assigned to the graph object.
+
+* Throws synchronously with error code `invalid` if `src` and `dest`
+  are the same node.
+
+* Throws synchronously with error code `invalid` if the resulting dependency would
+  lead to a cycle. This error is omitted when `property::graph::no_cycle_check` is set.
+
+|
+[source,c++]
+----
+command_graph<graph_state::executable>
+finalize(const property_list& propList = {}) const;
+----
+
+|Synchronous operation that creates a new graph in the executable state with a
+fixed topology that can be submitted for execution on any queue sharing the
+context associated with the graph. It is valid to call this method multiple times
+to create subsequent executable graphs. It is also valid to continue to add new
+nodes to the modifiable graph instance after calling this function. It is valid
+to finalize an empty graph instance with no recorded commands.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::modifiable`.
+
+Parameters:
+
+* `propList` - Optional parameter for passing properties. Two properties
+  are valid to pass here. One is `property::graph::updatable` to enable the
+  returned executable graph to be <<executable-graph-update, updated>>.
+  The other is <<enable-profiling, `property::graph::enable_profiling`>>
+  to enable profiling events returned from submissions of the executable graph.
+
+Returns: A new executable graph object which can be submitted to a queue.
+
+|
+[source,c++]
+----
+void
+print_graph(std::string path, bool verbose = false) const;
+----
+
+|Synchronous operation that writes a DOT formatted description of the graph to the
+provided path. By default, this includes the graph topology, node types, node id,
+and kernel names.
+Verbose can be set to true to write more detailed information about each node type
+such as kernel arguments, copy source, and destination addresses.
+At the moment DOT format is the only supported format. The name of the output file
+must therefore match this extension, i.e. "<filename>.dot".
+
+Parameters:
+
+* `path` - The path to write the DOT file to.
+* `verbose` - If true, print additional information about the nodes such as kernel args
+or memory access where applicable.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the path is invalid or
+the file extension is not supported or if the write operation failed.
+
+|
+[source,c++]
+----
+std::vector<node> get_nodes() const;
+----
+|Returns a list of all the nodes present in the graph in the order that they
+were added.
+
+|
+[source,c++]
+----
+std::vector<node> get_root_nodes() const;
+----
+|Returns a list of all nodes in the graph which have no dependencies.
+
+|===
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class for
+graph update.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+void update(node& node);
+----
+
+| Updates an executable graph node that corresponds to `node`. `node` must be a
+kernel execution node. Kernel arguments and the ND-range of the node will be
+updated inside the executable graph to reflect the current values in `node`.
+
+Updating these values will not change the structure of the graph.
+
+The implementation may perform a blocking wait during this call on any
+in-flight executions of that same graph if required by the backend.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `node` - The node with which the equivalent node in this graph will be
+updated.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was
+  created.
+* Throws with error code `invalid` if `node` is not part of the
+  graph.
+
+|
+[source,c++]
+----
+void update(const std::vector<node>& nodes);
+----
+
+| Updates all executable graph nodes that corresponds to the nodes contained in
+`nodes`. All nodes must be kernel nodes. Kernel arguments and the ND-range of
+each node will be updated inside the executable graph to reflect the current
+values in each node in `nodes`.
+
+Updating these values will not change the structure of the graph.
+
+The implementation may perform a blocking wait during this call on any
+in-flight executions of that same graph if required by the backend.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `nodes` - The nodes with which the equivalent nodes in this graph will be
+updated.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was created.
+* Throws with error code `invalid` if any node in `nodes` is not part of the
+  graph.
+
+|
+[source, c++]
+----
+void
+update(const command_graph<graph_state::modifiable>& source);
+----
+
+|Updates all of the nodes in the target graph with parameters from a
+topologically identical source graph in the modifiable state. The full
+definition of what constitutes a topologically identical graph can be found in
+the <<whole-graph-update, Whole-Graph Update>> section. Violating any of these
+topology requirements results in undefined behaviour.
+
+The characteristics in the executable graph which will be updated are detailed
+in the section on <<executable-graph-update, Executable Graph Update>>.
+
+It is not an error to update an executable graph such that all parameters of
+nodes in `source` are identical to the arguments of the executable graph prior to
+the update.
+
+The implementation may perform a blocking wait during this call on
+any in-flight executions of that same graph if required by the backend.
+
+This function may only be called if the graph was created with the `updatable`
+property.
+
+Constraints:
+
+* This member function is only available when the `command_graph` state is
+  `graph_state::executable`.
+
+Parameters:
+
+* `source` - Modifiable graph object used as the source for updating this graph.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `source` contains any node
+  which is not one of the following types:
+
+** `node_type::empty`
+** `node_type::ext_oneapi_barrier`
+** `node_type::kernel`
+
+* Throws synchronously with error code `invalid` if the context or device
+  associated with `source` does not match that of the `command_graph` being
+  updated.
+
+* Throws synchronously with error code `invalid` if
+  `property::graph::updatable` was not set when the executable graph was
+  created.
+|===
+
+Table {counter: tableNumber}. Member functions of the `command_graph` class for
+queue recording.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source, c++]
+----
+void
+begin_recording(queue& recordingQueue,
+                const property_list& propList = {})
+----
+
+|Synchronously changes the state of `recordingQueue` to the
+`queue_state::recording` state. This operation is an error if `recordingQueue`
+is already in the `queue_state::recording` state.
+
+Parameters:
+
+* `recordingQueue` - A `sycl::queue` object to change to the
+  `queue_state::recording` state and start recording commands to the graph
+  instance.
+
+* `propList` - Optional parameter for passing properties. Properties for
+  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `recordingQueue` is
+  already recording to a graph.
+
+* Throws synchronously with error code `invalid` if `recordingQueue` is
+  associated with a device or context that is different from the device
+  and context used on creation of the graph.
+
+|
+[source, c++]
+----
+void
+begin_recording(const std::vector<queue>& recordingQueues,
+                const property_list& propList = {})
+----
+
+|Synchronously changes the state of each queue in `recordingQueues` to the
+`queue_state::recording` state. This operation is an error for any queue in
+`recordingQueues` that is already in the `queue_state::recording` state.
+
+Parameters:
+
+* `recordingQueues` - List of `sycl::queue` objects to change to the
+  `queue_state::recording` state and start recording commands to the graph
+  instance.
+
+* `propList` - Optional parameter for passing properties. Properties for
+  the `command_graph` class are defined in <<graph-properties, Graph Properties>>.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if any queue in
+  `recordingQueues` is already recording to a graph.
+
+* Throws synchronously with error code `invalid` if any of `recordingQueues`
+  is associated with a device or context that is different from the device
+  and context used on creation of the graph.
+
+|
+[source, c++]
+----
+void end_recording()
+----
+
+|Synchronously finishes recording on all queues that are recording to the
+graph and sets their state to `queue_state::executing`. This operation is
+a no-op for any queue in the graph that is already in the
+`queue_state::executing` state.
+
+|
+[source, c++]
+----
+void end_recording(queue& recordingQueue)
+----
+
+|Synchronously changes the state of `recordingQueue` to the
+`queue_state::executing` state. This operation is a no-op if `recordingQueue`
+is already in the `queue_state::executing` state.
+
+Parameters:
+
+* `recordingQueue` - A `sycl::queue` object to change to the executing state.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if `recordingQueue` is
+  recording to a different graph.
+
+|
+[source, c++]
+----
+void end_recording(const std::vector<queue>& recordingQueues)
+----
+
+|Synchronously changes the state of each queue in `recordingQueues` to the
+`queue_state::executing` state. This operation is a no-op for any queue in
+`recordingQueues` that is already in the `queue_state::executing` state.
+
+Parameters:
+
+* `recordingQueues` - List of `sycl::queue` objects to change to the executing
+  state.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if any queue in
+  `recordingQueues` is recording to a different graph.
+
+|===
+
+=== Queue Class Modifications
+
+[source, c++]
+----
+namespace sycl {
+namespace ext::oneapi::experimental {
+enum class queue_state {
+  executing,
+  recording
+};
+
+} // namespace ext::oneapi::experimental
+
+// New methods added to the sycl::queue class
+using namespace ext::oneapi::experimental;
+class queue {
+public:
+
+  ext::oneapi::experimental::queue_state
+  ext_oneapi_get_state() const;
+
+  ext::oneapi::experimental::command_graph<graph_state::modifiable> 
+  ext_oneapi_get_graph() const;
+
+  /* -- graph convenience shortcuts -- */
+
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph);
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                   event depEvent);
+  event ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                   const std::vector<event>& depEvents);
+};
+} // namespace sycl
+----
+
+:queue-class: https://www.khronos.org/registry/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:interface.queue.class
+
+This extension modifies the {queue-class}[SYCL queue class] such that
+<<queue-state, state>> is introduced to queue objects, allowing an instance to be
+put into a mode where command-groups are recorded to a graph rather than
+submitted immediately for execution.
+
+<<new-queue-member-functions, Three new member functions>> are also added to the
+`sycl::queue` class in this extension as queue shortcuts for `handler::graph()`.
+
+==== Queue State
+
+The `sycl::queue` object can be in either of two states. The default
+`queue_state::executing` state is where the queue has its normal semantics of
+submitted command-groups being immediately scheduled for asynchronous execution.
+
+The alternative `queue_state::recording` state is used for graph construction.
+Instead of being scheduled for execution, command-groups submitted to the queue
+are recorded to a graph object as new nodes for each submission. After recording
+has finished and the queue returns to the executing state, the recorded commands are
+not executed, they are transparent to any following queue operations. The state
+of a queue can be queried with `queue::ext_oneapi_get_state()`.
+
+.Queue State Diagram
+[source, mermaid]
+....
+graph LR
+    Executing -->|Begin Recording| Recording
+    Recording -->|End Recording| Executing
+....
+
+==== Transitive Queue Recording
+
+Submitting a command-group to a queue in the executable state can implicitly
+change its state to `queue_state::recording`. This will occur when the
+command-group depends on an event that has been returned by a queue in the
+recording state. The change of state happens before the command-group is
+submitted to the device (i.e. a new graph node will be created for that command-group).
+
+A queue whose state has been set to `queue_state::recording` using this
+mechanism, will behave as if it had been passed as an argument to
+`command_graph::begin_recording()`. In particular, its state will not change
+again until `command_graph::end_recording()` is called.
+
+The recording properties of the queue whose event triggered the state change
+will also be inherited (i.e. any properties passed to the original call of
+`command_graph::begin_recording()` will be inherited by the queue whose state
+is being transitioned).
+
+===== Example
+
+[source,c++]
+----
+// q1 state is set to recording.
+graph.begin_recording(q1);
+
+// Node is added to the graph by submitting to a recording queue.
+auto e1 = q1.single_task(...);
+
+// Since there is a dependency on e1 which was created by a queue being
+// recorded, q2 immediately enters record mode, and a new node is created
+// with an edge between e1 and e2.
+auto e2 = q2.single_task(e1, ...);
+
+// Ends recording on q1 and q2.
+graph.end_recording();
+----
+
+==== Queue Properties
+
+:queue-properties: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:queue-properties
+
+There are {queue-properties}[two properties] defined by the core SYCL
+specification that can be passed to a `sycl::queue` on construction via the
+property list parameter. They interact with this extension in the following
+ways:
+
+1. `property::queue::in_order` - When a queue is created with the in-order
+   property, recording its operations results in a straight-line graph, as each
+   operation has an implicit dependency on the previous operation. However,
+   a graph submitted to an in-order queue will keep its existing structure such
+   that the complete graph executes in-order with respect to the other
+   command-groups submitted to the queue. The SYCL runtime automatically adds
+   an implicit dependency before and after the graph execution, as if the graph
+   execution is one command-group submitted to the in-order queue.
+
+2. `property::queue::enable_profiling` - This property has no effect on graph
+   recording. When set on the queue a graph is submitted to however, it allows
+   profiling information to be obtained from the event returned by a graph
+   submission. The executable graph used for this submission must have been
+   created with the `enable_profiling` property, see
+   <<enable-profiling, Enable-Profiling>> for more details. As it is not
+   defined how a submitted graph will be split up for scheduling at runtime,
+   the `uint64_t` timestamp reported from a profiling query on a graph
+   execution event has the following semantics, which may be
+   pessimistic about execution time on device.
+
+   * `info::event_profiling::command_submit` - Timestamp when the graph is
+      submitted to the queue.
+   * `info::event_profiling::command_start` - Timestamp when the first
+      command-group node begins running.
+   * `info::event_profiling::command_end` - Timestamp when the last
+      command-group node completes execution.
+
+==== New Queue Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::queue` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+queue_state
+queue::ext_oneapi_get_state() const;
+----
+
+| Query the <<queue-state, recording state>> of the queue.
+
+Returns: If the queue is in the default state where commands are scheduled
+immediately for execution, `queue_state::executing` is returned. Otherwise,
+`queue_state::recording` is returned where commands are redirected to a `command_graph`
+object.
+|
+[source,c++]
+----
+command_graph<graph_state::modifiable>
+queue::ext_oneapi_get_graph() const;
+----
+
+| Query the underlying command graph of a queue when recording.
+
+Returns: The graph object that the queue is recording commands into.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the queue is not in `queue_state::recording`
+state.
+
+|
+[source,c++]
+----
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
+----
+
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::ext_oneapi_graph(graph)`.
+
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
+|
+[source,c++]
+----
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                        event depEvent);
+----
+
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::depends_on(depEvent)` and
+`handler::ext_oneapi_graph(graph)`.
+
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
+|
+[source,c++]
+----
+event
+queue::ext_oneapi_graph(command_graph<graph_state::executable>& graph,
+                        const std::vector<event>& depEvents);
+----
+
+|Queue shortcut function that is equivalent to submitting a command-group
+containing `handler::depends_on(depEvents)` and
+`handler::ext_oneapi_graph(graph)`.
+
+The command status of the event returned will be
+`info::event_command_status::running` once any command group node starts
+executing on a device, and status `info::event_command_status::complete` once
+all the nodes have finished execution.
+
+The queue should be associated with a device and context that are the same
+as the device and context used on creation of the graph.
+|===
+
+==== New Handler Member Functions
+
+Table {counter: tableNumber}. Additional member functions of the `sycl::handler` class.
+[cols="2a,a"]
+|===
+|Member function|Description
+
+|
+[source,c++]
+----
+void
+handler::ext_oneapi_graph(command_graph<graph_state::executable>& graph)
+----
+
+|Invokes the execution of a graph. Only one instance of `graph` will
+execute at any time. If `graph` is submitted multiple times, dependencies
+are automatically added by the runtime to prevent concurrent executions of 
+an identical graph.
+
+Parameters:
+
+* `graph` - Graph object to execute.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if the handler is submitted
+  to a queue which is associated with a device or context that is different
+  from the device and context used on creation of the graph.
+
+|
+[source,c++]
+----
+template <typename DataT, int Dims, access::mode AccMode, access::target
+AccTarget, access::placeholder IsPlaceholder> void
+handler::require(ext::oneapi::experimental::dynamic_parameter<
+              accessor<DataT, Dims, AccMode, AccTarget, IsPlaceholder>>
+                  dynamicParamAcc)
+----
+
+|Requires access to a memory object associated with an accessor contained in a
+dynamic parameter.
+
+Parameters:
+
+* `dynamicParamAcc` - The dynamic parameter which contains the accessor that is
+required.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue with is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which `dynamicParameterAcc` was created.
+
+|
+[source,c++]
+----
+template <typename T>
+void handler::set_arg(int argIndex,
+              ext::oneapi::experimental::dynamic_parameter<T> &dynamicParam);
+----
+
+|Sets an argument to a kernel based on the value inside a dynamic parameter, and
+registers that dynamic parameter with the graph node encapsulating the
+submission of the command-group that calls this function.
+
+Parameters:
+
+* `argIndex` - The index of the kernel argument.
+
+* `dynamicParam` - The dynamic parameter which contains the argument.
+
+Exceptions:
+
+* Throws synchronously with error code `invalid` if this function is called from
+a command-group submitted to a queue with is currently recording to a graph.
+
+* Throws synchronously with error code `invalid` if this function is called from
+a normal SYCL command-group submission.
+
+* Throws synchronously with error code `invalid` if the graph which will be
+associated with the graph node resulting from this command-group submission is
+different from the one with which the dynamic_parameter was created.
+
+|===
+
+=== Thread Safety
+
+The new functions in this extension are thread-safe, the same as member
+functions of classes in the base SYCL specification. If user code does
+not perform synchronization between two threads accessing the same queue,
+there is no strong ordering between events on that queue, and the kernel
+submissions, recording and finalization will happen in an undefined order.
+
+When one thread ends recording on a queue while another
+thread is submitting work, which kernels will be part of the subsequent
+graph is undefined. If user code enforces a total order on the queue
+events, then the behavior is well-defined, and will match the observable
+total order.
+
+The returned value from the `queue::ext_oneapi_get_state()` should be
+considered immediately stale in multi-threaded usage, as another thread could
+have preemptively changed the state of the queue.
+
+=== Exception Safety
+
+In addition to the destruction semantics provided by the SYCL
+{crs}[common reference semantics], when the last copy of a modifiable
+`command_graph` is destroyed recording is ended on any queues that are recording
+to that graph, equivalent to `+this->end_recording()+`.
+
+As a result, users don't need to manually wrap queue recording code in a
+`try` / `catch` block to reset the state of recording queues on an exception
+back to the executing state. Instead, an uncaught exception destroying the
+modifiable graph will perform this action, useful in RAII pattern usage.
+
+=== Command-Group Function Limitations
+
+While not disallowed by the SYCL specification it should be noted that it is not
+possible to capture arbitrary C++ code which is inside a CGF (Command-Group
+Function) used to create a graph node. This code will be evaluated once during
+the call to `queue::submit()` or `command_graph::add()` along with the calls to
+handler functions and this will not be reflected on future executions of the
+graph.
+
+Any code like this should be moved to a separate host-task and added to the
+graph via the recording or explicit APIs in order to be compatible with this
+extension.
+
+=== Host Tasks
+
+:host-task: https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:interfaces.hosttasks
+
+A {host-task}[host task] is a native C++ callable, scheduled according to SYCL
+dependency rules. It is valid to record a host task as part of a graph, though it
+may lead to sub-optimal graph performance because a host task node may prevent
+the SYCL runtime from submitting the entire executable `command_graph` to the
+device at once.
+
+[source,c++]
+----
+auto node = graph.add([&](sycl::handler& cgh){
+  // Host code here is evaluated during the call to add()
+  cgh.host_task([=](){
+    // Code here is evaluated as part of executing the command graph node
+  });
+});
+----
+
+=== Queue Behavior In Recording Mode
+
+When a queue is placed in recording mode via a call to `command_graph::begin_recording`,
+some features of the queue are no longer available because the commands are not
+executed during this mode. The general philosophy is to throw an exception at
+runtime when a feature is not available, so that there is an obvious indication
+of failure. The following list describes the behavior that changes during
+recording mode. Features not listed below behave the same in recording mode as
+they do in non-recording mode.
+
+==== Event Limitations
+
+For queue submissions that are being recorded to a modifiable `command_graph`,
+the only events that can be used as parameters to `handler::depends_on()`, or
+as dependent events for queue shortcuts like `queue::parallel_for()`, are events
+that have been returned from queue submissions recorded to the same modifiable
+`command_graph`.
+
+Other limitations on the events returned from a submission to a queue in the
+recording state are:
+
+- Calling `event::get_info<info::event::command_execution_status>()` or
+`event::get_profiling_info()` will throw synchronously with error code `invalid`.
+
+- A host-side wait on the event will throw synchronously with error
+code `invalid`.
+
+- Using the event outside of the recording scope will throw synchronously with error code
+`invalid`.
+
+==== Queue Limitations
+
+A host-side wait on a queue in the recording state is an error and will
+throw synchronously with error code `invalid`.
+
+==== Buffer Limitations
+
+The use of buffers inside a `command_graph` is restricted unless the user
+creates the graph with the <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
+property. Buffer lifetimes are not extended by a `command_graph` in which they
+are used and so the user must ensure that their lifetimes exceed that of the
+`command_graph`. Attempting to use a buffer in a `command_graph` without this
+property will result in a synchronous error being throw with error code
+`invalid`.
+
+There are also restrictions on using a buffer which has been created with a
+host data pointer in commands recorded to a `command_graph`. Because of the
+delayed execution of a `command_graph`, data may not be copied to the device
+immediately when commands using these buffers are submitted to the graph,
+therefore the host data must also outlive the graph to ensure correct behavior.
+
+Because of the delayed execution of a recorded graph, it is not possible to support
+captured code which relies on the copy-back on destruction behavior of buffers.
+Typically, applications would rely on this behavior to do work on the host which
+cannot inherently be captured inside a command graph.
+
+- Thus, when recording to a graph it is an error to submit a command which has
+an accessor on a buffer which would cause a write-back to happen. Using an
+incompatible buffer in this case will result in a synchronous error being
+thrown with error code `invalid`.
+
+- The copy-back mechanism can be disabled explicitly for buffers with attached host
+storage using either `buffer::set_final_data(nullptr)` or
+`buffer::set_write_back(false)`.
+
+- It is also an error to create a host accessor to a buffer which is used in
+commands which are currently being recorded to a command graph. Attempting to
+construct a host accessor to an incompatible buffer will result in a
+synchronous error being thrown with error code `invalid`.
+
+==== Error Handling
+
+When a queue is in recording mode asynchronous exceptions will not be
+generated, as no device execution is occurring. Synchronous errors specified as
+being thrown in the default queue executing state, will still be thrown when a
+queue is in the recording state. Queue query methods operate as usual in
+recording mode, as opposed to throwing.
+
+=== Interaction With Other Extensions [[extension-interaction]]
+
+This section defines the interaction of `sycl_ext_oneapi_graph` with other
+extensions.
+
+==== sycl_ext_oneapi_discard_queue_events
+
+When recording a `sycl::queue` which has been created with the
+`ext::oneapi::property::queue::discard_event` property, it is invalid to
+use these events returned from queue submissions to create graph edges. This is
+in-keeping with the
+link:../supported/sycl_ext_oneapi_discard_queue_events.asciidoc[sycl_ext_oneapi_discard_queue_events]
+specification wording that `handler::depends_on()` throws an exception when
+passed an invalid event.
+
+==== sycl_ext_oneapi_enqueue_barrier
+
+The new handler methods, and queue shortcuts, defined by
+link:../supported/sycl_ext_oneapi_enqueue_barrier.asciidoc[sycl_ext_oneapi_enqueue_barrier]
+can only be used in graph nodes created using the Record & Replay API, as
+barriers rely on events to enforce dependencies.
+
+A synchronous exception will be thrown with error code `invalid` if a user
+tries to add a barrier command to a graph using the explicit API. Empty nodes
+created with the `node::depends_on_all_leaves` property can be used instead of
+barriers when a user is building a graph with the explicit API.
+
+The semantics of barriers are defined in `sycl_ext_oneapi_enqueue_barrier` for
+a single command-queue, and correlate as follows to a graph that may contain
+nodes that are recorded from multiple queues and/or added by the explicit API:
+
+* Barriers with an empty wait list parameter will only depend on the leaf nodes
+  that were added to the graph from the queue the barrier command is being
+  recorded from.
+
+* The only commands which have an implicit dependency on the barrier command
+  are those recorded from the same queue the barrier command was submitted to.
+
+==== sycl_ext_oneapi_memcpy2d
+
+The new handler methods, and queue shortcuts, defined by
+link:../supported/sycl_ext_oneapi_memcpy2d.asciidoc[sycl_ext_oneapi_memcpy2d]
+cannot be used in graph nodes. A synchronous exception will be thrown with
+error code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_queue_priority
+
+The queue priority property defined by
+link:../supported/sycl_ext_oneapi_queue_priority.asciidoc[sycl_ext_oneapi_queue_priority]
+is ignored during queue recording.
+
+==== sycl_ext_oneapi_queue_empty
+
+The `queue::ext_oneapi_empty()` query defined by the
+link:../supported/sycl_ext_oneapi_queue_empty.asciidoc[sycl_ext_oneapi_queue_empty]
+extension behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of this query.
+
+==== sycl_ext_intel_queue_index
+
+The compute index queue property defined by
+link:../supported/sycl_ext_intel_queue_index.asciidoc[sycl_ext_intel_queue_index]
+is ignored during queue recording.
+
+Using this information is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_kernel_properties
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
+can be used in graph nodes in the same way as they are used in normal queue
+submission. 
+
+==== sycl_ext_oneapi_prod
+
+The new `sycl::queue::ext_oneapi_prod()` method added by
+link:../proposed/sycl_ext_oneapi_prod.asciidoc[sycl_ext_oneapi_prod]
+behaves as normal during queue recording and is not captured to the graph.
+Recorded commands are not counted as submitted for the purposes of its operation.
+
+==== sycl_ext_oneapi_device_global
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_device_global.asciidoc[sycl_ext_oneapi_device_global].
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_bindless_images
+
+The new handler methods, and queue shortcuts, defined by
+link:../experimental/sycl_ext_oneapi_bindless_images.asciidoc[sycl_ext_oneapi_bindless_images]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_kernel_compiler_spirv
+
+The kernels loaded using
+link:../experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc[sycl_ext_oneapi_kernel_compiler_spirv]
+behave as normal when used in graph nodes.
+
+==== sycl_ext_codeplay_enqueue_native_command
+
+`ext_codeplay_enqueue_native_command`, defined in
+link:../experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc[sycl_ext_codeplay_enqueue_native_command]
+cannot be used in graph nodes. A synchronous exception will be thrown with error
+code `invalid` if a user tries to add them to a graph.
+
+Removing this restriction is something we may look at for future revisions of
+`sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_enqueue_functions
+
+The command submission functions defined in
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+can be used to add nodes to a graph when creating a graph from queue recording.
+
+== Examples and Usage Guide
+
+Detailed code examples and usage guidelines are provided in the
+link:../../SYCLGraphUsageGuide.md[SYCL Graph Usage Guide].
+
+== Future Direction [[future-direction]]
+
+This section contains both features of the specification which have been
+fully developed, but are not yet implemented, as well as features which are
+still in development.
+
+Fully developed features will be moved to the main specification once they
+have been implemented.
+
+=== Features Awaiting Implementation
+
+==== Storage Lifetimes [[storage-lifetimes]]
+
+The lifetime of any buffer recorded as part of a submission
+to a command graph will be extended in keeping with the common reference
+semantics and buffer synchronization rules in the SYCL specification. It will be
+extended either for the lifetime of the graph (including both modifiable graphs
+and the executable graphs created from them) or until the buffer is no longer
+required by the graph (such as after being replaced through executable graph update).
+
+If a buffer created with a host data pointer is recorded as part of a submission to
+a command graph, the lifetime of that host data will also be extended by taking a
+copy of that data inside the buffer. To illustrate, consider the following example:
+
+[source,c++]
+----
+void foo(queue q /* queue in recording mode */ ) {
+  float data[NUM];
+  buffer buf{data, range{NUM}};
+  q.submit([&](handler &cgh) {
+    accessor acc{buf, cgh, read_only};
+    cgh.single_task([] {
+       // use "acc"
+    });
+  });
+  // "data" goes out of scope
+}
+----
+
+In this example, the implementation extends the lifetime of the buffer because
+it is used in the recorded graph. Because the buffer uses the host memory data,
+the implementation also makes an internal copy of that host data. As illustrated
+above, that host memory might go out of scope before the recorded graph goes out
+of scope, or before the data has been copied to the device.
+
+The default behavior is to always copy the host data in a case like this, but
+this is not necessary if the user knows that the lifetime of the host data
+outlives the lifetime of the recorded graph. If the user knows this is the
+case, they may use the `graph::assume_data_outlives_buffer` property to avoid the internal
+copy. Passing the property to `begin_recording()` will prevent host copies only
+for commands recorded before `end_recording()` is called for a given queue.
+Passing the property to the `command_graph` constructor will prevent host copies
+for all commands recorded to the graph.
+
+The implementation guarantees that the host memory will not be copied internally
+if all the commands accessing this buffer use `access_mode::write` or the
+`no_init` property because the host memory is not needed in these cases.
+Note, however, that these cases require the application to disable copy-back
+as described in <<buffer-limitations, Buffer Limitations>>.
+
+=== Features Still in Development
+
+==== Memory Allocation Nodes
+
+There is no provided interface for users to define a USM allocation/free
+operation belonging to the scope of the graph. It would be error prone and
+non-performant to allocate or free memory as a node executed during graph
+submission. Instead, such a memory allocation API needs to provide a way to
+return a pointer which won't be valid until the allocation is made on graph
+finalization, as allocating at finalization is the only way to benefit from
+the known graph scope for optimal memory allocation, and even optimize to
+eliminate some allocations entirely.
+
+Such a deferred allocation strategy presents challenges however, and as a result
+we recommend instead that prior to graph construction users perform core SYCL
+USM allocations to be used in the graph submission. Before to coming to this
+recommendation we considered the following explicit graph building interfaces
+for adding a memory allocation owned by the graph:
+
+1. Allocation function returning a reference to the raw pointer, i.e. `void*&`,
+   which will be instantiated on graph finalization with the location of the
+   allocated USM memory.
+
+2. Allocation function returning a handle to the allocation. Applications use
+   the handle in node command-group functions to access memory when allocated.
+
+3. Allocation function returning a pointer to a virtual allocation, only backed
+   with an actual allocation when graph is finalized or submitted.
+
+Design 1) has the drawback of forcing users to keep the user pointer variable
+alive so that the reference is valid, which is unintuitive and is likely to
+result in bugs.
+
+Design 2) introduces a handle object which has the advantages of being a less
+error prone way to provide the pointer to the deferred allocation. However, it
+requires kernel changes and introduces an overhead above the raw pointers that
+are the advantage of USM.
+
+Design 3) needs specific backend support for deferred allocation.
+
+==== Device Specific Graph
+
+A modifiable state `command_graph` contains nodes targeting specific devices,
+rather than being a device agnostic representation only tied to devices on
+finalization. This allows the implementation to process nodes which require
+device information when the command group function is evaluated. For example,
+a SYCL reduction implementation may desire the work-group/sub-group size, which
+is normally gathered by the runtime from the device associated with the queue.
+
+This design also enables the future capability for a user to compose a graph
+with nodes targeting different devices, allowing the benefits of defining an
+execution graph ahead of submission to be extended to multi-device platforms.
+Without this capability a user currently has to submit individual single-device
+graphs and use events for dependencies, which is a usage model this extension is
+aiming to optimize. Automatic load balancing of commands across devices is not a
+problem this extension currently aims to solve, it is the responsibility of the
+user to decide the device each command will be processed for, not the SYCL
+runtime.
+
+== Issues
+
+=== Update More Command Types
+
+Support updating arguments to types of nodes other than kernel execution
+commands.
+
+**UNRESOLVED** Should be added for at least memory copy nodes and host-tasks.
+However, the full scope of support needs to be designed and implemented.
+
+=== Updatable Property Graph Resubmission
+
+It has been suggested that updatable graphs could remove the dependencies
+generated between graphs upon resubmission while a previous submission of the
+same graph is still executing. However, this requires further design discussion
+to ensure this is desired and makes sense to users.
+
+**UNRESOLVED** Needs more discussion.
+
+=== Multi Device Graph
+
+Allow an executable graph to contain nodes targeting different devices.
+
+**UNRESOLVED:** Trending "yes". This feature is something that we are considering
+introducing into the extension in later revisions. It has been planned for to the
+extent that the definition of a graph node is device specific.
+
+=== Memory Allocation API
+
+We would like to provide an API that allows graph scope memory to be
+allocated and used in nodes, such that optimizations can be done on
+the allocation. No mechanism is currently provided, but see the
+section on <<memory-allocation-nodes, Memory Allocation Nodes>> for
+some designs being considered.
+
+**UNRESOLVED:** Trending "yes". Design is under consideration.
+
+=== Device Agnostic Graph
+
+Explicit API could support device-agnostic graphs that can be submitted
+through queues to a particular device. This issue is related to multi-device
+graphs.
+
+**UNRESOLVED:** Trending "no". Because of current runtime limitations this
+can't be implemented with a reasonable effort.
+
+=== Execution Property
+
+Current proposal contains extensive extensions to existing API in SYCL.
+Can we achieve something similar with user control over the flush behavior
+of a queue and providing a handler that can be replayed?
+
+**UNRESOLVED:** Trending "no". Needs reconsideration of the design and
+possible restrictions.
+
+=== User Guided Scheduling
+
+For specific workloads it could be beneficial to provide hints to the
+runtime how to schedule a command graph onto a device. This info could effect
+the scheduling policy like breadth or depth-first, or a combination with a
+block size.
+
+**UNRESOLVED:** Trending "yes". A new property could be added to
+the finalize call either extending the basic command graph proposal
+or layered as a separate extension proposal.
+
+== Non-implemented features and known issues
+
+The following features are not yet supported, and an exception will be thrown
+if used in application code.
+
+. Using reductions in a graph node.
+. Using sycl streams in a graph node.
+. Synchronization between multiple executions of the same command-buffer 
+  must be handled in the host for level-zero backend, which may involve 
+  extra latency for subsequent submissions.
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+
+|1|2023-03-23|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller
+|Initial public working draft
+|2|2023-08-01|Pablo Reble, Ewan Crawford, Ben Tracy, Julian Miller,
+Maxime France-Pillois
+|Promote status to experimental
+
+|========================================

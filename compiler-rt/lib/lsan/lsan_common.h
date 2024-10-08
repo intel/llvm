@@ -16,9 +16,9 @@
 
 #include "sanitizer_common/sanitizer_allocator.h"
 #include "sanitizer_common/sanitizer_common.h"
-#include "sanitizer_common/sanitizer_common_range.h"
 #include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_platform.h"
+#include "sanitizer_common/sanitizer_range.h"
 #include "sanitizer_common/sanitizer_stackdepot.h"
 #include "sanitizer_common/sanitizer_stoptheworld.h"
 #include "sanitizer_common/sanitizer_symbolizer.h"
@@ -119,6 +119,10 @@ void GetRunningThreadsLocked(InternalMmapVector<tid_t> *threads);
 // Wrappers for allocator's ForceLock()/ForceUnlock().
 void LockAllocator();
 void UnlockAllocator();
+
+// Lock/unlock global mutext.
+void LockGlobal();
+void UnlockGlobal();
 
 // Returns the address range occupied by the global allocator object.
 void GetAllocatorGlobalRange(uptr *begin, uptr *end);

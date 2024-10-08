@@ -1,8 +1,15 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv -spirv-text %t.bc --spirv-max-version=1.5 -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-15
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.5 -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv -spirv-text %t.bc --spirv-max-version=1.6
+; FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-16
+; RUN: llvm-spirv %t.bc --spirv-max-version=1.6 -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.rev.ll
+; FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM-16
 
 ; CHECK-SPIRV: 3 Name [[#r1:]] "r1"
 ; CHECK-SPIRV: 3 Name [[#r2:]] "r2"
@@ -94,7 +101,9 @@
 ; CHECK-SPIRV: 3 Name [[#r88:]] "r88"
 ; CHECK-SPIRV: 3 Name [[#r89:]] "r89"
 ; CHECK-SPIRV: 3 Name [[#r90:]] "r90"
-; CHECK-SPIRV-NOT: 4 Decorate {{.*}} FPFastMathMode
+; CHECK-SPIRV-15-NOT: 4 Decorate {{.*}} FPFastMathMode
+; CHECK-SPIRV-16-NOT: 4 Decorate [[#r1]] FPFastMathMode
+; CHECK-SPIRV-16: Decorate [[#r2]] FPFastMathMode 1
 ; CHECK-SPIRV: 2 TypeBool [[#bool:]]
 ; CHECK-SPIRV: 5 FOrdEqual [[#bool]] [[#r1]]
 ; CHECK-SPIRV: 5 FOrdEqual [[#bool]] [[#r2]]
@@ -277,6 +286,98 @@
 ; CHECK-LLVM: %r88 = fcmp uno float %a, %b
 ; CHECK-LLVM: %r89 = fcmp uno float %a, %b
 ; CHECK-LLVM: %r90 = fcmp uno float %a, %b
+
+
+; CHECK-LLVM-16: %r1 = fcmp oeq float %a, %b
+; CHECK-LLVM-16: %r2 = fcmp nnan oeq float %a, %b
+; CHECK-LLVM-16: %r3 = fcmp ninf oeq float %a, %b
+; CHECK-LLVM-16: %r4 = fcmp nsz oeq float %a, %b
+; CHECK-LLVM-16: %r5 = fcmp arcp oeq float %a, %b
+; CHECK-LLVM-16: %r6 = fcmp fast oeq float %a, %b
+; CHECK-LLVM-16: %r7 = fcmp nnan ninf oeq float %a, %b
+; CHECK-LLVM-16: %r8 = fcmp one float %a, %b
+; CHECK-LLVM-16: %r9 = fcmp nnan one float %a, %b
+; CHECK-LLVM-16: %r10 = fcmp ninf one float %a, %b
+; CHECK-LLVM-16: %r11 = fcmp nsz one float %a, %b
+; CHECK-LLVM-16: %r12 = fcmp arcp one float %a, %b
+; CHECK-LLVM-16: %r13 = fcmp fast one float %a, %b
+; CHECK-LLVM-16: %r14 = fcmp nnan ninf one float %a, %b
+; CHECK-LLVM-16: %r15 = fcmp olt float %a, %b
+; CHECK-LLVM-16: %r16 = fcmp nnan olt float %a, %b
+; CHECK-LLVM-16: %r17 = fcmp ninf olt float %a, %b
+; CHECK-LLVM-16: %r18 = fcmp nsz olt float %a, %b
+; CHECK-LLVM-16: %r19 = fcmp arcp olt float %a, %b
+; CHECK-LLVM-16: %r20 = fcmp fast olt float %a, %b
+; CHECK-LLVM-16: %r21 = fcmp nnan ninf olt float %a, %b
+; CHECK-LLVM-16: %r22 = fcmp ogt float %a, %b
+; CHECK-LLVM-16: %r23 = fcmp nnan ogt float %a, %b
+; CHECK-LLVM-16: %r24 = fcmp ninf ogt float %a, %b
+; CHECK-LLVM-16: %r25 = fcmp nsz ogt float %a, %b
+; CHECK-LLVM-16: %r26 = fcmp arcp ogt float %a, %b
+; CHECK-LLVM-16: %r27 = fcmp fast ogt float %a, %b
+; CHECK-LLVM-16: %r28 = fcmp nnan ninf ogt float %a, %b
+; CHECK-LLVM-16: %r29 = fcmp ole float %a, %b
+; CHECK-LLVM-16: %r30 = fcmp nnan ole float %a, %b
+; CHECK-LLVM-16: %r31 = fcmp ninf ole float %a, %b
+; CHECK-LLVM-16: %r32 = fcmp nsz ole float %a, %b
+; CHECK-LLVM-16: %r33 = fcmp arcp ole float %a, %b
+; CHECK-LLVM-16: %r34 = fcmp fast ole float %a, %b
+; CHECK-LLVM-16: %r35 = fcmp nnan ninf ole float %a, %b
+; CHECK-LLVM-16: %r36 = fcmp oge float %a, %b
+; CHECK-LLVM-16: %r37 = fcmp nnan oge float %a, %b
+; CHECK-LLVM-16: %r38 = fcmp ninf oge float %a, %b
+; CHECK-LLVM-16: %r39 = fcmp nsz oge float %a, %b
+; CHECK-LLVM-16: %r40 = fcmp arcp oge float %a, %b
+; CHECK-LLVM-16: %r41 = fcmp fast oge float %a, %b
+; CHECK-LLVM-16: %r42 = fcmp nnan ninf oge float %a, %b
+; CHECK-LLVM-16: %r43 = fcmp ord float %a, %b
+; CHECK-LLVM-16: %r44 = fcmp ninf ord float %a, %b
+; CHECK-LLVM-16: %r45 = fcmp nsz ord float %a, %b
+; CHECK-LLVM-16: %r46 = fcmp ueq float %a, %b
+; CHECK-LLVM-16: %r47 = fcmp nnan ueq float %a, %b
+; CHECK-LLVM-16: %r48 = fcmp ninf ueq float %a, %b
+; CHECK-LLVM-16: %r49 = fcmp nsz ueq float %a, %b
+; CHECK-LLVM-16: %r50 = fcmp arcp ueq float %a, %b
+; CHECK-LLVM-16: %r51 = fcmp fast ueq float %a, %b
+; CHECK-LLVM-16: %r52 = fcmp nnan ninf ueq float %a, %b
+; CHECK-LLVM-16: %r53 = fcmp une float %a, %b
+; CHECK-LLVM-16: %r54 = fcmp nnan une float %a, %b
+; CHECK-LLVM-16: %r55 = fcmp ninf une float %a, %b
+; CHECK-LLVM-16: %r56 = fcmp nsz une float %a, %b
+; CHECK-LLVM-16: %r57 = fcmp arcp une float %a, %b
+; CHECK-LLVM-16: %r58 = fcmp fast une float %a, %b
+; CHECK-LLVM-16: %r59 = fcmp nnan ninf une float %a, %b
+; CHECK-LLVM-16: %r60 = fcmp ult float %a, %b
+; CHECK-LLVM-16: %r61 = fcmp nnan ult float %a, %b
+; CHECK-LLVM-16: %r62 = fcmp ninf ult float %a, %b
+; CHECK-LLVM-16: %r63 = fcmp nsz ult float %a, %b
+; CHECK-LLVM-16: %r64 = fcmp arcp ult float %a, %b
+; CHECK-LLVM-16: %r65 = fcmp fast ult float %a, %b
+; CHECK-LLVM-16: %r66 = fcmp nnan ninf ult float %a, %b
+; CHECK-LLVM-16: %r67 = fcmp ugt float %a, %b
+; CHECK-LLVM-16: %r68 = fcmp nnan ugt float %a, %b
+; CHECK-LLVM-16: %r69 = fcmp ninf ugt float %a, %b
+; CHECK-LLVM-16: %r70 = fcmp nsz ugt float %a, %b
+; CHECK-LLVM-16: %r71 = fcmp arcp ugt float %a, %b
+; CHECK-LLVM-16: %r72 = fcmp fast ugt float %a, %b
+; CHECK-LLVM-16: %r73 = fcmp nnan ninf ugt float %a, %b
+; CHECK-LLVM-16: %r74 = fcmp ule float %a, %b
+; CHECK-LLVM-16: %r75 = fcmp nnan ule float %a, %b
+; CHECK-LLVM-16: %r76 = fcmp ninf ule float %a, %b
+; CHECK-LLVM-16: %r77 = fcmp nsz ule float %a, %b
+; CHECK-LLVM-16: %r78 = fcmp arcp ule float %a, %b
+; CHECK-LLVM-16: %r79 = fcmp fast ule float %a, %b
+; CHECK-LLVM-16: %r80 = fcmp nnan ninf ule float %a, %b
+; CHECK-LLVM-16: %r81 = fcmp uge float %a, %b
+; CHECK-LLVM-16: %r82 = fcmp nnan uge float %a, %b
+; CHECK-LLVM-16: %r83 = fcmp ninf uge float %a, %b
+; CHECK-LLVM-16: %r84 = fcmp nsz uge float %a, %b
+; CHECK-LLVM-16: %r85 = fcmp arcp uge float %a, %b
+; CHECK-LLVM-16: %r86 = fcmp fast uge float %a, %b
+; CHECK-LLVM-16: %r87 = fcmp nnan ninf uge float %a, %b
+; CHECK-LLVM-16: %r88 = fcmp uno float %a, %b
+; CHECK-LLVM-16: %r89 = fcmp ninf uno float %a, %b
+; CHECK-LLVM-16: %r90 = fcmp nsz uno float %a, %b
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir-unknown-unknown"

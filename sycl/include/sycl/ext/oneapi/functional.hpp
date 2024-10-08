@@ -7,14 +7,14 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/functional.hpp>
-#include <sycl/half_type.hpp>
 
-#include <complex>
-#include <functional>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/functional.hpp> // for maximum, minimum
+
+#include <functional> // for bit_and, bit_or, bit_xor, multiplies
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 template <typename T = void> using plus = std::plus<T>;
@@ -39,32 +39,26 @@ struct GroupOpBool {};
 template <typename T, typename = void> struct GroupOpTag;
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sigeninteger_v<T>>> {
   using type = GroupOpISigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sugeninteger_v<T>>> {
   using type = GroupOpIUnsigned;
 };
 
 template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_sgenfloat_v<T>>> {
   using type = GroupOpFP;
 };
 
 template <typename T>
-struct GroupOpTag<
-    T, std::enable_if_t<std::is_same<T, std::complex<half>>::value ||
-                        std::is_same<T, std::complex<float>>::value ||
-                        std::is_same<T, std::complex<double>>::value>> {
-  using type = GroupOpC;
-};
-
-template <typename T>
-struct GroupOpTag<T, std::enable_if_t<detail::is_genbool<T>::value>> {
+struct GroupOpTag<T, std::enable_if_t<detail::is_genbool_v<T>>> {
   using type = GroupOpBool;
 };
+
+// GroupOpC (std::complex) is handled in sycl/stl_wrappers/complex.
 
 #define __SYCL_CALC_OVERLOAD(GroupTag, SPIRVOperation, BinaryOperation)        \
   template <__spv::GroupOperation O, typename Group, typename T>               \
@@ -85,27 +79,27 @@ __SYCL_CALC_OVERLOAD(GroupOpISigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IAdd, sycl::plus<T>)
 __SYCL_CALC_OVERLOAD(GroupOpFP, FAdd, sycl::plus<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, IMulKHR, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMulKHR, sycl::multiplies<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, FMulKHR, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, IMul, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, IMul, sycl::multiplies<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, FMul, sycl::multiplies<T>)
 __SYCL_CALC_OVERLOAD(GroupOpC, CMulINTEL, sycl::multiplies<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOrKHR, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOrKHR, sycl::bit_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXorKHR, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXorKHR, sycl::bit_xor<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAndKHR, sycl::bit_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAndKHR, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseOr, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseOr, sycl::bit_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseXor, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseXor, sycl::bit_xor<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, BitwiseAnd, sycl::bit_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, BitwiseAnd, sycl::bit_and<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalAndKHR, sycl::logical_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalAndKHR, sycl::logical_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalAndKHR, sycl::logical_and<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalAndKHR, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalAnd, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalAnd, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalAnd, sycl::logical_and<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalAnd, sycl::logical_and<T>)
 
-__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalOrKHR, sycl::logical_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalOrKHR, sycl::logical_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalOrKHR, sycl::logical_or<T>)
-__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOrKHR, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpBool, LogicalOr, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpISigned, LogicalOr, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpIUnsigned, LogicalOr, sycl::logical_or<T>)
+__SYCL_CALC_OVERLOAD(GroupOpFP, LogicalOr, sycl::logical_or<T>)
 
 #undef __SYCL_CALC_OVERLOAD
 
@@ -119,5 +113,5 @@ static T calc(Group g, typename GroupOpTag<T>::type, T x,
 } // namespace detail
 #endif // __SYCL_DEVICE_ONLY__
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

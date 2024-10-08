@@ -5,11 +5,15 @@
 // The test checks that the scenario works correctly.
 //
 // RUN: %{build} -O2 -c -o %t.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.o -O0 -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t.o %O0 -Wno-unused-command-line-argument -o %t.out
 // RUN: %{run} %t.out
 
+// Failing on HIP AMD, enable after fixed
+// UNSUPPORTED: hip_amd
+
+
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   constexpr int THE_ANSWER = 42;

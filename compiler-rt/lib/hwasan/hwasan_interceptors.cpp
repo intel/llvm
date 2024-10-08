@@ -19,6 +19,7 @@
 #include "hwasan.h"
 #include "hwasan_allocator.h"
 #include "hwasan_checks.h"
+#include "hwasan_mapping.h"
 #include "hwasan_platform_interceptors.h"
 #include "hwasan_thread.h"
 #include "hwasan_thread_list.h"
@@ -30,6 +31,21 @@
 #if !SANITIZER_FUCHSIA
 
 using namespace __hwasan;
+
+struct HWAsanInterceptorContext {
+  const char *interceptor_name;
+};
+
+#  define ACCESS_MEMORY_RANGE(offset, size, access)                           \
+    do {                                                                      \
+      __hwasan::CheckAddressSized<ErrorAction::Recover, access>((uptr)offset, \
+                                                                size);        \
+    } while (0)
+
+#  define HWASAN_READ_RANGE(offset, size) \
+    ACCESS_MEMORY_RANGE(offset, size, AccessType::Load)
+#  define HWASAN_WRITE_RANGE(offset, size) \
+    ACCESS_MEMORY_RANGE(offset, size, AccessType::Store)
 
 #  if !SANITIZER_APPLE
 #    define HWASAN_INTERCEPT_FUNC(name)                                        \
@@ -58,9 +74,8 @@ using namespace __hwasan;
 
 #  if HWASAN_WITH_INTERCEPTORS
 
-#    define COMMON_SYSCALL_PRE_READ_RANGE(p, s) __hwasan_loadN((uptr)p, (uptr)s)
-#    define COMMON_SYSCALL_PRE_WRITE_RANGE(p, s) \
-      __hwasan_storeN((uptr)p, (uptr)s)
+#    define COMMON_SYSCALL_PRE_READ_RANGE(p, s) HWASAN_READ_RANGE(p, s)
+#    define COMMON_SYSCALL_PRE_WRITE_RANGE(p, s) HWASAN_WRITE_RANGE(p, s)
 #    define COMMON_SYSCALL_POST_READ_RANGE(p, s) \
       do {                                       \
         (void)(p);                               \
@@ -75,17 +90,14 @@ using namespace __hwasan;
 #    include "sanitizer_common/sanitizer_syscalls_netbsd.inc"
 
 #    define COMMON_INTERCEPTOR_WRITE_RANGE(ctx, ptr, size) \
-      do {                                                 \
-      } while (false)
+      HWASAN_WRITE_RANGE(ptr, size)
 
 #    define COMMON_INTERCEPTOR_READ_RANGE(ctx, ptr, size) \
-      do {                                                \
-        (void)(ctx);                                      \
-        (void)(ptr);                                      \
-        (void)(size);                                     \
-      } while (false)
+      HWASAN_READ_RANGE(ptr, size)
 
 #    define COMMON_INTERCEPTOR_ENTER(ctx, func, ...) \
+      HWAsanInterceptorContext _ctx = {#func};       \
+      ctx = (void *)&_ctx;                           \
       do {                                           \
         (void)(ctx);                                 \
         (void)(func);                                \
@@ -134,29 +146,16 @@ using namespace __hwasan;
         (void)(name);                           \
       } while (false)
 
-#    define COMMON_INTERCEPTOR_MEMMOVE_IMPL(ctx, to, from, size) \
-      do {                                                       \
-        (void)(ctx);                                             \
-        (void)(to);                                              \
-        (void)(from);                                            \
-        (void)(size);                                            \
-      } while (false)
-
-#    define COMMON_INTERCEPTOR_MEMCPY_IMPL(ctx, to, from, size) \
-      do {                                                      \
-        (void)(ctx);                                            \
-        (void)(to);                                             \
-        (void)(from);                                           \
-        (void)(size);                                           \
-      } while (false)
-
-#    define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, block, c, size) \
-      do {                                                      \
-        (void)(ctx);                                            \
-        (void)(block);                                          \
-        (void)(c);                                              \
-        (void)(size);                                           \
-      } while (false)
+#    define COMMON_INTERCEPTOR_MEMSET_IMPL(ctx, dst, v, size)   \
+      {                                                         \
+        if (COMMON_INTERCEPTOR_NOTHING_IS_INITIALIZED)          \
+          return internal_memset(dst, v, size);                 \
+        COMMON_INTERCEPTOR_ENTER(ctx, memset, dst, v, size);    \
+        if (MemIsApp(UntagAddr(reinterpret_cast<uptr>(dst))) && \
+            common_flags()->intercept_intrin)                   \
+          COMMON_INTERCEPTOR_WRITE_RANGE(ctx, dst, size);       \
+        return REAL(memset)(dst, v, size);                      \
+      }
 
 #    define COMMON_INTERCEPTOR_STRERROR() \
       do {                                \
@@ -184,8 +183,9 @@ static void *mmap_interceptor(Mmap real_mmap, void *addr, SIZE_T length,
   }
   SIZE_T rounded_length = RoundUpTo(length, GetPageSize());
   void *end_addr = (char *)addr + (rounded_length - 1);
-  if (addr && (!MemIsApp(reinterpret_cast<uptr>(addr)) ||
-               !MemIsApp(reinterpret_cast<uptr>(end_addr)))) {
+  if (addr && length &&
+      (!MemIsApp(reinterpret_cast<uptr>(addr)) ||
+       !MemIsApp(reinterpret_cast<uptr>(end_addr)))) {
     // User requested an address that is incompatible with HWASan's
     // memory layout. Use a different address if allowed, else fail.
     if (flags & map_fixed) {
@@ -196,19 +196,37 @@ static void *mmap_interceptor(Mmap real_mmap, void *addr, SIZE_T length,
     }
   }
   void *res = real_mmap(addr, length, prot, flags, fd, offset);
-  if (res != (void *)-1) {
-    void *end_res = (char *)res + (rounded_length - 1);
-    if (!MemIsApp(reinterpret_cast<uptr>(res)) ||
-        !MemIsApp(reinterpret_cast<uptr>(end_res))) {
+  if (length && res != (void *)-1) {
+    uptr beg = reinterpret_cast<uptr>(res);
+    DCHECK(IsAligned(beg, GetPageSize()));
+    if (!MemIsApp(beg) || !MemIsApp(beg + rounded_length - 1)) {
       // Application has attempted to map more memory than is supported by
       // HWASan. Act as if we ran out of memory.
       internal_munmap(res, length);
       errno = errno_ENOMEM;
       return (void *)-1;
     }
+    __hwasan::TagMemoryAligned(beg, rounded_length, 0);
   }
 
   return res;
+}
+
+template <class Munmap>
+static int munmap_interceptor(Munmap real_munmap, void *addr, SIZE_T length) {
+  // We should not tag if munmap fail, but it's to late to tag after
+  // real_munmap, as the pages could be mmaped by another thread.
+  uptr beg = reinterpret_cast<uptr>(addr);
+  if (length && IsAligned(beg, GetPageSize())) {
+    SIZE_T rounded_length = RoundUpTo(length, GetPageSize());
+    // Protect from unmapping the shadow.
+    if (!MemIsApp(beg) || !MemIsApp(beg + rounded_length - 1)) {
+      errno = errno_EINVAL;
+      return -1;
+    }
+    __hwasan::TagMemoryAligned(beg, rounded_length, 0);
+  }
+  return real_munmap(addr, length);
 }
 
 #    define COMMON_INTERCEPTOR_MMAP_IMPL(ctx, mmap, addr, length, prot, flags, \
@@ -216,6 +234,12 @@ static void *mmap_interceptor(Mmap real_mmap, void *addr, SIZE_T length,
       do {                                                                     \
         (void)(ctx);                                                           \
         return mmap_interceptor(REAL(mmap), addr, sz, prot, flags, fd, off);   \
+      } while (false)
+
+#    define COMMON_INTERCEPTOR_MUNMAP_IMPL(ctx, addr, length)          \
+      do {                                                             \
+        (void)(ctx);                                                   \
+        return munmap_interceptor(REAL(munmap), addr, sz);             \
       } while (false)
 
 #    include "sanitizer_common/sanitizer_common_interceptors_memintrinsics.inc"
@@ -284,9 +308,9 @@ INTERCEPTOR(int, pthread_detach, void *thread) {
   return result;
 }
 
-INTERCEPTOR(int, pthread_exit, void *retval) {
+INTERCEPTOR(void, pthread_exit, void *retval) {
   hwasanThreadArgRetval().Finish(GetThreadSelf(), retval);
-  return REAL(pthread_exit)(retval);
+  REAL(pthread_exit)(retval);
 }
 
 #    if SANITIZER_GLIBC
@@ -310,10 +334,10 @@ INTERCEPTOR(int, pthread_timedjoin_np, void *thread, void **ret,
 }
 #    endif
 
-DEFINE_REAL_PTHREAD_FUNCTIONS
+DEFINE_INTERNAL_PTHREAD_FUNCTIONS
 
-DEFINE_REAL(int, vfork)
-DECLARE_EXTERN_INTERCEPTOR_AND_WRAPPER(int, vfork)
+DEFINE_REAL(int, vfork,)
+DECLARE_EXTERN_INTERCEPTOR_AND_WRAPPER(int, vfork,)
 
 // Get and/or change the set of blocked signals.
 extern "C" int sigprocmask(int __how, const __hw_sigset_t *__restrict __set,
@@ -495,12 +519,13 @@ void InitializeInterceptors() {
   static int inited = 0;
   CHECK_EQ(inited, 0);
 
+#  if HWASAN_WITH_INTERCEPTORS
+  __interception::DoesNotSupportStaticLinking();
   InitializeCommonInterceptors();
 
   (void)(read_iovec);
   (void)(write_iovec);
 
-#  if HWASAN_WITH_INTERCEPTORS
 #    if defined(__linux__)
   INTERCEPT_FUNCTION(__libc_longjmp);
   INTERCEPT_FUNCTION(longjmp);

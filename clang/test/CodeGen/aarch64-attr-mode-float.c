@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -opaque-pointers -triple arm64-none-linux-gnu -emit-llvm %s -o - | FileCheck %s
+// RUN: %clang_cc1 -triple arm64-none-linux-gnu -emit-llvm %s -o - | FileCheck %s
 
 typedef float f16a __attribute((mode(HF)));
 typedef double f16b __attribute((mode(HF)));

@@ -2,7 +2,7 @@
 
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 
 ; RUN: llc -mtriple=%triple -O0 -filetype=obj < %t.ll > %t
 ; RUN: llvm-dwarfdump %t | FileCheck %s
@@ -38,7 +38,7 @@ source_filename = "test/DebugInfo/Generic/func-using-decl.ll"
 define dso_local i32 @main() #0 !dbg !14 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !17
 }
 

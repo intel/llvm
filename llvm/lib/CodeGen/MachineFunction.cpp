@@ -22,6 +22,7 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Analysis/ConstantFolding.h"
+#include "llvm/Analysis/ProfileSummaryInfo.h"
 #include "llvm/CodeGen/MachineBasicBlock.h"
 #include "llvm/CodeGen/MachineConstantPool.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
@@ -31,6 +32,7 @@
 #include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/PseudoSourceValue.h"
+#include "llvm/CodeGen/PseudoSourceValueManager.h"
 #include "llvm/CodeGen/TargetFrameLowering.h"
 #include "llvm/CodeGen/TargetInstrInfo.h"
 #include "llvm/CodeGen/TargetLowering.h"
@@ -160,9 +162,9 @@ static inline Align getFnStackAlignment(const TargetSubtargetInfo *STI,
 }
 
 MachineFunction::MachineFunction(Function &F, const LLVMTargetMachine &Target,
-                                 const TargetSubtargetInfo &STI,
-                                 unsigned FunctionNum, MachineModuleInfo &mmi)
-    : F(F), Target(Target), STI(&STI), Ctx(mmi.getContext()), MMI(mmi) {
+                                 const TargetSubtargetInfo &STI, MCContext &Ctx,
+                                 unsigned FunctionNum)
+    : F(F), Target(Target), STI(&STI), Ctx(Ctx) {
   FunctionNumber = FunctionNum;
   init();
 }
@@ -175,6 +177,12 @@ void MachineFunction::handleInsertion(MachineInstr &MI) {
 void MachineFunction::handleRemoval(MachineInstr &MI) {
   if (TheDelegate)
     TheDelegate->MF_HandleRemoval(MI);
+}
+
+void MachineFunction::handleChangeDesc(MachineInstr &MI,
+                                       const MCInstrDesc &TID) {
+  if (TheDelegate)
+    TheDelegate->MF_HandleChangeDesc(MI, TID);
 }
 
 void MachineFunction::init() {
@@ -192,10 +200,11 @@ void MachineFunction::init() {
   // explicitly asked us not to.
   bool CanRealignSP = STI->getFrameLowering()->isStackRealignable() &&
                       !F.hasFnAttribute("no-realign-stack");
+  bool ForceRealignSP = F.hasFnAttribute(Attribute::StackAlignment) ||
+                        F.hasFnAttribute("stackrealign");
   FrameInfo = new (Allocator) MachineFrameInfo(
       getFnStackAlignment(STI, F), /*StackRealignable=*/CanRealignSP,
-      /*ForcedRealign=*/CanRealignSP &&
-          F.hasFnAttribute(Attribute::StackAlignment));
+      /*ForcedRealign=*/ForceRealignSP && CanRealignSP);
 
   setUnsafeStackSize(F, *FrameInfo);
 
@@ -210,6 +219,14 @@ void MachineFunction::init() {
   if (!F.hasFnAttribute(Attribute::OptimizeForSize))
     Alignment = std::max(Alignment,
                          STI->getTargetLowering()->getPrefFunctionAlignment());
+
+  // -fsanitize=function and -fsanitize=kcfi instrument indirect function calls
+  // to load a type hash before the function label. Ensure functions are aligned
+  // by a least 4 to avoid unaligned access, which is especially important for
+  // -mno-unaligned-access.
+  if (F.hasMetadata(LLVMContext::MD_func_sanitize) ||
+      F.getMetadata(LLVMContext::MD_kcfi_type))
+    Alignment = std::max(Alignment, Align(4));
 
   if (AlignAllFunctions)
     Alignment = Align(1ULL << AlignAllFunctions);
@@ -290,7 +307,7 @@ void MachineFunction::clear() {
 }
 
 const DataLayout &MachineFunction::getDataLayout() const {
-  return F.getParent()->getDataLayout();
+  return F.getDataLayout();
 }
 
 /// Get the JumpTableInfo for this function.
@@ -358,6 +375,7 @@ void MachineFunction::RenumberBlocks(MachineBasicBlock *MBB) {
   // numbering, shrink MBBNumbering now.
   assert(BlockNo <= MBBNumbering.size() && "Mismatch!");
   MBBNumbering.resize(BlockNo);
+  MBBNumberingEpoch++;
 }
 
 /// This method iterates over the basic blocks and assigns their IsBeginSection
@@ -442,16 +460,18 @@ void MachineFunction::deleteMachineInstr(MachineInstr *MI) {
 /// Allocate a new MachineBasicBlock. Use this instead of
 /// `new MachineBasicBlock'.
 MachineBasicBlock *
-MachineFunction::CreateMachineBasicBlock(const BasicBlock *bb) {
+MachineFunction::CreateMachineBasicBlock(const BasicBlock *BB,
+                                         std::optional<UniqueBBID> BBID) {
   MachineBasicBlock *MBB =
       new (BasicBlockRecycler.Allocate<MachineBasicBlock>(Allocator))
-          MachineBasicBlock(*this, bb);
+          MachineBasicBlock(*this, BB);
   // Set BBID for `-basic-block=sections=labels` and
   // `-basic-block-sections=list` to allow robust mapping of profiles to basic
   // blocks.
   if (Target.getBBSectionsType() == BasicBlockSection::Labels ||
+      Target.Options.BBAddrMap ||
       Target.getBBSectionsType() == BasicBlockSection::List)
-    MBB->setBBID(NextBBID++);
+    MBB->setBBID(BBID.has_value() ? *BBID : UniqueBBID{NextBBID++, 0});
   return MBB;
 }
 
@@ -466,13 +486,17 @@ void MachineFunction::deleteMachineBasicBlock(MachineBasicBlock *MBB) {
 }
 
 MachineMemOperand *MachineFunction::getMachineMemOperand(
-    MachinePointerInfo PtrInfo, MachineMemOperand::Flags f, uint64_t s,
-    Align base_alignment, const AAMDNodes &AAInfo, const MDNode *Ranges,
+    MachinePointerInfo PtrInfo, MachineMemOperand::Flags F, LocationSize Size,
+    Align BaseAlignment, const AAMDNodes &AAInfo, const MDNode *Ranges,
     SyncScope::ID SSID, AtomicOrdering Ordering,
     AtomicOrdering FailureOrdering) {
+  assert((!Size.hasValue() ||
+          Size.getValue().getKnownMinValue() != ~UINT64_C(0)) &&
+         "Unexpected an unknown size to be represented using "
+         "LocationSize::beforeOrAfter()");
   return new (Allocator)
-      MachineMemOperand(PtrInfo, f, s, base_alignment, AAInfo, Ranges,
-                        SSID, Ordering, FailureOrdering);
+      MachineMemOperand(PtrInfo, F, Size, BaseAlignment, AAInfo, Ranges, SSID,
+                        Ordering, FailureOrdering);
 }
 
 MachineMemOperand *MachineFunction::getMachineMemOperand(
@@ -485,8 +509,14 @@ MachineMemOperand *MachineFunction::getMachineMemOperand(
                         Ordering, FailureOrdering);
 }
 
-MachineMemOperand *MachineFunction::getMachineMemOperand(
-    const MachineMemOperand *MMO, const MachinePointerInfo &PtrInfo, uint64_t Size) {
+MachineMemOperand *
+MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
+                                      const MachinePointerInfo &PtrInfo,
+                                      LocationSize Size) {
+  assert((!Size.hasValue() ||
+          Size.getValue().getKnownMinValue() != ~UINT64_C(0)) &&
+         "Unexpected an unknown size to be represented using "
+         "LocationSize::beforeOrAfter()");
   return new (Allocator)
       MachineMemOperand(PtrInfo, MMO->getFlags(), Size, MMO->getBaseAlign(),
                         AAMDNodes(), nullptr, MMO->getSyncScopeID(),
@@ -545,10 +575,10 @@ MachineFunction::getMachineMemOperand(const MachineMemOperand *MMO,
 MachineInstr::ExtraInfo *MachineFunction::createMIExtraInfo(
     ArrayRef<MachineMemOperand *> MMOs, MCSymbol *PreInstrSymbol,
     MCSymbol *PostInstrSymbol, MDNode *HeapAllocMarker, MDNode *PCSections,
-    uint32_t CFIType) {
+    uint32_t CFIType, MDNode *MMRAs) {
   return MachineInstr::ExtraInfo::create(Allocator, MMOs, PreInstrSymbol,
                                          PostInstrSymbol, HeapAllocMarker,
-                                         PCSections, CFIType);
+                                         PCSections, CFIType, MMRAs);
 }
 
 const char *MachineFunction::createExternalSymbolName(StringRef Name) {
@@ -625,9 +655,14 @@ void MachineFunction::print(raw_ostream &OS, const SlotIndexes *Indexes) const {
 
 /// True if this function needs frame moves for debug or exceptions.
 bool MachineFunction::needsFrameMoves() const {
-  return getMMI().hasDebugInfo() ||
-         getTarget().Options.ForceDwarfFrameSection ||
-         F.needsUnwindTableEntry();
+  // TODO: Ideally, what we'd like is to have a switch that allows emitting
+  // synchronous (precise at call-sites only) CFA into .eh_frame. However, even
+  // under this switch, we'd like .debug_frame to be precise when using -g. At
+  // this moment, there's no way to specify that some CFI directives go into
+  // .eh_frame only, while others go into .debug_frame only.
+  return getTarget().Options.ForceDwarfFrameSection ||
+         F.needsUnwindTableEntry() ||
+         !F.getParent()->debug_compile_units().empty();
 }
 
 namespace llvm {
@@ -1197,7 +1232,7 @@ bool MachineFunction::shouldUseDebugInstrRef() const {
   // have optimized code inlined into this unoptimized code, however with
   // fewer and less aggressive optimizations happening, coverage and accuracy
   // should not suffer.
-  if (getTarget().getOptLevel() == CodeGenOpt::None)
+  if (getTarget().getOptLevel() == CodeGenOptLevel::None)
     return false;
 
   // Don't use instr-ref if this function is marked optnone.
@@ -1235,6 +1270,7 @@ unsigned MachineJumpTableInfo::getEntrySize(const DataLayout &TD) const {
   case MachineJumpTableInfo::EK_BlockAddress:
     return TD.getPointerSize();
   case MachineJumpTableInfo::EK_GPRel64BlockAddress:
+  case MachineJumpTableInfo::EK_LabelDifference64:
     return 8;
   case MachineJumpTableInfo::EK_GPRel32BlockAddress:
   case MachineJumpTableInfo::EK_LabelDifference32:
@@ -1255,6 +1291,7 @@ unsigned MachineJumpTableInfo::getEntryAlignment(const DataLayout &TD) const {
   case MachineJumpTableInfo::EK_BlockAddress:
     return TD.getPointerABIAlignment(0).value();
   case MachineJumpTableInfo::EK_GPRel64BlockAddress:
+  case MachineJumpTableInfo::EK_LabelDifference64:
     return TD.getABIIntegerTypeAlignment(64).value();
   case MachineJumpTableInfo::EK_GPRel32BlockAddress:
   case MachineJumpTableInfo::EK_LabelDifference32:
@@ -1392,7 +1429,7 @@ MachineConstantPool::~MachineConstantPool() {
 }
 
 /// Test whether the given two constants can be allocated the same constant pool
-/// entry.
+/// entry referenced by \param A.
 static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
                                       const DataLayout &DL) {
   // Handle the trivial case quickly.
@@ -1411,6 +1448,8 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
   uint64_t StoreSize = DL.getTypeStoreSize(A->getType());
   if (StoreSize != DL.getTypeStoreSize(B->getType()) || StoreSize > 128)
     return false;
+
+  bool ContainsUndefOrPoisonA = A->containsUndefOrPoisonElement();
 
   Type *IntTy = IntegerType::get(A->getContext(), StoreSize*8);
 
@@ -1431,7 +1470,14 @@ static bool CanShareConstantPoolEntry(const Constant *A, const Constant *B,
     B = ConstantFoldCastOperand(Instruction::BitCast, const_cast<Constant *>(B),
                                 IntTy, DL);
 
-  return A == B;
+  if (A != B)
+    return false;
+
+  // Constants only safely match if A doesn't contain undef/poison.
+  // As we'll be reusing A, it doesn't matter if B contain undef/poison.
+  // TODO: Handle cases where A and B have the same undef/poison elements.
+  // TODO: Merge A and B with mismatching undef/poison elements.
+  return !ContainsUndefOrPoisonA;
 }
 
 /// Create a new entry in the constant pool or return an existing one.
@@ -1485,6 +1531,17 @@ void MachineConstantPool::print(raw_ostream &OS) const {
     OS << ", align=" << Constants[i].getAlign().value();
     OS << "\n";
   }
+}
+
+//===----------------------------------------------------------------------===//
+// Template specialization for MachineFunction implementation of
+// ProfileSummaryInfo::getEntryCount().
+//===----------------------------------------------------------------------===//
+template <>
+std::optional<Function::ProfileCount>
+ProfileSummaryInfo::getEntryCount<llvm::MachineFunction>(
+    const llvm::MachineFunction *F) const {
+  return F->getFunction().getEntryCount();
 }
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)

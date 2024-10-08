@@ -9,10 +9,11 @@
 #pragma once
 
 #include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/experimental/group_helpers_sorters.hpp>
 #include <sycl/group_algorithm.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 template <typename GroupHelper, typename T, typename BinaryOperation>
@@ -36,8 +37,8 @@ T reduce_over_group_impl(GroupHelper group_helper, T x, size_t num_elements,
   std::ignore = x;
   std::ignore = num_elements;
   std::ignore = binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace detail
@@ -54,8 +55,8 @@ reduce_over_group(GroupHelper group_helper, T x, BinaryOperation binary_op) {
       group_helper, x, group_helper.get_group().get_local_linear_range(),
       binary_op);
 #else
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Group algorithms are not supported on host.");
 #endif
 }
 
@@ -73,15 +74,15 @@ reduce_over_group(GroupHelper group_helper, V x, T init,
   return binary_op(init, reduce_over_group(group_helper, x, binary_op));
 #else
   std::ignore = group_helper;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Group algorithms are not supported on host.");
 #endif
 }
 
 // ---- joint_reduce
 template <typename GroupHelper, typename Ptr, typename BinaryOperation>
 std::enable_if_t<(is_group_helper_v<GroupHelper> &&
-                  sycl::detail::is_pointer<Ptr>::value),
+                  sycl::detail::is_pointer_v<Ptr>),
                  typename std::iterator_traits<Ptr>::value_type>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
              BinaryOperation binary_op) {
@@ -110,15 +111,15 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last,
   std::ignore = first;
   std::ignore = last;
   std::ignore = binary_op;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Group algorithms are not supported on host.");
 #endif
 }
 
 template <typename GroupHelper, typename Ptr, typename T,
           typename BinaryOperation>
 std::enable_if_t<
-    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer<Ptr>::value), T>
+    (is_group_helper_v<GroupHelper> && sycl::detail::is_pointer_v<Ptr>), T>
 joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
              BinaryOperation binary_op) {
   if constexpr (sycl::detail::is_native_op<T, BinaryOperation>::value) {
@@ -130,10 +131,10 @@ joint_reduce(GroupHelper group_helper, Ptr first, Ptr last, T init,
 #else
   std::ignore = group_helper;
   std::ignore = last;
-  throw runtime_error("Group algorithms are not supported on host.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Group algorithms are not supported on host.");
 #endif
 }
 } // namespace ext::oneapi::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

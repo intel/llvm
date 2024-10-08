@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --device-globals --emit-program-metadata -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --device-globals --emit-program-metadata -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
 
 ; This test is intended to check that the global_id_mapping program metadata properties are
@@ -12,13 +12,13 @@ target triple = "spir64-unknown-unknown"
 %"class.cl::sycl::ext::oneapi::device_global.1" = type { i8 }
 %class.anon.0 = type { i8 }
 
-@_ZL7dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
-@_ZL7dg_int2 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #1
-@_ZL8dg_bool3 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #2
-@_ZL8dg_bool4 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #3
-@_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
+@_ZL7dg_int1 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #0
+@_ZL7dg_int2 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #1
+@_ZL8dg_bool3 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #2
+@_ZL8dg_bool4 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.1" zeroinitializer, align 1 #3
+@_ZL7no_dg_int1 = weak_odr addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
 
-define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 {
+define weak_odr spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 {
 entry:
   %this.addr = alloca %class.anon.0 addrspace(4)*, align 8
   %this.addr.ascast = addrspacecast %class.anon.0 addrspace(4)** %this.addr to %class.anon.0 addrspace(4)* addrspace(4)*

@@ -7,7 +7,7 @@
 
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
 using namespace sycl;
@@ -44,7 +44,7 @@ void test2(queue &Q) {
     auto Acc = Buffer1.template get_access<mode::write>(CGH);
 
     auto Kernel = [=](item<1> Id) { Acc[Id] = 123; };
-    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.get_count(), Kernel);
+    CGH.parallel_for<NameGen<class Test6Init, true>>(Acc.size(), Kernel);
   });
 
   Q.submit([&](handler &CGH) {
@@ -52,16 +52,16 @@ void test2(queue &Q) {
     auto AccDst = Buffer2.template get_access<mode::write>(CGH);
 
     auto Func = [=] {
-      for (size_t Idx = 0; Idx < AccDst.get_count(); ++Idx)
+      for (size_t Idx = 0; Idx < AccDst.size(); ++Idx)
         AccDst[Idx] = AccSrc[Idx];
     };
     CGH.host_task(Func);
   });
 
   {
-    auto Acc = Buffer2.get_access<mode::read>();
+    auto Acc = Buffer2.get_host_access();
 
-    for (size_t Idx = 0; Idx < Acc.get_count(); ++Idx) {
+    for (size_t Idx = 0; Idx < Acc.size(); ++Idx) {
       std::cout << "Second buffer [" << Idx << "] = " << Acc[Idx] << std::endl;
       assert(Acc[Idx] == 123);
     }
@@ -97,16 +97,16 @@ void test3(queue &Q) {
 
       std::cout << "Submit: " << Idx << std::endl;
 
-      auto Acc0 = B0.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc1 = B1.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc2 = B2.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc3 = B3.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc4 = B4.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc5 = B5.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc6 = B6.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc7 = B7.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc8 = B8.get_access<mode::read_write, target::host_buffer>(CGH);
-      auto Acc9 = B9.get_access<mode::read_write, target::host_buffer>(CGH);
+      auto Acc0 = B0.get_host_access();
+      auto Acc1 = B1.get_host_access();
+      auto Acc2 = B2.get_host_access();
+      auto Acc3 = B3.get_host_access();
+      auto Acc4 = B4.get_host_access();
+      auto Acc5 = B5.get_host_access();
+      auto Acc6 = B6.get_host_access();
+      auto Acc7 = B7.get_host_access();
+      auto Acc8 = B8.get_host_access();
+      auto Acc9 = B9.get_host_access();
 
       auto Func = [=] {
         uint64_t X = 0;

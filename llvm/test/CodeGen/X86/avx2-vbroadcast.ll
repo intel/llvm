@@ -657,12 +657,12 @@ define <4 x float> @_e2(ptr %ptr) nounwind uwtable readnone ssp {
 define <8 x i8> @_e4(ptr %ptr) nounwind uwtable readnone ssp {
 ; X86-LABEL: _e4:
 ; X86:       ## %bb.0:
-; X86-NEXT:    vmovaps {{.*#+}} xmm0 = <52,52,52,52,52,52,52,52,u,u,u,u,u,u,u,u>
+; X86-NEXT:    vbroadcastss {{.*#+}} xmm0 = [52,52,52,52,52,52,52,52,52,52,52,52,52,52,52,52]
 ; X86-NEXT:    retl
 ;
 ; X64-LABEL: _e4:
 ; X64:       ## %bb.0:
-; X64-NEXT:    vmovaps {{.*#+}} xmm0 = <52,52,52,52,52,52,52,52,u,u,u,u,u,u,u,u>
+; X64-NEXT:    vbroadcastss {{.*#+}} xmm0 = [52,52,52,52,52,52,52,52,52,52,52,52,52,52,52,52]
 ; X64-NEXT:    retq
   %vecinit0.i = insertelement <8 x i8> undef, i8       52, i32 0
   %vecinit1.i = insertelement <8 x i8> %vecinit0.i, i8 52, i32 1
@@ -1449,31 +1449,24 @@ eintry:
   ret void
 }
 
-define <8 x i16> @broadcast_x86_mmx(x86_mmx %tmp) nounwind {
+define <8 x i16> @broadcast_x86_mmx(<1 x i64> %tmp) nounwind {
 ; X86-LABEL: broadcast_x86_mmx:
 ; X86:       ## %bb.0: ## %bb
-; X86-NEXT:    subl $12, %esp
-; X86-NEXT:    movq %mm0, (%esp)
 ; X86-NEXT:    vmovddup {{.*#+}} xmm0 = mem[0,0]
-; X86-NEXT:    addl $12, %esp
 ; X86-NEXT:    retl
 ;
 ; X64-AVX2-LABEL: broadcast_x86_mmx:
 ; X64-AVX2:       ## %bb.0: ## %bb
-; X64-AVX2-NEXT:    movdq2q %xmm0, %mm0
-; X64-AVX2-NEXT:    movq %mm0, %rax
-; X64-AVX2-NEXT:    vmovq %rax, %xmm0
+; X64-AVX2-NEXT:    vmovq %rdi, %xmm0
 ; X64-AVX2-NEXT:    vpbroadcastq %xmm0, %xmm0
 ; X64-AVX2-NEXT:    retq
 ;
 ; X64-AVX512VL-LABEL: broadcast_x86_mmx:
 ; X64-AVX512VL:       ## %bb.0: ## %bb
-; X64-AVX512VL-NEXT:    movdq2q %xmm0, %mm0
-; X64-AVX512VL-NEXT:    movq %mm0, %rax
-; X64-AVX512VL-NEXT:    vpbroadcastq %rax, %xmm0
+; X64-AVX512VL-NEXT:    vpbroadcastq %rdi, %xmm0
 ; X64-AVX512VL-NEXT:    retq
 bb:
-  %tmp1 = bitcast x86_mmx %tmp to i64
+  %tmp1 = bitcast <1 x i64> %tmp to i64
   %tmp2 = insertelement <2 x i64> undef, i64 %tmp1, i32 0
   %tmp3 = bitcast <2 x i64> %tmp2 to <8 x i16>
   %tmp4 = shufflevector <8 x i16> %tmp3, <8 x i16> poison, <8 x i32> <i32 0, i32 1, i32 2, i32 3, i32 0, i32 1, i32 2, i32 3>

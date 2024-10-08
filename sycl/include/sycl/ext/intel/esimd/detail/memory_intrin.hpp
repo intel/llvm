@@ -11,6 +11,13 @@
 
 /// @cond ESIMD_DETAIL
 
+/// **************************** WARNING ************************************
+/// When declaring new SPIR-V intrinsics (functions starting with __spirv),
+/// it is imperitive to exactly follow the pattern of the existing SPIR-V
+/// intrinsics. If not followed, the declaration may conflict with
+/// the Clang-generated functions and cause compilation errors.
+/// **************************** WARNING ************************************
+
 #pragma once
 
 #include <sycl/accessor.hpp>
@@ -21,23 +28,14 @@
 
 #include <cstdint>
 
-#ifndef __SYCL_DEVICE_ONLY__
-// ESIMD_CPU Emulation support using esimd_cpu plugin
-
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/ext/intel/esimd/detail/atomic_intrin.hpp>
-#include <sycl/ext/intel/esimd/emu/detail/esimd_emulator_device_interface.hpp>
-
-// Channel Mask Array for scaled-gather/scatter
-const std::array<__ESIMD_NS::rgba_channel, 4> ChannelMaskArray{
-    __ESIMD_NS::rgba_channel::R, __ESIMD_NS::rgba_channel::G,
-    __ESIMD_NS::rgba_channel::B, __ESIMD_NS::rgba_channel::A};
-
-#endif // ifndef __SYCL_DEVICE_ONLY__
-
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
+
+namespace ext::intel::esimd {
+template <typename AccessorTy>
+__ESIMD_API SurfaceIndex get_surface_index(AccessorTy acc);
+} // namespace ext::intel::esimd
+
 namespace ext::intel::esimd::detail {
 
 // Provides access to sycl accessor class' private members.
@@ -83,7 +81,7 @@ constexpr unsigned int ElemsPerAddrDecoding(unsigned int ElemsPerAddrEncoded) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 // flat_read does flat-address gather
@@ -93,32 +91,7 @@ __ESIMD_INTRIN
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
     __esimd_svm_gather(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
                        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
-      V = 0;
-  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          V[I * NumBlkDecoded + J] = *(Addr + J);
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          V[J * N + I] = *(Addr + J);
-      }
-    }
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
+        __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, int NumBlk = 0, int ElemsPerAddr = 0>
@@ -127,266 +100,252 @@ __ESIMD_INTRIN void __esimd_svm_scatter(
     __ESIMD_DNS::vector_type_t<Ty,
                                N * __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk)>
         vals,
-    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  auto NumBlkDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(NumBlk);
-  auto ElemsPerAddrDecoded = __ESIMD_DNS::ElemsPerAddrDecoding(ElemsPerAddr);
-  if (sizeof(Ty) == 2)
-    ElemsPerAddrDecoded = ElemsPerAddrDecoded / 2;
-
-  for (int I = 0; I < N; I++) {
-    if (pred[I]) {
-      Ty *Addr = reinterpret_cast<Ty *>(addrs[I]);
-      if (sizeof(Ty) <= 2) {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          *(Addr + J) = vals[I * NumBlkDecoded + J];
-      } else {
-        for (int J = 0; J < NumBlkDecoded && J < ElemsPerAddrDecoded; J++)
-          *(Addr + J) = vals[J * N + I];
-      }
-    }
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_block_read reads a block of data from one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_block_ld_unaligned(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Read a block of data from the given address. Address must be 16-byte aligned.
-template <typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_block_ld(uint64_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> V;
-
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    V[I] = *Addr;
-  }
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// flat_block_write writes a block of data using one flat address
-template <typename Ty, int N>
-__ESIMD_INTRIN void __esimd_svm_block_st(uint64_t addr,
-                                         __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  for (int I = 0; I < N; I++) {
-    Ty *Addr = reinterpret_cast<Ty *>(addr + I * sizeof(Ty));
-    *Addr = vals[I];
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // Reads a block of data from given surface at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind, uint32_t offset)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      retv[i] = *SlmAddr;
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (offset >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + offset));
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_oword_ld_unaligned(SurfIndAliasTy surf_ind,
+                           uint32_t offset) __ESIMD_INTRIN_END;
 
 // Writes given block of data to a surface with given index at given offset.
 template <typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN void __esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t offset,
-                                     __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  offset <<= 4;
+__ESIMD_INTRIN void
+__esimd_oword_st(SurfIndAliasTy surf_ind, uint32_t owords_offset,
+                 __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block store for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(offset + SlmBase);
-      *SlmAddr = vals[i];
-      offset += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
+// Read a block of data from the given address.
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_block_ld(
+    const __ESIMD_DNS::vector_type_t<Ty, N> *addr) __ESIMD_INTRIN_END;
 
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
+// flat_block_write writes a block of data using one flat address
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN void
+__esimd_slm_block_st(uint32_t offset,
+                     __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
-    std::lock_guard<std::mutex> lock(*mutexLock);
+/// SLM block_store/scatter.
+/// Supported platforms: DG2, PVC
+///
+/// Scatters elements located to slm.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to store per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param vals is values to store.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN void __esimd_lsc_store_slm(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals)
+    __ESIMD_INTRIN_END;
 
-    for (int idx = 0; idx < N; idx++) {
-      if (offset < width) {
-        *((Ty *)(writeBase + offset)) = vals[idx];
-      } else {
-        break;
-      }
-      offset += (uint32_t)sizeof(Ty);
-    }
+/// USM pointer prefetch gather.
+/// Supported platforms: DG2, PVC
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN void __esimd_lsc_prefetch_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs) __ESIMD_INTRIN_END;
 
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
+/// Surface-based prefetch gather.
+/// Supported platforms: DG2, PVC
+///
+/// Prefetches elements located at surface.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param surf_ind is the surface index.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN void
+__esimd_lsc_prefetch_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                         __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+                         SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
+
+// Read a block of data from SLM at the given offset.
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_slm_block_ld(uint32_t offset) __ESIMD_INTRIN_END;
+
+// flat_block_write writes a block of data using one flat address
+template <typename Ty, int N, size_t Align>
+__ESIMD_INTRIN void
+__esimd_svm_block_st(__ESIMD_DNS::vector_type_t<Ty, N> *addr,
+                     __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
+
+/// SLM gather/block_load.
+/// Supported platforms: DG2, PVC
+///
+/// Collects elements located at slm and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets for SLM buffer in bytes.
+/// @param pass_thru contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and size N * to_int<VS>()
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_merge_slm(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru)
+    __ESIMD_INTRIN_END;
+
+/// Similar to __esimd_lsc_load_merge_slm(), but the argument pass_thru is not
+/// explicitly specified, which results into random values in those elements of
+/// the returned result for which the corresponding element in \p pred is 0.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_slm(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __ESIMD_INTRIN_END;
+
+// Gather data from the given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
+// Gather data from the given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N> __esimd_slm_gather_ld(
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<T, N> pass_thru) __ESIMD_INTRIN_END;
+
+// Scatter data to given global or private addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN void
+__esimd_scatter_st(__ESIMD_DNS::vector_type_t<T, N> vals,
+                   __ESIMD_DNS::vector_type_t<uint64_t, N> vptr,
+                   __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
+
+// Scatter data to given SLM addresses.
+template <typename T, int N, size_t Align>
+__ESIMD_INTRIN void __esimd_slm_scatter_st(
+    __ESIMD_DNS::vector_type_t<T, N> vals,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> vptr,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
+
+/// Surface-based gather.
+/// Supported platforms: DG2, PVC
+///
+/// Collects elements located at surface and returns them
+/// as a single \ref simd object.
+///
+/// @tparam T is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the
+/// transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to
+/// access)
+/// @tparam SurfIndAliasT is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param surf_ind is the surface index.
+/// @param PassThru contains the vector which elements are copied
+/// to the returned result when the corresponding element of \p pred is 0.
+/// @return is a vector of type T and N * to_int<VS>()
+template <typename T, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N, typename SurfIndAliasT>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_merge_bti(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets, SurfIndAliasT surf_ind,
+    __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()> PassThru)
+    __ESIMD_INTRIN_END;
+
+/// Similar to __esimd_lsc_load_merge_bti(), but the argument PassThru is not
+/// explicitly specified, which results into random values in those elements of
+/// the returned result for which the corresponding element in \p pred is 0.
+template <typename T, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N, typename SurfIndAliasT>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<T, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_bti(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                     __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+                     SurfIndAliasT surf_ind) __ESIMD_INTRIN_END;
 
 // flat_read4 does flat-address gather4
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
 __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)>
-    __ESIMD_INTRIN
-    __esimd_svm_gather4_scaled(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                               __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V = 0;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          V[Next] = *Addr;
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
-
-  return V;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN __esimd_svm_gather4_scaled(
+        __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+        __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // flat_write does flat-address scatter
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask>
 __ESIMD_INTRIN void __esimd_svm_scatter4_scaled(
     __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals,
-    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> V;
-  unsigned int Next = 0;
-  uint64_t Offset = 0;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(addrs[I] + Offset);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    Offset += (uint64_t)sizeof(Ty);
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Low-level surface-based gather. Collects elements located at given offsets in
-// a surface and returns them as a single \ref simd object. Element can be
-// 1, 2 or 4-byte value, but is always returned as a 4-byte value within the
-// resulting simd object, with upper 2 or 3 bytes undefined.
-// Template (compile-time constant) parameters:
-// @tparam Ty - element type; can only be a 4-byte integer or \c float,
-// @tparam N  - the number of elements
-// @tparam SurfIndAliasTy - "surface index alias" type - internal type in the
-//   accessor used to denote the surface
-// @tparam TySizeLog2 - Log2 of the number of bytes read per element:
-//   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
-// @tparam Scale - offset scaling factor; must be zero currently
-// @tparam L1H - L1 cache hint
-// @tparam L3H - L3 cache hint
-//
-// Formal parameters:
-// @param surf_ind - the surface index, taken from the SYCL memory object
-// @param global_offset - offset added to each individual element's offset to
-//   compute actual memory access offset for that element
-// @param elem_offsets - per-element offsets
-//
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2 && Scale == 0);
-  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_DNS::simd_mask_storage_t<N> pred = 1) __ESIMD_INTRIN_END;
 
 // Low-level surface-based scatter. Writes elements of a \ref simd object into a
 // surface at given offsets. Element can be a 1, 2 or 4-byte value, but it is
@@ -400,8 +359,6 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 // @tparam TySizeLog2 - Log2 of the number of bytes written per element:
 //   0 - 1 byte, 1 - 2 bytes, 2 - 4 bytes
 // @tparam Scale - offset scale; only 0 is supported for now
-// @tparam L1H - L1 cache hint
-// @tparam L3H - L3 cache hint
 //
 // Formal parameters:
 // @param pred - per-element predicates; elements with zero corresponding
@@ -414,266 +371,300 @@ __esimd_gather_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
 //
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
-__ESIMD_INTRIN void
-__esimd_scatter_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                       SurfIndAliasTy surf_ind, uint32_t global_offset,
-                       __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets,
-                       __ESIMD_DNS::vector_type_t<Ty, N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(N == 1 || N == 8 || N == 16 || N == 32);
-  static_assert(TySizeLog2 <= 2);
-  static_assert(std::is_integral_v<Ty> || TySizeLog2 == 2);
-
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
-
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  __ESIMD_DNS::vector_type_t<RestoredTy, N> TypeAdjustedVals;
-  if constexpr (OrigSize == 4) {
-    TypeAdjustedVals = __ESIMD_DNS::bitcast<RestoredTy, Ty, N>(vals);
-  } else {
-    static_assert(OrigSize == 1 || OrigSize == 2);
-    TypeAdjustedVals = __ESIMD_DNS::convert_vector<RestoredTy, Ty, N>(vals);
-  }
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // Scattered-store for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[i] + SlmBase);
-        *addr = TypeAdjustedVals[i];
-      }
-    }
-  } else {
-    // Scattered-store for regular surface indexed by surf_ind
-    char *writeBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &writeBase, &width, &mutexLock);
-    writeBase += global_offset;
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(elem_offsets[idx] + writeBase);
-        *addr = TypeAdjustedVals[idx];
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_scatter_scaled(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    uint32_t global_offset,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> elem_offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
 
 // flat_atomic: flat-address atomic
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic0(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval = 0;
-
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx += 1) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Oldval vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-    if constexpr (Op == __ESIMD_NS::atomic_op::load) {
-      Oldval[AddrIdx] = __ESIMD_DNS::atomic_load<Ty>((Ty *)addrs[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::inc) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::dec) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], static_cast<Ty>(1));
-    }
-  }
-  return Oldval;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic0(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic1(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
-
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Output vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-
-    if constexpr (Op == __ESIMD_NS::atomic_op::store) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_store<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::add) ||
-                         (Op == __ESIMD_NS::atomic_op::fadd)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_add<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::sub) ||
-                         (Op == __ESIMD_NS::atomic_op::fsub)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_sub<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smin) ||
-                         (Op == __ESIMD_NS::atomic_op::umin) ||
-                         (Op == __ESIMD_NS::atomic_op::fmin)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_min<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr ((Op == __ESIMD_NS::atomic_op::smax) ||
-                         (Op == __ESIMD_NS::atomic_op::umax) ||
-                         (Op == __ESIMD_NS::atomic_op::fmax)) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_max<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_and) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_and<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_or) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_or<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    } else if constexpr (Op == __ESIMD_NS::atomic_op::bit_xor) {
-      Oldval[AddrIdx] =
-          __ESIMD_DNS::atomic_xor<Ty>((Ty *)addrs[AddrIdx], src0[AddrIdx]);
-    }
-  }
-
-  return Oldval;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic1(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_svm_atomic2(__ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                    __ESIMD_DNS::vector_type_t<Ty, N> src1,
-                    __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> Oldval;
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_svm_atomic2(
+    __ESIMD_DNS::vector_type_t<uint64_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N> src1,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
-  for (int AddrIdx = 0; AddrIdx < N; AddrIdx++) {
-    if (pred[AddrIdx] == 0) {
-      // Skip Output vector elements correpsonding to
-      // predicates whose value is zero
-      continue;
-    }
-    static_assert((Op == __ESIMD_NS::atomic_op::cmpxchg) ||
-                  (Op == __ESIMD_NS::atomic_op::fcmpxchg));
-    Oldval[AddrIdx] = __ESIMD_DNS::atomic_cmpxchg((Ty *)addrs[AddrIdx],
-                                                  src0[AddrIdx], src1[AddrIdx]);
-  }
-  return Oldval;
-}
-#endif // __SYCL_DEVICE_ONLY__
+/// USM pointer atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_stateless_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                                __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs)
+    __ESIMD_INTRIN_END;
 
-__ESIMD_INTRIN void __esimd_slm_init(uint32_t size)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::getESIMDDeviceInterface()->cm_slm_init_ptr(size);
-}
-#endif // ifndef __SYCL_DEVICE_ONLY__
+/// USM pointer atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+/// @param src0 is the first atomic operand.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_stateless_1(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0)
+    __ESIMD_INTRIN_END;
+
+/// USM pointer atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+/// @param src0 is the first atomic operand.
+/// @param src1 is the second atomic operand.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_stateless_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> Pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> Addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1)
+    __ESIMD_INTRIN_END;
+
+/// Accessor-based atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+/// @param surf_ind is the surface index.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_bti_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+                          SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
+
+/// Accessor-based atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+/// @param src0 is the first atomic operand.
+/// @param surf_ind is the surface index.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_bti_1(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
+
+/// Accessor-based atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+/// @param src0 is the first atomic operand.
+/// @param src1 is the second atomic operand.
+/// @param surf_ind is the surface index.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_bti_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1,
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
+
+/// SLM atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+template <typename Ty, int InternalOpOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_slm_0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
+                          __ESIMD_DNS::vector_type_t<uint32_t, N> offsets)
+    __ESIMD_INTRIN_END;
+
+/// SLM atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+/// @param src0 is the first atomic operand.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_slm_1(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0)
+    __ESIMD_INTRIN_END;
+
+/// SLM atomic.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Ty is element type.
+/// @tparam InternalOp is operation type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets.
+/// @param src0 is the first atomic operand.
+/// @param src1 is the second atomic operand.
+template <typename Ty, int InternalOp, __ESIMD_NS::cache_hint L1H,
+          __ESIMD_NS::cache_hint L2H, uint16_t AddressScale, int ImmOffset,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_xatomic_slm_2(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> src1)
+    __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN void __esimd_slm_init(uint32_t size) __ESIMD_INTRIN_END;
 
 // esimd_barrier, generic group barrier
-__ESIMD_INTRIN void __esimd_barrier()
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::getESIMDDeviceInterface()->cm_barrier_ptr();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_barrier() __ESIMD_INTRIN_END;
 
 // slm_fence sets the SLM read/write order
-__ESIMD_INTRIN void __esimd_fence(uint8_t cntl)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  // CM_EMU's 'cm_fence' is NOP. Disabled.
-  // sycl::detail::getESIMDDeviceInterface()->cm_fence_ptr();
-  __ESIMD_DNS::atomic_fence();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void __esimd_fence(uint8_t cntl) __ESIMD_INTRIN_END;
 
-// Scaled gather from a surface.
-template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
-          int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind, uint32_t global_offset,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // Scattered-load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      if (pred[i]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[i] + SlmBase);
-        retv[i] = *addr;
-      }
-    }
-  } else {
-    // Scattered-load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-    readBase += global_offset;
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        Ty *addr = reinterpret_cast<Ty *>(addrs[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
+/// Memory fence.
+/// Supported platforms: DG2, PVC
+///
+/// @tparam Kind is the Sfid shaded function.
+/// @tparam FenceOp is the fence operation.
+/// @tparam Scope is the operation scope.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+template <uint8_t Kind, uint8_t FenceOp, uint8_t Scope, int N>
+__ESIMD_INTRIN void
+__esimd_lsc_fence(__ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 // Predicated (masked) scaled gather from a surface.
 //
@@ -697,111 +688,17 @@ __esimd_gather_scaled(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 
 template <typename Ty, int N, typename SurfIndAliasTy, int TySizeLog2,
           int16_t Scale = 0>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_gather_masked_scaled2(SurfIndAliasTy surf_ind, uint32_t global_offset,
-                              __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-                              __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  static_assert(Scale == 0);
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_gather_masked_scaled2(
+    SurfIndAliasTy surf_ind, uint32_t global_offset,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
-  // determine the original element's type size (as __esimd_scatter_scaled
-  // requires vals to be a vector of 4-byte integers)
-  constexpr size_t OrigSize = __ESIMD_DNS::ElemsPerAddrDecoding(TySizeLog2);
-  using RestoredTy = __ESIMD_DNS::uint_type_t<OrigSize>;
-
-  __ESIMD_DNS::vector_type_t<RestoredTy, N> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    assert(global_offset == 0);
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int idx = 0; idx < N; ++idx) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + SlmBase);
-        retv[idx] = *addr;
-      }
-    }
-  } else {
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    readBase += global_offset;
-    std::lock_guard<std::mutex> lock(*mutexLock);
-    for (int idx = 0; idx < N; idx++) {
-      if (pred[idx]) {
-        RestoredTy *addr =
-            reinterpret_cast<RestoredTy *>(offsets[idx] + readBase);
-        retv[idx] = *addr;
-      }
-    }
-
-    // TODO : Optimize
-    I->cm_fence_ptr();
-  }
-
-  if constexpr (OrigSize == 4) {
-    return __ESIMD_DNS::bitcast<Ty, RestoredTy, N>(retv);
-  } else {
-    return __ESIMD_DNS::convert_vector<Ty, RestoredTy, N>(retv);
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
-
-// Reads a block of data from given surface at given offset, offset must be
-// 16-byte-aligned.
+// Reads a block of data from given surface at given `offset` counted
+// in 16-byte chunks.
 template <typename Ty, int N, typename SurfIndAliasTy, int32_t IsModified = 0>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_oword_ld(SurfIndAliasTy surf_ind, uint32_t addr)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  addr <<= 4;
-
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    // O-word/Block load for Shared Local Memory
-    // __ESIMD_NS::detail::SLM_BTI is special binding table index for SLM
-    char *SlmBase = I->__cm_emu_get_slm_ptr();
-    for (int i = 0; i < N; ++i) {
-      Ty *SlmAddr = reinterpret_cast<Ty *>(addr + SlmBase);
-      retv[i] = *SlmAddr;
-      addr += sizeof(Ty);
-    }
-  } else {
-    // O-word/Block load for regular surface indexed by surf_ind
-    char *readBase;
-    uint32_t width;
-    std::mutex *mutexLock;
-
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &readBase, &width, &mutexLock);
-
-    std::lock_guard<std::mutex> lock(*mutexLock);
-
-    for (int idx = 0; idx < N; idx++) {
-      if (addr >= width) {
-        retv[idx] = 0;
-      } else {
-        retv[idx] = *((Ty *)(readBase + addr));
-      }
-      addr += (uint32_t)sizeof(Ty);
-    }
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_oword_ld(SurfIndAliasTy surf_ind,
+                 uint32_t owords_offset) __ESIMD_INTRIN_END;
 
 // gather4 scaled masked from a surface/SLM
 template <typename Ty, int N, __ESIMD_NS::rgba_channel_mask Mask,
@@ -811,43 +708,7 @@ __ESIMD_INTRIN
     __esimd_gather4_masked_scaled2(
         SurfIndAliasTy surf_ind, int global_offset,
         __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
-        __ESIMD_DNS::simd_mask_storage_t<N> pred)
-#ifdef __SYCL_DEVICE_ONLY__
-        ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> retv = 0;
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *ReadBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    ReadBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &ReadBase, &width, &mutexLock);
-    std::lock_guard<std::mutex> lock(*mutexLock);
-  }
-
-  ReadBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(ReadBase + offsets[I]);
-          retv[Next] = *Addr;
-        }
-      }
-    }
-    ReadBase += (uint64_t)sizeof(Ty);
-  }
-
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
+        __ESIMD_DNS::simd_mask_storage_t<N> pred) __ESIMD_INTRIN_END;
 
 // scatter4 scaled to a surface/SLM
 template <typename Ty, int N, typename SurfIndAliasTy,
@@ -856,104 +717,26 @@ __ESIMD_INTRIN void __esimd_scatter4_scaled(
     __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
     int global_offset, __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
     __ESIMD_DNS::vector_type_t<Ty, N * get_num_channels_enabled(Mask)> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-  char *WriteBase;
-  unsigned int Next = 0;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    WriteBase = I->__cm_emu_get_slm_ptr();
-  } else {
-    uint32_t width;
-    std::mutex *mutexLock;
-    I->sycl_get_cm_buffer_params_ptr(surf_ind, &WriteBase, &width, &mutexLock);
-    std::lock_guard<std::mutex> lock(*mutexLock);
-  }
-
-  WriteBase += global_offset;
-
-  for (const auto &channel : ChannelMaskArray) {
-    if (__ESIMD_NS::is_channel_enabled(Mask, channel)) {
-      for (int I = 0; I < N; I++, Next++) {
-        if (pred[I]) {
-          Ty *Addr = reinterpret_cast<Ty *>(WriteBase + offsets[I]);
-          *Addr = vals[Next];
-        }
-      }
-    }
-    WriteBase += (uint64_t)sizeof(Ty);
-  }
-}
-#endif // __SYCL_DEVICE_ONLY__
+    __ESIMD_INTRIN_END;
 
 // Surface-based atomic operations
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic0(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, N> retv;
-
-  if (surf_ind == __ESIMD_NS::detail::SLM_BTI) {
-    char *WriteBase =
-        sycl::detail::getESIMDDeviceInterface()->__cm_emu_get_slm_ptr();
-
-    for (int i = 0; i < N; i++) {
-      if (pred[i]) {
-        Ty *p = reinterpret_cast<Ty *>(addrs[i] + WriteBase);
-
-        switch (Op) {
-        case __ESIMD_NS::atomic_op::inc:
-          retv[i] = __ESIMD_DNS::atomic_add<Ty>(p, 1);
-          break;
-        default:
-          __ESIMD_UNSUPPORTED_ON_HOST;
-        }
-      }
-    }
-  } else {
-    __ESIMD_UNSUPPORTED_ON_HOST;
-  }
-  return retv;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic0(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic1(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src0)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic1(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0) __ESIMD_INTRIN_END;
 
 template <__ESIMD_NS::atomic_op Op, typename Ty, int N, typename SurfIndAliasTy>
-__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
-__esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
-                      SurfIndAliasTy surf_ind,
-                      __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src0,
-                      __ESIMD_DNS::vector_type_t<Ty, N> src1)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_UNSUPPORTED_ON_HOST;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N> __esimd_dword_atomic2(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, SurfIndAliasTy surf_ind,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N> src0,
+    __ESIMD_DNS::vector_type_t<Ty, N> src1) __ESIMD_INTRIN_END;
 
 // Media block load.
 //
@@ -973,116 +756,7 @@ __esimd_dword_atomic2(__ESIMD_DNS::simd_mask_storage_t<N> pred,
 template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
           int BlockWidth>
 __ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, M * N>
-__esimd_media_ld(TACC handle, unsigned x, unsigned y)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  __ESIMD_DNS::vector_type_t<Ty, M * N> vals;
-  char *readBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_image_params_ptr(
-      handle, &readBase, &imgWidth, &imgHeight, &bpp, &mutexLock);
-
-  std::lock_guard<std::mutex> lock(*mutexLock);
-
-  int x_pos_a, y_pos_a, offset, index;
-
-  // TODO : Remove intermediate 'in' matrix
-  std::vector<std::vector<Ty>> in(M, std::vector<Ty>(N));
-  int R = M;
-  int C = N;
-  for (int i = 0; i < R; i++) {
-    for (int j = 0; j < C; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      // We should check the boundary condition based on sizeof(Ty), x_pos_a is
-      // 0-based Note: Use a signed variable; otherwise sizeof(Ty) is unsigned
-      if ((x_pos_a + sizeof(Ty)) > imgWidth) {
-        // If we're trying to read outside the boundary, limit the value of
-        // x_pos_a Assumption -- We don't this situation:
-        //         x_pos_a  width's boundary
-        //           |      |
-        //           <---type(Ty)--->
-        // At most x_pos_a+sizeof(Ty) is exactly at the boundary.
-        x_pos_a = imgWidth;
-      }
-      if (y_pos_a > imgHeight - 1) {
-        y_pos_a = imgHeight - 1;
-      }
-      if (y_pos_a < 0) {
-        y_pos_a = 0;
-      }
-      {
-        if (x_pos_a < 0) {
-          // Need to align x position to bbp
-          int offset = x % bpp;
-          x_pos_a -= offset;
-        }
-        while (x_pos_a < 0) {
-          // If we're trying to read outside the left boundary, increase x_pos_a
-          x_pos_a += bpp;
-        }
-      }
-
-      if (x_pos_a >= imgWidth) {
-        {
-          x_pos_a = x_pos_a - bpp;
-          for (uint byte_count = 0; byte_count < sizeof(Ty); byte_count++) {
-            if (x_pos_a >= imgWidth) {
-              x_pos_a = x_pos_a - bpp;
-            }
-            offset = y_pos_a * imgWidth + x_pos_a;
-
-            /*
-              If destination size per element is less then or equal pixel size
-              of the surface move the pixel value accross the destination
-              elements. If destination size per element is greater then pixel
-              size of the surface replicate pixel value in the destination
-              element.
-            */
-            if (sizeof(Ty) <= bpp) {
-              for (uint bpp_count = 0; j < C && bpp_count < bpp;
-                   j++, bpp_count += sizeof(Ty)) {
-                in[i][j] = *((Ty *)(readBase + offset + bpp_count));
-              }
-              j--;
-              break;
-            } else {
-              // ((unsigned char*)in.get_addr(i*C+j))[byte_count] = *((unsigned
-              // char*)((char*)buff_iter->p + offset));
-              unsigned char *pTempBase =
-                  ((unsigned char *)in[i].data()) + j * sizeof(Ty);
-              pTempBase[byte_count] = *((unsigned char *)(readBase + offset));
-            }
-
-            x_pos_a = x_pos_a + 1;
-          }
-          x_pos_a = imgWidth;
-        }
-      } else {
-        offset = y_pos_a * imgWidth + x_pos_a;
-        { in[i][j] = *((Ty *)(readBase + offset)); }
-      }
-    }
-  }
-
-  for (auto i = 0, k = 0; i < M; i++) {
-    for (auto j = 0; j < N; j++) {
-      vals[k++] = in[i][j];
-    }
-  }
-
-  return vals;
-}
-#endif // __SYCL_DEVICE_ONLY__
+__esimd_media_ld(TACC handle, unsigned x, unsigned y) __ESIMD_INTRIN_END;
 
 // Media block store
 //
@@ -1100,69 +774,9 @@ __esimd_media_ld(TACC handle, unsigned x, unsigned y)
 //
 template <typename Ty, int M, int N, int Modifier, typename TACC, int Plane,
           int BlockWidth>
-__ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
-                                     __ESIMD_DNS::vector_type_t<Ty, M * N> vals)
-#ifdef __SYCL_DEVICE_ONLY__
-    ;
-#else
-{
-  sycl::detail::ESIMDDeviceInterface *I =
-      sycl::detail::getESIMDDeviceInterface();
-
-  char *writeBase;
-  uint32_t bpp;
-  uint32_t imgWidth;
-  uint32_t imgHeight;
-  std::mutex *mutexLock;
-
-  assert((handle != __ESIMD_NS::detail::SLM_BTI) &&
-         "__esimd_media_ld cannot access SLM");
-
-  I->sycl_get_cm_image_params_ptr(handle, &writeBase, &imgWidth, &imgHeight,
-                                  &bpp, &mutexLock);
-
-  int x_pos_a, y_pos_a, offset;
-
-  assert((x % 4) == 0);
-  assert((N * sizeof(Ty)) % 4 == 0);
-
-  // TODO : Remove intermediate 'out' matrix
-  std::vector<std::vector<Ty>> out(M, std::vector<Ty>(N));
-
-  std::lock_guard<std::mutex> lock(*mutexLock);
-
-  for (int i = 0, k = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      out[i][j] = vals[k++];
-    }
-  }
-
-  for (int i = 0; i < M; i++) {
-    for (int j = 0; j < N; j++) {
-      x_pos_a = x + j * sizeof(Ty);
-      { y_pos_a = y + i; }
-      if ((int)x_pos_a < 0) {
-        continue;
-      }
-      if ((int)y_pos_a < 0) {
-        continue;
-      }
-      if ((int)(x_pos_a + sizeof(Ty)) > imgWidth) {
-        continue;
-      }
-
-      if ((int)y_pos_a > imgHeight - 1) {
-        continue;
-      }
-      offset = y_pos_a * imgWidth + x_pos_a;
-      *((Ty *)(writeBase + offset)) = out[i][j];
-    }
-  }
-
-  // TODO : Optimize
-  I->cm_fence_ptr();
-}
-#endif // __SYCL_DEVICE_ONLY__
+__ESIMD_INTRIN void
+__esimd_media_st(TACC handle, unsigned x, unsigned y,
+                 __ESIMD_DNS::vector_type_t<Ty, M * N> vals) __ESIMD_INTRIN_END;
 
 // \brief Converts given value to a surface index.
 // The input must always be a result of
@@ -1185,16 +799,376 @@ __ESIMD_INTRIN void __esimd_media_st(TACC handle, unsigned x, unsigned y,
 // @param acc the SYCL accessor.
 // Returns the binding table index value.
 template <typename MemObjTy>
-ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj)
+ESIMD_INLINE __ESIMD_NS::SurfaceIndex __esimd_get_surface_index(MemObjTy obj) {
 #ifdef __SYCL_DEVICE_ONLY__
-{
   return __spirv_ConvertPtrToU<MemObjTy, uint32_t>(obj);
-}
 #else  // __SYCL_DEVICE_ONLY__
-{
-  return sycl::detail::getESIMDDeviceInterface()->sycl_get_cm_surface_index_ptr(
-      __ESIMD_DNS::AccessorPrivateProxy::getPtr(obj));
-}
+  __ESIMD_UNSUPPORTED_ON_HOST;
 #endif // __SYCL_DEVICE_ONLY__
+}
+
+/// USM pointer gather.
+/// Supported platforms: DG2, PVC
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the load addresses.
+/// @param pass_thru is the vector of values copied to the result when the
+/// corresponding element in \p pred is unset.
+/// @return is a vector of type T and N * to_int<VS>()
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order Transposed, int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()>
+__esimd_lsc_load_merge_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> pass_thru = 0)
+    __ESIMD_INTRIN_END;
+
+/// USM pointer scatter.
+/// Supported platforms: DG2, PVC
+///
+/// Scatters elements to specific address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @param pred is predicates.
+/// @param addrs is the prefetch addresses.
+/// @param vals is values to store.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N>
+__ESIMD_INTRIN void __esimd_lsc_store_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uintptr_t, N> addrs,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals)
+    __ESIMD_INTRIN_END;
+
+/// Surface-based scatter.
+/// Supported platforms: DG2, PVC
+///
+/// Scatters elements to surface.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam AddressScale is the address scale.
+/// @tparam ImmOffset is the immediate offset added to each address.
+/// @tparam DS is the data size.
+/// @tparam VS is the number of elements to load per address.
+/// @tparam Transposed indicates if the data is transposed during the transfer.
+/// @tparam N is the SIMD size of operation (the number of addresses to access)
+/// @tparam SurfIndAliasTy is the \ref sycl::accessor type.
+/// @param pred is predicates.
+/// @param offsets is the zero-based offsets in bytes.
+/// @param vals is values to store.
+/// @param surf_ind is the surface index.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          uint16_t AddressScale, int ImmOffset, __ESIMD_DNS::lsc_data_size DS,
+          __ESIMD_DNS::lsc_vector_size VS,
+          __ESIMD_DNS::lsc_data_order _Transposed, int N,
+          typename SurfIndAliasTy>
+__ESIMD_INTRIN void __esimd_lsc_store_bti(
+    __ESIMD_DNS::simd_mask_storage_t<N> pred,
+    __ESIMD_DNS::vector_type_t<uint32_t, N> offsets,
+    __ESIMD_DNS::vector_type_t<Ty, N * __ESIMD_DNS::to_int<VS>()> vals,
+    SurfIndAliasTy surf_ind) __ESIMD_INTRIN_END;
+
+// \brief Raw sends.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+// constant.
+//
+// @param numDst the number of GRFs for destination, which must be a compile
+// time constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+//
+template <typename Ty1, int N1, typename Ty2, int N2, typename Ty3, int N3,
+          int N = 16>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1> __esimd_raw_sends2(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t numDst, uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty3, N3> msgSrc1,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst) __ESIMD_INTRIN_END;
+
+// \brief Raw send.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numDst the number of GRFs for destination, which must be a compile
+// time constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgDst the destination operand of send message.
+//
+// Returns a simd vector of type Ty1 and size N1.
+//
+template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty1, N1> __esimd_raw_send2(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numDst,
+    uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgDst) __ESIMD_INTRIN_END;
+
+// \brief Raw sends.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param numSrc1 the number of GRFs for source-1, which must be a compile time
+// constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+// @param msgSrc1 the second source operand of send message.
+//
+template <typename Ty1, int N1, typename Ty2, int N2, int N = 16>
+__ESIMD_INTRIN void __esimd_raw_sends2_noresult(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t numSrc1,
+    uint8_t sfid, uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0,
+    __ESIMD_DNS::vector_type_t<Ty2, N2> msgSrc1) __ESIMD_INTRIN_END;
+
+// \brief Raw send.
+//
+// @param modifier	the send message flags (Bit-0: isSendc, Bit-1: isEOT).
+//
+// @param execSize the execution size, which must be a compile time constant.
+//
+// @param pred the predicate to specify enabled channels.
+//
+// @param numSrc0 the number of GRFs for source-0, which must be a compile time
+// constant.
+//
+// @param sfid the shared function ID, which must be a compile time constant.
+//
+// @param exDesc the extended message descriptor.
+//
+// @param msgDesc the message descriptor.
+//
+// @param msgSrc0 the first source operand of send message.
+//
+template <typename Ty1, int N1, int N = 16>
+__ESIMD_INTRIN void __esimd_raw_send2_noresult(
+    uint8_t modifier, uint8_t execSize,
+    __ESIMD_DNS::simd_mask_storage_t<N> pred, uint8_t numSrc0, uint8_t sfid,
+    uint32_t exDesc, uint32_t msgDesc,
+    __ESIMD_DNS::vector_type_t<Ty1, N1> msgSrc0) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block load.
+/// Supported platforms: PVC
+///
+/// Collects elements located at specified address and returns them
+/// as a single \ref simd object.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @return is a vector of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN __ESIMD_DNS::vector_type_t<Ty, N>
+__esimd_lsc_load2d_stateless(__ESIMD_DNS::simd_mask_storage_t<1> Pred,
+                             uintptr_t Ptr, int SurfaceWidth, int SurfaceHeight,
+                             int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block prefetch.
+/// Supported platforms: PVC
+///
+/// Prefetches elements located at specified address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN void __esimd_lsc_prefetch2d_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<1> Pred, uintptr_t Ptr, int SurfaceWidth,
+    int SurfaceHeight, int SurfacePitch, int X, int Y) __ESIMD_INTRIN_END;
+
+/// 2D USM pointer block store.
+/// Supported platforms: PVC
+///
+/// Stores elements at specified address.
+///
+/// @tparam Ty is element type.
+/// @tparam L1H is L1 cache hint.
+/// @tparam L2H is L2 cache hint.
+/// @tparam DS is the data size.
+/// @tparam Transposed is the transposed version or not.
+/// @tparam NBlocks is the number of blocks.
+/// @tparam BlockWidth is the block width in number of elements.
+/// @tparam BlockHeight is the block height in number of elements.
+/// @tparam Transformed is apply VNNI transform or not.
+/// @tparam N is the data size
+/// @param Pred is predicates.
+/// @param Ptr is the surface base address for this operation.
+/// @param SurfaceWidth is the surface width minus 1 in bytes
+/// @param SurfaceHeight is the surface height minus 1 in rows
+/// @param SurfacePitch is the surface pitch minus 1 in bytes
+/// @param X is zero based X-coordinate of the left upper rectangle corner in
+/// number of elements.
+/// @param Y is zero based Y-coordinate of the left upper rectangle corner in
+/// rows.
+/// @param Vals is a vector to store of type T and size N, where N is
+///  BlockWidth * BlockHeight * NBlocks, if transformed;
+///  otherwise,
+///  N = roundUpNextMultiple(BlockHeight, 4 / sizeof(T)) *
+///   getNextPowerOf2(BlockWidth) * NBlocks
+template <typename Ty, __ESIMD_NS::cache_hint L1H, __ESIMD_NS::cache_hint L2H,
+          __ESIMD_DNS::lsc_data_size DS, __ESIMD_DNS::lsc_data_order Transposed,
+          uint8_t NBlocks, int BlockWidth, int BlockHeight, bool Transformed,
+          int N>
+__ESIMD_INTRIN void __esimd_lsc_store2d_stateless(
+    __ESIMD_DNS::simd_mask_storage_t<1> Pred, uintptr_t Ptr, int SurfaceWidth,
+    int SurfaceHeight, int SurfacePitch, int X, int Y,
+    __ESIMD_DNS::vector_type_t<Ty, N> vals) __ESIMD_INTRIN_END;
+
+/// Represents named barrier synchronization for a subgroup of threads.
+/// Available only on PVC
+///
+/// @param mode  - is wait(0) or signal(1)
+///
+/// @param id  - barrier id
+///
+/// @param thread_count  - number of threads, ignored in 'wait' mode
+__ESIMD_INTRIN void __esimd_nbarrier(uint8_t mode, uint8_t id,
+                                     uint8_t thread_count) __ESIMD_INTRIN_END;
+
+/// Initialize number of named barriers for a kernel
+/// Available only on PVC
+///
+/// @param count  - number of named barriers
+__ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
+
+/// Perform signal operation on named barriers
+/// Available only on PVC
+/// @param id - barrier id
+///
+/// @param thread_role - thread role
+///
+/// @param num_producers - number of producers
+///
+/// @param num_consumers - number of consumers
+__ESIMD_INTRIN void
+__esimd_nbarrier_arrive(uint8_t id, uint8_t thread_role, uint8_t num_producers,
+                        uint8_t num_consumers) __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

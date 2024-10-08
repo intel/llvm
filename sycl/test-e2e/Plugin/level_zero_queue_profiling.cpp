@@ -1,8 +1,9 @@
 // REQUIRES: gpu, level_zero
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -o %t.out
-// RUN: env ZE_DEBUG=-1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
-// RUN: env ZE_DEBUG=-1 %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
+// RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck --check-prefixes=WITHOUT %s
+// RUN: env UR_L0_DEBUG=-1 %{l0_leak_check} %{run} %t.out profile 2>&1 | FileCheck --check-prefixes=WITH %s
 
 // Test case adapted from the SYCL version of Rodinia benchmark hotspot.
 
@@ -20,7 +21,8 @@
 //
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 using namespace sycl;
 
 int foo(queue &q, int n) {

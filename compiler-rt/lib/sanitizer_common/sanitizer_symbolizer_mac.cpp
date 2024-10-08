@@ -30,7 +30,7 @@ namespace __sanitizer {
 bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
   Dl_info info;
   int result = dladdr((const void *)addr, &info);
-  if (!result) return false;
+  if (!result || !info.dli_sname) return false;
 
   // Compute offset if possible. `dladdr()` doesn't always ensure that `addr >=
   // sym_addr` so only compute the offset when this holds. Failure to find the
@@ -41,14 +41,9 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
     stack->info.function_offset = addr - sym_addr;
   }
 
-  if (info.dli_fname) {
-    if (auto *last_occurence = internal_strrchr(info.dli_fname, '/')) {
-      stack->info.module = internal_strdup(last_occurence + 1);
-    }
-  }
-
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
-  if (!demangled) return false;
+  if (!demangled)
+    demangled = info.dli_sname;
   stack->info.function = internal_strdup(demangled);
   return true;
 }
@@ -56,8 +51,10 @@ bool DlAddrSymbolizer::SymbolizePC(uptr addr, SymbolizedStack *stack) {
 bool DlAddrSymbolizer::SymbolizeData(uptr addr, DataInfo *datainfo) {
   Dl_info info;
   int result = dladdr((const void *)addr, &info);
-  if (!result) return false;
+  if (!result || !info.dli_sname) return false;
   const char *demangled = DemangleSwiftAndCXX(info.dli_sname);
+  if (!demangled)
+    demangled = info.dli_sname;
   datainfo->name = internal_strdup(demangled);
   datainfo->start = (uptr)info.dli_saddr;
   return true;

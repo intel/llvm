@@ -39,6 +39,7 @@ char LogHandler::ID;
 char StreamLogHandler::ID;
 char CallbackLogHandler::ID;
 char RotatingLogHandler::ID;
+char TeeLogHandler::ID;
 
 llvm::ManagedStatic<Log::ChannelMap> Log::g_channel_map;
 
@@ -155,6 +156,21 @@ void Log::VAPrintf(const char *format, va_list args) {
   PutString(Content);
 }
 
+void Log::Formatf(llvm::StringRef file, llvm::StringRef function,
+                  const char *format, ...) {
+  va_list args;
+  va_start(args, format);
+  VAFormatf(file, function, format, args);
+  va_end(args);
+}
+
+void Log::VAFormatf(llvm::StringRef file, llvm::StringRef function,
+                    const char *format, va_list args) {
+  llvm::SmallString<64> Content;
+  lldb_private::VASprintf(Content, format, args);
+  Format(file, function, llvm::formatv("{0}", Content));
+}
+
 // Printing of errors that are not fatal.
 void Log::Error(const char *format, ...) {
   va_list args;
@@ -195,7 +211,7 @@ void Log::Warning(const char *format, ...) {
 void Log::Register(llvm::StringRef name, Channel &channel) {
   auto iter = g_channel_map->try_emplace(name, channel);
   assert(iter.second == true);
-  (void)iter;
+  UNUSED_IF_ASSERT_DISABLED(iter);
 }
 
 void Log::Unregister(llvm::StringRef name) {
@@ -422,4 +438,17 @@ void RotatingLogHandler::Dump(llvm::raw_ostream &stream) const {
     stream << m_messages[idx];
   }
   stream.flush();
+}
+
+TeeLogHandler::TeeLogHandler(std::shared_ptr<LogHandler> first_log_handler,
+                             std::shared_ptr<LogHandler> second_log_handler)
+    : m_first_log_handler(first_log_handler),
+      m_second_log_handler(second_log_handler) {
+  assert(m_first_log_handler && "first log handler must be valid");
+  assert(m_second_log_handler && "second log handler must be valid");
+}
+
+void TeeLogHandler::Emit(llvm::StringRef message) {
+  m_first_log_handler->Emit(message);
+  m_second_log_handler->Emit(message);
 }

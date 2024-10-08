@@ -1,4 +1,4 @@
-; RUN: llvm-as -opaque-pointers < %s | llvm-c-test --module-list-globals | FileCheck %s
+; RUN: llvm-as < %s | llvm-c-test --module-list-globals | FileCheck %s
 
 @foo = constant [7 x i8] c"foobar\00", align 1
 ;CHECK: GlobalDefinition: foo ptr

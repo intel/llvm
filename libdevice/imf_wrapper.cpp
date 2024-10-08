@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device_imf.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_saturatef(float);
@@ -299,6 +301,12 @@ DEVICE_EXTERN_C_INLINE
 long long int __devicelib_imf_llmin(long long int, long long int);
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_max(int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_min(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned long long int __devicelib_imf_ullmax(unsigned long long int,
                                               unsigned long long int);
 
@@ -321,6 +329,12 @@ DEVICE_EXTERN_C_INLINE
 long long int __imf_llmin(long long int x, long long int y) {
   return __devicelib_imf_llmin(x, y);
 }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_max(int x, int y) { return __devicelib_imf_max(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_min(int x, int y) { return __devicelib_imf_min(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 unsigned long long int __imf_ullmax(unsigned long long int x,
@@ -423,6 +437,9 @@ DEVICE_EXTERN_C_INLINE
 int __devicelib_imf_rhadd(int, int);
 
 DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_hadd(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_uhadd(int, int);
 
 DEVICE_EXTERN_C_INLINE
@@ -430,6 +447,9 @@ unsigned int __devicelib_imf_urhadd(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
 int __imf_rhadd(int x, int y) { return __devicelib_imf_rhadd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+int __imf_hadd(int x, int y) { return __devicelib_imf_hadd(x, y); }
 
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_uhadd(unsigned int x, unsigned int y) {
@@ -939,6 +959,134 @@ DEVICE_EXTERN_C_INLINE
 unsigned int __devicelib_imf_vsadu4(unsigned int, unsigned int);
 
 DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_s16x2_relu(unsigned int, unsigned int,
+                                                 unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmax_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmax_u32(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_s16x2_relu(unsigned int, unsigned int,
+                                                 unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_viaddmin_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u16x2(unsigned int, unsigned int,
+                                            unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_viaddmin_u32(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_s16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_s16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmax_s32(int, int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vibmin_s32(int, int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u16x2(unsigned int, unsigned int, bool *,
+                                          bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmax_u32(unsigned int, unsigned int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vibmin_u32(unsigned int, unsigned int, bool *);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_s16x2_relu(unsigned int, unsigned int,
+                                               unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_s16x2_relu(unsigned int, unsigned int,
+                                               unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax3_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin3_s32_relu(int, int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u16x2(unsigned int, unsigned int,
+                                          unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax3_u32(unsigned int, unsigned int,
+                                        unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin3_u32(unsigned int, unsigned int,
+                                        unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimax_s16x2_relu(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimax_s32_relu(int, int);
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __devicelib_imf_vimin_s16x2_relu(unsigned int, unsigned int);
+
+DEVICE_EXTERN_C_INLINE
+int __devicelib_imf_vimin_s32_relu(int, int);
+
+DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vabs2(unsigned int x) { return __devicelib_imf_vabs2(x); }
 
 DEVICE_EXTERN_C_INLINE
@@ -1338,6 +1486,204 @@ unsigned int __imf_vsadu2(unsigned int x, unsigned int y) {
 DEVICE_EXTERN_C_INLINE
 unsigned int __imf_vsadu4(unsigned int x, unsigned int y) {
   return __devicelib_imf_vsadu4(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_s16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmax_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_s16x2_relu(unsigned int x, unsigned int y,
+                                       unsigned int z) {
+  return __devicelib_imf_viaddmax_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmax_s32(int x, int y, int z) {
+  return __devicelib_imf_viaddmax_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmax_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_viaddmax_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_u16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmax_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmax_u32(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_viaddmax_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_s16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmin_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_s16x2_relu(unsigned int x, unsigned int y,
+                                       unsigned int z) {
+  return __devicelib_imf_viaddmin_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmin_s32(int x, int y, int z) {
+  return __devicelib_imf_viaddmin_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_viaddmin_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_viaddmin_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_u16x2(unsigned int x, unsigned int y,
+                                  unsigned int z) {
+  return __devicelib_imf_viaddmin_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_viaddmin_u32(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_viaddmin_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmax_s16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_s16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_s16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vibmax_s32(int x, int y, bool *pred) {
+  return __devicelib_imf_vibmax_s32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vibmin_s32(int x, int y, bool *pred) {
+  return __devicelib_imf_vibmin_s32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmax_u16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_u16x2(unsigned int x, unsigned int y, bool *pred_hi,
+                                bool *pred_lo) {
+  return __devicelib_imf_vibmin_u16x2(x, y, pred_hi, pred_lo);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmax_u32(unsigned int x, unsigned int y, bool *pred) {
+  return __devicelib_imf_vibmax_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vibmin_u32(unsigned int x, unsigned int y, bool *pred) {
+  return __devicelib_imf_vibmin_u32(x, y, pred);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_s16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimax3_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_s16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimin3_s16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_s16x2_relu(unsigned int x, unsigned int y,
+                                     unsigned int z) {
+  return __devicelib_imf_vimax3_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_s16x2_relu(unsigned int x, unsigned int y,
+                                     unsigned int z) {
+  return __devicelib_imf_vimin3_s16x2_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax3_s32(int x, int y, int z) {
+  return __devicelib_imf_vimax3_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin3_s32(int x, int y, int z) {
+  return __devicelib_imf_vimin3_s32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax3_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_vimax3_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin3_s32_relu(int x, int y, int z) {
+  return __devicelib_imf_vimin3_s32_relu(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_u16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimax3_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u16x2(unsigned int x, unsigned int y,
+                                unsigned int z) {
+  return __devicelib_imf_vimin3_u16x2(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax3_u32(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_vimax3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin3_u32(unsigned int x, unsigned int y, unsigned int z) {
+  return __devicelib_imf_vimin3_u32(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimax_s16x2_relu(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vimax_s16x2_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimax_s32_relu(int x, int y) {
+  return __devicelib_imf_vimax_s32_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+unsigned int __imf_vimin_s16x2_relu(unsigned int x, unsigned int y) {
+  return __devicelib_imf_vimin_s16x2_relu(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+int __imf_vimin_s32_relu(int x, int y) {
+  return __devicelib_imf_vimin_s32_relu(x, y);
 }
 
 // FP16 type cast functions
@@ -1788,4 +2134,214 @@ DEVICE_EXTERN_C_INLINE
 _iml_half_internal __imf_ushort_as_half(unsigned short x) {
   return __devicelib_imf_ushort_as_half(x);
 }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_exp10f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_exp10f(float x) { return __devicelib_imf_fast_exp10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_expf(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_expf(float x) { return __devicelib_imf_fast_expf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_fdividef(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_fdividef(float x, float y) {
+  return __devicelib_imf_fast_fdividef(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_logf(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_logf(float x) { return __devicelib_imf_fast_logf(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log2f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_log2f(float x) { return __devicelib_imf_fast_log2f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_log10f(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_log10f(float x) { return __devicelib_imf_fast_log10f(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fast_powf(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fast_powf(float x, float y) {
+  return __devicelib_imf_fast_powf(x, y);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rd(float x, float y) { return __devicelib_imf_fadd_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rn(float x, float y) { return __devicelib_imf_fadd_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_ru(float x, float y) { return __devicelib_imf_fadd_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fadd_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fadd_rz(float x, float y) { return __devicelib_imf_fadd_rz(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fsub_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fsub_rd(float x, float y) { return __devicelib_imf_fsub_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fsub_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fsub_rn(float x, float y) { return __devicelib_imf_fsub_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fsub_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fsub_ru(float x, float y) { return __devicelib_imf_fsub_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fsub_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fsub_rz(float x, float y) { return __devicelib_imf_fsub_rz(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rd(float x, float y) { return __devicelib_imf_fmul_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rn(float x, float y) { return __devicelib_imf_fmul_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_ru(float x, float y) { return __devicelib_imf_fmul_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmul_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmul_rz(float x, float y) { return __devicelib_imf_fmul_rz(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rd(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rd(float x, float y) { return __devicelib_imf_fdiv_rd(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rd(float x) { return __devicelib_imf_fdiv_rd(1.0f, x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rn(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rn(float x, float y) { return __devicelib_imf_fdiv_rn(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rn(float x) { return __devicelib_imf_fdiv_rn(1.0f, x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_ru(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_ru(float x, float y) { return __devicelib_imf_fdiv_ru(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_ru(float x) { return __devicelib_imf_fdiv_ru(1.0f, x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fdiv_rz(float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fdiv_rz(float x, float y) { return __devicelib_imf_fdiv_rz(x, y); }
+
+DEVICE_EXTERN_C_INLINE
+float __imf_frcp_rz(float x) { return __devicelib_imf_fdiv_rz(1.0f, x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rd(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rd(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rd(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rn(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rn(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rn(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_ru(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_ru(float x, float y, float z) {
+  return __devicelib_imf_fmaf_ru(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_fmaf_rz(float, float, float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_fmaf_rz(float x, float y, float z) {
+  return __devicelib_imf_fmaf_rz(x, y, z);
+}
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rd(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_sqrtf_rd(float x) { return __devicelib_imf_sqrtf_rd(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rn(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_sqrtf_rn(float x) { return __devicelib_imf_sqrtf_rn(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_ru(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_sqrtf_ru(float x) { return __devicelib_imf_sqrtf_ru(x); }
+
+DEVICE_EXTERN_C_INLINE
+float __devicelib_imf_sqrtf_rz(float);
+
+DEVICE_EXTERN_C_INLINE
+float __imf_sqrtf_rz(float x) { return __devicelib_imf_sqrtf_rz(x); }
 #endif // __LIBDEVICE_IMF_ENABLED__

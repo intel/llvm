@@ -8,8 +8,21 @@
 
 #include "mlir/Analysis/DataFlow/DeadCodeAnalysis.h"
 #include "mlir/Analysis/DataFlow/ConstantPropagationAnalysis.h"
+#include "mlir/Analysis/DataFlow/SparseAnalysis.h"
+#include "mlir/Analysis/DataFlowFramework.h"
+#include "mlir/IR/Attributes.h"
+#include "mlir/IR/Block.h"
+#include "mlir/IR/Diagnostics.h"
+#include "mlir/IR/Location.h"
+#include "mlir/IR/Operation.h"
+#include "mlir/IR/SymbolTable.h"
+#include "mlir/IR/Value.h"
+#include "mlir/IR/ValueRange.h"
 #include "mlir/Interfaces/CallInterfaces.h"
 #include "mlir/Interfaces/ControlFlowInterfaces.h"
+#include "mlir/Support/LLVM.h"
+#include "llvm/Support/Casting.h"
+#include <cassert>
 #include <optional>
 
 using namespace mlir;
@@ -31,17 +44,22 @@ void Executable::print(raw_ostream &os) const {
 }
 
 void Executable::onUpdate(DataFlowSolver *solver) const {
-  if (auto *block = llvm::dyn_cast_if_present<Block *>(point)) {
-    // Re-invoke the analyses on the block itself.
-    for (DataFlowAnalysis *analysis : subscribers)
-      solver->enqueue({block, analysis});
-    // Re-invoke the analyses on all operations in the block.
-    for (DataFlowAnalysis *analysis : subscribers)
-      for (Operation &op : *block)
-        solver->enqueue({&op, analysis});
-  } else if (auto *programPoint = llvm::dyn_cast_if_present<GenericProgramPoint *>(point)) {
+  AnalysisState::onUpdate(solver);
+
+  if (ProgramPoint pp = llvm::dyn_cast_if_present<ProgramPoint>(anchor)) {
+    if (Block *block = llvm::dyn_cast_if_present<Block *>(pp)) {
+      // Re-invoke the analyses on the block itself.
+      for (DataFlowAnalysis *analysis : subscribers)
+        solver->enqueue({block, analysis});
+      // Re-invoke the analyses on all operations in the block.
+      for (DataFlowAnalysis *analysis : subscribers)
+        for (Operation &op : *block)
+          solver->enqueue({&op, analysis});
+    }
+  } else if (auto *latticeAnchor =
+                 llvm::dyn_cast_if_present<GenericLatticeAnchor *>(anchor)) {
     // Re-invoke the analysis on the successor block.
-    if (auto *edge = dyn_cast<CFGEdge>(programPoint)) {
+    if (auto *edge = dyn_cast<CFGEdge>(latticeAnchor)) {
       for (DataFlowAnalysis *analysis : subscribers)
         solver->enqueue({edge->getTo(), analysis});
     }
@@ -99,7 +117,7 @@ void CFGEdge::print(raw_ostream &os) const {
 
 DeadCodeAnalysis::DeadCodeAnalysis(DataFlowSolver &solver)
     : DataFlowAnalysis(solver) {
-  registerPointKind<CFGEdge>();
+  registerAnchorKind<CFGEdge>();
 }
 
 LogicalResult DeadCodeAnalysis::initialize(Operation *top) {
@@ -203,7 +221,8 @@ LogicalResult DeadCodeAnalysis::initializeRecursively(Operation *op) {
 void DeadCodeAnalysis::markEdgeLive(Block *from, Block *to) {
   auto *state = getOrCreate<Executable>(to);
   propagateIfChanged(state, state->setToLive());
-  auto *edgeState = getOrCreate<Executable>(getProgramPoint<CFGEdge>(from, to));
+  auto *edgeState =
+      getOrCreate<Executable>(getLatticeAnchor<CFGEdge>(from, to));
   propagateIfChanged(edgeState, edgeState->setToLive());
 }
 
@@ -219,9 +238,7 @@ void DeadCodeAnalysis::markEntryBlocksLive(Operation *op) {
 LogicalResult DeadCodeAnalysis::visit(ProgramPoint point) {
   if (point.is<Block *>())
     return success();
-  auto *op = llvm::dyn_cast_if_present<Operation *>(point);
-  if (!op)
-    return emitError(point.getLoc(), "unknown program point kind");
+  auto *op = point.get<Operation *>();
 
   // If the parent block is not executable, there is nothing to do.
   if (!getOrCreate<Executable>(op->getBlock())->isLive())
@@ -358,7 +375,7 @@ void DeadCodeAnalysis::visitRegionBranchOperation(
     return;
 
   SmallVector<RegionSuccessor> successors;
-  branch.getSuccessorRegions(/*index=*/{}, *operands, successors);
+  branch.getEntrySuccessorRegions(*operands, successors);
   for (const RegionSuccessor &successor : successors) {
     // The successor can be either an entry block or the parent operation.
     ProgramPoint point = successor.getSuccessor()
@@ -382,8 +399,10 @@ void DeadCodeAnalysis::visitRegionTerminator(Operation *op,
     return;
 
   SmallVector<RegionSuccessor> successors;
-  branch.getSuccessorRegions(op->getParentRegion()->getRegionNumber(),
-                             *operands, successors);
+  if (auto terminator = dyn_cast<RegionBranchTerminatorOpInterface>(op))
+    terminator.getSuccessorRegions(*operands, successors);
+  else
+    branch.getSuccessorRegions(op->getParentRegion(), successors);
 
   // Mark successor region entry blocks as executable and add this op to the
   // list of predecessors.
@@ -404,10 +423,6 @@ void DeadCodeAnalysis::visitRegionTerminator(Operation *op,
 
 void DeadCodeAnalysis::visitCallableTerminator(Operation *op,
                                                CallableOpInterface callable) {
-  // If there are no exiting values, we have nothing to do.
-  if (op->getNumOperands() == 0)
-    return;
-
   // Add as predecessors to all callsites this return op.
   auto *callsites = getOrCreateFor<PredecessorState>(op, callable);
   bool canResolve = op->hasTrait<OpTrait::ReturnLike>();

@@ -7,11 +7,12 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/config.hpp>
+#include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <sycl/reduction.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // TODO: The algorithm of choosing the work-group size is definitely
@@ -52,6 +53,16 @@ __SYCL_EXPORT size_t reduComputeWGSize(size_t NWorkItems, size_t MaxWGSize,
 // with the given queue.
 __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
     std::shared_ptr<sycl::detail::queue_impl> Queue) {
+  // TODO: Graphs extension explicit API uses a handler with no queue attached,
+  // so return some value here. In the future we should have access to the
+  // device so can remove this.
+  //
+  // The 8 value was chosen as the hardcoded value as it is the returned
+  // value for sycl::info::device::max_compute_units on
+  // Intel HD Graphics devices used as a L0 backend during development.
+  if (Queue == nullptr) {
+    return 8;
+  }
   device Dev = Queue->get_device();
   uint32_t NumThreads = Dev.get_info<sycl::info::device::max_compute_units>();
   // TODO: The heuristics here require additional tuning for various devices
@@ -104,6 +115,16 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
 
 __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
                                             size_t LocalMemBytesPerWorkItem) {
+  // TODO: Graphs extension explicit API uses a handler with a null queue to
+  // process CGFs, in future we should have access to the device so we can
+  // correctly calculate this.
+  //
+  // The 32 value was chosen as the hardcoded value as it is the returned
+  // value for SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE on
+  // Intel HD Graphics devices used as a L0 backend during development.
+  if (Queue == nullptr) {
+    return 32;
+  }
   device Dev = Queue->get_device();
 
   // The maximum WGSize returned by CPU devices is very large and does not
@@ -145,6 +166,19 @@ __SYCL_EXPORT size_t reduGetPreferredWGSize(std::shared_ptr<queue_impl> &Queue,
   return reduGetMaxWGSize(Queue, LocalMemBytesPerWorkItem);
 }
 
+__SYCL_EXPORT void
+addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
+               std::shared_ptr<int> &Counter) {
+  auto EventImpl = std::make_shared<detail::event_impl>(Queue);
+  EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
+  EventImpl->setStateIncomplete();
+  ur_event_handle_t UREvent = nullptr;
+  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {}, &UREvent,
+                          EventImpl);
+  EventImpl->setHandle(UREvent);
+  CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

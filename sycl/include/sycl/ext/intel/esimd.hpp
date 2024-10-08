@@ -65,7 +65,7 @@
 /// @defgroup sycl_esimd_raw_send Raw send APIs.
 /// Implements the \c send instruction to send messages to variaous components
 /// of the Intel(R) processor graphics, as defined in the documentation at
-/// https://01.org/sites/default/files/documentation/intel-gfx-prm-osrc-icllp-vol02a-commandreference-instructions_2.pdf
+/// https://www.intel.com/content/www/us/en/docs/graphics-for-linux/developer-reference/1-0/hardware-specs.html
 
 /// @defgroup sycl_esimd_misc Miscellaneous ESIMD convenience functions.
 
@@ -85,6 +85,7 @@
 #include <sycl/ext/intel/esimd/detail/bfloat16_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/half_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/tfloat32_type_traits.hpp>
+#include <sycl/ext/intel/esimd/memory_properties.hpp>
 #include <sycl/ext/intel/esimd/simd.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 #include <sycl/ext/intel/esimd/xmx/dpas.hpp>

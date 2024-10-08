@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 template <class VecT, int EndIdx = VecT::size(), int StartIdx = 0>
 class VecPrinter {
@@ -35,7 +35,7 @@ private:
     printHelper<Idx + 1>(Out, Elem1);
   }
   template <>
-  static void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
+  inline void printHelper<EndIdx>(std::ostream &Out, const VecT &Elem1) {}
 
   VecT MVec;
 };
@@ -71,3 +71,66 @@ public:
 
   ~TestQueue() { wait_and_throw(); }
 };
+
+namespace emu {
+
+// std::exclusive_scan/inclusive_scan are not supported GCC 7.4,
+// so use our own implementations
+template <typename InputIterator, typename OutputIterator,
+          class BinaryOperation, typename T>
+OutputIterator exclusive_scan(InputIterator first, InputIterator last,
+                              OutputIterator result, T init,
+                              BinaryOperation binary_op) {
+  T partial = init;
+  for (InputIterator it = first; it != last; ++it) {
+    *(result++) = partial;
+    partial = binary_op(partial, *it);
+  }
+  return result;
+}
+
+template <typename InputIterator, typename OutputIterator,
+          class BinaryOperation, typename T>
+OutputIterator inclusive_scan(InputIterator first, InputIterator last,
+                              OutputIterator result, BinaryOperation binary_op,
+                              T init) {
+  T partial = init;
+  for (InputIterator it = first; it != last; ++it) {
+    partial = binary_op(partial, *it);
+    *(result++) = partial;
+  }
+  return result;
+}
+} // namespace emu
+
+namespace env {
+
+bool isDefined(const char *name) {
+  char *buf = nullptr;
+#ifdef _WIN32
+  size_t sz;
+  _dupenv_s(&buf, &sz, name);
+  free(buf);
+#else
+  buf = getenv(name);
+#endif
+  return buf != nullptr;
+}
+
+std::string getVal(const char *name) {
+  char *buf = nullptr;
+  std::string res = "";
+#ifdef _WIN32
+  size_t sz;
+  _dupenv_s(&buf, &sz, name);
+  if (buf != nullptr)
+    res = std::string(buf);
+  free(buf);
+#else
+  buf = getenv(name);
+  if (buf != nullptr)
+    res = std::string(buf);
+#endif
+  return res;
+}
+} // namespace env

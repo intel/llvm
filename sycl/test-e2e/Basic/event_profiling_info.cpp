@@ -10,12 +10,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-// Fails there.
-// UNSUPPORTED: opencl && gpu && gpu-intel-pvc
-
 #include <cassert>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -70,7 +68,12 @@ int main() {
     copyEvent.wait();
     kernelEvent.wait();
 
-    assert(verifyProfiling(copyEvent) && verifyProfiling(kernelEvent));
+    // Profiling with HIP / CUDA backend may produce invalid results.
+    // The below check on backend type should be removed once
+    // https://github.com/intel/llvm/issues/10042 is resolved.
+    if (kernelQueue.get_backend() != sycl::backend::ext_oneapi_cuda &&
+        kernelQueue.get_backend() != sycl::backend::ext_oneapi_hip)
+      assert(verifyProfiling(copyEvent) && verifyProfiling(kernelEvent));
   }
 
   for (size_t I = 0; I < Size; ++I) {

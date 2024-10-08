@@ -6,7 +6,7 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t1.o %s
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit -o %t2.o %p/Inputs/cfi-distributed.ll
 
-; RUN: llvm-lto2 run -opaque-pointers -thinlto-distributed-indexes %t1.o %t2.o \
+; RUN: llvm-lto2 run -thinlto-distributed-indexes %t1.o %t2.o \
 ; RUN:   -o %t3 \
 ; RUN:   -r=%t1.o,test,px \
 ; RUN:   -r=%t1.o,_ZTV1B, \

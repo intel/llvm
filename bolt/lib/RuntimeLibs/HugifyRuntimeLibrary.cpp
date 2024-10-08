@@ -11,10 +11,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "bolt/RuntimeLibs/HugifyRuntimeLibrary.h"
-#include "bolt/Core/BinaryFunction.h"
-#include "llvm/ExecutionEngine/RuntimeDyld.h"
+#include "bolt/Core/BinaryContext.h"
+#include "bolt/Core/Linker.h"
 #include "llvm/MC/MCStreamer.h"
-#include "llvm/Support/Alignment.h"
 #include "llvm/Support/CommandLine.h"
 
 using namespace llvm;
@@ -33,10 +32,10 @@ cl::opt<bool>
                     "(which is what --hot-text relies on)."),
            cl::cat(BoltOptCategory));
 
-static cl::opt<std::string> RuntimeHugifyLib(
-    "runtime-hugify-lib",
-    cl::desc("specify file name of the runtime hugify library"),
-    cl::init("libbolt_rt_hugify.a"), cl::cat(BoltOptCategory));
+static cl::opt<std::string>
+    RuntimeHugifyLib("runtime-hugify-lib",
+                     cl::desc("specify path of the runtime hugify library"),
+                     cl::init("libbolt_rt_hugify.a"), cl::cat(BoltOptCategory));
 
 } // namespace opts
 
@@ -61,23 +60,17 @@ void HugifyRuntimeLibrary::adjustCommandLineOptions(
 }
 
 void HugifyRuntimeLibrary::link(BinaryContext &BC, StringRef ToolPath,
-                                RuntimeDyld &RTDyld,
-                                std::function<void(RuntimeDyld &)> OnLoad) {
+                                BOLTLinker &Linker,
+                                BOLTLinker::SectionsMapper MapSections) {
+
   std::string LibPath = getLibPath(ToolPath, opts::RuntimeHugifyLib);
-  loadLibrary(LibPath, RTDyld);
-  OnLoad(RTDyld);
-  RTDyld.finalizeWithMemoryManagerLocking();
-  if (RTDyld.hasError()) {
-    outs() << "BOLT-ERROR: RTDyld failed: " << RTDyld.getErrorString() << "\n";
-    exit(1);
-  }
+  loadLibrary(LibPath, Linker, MapSections);
 
   assert(!RuntimeStartAddress &&
          "We don't currently support linking multiple runtime libraries");
-  RuntimeStartAddress = RTDyld.getSymbol("__bolt_hugify_self").getAddress();
+  RuntimeStartAddress = Linker.lookupSymbol("__bolt_hugify_self").value_or(0);
   if (!RuntimeStartAddress) {
-    errs() << "BOLT-ERROR: instrumentation library does not define "
-              "__bolt_hugify_self: "
+    errs() << "BOLT-ERROR: hugify library does not define __bolt_hugify_self: "
            << LibPath << "\n";
     exit(1);
   }

@@ -1,8 +1,10 @@
-// RUN: %clang_cc1 -std=c++17 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
-// RUN: %clang_cc1 -std=c++98 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17 -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
-// RUN: %clang_cc1 -std=c++11 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17 -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
-// RUN: %clang_cc1 -std=c++14 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17 -fexceptions -fcxx-exceptions -DTEST2
-// RUN: %clang_cc1 %s -triple i686-pc-win32 -fsyntax-only -std=c++11 -fms-compatibility -verify -DTEST3
+// RUN: %clang_cc1 -std=c++17 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,ms-union-ext -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
+// RUN: %clang_cc1 -std=c++98 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17,ms-union-ext -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
+// RUN: %clang_cc1 -std=c++11 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17,ms-union-ext -fms-extensions -fexceptions -fcxx-exceptions -DTEST1
+// RUN: %clang_cc1 -std=c++14 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -Wc++11-extensions -Wno-long-long -verify=expected,precxx17,ms-union-ext-disabled -fexceptions -fcxx-exceptions -DTEST2
+// RUN: %clang_cc1 %s -triple i686-pc-win32 -fsyntax-only -std=c++11 -fms-compatibility -verify=expected,ms-union-ext -DTEST3
+// RUN: %clang_cc1 -std=c++17 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -verify=ms-union-ext -fms-extensions -fms-compatibility-version=18.00
+// RUN: %clang_cc1 -std=c++17 %s -triple i686-pc-win32 -fsyntax-only -Wmicrosoft -verify=ms-union-ext-disabled -fms-extensions -fms-compatibility-version=19.00
 
 #if TEST1
 
@@ -68,18 +70,22 @@ __unaligned int aligned_type4::* __unaligned p3_aligned_type4 = &aligned_type4::
 void (aligned_type4::*__unaligned p4_aligned_type4)();
 
 // Check that __unaligned qualifier can be used for overloading
-void foo_unaligned(int *arg) {}
-void foo_unaligned(__unaligned int *arg) {}
+void foo_unaligned(int *arg) {} // expected-note {{not viable: 1st argument ('const __unaligned int *') would lose const qualifier}}
+void foo_unaligned(__unaligned int *arg) {} // expected-note {{not viable: 1st argument ('const __unaligned int *') would lose const qualifier}}
 void foo_unaligned(int arg) {} // expected-note {{previous definition is here}}
-void foo_unaligned(__unaligned int arg) {} // expected-error {{redefinition of 'foo_unaligned'}}
+void foo_unaligned(__unaligned int arg) {} // expected-error {{redefinition of 'foo_unaligned'}} \
+                                           // expected-note {{not viable: no known conversion from 'const __unaligned int *' to '__unaligned int'}}
 class A_unaligned {};
 class B_unaligned : public A_unaligned {};
-int foo_unaligned(__unaligned A_unaligned *arg) { return 0; }
-void *foo_unaligned(B_unaligned *arg) { return 0; }
+int foo_unaligned(__unaligned A_unaligned *arg) { return 0; } // expected-note {{not viable: no known conversion from 'const __unaligned int *' to '__unaligned A_unaligned *'}}
+void *foo_unaligned(B_unaligned *arg) { return 0; } // expected-note {{not viable: no known conversion from 'const __unaligned int *' to 'B_unaligned *'}}
 
 void test_unaligned() {
   int *p1 = 0;
   foo_unaligned(p1);
+
+  const __unaligned int *const_p1 = 0;
+  foo_unaligned(const_p1); // expected-error {{no matching function for call to 'foo_unaligned'}}
 
   __unaligned int *p2 = 0;
   foo_unaligned(p2);
@@ -380,11 +386,6 @@ void TestSP9() {
   c3.h(); // Overloaded unary op operand
 }
 
-union u {
-  int *i1;
-  int &i2;  // expected-warning {{union member 'i2' has reference type 'int &', which is a Microsoft extension}}
-};
-
 // Property getter using reference.
 struct SP11 {
   __declspec(property(get=GetV)) int V;
@@ -567,11 +568,17 @@ class PR34109_class {
   virtual ~PR34109_class() {}
 };
 
+#if !defined(__cpp_sized_deallocation)
 void operator delete(void *) throw();
 // expected-note@-1 {{previous declaration is here}}
 __declspec(dllexport) void operator delete(void *) throw();
 // expected-error@-1  {{redeclaration of 'operator delete' cannot add 'dllexport' attribute}}
-
+#else
+void operator delete(void *, unsigned int) throw();
+// expected-note@-1 {{previous declaration is here}}
+__declspec(dllexport) void operator delete(void *, unsigned int) throw();
+// expected-error@-1  {{redeclaration of 'operator delete' cannot add 'dllexport' attribute}}
+#endif
 void PR34109(int* a) {
   delete a;
 }
@@ -585,6 +592,18 @@ namespace PR42089 {
   __attribute__((nothrow)) void S::Bar(){}
 }
 
+namespace UnalignedConv {
+struct S {
+  bool operator==(int) const;
+};
+
+int func() {
+  S __unaligned s;
+  return s == 42;
+}
+}
+
+
 #elif TEST2
 
 // Check that __unaligned is not recognized if MS extensions are not enabled
@@ -597,9 +616,12 @@ template<typename T> struct A {};
 template<typename T> struct B : A<A<T>> { A<T>::C::D d; }; // expected-warning {{implicit 'typename' is a C++20 extension}}
 }
 
-#else
-
-#error Unknown test mode
-
 #endif
 
+union u {
+    int *i1;
+
+    // ms-union-ext-warning@+2 {{union member 'i2' has reference type 'int &', which is a Microsoft extension}}
+    // ms-union-ext-disabled-error@+1 {{union member 'i2' has reference type 'int &'}}
+    int &i2;
+};

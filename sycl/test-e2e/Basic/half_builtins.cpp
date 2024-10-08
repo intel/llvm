@@ -2,7 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/builtins.hpp>
 
 #include <cmath>
 #include <limits>
@@ -12,7 +14,8 @@ using namespace sycl;
 constexpr int SZ_max = 16;
 
 bool check(float a, float b) {
-  return fabs(2 * (a - b) / (a + b)) < std::numeric_limits<half>::epsilon() ||
+  return sycl::fabs(2 * (a - b) / (a + b)) <
+             std::numeric_limits<half>::epsilon() ||
          a < std::numeric_limits<half>::min();
 }
 
@@ -180,10 +183,10 @@ int main() {
       auto err = err_buf.get_access<access::mode::write>(cgh);
       cgh.parallel_for(SZ_max, [=](item<1> index) {
         size_t i = index.get_id(0);
-        TEST_BUILTIN_1(fabs);
-        TEST_BUILTIN_2(fmin);
-        TEST_BUILTIN_2(fmax);
-        TEST_BUILTIN_3(fma);
+        TEST_BUILTIN_1(sycl::fabs);
+        TEST_BUILTIN_2(sycl::fmin);
+        TEST_BUILTIN_2(sycl::fmax);
+        TEST_BUILTIN_3(sycl::fma);
       });
     });
   }

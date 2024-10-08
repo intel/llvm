@@ -10,13 +10,19 @@ queue q;
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func1() {}
 
 // CHECK: FunctionDecl {{.*}} func2 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'fp16' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
@@ -25,11 +31,11 @@ queue q;
 [[__sycl_detail__::__uses_aspects__()]] void func3() {}
 
 // CHECK: FunctionDecl {{.*}} used func4 'void ()'
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect':'sycl::aspect' depth 0 index 0 Aspect
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect' depth 0 index 0 Aspect
 // CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
 template <sycl::aspect Aspect>
@@ -38,10 +44,14 @@ template <sycl::aspect Aspect>
 // CHECK: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: SYCLUsesAspectsAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLUsesAspectsAttr {{.*}} Inherited
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::cpu)]] void func5();
 void func5() {}
 

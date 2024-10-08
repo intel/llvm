@@ -2,9 +2,6 @@
 // REQUIRES: opencl || level_zero
 // RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
-//
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
 
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
@@ -17,7 +14,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <iostream>
@@ -29,10 +26,6 @@ using namespace sycl;
 #endif
 
 int main(int argc, char **argv) {
-  // Must be enabled at the beginning of the application
-  // to obtain the PCI address
-  setenv("SYCL_ENABLE_PCI", "1", 0);
-
   int pltCount = 1;
   for (const auto &plt : platform::get_platforms()) {
     int devCount = 1;

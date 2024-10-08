@@ -1,4 +1,4 @@
-; RUN: opt -opaque-pointers < %s -S -mcpu=z13 -msan-kernel=1 -float-abi=soft -passes=msan 2>&1 | FileCheck %s
+; RUN: opt < %s -S -mcpu=z13 -msan-kernel=1 -float-abi=soft -passes=msan 2>&1 | FileCheck %s
 
 target datalayout = "E-m:e-i1:8:16-i8:8:16-i64:64-f128:64-a:8:16-n32:64"
 target triple = "s390x-unknown-linux-gnu"
@@ -39,7 +39,7 @@ define i64 @foo(i64 %guard, ...) #1 {
 ; Only 56 bytes of the register save area is copied, because of
 ; "use-soft-float".
 
-; CHECK: call void @llvm.va_start(ptr %vl)
+; CHECK: call void @llvm.va_start.p0(ptr %vl)
 ; CHECK: [[VlAddr:%.*]] = ptrtoint ptr %vl to i64
 ; CHECK: [[RegSaveAreaAddrAddr:%.*]] = add i64 [[VlAddr]], 24
 ; CHECK: [[RegSaveAreaAddr:%.*]] = inttoptr i64 [[RegSaveAreaAddrAddr]] to ptr

@@ -171,14 +171,35 @@ enum EdgeKind_aarch64 : Edge::Kind {
   ///
   /// Fixup expression:
   ///
-  ///   Fixup <- (Target - Fixup) >> 2 : int19
+  ///   Fixup <- (Target - Fixup + Addend) >> 2 : int19
+  ///
+  /// Notes:
+  ///   The '19' in the name refers to the number operand bits and follows the
+  /// naming convention used by the corresponding ELF relocation.
+  /// Since the low two bits must be zero (because of the 32-bit alignment of
+  /// the target) the operand is effectively a signed 21-bit number.
+  ///
   ///
   /// Errors:
   ///   - The result of the unshifted part of the fixup expression must be
   ///     32-bit aligned otherwise an alignment error will be returned.
-  ///   - The result of the fixup expression must fit into an an int19 or an
+  ///   - The result of the fixup expression must fit into an int19 or an
   ///     out-of-range error will be returned.
   LDRLiteral19,
+
+  /// The signed 21-bit delta from the fixup to the target.
+  ///
+  /// Fixup expression:
+  ///
+  ///   Fixup <- Target - Fixup + Addend : int21
+  ///
+  /// Notes:
+  ///   For ADR fixups.
+  ///
+  /// Errors:
+  ///   - The result of the fixup expression must fit into an int21 otherwise an
+  ///     out-of-range error will be returned.
+  ADRLiteral21,
 
   /// The signed 21-bit delta from the fixup page to the page containing the
   /// target.
@@ -211,6 +232,21 @@ enum EdgeKind_aarch64 : Edge::Kind {
   ///   - The result of the fixup expression must fit into a uint12 otherwise an
   ///     out-of-range error will be returned.
   PageOffset12,
+
+  /// The 15-bit offset of the GOT entry from the GOT table.
+  ///
+  /// Used for load/store instructions addressing a GOT entry.
+  ///
+  /// Fixup expression:
+  ///
+  ///   Fixup <- ((Target + Addend - Page(GOT))) & 0x7fff) >> 3 : uint12
+  ///
+  /// Errors:
+  ///   - The result of the unshifted part of the fixup expression must be
+  ///     aligned otherwise an alignment error will be returned.
+  ///   - The result of the fixup expression must fit into a uint12 otherwise an
+  ///     out-of-range error will be returned.
+  GotPageOffset15,
 
   /// A GOT entry getter/constructor, transformed to Page21 pointing at the GOT
   /// entry for the original target.
@@ -251,6 +287,23 @@ enum EdgeKind_aarch64 : Edge::Kind {
   ///     phase will result in an assert/unreachable during the fixup phase.
   ///
   RequestGOTAndTransformToPageOffset12,
+
+  /// A GOT entry getter/constructor, transformed to Pageoffset15 pointing at
+  /// the GOT entry for the original target.
+  ///
+  /// Indicates that this edge should be transformed into a GotPageOffset15
+  /// targeting the GOT entry for the edge's current target, maintaining the
+  /// same addend. A GOT entry for the target should be created if one does not
+  /// already exist.
+  ///
+  /// Fixup expression:
+  ///   NONE
+  ///
+  /// Errors:
+  ///   - *ASSERTION* Failure to handle edges of this kind prior to the fixup
+  ///     phase will result in an assert/unreachable during the fixup phase.
+  ///
+  RequestGOTAndTransformToPageOffset15,
 
   /// A GOT entry getter/constructor, transformed to Delta32 pointing at the GOT
   /// entry for the original target.
@@ -358,6 +411,16 @@ inline bool isCompAndBranchImm19(uint32_t Instr) {
   return (Instr & CompAndBranchImm19Mask) == 0x34000000;
 }
 
+inline bool isADR(uint32_t Instr) {
+  constexpr uint32_t ADRMask = 0x9f000000;
+  return (Instr & ADRMask) == 0x10000000;
+}
+
+inline bool isLDRLiteral(uint32_t Instr) {
+  constexpr uint32_t LDRLitMask = 0x3b000000;
+  return (Instr & LDRLitMask) == 0x18000000;
+}
+
 // Returns the amount the address operand of LD/ST (imm12)
 // should be shifted right by.
 //
@@ -399,7 +462,8 @@ inline unsigned getMoveWide16Shift(uint32_t Instr) {
 }
 
 /// Apply fixup expression for edge to block content.
-inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
+inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E,
+                        const Symbol *GOTSymbol) {
   using namespace support;
 
   char *BlockWorkingMem = B.getAlreadyMutableContent().data();
@@ -475,18 +539,30 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
   }
   case LDRLiteral19: {
     assert((FixupAddress.getValue() & 0x3) == 0 && "LDR is not 32-bit aligned");
-    assert(E.getAddend() == 0 && "LDRLiteral19 with non-zero addend");
     uint32_t RawInstr = *(ulittle32_t *)FixupPtr;
-    assert(RawInstr == 0x58000010 && "RawInstr isn't a 64-bit LDR literal");
-    int64_t Delta = E.getTarget().getAddress() - FixupAddress;
+    assert(isLDRLiteral(RawInstr) && "RawInstr is not an LDR Literal");
+    int64_t Delta = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
     if (Delta & 0x3)
       return make_error<JITLinkError>("LDR literal target is not 32-bit "
                                       "aligned");
-    if (Delta < -(1 << 20) || Delta > ((1 << 20) - 1))
+    if (!isInt<21>(Delta))
       return makeTargetOutOfRangeError(G, B, E);
-
     uint32_t EncodedImm = ((static_cast<uint32_t>(Delta) >> 2) & 0x7ffff) << 5;
     uint32_t FixedInstr = RawInstr | EncodedImm;
+    *(ulittle32_t *)FixupPtr = FixedInstr;
+    break;
+  }
+  case ADRLiteral21: {
+    assert((FixupAddress.getValue() & 0x3) == 0 && "ADR is not 32-bit aligned");
+    uint32_t RawInstr = *(ulittle32_t *)FixupPtr;
+    assert(isADR(RawInstr) && "RawInstr is not an ADR");
+    int64_t Delta = E.getTarget().getAddress() + E.getAddend() - FixupAddress;
+    if (!isInt<21>(Delta))
+      return makeTargetOutOfRangeError(G, B, E);
+    auto UDelta = static_cast<uint32_t>(Delta);
+    uint32_t EncodedImmHi = ((UDelta >> 2) & 0x7ffff) << 5;
+    uint32_t EncodedImmLo = (UDelta & 0x3) << 29;
+    uint32_t FixedInstr = RawInstr | EncodedImmHi | EncodedImmLo;
     *(ulittle32_t *)FixupPtr = FixedInstr;
     break;
   }
@@ -560,6 +636,24 @@ inline Error applyFixup(LinkGraph &G, Block &B, const Edge &E) {
     *(ulittle32_t *)FixupPtr = FixedInstr;
     break;
   }
+  case GotPageOffset15: {
+    assert(GOTSymbol && "No GOT section symbol");
+    uint64_t TargetOffset =
+        (E.getTarget().getAddress() + E.getAddend()).getValue() -
+        (GOTSymbol->getAddress().getValue() & ~static_cast<uint64_t>(4096 - 1));
+    if (TargetOffset > 0x7fff)
+      return make_error<JITLinkError>("PAGEOFF15 target is out of range");
+
+    uint32_t RawInstr = *(ulittle32_t *)FixupPtr;
+    const unsigned ImmShift = 3;
+    if (TargetOffset & ((1 << ImmShift) - 1))
+      return make_error<JITLinkError>("PAGEOFF15 target is not aligned");
+
+    uint32_t EncodedImm = (TargetOffset >> ImmShift) << 10;
+    uint32_t FixedInstr = RawInstr | EncodedImm;
+    *(ulittle32_t *)FixupPtr = FixedInstr;
+    break;
+  }
   default:
     return make_error<JITLinkError>(
         "In graph " + G.getName() + ", section " + B.getSection().getName() +
@@ -585,7 +679,7 @@ extern const char NullPointerContent[PointerSize];
 extern const char PointerJumpStubContent[12];
 
 /// Creates a new pointer block in the given section and returns an
-/// Anonymous symobl pointing to it.
+/// Anonymous symbol pointing to it.
 ///
 /// If InitialTarget is given then an Pointer64 relocation will be added to the
 /// block pointing at InitialTarget.
@@ -613,7 +707,7 @@ inline Symbol &createAnonymousPointer(LinkGraph &G, Section &PointerSection,
 inline Block &createPointerJumpStubBlock(LinkGraph &G, Section &StubSection,
                                          Symbol &PointerSymbol) {
   auto &B = G.createContentBlock(StubSection, PointerJumpStubContent,
-                                 orc::ExecutorAddr(~uint64_t(11)), 1, 0);
+                                 orc::ExecutorAddr(~uint64_t(11)), 4, 0);
   B.addEdge(Page21, 0, PointerSymbol, 0);
   B.addEdge(PageOffset12, 4, PointerSymbol, 0);
   return B;
@@ -654,6 +748,15 @@ public:
       (void)RawInstr;
       assert(E.getAddend() == 0 &&
              "GOTPageOffset12/TLVPageOffset12 with non-zero addend");
+      assert((RawInstr & 0xfffffc00) == 0xf9400000 &&
+             "RawInstr isn't a 64-bit LDR immediate");
+      break;
+    }
+    case aarch64::RequestGOTAndTransformToPageOffset15: {
+      KindToSet = aarch64::GotPageOffset15;
+      uint32_t RawInstr = *(const support::ulittle32_t *)FixupPtr;
+      (void)RawInstr;
+      assert(E.getAddend() == 0 && "GOTPageOffset15 with non-zero addend");
       assert((RawInstr & 0xfffffc00) == 0xf9400000 &&
              "RawInstr isn't a 64-bit LDR immediate");
       break;

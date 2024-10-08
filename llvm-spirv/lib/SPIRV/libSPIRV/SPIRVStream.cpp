@@ -145,6 +145,9 @@ SPIRV_DEF_ENCDEC(Decoration)
 SPIRV_DEF_ENCDEC(OCLExtOpKind)
 SPIRV_DEF_ENCDEC(SPIRVDebugExtOpKind)
 SPIRV_DEF_ENCDEC(NonSemanticAuxDataOpKind)
+SPIRV_DEF_ENCDEC(InitializationModeQualifier)
+SPIRV_DEF_ENCDEC(HostAccessQualifier)
+SPIRV_DEF_ENCDEC(NamedMaximumNumberOfRegisters)
 SPIRV_DEF_ENCDEC(LinkageType)
 
 // Read a string with padded 0's at the end so that they form a stream of
@@ -180,6 +183,7 @@ const SPIRVEncoder &operator<<(const SPIRVEncoder &O, const std::string &Str) {
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
   if (SPIRVUseTextFormat) {
     writeQuotedString(O.OS, Str);
+    O.OS << " ";
     return O;
   }
 #endif
@@ -245,9 +249,21 @@ SPIRVEntry *SPIRVDecoder::getEntry() {
   Entry->setWordCount(WordCount);
   if (OpCode != OpLine)
     Entry->setLine(M.getCurrentLine());
+  if (!Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                        SPIRVDebug::DebugLine) &&
+      !Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                        SPIRVDebug::DebugLine))
+    Entry->setDebugLine(M.getCurrentDebugLine());
+
   IS >> *Entry;
   if (Entry->isEndOfBlock() || OpCode == OpNoLine)
     M.setCurrentLine(nullptr);
+  if (Entry->isEndOfBlock() ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_100,
+                       SPIRVDebug::DebugNoLine) ||
+      Entry->isExtInst(SPIRVEIS_NonSemantic_Shader_DebugInfo_200,
+                       SPIRVDebug::DebugNoLine))
+    M.setCurrentDebugLine(nullptr);
 
   if (OpExtension == OpCode) {
     auto *OpExt = static_cast<SPIRVExtension *>(Entry);
@@ -342,6 +358,7 @@ std::vector<SPIRVEntry *> SPIRVDecoder::getSourceContinuedInstructions() {
     SPIRVExtInst *Inst = static_cast<SPIRVExtInst *>(Entry);
     if (Inst->getExtOp() != SPIRVDebug::Instruction::SourceContinued) {
       IS.seekg(Pos); // restore position
+      delete Entry;
       return ContinuedInst;
     }
     M.add(Entry);

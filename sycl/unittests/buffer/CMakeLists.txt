@@ -1,6 +1,9 @@
 add_sycl_unittest(BufferTests OBJECT
+  PARTIAL_SOURCES_INTENDED
   BufferLocation.cpp
   Image.cpp
-  BufferDestructionCheck.cpp
+  BufferReleaseBase.cpp
   MemChannel.cpp
+  KernelArgMemObj.cpp
+  SubbufferLargeSize.cpp
 )

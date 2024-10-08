@@ -22,12 +22,12 @@
 //===----------------------------------------------------------------------===//
 
 #include "Utils/WebAssemblyTypeUtilities.h"
-#include "Utils/WebAssemblyUtilities.h"
 #include "WebAssembly.h"
 #include "WebAssemblyExceptionInfo.h"
 #include "WebAssemblyMachineFunctionInfo.h"
 #include "WebAssemblySortRegion.h"
 #include "WebAssemblySubtarget.h"
+#include "WebAssemblyUtilities.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/CodeGen/MachineDominators.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
@@ -45,11 +45,13 @@ STATISTIC(NumCatchUnwindMismatches, "Number of catch unwind mismatches found");
 
 namespace {
 class WebAssemblyCFGStackify final : public MachineFunctionPass {
+  MachineDominatorTree *MDT;
+
   StringRef getPassName() const override { return "WebAssembly CFG Stackify"; }
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
-    AU.addRequired<MachineDominatorTree>();
-    AU.addRequired<MachineLoopInfo>();
+    AU.addRequired<MachineDominatorTreeWrapperPass>();
+    AU.addRequired<MachineLoopInfoWrapperPass>();
     AU.addRequired<WebAssemblyExceptionInfo>();
     MachineFunctionPass::getAnalysisUsage(AU);
   }
@@ -252,7 +254,6 @@ void WebAssemblyCFGStackify::unregisterScope(MachineInstr *Begin) {
 void WebAssemblyCFGStackify::placeBlockMarker(MachineBasicBlock &MBB) {
   assert(!MBB.isEHPad());
   MachineFunction &MF = *MBB.getParent();
-  auto &MDT = getAnalysis<MachineDominatorTree>();
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
   const auto &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
 
@@ -264,7 +265,7 @@ void WebAssemblyCFGStackify::placeBlockMarker(MachineBasicBlock &MBB) {
   int MBBNumber = MBB.getNumber();
   for (MachineBasicBlock *Pred : MBB.predecessors()) {
     if (Pred->getNumber() < MBBNumber) {
-      Header = Header ? MDT.findNearestCommonDominator(Header, Pred) : Pred;
+      Header = Header ? MDT->findNearestCommonDominator(Header, Pred) : Pred;
       if (explicitlyBranchesTo(Pred, &MBB))
         IsBranchedTo = true;
     }
@@ -397,7 +398,7 @@ void WebAssemblyCFGStackify::placeBlockMarker(MachineBasicBlock &MBB) {
 /// Insert a LOOP marker for a loop starting at MBB (if it's a loop header).
 void WebAssemblyCFGStackify::placeLoopMarker(MachineBasicBlock &MBB) {
   MachineFunction &MF = *MBB.getParent();
-  const auto &MLI = getAnalysis<MachineLoopInfo>();
+  const auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
   const auto &WEI = getAnalysis<WebAssemblyExceptionInfo>();
   SortRegionInfo SRI(MLI, WEI);
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
@@ -465,9 +466,9 @@ void WebAssemblyCFGStackify::placeLoopMarker(MachineBasicBlock &MBB) {
 void WebAssemblyCFGStackify::placeTryMarker(MachineBasicBlock &MBB) {
   assert(MBB.isEHPad());
   MachineFunction &MF = *MBB.getParent();
-  auto &MDT = getAnalysis<MachineDominatorTree>();
+  auto &MDT = getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
   const auto &TII = *MF.getSubtarget<WebAssemblySubtarget>().getInstrInfo();
-  const auto &MLI = getAnalysis<MachineLoopInfo>();
+  const auto &MLI = getAnalysis<MachineLoopInfoWrapperPass>().getLI();
   const auto &WEI = getAnalysis<WebAssemblyExceptionInfo>();
   SortRegionInfo SRI(MLI, WEI);
   const auto &MFI = *MF.getInfo<WebAssemblyFunctionInfo>();
@@ -667,7 +668,7 @@ void WebAssemblyCFGStackify::removeUnnecessaryInstrs(MachineFunction &MF) {
 
   // When there is an unconditional branch right before a catch instruction and
   // it branches to the end of end_try marker, we don't need the branch, because
-  // it there is no exception, the control flow transfers to that point anyway.
+  // if there is no exception, the control flow transfers to that point anyway.
   // bb0:
   //   try
   //     ...
@@ -1291,6 +1292,7 @@ bool WebAssemblyCFGStackify::fixCatchUnwindMismatches(MachineFunction &MF) {
   // end_try
 
   const auto *EHInfo = MF.getWasmEHFuncInfo();
+  assert(EHInfo);
   SmallVector<const MachineBasicBlock *, 8> EHPadStack;
   // For EH pads that have catch unwind mismatches, a map of <EH pad, its
   // correct unwind destination>.
@@ -1438,6 +1440,7 @@ void WebAssemblyCFGStackify::recalculateScopeTops(MachineFunction &MF) {
   // Renumber BBs and recalculate ScopeTop info because new BBs might have been
   // created and inserted during fixing unwind mismatches.
   MF.RenumberBlocks();
+  MDT->updateBlockNumbers();
   ScopeTops.clear();
   ScopeTops.resize(MF.getNumBlockIDs());
   for (auto &MBB : reverse(MF)) {
@@ -1740,6 +1743,7 @@ bool WebAssemblyCFGStackify::runOnMachineFunction(MachineFunction &MF) {
                        "********** Function: "
                     << MF.getName() << '\n');
   const MCAsmInfo *MCAI = MF.getTarget().getMCAsmInfo();
+  MDT = &getAnalysis<MachineDominatorTreeWrapperPass>().getDomTree();
 
   releaseMemory();
 

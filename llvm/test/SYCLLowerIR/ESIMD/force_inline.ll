@@ -10,33 +10,49 @@ target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:
 target triple = "spir64-unknown-unknown"
 
 ; Function w/o attributes, must be marked with "alwaysinline"
-define dso_local spir_func void @no_attrs_func(float addrspace(4)* %ptr) {
-; CHECK: define dso_local spir_func void @no_attrs_func(float addrspace(4)* %ptr) #[[ATTRS1:[0-9]+]] {
-  store float 2.0, float addrspace(4)* %ptr
+define dso_local spir_func void @no_attrs_func(ptr addrspace(4) %ptr) {
+; CHECK: define dso_local spir_func void @no_attrs_func(ptr addrspace(4) %ptr) #[[ATTRS1:[0-9]+]] {
+  store float 2.0, ptr addrspace(4) %ptr
   ret void
 }
 
 ; VCStackCall function, must not be marked with "alwaysinline"
-define dso_local spir_func void @vc_stack_call_func(float addrspace(4)* %ptr) #0 {
-; CHECK: define dso_local spir_func void @vc_stack_call_func(float addrspace(4)* %ptr) #[[ATTRS2:[0-9]+]] {
-  store float 1.0, float addrspace(4)* %ptr
+define dso_local spir_func void @vc_stack_call_func(ptr addrspace(4) %ptr) #0 {
+; CHECK: define dso_local spir_func void @vc_stack_call_func(ptr addrspace(4) %ptr) #[[ATTRS2:[0-9]+]] {
+  store float 1.0, ptr addrspace(4) %ptr
   ret void
 }
 
 ; Function with "noinline" attribute", must not be marked with "alwaysinline"
-define dso_local spir_func void @noinline_func(float addrspace(4)* %ptr) #1 {
-; CHECK: define dso_local spir_func void @noinline_func(float addrspace(4)* %ptr) #[[ATTRS3:[0-9]+]] {
-  store float 2.0, float addrspace(4)* %ptr
+define dso_local spir_func void @noinline_func(ptr addrspace(4) %ptr) #1 {
+; CHECK: define dso_local spir_func void @noinline_func(ptr addrspace(4) %ptr) #[[ATTRS3:[0-9]+]] {
+  store float 2.0, ptr addrspace(4) %ptr
   ret void
 }
 
 ; Kernel, must not be marked with "alwaysinline"
-define dso_local spir_kernel void @KERNEL(float addrspace(4)* %ptr) !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
-; CHECK: define dso_local spir_kernel void @KERNEL(float addrspace(4)* %ptr) #[[ATTRS4:[0-9]+]] !sycl_explicit_simd !{{.*}} !intel_reqd_sub_group_size !{{.*}} {
-  store float 2.0, float addrspace(4)* %ptr
+define dso_local spir_kernel void @KERNEL(ptr addrspace(4) %ptr) !sycl_explicit_simd !0 !intel_reqd_sub_group_size !1 {
+; CHECK: define dso_local spir_kernel void @KERNEL(ptr addrspace(4) %ptr) #[[ATTRS4:[0-9]+]] !sycl_explicit_simd !{{.*}} !intel_reqd_sub_group_size !{{.*}} {
+  store float 2.0, ptr addrspace(4) %ptr
   ret void
 }
 
+; Function with "noinline" attribute must be marked with "alwaysinline" if it is an ESIMD namespace function
+define dso_local spir_func void @_ZNK4sycl3_V13ext5intel5esimd6detail13simd_obj_implIiLi16ENS3_4simdIiLi16EEEvE4dataEv(ptr addrspace(4) %ptr) #1 {
+; CHECK: define dso_local spir_func void @_ZNK4sycl3_V13ext5intel5esimd6detail13simd_obj_implIiLi16ENS3_4simdIiLi16EEEvE4dataEv(ptr addrspace(4) %ptr) #[[ATTRS1]] {
+ret void
+}
+
+; assert functions must not be marked with "alwaysinline"
+define dso_local spir_func void @__assert_fail(ptr addrspace(4) %ptr) {
+; CHECK: define dso_local spir_func void @__assert_fail(ptr addrspace(4) %ptr) #[[ATTRS3]] {
+  ret void
+}
+
+define dso_local spir_func void @__devicelib_assert_fail(ptr addrspace(4) %ptr) {
+; CHECK: define dso_local spir_func void @__devicelib_assert_fail(ptr addrspace(4) %ptr) #[[ATTRS3]] {
+  ret void
+}
 
 attributes #0 = { "VCStackCall" }
 attributes #1 = { noinline }

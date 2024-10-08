@@ -8,30 +8,23 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/iostream_proxy.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
-#include <fstream>
-#include <istream>
-#include <string>
+#include <ostream> // for operator<<, ostream
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class backend : char {
   host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
   opencl = 1,
   ext_oneapi_level_zero = 2,
-  level_zero __SYCL2020_DEPRECATED("use 'ext_oneapi_level_zero' instead") =
-      ext_oneapi_level_zero,
   ext_oneapi_cuda = 3,
-  cuda __SYCL2020_DEPRECATED("use 'ext_oneapi_cuda' instead") = ext_oneapi_cuda,
   all = 4,
-  ext_intel_esimd_emulator = 5,
-  esimd_cpu __SYCL2020_DEPRECATED("use 'ext_intel_esimd_emulator' instead") =
-      ext_intel_esimd_emulator,
+  // No support anymore:
+  // ext_intel_esimd_emulator  = 5,
   ext_oneapi_hip = 6,
-  hip __SYCL2020_DEPRECATED("use 'ext_oneapi_hip' instead") = ext_oneapi_hip,
+  ext_oneapi_native_cpu = 7,
 };
 
 template <backend Backend> class backend_traits;
@@ -57,11 +50,11 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   case backend::ext_oneapi_cuda:
     Out << "ext_oneapi_cuda";
     break;
-  case backend::ext_intel_esimd_emulator:
-    Out << "ext_intel_esimd_emulator";
-    break;
   case backend::ext_oneapi_hip:
     Out << "ext_oneapi_hip";
+    break;
+  case backend::ext_oneapi_native_cpu:
+    Out << "ext_oneapi_native_cpu";
     break;
   case backend::all:
     Out << "all";
@@ -69,5 +62,28 @@ inline std::ostream &operator<<(std::ostream &Out, backend be) {
   return Out;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+namespace detail {
+inline std::string_view get_backend_name_no_vendor(backend Backend) {
+  switch (Backend) {
+  case backend::host:
+    return "host";
+  case backend::opencl:
+    return "opencl";
+  case backend::ext_oneapi_level_zero:
+    return "level_zero";
+  case backend::ext_oneapi_cuda:
+    return "cuda";
+  case backend::ext_oneapi_hip:
+    return "hip";
+  case backend::ext_oneapi_native_cpu:
+    return "native_cpu";
+  case backend::all:
+    return "all";
+  }
+
+  return "";
+}
+} // namespace detail
+
+} // namespace _V1
 } // namespace sycl

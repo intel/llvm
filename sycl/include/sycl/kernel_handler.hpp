@@ -8,14 +8,35 @@
 
 #pragma once
 
-#include <sycl/detail/kernel_desc.hpp>
-#include <sycl/detail/sycl_fe_intrins.hpp>
-#include <sycl/exception.hpp>
+#include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/exception.hpp>                 // for feature_not_supported
 
-#include <type_traits>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_ops.hpp>
+#endif
+
+#include <type_traits> // for remove_reference_t
+
+#ifdef __SYCL_DEVICE_ONLY__
+// Get the value of the specialization constant with given symbolic ID.
+// `SymbolicID` is a unique string ID of a specialization constant.
+// `DefaultValue` contains a pointer to a global variable with the initializer,
+// which should be used as the default value of the specialization constants.
+// `RTBuffer` is a pointer to a runtime buffer, which holds values of all
+// specialization constant and should be used if native specialization constants
+// are not available.
+template <typename T>
+__DPCPP_SYCL_EXTERNAL T __sycl_getScalar2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
+
+template <typename T>
+__DPCPP_SYCL_EXTERNAL T __sycl_getComposite2020SpecConstantValue(
+    const char *SymbolicID, const void *DefaultValue, const void *RTBuffer);
+#endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 /// Reading the value of a specialization constant
 ///
 /// \ingroup sycl_api
@@ -27,11 +48,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return getSpecializationConstantOnDevice<S>();
 #else
-    // TODO: add support of host device
-    throw sycl::feature_not_supported(
-        "kernel_handler::get_specialization_constant() is not yet supported by "
-        "host device.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "kernel_handler::get_specialization_constant() is "
+                          "not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -45,7 +64,7 @@ private:
   template <
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
-      std::enable_if_t<std::is_fundamental_v<T>> * = nullptr>
+      std::enable_if_t<std::is_scalar_v<T>> * = nullptr>
   __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getScalar2020SpecConstantValue<T>(
@@ -54,7 +73,7 @@ private:
   template <
       auto &S,
       typename T = typename std::remove_reference_t<decltype(S)>::value_type,
-      std::enable_if_t<std::is_compound_v<T>> * = nullptr>
+      std::enable_if_t<!std::is_scalar_v<T>> * = nullptr>
   __SYCL_ALWAYS_INLINE T getSpecializationConstantOnDevice() {
     const char *SymbolicID = __builtin_sycl_unique_stable_id(S);
     return __sycl_getComposite2020SpecConstantValue<T>(
@@ -65,5 +84,5 @@ private:
   char *MSpecializationConstantsBuffer = nullptr;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

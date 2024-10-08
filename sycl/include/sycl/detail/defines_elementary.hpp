@@ -8,8 +8,6 @@
 
 #pragma once
 
-#define __SYCL_INLINE_VER_NAMESPACE(X) inline namespace X
-
 #ifndef __has_attribute
 #define __has_attribute(x) 0
 #endif
@@ -36,6 +34,15 @@
 #define SYCL_EXTERNAL
 #endif
 #endif
+
+// Helper for enabling empty-base optimizations on MSVC.
+// TODO: Remove this when MSVC has this optimization enabled by default.
+#ifdef _MSC_VER
+#define __SYCL_EBO __declspec(empty_bases)
+#else
+#define __SYCL_EBO
+#endif
+
 
 #ifndef __SYCL_ID_QUERIES_FIT_IN_INT__
 #define __SYCL_ID_QUERIES_FIT_IN_INT__ 0
@@ -80,10 +87,35 @@
 #endif
 #endif
 
-// Stringify an argument to pass it in _Pragma directive below.
-#ifndef __SYCL_STRINGIFY
-#define __SYCL_STRINGIFY(x) #x
-#endif // __SYCL_STRINGIFY
-
 static_assert(__cplusplus >= 201703L,
               "DPCPP does not support C++ version earlier than C++17.");
+
+// Helper macro to identify if fallback assert is needed
+#if defined(SYCL_FALLBACK_ASSERT)
+#define __SYCL_USE_FALLBACK_ASSERT SYCL_FALLBACK_ASSERT
+#else
+#define __SYCL_USE_FALLBACK_ASSERT 0
+#endif
+
+#if defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)
+// SYCL library is designed such a way that STL objects cross DLL boundary,
+// which is guaranteed to work properly only when the application uses the same
+// C++ runtime that SYCL library uses.
+// The appplications using sycl.dll must be linked with dynamic/release C++ MSVC
+// runtime, i.e. be compiled with /MD switch. Similarly, the applications using
+// sycld.dll must be linked with dynamic/debug C++ runtime and be compiled with
+// /MDd switch.
+// Compiler automatically adds /MD or /MDd when -fsycl switch is used.
+// The options /MD and /MDd that make the code to use dynamic runtime also
+// define the _DLL macro.
+#if defined(_MSC_VER)
+#pragma message(                                                               \
+    "SYCL library is designed to work safely with dynamic C++ runtime."        \
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "        \
+    "or -fsycl switch to set C++ runtime automatically.")
+#else
+#warning "SYCL library is designed to work safely with dynamic C++ runtime."\
+    "Please use /MD switch with sycl.dll, /MDd switch with sycld.dll, "\
+    "or -fsycl switch to set C++ runtime automatically."
+#endif
+#endif // defined(_WIN32) && !defined(_DLL) && !defined(__SYCL_DEVICE_ONLY__)

@@ -39,4 +39,5 @@ runs:
       build-args: ${{ inputs.build-args }}
       context: ${{ github.workspace }}/devops
       file: ${{ github.workspace }}/devops/containers/${{ inputs.file }}.Dockerfile
-
+      secrets: |
+        github_token=${{ github.token }}

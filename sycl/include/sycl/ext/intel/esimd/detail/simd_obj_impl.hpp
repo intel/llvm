@@ -10,16 +10,16 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/memory_intrin.hpp>
 #include <sycl/ext/intel/esimd/detail/sycl_util.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 #include <sycl/ext/intel/esimd/simd_view.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd {
 
 /// @addtogroup sycl_esimd_core
@@ -123,13 +123,23 @@ constexpr vector_type_t<T, N> make_vector(const T (&&Arr)[N]) {
 }
 
 template <class T, int N, size_t... Is>
-constexpr vector_type_t<T, N> make_vector_impl(T Base, T Stride,
-                                               std::index_sequence<Is...>) {
-  return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+constexpr auto make_vector_impl(T Base, T Stride, std::index_sequence<Is...>) {
+  if constexpr (std::is_integral_v<T> && N <= 3) {
+    // This sequence is a bit more efficient for integral types and N <= 3.
+    return vector_type_t<T, N>{(T)(Base + ((T)Is) * Stride)...};
+  } else {
+    using CppT = typename element_type_traits<T>::EnclosingCppT;
+    CppT BaseCpp = Base;
+    CppT StrideCpp = Stride;
+    vector_type_t<CppT, N> VBase = BaseCpp;
+    vector_type_t<CppT, N> VStride = StrideCpp;
+    vector_type_t<CppT, N> VStrideCoef{(CppT)(Is)...};
+    vector_type_t<CppT, N> Result{VBase + VStride * VStrideCoef};
+    return wrapper_type_converter<T>::template to_vector<N>(Result);
+  }
 }
 
-template <class T, int N>
-constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
+template <class T, int N> constexpr auto make_vector(T Base, T Stride) {
   return make_vector_impl<T, N>(Base, Stride, std::make_index_sequence<N>{});
 }
 
@@ -161,7 +171,12 @@ constexpr vector_type_t<T, N> make_vector(T Base, T Stride) {
 ///   types.hpp, used to disable invalid specializations.
 ///
 template <typename RawTy, int N, class Derived, class SFINAE>
+#ifndef __SYCL_DEVICE_ONLY__
 class simd_obj_impl {
+#else
+class [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_intel_esimd)]] simd_obj_impl {
+#endif
   /// @cond ESIMD_DETAIL
 
   // For the is_simd_obj_impl_derivative helper to work correctly, all derived
@@ -259,18 +274,13 @@ public:
   /// are initialized with the arithmetic progression defined by the arguments.
   /// For example, <code>simd<int, 4> x(1, 3)</code> will initialize x to the
   /// <code>{1, 4, 7, 10}</code> sequence.
-  /// @param Val The start of the progression.
+  /// If Ty is a floating-point type and \p Base or \p Step is +/-inf or nan,
+  /// then this constructor has undefined behavior.
+  /// @param Base The start of the progression.
   /// @param Step The step of the progression.
-  simd_obj_impl(Ty Val, Ty Step) noexcept {
-    __esimd_dbg_print(simd_obj_impl(Ty Val, Ty Step));
-    if constexpr (is_wrapper_elem_type_v<Ty> || !std::is_integral_v<Ty>) {
-      for (int i = 0; i < N; ++i) {
-        M_data[i] = bitcast_to_raw_type(Val);
-        Val = binary_op<BinOp::add, Ty>(Val, Step);
-      }
-    } else {
-      M_data = make_vector<Ty, N>(Val, Step);
-    }
+  simd_obj_impl(Ty Base, Ty Step) noexcept {
+    __esimd_dbg_print(simd_obj_impl(Ty Base, Ty Step));
+    M_data = make_vector<Ty, N>(Base, Step);
   }
 
   /// Broadcast constructor. Given value is type-converted to the
@@ -307,11 +317,29 @@ public:
   /// @tparam Flags Specifies memory address alignment. Affects efficiency of
   ///   the generated code.
   /// @param ptr The memory address to read from.
-  template <typename Flags = element_aligned_tag,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  simd_obj_impl(const Ty *ptr, Flags = {}) noexcept {
+  template <typename Flags,
+            typename std::enable_if_t<is_simd_flag_type_v<Flags>, bool> = true>
+  simd_obj_impl(const Ty *ptr, Flags) noexcept {
     __esimd_dbg_print(simd_obj_impl(const Ty *ptr, Flags));
     copy_from(ptr, Flags{});
+  }
+
+  /// Pointer-based load constructor. Initializes this object from values stored
+  /// in memory. For example:
+  /// <code>simd<int, N> x(ptr, properties{alignment<16>});</code>.
+  /// @tparam PropertiesListT Specifies compile-time properties Affects
+  /// efficiency of
+  ///   the generated code.
+  /// @param ptr The memory address to read from.
+  template <typename PropertyListT = oneapi::experimental::empty_properties_t,
+            typename std::enable_if_t<
+                ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+                bool> = true>
+  simd_obj_impl(const Ty *ptr, PropertyListT = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(const Ty *ptr, PropertyListT));
+    using NewPropertyListT =
+        detail::add_alignment_property_t<PropertyListT, sizeof(Ty)>;
+    copy_from(ptr, NewPropertyListT{});
   }
 
   /// Accessor-based load constructor. Initializes constructed object from
@@ -325,18 +353,18 @@ public:
   /// @param acc The accessor to read from.
   /// @param offset offset in bytes of the first element.
   template <
-      typename AccessorT, typename Flags = element_aligned_tag,
-      typename = std::enable_if_t<
-          detail::is_sycl_accessor_with<AccessorT, accessor_mode_cap::can_read,
-                                        sycl::access::target::device>::value &&
-          is_simd_flag_type_v<Flags>>>
+      typename AccessorT, typename Flags,
+      typename std::enable_if_t<
+          detail::is_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+              is_simd_flag_type_v<Flags>,
+          bool> = true>
   simd_obj_impl(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                 uint64_t offset,
 #else
                 uint32_t offset,
 #endif
-                Flags = {}) noexcept {
+                Flags) noexcept {
     __esimd_dbg_print(simd_obj_impl(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
                                     uint64_t offset,
@@ -345,6 +373,43 @@ public:
 #endif
                                     Flags));
     copy_from(acc, offset, Flags{});
+  }
+
+  /// Accessor-based load constructor. Initializes constructed object from
+  /// values stored in memory represented by an accessor and an offset. For
+  /// example:
+  /// <code>simd<int, N> x(acc, 128, properties{alignment<16>});</code>.
+  /// @tparam AccessorT the type of the accessor. Auto-deduced.
+  /// @tparam PropertiesListT Specifies compile-times-properties. Affects
+  /// efficiency of
+  ///   the generated code. Auto-deduced from the unnamed properties
+  ///   argument.
+  /// @param acc The accessor to read from.
+  /// @param offset offset in bytes of the first element.
+  template <
+      typename AccessorT,
+      typename PropertyListT = oneapi::experimental::empty_properties_t,
+      typename std::enable_if_t<
+          detail::is_accessor_with_v<AccessorT, accessor_mode_cap::can_read> &&
+              ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+          bool> = true>
+  simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                uint64_t offset,
+#else
+                uint32_t offset,
+#endif
+                PropertyListT = {}) noexcept {
+    __esimd_dbg_print(simd_obj_impl(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+                                    uint64_t offset,
+#else
+                                    uint32_t offset,
+#endif
+                                    PropertyListT));
+    using NewPropertyListT =
+        detail::add_alignment_property_t<PropertyListT, sizeof(Ty)>;
+    copy_from(acc, offset, NewPropertyListT{});
   }
 
   /// Copy assignment operator.
@@ -395,6 +460,7 @@ public:
   /// @param Val The object to take new values from.
   /// @param Mask The mask.
   void merge(const Derived &Val, const simd_mask_type<N> &Mask) {
+    check_wrregion_params<N, N, 0 /*VS*/, N, 1>();
     set(__esimd_wrregion<RawTy, N, N, 0 /*VS*/, N, 1, N>(data(), Val.data(), 0,
                                                          Mask.data()));
   }
@@ -468,6 +534,7 @@ public:
     static_assert(Size > 1 || Stride == 1,
                   "Stride must be 1 in single-element region");
     Derived &&Val = std::move(cast_this_to_derived());
+    check_rdregion_params<N, Size, /*VS*/ 0, Size, Stride>();
     return __esimd_rdregion<RawTy, N, Size, /*VS*/ 0, Size, Stride>(Val.data(),
                                                                     Offset);
   }
@@ -604,6 +671,7 @@ public:
   template <int Rep, int VS, int W, int HS>
   resize_a_simd_type_t<Derived, Rep * W>
   replicate_vs_w_hs(uint16_t Offset) const {
+    check_rdregion_params<N, Rep * W, VS, W, HS>();
     return __esimd_rdregion<RawTy, N, Rep * W, VS, W, HS, N>(
         data(), Offset * sizeof(RawTy));
   }
@@ -645,7 +713,7 @@ protected:
       constexpr int M = RTy::Size_x;
       constexpr int Stride = RTy::Stride_x;
       uint16_t Offset = Region.M_offset_x * sizeof(ElemTy);
-
+      check_wrregion_params<BN, M, /*VS*/ 0, M, Stride>();
       // Merge and update.
       auto Merged = __esimd_wrregion<ElemTy, BN, M,
                                      /*VS*/ 0, M, Stride>(Base, Val, Offset);
@@ -680,6 +748,7 @@ protected:
         constexpr int Stride = TR::Stride_x;
         uint16_t Offset = Region.first.M_offset_x * sizeof(ElemTy);
 
+        check_wrregion_params<BN1, M, /*VS*/ 0, M, Stride>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M,
                                  /*VS*/ 0, M, Stride>(Base1, Val, Offset);
@@ -697,6 +766,7 @@ protected:
             (Region.first.M_offset_y * PaTy::Size_x + Region.first.M_offset_x) *
             sizeof(ElemTy));
 
+        check_wrregion_params<BN1, M, VS, W, HS>();
         // Merge and update.
         Base1 = __esimd_wrregion<ElemTy, BN1, M, VS, W, HS, ParentWidth>(
             Base1, Val, Offset);
@@ -719,9 +789,27 @@ public:
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param addr the memory address to copy from. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  template <typename Flags = element_aligned_tag, int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE void copy_from(const Ty *addr, Flags = {}) SYCL_ESIMD_FUNCTION;
+  template <typename Flags = element_aligned_tag, int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
+  copy_from(const Ty *addr, Flags) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd_obj_impl
+  /// object. The amount of memory copied equals the total size of vector
+  /// elements in this object.
+  /// None of the template parameters except documented ones can/should be
+  /// specified by callers.
+  ///
+  /// @tparam ChunkSize Chunk size control for the copy operation.
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param addr the memory address to copy from. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  template <int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_from(const Ty *addr, PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy a contiguous block of data from memory into this simd_obj_impl
   /// object. The amount of memory copied equals the total size of vector
@@ -735,17 +823,86 @@ public:
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from (in bytes).
   template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_read,
-                                sycl::access::target::device, void>
+            int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<detail::is_device_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_read> &&
+                                is_simd_flag_type_v<Flags>>
   copy_from(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
             uint64_t offset,
 #else
             uint32_t offset,
 #endif
-            Flags = {}) SYCL_ESIMD_FUNCTION;
+            Flags) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd_obj_impl
+  /// object. The amount of memory copied equals the total size of vector
+  /// elements in this object. Source memory location is represented via a
+  /// global accessor and offset.
+  /// None of the template parameters except documented ones can/should be
+  /// specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam ChunkSize Chunk size control for the copy operation.
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from (in bytes).
+  template <typename AccessorT, int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_device_accessor_with_v<AccessorT,
+                                        accessor_mode_cap::can_read> &&
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_from(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+            uint64_t offset,
+#else
+            uint32_t offset,
+#endif
+            PropertyListT = {}) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd_obj_impl
+  /// object. The amount of memory copied equals the total size of vector
+  /// elements in this object. Source memory location is represented via a
+  /// local accessor and offset.
+  /// None of the template parameters except documented ones can/should be
+  /// specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam Flags Alignment control for the copy operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from (in bytes).
+  template <typename AccessorT, typename Flags = element_aligned_tag,
+            int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<detail::is_local_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_read> &&
+                                    is_simd_flag_type_v<Flags>,
+                                void>
+  copy_from(AccessorT acc, uint32_t offset, Flags) SYCL_ESIMD_FUNCTION;
+
+  /// Copy a contiguous block of data from memory into this simd_obj_impl
+  /// object. The amount of memory copied equals the total size of vector
+  /// elements in this object. Source memory location is represented via a
+  /// local accessor and offset.
+  /// None of the template parameters except documented ones can/should be
+  /// specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam ChunkSize Chunk size control for the copy operation.
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from (in bytes).
+  template <typename AccessorT, int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_local_accessor_with_v<AccessorT,
+                                       accessor_mode_cap::can_read> &&
+          ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+      void>
+  copy_from(AccessorT acc, uint32_t offset,
+            PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// None of the template parameters should be be specified by callers.
@@ -753,9 +910,22 @@ public:
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param addr the memory address to copy to. Must be a pointer to the
   /// global address space, otherwise behavior is undefined.
-  template <typename Flags = element_aligned_tag, int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE void copy_to(Ty *addr, Flags = {}) const SYCL_ESIMD_FUNCTION;
+  template <typename Flags, int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
+  copy_to(Ty *addr, Flags) const SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// None of the template parameters should be be specified by callers.
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param addr the memory address to copy to. Must be a pointer to the
+  /// global address space, otherwise behavior is undefined.
+  template <int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_to(Ty *addr, PropertyListT = {}) const SYCL_ESIMD_FUNCTION;
 
   /// Copy all vector elements of this object into a contiguous block in memory.
   /// Destination memory location is represented via a global accessor and
@@ -766,18 +936,77 @@ public:
   ///   See @ref sycl_esimd_core_align for more info.
   /// @param acc accessor to copy from.
   /// @param offset offset to copy from.
-  template <typename AccessorT, typename Flags = element_aligned_tag,
-            int ChunkSize = 32,
-            typename = std::enable_if_t<is_simd_flag_type_v<Flags>>>
-  ESIMD_INLINE EnableIfAccessor<AccessorT, accessor_mode_cap::can_write,
-                                sycl::access::target::device, void>
+  template <typename AccessorT, typename Flags, int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<detail::is_device_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_write> &&
+                                is_simd_flag_type_v<Flags>>
   copy_to(AccessorT acc,
 #ifdef __ESIMD_FORCE_STATELESS_MEM
           uint64_t offset,
 #else
           uint32_t offset,
 #endif
-          Flags = {}) const SYCL_ESIMD_FUNCTION;
+          Flags) const SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a global accessor and
+  /// offset.
+  /// None of the template parameters should be be specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT, int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_device_accessor_with_v<AccessorT,
+                                        accessor_mode_cap::can_write> &&
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_to(AccessorT acc,
+#ifdef __ESIMD_FORCE_STATELESS_MEM
+          uint64_t offset,
+#else
+          uint32_t offset,
+#endif
+          PropertyListT = {}) const SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a local accessor and
+  /// offset.
+  /// None of the template parameters should be be specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam Flags Alignment control for the copy operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT, typename Flags, int ChunkSize = 32>
+  ESIMD_INLINE std::enable_if_t<detail::is_local_accessor_with_v<
+                                    AccessorT, accessor_mode_cap::can_write> &&
+                                    is_simd_flag_type_v<Flags>,
+                                void>
+  copy_to(AccessorT acc, uint32_t offset, Flags) const SYCL_ESIMD_FUNCTION;
+
+  /// Copy all vector elements of this object into a contiguous block in memory.
+  /// Destination memory location is represented via a local accessor and
+  /// offset.
+  /// None of the template parameters should be be specified by callers.
+  /// @tparam AccessorT Type of the accessor (auto-deduced).
+  /// @tparam PropertyListT Compile-time property specification for the copy
+  /// operation.
+  ///   See @ref sycl_esimd_core_align for more info.
+  /// @param acc accessor to copy from.
+  /// @param offset offset to copy from.
+  template <typename AccessorT, int ChunkSize = 32,
+            typename PropertyListT = oneapi::experimental::empty_properties_t>
+  ESIMD_INLINE std::enable_if_t<
+      detail::is_local_accessor_with_v<AccessorT,
+                                       accessor_mode_cap::can_write> &&
+          ext::oneapi::experimental::is_property_list_v<PropertyListT>,
+      void>
+  copy_to(AccessorT acc, uint32_t offset,
+          PropertyListT = {}) const SYCL_ESIMD_FUNCTION;
 
   // Unary operations.
 
@@ -808,8 +1037,8 @@ public:
   /** @tparam SimdT The argument object type(auto-deduced).                 */ \
   /** @param RHS The argument object.                                       */ \
   template <class T1, class SimdT,                                             \
-            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
-                                      is_simd_type_v<SimdT>)&&COND>>           \
+            class = std::enable_if_t<                                          \
+                (is_simd_type_v<Derived> == is_simd_type_v<SimdT>) && COND>>   \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_DNS::simd_obj_impl<T1, N, SimdT> &RHS) {                   \
     auto Res = *this BINOP RHS;                                                \
@@ -826,10 +1055,9 @@ public:
   /** @param RHS The argument object.                                       */ \
   template <class SimdT1, class RegionT1,                                      \
             class T1 = typename RegionT1::element_type,                        \
-            class = std::enable_if_t<                                          \
-                (is_simd_type_v<Derived> ==                                    \
-                 is_simd_type_v<SimdT1>)&&(RegionT1::length == length) &&      \
-                COND>>                                                         \
+            class = std::enable_if_t<(is_simd_type_v<Derived> ==               \
+                                      is_simd_type_v<SimdT1>) &&               \
+                                     (RegionT1::length == length) && COND>>    \
   Derived &operator OPASSIGN(                                                  \
       const __ESIMD_NS::simd_view<SimdT1, RegionT1> &RHS) {                    \
     auto Res = *this BINOP RHS.read();                                         \
@@ -902,17 +1130,30 @@ public:
 #undef __ESIMD_ARITH_OP_FILTER
 #undef __ESIMD_DEF_SIMD_OBJ_IMPL_OPASSIGN
 
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 private:
   // The underlying data for this vector.
   raw_vector_type M_data;
 
-protected:
-  // The test proxy if enabled
-  __ESIMD_DECLARE_TEST_PROXY
+  template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+  ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
+  copy_to_impl(AccessorT acc, TOffset offset) const SYCL_ESIMD_FUNCTION;
+  template <int ChunkSize, typename PropertyListT, typename AccessorT,
+            typename TOffset>
+  ESIMD_INLINE std::enable_if_t<
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_to_impl(AccessorT acc, TOffset offset,
+               PropertyListT = {}) const SYCL_ESIMD_FUNCTION;
+  template <int ChunkSize, typename Flags, typename AccessorT, typename TOffset>
+  ESIMD_INLINE std::enable_if_t<is_simd_flag_type_v<Flags>>
+  copy_from_impl(AccessorT acc, TOffset offset) SYCL_ESIMD_FUNCTION;
+  template <int ChunkSize, typename PropertyListT, typename AccessorT,
+            typename TOffset>
+  ESIMD_INLINE std::enable_if_t<
+      ext::oneapi::experimental::is_property_list_v<PropertyListT>>
+  copy_from_impl(AccessorT acc, TOffset offset,
+                 PropertyListT = {}) SYCL_ESIMD_FUNCTION;
 
+protected:
   void set(const raw_vector_type &Val) {
 #ifndef __SYCL_DEVICE_ONLY__
     M_data = Val;
@@ -929,5 +1170,5 @@ template <>
 struct is_simd_flag_type<detail::dqword_element_aligned_tag> : std::true_type {
 };
 } // namespace ext::intel::esimd
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

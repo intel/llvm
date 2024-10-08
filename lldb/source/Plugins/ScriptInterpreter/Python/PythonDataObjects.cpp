@@ -61,7 +61,7 @@ Expected<std::string> python::As<std::string>(Expected<PythonObject> &&obj) {
   if (!obj)
     return obj.takeError();
   PyObject *str_obj = PyObject_Str(obj.get().get());
-  if (!obj)
+  if (!str_obj)
     return llvm::make_error<PythonException>();
   auto str = Take<PythonString>(str_obj);
   auto utf8 = str.AsUTF8();
@@ -71,7 +71,9 @@ Expected<std::string> python::As<std::string>(Expected<PythonObject> &&obj) {
 }
 
 static bool python_is_finalizing() {
-#if PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
+#if (PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION >= 13) || (PY_MAJOR_VERSION > 3)
+  return Py_IsFinalizing();
+#elif PY_MAJOR_VERSION == 3 && PY_MINOR_VERSION < 7
   return _Py_Finalizing != nullptr;
 #else
   return _Py_IsFinalizing();
@@ -661,6 +663,20 @@ bool PythonDictionary::Check(PyObject *py_obj) {
   return PyDict_Check(py_obj);
 }
 
+bool PythonDictionary::HasKey(const llvm::Twine &key) const {
+  if (!IsValid())
+    return false;
+
+  PythonString key_object(key.isSingleStringRef() ? key.getSingleStringRef()
+                                                  : key.str());
+
+  if (int res = PyDict_Contains(m_py_obj, key_object.get()) > 0)
+    return res;
+
+  PyErr_Print();
+  return false;
+}
+
 uint32_t PythonDictionary::GetSize() const {
   if (IsValid())
     return PyDict_Size(m_py_obj);
@@ -1231,7 +1247,8 @@ public:
     if (!bytes_written)
       return Status(bytes_written.takeError());
     if (bytes_written.get() < 0)
-      return Status(".write() method returned a negative number!");
+      return Status::FromErrorString(
+          ".write() method returned a negative number!");
     static_assert(sizeof(long long) >= sizeof(size_t), "overflow");
     num_bytes = bytes_written.get();
     return Status();
@@ -1285,7 +1302,8 @@ public:
     if (!bytes_written)
       return Status(bytes_written.takeError());
     if (bytes_written.get() < 0)
-      return Status(".write() method returned a negative number!");
+      return Status::FromErrorString(
+          ".write() method returned a negative number!");
     static_assert(sizeof(long long) >= sizeof(size_t), "overflow");
     num_bytes = bytes_written.get();
     return Status();
@@ -1297,7 +1315,8 @@ public:
     size_t orig_num_bytes = num_bytes;
     num_bytes = 0;
     if (orig_num_bytes < 6) {
-      return Status("can't read less than 6 bytes from a utf8 text stream");
+      return Status::FromErrorString(
+          "can't read less than 6 bytes from a utf8 text stream");
     }
     auto pystring = As<PythonString>(
         m_py_obj.CallMethod("read", (unsigned long long)num_chars));
@@ -1344,7 +1363,7 @@ llvm::Expected<FileSP> PythonFile::ConvertToFile(bool borrowed) {
 
   FileSP file_sp;
   if (borrowed) {
-    // In this case we we don't need to retain the python
+    // In this case we don't need to retain the python
     // object at all.
     file_sp = std::make_shared<NativeFile>(fd, options.get(), false);
   } else {

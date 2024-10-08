@@ -9,8 +9,8 @@
 // Note: This test relies on non-standard implementation details.
 
 #include "reduction_utils.hpp"
+
 #include <cassert>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

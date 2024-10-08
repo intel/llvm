@@ -25,10 +25,11 @@ bool llvm::lowerAtomicCmpXchgInst(AtomicCmpXchgInst *CXI) {
   Value *Cmp = CXI->getCompareOperand();
   Value *Val = CXI->getNewValOperand();
 
-  LoadInst *Orig = Builder.CreateLoad(Val->getType(), Ptr);
+  LoadInst *Orig =
+      Builder.CreateAlignedLoad(Val->getType(), Ptr, CXI->getAlign());
   Value *Equal = Builder.CreateICmpEQ(Orig, Cmp);
   Value *Res = Builder.CreateSelect(Equal, Val, Orig);
-  Builder.CreateStore(Res, Ptr);
+  Builder.CreateAlignedStore(Res, Ptr, CXI->getAlign());
 
   Res = Builder.CreateInsertValue(PoisonValue::get(CXI->getType()), Orig, 0);
   Res = Builder.CreateInsertValue(Res, Equal, 1);
@@ -101,6 +102,9 @@ Value *llvm::buildAtomicRMWValue(AtomicRMWInst::BinOp Op,
 
 bool llvm::lowerAtomicRMWInst(AtomicRMWInst *RMWI) {
   IRBuilder<> Builder(RMWI);
+  Builder.setIsFPConstrained(
+      RMWI->getFunction()->hasFnAttribute(Attribute::StrictFP));
+
   Value *Ptr = RMWI->getPointerOperand();
   Value *Val = RMWI->getValOperand();
 

@@ -16,7 +16,11 @@ queue q;
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'fp16' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'gpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[sycl::device_has(sycl::aspect::fp16, sycl::aspect::gpu)]] void func2() {}
 
 // CHECK: FunctionDecl {{.*}} func3 'void ()'
@@ -25,11 +29,11 @@ queue q;
 [[sycl::device_has()]] void func3() {}
 
 // CHECK: FunctionDecl {{.*}} used func4 'void ()'
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
-// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect':'sycl::aspect' depth 0 index 0 Aspect
+// CHECK-NEXT: NonTypeTemplateParmDecl {{.*}} referenced 'sycl::aspect' depth 0 index 0 Aspect
 // CHECK-NEXT: CStyleCastExpr {{.*}} 'sycl::aspect' <IntegralCast>
 // CHECK-NEXT: IntegerLiteral {{.*}} 'int' 0
 template <sycl::aspect Aspect>
@@ -38,10 +42,14 @@ template <sycl::aspect Aspect>
 // CHECK: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 // CHECK-NEXT: FunctionDecl {{.*}} used func5 'void ()'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr {{.*}} Inherited
 // CHECK-NEXT: DeclRefExpr {{.*}} 'sycl::aspect' EnumConstant {{.*}} 'cpu' 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier TypeSpec 'sycl::aspect'
+// CHECK-NEXT: NestedNameSpecifier Namespace {{.*}} 'sycl'
 [[sycl::device_has(sycl::aspect::cpu)]] void func5();
 void func5() {}
 
@@ -67,8 +75,8 @@ void func5() {}
 
 // CHECK: FunctionDecl {{.*}} func7 'void ()'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
-// CHECK-NEXT: TemplateArgument integral 2
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::gpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
@@ -82,7 +90,7 @@ void func5() {}
 
 // CHECK: FunctionDecl {{.*}} func7 'void ()'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'
@@ -103,9 +111,9 @@ template <sycl::aspect... Asp>
 // CHECK-NEXT: DeclRefExpr {{.*}} NonTypeTemplateParm {{.*}} 'AspPack' 'sycl::aspect'
 
 // CHECK-NEXT: FunctionDecl {{.*}} func8
-// CHECK-NEXT: TemplateArgument integral 0
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::host'
 // CHECK-NEXT: TemplateArgument pack
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral 'sycl::aspect::cpu'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLDeviceHasAttr
 // CHECK-NEXT: SubstNonTypeTemplateParmExpr {{.*}} 'sycl::aspect'

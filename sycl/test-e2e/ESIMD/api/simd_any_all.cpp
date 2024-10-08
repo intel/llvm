@@ -5,18 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 //
 // Smoke test for esimd any/all operations APIs.
 
 #include "../esimd_test_utils.hpp"
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
 #include <string>
 
 using namespace sycl;
@@ -111,8 +106,7 @@ template <typename T, int N, int Op> bool test_impl(queue q) {
     }
     T gold = Gold[Op * num_vals + i];
     T val = res[i];
-    std::cout << "  " << ops[Op] << "(" << (simd<ValTy, N>)test_vals_arr[i]
-              << ") = " << (ValTy)val;
+    std::cout << "  " << ops[Op];
 
     if (val != gold) {
       ++err_cnt;

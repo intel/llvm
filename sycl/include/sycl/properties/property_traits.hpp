@@ -8,10 +8,12 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
+#include <sycl/detail/property_helper.hpp> // for DataLessPropertyBase, Pro...
+
+#include <type_traits> // for bool_constant, false_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Property traits
 template <typename propertyT>
@@ -30,5 +32,5 @@ template <typename propertyT, typename syclObjectT>
 inline constexpr bool is_property_of_v =
     is_property_of<propertyT, syclObjectT>::value;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

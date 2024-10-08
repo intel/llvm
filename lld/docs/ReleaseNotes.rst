@@ -26,8 +26,15 @@ Non-comprehensive list of changes in this release
 ELF Improvements
 ----------------
 
-* ``--remap-inputs=`` and ``--remap-inputs-file=`` are added to remap input files.
-  (`D148859 <https://reviews.llvm.org/D148859>`_)
+* ``-z nosectionheader`` has been implemented to omit the section header table.
+  The operation is similar to ``llvm-objcopy --strip-sections``.
+  (`#101286 <https://github.com/llvm/llvm-project/pull/101286>`_)
+* Section ``CLASS`` linker script syntax binds input sections to named classes,
+  which are referenced later one or more times. This provides access to the
+  automatic spilling mechanism of `--enable-non-contiguous-regions` without
+  globally changing the semantics of section matching. It also independently
+  increases the expressive power of linker scripts.
+  (`#95323 <https://github.com/llvm/llvm-project/pull/95323>`_)
 
 Breaking changes
 ----------------
@@ -46,7 +53,3 @@ WebAssembly Improvements
 
 Fixes
 #####
-
-* Arm exception index tables (.ARM.exidx sections) are now output
-  correctly when they are at a non zero offset within their output
-  section. (`D148033 <https://reviews.llvm.org/D148033>`_)

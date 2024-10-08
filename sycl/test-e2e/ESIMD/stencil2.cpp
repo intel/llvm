@@ -10,10 +10,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #define WIDTH 16
 #define HEIGHT 16
 
@@ -59,7 +55,7 @@ bool CheckResults(float *out, float *in, unsigned n) {
                     in[(i + 5) * n + (j + 0)] * 0.02f;
 
         // check result
-        if (abs(res - out[i * n + j]) >= 0.0015f) {
+        if (std::abs(res - out[i * n + j]) >= 0.0015f) {
           std::cout << "out[" << i << "][" << j << "] = " << out[i * n + j]
                     << " expect result " << res << std::endl;
           return false;

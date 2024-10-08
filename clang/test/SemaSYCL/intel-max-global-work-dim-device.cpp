@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -Wno-sycl-2017-compat -triple spir64 -verify
+// RUN: %clang_cc1 %s -fsyntax-only -fsycl-is-device -internal-isystem %S/Inputs -sycl-std=2020 -triple spir64 -verify
 
 // The test checks support and functionality of [[intel::max_global_work_dim()]] attribute.
 

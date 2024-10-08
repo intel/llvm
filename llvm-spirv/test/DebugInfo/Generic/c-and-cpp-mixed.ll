@@ -1,14 +1,10 @@
 ;; This test checks that two DICompileUnits resulted in a link of C and C++
 ;; object files are being translated correctly
 
-; ifdef INTEL_SYCL_OPAQUEPOINTER_READY
-; COM: llvm-as < %s -o %t.bc
-; else
-; RUN: llvm-as -opaque-pointers < %s -o %t.bc
-; endif
+; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv --to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: FileCheck < %t.ll %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: String [[#Foo:]] "foo"
@@ -22,16 +18,16 @@
 
 ; CHECK-LLVM: define spir_func void @foo() #0 !dbg ![[#Func1:]] {
 ; CHECK-LLVM: entry:
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr nocapture @str) #0, !dbg ![[#Puts1Loc:]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture @str) #0, !dbg ![[#Puts1Loc:]]
 ; CHECK-LLVM:   ret void, !dbg ![[#Ret1:]]
 ; CHECK-LLVM: }
 
 ; CHECK-LLVM: define spir_func i32 @main(i32 %argc, ptr nocapture %argv) #0 !dbg ![[#Func2:]] {
 ; CHECK-LLVM: entry:
-; CHECK-LLVM:   call void @llvm.dbg.value(metadata i32 %argc, metadata ![[#Fun2Param1:]], metadata !DIExpression()), !dbg ![[#Fun2Param1Loc:]]
-; CHECK-LLVM:   call void @llvm.dbg.value(metadata ptr %argv, metadata ![[#Fun2Param2:]], metadata !DIExpression(DW_OP_deref, DW_OP_deref)), !dbg ![[#Fun2Param2Loc:]]
-; CHECK-LLVM:   %0 = bitcast ptr @str1 to ptr, !dbg ![[#Puts2Loc:]]
-; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr nocapture %0) #0, !dbg ![[#Puts2Loc]]
+; CHECK-LLVM:   #dbg_value(i32 %argc, ![[#Fun2Param1:]], !DIExpression(), ![[#Fun2Param1Loc:]])
+; CHECK-LLVM:   #dbg_value(ptr %argv, ![[#Fun2Param2:]], !DIExpression(DW_OP_deref, DW_OP_deref), ![[#Fun2Param2Loc:]])
+; CHECK-LLVM:   %0 = bitcast ptr addrspace(1) @str1 to ptr addrspace(1), !dbg ![[#Puts2Loc:]]
+; CHECK-LLVM:   %puts = call spir_func i32 @puts(ptr addrspace(1) nocapture %0) #0, !dbg ![[#Puts2Loc]]
 ; CHECK-LLVM:   call spir_func void @foo() #0, !dbg ![[#CallFoo:]]
 ; CHECK-LLVM:   ret i32 0, !dbg ![[#Ret2:]]
 ; CHECK-LLVM: }
@@ -41,7 +37,7 @@
 ; CHECK-LLVM: ![[#File]] = !DIFile(filename: "foo.c", directory: "/tmp")
 ; CHECK-LLVM: ![[#CU2]] = distinct !DICompileUnit(language: DW_LANG_C_plus_plus_17, file: ![[#File]], producer: "clang version 17", isOptimized: false, runtimeVersion: 0, emissionKind: FullDebug)
 ; CHECK-LLVM: ![[#Empty:]] = !{}
-; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]], retainedNodes: ![[#Empty]])
+; CHECK-LLVM: ![[#Func1]] = distinct !DISubprogram(name: "foo", scope: null, file: ![[#File]], line: 5, type: ![[#Func1T:]], scopeLine: 5, flags: DIFlagPrototyped, spFlags: DISPFlagDefinition | DISPFlagOptimized, unit: ![[#CU1]], templateParams: ![[#Empty]])
 ; CHECK-LLVM: ![[#Func1T]] = !DISubroutineType(types: ![[#Func1TP:]])
 ; CHECK-LLVM: ![[#Func1TP]] = !{null}
 ; CHECK-LLVM: ![[#Puts1Loc]] = !DILocation(line: 6, column: 3, scope: ![[#Puts1Scope:]])
@@ -69,23 +65,23 @@ target triple = "spir64-unknown-unknown"
 
 ; ModuleID = 'test.bc'
 
-@str = private unnamed_addr constant [4 x i8] c"FOO\00"
-@str1 = private unnamed_addr constant [6 x i8] c"Main!\00"
+@str = private unnamed_addr addrspace(1) constant [4 x i8] c"FOO\00"
+@str1 = private unnamed_addr addrspace(1) constant [6 x i8] c"Main!\00"
 
 define void @foo() nounwind !dbg !5 {
 entry:
-  %puts = tail call i32 @puts(i8* getelementptr inbounds ([4 x i8], [4 x i8]* @str, i32 0, i32 0)), !dbg !23
+  %puts = tail call i32 @puts(ptr addrspace(1) @str), !dbg !23
   ret void, !dbg !25
 }
 
-declare i32 @puts(i8* nocapture) nounwind
+declare i32 @puts(ptr addrspace(1) nocapture) nounwind
 
-define i32 @main(i32 %argc, i8** nocapture %argv) nounwind !dbg !12 {
+define i32 @main(i32 %argc, ptr nocapture %argv) nounwind !dbg !12 {
 entry:
   tail call void @llvm.dbg.value(metadata i32 %argc, metadata !21, metadata !DIExpression()), !dbg !26
   ; Avoid talking about the pointer size in debug info because that's target dependent
-  tail call void @llvm.dbg.value(metadata i8** %argv, metadata !22, metadata !DIExpression(DW_OP_deref, DW_OP_deref)), !dbg !27
-  %puts = tail call i32 @puts(i8* getelementptr inbounds ([6 x i8], [6 x i8]* @str1, i32 0, i32 0)), !dbg !28
+  tail call void @llvm.dbg.value(metadata ptr %argv, metadata !22, metadata !DIExpression(DW_OP_deref, DW_OP_deref)), !dbg !27
+  %puts = tail call i32 @puts(ptr addrspace(1) @str1), !dbg !28
   tail call void @foo() nounwind, !dbg !30
   ret i32 0, !dbg !31
 }

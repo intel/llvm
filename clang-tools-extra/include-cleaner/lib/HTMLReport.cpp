@@ -14,6 +14,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "AnalysisInternal.h"
+#include "clang-include-cleaner/IncludeSpeller.h"
 #include "clang-include-cleaner/Types.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/PrettyPrinter.h"
@@ -167,22 +168,6 @@ class Reporter {
     return "semiused";
   }
 
-  std::string spellHeader(const Header &H) {
-    switch (H.kind()) {
-    case Header::Physical: {
-      bool IsSystem = false;
-      std::string Path = HS.suggestPathToFileForDiagnostics(
-          H.physical(), MainFE->tryGetRealPathName(), &IsSystem);
-      return IsSystem ? "<" + Path + ">" : "\"" + Path + "\"";
-    }
-    case Header::Standard:
-      return H.standard().name().str();
-    case Header::Verbatim:
-      return H.verbatim().str();
-    }
-    llvm_unreachable("Unknown Header kind");
-  }
-
   void fillTarget(Ref &R) {
     // Duplicates logic from walkUsed(), which doesn't expose SymbolLocations.
     for (auto &Loc : locateSymbol(R.Sym))
@@ -204,7 +189,7 @@ class Reporter {
                      R.Includes.end());
 
     if (!R.Headers.empty())
-      R.Insert = spellHeader(R.Headers.front());
+      R.Insert = spellHeader({R.Headers.front(), HS, MainFE});
   }
 
 public:
@@ -390,7 +375,7 @@ private:
       OS << "<tr><th>Header</th><td>";
       switch (H.kind()) {
       case Header::Physical:
-        printFilename(H.physical()->getName());
+        printFilename(H.physical().getName());
         break;
       case Header::Standard:
         OS << "stdlib " << H.standard().name();
@@ -521,7 +506,7 @@ void writeHTMLReport(FileID File, const include_cleaner::Includes &Includes,
     walkAST(*Root, [&](SourceLocation Loc, const NamedDecl &D, RefType T) {
       if(!SM.isWrittenInMainFile(SM.getSpellingLoc(Loc)))
         return;
-      R.addRef(SymbolReference{Loc, D, T});
+      R.addRef(SymbolReference{D, Loc, T});
     });
   for (const SymbolReference &Ref : MacroRefs) {
     if (!SM.isWrittenInMainFile(SM.getSpellingLoc(Ref.RefLocation)))

@@ -5,22 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
+// REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// XFAIL: gpu
 
-#include <iostream>
-#include <random>
-#include <sycl/sycl.hpp>
+// This is a version of the test with disabled device code
+// split to test against fixed bug in IGC
+// RUN: %{build} -fsycl-device-code-split=off -o %t_split.out
+// RUN: %if gpu-intel-dg2 %{ %{run} %t_split.out %}
 
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
-
-#define SG_SZ 16
-
+#include "common.hpp"
 #include "element_wise_all_sizes_impl.hpp"

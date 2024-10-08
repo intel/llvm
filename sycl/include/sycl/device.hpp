@@ -9,22 +9,31 @@
 #pragma once
 
 #include <sycl/aspects.hpp>
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
+#include <sycl/backend_types.hpp>
+#include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
+#include <sycl/detail/string.hpp>
+#include <sycl/detail/string_view.hpp>
+#include <sycl/detail/util.hpp>
+#include <sycl/device_selector.hpp>
+#include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/platform.hpp>
-#include <sycl/stl.hpp>
+#include <ur_api.h>
 
+#include <cstddef>
 #include <memory>
-#include <utility>
+#include <string>
+#include <type_traits>
+#include <typeinfo>
+#include <variant>
+#include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declarations
 class device_selector;
 template <backend BackendName, class SyclObjectT>
@@ -40,6 +49,12 @@ enum class aspect;
 namespace ext::oneapi {
 // Forward declaration
 class filter_selector;
+
+enum class peer_access {
+  access_supported = 0x0,
+  atomics_supported = 0x1,
+};
+
 } // namespace ext::oneapi
 
 /// The SYCL device class encapsulates a single SYCL device on which kernels
@@ -89,6 +104,13 @@ public:
 
   device &operator=(device &&rhs) = default;
 
+  void ext_oneapi_enable_peer_access(const device &peer);
+  void ext_oneapi_disable_peer_access(const device &peer);
+  bool
+  ext_oneapi_can_access_peer(const device &peer,
+                             ext::oneapi::peer_access value =
+                                 ext::oneapi::peer_access::access_supported);
+
   /// Get instance of device
   ///
   /// \return a valid cl_device_id instance in accordance with the requirements
@@ -96,13 +118,6 @@ public:
 #ifdef __SYCL_INTERNAL_API
   cl_device_id get() const;
 #endif
-
-  /// Check if device is a host device
-  ///
-  /// \return true if SYCL device is a host device
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
 
   /// Check if device is a CPU device
   ///
@@ -123,8 +138,7 @@ public:
   ///
   /// If this SYCL device is an OpenCL device then the SYCL platform
   /// must encapsulate the OpenCL cl_plaform_id associated with the
-  /// underlying OpenCL cl_device_id of this SYCL device. If this SYCL device
-  /// is a host device then the SYCL platform must be a host platform.
+  /// underlying OpenCL cl_device_id of this SYCL device.
   /// The value returned must be equal to that returned by
   /// get_info<info::device::platform>().
   ///
@@ -198,19 +212,27 @@ public:
   ///
   /// \return device info of type described in Table 4.20.
   template <typename Param>
-  typename detail::is_device_info_desc<Param>::return_type get_info() const;
+  typename detail::is_device_info_desc<Param>::return_type get_info() const {
+    return detail::convert_from_abi_neutral(get_info_impl<Param>());
+  }
+
+  /// Queries this SYCL device for SYCL backend-specific information.
+  ///
+  /// The return type depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
 
   /// Check SYCL extension support by device
   ///
   /// \param extension_name is a name of queried extension.
   /// \return true if SYCL device supports the extension.
   __SYCL2020_DEPRECATED("use device::has() function with aspects APIs instead")
-  bool has_extension(const std::string &extension_name) const;
+  bool has_extension(const std::string &extension_name) const {
+    return has_extension(detail::string_view{extension_name});
+  }
 
   /// Query available SYCL devices
-  ///
-  /// The returned std::vector must contain a single SYCL device
-  /// that is a host device, permitted by the deviceType parameter
   ///
   /// \param deviceType is one of the values described in A.3 of SYCL Spec
   /// \return a std::vector containing all SYCL devices available in the system
@@ -240,6 +262,85 @@ public:
   /// \return true if the SYCL device has the given feature.
   bool has(aspect Aspect) const __SYCL_WARN_IMAGE_ASPECT(Aspect);
 
+  /// Indicates if the SYCL device architecture equals to the one passed to
+  /// the function.
+  ///
+  /// \param arch is one of the architectures from architecture enum described
+  /// in sycl_ext_oneapi_device_architecture specification.
+  ///
+  /// \return true if the SYCL device architecture equals to the one passed to
+  /// the function.
+  bool ext_oneapi_architecture_is(ext::oneapi::experimental::architecture arch);
+
+  /// Indicates if the SYCL device architecture is in the category passed
+  /// to the function.
+  ///
+  /// \param category is one of the architecture categories from arch_category
+  /// enum described in sycl_ext_oneapi_device_architecture specification.
+  ///
+  /// \return true if the SYCL device architecture is in the category passed to
+  /// the function.
+  bool
+  ext_oneapi_architecture_is(ext::oneapi::experimental::arch_category category);
+
+  /// kernel_compiler extension
+
+  /// Indicates if the device can compile a kernel for the given language.
+  ///
+  /// \param Language is one of the values from the
+  /// kernel_bundle::source_language enumeration described in the
+  /// sycl_ext_oneapi_kernel_compiler specification
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// source language `lang`.
+  bool
+  ext_oneapi_can_compile(ext::oneapi::experimental::source_language Language);
+
+  /// Indicates if the device supports a given feature when compiling the OpenCL
+  /// C language
+  ///
+  /// \param Feature
+  ///
+  /// \return true if supported
+  bool ext_oneapi_supports_cl_c_feature(const std::string &Feature) {
+    return ext_oneapi_supports_cl_c_feature(detail::string_view{Feature});
+  }
+
+  /// Indicates if the device supports kernel bundles written in a particular
+  /// OpenCL C version
+  ///
+  /// \param Version
+  ///
+  /// \return true only if the device supports kernel bundles written in the
+  /// version identified by `Version`.
+  bool ext_oneapi_supports_cl_c_version(
+      const ext::oneapi::experimental::cl_version &Version) const;
+
+  /// If the device supports kernel bundles using the OpenCL extension
+  /// identified by `name` and if `version` is not a null pointer, the supported
+  /// version of the extension is written to `version`.
+  ///
+  /// \return true only if the device supports kernel bundles using the OpenCL
+  /// extension identified by `name`.
+  bool ext_oneapi_supports_cl_extension(
+      const std::string &name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const {
+    return ext_oneapi_supports_cl_extension(detail::string_view{name}, version);
+  }
+
+  /// Retrieve the OpenCl Device Profile
+  ///
+  /// \return If the device supports kernel bundles written in
+  /// `source_language::opencl`, returns the name of the OpenCL profile that is
+  /// supported. The profile name is the same string that is returned by the
+  /// query `CL_DEVICE_PROFILE`, as defined in section 4.2 "Querying Devices" of
+  /// the OpenCL specification. If the device does not support kernel bundles
+  /// written in `source_language::opencl`, returns the empty string.
+  std::string ext_oneapi_cl_profile() const {
+    detail::string profile = ext_oneapi_cl_profile_impl();
+    return profile.c_str();
+  }
+
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
 #pragma clang diagnostic pop
@@ -249,14 +350,11 @@ private:
   std::shared_ptr<detail::device_impl> impl;
   device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-  detail::getRawSyclObjImpl(const T &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -264,9 +362,21 @@ private:
   template <backend BackendName, class SyclObjectT>
   friend auto get_native(const SyclObjectT &Obj)
       -> backend_return_t<BackendName, SyclObjectT>;
+
+  template <typename Param>
+  typename detail::ABINeutralT_t<
+      typename detail::is_device_info_desc<Param>::return_type>
+  get_info_impl() const;
+
+  bool has_extension(detail::string_view extension_name) const;
+  bool ext_oneapi_supports_cl_c_feature(detail::string_view Feature);
+  bool ext_oneapi_supports_cl_extension(
+      detail::string_view name,
+      ext::oneapi::experimental::cl_version *version = nullptr) const;
+  detail::string ext_oneapi_cl_profile_impl() const;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

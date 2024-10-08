@@ -6,20 +6,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO: enable esimd_emulator when supported
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-//
+
+// Disabled on PVC without igc-dev due to flaky failures.
+// https://github.com/intel/llvm/issues/14826
+// UNSUPPORTED: arch-intel_gpu_pvc && !igc-dev
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // SLM and surface size is 32 bytes, 16 bytes per iteration.
 // Each iteration has 1 barrier and 1 producer. Producer stores data to SLM,
 // then all threads read SLM and store data to surface.
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include "../esimd_test_utils.hpp"
 
-#include <iostream>
+#define NS __ESIMD_NS
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -62,7 +64,7 @@ bool test(QueueTY q) {
             // number of ints read/written by single thread
             constexpr unsigned VL = SlmSize / Threads;
 
-            named_barrier_init<bnum>();
+            NS::named_barrier_init<bnum>();
 
             unsigned int idx = ndi.get_local_id(0);
             unsigned int off = idx * VL * sizeof(int);
@@ -91,16 +93,16 @@ bool test(QueueTY q) {
                 lsc_slm_block_store<int, SlmSize / 2>(prod_off, init);
               }
 
-              named_barrier_signal(b, flag, producers, consumers);
-              named_barrier_wait(b); // consumers waiting for signal
+              NS::named_barrier_signal(b, flag, producers, consumers);
+              NS::named_barrier_wait(b); // consumers waiting for signal
 
               // reading SLM
               auto val = lsc_slm_block_load<int, VL>(off);
               // and storing it to output surface
               unsigned int store_off = off + i * SlmSize * sizeof(int);
-              lsc_fence();
+              fence();
               lsc_block_store<int, VL>(acc, store_off, val);
-              lsc_fence();
+              fence();
             }
           });
     });
@@ -135,11 +137,8 @@ bool test(QueueTY q) {
 }
 
 int main() {
-  auto GPUSelector = gpu_selector{};
-  auto q = queue{GPUSelector};
-  auto dev = q.get_device();
-  std::cout << "Running on " << dev.get_info<sycl::info::device::name>()
-            << "\n";
+  queue q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(q);
 
   bool passed = true;
 

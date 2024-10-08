@@ -1,10 +1,10 @@
 // UNSUPPORTED: hip_nvidia
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
-#include <sycl/accessor.hpp>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -124,21 +124,21 @@ void testGetLinearIndex() {
     buffer<float, 2> buffer_2D(data_2D.data(), range<2>(height, width));
     buffer<float, 3> buffer_3D(data_3D.data(), range<3>(depth, height, width));
 
-    auto acc_1D = buffer_1D.get_access<access::mode::read_write>();
+    auto acc_1D = buffer_1D.get_host_access();
     auto accTest_1D = AccTest<float, 1>(acc_1D);
     size_t linear_1D = accTest_1D.gLI(id<1>(x)); // s.b. 4
     std::cout << "linear_1D: " << linear_1D << "  target_1D: " << target_1D
               << std::endl;
     assert(linear_1D == target_1D && "linear_1D s.b. 4");
 
-    auto acc_2D = buffer_2D.get_access<access::mode::read_write>();
+    auto acc_2D = buffer_2D.get_host_access();
     auto accTest_2D = AccTest<float, 2>(acc_2D);
     size_t linear_2D = accTest_2D.gLI(id<2>(y, x));
     std::cout << "linear_2D: " << linear_2D << "  target_2D: " << target_2D
               << std::endl;
     assert(linear_2D == target_2D && "linear_2D s.b. 52");
 
-    auto acc_3D = buffer_3D.get_access<access::mode::read_write>();
+    auto acc_3D = buffer_3D.get_host_access();
     auto accTest_3D = AccTest<float, 3>(acc_3D);
     size_t linear_3D = accTest_3D.gLI(id<3>(z, y, x));
     std::cout << "linear_3D: " << linear_3D << "  target_3D: " << target_3D
@@ -220,8 +220,8 @@ void testcopyD2HBuffer() {
 }
 
 void testcopyH2DBuffer() {
-  // copy between two queues triggers a piEnqueueMemBufferMap followed by
-  // copyH2D, followed by a copyD2H, followed by a piEnqueueMemUnmap
+  // copy between two queues triggers a urEnqueueMemBufferMap followed by
+  // copyH2D, followed by a copyD2H, followed by a urEnqueueMemUnmap
   // Here we only care about checking copyH2D
 
   std::cout << "start copyH2D-buffer" << std::endl;
@@ -408,52 +408,23 @@ int main() {
 // ----------- BUFFERS
 
 // CHECK-LABEL: start copyD2H-buffer
-// CHECK: ---> piEnqueueMemBufferRead(
-// CHECK: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferReadRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferReadRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: <--- urEnqueueMemBufferRead({{.*}} .size = 64,
+// CHECK: <--- urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64,
+// CHECK: <--- urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320,
 // CHECK: end copyD2H-buffer
 
 // CHECK-LABEL: start copyH2D-buffer
-// CHECK: ---> piEnqueueMemBufferWrite(
-// CHECK: <unknown> : 64
-// CHECK:  ---> piEnqueueMemBufferWriteRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 0
-// CHECK-NEXT: <unknown> : 64
-// CHECK:  ---> piEnqueueMemBufferWriteRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: <--- urEnqueueMemBufferWrite({{.*}} .size = 64,
+// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64, 
+// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320, .hostRowPitch = 64, .hostSlicePitch = 320,
 // CHECK: end copyH2D-buffer
 
 // CHECK-LABEL: start copyD2D-buffer
-// CHECK: ---> piEnqueueMemBufferCopy(
-// CHECK: <unknown> : 64
-// CHECK: ---> piEnqueueMemBufferCopyRect(
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/1
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK: pi_buff_rect_region width_bytes/height/depth : 64/5/3
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
-// CHECK-NEXT: <unknown> : 64
-// CHECK-NEXT: <unknown> : 320
+// CHECK: <--- urEnqueueMemBufferCopy({{.*}} .size = 64
+// CHECK: <--- urEnqueueMemBufferCopyRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
+// CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
 // CHECK: end copyD2D-buffer
 
 // CHECK-LABEL: start testFill Buffer
-// CHECK: ---> piEnqueueMemBufferFill(
-// CHECK: <unknown> : 4
-// CHECK-NEXT: <unknown> : 0
-// CHECK-NEXT: <unknown> : 64
+// CHECK: <--- urEnqueueMemBufferFill({{.*}} .patternSize = 4, .offset = 0, .size = 64,
 // CHECK: end testFill Buffer

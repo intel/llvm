@@ -14,10 +14,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using TstT = half;
 using SrcT = half;
@@ -98,7 +94,7 @@ int main(int argc, char **argv) {
     Tint ResBits = *(Tint *)&Res;
     Tint GoldBits = *(Tint *)&Gold;
 
-    if (abs(ResBits - GoldBits) > 1) {
+    if (std::abs(ResBits - GoldBits) > 1) {
       if (++err_cnt < 100) {
         std::cout << "failed at index " << i << ": " << cast(Res) << "(0x"
                   << std::hex << ResBits << ")"

@@ -18,7 +18,7 @@ int8x8_t test_vtbl1_s8(int8x8_t a, int8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1:[0-9]+]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbl1.v8i8(<16 x i8> [[A]], <8 x i8> [[B]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBL1_I]]
@@ -28,13 +28,13 @@ int8x8_t test_vqtbl1_s8(int8x16_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl2_s8
-// CHECK-SAME: ([2 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([2 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -49,13 +49,13 @@ int8x8_t test_vtbl2_s8(int8x8x2_t a, int8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2_s8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -69,13 +69,13 @@ int8x8_t test_vqtbl2_s8(int8x16x2_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl3_s8
-// CHECK-SAME: ([3 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([3 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -93,13 +93,13 @@ int8x8_t test_vtbl3_s8(int8x8x3_t a, int8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3_s8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -115,13 +115,13 @@ int8x8_t test_vqtbl3_s8(int8x16x3_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl4_s8
-// CHECK-SAME: ([4 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([4 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -141,13 +141,13 @@ int8x8_t test_vtbl4_s8(int8x8x4_t a, int8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4_s8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -165,7 +165,7 @@ int8x8_t test_vqtbl4_s8(int8x16x4_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1q_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbl1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBL1_I]]
@@ -175,13 +175,13 @@ int8x16_t test_vqtbl1q_s8(int8x16_t a, int8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2q_s8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -195,13 +195,13 @@ int8x16_t test_vqtbl2q_s8(int8x16x2_t a, int8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3q_s8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -217,13 +217,13 @@ int8x16_t test_vqtbl3q_s8(int8x16x3_t a, int8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4q_s8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_INT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_INT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -258,13 +258,13 @@ int8x8_t test_vtbx1_s8(int8x8_t a, int8x8_t b, int8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx2_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -279,13 +279,13 @@ int8x8_t test_vtbx2_s8(int8x8_t a, int8x8x2_t b, int8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx3_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -309,13 +309,13 @@ int8x8_t test_vtbx3_s8(int8x8_t a, int8x8x3_t b, int8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx4_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -335,7 +335,7 @@ int8x8_t test_vtbx4_s8(int8x8_t a, int8x8x4_t b, int8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbx1.v8i8(<8 x i8> [[A]], <16 x i8> [[B]], <8 x i8> [[C]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBX1_I]]
@@ -345,13 +345,13 @@ int8x8_t test_vqtbx1_s8(int8x8_t a, int8x16_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -365,13 +365,13 @@ int8x8_t test_vqtbx2_s8(int8x8_t a, int8x16x2_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -387,13 +387,13 @@ int8x8_t test_vqtbx3_s8(int8x8_t a, int8x16x3_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4_s8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -411,7 +411,7 @@ int8x8_t test_vqtbx4_s8(int8x8_t a, int8x16x4_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1q_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbx1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]], <16 x i8> [[C]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBX1_I]]
@@ -421,13 +421,13 @@ int8x16_t test_vqtbx1q_s8(int8x16_t a, int8x16_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2q_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -441,13 +441,13 @@ int8x16_t test_vqtbx2q_s8(int8x16_t a, int8x16x2_t b, int8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3q_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -463,13 +463,13 @@ int8x16_t test_vqtbx3q_s8(int8x16_t a, int8x16x3_t b, int8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4q_s8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_INT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_INT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_INT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -498,7 +498,7 @@ uint8x8_t test_vtbl1_u8(uint8x8_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbl1.v8i8(<16 x i8> [[A]], <8 x i8> [[B]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBL1_I]]
@@ -508,13 +508,13 @@ uint8x8_t test_vqtbl1_u8(uint8x16_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl2_u8
-// CHECK-SAME: ([2 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([2 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -529,13 +529,13 @@ uint8x8_t test_vtbl2_u8(uint8x8x2_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2_u8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -549,13 +549,13 @@ uint8x8_t test_vqtbl2_u8(uint8x16x2_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl3_u8
-// CHECK-SAME: ([3 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([3 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -573,13 +573,13 @@ uint8x8_t test_vtbl3_u8(uint8x8x3_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3_u8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -595,13 +595,13 @@ uint8x8_t test_vqtbl3_u8(uint8x16x3_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl4_u8
-// CHECK-SAME: ([4 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([4 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -621,13 +621,13 @@ uint8x8_t test_vtbl4_u8(uint8x8x4_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4_u8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -645,7 +645,7 @@ uint8x8_t test_vqtbl4_u8(uint8x16x4_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1q_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbl1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBL1_I]]
@@ -655,13 +655,13 @@ uint8x16_t test_vqtbl1q_u8(uint8x16_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2q_u8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -675,13 +675,13 @@ uint8x16_t test_vqtbl2q_u8(uint8x16x2_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3q_u8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -697,13 +697,13 @@ uint8x16_t test_vqtbl3q_u8(uint8x16x3_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4q_u8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_UINT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_UINT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -738,13 +738,13 @@ uint8x8_t test_vtbx1_u8(uint8x8_t a, uint8x8_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx2_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -759,13 +759,13 @@ uint8x8_t test_vtbx2_u8(uint8x8_t a, uint8x8x2_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx3_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -789,13 +789,13 @@ uint8x8_t test_vtbx3_u8(uint8x8_t a, uint8x8x3_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx4_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -815,7 +815,7 @@ uint8x8_t test_vtbx4_u8(uint8x8_t a, uint8x8x4_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbx1.v8i8(<8 x i8> [[A]], <16 x i8> [[B]], <8 x i8> [[C]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBX1_I]]
@@ -825,13 +825,13 @@ uint8x8_t test_vqtbx1_u8(uint8x8_t a, uint8x16_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -845,13 +845,13 @@ uint8x8_t test_vqtbx2_u8(uint8x8_t a, uint8x16x2_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -867,13 +867,13 @@ uint8x8_t test_vqtbx3_u8(uint8x8_t a, uint8x16x3_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4_u8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -891,7 +891,7 @@ uint8x8_t test_vqtbx4_u8(uint8x8_t a, uint8x16x4_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1q_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbx1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]], <16 x i8> [[C]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBX1_I]]
@@ -901,13 +901,13 @@ uint8x16_t test_vqtbx1q_u8(uint8x16_t a, uint8x16_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2q_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -921,13 +921,13 @@ uint8x16_t test_vqtbx2q_u8(uint8x16_t a, uint8x16x2_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3q_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -943,13 +943,13 @@ uint8x16_t test_vqtbx3q_u8(uint8x16_t a, uint8x16x3_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4q_u8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_UINT8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_UINT8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_UINT8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -978,7 +978,7 @@ poly8x8_t test_vtbl1_p8(poly8x8_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbl1.v8i8(<16 x i8> [[A]], <8 x i8> [[B]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBL1_I]]
@@ -988,13 +988,13 @@ poly8x8_t test_vqtbl1_p8(poly8x16_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl2_p8
-// CHECK-SAME: ([2 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([2 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -1009,13 +1009,13 @@ poly8x8_t test_vtbl2_p8(poly8x8x2_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2_p8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1029,13 +1029,13 @@ poly8x8_t test_vqtbl2_p8(poly8x16x2_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl3_p8
-// CHECK-SAME: ([3 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([3 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -1053,13 +1053,13 @@ poly8x8_t test_vtbl3_p8(poly8x8x3_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3_p8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1075,13 +1075,13 @@ poly8x8_t test_vqtbl3_p8(poly8x16x3_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbl4_p8
-// CHECK-SAME: ([4 x <8 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: ([4 x <8 x i8>] alignstack(8) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P0_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P0_I]], align 8
@@ -1101,13 +1101,13 @@ poly8x8_t test_vtbl4_p8(poly8x8x4_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4_p8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <8 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1125,7 +1125,7 @@ poly8x8_t test_vqtbl4_p8(poly8x16x4_t a, uint8x8_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl1q_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBL1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbl1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBL1_I]]
@@ -1135,13 +1135,13 @@ poly8x16_t test_vqtbl1q_p8(poly8x16_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl2q_p8
-// CHECK-SAME: ([2 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([2 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1155,13 +1155,13 @@ poly8x16_t test_vqtbl2q_p8(poly8x16x2_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl3q_p8
-// CHECK-SAME: ([3 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([3 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1177,13 +1177,13 @@ poly8x16_t test_vqtbl3q_p8(poly8x16x3_t a, uint8x16_t b) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbl4q_p8
-// CHECK-SAME: ([4 x <16 x i8>] [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: ([4 x <16 x i8>] alignstack(16) [[A_COERCE:%.*]], <16 x i8> noundef [[B:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P0_I:%.*]] = alloca [[STRUCT_POLY8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[A:%.*]] = alloca [[STRUCT_POLY8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[A_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[A]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P0_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P0_I]], align 16
@@ -1218,13 +1218,13 @@ poly8x8_t test_vtbx1_p8(poly8x8_t a, poly8x8_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx2_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X8X2_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X8X2_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [2 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -1239,13 +1239,13 @@ poly8x8_t test_vtbx2_p8(poly8x8_t a, poly8x8x2_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx3_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X8X3_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X8X3_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [3 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -1269,13 +1269,13 @@ poly8x8_t test_vtbx3_p8(poly8x8_t a, poly8x8x3_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vtbx4_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <8 x i8>] alignstack(8) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X8X4_T:%.*]], align 8
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X8X4_T]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <8 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 8
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X8X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X8X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <8 x i8>], ptr [[COERCE_DIVE1]], align 8
 // CHECK-NEXT:    store [4 x <8 x i8>] [[TMP0]], ptr [[__P1_I]], align 8
 // CHECK-NEXT:    [[TMP1:%.*]] = load <8 x i8>, ptr [[__P1_I]], align 8
@@ -1295,7 +1295,7 @@ poly8x8_t test_vtbx4_p8(poly8x8_t a, poly8x8x4_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <8 x i8> @llvm.aarch64.neon.tbx1.v8i8(<8 x i8> [[A]], <16 x i8> [[B]], <8 x i8> [[C]])
 // CHECK-NEXT:    ret <8 x i8> [[VTBX1_I]]
@@ -1305,13 +1305,13 @@ poly8x8_t test_vqtbx1_p8(poly8x8_t a, uint8x16_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -1325,13 +1325,13 @@ poly8x8_t test_vqtbx2_p8(poly8x8_t a, poly8x16x2_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -1347,13 +1347,13 @@ poly8x8_t test_vqtbx3_p8(poly8x8_t a, poly8x16x3_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4_p8
-// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<8 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <8 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -1371,7 +1371,7 @@ poly8x8_t test_vqtbx4_p8(poly8x8_t a, poly8x16x4_t b, uint8x8_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx1q_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], <16 x i8> noundef [[B:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VTBX1_I:%.*]] = call <16 x i8> @llvm.aarch64.neon.tbx1.v16i8(<16 x i8> [[A]], <16 x i8> [[B]], <16 x i8> [[C]])
 // CHECK-NEXT:    ret <16 x i8> [[VTBX1_I]]
@@ -1381,13 +1381,13 @@ poly8x16_t test_vqtbx1q_p8(poly8x16_t a, uint8x16_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx2q_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [2 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X2_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X2_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [2 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X2_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [2 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [2 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -1401,13 +1401,13 @@ poly8x16_t test_vqtbx2q_p8(poly8x16_t a, poly8x16x2_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx3q_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [3 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X3_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X3_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [3 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X3_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [3 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [3 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16
@@ -1423,13 +1423,13 @@ poly8x16_t test_vqtbx3q_p8(poly8x16_t a, poly8x16x3_t b, uint8x16_t c) {
 }
 
 // CHECK-LABEL: define {{[^@]+}}@test_vqtbx4q_p8
-// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR1]] {
+// CHECK-SAME: (<16 x i8> noundef [[A:%.*]], [4 x <16 x i8>] alignstack(16) [[B_COERCE:%.*]], <16 x i8> noundef [[C:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[__P1_I:%.*]] = alloca [[STRUCT_POLY8X16X4_T:%.*]], align 16
 // CHECK-NEXT:    [[B:%.*]] = alloca [[STRUCT_POLY8X16X4_T]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    store [4 x <16 x i8>] [[B_COERCE]], ptr [[COERCE_DIVE]], align 16
-// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
+// CHECK-NEXT:    [[COERCE_DIVE1:%.*]] = getelementptr inbounds nuw [[STRUCT_POLY8X16X4_T]], ptr [[B]], i32 0, i32 0
 // CHECK-NEXT:    [[TMP0:%.*]] = load [4 x <16 x i8>], ptr [[COERCE_DIVE1]], align 16
 // CHECK-NEXT:    store [4 x <16 x i8>] [[TMP0]], ptr [[__P1_I]], align 16
 // CHECK-NEXT:    [[TMP1:%.*]] = load <16 x i8>, ptr [[__P1_I]], align 16

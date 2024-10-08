@@ -35,7 +35,6 @@
 // This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvregular"
 
 #include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
@@ -53,6 +52,8 @@
 
 #include <set>
 #include <vector>
+
+#define DEBUG_TYPE "spvregular"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -293,7 +294,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
   std::vector<Function *> ToExpandVIDWithSYCLTypeByValComp;
 
   for (auto &F : *M) {
-    if (F.getName().startswith("_Z28__spirv_VectorExtractDynamic") &&
+    if (F.getName().starts_with("_Z28__spirv_VectorExtractDynamic") &&
         F.hasStructRetAttr()) {
       auto *SRetTy = F.getParamStructRetType(0);
       if (isSYCLHalfType(SRetTy) || isSYCLBfloat16Type(SRetTy))
@@ -303,7 +304,7 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
                          "instruction cannot be a structure other than SYCL "
                          "half.");
     }
-    if (F.getName().startswith("_Z27__spirv_VectorInsertDynamic") &&
+    if (F.getName().starts_with("_Z27__spirv_VectorInsertDynamic") &&
         F.getArg(1)->getType()->isPointerTy()) {
       auto *ET = F.getParamByValType(1);
       if (isSYCLHalfType(ET) || isSYCLBfloat16Type(ET))
@@ -321,28 +322,101 @@ void SPIRVRegularizeLLVMBase::expandSYCLTypeUsing(Module *M) {
     expandVIDWithSYCLTypeByValComp(F);
 }
 
-Value *SPIRVRegularizeLLVMBase::extendBitInstBoolArg(Instruction *II) {
-  IRBuilder<> Builder(II);
-  auto *ArgTy = II->getOperand(0)->getType();
-  Type *NewArgType = nullptr;
-  if (ArgTy->isIntegerTy()) {
-    NewArgType = Builder.getInt32Ty();
-  } else if (ArgTy->isVectorTy() &&
-             cast<VectorType>(ArgTy)->getElementType()->isIntegerTy()) {
-    unsigned NumElements = cast<FixedVectorType>(ArgTy)->getNumElements();
-    NewArgType = VectorType::get(Builder.getInt32Ty(), NumElements, false);
-  } else {
-    llvm_unreachable("Unexpected type");
-  }
-  auto *NewBase = Builder.CreateZExt(II->getOperand(0), NewArgType);
-  auto *NewShift = Builder.CreateZExt(II->getOperand(1), NewArgType);
-  switch (II->getOpcode()) {
-  case Instruction::LShr:
-    return Builder.CreateLShr(NewBase, NewShift);
-  case Instruction::Shl:
-    return Builder.CreateShl(NewBase, NewShift);
-  default:
-    return II;
+// In this function, we handle two conversion operations
+// 1. fptoui.sat.iX.fY (X is not 8,16,32,64; Y is 32 or 64)
+// 2. fptosi.sat.iX.fY (X is not 8,16,32,64; Y is 32 or 64)
+// Such non-standard integer types cannot be handled in SPIR-V. Hence, they
+// will be promoted to
+// 1. fptoui.sat.i64.fY (Y is 32 or 64)
+// 2. fptosi.sat.i64.fY (Y is 32 or 64)
+// However, LLVM documentation requires the following rules to be obeyed.
+// Rule 1: If the argument is any NaN, zero is returned.
+// Rule 2: If the argument is smaller than the smallest representable
+// (un)signed integer of the result type, the smallest representable
+// (un)signed integer is returned.
+// Rule 3: If the argument is larger than the largest representable (un)signed
+// integer of the result type, the largest representable (un)signed integer is
+// returned.
+// Rule 4: Otherwise, the result of rounding the argument towards zero is
+// returned.
+// Rules 1 & 4 are preserved when promoting iX to i64. For preserving Rule 2
+// and Rule 3, we saturate the result of the promoted instruction based on
+// original integer type (iX)
+// Example:
+// Input:
+// %0 = call i2 @llvm.fptosi.sat.i2.f32(float %input)
+// %1 = sext i32 %0
+// Output:
+// %0 = call i32 @_Z17convert_long_satf(float %input)
+// %1 = icmp sge i32 %0, 1 <Largest 2-bit signed integer>
+// %2 = icmp sle i32 %0, -2 <Smallest 2-bit signed integer>
+// %3 = select i1 %1, i32 1, i32 %0
+// %4 = select i1 %2, i32 -2, i32 %3
+// Replace uses of %1 in Input with %4 in Output
+void SPIRVRegularizeLLVMBase::cleanupConversionToNonStdIntegers(Module *M) {
+  for (auto FI = M->begin(), FE = M->end(); FI != FE;) {
+    Function *F = &(*FI++);
+    std::vector<Instruction *> ToErase;
+    auto IID = F->getIntrinsicID();
+    if (IID != Intrinsic::fptosi_sat && IID != Intrinsic::fptoui_sat)
+      continue;
+    for (auto *I : F->users()) {
+      if (IntrinsicInst *II = dyn_cast<IntrinsicInst>(I)) {
+        // TODO: Vector type not supported yet.
+        if (isa<VectorType>(II->getType()))
+          continue;
+        auto IID = II->getIntrinsicID();
+        auto IntBitWidth = II->getType()->getScalarSizeInBits();
+        if (IntBitWidth == 8 || IntBitWidth == 16 || IntBitWidth == 32 ||
+            IntBitWidth == 64)
+          continue;
+        if (IID == Intrinsic::fptosi_sat) {
+          // Identify sext (user of II). Make sure that's the only use of II.
+          auto *User = II->getUniqueUndroppableUser();
+          if (!User || !isa<SExtInst>(User))
+            continue;
+          auto *SExtI = dyn_cast<SExtInst>(User);
+          auto *NewIType = SExtI->getType();
+          IRBuilder<> IRB(II);
+          auto *NewII = IRB.CreateIntrinsic(
+              IID, {NewIType, II->getOperand(0)->getType()}, II->getOperand(0));
+          Constant *MaxVal = ConstantInt::get(
+              NewIType, APInt::getSignedMaxValue(IntBitWidth).getSExtValue());
+          Constant *MinVal = ConstantInt::get(
+              NewIType, APInt::getSignedMinValue(IntBitWidth).getSExtValue());
+          auto *GTMax = IRB.CreateICmp(CmpInst::ICMP_SGE, NewII, MaxVal);
+          auto *LTMin = IRB.CreateICmp(CmpInst::ICMP_SLE, NewII, MinVal);
+          auto *SatMax = IRB.CreateSelect(GTMax, MaxVal, NewII);
+          auto *SatMin = IRB.CreateSelect(LTMin, MinVal, SatMax);
+          SExtI->replaceAllUsesWith(SatMin);
+          ToErase.push_back(SExtI);
+          ToErase.push_back(II);
+        }
+        if (IID == Intrinsic::fptoui_sat) {
+          // Identify zext (user of II). Make sure that's the only use of II.
+          auto *User = II->getUniqueUndroppableUser();
+          if (!User || !isa<ZExtInst>(User))
+            continue;
+          auto *ZExtI = dyn_cast<ZExtInst>(User);
+          auto *NewIType = ZExtI->getType();
+          IRBuilder<> IRB(II);
+          auto *NewII = IRB.CreateIntrinsic(
+              IID, {NewIType, II->getOperand(0)->getType()}, II->getOperand(0));
+          Constant *MaxVal = ConstantInt::get(
+              NewIType, APInt::getMaxValue(IntBitWidth).getZExtValue());
+          auto *GTMax = IRB.CreateICmp(CmpInst::ICMP_UGE, NewII, MaxVal);
+          auto *SatMax = IRB.CreateSelect(GTMax, MaxVal, NewII);
+          ZExtI->replaceAllUsesWith(SatMax);
+          ToErase.push_back(ZExtI);
+          ToErase.push_back(II);
+        }
+      }
+    }
+    for (Instruction *V : ToErase) {
+      assert(V->user_empty());
+      V->dropAllReferences();
+      V->eraseFromParent();
+    }
   }
 }
 
@@ -359,11 +433,223 @@ bool SPIRVRegularizeLLVMBase::runRegularizeLLVM(Module &Module) {
   return true;
 }
 
+// This is a temporary workaround to deal with a graphics driver failure not
+// able to support the typed pointer reverse translation of
+// getelementptr i8, ptr @__spirv_Builtin* patterns. This replaces such
+// accesses with getelementptr i32, ptr @__spirv_Builtin instead.
+static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
+  // IGC only supports:
+  // load GV
+  // load (addrspacecast GV)
+  // load (gep (addrspacecast GV))
+  // load (gep GV)
+  // Opaque pointers will cause the optimizer to use i8 geps, or to remove
+  // 0-index geps entirely (adding bitcasts to the result). Restore these to
+  // avoid bitcasts in the resulting IR.
+  if (GV->getContext().supportsTypedPointers())
+    return;
+
+  Type *Ty = GV->getValueType();
+  Type *ScalarTy = Ty->getScalarType();
+  SmallVector<Value *, 4> Users;
+  for (auto User : GV->users()) {
+    if (auto *LI = dyn_cast<LoadInst>(User)) {
+      if (LI->getType() != Ty)
+        Users.push_back(LI);
+    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
+      if (GEP->getSourceElementType() != Ty)
+        Users.push_back(GEP);
+    }
+  }
+
+  Type *Int32Ty = Type::getInt32Ty(GV->getContext());
+  auto GetGep = [&](unsigned Offset,
+                    std::optional<ConstantRange> InRange = std::nullopt) {
+    llvm::ConstantRange GepInRange(llvm::APInt(32, -Offset, true),
+                                   llvm::APInt(32, Offset, true));
+    if (InRange)
+      GepInRange = *InRange;
+    return ConstantExpr::getGetElementPtr(
+        Ty, GV,
+        ArrayRef<Constant *>(
+            {ConstantInt::get(Int32Ty, 0), ConstantInt::get(Int32Ty, Offset)}),
+        true, GepInRange);
+  };
+
+  const DataLayout &DL = GV->getParent()->getDataLayout();
+  for (auto *User : Users) {
+    if (auto *LI = dyn_cast<LoadInst>(User)) {
+      LI->setOperand(0, GetGep(0));
+    } else if (auto *GEP = dyn_cast<GEPOperator>(User)) {
+      APInt Offset(64, 0);
+      GEP->accumulateConstantOffset(DL, Offset);
+      APInt Index;
+      uint64_t Remainder;
+      APInt::udivrem(Offset, ScalarTy->getScalarSizeInBits() / 8, Index,
+                     Remainder);
+      assert(Remainder == 0 && "Cannot handle misaligned access to builtins");
+      GEP->replaceAllUsesWith(GetGep(Index.getZExtValue(), GEP->getInRange()));
+      if (auto *Inst = dyn_cast<Instruction>(GEP))
+        Inst->eraseFromParent();
+    }
+  }
+}
+
+namespace {
+void regularizeWithOverflowInstrinsics(StringRef MangledName, CallInst *Call,
+                                       Module *M,
+                                       std::vector<Instruction *> &ToErase) {
+  IRBuilder Builder(Call);
+  Function *Builtin = Call->getModule()->getFunction(MangledName);
+  AllocaInst *A;
+  StructType *StructBuiltinTy;
+  if (Builtin) {
+    StructBuiltinTy = cast<StructType>(Builtin->getParamStructRetType(0));
+    {
+      IRBuilderBase::InsertPointGuard Guard(Builder);
+      Builder.SetInsertPointPastAllocas(Call->getParent()->getParent());
+      A = Builder.CreateAlloca(StructBuiltinTy);
+    }
+    CallInst *C = Builder.CreateCall(
+        Builtin, {A, Call->getArgOperand(0), Call->getArgOperand(1)});
+    auto SretAttr = Attribute::get(
+        Builder.getContext(), Attribute::AttrKind::StructRet, StructBuiltinTy);
+    C->addParamAttr(0, SretAttr);
+  } else {
+    StructBuiltinTy = StructType::create(
+        Call->getContext(),
+        {Call->getArgOperand(0)->getType(), Call->getArgOperand(1)->getType()});
+    {
+      IRBuilderBase::InsertPointGuard Guard(Builder);
+      Builder.SetInsertPointPastAllocas(Call->getParent()->getParent());
+      A = Builder.CreateAlloca(StructBuiltinTy);
+    }
+    FunctionType *FT =
+        FunctionType::get(Builder.getVoidTy(),
+                          {A->getType(), Call->getArgOperand(0)->getType(),
+                           Call->getArgOperand(1)->getType()},
+                          false);
+    Builtin =
+        Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
+    Builtin->setCallingConv(CallingConv::SPIR_FUNC);
+    Builtin->addFnAttr(Attribute::NoUnwind);
+    auto SretAttr = Attribute::get(
+        Builder.getContext(), Attribute::AttrKind::StructRet, StructBuiltinTy);
+    Builtin->addParamAttr(0, SretAttr);
+    CallInst *C = Builder.CreateCall(
+        Builtin, {A, Call->getArgOperand(0), Call->getArgOperand(1)});
+    C->addParamAttr(0, SretAttr);
+  }
+  Type *RetTy = Call->getArgOperand(0)->getType();
+  Constant *ConstZero = ConstantInt::get(RetTy, 0);
+  Value *L = Builder.CreateLoad(StructBuiltinTy, A);
+  Value *V0 = Builder.CreateExtractValue(L, {0});
+  Value *V1 = Builder.CreateExtractValue(L, {1});
+  Value *V2 = Builder.CreateICmpNE(V1, ConstZero);
+  Type *StructI32I1Ty =
+      StructType::create(Call->getContext(), {RetTy, V2->getType()});
+  Value *Undef = UndefValue::get(StructI32I1Ty);
+  Value *V3 = Builder.CreateInsertValue(Undef, V0, {0});
+  Value *V4 = Builder.CreateInsertValue(V3, V2, {1});
+  SmallVector<User *> Users(Call->users());
+  for (User *U : Users) {
+    U->replaceUsesOfWith(Call, V4);
+  }
+  ToErase.push_back(Call);
+}
+
+// CacheControls(Load/Store)INTEL decorations can be represented as metadata
+// placed on memory accessing instruction with the following form:
+// !spirv.DecorationCacheControlINTEL !X
+// !X = !{i32 %decoration_kind%, i32 %level%, i32 %control%,
+//        i32 %operand of the instruction to decorate%}
+// This function creates a dummy GEP accessing pointer operand of the
+// instruction and creates !spirv.Decorations metadata attached to it.
+void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
+  if (!Inst->mayReadOrWriteMemory())
+    return;
+  auto *ArgDecoMD = dyn_cast<MDNode>(MD);
+  assert(ArgDecoMD && "Decoration list must be a metadata node");
+  std::vector<Instruction *> CreatedGeps;
+  for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
+    auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
+    if (!DecoMD) {
+      assert(!"Decoration does not name metadata");
+      return;
+    }
+
+    constexpr size_t CacheControlsNumOps = 4;
+    if (DecoMD->getNumOperands() != CacheControlsNumOps) {
+      assert(!"Cache controls metadata on instruction must have 4 operands");
+      return;
+    }
+
+    auto *const KindMD = cast<ConstantAsMetadata>(DecoMD->getOperand(0));
+    auto *const LevelMD = cast<ConstantAsMetadata>(DecoMD->getOperand(1));
+    auto *const ControlMD = cast<ConstantAsMetadata>(DecoMD->getOperand(2));
+
+    const size_t TargetArgNo =
+        mdconst::dyn_extract<ConstantInt>(DecoMD->getOperand(3))
+            ->getZExtValue();
+    Value *PtrInstOp = Inst->getOperand(TargetArgNo);
+    if (!PtrInstOp->getType()->isPointerTy()) {
+      assert(!"Cache controls must decorate a pointer");
+      return;
+    }
+
+    // Create dummy GEP for SSA copy of the pointer operand. Lets do our best
+    // to guess pointee type here, but if we won't - just pointer is also fine,
+    // if necessary TypeScavenger will adjust types and create bitcasts. If
+    // memory instruction operand is already created zero GEP - create nothing
+    // and use the old GEP.
+    SmallVector<Metadata *, 4> MDs;
+    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
+    if (auto *const GEP = dyn_cast<GetElementPtrInst>(PtrInstOp)) {
+      if (GEP->hasAllZeroIndices() &&
+          (std::find(CreatedGeps.begin(), CreatedGeps.end(), GEP) !=
+           std::end(CreatedGeps))) {
+        MDs.push_back(MDNode::get(Inst->getContext(), OPs));
+        // If the existing GEP has SPIRV_MD_DECORATIONS metadata - copy it
+        if (auto *OldMD = GEP->getMetadata(SPIRV_MD_DECORATIONS))
+          for (unsigned I = 0, E = OldMD->getNumOperands(); I != E; ++I)
+            if (auto *DecoMD = dyn_cast<MDNode>(OldMD->getOperand(I)))
+              MDs.push_back(DecoMD);
+        MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
+        GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+        return;
+      }
+    }
+    IRBuilder Builder(Inst);
+    Type *GEPTy = Builder.getInt8Ty();
+    if (auto *LI = dyn_cast<LoadInst>(Inst))
+      GEPTy = LI->getType();
+    else if (auto *SI = dyn_cast<StoreInst>(Inst))
+      GEPTy = SI->getValueOperand()->getType();
+    auto *GEP =
+        cast<Instruction>(Builder.CreateConstGEP1_32(GEPTy, PtrInstOp, 0));
+    CreatedGeps.push_back(GEP);
+    Inst->setOperand(TargetArgNo, GEP);
+    MDs.push_back(MDNode::get(Inst->getContext(), OPs));
+    MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
+    GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+  }
+}
+} // namespace
+
 /// Remove entities not representable by SPIR-V
 bool SPIRVRegularizeLLVMBase::regularize() {
   eraseUselessFunctions(M);
   expandSYCLTypeUsing(M);
+  cleanupConversionToNonStdIntegers(M);
 
+  for (auto &GV : M->globals()) {
+    SPIRVBuiltinVariableKind Kind;
+    if (isSPIRVBuiltinVariable(&GV, &Kind))
+      simplifyBuiltinVarAccesses(&GV);
+  }
+
+  // Kernels called by other kernels
+  std::vector<Function *> CalledKernels;
   for (auto I = M->begin(), E = M->end(); I != E;) {
     Function *F = &(*I++);
     if (F->isDeclaration() && F->use_empty()) {
@@ -371,13 +657,18 @@ bool SPIRVRegularizeLLVMBase::regularize() {
       continue;
     }
 
+    // TODO: query intrinsic calls from their declarations
     std::vector<Instruction *> ToErase;
     for (BasicBlock &BB : *F) {
       for (Instruction &II : BB) {
-        if (auto Call = dyn_cast<CallInst>(&II)) {
+        if (auto *MD = II.getMetadata(SPIRV_MD_INTEL_CACHE_DECORATIONS))
+          prepareCacheControlsTranslation(MD, &II);
+        if (auto *Call = dyn_cast<CallInst>(&II)) {
           Call->setTailCall(false);
           Function *CF = Call->getCalledFunction();
-          if (CF && CF->isIntrinsic()) {
+          if (CF && CF->getCallingConv() == CallingConv::SPIR_KERNEL) {
+            CalledKernels.push_back(CF);
+          } else if (CF && CF->isIntrinsic()) {
             removeFnAttr(Call, Attribute::NoUnwind);
             auto *II = cast<IntrinsicInst>(Call);
             if (II->getIntrinsicID() == Intrinsic::memset ||
@@ -388,40 +679,93 @@ bool SPIRVRegularizeLLVMBase::regularize() {
               lowerFunnelShift(II);
             else if (II->getIntrinsicID() == Intrinsic::umul_with_overflow)
               lowerUMulWithOverflow(II);
+            else if (II->getIntrinsicID() == Intrinsic::uadd_with_overflow) {
+              BuiltinFuncMangleInfo Info;
+              std::string MangledName =
+                  mangleBuiltin("__spirv_IAddCarry",
+                                {Call->getArgOperand(0)->getType(),
+                                 Call->getArgOperand(1)->getType()},
+                                &Info);
+              regularizeWithOverflowInstrinsics(MangledName, Call, M, ToErase);
+            } else if (II->getIntrinsicID() == Intrinsic::usub_with_overflow) {
+              BuiltinFuncMangleInfo Info;
+              std::string MangledName =
+                  mangleBuiltin("__spirv_ISubBorrow",
+                                {Call->getArgOperand(0)->getType(),
+                                 Call->getArgOperand(1)->getType()},
+                                &Info);
+              regularizeWithOverflowInstrinsics(MangledName, Call, M, ToErase);
+            }
           }
         }
 
-        // Translator treats i1 as boolean, but bit instructions take
-        // a scalar/vector integers, so we have to extend such arguments
-        if (II.isLogicalShift() &&
-            II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
-          auto *NewInst = extendBitInstBoolArg(&II);
-          for (auto *U : II.users()) {
-            if (cast<Instruction>(U)->getOpcode() == Instruction::ZExt) {
-              U->dropAllReferences();
-              U->replaceAllUsesWith(NewInst);
-              ToErase.push_back(cast<Instruction>(U));
+        if (II.isLogicalShift()) {
+          // Translator treats i1 as boolean, but bit instructions take
+          // a scalar/vector integers, so we have to extend such arguments.
+          // shl i1 %a %b and lshr i1 %a %b are now converted on:
+          // %0 = select i1 %a, i32 1, i32 0
+          // %1 = select i1 %b, i32 1, i32 0
+          // %2 = lshr i32 %0, %1
+          // if any other instruction other than zext was dependant:
+          // %3 = icmp ne i32 %2, 0
+          // which converts it back to i1 and replace original result with %3
+          // to dependant instructions.
+          if (II.getOperand(0)->getType()->isIntOrIntVectorTy(1)) {
+            IRBuilder<> Builder(&II);
+            Value *CmpNEInst = nullptr;
+            Constant *ConstZero = ConstantInt::get(Builder.getInt32Ty(), 0);
+            Constant *ConstOne = ConstantInt::get(Builder.getInt32Ty(), 1);
+            if (auto *VecTy =
+                    dyn_cast<FixedVectorType>(II.getOperand(0)->getType())) {
+              const unsigned NumElements = VecTy->getNumElements();
+              ConstZero = ConstantVector::getSplat(
+                  ElementCount::getFixed(NumElements), ConstZero);
+              ConstOne = ConstantVector::getSplat(
+                  ElementCount::getFixed(NumElements), ConstOne);
             }
+            Value *ExtendedBase =
+                Builder.CreateSelect(II.getOperand(0), ConstOne, ConstZero);
+            Value *ExtendedShift =
+                Builder.CreateSelect(II.getOperand(1), ConstOne, ConstZero);
+            Value *ExtendedShiftedVal =
+                Builder.CreateLShr(ExtendedBase, ExtendedShift);
+            SmallVector<User *, 8> Users(II.users());
+            for (User *U : Users) {
+              if (auto *UI = dyn_cast<Instruction>(U)) {
+                if (UI->getOpcode() == Instruction::ZExt) {
+                  UI->dropAllReferences();
+                  UI->replaceAllUsesWith(ExtendedShiftedVal);
+                  ToErase.push_back(UI);
+                  continue;
+                }
+              }
+              if (!CmpNEInst) {
+                CmpNEInst = Builder.CreateICmpNE(ExtendedShiftedVal, ConstZero);
+              }
+              U->replaceUsesOfWith(&II, CmpNEInst);
+            }
+            ToErase.push_back(&II);
           }
-          ToErase.push_back(&II);
         }
 
         // Remove optimization info not supported by SPIRV
-        if (auto BO = dyn_cast<BinaryOperator>(&II)) {
+        if (auto *BO = dyn_cast<BinaryOperator>(&II)) {
           if (isa<PossiblyExactOperator>(BO) && BO->isExact())
             BO->setIsExact(false);
         }
 
         // FIXME: This is not valid handling for freeze instruction
-        if (auto FI = dyn_cast<FreezeInst>(&II)) {
-          FI->replaceAllUsesWith(FI->getOperand(0));
+        if (auto *FI = dyn_cast<FreezeInst>(&II)) {
+          auto *V = FI->getOperand(0);
+          if (isa<UndefValue>(V))
+            V = Constant::getNullValue(V->getType());
+          FI->replaceAllUsesWith(V);
           FI->dropAllReferences();
           ToErase.push_back(FI);
         }
 
         // Remove metadata not supported by SPIRV
         static const char *MDs[] = {
-            "fpmath",
             "tbaa",
             "range",
         };
@@ -430,32 +774,7 @@ bool SPIRVRegularizeLLVMBase::regularize() {
             II.setMetadata(MDName, nullptr);
           }
         }
-        // Add an additional bitcast in case address space cast also changes
-        // pointer element type.
-        if (auto *ASCast = dyn_cast<AddrSpaceCastInst>(&II)) {
-          Type *DestTy = ASCast->getDestTy();
-          Type *SrcTy = ASCast->getSrcTy();
-          if (!II.getContext().supportsTypedPointers())
-            continue;
-          if (DestTy->getScalarType()->getNonOpaquePointerElementType() !=
-              SrcTy->getScalarType()->getNonOpaquePointerElementType()) {
-            Type *InterTy = PointerType::getWithSamePointeeType(
-                cast<PointerType>(DestTy->getScalarType()),
-                cast<PointerType>(SrcTy->getScalarType())
-                    ->getPointerAddressSpace());
-            if (DestTy->isVectorTy())
-              InterTy = VectorType::get(
-                  InterTy, cast<VectorType>(DestTy)->getElementCount());
-            BitCastInst *NewBCast = new BitCastInst(
-                ASCast->getPointerOperand(), InterTy, /*NameStr=*/"", ASCast);
-            AddrSpaceCastInst *NewASCast =
-                new AddrSpaceCastInst(NewBCast, DestTy, /*NameStr=*/"", ASCast);
-            ToErase.push_back(ASCast);
-            ASCast->dropAllReferences();
-            ASCast->replaceAllUsesWith(NewASCast);
-          }
-        }
-        if (auto Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
+        if (auto *Cmpxchg = dyn_cast<AtomicCmpXchgInst>(&II)) {
           // Transform:
           // %1 = cmpxchg i32* %ptr, i32 %comparator, i32 %0 seq_cst acquire
           // To:
@@ -466,13 +785,13 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // %1 = insertvalue { i32, i1 } undef, i32 %cmpxchg.res, 0
           // %2 = insertvalue { i32, i1 } %1, i1 %cmpxchg.success, 1
 
-          // To get memory scope argument we might use Cmpxchg->getSyncScopeID()
+          // To get memory scope argument we use Cmpxchg->getSyncScopeID()
           // but LLVM's cmpxchg instruction is not aware of OpenCL(or SPIR-V)
-          // memory scope enumeration. And assuming the produced SPIR-V module
-          // will be consumed in an OpenCL environment, we can use the same
-          // memory scope as OpenCL atomic functions that do not have
-          // memory_scope argument, i.e. memory_scope_device. See the OpenCL C
-          // specification p6.13.11. Atomic Functions
+          // memory scope enumeration. If the scope is not set and assuming the
+          // produced SPIR-V module will be consumed in an OpenCL environment,
+          // we can use the same memory scope as OpenCL atomic functions that do
+          // not have memory_scope argument, i.e. memory_scope_device. See the
+          // OpenCL C specification p6.13.11. Atomic Functions
 
           // cmpxchg LLVM instruction returns a pair {i32, i1}: the original
           // value and a flag indicating success (true) or failure (false).
@@ -484,7 +803,16 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // comparator, which matches with semantics of the flag returned by
           // cmpxchg.
           Value *Ptr = Cmpxchg->getPointerOperand();
-          Value *MemoryScope = getInt32(M, spv::ScopeDevice);
+          SmallVector<StringRef> SSIDs;
+          Cmpxchg->getContext().getSyncScopeNames(SSIDs);
+
+          spv::Scope S;
+          // Fill unknown syncscope value to default Device scope.
+          if (!OCLStrMemScopeMap::find(SSIDs[Cmpxchg->getSyncScopeID()].str(),
+                                       &S)) {
+            S = ScopeDevice;
+          }
+          Value *MemoryScope = getInt32(M, S);
           auto SuccessOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));
           auto FailureOrder = static_cast<OCLMemOrderKind>(

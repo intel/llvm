@@ -1,12 +1,13 @@
 // REQUIRES: level_zero
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
-// RUN: env ZE_DEBUG=4 %{run} %t.out u 2>&1 | FileCheck %s --check-prefix CHECK-USM
-// RUN: env ZE_DEBUG=4 %{run} %t.out s 2>&1 | FileCheck %s --check-prefix CHECK-SMALL-BUF
-// RUN: env ZE_DEBUG=4 %{run} %t.out l 2>&1 | FileCheck %s --check-prefix CHECK-LARGE-BUF
+// RUN: %{l0_leak_check} %{run} %t.out u 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out s 2>&1 | FileCheck %s --implicit-check-not=LEAK
+// RUN: %{l0_leak_check} %{run} %t.out l 2>&1 | FileCheck %s --implicit-check-not=LEAK
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 
 #include <array>
@@ -76,17 +77,3 @@ int main(int argc, char *argv[]) {
 
   return 0;
 }
-
-// CHECK-USM: GPU will use {{zeMemAllocHost|zeMemAllocDevice}}
-// CHECK-USM: zeMemAllocDevice = 1
-// CHECK-USM:   zeMemAllocHost = 1
-// CHECK-USM: zeMemAllocShared = 1
-// CHECK-USM-SAME:   zeMemFree = 3
-
-// CHECK-SMALL-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-SMALL-BUF:   [[API]] = 1
-// CHECK-SMALL-BUF: zeMemFree = 1
-
-// CHECK-LARGE-BUF: GPU will use [[API:zeMemAllocHost|zeMemAllocDevice]]
-// CHECK-LARGE-BUF:   [[API]] = 3
-// CHECK-LARGE-BUF: zeMemFree = 3

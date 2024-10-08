@@ -184,7 +184,7 @@ The unmangled names of SPIR-V builtin BuildNDRange functions follow the conventi
   __spirv_{BuildNDRange}_{1|2|3}D
 
 SPIR-V 1.1 Builtin CreatePipeFromPipeStorage Function Name
-----------------------------------------
+----------------------------------------------------------
 
 The unmangled names of SPIR-V builtin CreatePipeFromPipeStorage function follow the convention:
 
@@ -213,7 +213,7 @@ starts with two underscores to facilitate identification since extended instruct
 may contain underscore. The remaining postfixes start with one underscore.
 
 OpenCL Extended Builtin Vector Load Function Names
-----------------------------------------
+--------------------------------------------------
 
 The unmangled names of OpenCL extended vector load functions follow the convention:
 
@@ -392,6 +392,16 @@ Calling convention
 A function with ``spir_kernel`` calling convention will be translated as an entry
 point of the SPIR-V module.
 
+Global variables
+----------------
+
+A global variable resides in an address space, and the default address space
+in LLVM is zero. The SPIR-V storage class represented by the zero LLVM IR
+address spaces is Function. However, SPIR-V global variable declarations are
+``OpVariable`` instructions whose Storage Class cannot be ``Function``. This
+means that global variable declarations must always have an address space
+specified and that address space cannot be ``0``.
+
 Function metadata
 -----------------
 
@@ -411,14 +421,14 @@ For example:
 are translated for image types, but they should be encoded in LLVM IR type name
 rather than function metadata.
 
-Function parameter and global variable decoration through metadata
-------------------------------------------------------------------
+Function parameter, instruction and global variable decoration through metadata
+-------------------------------------------------------------------------------
 
-Both function parameters and global variables can be decorated using LLVM
+Function parameters, instructions and global variables can be decorated using LLVM
 metadata through the metadata names ``spirv.ParameterDecorations`` and
 ``spirv.Decorations`` respectively. ``spirv.ParameterDecorations`` must be tied
 to the kernel function while ``spirv.Decorations`` is tied directly to the
-global variable.
+instruction or global variable.
 
 A "decoration-node" is a metadata node consisting of one or more operands. The
 first operand is an integer literal representing the SPIR-V decoration
@@ -434,7 +444,7 @@ decoration-nodes.
 references to decoration-lists, where N is the number of arguments of the
 function the metadata is tied to.
 
-``spirv.Decorations`` example:
+``spirv.Decorations`` applied on a global variable example:
 
 .. code-block:: llvm
 
@@ -446,6 +456,18 @@ function the metadata is tied to.
 
 decorates a global variable ``v`` with ``Constant`` and ``LinkageAttributes``
 with extra operands ``"v"`` and ``Export`` in SPIR-V.
+
+``spirv.Decorations`` applied on an instruction example:
+
+.. code-block:: llvm
+
+  %idx = getelementptr inbounds i32, ptr addrspace(1) %b, i64 1, !spirv.Decorations !1
+  ...
+  !1 = !{!2}
+  !2 = !{i32 6442, i32 1, i32 2}  ; {CacheControlLoadINTEL, CacheLevel=1, Cached}
+
+decorates getelementptr instruction with CacheControlLoadINTEL decoration with
+extra operands ``i32 1`` and ``i32 2``.
 
 ``spirv.ParameterDecorations`` example:
 
@@ -460,6 +482,26 @@ with extra operands ``"v"`` and ``Export`` in SPIR-V.
 
 decorates the argument ``b`` of ``k`` with ``Restrict`` in SPIR-V while not
 adding any decoration to argument ``a``.
+
+Loop controls and loop metadata
+-------------------------------
+
+SPIR-V Loop controls that do not have corresponding `llvm.loop` metadata
+can be decorated using LLVM metadata through the names
+``spirv.loop.<LoopControlID>`` where ``LoopControlID`` corresponds to the name
+of the SPIR-V loop control. This metadata should be applied to the latch-block's
+branch instruction.
+
+An example with the ``DependencyAccessesINTEL`` loop control:
+
+.. code-block:: llvm
+  
+  br i1 %cond, label %loop, label %exit !spirv.loop.dependency_accesses !4
+  ...
+  !1 = distinct !{}      ; metadata corresponding to distinct access group
+  !2 = distinct !{}      ; metadata corresponding to distinct access group
+  !3 = distinct !{}      ; metadata corresponding to distinct access group
+  !4 = !{!0, !1, !2, 0}  ; metadata node grouping access groups for the corresponding DepenencyAccessesINTEL instance
 
 Member decoration through pointer annotations
 ---------------------------------------------

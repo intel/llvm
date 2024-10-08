@@ -8,20 +8,24 @@
 
 #pragma once
 
-#include <sycl/detail/backend_traits.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/info_desc_helpers.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/info/info_desc.hpp>
-#include <sycl/stl.hpp>
+#include <sycl/backend_types.hpp>             // for backend, backend_return_t
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/info_desc_helpers.hpp>  // for is_event_info_desc, is_...
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <ur_api.h>                           // for ur_native_handle_t
 
-#include <memory>
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
+
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash
+#include <variant> // for hash
+#include <vector>  // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declaration
 class context;
 
@@ -66,13 +70,6 @@ public:
 
   bool operator!=(const event &rhs) const;
 
-  /// Checks if this event is a SYCL host event.
-  ///
-  /// \return true if this event is a SYCL host event.
-  __SYCL2020_DEPRECATED(
-      "is_host() is deprecated as the host device is no longer supported.")
-  bool is_host() const;
-
   /// Return the list of events that this event waits for.
   ///
   /// Only direct dependencies are returned. Already completed events are not
@@ -111,6 +108,13 @@ public:
   template <typename Param>
   typename detail::is_event_info_desc<Param>::return_type get_info() const;
 
+  /// Queries this SYCL event for SYCL backend-specific information.
+  ///
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_backend_info_desc<Param>::return_type
+  get_backend_info() const;
+
   /// Queries this SYCL event for profiling information.
   ///
   /// If the requested info is not available when this member function is called
@@ -118,8 +122,8 @@ public:
   /// call to this member function will block until the requested info is
   /// available. If the queue which submitted the command group this event is
   /// associated with was not constructed with the
-  /// property::queue::enable_profiling property, an invalid_object_error SYCL
-  /// exception is thrown.
+  /// property::queue::enable_profiling property, an a SYCL exception with
+  /// errc::invalid error code is thrown.
   ///
   /// \return depends on template parameter.
   template <typename Param>
@@ -134,14 +138,15 @@ public:
 private:
   event(std::shared_ptr<detail::event_impl> EventImpl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
-  std::vector<pi_native_handle> getNativeVector() const;
+  std::vector<ur_native_handle_t> getNativeVector() const;
 
   std::shared_ptr<detail::event_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -151,7 +156,7 @@ private:
       -> backend_return_t<BackendName, SyclObjectT>;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {

@@ -27,8 +27,9 @@
 #include <functional>
 
 namespace llvm {
+class Comdat;
+class GlobalValue;
 class Module;
-class CallGraph;
 
 /// A pass that internalizes all functions and variables other than those that
 /// must be preserved according to \c MustPreserveGV.

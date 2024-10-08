@@ -107,7 +107,7 @@ static void CreateHistoryThreadFromValueObject(ProcessSP process_sp,
     return;
 
   int count = count_sp->GetValueAsUnsigned(0);
-  tid_t tid = tid_sp->GetValueAsUnsigned(0) + 1;
+  lldb::tid_t tid = tid_sp->GetValueAsUnsigned(0) + 1;
 
   if (count <= 0)
     return;
@@ -120,7 +120,7 @@ static void CreateHistoryThreadFromValueObject(ProcessSP process_sp,
 
   std::vector<lldb::addr_t> pcs;
   for (int i = 0; i < count; i++) {
-    addr_t pc = trace_sp->GetChildAtIndex(i, true)->GetValueAsUnsigned(0);
+    addr_t pc = trace_sp->GetChildAtIndex(i)->GetValueAsUnsigned(0);
     if (pc == 0 || pc == 1 || pc == LLDB_INVALID_ADDRESS)
       continue;
     pcs.push_back(pc);

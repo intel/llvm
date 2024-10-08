@@ -7,19 +7,26 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/queue_impl.hpp>
+#include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/accessor.hpp>
+#include <sycl/accessor_image.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-device getDeviceFromHandler(handler &CommandGroupHandlerRef) {
-  return CommandGroupHandlerRef.MQueue->get_device();
+device getDeviceFromHandler(handler &cgh) {
+  assert((cgh.MQueue || getSyclObjImpl(cgh)->MGraph) &&
+         "One of MQueue or MGraph should be nonnull!");
+  if (cgh.MQueue)
+    return cgh.MQueue->get_device();
+
+  return getSyclObjImpl(cgh)->MGraph->getDevice();
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
                                    access::mode AccessMode, void *SYCLMemObject,
-                                   int Dims, int ElemSize, int OffsetInBytes,
+                                   int Dims, int ElemSize, size_t OffsetInBytes,
                                    bool IsSubBuffer,
                                    const property_list &PropertyList) {
   impl = std::shared_ptr<AccessorImplHost>(
@@ -32,7 +39,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
                                    range<3> MemoryRange,
                                    access::mode AccessMode, void *SYCLMemObject,
                                    int Dims, int ElemSize, bool IsPlaceH,
-                                   int OffsetInBytes, bool IsSubBuffer,
+                                   size_t OffsetInBytes, bool IsSubBuffer,
                                    const property_list &PropertyList) {
   impl = std::shared_ptr<AccessorImplHost>(
       new AccessorImplHost(Offset, AccessRange, MemoryRange, AccessMode,
@@ -43,7 +50,7 @@ AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
 id<3> &AccessorBaseHost::getOffset() { return impl->MOffset; }
 range<3> &AccessorBaseHost::getAccessRange() { return impl->MAccessRange; }
 range<3> &AccessorBaseHost::getMemoryRange() { return impl->MMemoryRange; }
-void *AccessorBaseHost::getPtr() { return impl->MData; }
+void *AccessorBaseHost::getPtr() noexcept { return impl->MData; }
 
 detail::AccHostDataT &AccessorBaseHost::getAccData() { return impl->MAccData; }
 
@@ -60,13 +67,17 @@ const range<3> &AccessorBaseHost::getAccessRange() const {
 const range<3> &AccessorBaseHost::getMemoryRange() const {
   return impl->MMemoryRange;
 }
-void *AccessorBaseHost::getPtr() const {
+void *AccessorBaseHost::getPtr() const noexcept {
   return const_cast<void *>(impl->MData);
 }
 
 void *AccessorBaseHost::getMemoryObject() const { return impl->MSYCLMemObj; }
 
 bool AccessorBaseHost::isPlaceholder() const { return impl->MIsPlaceH; }
+
+bool AccessorBaseHost::isMemoryObjectUsedByGraph() const {
+  return static_cast<detail::SYCLMemObjT *>(impl->MSYCLMemObj)->isUsedInGraph();
+}
 
 LocalAccessorBaseHost::LocalAccessorBaseHost(
     sycl::range<3> Size, int Dims, int ElemSize,
@@ -177,5 +188,5 @@ image_sampler SampledImageAccessorBaseHost::getSampler() const {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,5 +1,7 @@
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// FPGA RT returns random CL_INVALID_CONTEXT in some configurations, tracked
+// internally. Avoid FPGA devices until that is fixed.
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu;*:cpu" %{run-unfiltered-devices} %t.out
 //
 //==----------------- get_backend.cpp ------------------------==//
 // This is a test of get_backend().
@@ -9,7 +11,7 @@
 
 #include <iostream>
 #include <sycl/backend_types.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -19,6 +21,7 @@ bool check(backend be) {
   case backend::ext_oneapi_level_zero:
   case backend::ext_oneapi_cuda:
   case backend::ext_oneapi_hip:
+  case backend::ext_oneapi_native_cpu:
     return true;
   default:
     return false;

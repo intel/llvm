@@ -4,17 +4,17 @@
 
 ; REQUIRES: x86-registered-target
 
-; RUN: opt -opaque-pointers -thinlto-bc -o %t.o %s
+; RUN: opt -thinlto-bc -o %t.o %s
 
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t2
 ; RUN: llvm-dis %t2.1.4.opt.bc -o - | FileCheck %s --check-prefix=CHECK-IR
 
 ; Try again without LTO unit splitting.
-; RUN: opt -opaque-pointers -thinlto-bc -thinlto-split-lto-unit=false -o %t3.o %s
-; RUN: llvm-lto2 run -opaque-pointers %t.o -save-temps -pass-remarks=. \
+; RUN: opt -thinlto-bc -thinlto-split-lto-unit=false -o %t3.o %s
+; RUN: llvm-lto2 run %t.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:	 -r=%t.o,_ZTVN12_GLOBAL__N_18RealFileE,px \
 ; RUN:   -o %t4
@@ -38,8 +38,8 @@ target triple = "x86_64-grtev4-linux-gnu"
 define internal void @_ZN12_GLOBAL__N_18RealFileD2Ev(ptr %this) unnamed_addr #0 align 2 {
 entry:
 ; CHECK-IR: store
-  store ptr getelementptr inbounds ({ [3 x ptr] }, ptr @_ZTVN12_GLOBAL__N_18RealFileE, i64 0, inrange i32 0, i64 2), ptr %this, align 8
-  %0 = tail call i1 @llvm.type.test(ptr getelementptr inbounds ({ [3 x ptr] }, ptr @_ZTVN12_GLOBAL__N_18RealFileE, i64 0, inrange i32 0, i64 2), metadata !"4$09c6cc733fc6accb91e5d7b87cb48f2d")
+  store ptr getelementptr inbounds ({ [3 x ptr] }, ptr @_ZTVN12_GLOBAL__N_18RealFileE, i64 0, i32 0, i64 2), ptr %this, align 8
+  %0 = tail call i1 @llvm.type.test(ptr getelementptr inbounds ({ [3 x ptr] }, ptr @_ZTVN12_GLOBAL__N_18RealFileE, i64 0, i32 0, i64 2), metadata !"4$09c6cc733fc6accb91e5d7b87cb48f2d")
   tail call void @llvm.assume(i1 %0)
 ; CHECK-IR-NEXT: ret void
   ret void

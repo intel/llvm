@@ -7,13 +7,10 @@
 // RUN: %{build} -fno-builtin -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda
+// UNSUPPORTED: cuda, hip
 
 #include "imf_utils.hpp"
-
-extern "C" {
-_iml_half_internal __imf_double2half(double);
-}
+#include <sycl/ext/intel/math.hpp>
 
 int main() {
 
@@ -46,8 +43,10 @@ int main() {
         0,      0x7C00, 0xFC00, 0x49A0, 0x6409, 0x7BFF, 0xFBFF, 0xF4E2, 0x67E7,
         0x7B84, 0xFB86, 0x7C00, 0xFC00, 0,      0x8000, 0,      0x8000};
 
-    test_host(input_vals, ref_vals, F_Half4(__imf_double2half));
-    test(device_queue, input_vals, ref_vals, F_Half4(__imf_double2half));
+    test_host(input_vals, ref_vals,
+              FT2(uint16_t, double, sycl::ext::intel::math::double2half));
+    test(device_queue, input_vals, ref_vals,
+         FT2(uint16_t, double, sycl::ext::intel::math::double2half));
   }
 
   return 0;

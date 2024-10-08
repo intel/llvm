@@ -1,5 +1,5 @@
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/experimental/online_compiler.hpp>
-#include <sycl/sycl.hpp>
 
 #include <iostream>
 #include <vector>
@@ -43,7 +43,7 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
     CGH.parallel_for(sycl::range<1>{N}, Kernel);
   });
 
-  auto Out = OutputBuf.get_access<sycl::access::mode::read>();
+  auto Out = OutputBuf.get_host_access();
   for (int I = 0; I < N; I++)
     std::cout << I << "*2 + 100 = " << Out[I] << "\n";
 }
@@ -52,6 +52,13 @@ void testSyclKernel(sycl::queue &Q, sycl::kernel Kernel) {
 int main(int argc, char **argv) {
   sycl::queue Q;
   sycl::device Device = Q.get_device();
+
+#ifdef RUN_KERNELS
+  if (!testSupported(Q)) {
+    std::cout << "Building for IL is not supported. Skipping!" << std::endl;
+    return 0;
+  }
+#endif
 
   { // Compile and run a trivial OpenCL kernel.
     std::cout << "Test case1\n";

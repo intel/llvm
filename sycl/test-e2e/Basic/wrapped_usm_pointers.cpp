@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
+// REQUIRES: aspect-usm_shared_allocations
 //==---------- wrapped_usm_pointer.cpp - test pointers in struct ---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -10,7 +10,10 @@
 //==----------------------------------------------------------------------==//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 struct Simple {
   int *Data;

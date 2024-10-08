@@ -1,0 +1,261 @@
+= sycl_ext_oneapi_launch_queries
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2022 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 6 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+This extension introduces a new mechanism for querying any limitations that a
+developer must respect when launching a specific kernel on a specific queue.
+Such limitations may exist when a kernel is decorated with one or more
+properties that require an implementation to enable additional features
+(such as providing certain forward progress guarantees, or enabling
+cross-work-group synchronization routines), or when a kernel uses certain
+features (such as static work-group local memory or group algorithms).
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_LAUNCH_QUERIES` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Launch queries
+
+An implementation's ability to satisify requests for specific behaviors
+(such as strong forward progress guarantees and/or cross-work-group
+synchronization) for a kernel may be dependent upon: the kernel itself, and the
+features that it uses; the queue (and underlying device) to which the kernel is
+submitted; and the kernel's launch configuration.
+
+It is a user's responsibility to ensure that a kernel requesting specific
+behaviors uses a compatible launch configuration, using the
+`ext_oneapi_get_info` function and descriptors from the `info::kernel`
+namespace.
+
+If the `sycl::nd_range` parameter used to launch a kernel is incompatible with
+the results of a kernel's launch queries, an implementation must throw a
+synchronous exception with the `errc::nd_range` error code.
+
+[NOTE]
+====
+The values returned by `ext_oneapi_get_info` account for all properties
+attached to a kernel (via the mechanisms defined in the
+sycl_ext_oneapi_kernel_properties extension), as well as the usage of features
+like group algorithms and work-group local memory. Developers should assume
+that the values will differ across kernels.
+====
+
+[source,c++]
+----
+namespace sycl {
+
+class kernel {
+ public:
+  template <typename Param, typename... T>
+  /*return-type*/ ext_oneapi_get_info(T... args) const;
+};
+
+}
+----
+
+[source,c++]
+----
+template <typename Param, typename... T>
+/*return-type*/ ext_oneapi_get_info(T... args) const;
+----
+_Constraints_: Available only when the types `+T...+` described by the parameter
+pack match the types defined in the table below.
+
+_Preconditions_: `Param` must be one of the `info::kernel` descriptors defined
+in this extension.
+
+_Returns_: Information about the kernel that applies when the kernel is
+submitted with the configuration described by the parameter pack `+T...+`.
+The return type is defined in the table below.
+
+This extension adds several new queries to this interface, many of which
+already have equivalents in the `kernel_device_specific` or `device`
+namespaces.
+
+NOTE: These queries are queue- and not device-specific because it is
+anticipated that implementations will introduce finer-grained queue
+controls that impact the scheduling of kernels.
+
+NOTE: Allowing devices to return a value of 1 for these queries maximizes the
+chances that code written to use certain extension remains portable. However,
+the performance of kernels using only one work-group, sub-group or work-item
+may be limited on some (highly parallel) devices. If certain properties (e.g.
+forward progress guarantees, cross-work-group synchronization) are being used
+as part of a performance optimization, developers should check that the values
+returned by these queries is not 1.
+
+[source, c++]
+----
+namespace ext::oneapi::experimental::info::kernel {
+
+template <uint32_t Dimensions>
+struct max_work_item_sizes;
+
+struct max_work_group_size;
+struct max_num_work_groups;
+
+}
+----
+
+[%header,cols="1,5,5,5"]
+|===
+|Kernel Descriptor
+|Argument Types
+|Return Type
+|Description
+
+|`template <uint32_t Dimensions>
+ max_work_item_sizes`
+|`sycl::queue`
+|`id<Dimensions>`
+|Returns the maximum number of work-items that are permitted in each dimension
+ of a work-group, when the kernel is submitted to the specified queue,
+ accounting for any kernel properties or features. If the kernel can be
+ submitted to the specified queue without an error, the minimum value returned
+ by this query is 1, otherwise it is 0.
+
+|`max_work_group_size`
+|`sycl::queue`
+|`size_t`
+|Returns the maximum number of work-items that are permitted in a work-group,
+when the kernel is submitted to the specified queue, accounting for any
+kernel properties or features. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
+
+|`max_num_work_groups`
+|`sycl::queue`, `sycl::range`, `size_t`
+|`size_t`
+|Returns the maximum number of work-groups, when the kernel is submitted to the
+specified queue with the specified work-group size and the specified amount of
+dynamic work-group local memory (in bytes), accounting for any kernel
+properties or features. If the specified work-group size is 0, which is
+invalid, then the implementation will throw a synchronous exception with the
+`errc::invalid` error code. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
+
+|===
+
+A separate set of launch queries can be used to reason about how an
+implementation will launch a kernel on the specified queue. The values of these
+queries should also be checked if a kernel is expected to be launched in a
+specific way (e.g., if the kernel requires two sub-groups for correctness).
+
+[source, c++]
+----
+namespace ext::oneapi::experimental::info::kernel {
+
+struct max_sub_group_size;
+struct num_sub_groups;
+
+}
+----
+
+[%header,cols="1,5,5,5"]
+|===
+|Kernel Descriptor
+|Argument Types
+|Return Type
+|Description
+
+|`max_sub_group_size`
+|`sycl::queue`, `sycl::range`
+|`uint32_t`
+|Returns the maximum sub-group size, when the kernel is submitted to the
+specified queue with the specified work-group size, accounting for any kernel
+properties or features. The return value of this query must match the value
+returned by `sub_group::get_max_local_range()` inside the kernel. If the kernel
+can be submitted to the specified queue without an error, the minimum value
+returned by this query is 1, otherwise it is 0.
+
+|`num_sub_groups`
+|`sycl::queue`, `sycl::range`
+|`uint32_t`
+|Returns the number of sub-groups per work-group, when the kernel is submitted
+to the specified queue with the specified work-group size, accounting for any
+kernel properties or features. If the kernel can be submitted to the specified
+queue without an error, the minimum value returned by this query is 1,
+otherwise it is 0.
+
+|===
+
+== Issues
+
+None.
+

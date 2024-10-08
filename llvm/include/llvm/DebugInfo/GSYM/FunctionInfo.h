@@ -9,13 +9,14 @@
 #ifndef LLVM_DEBUGINFO_GSYM_FUNCTIONINFO_H
 #define LLVM_DEBUGINFO_GSYM_FUNCTIONINFO_H
 
+#include "llvm/ADT/SmallString.h"
 #include "llvm/DebugInfo/GSYM/ExtractRanges.h"
 #include "llvm/DebugInfo/GSYM/InlineInfo.h"
 #include "llvm/DebugInfo/GSYM/LineTable.h"
 #include "llvm/DebugInfo/GSYM/LookupResult.h"
+#include "llvm/DebugInfo/GSYM/MergedFunctionsInfo.h"
 #include "llvm/DebugInfo/GSYM/StringTable.h"
 #include <cstdint>
-#include <tuple>
 
 namespace llvm {
 class raw_ostream;
@@ -90,6 +91,7 @@ struct FunctionInfo {
   uint32_t Name; ///< String table offset in the string table.
   std::optional<LineTable> OptLineTable;
   std::optional<InlineInfo> Inline;
+  std::optional<MergedFunctionsInfo> MergedFunctions;
   /// If we encode a FunctionInfo during segmenting so we know its size, we can
   /// cache that encoding here so we don't need to re-encode it when saving the
   /// GSYM file.
@@ -140,9 +142,16 @@ struct FunctionInfo {
   /// \param O The binary stream to write the data to at the current file
   /// position.
   ///
+  /// \param NoPadding Directly write the FunctionInfo data, without any padding
+  /// By default, FunctionInfo will be 4-byte aligned by padding with
+  /// 0's at the start. This is OK since the function will return the offset of
+  /// actual data in the stream. However when writing FunctionInfo's as a
+  /// stream, the padding will break the decoding of the data - since the offset
+  /// where the FunctionInfo starts is not kept in this scenario.
+  ///
   /// \returns An error object that indicates failure or the offset of the
   /// function info that was successfully written into the stream.
-  llvm::Expected<uint64_t> encode(FileWriter &O) const;
+  llvm::Expected<uint64_t> encode(FileWriter &O, bool NoPadding = false) const;
 
   /// Encode this function info into the internal byte cache and return the size
   /// in bytes.
@@ -201,21 +210,27 @@ inline bool operator==(const FunctionInfo &LHS, const FunctionInfo &RHS) {
 inline bool operator!=(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   return !(LHS == RHS);
 }
-/// This sorting will order things consistently by address range first, but then
-/// followed by inlining being valid and line tables. We might end up with a
-/// FunctionInfo from debug info that will have the same range as one from the
-/// symbol table, but we want to quickly be able to sort and use the best version
-/// when creating the final GSYM file.
+/// This sorting will order things consistently by address range first, but
+/// then followed by increasing levels of debug info like inline information
+/// and line tables. We might end up with a FunctionInfo from debug info that
+/// will have the same range as one from the symbol table, but we want to
+/// quickly be able to sort and use the best version when creating the final
+/// GSYM file. This function compares the inline information as we have seen
+/// cases where LTO can generate a wide array of differing inline information,
+/// mostly due to messing up the address ranges for inlined functions, so the
+/// inline information with the most entries will appeear last. If the inline
+/// information match, either by both function infos not having any or both
+/// being exactly the same, we will then compare line tables. Comparing line
+/// tables allows the entry with the most line entries to appear last. This
+/// ensures we are able to save the FunctionInfo with the most debug info into
+/// the GSYM file.
 inline bool operator<(const FunctionInfo &LHS, const FunctionInfo &RHS) {
   // First sort by address range
   if (LHS.Range != RHS.Range)
     return LHS.Range < RHS.Range;
-
-  // Then sort by inline
-  if (LHS.Inline.has_value() != RHS.Inline.has_value())
-    return RHS.Inline.has_value();
-
-  return LHS.OptLineTable < RHS.OptLineTable;
+  if (LHS.Inline == RHS.Inline)
+    return LHS.OptLineTable < RHS.OptLineTable;
+  return LHS.Inline < RHS.Inline;
 }
 
 raw_ostream &operator<<(raw_ostream &OS, const FunctionInfo &R);

@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/usm_pointers.hpp>
+
 #include <cassert>
 #include <iostream>
-#include <sycl.hpp>
 #include <type_traits>
 
 using namespace sycl;
@@ -75,6 +77,30 @@ template <typename T> void testMultPtr() {
             auto local_ptr = make_ptr<T, access::address_space::local_space,
                                       access::decorated::legacy>(
                 localAccessor.get_pointer());
+
+            auto local_ptr2 =
+                multi_ptr<T, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr3 =
+                multi_ptr<void, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr4 =
+                multi_ptr<const void, access::address_space::local_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr5 =
+                multi_ptr<T, access::address_space::generic_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr6 =
+                multi_ptr<void, access::address_space::generic_space,
+                          access::decorated::legacy>(localAccessor);
+
+            auto local_ptr7 =
+                multi_ptr<const void, access::address_space::generic_space,
+                          access::decorated::legacy>(localAccessor);
 
             // Construct extension pointer from accessors.
             auto dev_ptr =

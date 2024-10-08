@@ -156,7 +156,7 @@ ProcessMinidump::ProcessMinidump(lldb::TargetSP target_sp,
                                  lldb::ListenerSP listener_sp,
                                  const FileSpec &core_file,
                                  DataBufferSP core_data)
-    : PostMortemProcess(target_sp, listener_sp), m_core_file(core_file),
+    : PostMortemProcess(target_sp, listener_sp, core_file),
       m_core_data(std::move(core_data)), m_active_exception(nullptr),
       m_is_wow64(false) {}
 
@@ -166,7 +166,7 @@ ProcessMinidump::~ProcessMinidump() {
   // make sure all of the broadcaster cleanup goes as planned. If we destruct
   // this class, then Process::~Process() might have problems trying to fully
   // destroy the broadcaster.
-  Finalize();
+  Finalize(true /* destructing */);
 }
 
 void ProcessMinidump::Initialize() {
@@ -202,8 +202,8 @@ Status ProcessMinidump::DoLoadCore() {
     // ThreadMinidump::CreateRegisterContextForFrame().
     break;
   default:
-    error.SetErrorStringWithFormat("unsupported minidump architecture: %s",
-                                   arch.GetArchitectureName());
+    error = Status::FromErrorStringWithFormat(
+        "unsupported minidump architecture: %s", arch.GetArchitectureName());
     return error;
   }
   GetTarget().SetArchitecture(arch, true /*set_platform*/);
@@ -304,7 +304,7 @@ size_t ProcessMinidump::DoReadMemory(lldb::addr_t addr, void *buf, size_t size,
 
   llvm::ArrayRef<uint8_t> mem = m_minidump_parser->GetMemory(addr, size);
   if (mem.empty()) {
-    error.SetErrorString("could not parse memory info");
+    error = Status::FromErrorString("could not parse memory info");
     return 0;
   }
 
@@ -795,12 +795,12 @@ public:
 
   Options *GetOptions() override { return &m_option_group; }
 
-  bool DoExecute(Args &command, CommandReturnObject &result) override {
+  void DoExecute(Args &command, CommandReturnObject &result) override {
     const size_t argc = command.GetArgumentCount();
     if (argc > 0) {
       result.AppendErrorWithFormat("'%s' take no arguments, only options",
                                    m_cmd_name.c_str());
-      return false;
+      return;
     }
     SetDefaultOptionsIfNoneAreSet();
 
@@ -904,9 +904,7 @@ public:
       DumpTextStream(StreamType::FacebookThreadName,
                      "Facebook Thread Name");
     if (DumpFacebookLogcat())
-      DumpTextStream(StreamType::FacebookLogcat,
-                     "Facebook Logcat");
-    return true;
+      DumpTextStream(StreamType::FacebookLogcat, "Facebook Logcat");
   }
 };
 

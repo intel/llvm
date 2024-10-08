@@ -9,11 +9,22 @@
 #include <clcmacro.h>
 #include <spirv/spirv.h>
 
-double __ocml_sin_f64(double);
-float __ocml_sin_f32(float);
- 
 #define __CLC_FUNCTION __spirv_ocl_sin
 #define __CLC_BUILTIN __ocml_sin
+
+float __ocml_sin_f32(float);
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+double __ocml_sin_f64(double);
 #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+half __ocml_sin_f16(half);
+#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
+#endif // cl_khr_fp16
+
 #include <math/unary_builtin.inc>

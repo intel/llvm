@@ -39,18 +39,19 @@
 // in this pass as a common functionality for both versions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
 
+#define DEBUG_TYPE "spvtocl"
+
 namespace SPIRV {
 
 void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
   LLVM_DEBUG(dbgs() << "[visistCallInst] " << CI << '\n');
-  auto F = CI.getCalledFunction();
+  auto *F = CI.getCalledFunction();
   if (!F)
     return;
 
@@ -210,6 +211,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
       visitCallSPIRVRelational(&CI, OC);
     return;
   }
+  if (OC == OpReadClockKHR) {
+    visitCallSPIRVReadClockKHR(&CI);
+    return;
+  }
   if (OC == internal::OpConvertFToBF16INTEL ||
       OC == internal::OpConvertBF16ToFINTEL) {
     visitCallSPIRVBFloat16Conversions(&CI, OC);
@@ -276,9 +281,9 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // The width of integer type returning by OpImageQuerySize[Lod] may
     // differ from i32
     if (CI->getType()->getScalarType() != Int32Ty) {
-      GetImageSize = CastInst::CreateIntegerCast(GetImageSize,
-                                                 CI->getType()->getScalarType(),
-                                                 false, CI->getName(), CI);
+      GetImageSize = CastInst::CreateIntegerCast(
+          GetImageSize, CI->getType()->getScalarType(), false, CI->getName(),
+          CI->getIterator());
     }
   } else {
     assert((ImgDim == 2 || ImgDim == 3) && "invalid image type");
@@ -298,7 +303,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
           FixedVectorType::get(
               CI->getType()->getScalarType(),
               cast<FixedVectorType>(GetImageSize->getType())->getNumElements()),
-          false, CI->getName(), CI);
+          false, CI->getName(), CI->getIterator());
     }
   }
 
@@ -313,7 +318,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
              "OpImageQuerySize[Lod] must return <2 x iN> vector type");
       GetImageSize = InsertElementInst::Create(
           UndefValue::get(VecTy), GetImageSize, ConstantInt::get(Int32Ty, 0),
-          CI->getName(), CI);
+          CI->getName(), CI->getIterator());
     } else {
       // get_image_dim and OpImageQuerySize returns different vector
       // types for arrayed and 3d images.
@@ -324,7 +329,7 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
 
       GetImageSize = new ShuffleVectorInst(
           GetImageSize, UndefValue::get(GetImageSize->getType()), Mask,
-          CI->getName(), CI);
+          CI->getName(), CI->getIterator());
     }
   }
 
@@ -341,12 +346,13 @@ void SPIRVToOCLBase::visitCallSPIRVImageQuerySize(CallInst *CI) {
     // differ from size_t which is returned by get_image_array_size
     if (GetImageArraySize->getType() != VecTy->getElementType()) {
       GetImageArraySize = CastInst::CreateIntegerCast(
-          GetImageArraySize, VecTy->getElementType(), false, CI->getName(), CI);
+          GetImageArraySize, VecTy->getElementType(), false, CI->getName(),
+          CI->getIterator());
     }
     GetImageSize = InsertElementInst::Create(
         GetImageSize, GetImageArraySize,
         ConstantInt::get(Int32Ty, VecTy->getNumElements() - 1), CI->getName(),
-        CI);
+        CI->getIterator());
   }
 
   assert(GetImageSize && "must not be null");
@@ -567,7 +573,7 @@ void SPIRVToOCLBase::visitCallSPIRVPipeBuiltin(CallInst *CI, Op OC) {
     Mutator.mapArg(Mutator.arg_size() - 3, [](IRBuilder<> &Builder, Value *P) {
       Type *T = P->getType();
       assert(isa<PointerType>(T));
-      auto *NewTy = Builder.getInt8PtrTy(SPIRAS_Generic);
+      auto *NewTy = Builder.getPtrTy(SPIRAS_Generic);
       if (T != NewTy) {
         P = Builder.CreatePointerBitCastOrAddrSpaceCast(P, NewTy);
       }
@@ -1020,6 +1026,33 @@ void SPIRVToOCLBase::visitCallSPIRVRelational(CallInst *CI, Op OC) {
       });
 }
 
+void SPIRVToOCLBase::visitCallSPIRVReadClockKHR(CallInst *CI) {
+  std::ostringstream Name;
+  Name << "clock_read_";
+
+  if (CI->getType()->isVectorTy())
+    Name << "hilo_";
+
+  // Encode the scope (taken from the argument) in the function name.
+  ConstantInt *ScopeOp = cast<ConstantInt>(CI->getArgOperand(0));
+  switch (static_cast<Scope>(ScopeOp->getZExtValue())) {
+  case ScopeDevice:
+    Name << "device";
+    break;
+  case ScopeWorkgroup:
+    Name << "work_group";
+    break;
+  case ScopeSubgroup:
+    Name << "sub_group";
+    break;
+  default:
+    break;
+  }
+
+  auto Mutator = mutateCallInst(CI, Name.str());
+  Mutator.removeArg(0);
+}
+
 std::string SPIRVToOCLBase::getGroupBuiltinPrefix(CallInst *CI) {
   std::string Prefix;
   auto ES = getArgAsScope(CI, 0);
@@ -1066,7 +1099,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
   for (auto *S : M->getIdentifiedStructTypes()) {
     StringRef STName = S->getStructName();
     bool IsSPIRVOpaque =
-        S->isOpaque() && STName.startswith(kSPIRVTypeName::PrefixAndDelim);
+        S->isOpaque() && STName.starts_with(kSPIRVTypeName::PrefixAndDelim);
 
     if (!IsSPIRVOpaque)
       continue;
@@ -1076,7 +1109,7 @@ void SPIRVToOCLBase::translateOpaqueTypes() {
 }
 
 std::string SPIRVToOCLBase::translateOpaqueType(StringRef STName) {
-  if (!STName.startswith(kSPIRVTypeName::PrefixAndDelim))
+  if (!STName.starts_with(kSPIRVTypeName::PrefixAndDelim))
     return STName.str();
 
   SmallVector<std::string, 8> Postfixes;

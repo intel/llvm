@@ -7,11 +7,13 @@
 
 #ifdef XPTI_COLLECTOR
 
-#include "../Inputs/buffer_info_collector.cpp"
+#include "../Inputs/memory_info_collector.cpp"
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl::access;
 constexpr sycl::specialization_id<int> int_id(42);
@@ -59,18 +61,19 @@ int main() {
         auto A1 = Buf.get_access<mode::read_write>(cgh);
         // CHECK: {{[0-9]+}}|Construct accessor|0x0|[[ACCID2:.*]]|2016|1026|{{.*}}.cpp:[[# @LINE + 1]]:38
         sycl::local_accessor<int, 1> A2(Range, cgh);
-        cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::id<1> WIid) {
+        cgh.parallel_for<class FillBuffer>(NDRange, [=](sycl::nd_item<1> ndi) {
+          auto gid = ndi.get_global_id(0);
           // CHECK-OPT: arg0 : {1, {{[0-9,a-f,x]+}}, 2, 0}
           int h = Val;
           // CHECK-OPT: arg1 : {1, {{.*}}0, 20, 1}
-          A2[WIid[0]] = h;
+          A2[gid] = h;
           // CHECK-OPT: arg2 : {0, [[ACCID1]], 4062, 2}
           // CHECK-OPT: arg3 : {1, [[ACCID1]], 8, 3}
-          A1[WIid[0]] = A2[WIid[0]];
+          A1[gid] = A2[gid];
           // CHECK-OPT: arg4 : {3, {{.*}}, 8, 4}
-          PtrDevice[WIid[0]] = WIid[0];
+          PtrDevice[gid] = gid;
           // CHECK-OPT: arg5 : {3, {{.*}}, 8, 5}
-          PtrShared[WIid[0]] = PtrDevice[WIid[0]];
+          PtrShared[gid] = PtrDevice[gid];
         });
       })
       .wait();
@@ -79,8 +82,8 @@ int main() {
   // CHECK: Wait end|{{.*}}.cpp:[[# @LINE + 1]]:3
   Queue.wait();
 
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::read>(); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID3:.*]]|2018|1024|{{.*}}.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::read_only); }
 
   Queue.submit([&](sycl::handler &cgh) {
     // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID4:.+]]|2014|1026|{{.*}}.cpp:[[# @LINE + 1]]:16

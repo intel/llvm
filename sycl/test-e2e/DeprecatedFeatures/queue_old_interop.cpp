@@ -12,7 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -36,7 +36,7 @@ int main() {
     queue q;
     print_queue_info(q);
 
-  } catch (device_error e) {
+  } catch (const exception &e) {
     std::cout << "Failed to create device for context" << std::endl;
   }
 

@@ -16,7 +16,7 @@
 // correctly.
 // RUN: %{run} %t.out mixed
 
-// The test checks that piEnqueueMemBufferMap and piEnqueueMemUnmap work
+// The test checks that urEnqueueMemBufferMap and urEnqueueMemUnmap work
 // correctly when we alternate between event and eventless kernel calls.
 // RUN: %{run} %t.out map-unmap
 
@@ -24,12 +24,14 @@
 // the tests, please check if they pass without the discard_events property, if
 // they don't pass then it's most likely a general issue unrelated to
 // discard_events.
-
-#include <CL/sycl.hpp>
+// REQUIRES: aspect-usm_shared_allocations
 #include <cassert>
 #include <iostream>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 
-using namespace cl::sycl;
+using namespace sycl;
 static constexpr size_t BUFFER_SIZE = 1024;
 static constexpr int MAX_ITER_NUM1 = 10;
 static constexpr int MAX_ITER_NUM2 = 10;
@@ -204,7 +206,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
         });
 
         {
-          // waiting for all queue operations in piEnqueueMemBufferMap and then
+          // waiting for all queue operations in urEnqueueMemBufferMap and then
           // checking buffer
           sycl::host_accessor HostAcc(Buf);
           for (size_t i = 0; i < BUFFER_SIZE; ++i) {
@@ -225,7 +227,7 @@ void RunTest_MemBufferMapUnMap(sycl::queue Q) {
         });
 
         Q.submit([&](sycl::handler &CGH) {
-          // waiting for all queue operations in piEnqueueMemUnmap and then
+          // waiting for all queue operations in urEnqueueMemUnmap and then
           // using buffer
           auto Acc = Buf.get_access<sycl::access::mode::read_write>(CGH);
           CGH.parallel_for<class kernel4>(Range, [=](sycl::item<1> itemID) {

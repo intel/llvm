@@ -11,13 +11,12 @@
 //
 // Reduced version of dgetrf.cpp - M = 8, N = 8, single batch.
 //
-#include <iostream>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+
+#include "../esimd_test_utils.hpp"
 
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))
@@ -266,7 +265,8 @@ static int dgetrfnp_batch_strided_check(int64_t m, int64_t n, double *a_in,
 }
 
 int main(int argc, char *argv[]) {
-  queue queue((gpu_selector()));
+  queue queue(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(queue);
 
   int exit_status = 0;
   constexpr int64_t m = 8, n = 8, lda = 8;

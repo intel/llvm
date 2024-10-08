@@ -1,6 +1,7 @@
-; RUN: sycl-post-link --spec-const=rt -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --spec-const=native -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-IR
 ; RUN: FileCheck %s -input-file=%t.files_0.prop --check-prefix CHECK-PROP
+; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that SpecConstantsPass is able to handle the
 ; situation where specialization constants with complex types such as arrays
@@ -17,16 +18,16 @@ target triple = "spir64-unknown-unknown"
 %struct.coeff_str_t = type { %"class.std::array.1", i64 }
 
 @__usid_str.1 = private unnamed_addr constant [32 x i8] c"9f47062a80eecfa7____ZL8coeff_id\00", align 1
-@_ZL8coeff_id = internal addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
+@_ZL8coeff_id = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id" zeroinitializer, align 4
 
 @__usid_str.2 = private unnamed_addr constant [33 x i8] c"405761736d5a1797____ZL9coeff_id2\00", align 1
-@_ZL9coeff_id2 = internal addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
+@_ZL9coeff_id2 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id" { %"class.std::array" { [3 x %"class.std::array.1"] [%"class.std::array.1" zeroinitializer, %"class.std::array.1" { [3 x float] [float 0.000000e+00, float 1.000000e+00, float 2.000000e+00] }, %"class.std::array.1" { [3 x float] [float 0x4010666660000000, float 0x4014666660000000, float 0x4018CCCCC0000000] }] } }, align 4
 
 @__usid_str.3 = private unnamed_addr constant [33 x i8] c"6da74a122db9f35d____ZL9coeff_id3\00", align 1
-@_ZL9coeff_id3 = internal addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
+@_ZL9coeff_id3 = weak_odr addrspace(1) constant %"class.cl::sycl::specialization_id.1" zeroinitializer, align 8
 
 ; Function Attrs: convergent mustprogress norecurse
-define internal spir_func void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
+define weak_odr spir_kernel void @_ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL8coeff_idESt5arrayIS3_IfLy3EELy3EELPv0EEET0_v(%"class.std::array" addrspace(4)* noalias sret(%"class.std::array") align 4 %0, %"class.cl::sycl::kernel_handler" addrspace(4)* align 8 dereferenceable_or_null(8) %1) #0 align 2 {
   %3 = alloca %"class.cl::sycl::kernel_handler" addrspace(4)*, align 8
   %4 = alloca i8 addrspace(4)*, align 8
   %5 = addrspacecast %"class.cl::sycl::kernel_handler" addrspace(4)** %3 to %"class.cl::sycl::kernel_handler" addrspace(4)* addrspace(4)*
@@ -108,9 +109,43 @@ attributes #2 = { convergent "frame-pointer"="all" "no-trapping-math"="true" "st
 !9 = !{!"_ZTSN2cl4sycl14kernel_handlerE", !5, i64 0}
 
 ; CHECK-PROP: [SYCL/specialization constants]
-; CHECK-PROP-NEXT: 9f47062a80eecfa7____ZL8coeff_id=2|gNAAAAAAAAAAAAAAAAAAAQAAAAQAAAAAEAAAAQAAAAgAAAAAIAAAAQAAAAwAAAAAMAAAAQAAAAABAAAAQAAAAQAAAAQBAAAAUAAAAQAAAAgBAAAAYAAAAQAAAAwBAAAAcAAAAQAAAAACAAAAgAAAAQAAAAA
-; CHECK-PROP-NEXT: 405761736d5a1797____ZL9coeff_id2=2|gNAAAAAAAAQCAAAAAAAAAQAAAAgCAAAAEAAAAQAAAAwCAAAAIAAAAQAAAAADAAAAMAAAAQAAAAQDAAAAQAAAAQAAAAgDAAAAUAAAAQAAAAwDAAAAYAAAAQAAAAAEAAAAcAAAAQAAAAQEAAAAgAAAAQAAAAA
-; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL9coeff_id3=2|AGAAAAAAAAgEAAAAAAAAAQAAAAwEAAAAEAAAAQAAAAAFAAAAIAAAAQAAAAQFAAAAQAAAAgAAAAA
+; CHECK-PROP-NEXT: 9f47062a80eecfa7____ZL8coeff_id=2
+; CHECK-PROP-NEXT: 405761736d5a1797____ZL9coeff_id2=2
+; CHECK-PROP-NEXT: 6da74a122db9f35d____ZL9coeff_id3=2
+; CHECK-LOG: sycl.specialization-constants
+; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={1, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={2, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={3, 12, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={4, 16, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={5, 20, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={6, 24, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={7, 28, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX]]={8, 32, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2:[0-9a-zA-Z]+]]={9, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={10, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={11, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={12, 12, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={13, 16, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={14, 20, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={15, 24, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={16, 28, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX2]]={17, 32, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3:[0-9a-zA-Z]+]]={18, 0, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={19, 4, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={20, 8, 4}
+; CHECK-LOG:[[UNIQUE_PREFIX3]]={21, 16, 8}
+
 
 ; CHECK-PROP: [SYCL/specialization constants default values]
-; CHECK-PROP-NEXT: all=2|AMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAg/AAAAA0MzMIQzMzoAZmZGDEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+; CHECK-PROP-NEXT: all=2
+; CHECK-LOG: sycl.specialization-constants-default-values
+; CHECK-LOG: {0, 36, 0}
+; CHECK-LOG: {36, 12, 0}
+; CHECK-LOG: {48, 4, 0.000000e+00}
+; CHECK-LOG: {52, 4, 1.000000e+00}
+; CHECK-LOG: {56, 4, 2.000000e+00}
+; CHECK-LOG: {60, 4, 4.100000e+00}
+; CHECK-LOG: {64, 4, 5.100000e+00}
+; CHECK-LOG: {68, 4, 6.200000e+00}
+; CHECK-LOG: {72, 24, 0}

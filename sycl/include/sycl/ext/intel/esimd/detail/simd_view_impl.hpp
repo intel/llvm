@@ -10,12 +10,12 @@
 
 #pragma once
 
+#include <sycl/aspects.hpp>
 #include <sycl/ext/intel/esimd/detail/intrin.hpp>
-#include <sycl/ext/intel/esimd/detail/test_proxy.hpp>
 #include <sycl/ext/intel/esimd/detail/type_format.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 /// @addtogroup sycl_esimd_core_vectors
@@ -38,7 +38,12 @@ namespace ext::intel::esimd::detail {
 template <typename BaseTy,
           typename RegionTy =
               region1d_t<typename BaseTy::element_type, BaseTy::length, 1>>
+#ifndef __SYCL_DEVICE_ONLY__
 class simd_view_impl {
+#else
+class [[__sycl_detail__::__uses_aspects__(
+    sycl::aspect::ext_intel_esimd)]] simd_view_impl {
+#endif
 public:
   /// The only type which is supposed to extend this one and be used in user
   /// code.
@@ -294,10 +299,9 @@ public:
   /* OPASSIGN simd_obj_impl */                                                 \
   template <class T1, int N1, class SimdT1, class T = element_type,            \
             class SimdT = BaseTy,                                              \
-            class =                                                            \
-                std::enable_if_t<(is_simd_type_v<SimdT> ==                     \
-                                  is_simd_type_v<SimdT1>)&&(N1 == length) &&   \
-                                 COND>>                                        \
+            class = std::enable_if_t<(is_simd_type_v<SimdT> ==                 \
+                                      is_simd_type_v<SimdT1>) &&               \
+                                     (N1 == length) && COND>>                  \
   Derived &operator OPASSIGN(const simd_obj_impl<T1, N1, SimdT1> &RHS) {       \
     auto Res = read() BINOP RHS;                                               \
     write(Res);                                                                \
@@ -310,9 +314,8 @@ public:
                 typename __ESIMD_NS::shape_type<RegionT1>::element_type,       \
             class T = element_type, class SimdT = BaseTy,                      \
             class = std::enable_if_t<                                          \
-                (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>)&&(           \
-                    length == __ESIMD_NS::shape_type<RegionT1>::length) &&     \
-                COND>>                                                         \
+                (is_simd_type_v<SimdT> == is_simd_type_v<SimdT1>) &&           \
+                (length == __ESIMD_NS::shape_type<RegionT1>::length) && COND>> \
   Derived &operator OPASSIGN(const simd_view_impl<SimdT1, RegionT1> &RHS) {    \
     *this OPASSIGN RHS.read();                                                 \
     return cast_this_to_derived();                                             \
@@ -398,14 +401,10 @@ public:
   /// region viewed by this object.
   /// @param Other The source rvalue object.
   /// @return This object cast to the derived class.
-  Derived &operator=(Derived &&Other) {
-    __esimd_move_test_proxy(Other);
-    return write(Other.read());
-  }
+  Derived &operator=(Derived &&Other) { return write(Other.read()); }
 
   /// Move assignment operator. Updates the target region viewed by this object.
   simd_view_impl &operator=(simd_view_impl &&Other) {
-    __esimd_move_test_proxy(Other);
     return write(Other.read());
   }
 
@@ -419,8 +418,8 @@ public:
   /// @return This object cast to the derived class.
   template <class T, int N, class SimdT,
             class = std::enable_if_t<(is_simd_type_v<SimdT> ==
-                                      is_simd_type_v<BaseTy>)&&(length ==
-                                                                SimdT::length)>>
+                                      is_simd_type_v<BaseTy>) &&
+                                     (length == SimdT::length)>>
   Derived &operator=(const simd_obj_impl<T, N, SimdT> &Other) {
     return write(convert_vector<element_type, typename SimdT::element_type, N>(
         Other.data()));
@@ -581,15 +580,9 @@ public:
 
   /// @cond EXCLUDE
 public:
-  // Getter for the test proxy member, if enabled
-  __ESIMD_DECLARE_TEST_PROXY_ACCESS
-
 protected:
   // The reference to the base object, which must be a simd object
   BaseTy &M_base;
-
-  // The test proxy if enabled
-  __ESIMD_DECLARE_TEST_PROXY
 
   // The region applied on the base object. Its type could be
   // - region1d_t
@@ -603,5 +596,5 @@ protected:
 /// @} sycl_esimd_core_vectors
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -1,4 +1,3 @@
-// XFAIL: esimd_emulator
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -9,9 +8,11 @@
 //    TODO: the second part of the check should be added to this test when
 //    DAE (Dead Arguments Elimination) optimization is enabled for ESIMD.
 
-#include <CL/sycl.hpp>
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/specialization_id.hpp>
+#include <sycl/usm.hpp>
 
 constexpr sycl::specialization_id<int> Spec;
 

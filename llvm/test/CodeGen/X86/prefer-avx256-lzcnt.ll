@@ -38,7 +38,7 @@ define <8 x i16> @testv8i16(<8 x i16> %in) {
 define <16 x i8> @testv16i8(<16 x i8> %in) {
 ; AVX256-LABEL: testv16i8:
 ; AVX256:       # %bb.0:
-; AVX256-NEXT:    vmovdqa {{.*#+}} xmm1 = [4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0]
+; AVX256-NEXT:    vmovq {{.*#+}} xmm1 = [4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0]
 ; AVX256-NEXT:    vpshufb %xmm0, %xmm1, %xmm2
 ; AVX256-NEXT:    vpsrlw $4, %xmm0, %xmm0
 ; AVX256-NEXT:    vpandd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to4}, %xmm0, %xmm0
@@ -89,7 +89,8 @@ define <16 x i16> @testv16i16(<16 x i16> %in) {
 define <32 x i8> @testv32i8(<32 x i8> %in) {
 ; AVX256-LABEL: testv32i8:
 ; AVX256:       # %bb.0:
-; AVX256-NEXT:    vmovdqa {{.*#+}} ymm1 = [4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0,4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0]
+; AVX256-NEXT:    vbroadcasti128 {{.*#+}} ymm1 = [4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0,4,3,2,2,1,1,1,1,0,0,0,0,0,0,0,0]
+; AVX256-NEXT:    # ymm1 = mem[0,1,0,1]
 ; AVX256-NEXT:    vpshufb %ymm0, %ymm1, %ymm2
 ; AVX256-NEXT:    vpsrlw $4, %ymm0, %ymm0
 ; AVX256-NEXT:    vpandd {{\.?LCPI[0-9]+_[0-9]+}}(%rip){1to8}, %ymm0, %ymm0

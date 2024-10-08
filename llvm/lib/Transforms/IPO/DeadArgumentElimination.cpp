@@ -16,9 +16,12 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/Statistic.h"
+#include "llvm/Analysis/OptimizationRemarkEmitter.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/Constants.h"
@@ -43,7 +46,6 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO.h"
-#include "llvm/Transforms/IPO/DeadArgumentElimination.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include <cassert>
 #include <utility>
@@ -204,6 +206,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
   NF->setComdat(F.getComdat());
   F.getParent()->getFunctionList().insert(F.getIterator(), NF);
   NF->takeName(&F);
+  NF->IsNewDbgInfoFormat = F.IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites
   // to pass in a smaller number of arguments into the new function.
@@ -233,9 +236,9 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     CallBase *NewCB = nullptr;
     if (InvokeInst *II = dyn_cast<InvokeInst>(CB)) {
       NewCB = InvokeInst::Create(NF, II->getNormalDest(), II->getUnwindDest(),
-                                 Args, OpBundles, "", CB);
+                                 Args, OpBundles, "", CB->getIterator());
     } else {
-      NewCB = CallInst::Create(NF, Args, OpBundles, "", CB);
+      NewCB = CallInst::Create(NF, Args, OpBundles, "", CB->getIterator());
       cast<CallInst>(NewCB)->setTailCallKind(
           cast<CallInst>(CB)->getTailCallKind());
     }
@@ -278,7 +281,7 @@ bool DeadArgumentEliminationPass::deleteDeadVarargs(Function &F) {
     NF->addMetadata(KindID, *Node);
 
   // Fix up any BlockAddresses that refer to the function.
-  F.replaceAllUsesWith(ConstantExpr::getBitCast(NF, F.getType()));
+  F.replaceAllUsesWith(NF);
   // Delete the bitcast that we just created, so that NF does not
   // appear to be address-taken.
   NF->removeDeadConstantUsers();
@@ -348,9 +351,7 @@ bool DeadArgumentEliminationPass::removeDeadArgumentsFromCallers(Function &F) {
       continue;
 
     // Now go through all unused args and replace them with poison.
-    for (unsigned I = 0, E = UnusedArgs.size(); I != E; ++I) {
-      unsigned ArgNo = UnusedArgs[I];
-
+    for (unsigned ArgNo : UnusedArgs) {
       Value *Arg = CB->getArgOperand(ArgNo);
       CB->setArgOperand(ArgNo, PoisonValue::get(Arg->getType()));
       CB->removeParamAttrs(ArgNo, UBImplyingAttributes);
@@ -538,6 +539,14 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
     return;
   }
 
+  // Don't touch sanitized functions. The "__asan_launch" argument needs to be
+  // present at all times, even if it's not used.
+  if (F.getCallingConv() == CallingConv::SPIR_KERNEL &&
+      F.hasFnAttribute(Attribute::SanitizeAddress)) {
+    markLive(F);
+    return;
+  }
+
   unsigned RetCount = numRetVals(&F);
 
   // Assume all return values are dead
@@ -575,12 +584,10 @@ void DeadArgumentEliminationPass::surveyFunction(const Function &F) {
 
   // We can't modify arguments if the function is not local
   // but we can do so for SYCL kernel functions.
-  // DAE is not currently supported for ESIMD kernels.
-  bool FuncIsSyclNonEsimdKernel =
+  bool FuncIsSyclKernel =
       CheckSYCLKernels &&
-      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F)) &&
-      !F.getMetadata("sycl_explicit_simd");
-  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclNonEsimdKernel;
+      (F.getCallingConv() == CallingConv::SPIR_KERNEL || IsNVPTXKernel(&F));
+  bool FuncIsLive = !F.hasLocalLinkage() && !FuncIsSyclKernel;
   if (FuncIsLive && (!ShouldHackArguments || F.isIntrinsic())) {
     markLive(F);
     return;
@@ -787,6 +794,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // Set up to build a new list of parameter attributes.
   SmallVector<AttributeSet, 8> ArgAttrVec;
   const AttributeList &PAL = F->getAttributes();
+  OptimizationRemarkEmitter ORE(F);
 
   // Remember which arguments are still alive.
   SmallVector<bool, 10> ArgAlive(FTy->getNumParams(), false);
@@ -804,6 +812,12 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       HasLiveReturnedArg |= PAL.hasParamAttr(ArgI, Attribute::Returned);
     } else {
       ++NumArgumentsEliminated;
+
+      ORE.emit([&]() {
+        return OptimizationRemark(DEBUG_TYPE, "ArgumentRemoved", F)
+               << "eliminating argument " << ore::NV("ArgName", I->getName())
+               << "(" << ore::NV("ArgIndex", ArgI) << ")";
+      });
       LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - Removing argument "
                         << ArgI << " (" << I->getName() << ") from "
                         << F->getName() << "\n");
@@ -820,6 +834,37 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       MDOmitArgs.push_back(AliveArg ? MDOmitArgFalse : MDOmitArgTrue);
     F->setMetadata("sycl_kernel_omit_args",
                    llvm::MDNode::get(F->getContext(), MDOmitArgs));
+
+    // Update metadata inserted by the SYCL FE to match the new kernel
+    // signature.
+    auto FixupMetadata = [&](StringRef MDName) {
+      auto MDToFixup = F->getMetadata(MDName);
+      if (MDToFixup) {
+        assert(MDToFixup->getNumOperands() == MDOmitArgs.size() &&
+               "Unexpected metadata operands");
+        SmallVector<Metadata *, 10> NewMDOps;
+        for (unsigned int i = 0; i < MDToFixup->getNumOperands(); i++) {
+          const auto *MDConst = cast<ConstantAsMetadata>(MDOmitArgs[i]);
+          bool ArgWasRemoved =
+              static_cast<bool>(cast<ConstantInt>(MDConst->getValue())
+                                    ->getValue()
+                                    .getZExtValue());
+          if (!ArgWasRemoved)
+            NewMDOps.push_back(MDToFixup->getOperand(i));
+        }
+        F->setMetadata(MDName, llvm::MDNode::get(F->getContext(), NewMDOps));
+      }
+    };
+    FixupMetadata("kernel_arg_buffer_location");
+    FixupMetadata("kernel_arg_runtime_aligned");
+    FixupMetadata("kernel_arg_exclusive_ptr");
+    FixupMetadata("kernel_arg_addr_space");
+    FixupMetadata("kernel_arg_access_qual");
+    FixupMetadata("kernel_arg_type");
+    FixupMetadata("kernel_arg_base_type");
+    FixupMetadata("kernel_arg_type_qual");
+    FixupMetadata("kernel_arg_accessor_ptr");
+    FixupMetadata("kernel_arg_name");
   }
 
   // Find out the new return value.
@@ -861,6 +906,11 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
         NewRetIdxs[Ri] = RetTypes.size() - 1;
       } else {
         ++NumRetValsEliminated;
+
+        ORE.emit([&]() {
+          return OptimizationRemark(DEBUG_TYPE, "ReturnValueRemoved", F)
+                 << "removing return value " << std::to_string(Ri);
+        });
         LLVM_DEBUG(
             dbgs() << "DeadArgumentEliminationPass - Removing return value "
                    << Ri << " from " << F->getName() << "\n");
@@ -927,6 +977,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
   // it again.
   F->getParent()->getFunctionList().insert(F->getIterator(), NF);
   NF->takeName(F);
+  NF->IsNewDbgInfoFormat = F->IsNewDbgInfoFormat;
 
   // Loop over all the callers of the function, transforming the call sites to
   // pass in a smaller number of arguments into the new function.
@@ -994,7 +1045,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       NewCB = InvokeInst::Create(NF, II->getNormalDest(), II->getUnwindDest(),
                                  Args, OpBundles, "", CB.getParent());
     } else {
-      NewCB = CallInst::Create(NFTy, NF, Args, OpBundles, "", &CB);
+      NewCB = CallInst::Create(NFTy, NF, Args, OpBundles, "", CB.getIterator());
       cast<CallInst>(NewCB)->setTailCallKind(
           cast<CallInst>(&CB)->getTailCallKind());
     }
@@ -1012,8 +1063,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
       } else if (NewCB->getType()->isVoidTy()) {
         // If the return value is dead, replace any uses of it with poison
         // (any non-debug value uses will get removed later on).
-        if (!CB.getType()->isX86_MMXTy())
-          CB.replaceAllUsesWith(PoisonValue::get(CB.getType()));
+        CB.replaceAllUsesWith(PoisonValue::get(CB.getType()));
       } else {
         assert((RetTy->isStructTy() || RetTy->isArrayTy()) &&
                "Return type changed, but not into a void. The old return type"
@@ -1077,8 +1127,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
     } else {
       // If this argument is dead, replace any uses of it with poison
       // (any non-debug value uses will get removed later on).
-      if (!I->getType()->isX86_MMXTy())
-        I->replaceAllUsesWith(PoisonValue::get(I->getType()));
+      I->replaceAllUsesWith(PoisonValue::get(I->getType()));
     }
 
   // If we change the return value of the function we must rewrite any return
@@ -1118,7 +1167,8 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
         }
         // Replace the return instruction with one returning the new return
         // value (possibly 0 if we became void).
-        auto *NewRet = ReturnInst::Create(F->getContext(), RetVal, RI);
+        auto *NewRet =
+            ReturnInst::Create(F->getContext(), RetVal, RI->getIterator());
         NewRet->setDebugLoc(RI->getDebugLoc());
         RI->eraseFromParent();
       }
@@ -1130,7 +1180,7 @@ bool DeadArgumentEliminationPass::removeDeadStuffFromFunction(Function *F) {
     NF->addMetadata(KindID, *Node);
 
   if (IsNVPTXKernel(F))
-    UpdateNVPTXMetadata(*(F->getParent()), F, NF);
+    UpdateNVPTXMetadata(*(F->getParent()), F, NF, ArgAlive);
 
   // If either the return value(s) or argument(s) are removed, then probably the
   // function does not follow standard calling conventions anymore. Hence, add
@@ -1208,8 +1258,9 @@ PreservedAnalyses DeadArgumentEliminationPass::run(Module &M,
   return PreservedAnalyses::none();
 }
 
-void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
-                                                      Function *NF) {
+void DeadArgumentEliminationPass::UpdateNVPTXMetadata(
+    Module &M, Function *F, Function *NF,
+    const SmallVectorImpl<bool> &ArgAlive) {
 
   auto *NvvmMetadata = M.getNamedMetadata("nvvm.annotations");
   if (!NvvmMetadata)
@@ -1219,7 +1270,7 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
     const auto &FuncOperand = MetadataNode->getOperand(0);
     if (!FuncOperand)
       continue;
-    auto FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
+    auto *FuncConstant = dyn_cast<ConstantAsMetadata>(FuncOperand);
     if (!FuncConstant)
       continue;
     auto *Func = dyn_cast<Function>(FuncConstant->getValue());
@@ -1227,5 +1278,70 @@ void DeadArgumentEliminationPass::UpdateNVPTXMetadata(Module &M, Function *F,
       continue;
     // Update the metadata with the new function
     MetadataNode->replaceOperandWith(0, llvm::ConstantAsMetadata::get(NF));
+
+    // Carefully update any and all grid_constant annotations, since those are
+    // denoted parameter indices, which may have changed
+    for (unsigned I = 1; I < MetadataNode->getNumOperands() - 1; I += 2) {
+      if (auto *Type = dyn_cast<MDString>(MetadataNode->getOperand(I));
+          Type && Type->getString() == "grid_constant") {
+        LLVMContext &Ctx = NF->getContext();
+        LLVM_DEBUG(dbgs() << "DeadArgumentEliminationPass - updating nvvm "
+                             "grid_constant annotations for fn: "
+                          << NF->getName() << "\n");
+        // The 'value' operand is a list of integers denoting parameter indices
+        const auto *OldGridConstParamIdxs =
+            dyn_cast<MDNode>(MetadataNode->getOperand(I + 1));
+        assert(OldGridConstParamIdxs &&
+               "Unexpected NVVM annotation format: expected MDNode operand");
+        // For each parameter that's identified as a grid_constant, count how
+        // many arguments before that position are dead, and shift the number
+        // down by that amount.
+        // Note that there's no guaranteed order to the parameter indices, so
+        // there's fewer 'smart' things like counting up incrementally as we go.
+        SmallVector<Metadata *, 8> NewGridConstParamOps;
+        for (const auto &Op : OldGridConstParamIdxs->operands()) {
+          auto *ParamIdx = mdconst::dyn_extract<ConstantInt>(Op);
+          // If the operand's not a constant, or its constant value is not
+          // within the range of the old function's parameter list (note - it
+          // counts from 1), it's not well-defined. Just strip it out for
+          // safety.
+          if (!ParamIdx || ParamIdx->isZero() ||
+              ParamIdx->getZExtValue() > F->arg_size())
+            continue;
+
+          size_t OldParamIdx = ParamIdx->getZExtValue() - 1;
+          // If the parameter is no longer alive, it's definitely not a
+          // grid_constant. Strip it out.
+          if (!ArgAlive[OldParamIdx])
+            continue;
+
+          unsigned ShiftDownAmt = 0;
+          for (unsigned i = 0; i < std::min(F->arg_size(), OldParamIdx); i++) {
+            if (!ArgAlive[i])
+              ShiftDownAmt++;
+          }
+          NewGridConstParamOps.push_back(
+              ConstantAsMetadata::get(ConstantInt::get(
+                  Type::getInt32Ty(Ctx), OldParamIdx - ShiftDownAmt + 1)));
+        }
+
+        // Update the metadata with the new grid_constant information
+        MDNode *NewGridConstParamIdxs = MDNode::get(Ctx, NewGridConstParamOps);
+
+        LLVM_DEBUG(dbgs() << "  * updating old annotation {";
+                   auto PrintList =
+                       [](const MDNode *MD) {
+                         for (const auto &O : MD->operands())
+                           if (const auto *ParamNo =
+                                   mdconst::dyn_extract<ConstantInt>(O))
+                             dbgs() << ParamNo->getZExtValue() << ",";
+                       };
+                   PrintList(OldGridConstParamIdxs);
+                   dbgs() << "} to new annotation {";
+                   PrintList(NewGridConstParamIdxs); dbgs() << "}\n";);
+
+        MetadataNode->replaceOperandWith(I + 1, NewGridConstParamIdxs);
+      }
+    }
   }
 }

@@ -25,7 +25,7 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
   if (!m_platform_name.empty()) {
     platform_sp = platforms.Create(m_platform_name);
     if (!platform_sp) {
-      error.SetErrorStringWithFormatv(
+      error = Status::FromErrorStringWithFormatv(
           "unable to find a plug-in for the platform named \"{0}\"",
           m_platform_name);
     }
@@ -33,9 +33,9 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
       if (platform_arch.IsValid() &&
           !platform_sp->IsCompatibleArchitecture(
               arch, {}, ArchSpec::CompatibleMatch, &platform_arch)) {
-        error.SetErrorStringWithFormatv("platform '{0}' doesn't support '{1}'",
-                                        platform_sp->GetPluginName(),
-                                        arch.GetTriple().getTriple());
+        error = Status::FromErrorStringWithFormatv(
+            "platform '{0}' doesn't support '{1}'",
+            platform_sp->GetPluginName(), arch.GetTriple().getTriple());
         platform_sp.reset();
         return platform_sp;
       }
@@ -50,10 +50,10 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
     if (!m_os_version.empty())
       platform_sp->SetOSVersion(m_os_version);
 
-    if (m_sdk_sysroot)
+    if (!m_sdk_sysroot.empty())
       platform_sp->SetSDKRootDirectory(m_sdk_sysroot);
 
-    if (m_sdk_build)
+    if (!m_sdk_build.empty())
       platform_sp->SetSDKBuild(m_sdk_build);
   }
 
@@ -63,8 +63,8 @@ PlatformSP OptionGroupPlatform::CreatePlatformWithOptions(
 void OptionGroupPlatform::OptionParsingStarting(
     ExecutionContext *execution_context) {
   m_platform_name.clear();
-  m_sdk_sysroot.Clear();
-  m_sdk_build.Clear();
+  m_sdk_sysroot.clear();
+  m_sdk_build.clear();
   m_os_version = llvm::VersionTuple();
 }
 
@@ -103,21 +103,21 @@ OptionGroupPlatform::SetOptionValue(uint32_t option_idx,
 
   switch (short_option) {
   case 'p':
-    m_platform_name.assign(std::string(option_arg));
+    m_platform_name.assign(option_arg.str());
     break;
 
   case 'v':
     if (m_os_version.tryParse(option_arg))
-      error.SetErrorStringWithFormatv("invalid version string '{0}'",
-                                      option_arg);
+      error = Status::FromErrorStringWithFormatv("invalid version string '{0}'",
+                                                 option_arg);
     break;
 
   case 'b':
-    m_sdk_build.SetString(option_arg);
+    m_sdk_build.assign(option_arg.str());
     break;
 
   case 'S':
-    m_sdk_sysroot.SetString(option_arg);
+    m_sdk_sysroot.assign(option_arg.str());
     break;
 
   default:
@@ -128,21 +128,21 @@ OptionGroupPlatform::SetOptionValue(uint32_t option_idx,
 
 bool OptionGroupPlatform::PlatformMatches(
     const lldb::PlatformSP &platform_sp) const {
-  if (platform_sp) {
-    if (!m_platform_name.empty()) {
-      if (platform_sp->GetName() != m_platform_name)
-        return false;
-    }
+  if (!platform_sp)
+    return false;
 
-    if (m_sdk_build && m_sdk_build != platform_sp->GetSDKBuild())
-      return false;
+  if (!m_platform_name.empty() && platform_sp->GetName() != m_platform_name)
+    return false;
 
-    if (m_sdk_sysroot && m_sdk_sysroot != platform_sp->GetSDKRootDirectory())
-      return false;
+  if (!m_sdk_build.empty() && platform_sp->GetSDKBuild() != m_sdk_build)
+    return false;
 
-    if (!m_os_version.empty() && m_os_version != platform_sp->GetOSVersion())
-      return false;
-    return true;
-  }
-  return false;
+  if (!m_sdk_sysroot.empty() &&
+      platform_sp->GetSDKRootDirectory() != m_sdk_sysroot)
+    return false;
+
+  if (!m_os_version.empty() && platform_sp->GetOSVersion() != m_os_version)
+    return false;
+
+  return true;
 }

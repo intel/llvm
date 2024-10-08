@@ -11,6 +11,19 @@
 
 include "mlir/Pass/PassBase.td"
 
+def LLVMAddComdats : Pass<"llvm-add-comdats", "::mlir::ModuleOp"> {
+  let summary = "Add comdats to linkonce and linkonce_odr functions";
+  let description = [{
+    Add an any COMDAT to every linkonce and linkonce_odr function.
+    This is necessary on Windows to link these functions as the system
+    linker won't link weak symbols without a COMDAT. It also provides better
+    behavior than standard weak symbols on ELF-based platforms.
+    This pass will still add COMDATs on platforms that do not support them,
+    for example macOS, so should only be run when the target platform supports
+    COMDATs.
+  }];
+}
+
 def LLVMLegalizeForExport : Pass<"llvm-legalize-for-export"> {
   let summary = "Legalize LLVM dialect to be convertible to LLVM IR";
   let constructor = "::mlir::LLVM::createLegalizeForExportPass()";
@@ -35,7 +48,7 @@ def NVVMOptimizeForTarget : Pass<"llvm-optimize-for-nvvm-target"> {
   let constructor = "::mlir::NVVM::createOptimizeForTargetPass()";
 }
 
-def DIScopeForLLVMFuncOp : Pass<"ensure-debug-info-scope-on-llvm-func", "LLVM::LLVMFuncOp"> {
+def DIScopeForLLVMFuncOp : Pass<"ensure-debug-info-scope-on-llvm-func", "::mlir::ModuleOp"> {
   let summary = "Materialize LLVM debug info subprogram attribute on every LLVMFuncOp";
   let description = [{
     Having a debug info subprogram attribute on a function is required for
@@ -48,6 +61,16 @@ def DIScopeForLLVMFuncOp : Pass<"ensure-debug-info-scope-on-llvm-func", "LLVM::L
   }];
 
   let constructor = "mlir::LLVM::createDIScopeForLLVMFuncOpPass()";
+  let options = [
+    Option<"emissionKind", "emission-kind", "mlir::LLVM::DIEmissionKind",
+    /*default=*/"mlir::LLVM::DIEmissionKind::LineTablesOnly", "Emission kind to generate debug info.",
+    [{::llvm::cl::values(
+	     clEnumValN(::mlir::LLVM::DIEmissionKind::None, "None", "None"),
+	     clEnumValN(::mlir::LLVM::DIEmissionKind::Full, "Full", "Full"),
+	     clEnumValN(::mlir::LLVM::DIEmissionKind::LineTablesOnly, "LineTablesOnly", "LineTablesOnly (default)"),
+	     clEnumValN(::mlir::LLVM::DIEmissionKind::DebugDirectivesOnly, "DebugDirectivesOnly", "DebugDirectivesOnly")
+	   )}]>,
+  ];
 }
 
 #endif // MLIR_DIALECT_LLVMIR_TRANSFORMS_PASSES

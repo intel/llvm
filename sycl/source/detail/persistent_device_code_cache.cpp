@@ -6,12 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <cerrno>
 #include <cstdio>
+#include <fstream>
 #include <optional>
 
 #if defined(__SYCL_RT_OS_POSIX_SUPPORT)
@@ -22,7 +24,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 /* Lock file suffix */
@@ -37,7 +39,10 @@ LockCacheItem::LockCacheItem(const std::string &Path)
     close(fd);
     Owned = true;
   } else {
-    PersistentDeviceCodeCache::trace("Failed to aquire lock file: " + FileName);
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
+    PersistentDeviceCodeCache::trace("Failed to acquire lock file: " +
+                                     FileName + " " + std::strerror(errno));
   }
 }
 
@@ -49,16 +54,24 @@ LockCacheItem::~LockCacheItem() {
 
 // Returns true if the specified format is either SPIRV or a native binary.
 static bool
-IsSupportedImageFormat(sycl::detail::pi::PiDeviceBinaryType Format) {
-  return Format == PI_DEVICE_BINARY_TYPE_SPIRV ||
-         Format == PI_DEVICE_BINARY_TYPE_NATIVE;
+IsSupportedImageFormat(ur::DeviceBinaryType Format) {
+  return Format == SYCL_DEVICE_BINARY_TYPE_SPIRV ||
+         Format == SYCL_DEVICE_BINARY_TYPE_NATIVE;
 }
 
-/* Returns true if specified image should be cached on disk. It checks if
- * cache is enabled, image has supported format and matches thresholds. */
-bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
+/* Returns true if specified images should be cached on disk. It checks if
+ * cache is enabled, images have supported format and match thresholds. */
+bool PersistentDeviceCodeCache::areImagesCacheable(
+    const std::vector<const RTDeviceBinaryImage *> &Imgs) {
+  assert(!Imgs.empty());
+  auto Format = Imgs[0]->getFormat();
+  assert(std::all_of(Imgs.begin(), Imgs.end(),
+                     [&Format](const RTDeviceBinaryImage *Img) {
+                       return Img->getFormat() == Format;
+                     }) &&
+         "All images are expected to have the same format");
   // Cache should be enabled and image type is one of the supported formats.
-  if (!isEnabled() || !IsSupportedImageFormat(Img.getFormat()))
+  if (!isEnabled() || !IsSupportedImageFormat(Format))
     return false;
 
   // Disable cache for ITT-profiled images.
@@ -74,46 +87,57 @@ bool PersistentDeviceCodeCache::isImageCached(const RTDeviceBinaryImage &Img) {
 
   // Make sure that image size is between caching thresholds if they are set.
   // Zero values for threshold is treated as disabled threshold.
-  if ((MaxImgSize && (Img.getSize() > MaxImgSize)) ||
-      (MinImgSize && (Img.getSize() < MinImgSize)))
+  size_t TotalSize = 0;
+  for (const RTDeviceBinaryImage *Img : Imgs)
+    TotalSize += Img->getSize();
+  if ((MaxImgSize && (TotalSize > MaxImgSize)) ||
+      (MinImgSize && (TotalSize < MinImgSize)))
     return false;
 
   return true;
 }
 
-/* Stores built program in persisten cache
+static std::vector<const RTDeviceBinaryImage *>
+getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
+  std::vector<const RTDeviceBinaryImage *> SortedImgs = Imgs;
+  std::sort(SortedImgs.begin(), SortedImgs.end(),
+            [](const RTDeviceBinaryImage *A, const RTDeviceBinaryImage *B) {
+              // All entry names are unique among these images, so comparing the
+              // first ones is enough.
+              return std::strcmp(A->getRawData().EntriesBegin->name,
+                                 B->getRawData().EntriesBegin->name) < 0;
+            });
+  return SortedImgs;
+}
+
+/* Stores built program in persistent cache
  */
 void PersistentDeviceCodeCache::putItemToDisc(
-    const device &Device, const RTDeviceBinaryImage &Img,
+    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const sycl::detail::pi::PiProgram &NativePrg) {
+    const ur_program_handle_t &NativePrg) {
 
-  if (!isImageCached(Img))
+  if (!areImagesCacheable(Imgs))
     return;
 
+  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   std::string DirName =
-      getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
+      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
 
   if (DirName.empty())
     return;
 
-  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
-
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin"));
+  auto Adapter = detail::getSyclObjImpl(Device)->getAdapter();
 
   unsigned int DeviceNum = 0;
 
-  Plugin->call<PiApiKind::piProgramGetInfo>(
-      NativePrg, PI_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
 
   std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin->call<PiApiKind::piProgramGetInfo>(
-      NativePrg, PI_PROGRAM_INFO_BINARY_SIZES,
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
       sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
 
   std::vector<std::vector<char>> Result;
@@ -123,9 +147,15 @@ void PersistentDeviceCodeCache::putItemToDisc(
     Pointers.push_back(Result[I].data());
   }
 
-  Plugin->call<PiApiKind::piProgramGetInfo>(NativePrg, PI_PROGRAM_INFO_BINARIES,
-                                            sizeof(char *) * Pointers.size(),
-                                            Pointers.data(), nullptr);
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
+      Pointers.data(), nullptr);
+  size_t i = 0;
+  std::string FileName;
+  do {
+    FileName = DirName + "/" + std::to_string(i++);
+  } while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".lock"));
 
   try {
     OSUtil::makeDir(DirName.c_str());
@@ -134,11 +164,19 @@ void PersistentDeviceCodeCache::putItemToDisc(
       std::string FullFileName = FileName + ".bin";
       writeBinaryDataToFile(FullFileName, Result);
       trace("device binary has been cached: " + FullFileName);
-      writeSourceItem(FileName + ".src", Device, Img, SpecConsts,
+      writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
                       BuildOptionsString);
+    } else {
+      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
     }
+  } catch (std::exception &e) {
+    PersistentDeviceCodeCache::trace(
+        std::string("exception encountered making persistent cache: ") +
+        e.what());
   } catch (...) {
-    // If a problem happens on storing cache item, do nothing
+    PersistentDeviceCodeCache::trace(
+        std::string("error outputting persistent cache: ") +
+        std::strerror(errno));
   }
 }
 
@@ -147,14 +185,15 @@ void PersistentDeviceCodeCache::putItemToDisc(
  * stored in vector of chars.
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
-    const device &Device, const RTDeviceBinaryImage &Img,
+    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
 
-  if (!isImageCached(Img))
+  if (!areImagesCacheable(Imgs))
     return {};
 
+  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
   std::string Path =
-      getCacheItemPath(Device, Img, SpecConsts, BuildOptionsString);
+      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
 
   if (Path.empty() || !OSUtil::isPathPresent(Path))
     return {};
@@ -166,7 +205,7 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
          OSUtil::isPathPresent(FileName + ".src")) {
 
     if (!LockCacheItem::isLocked(FileName) &&
-        isCacheItemSrcEqual(FileName + ".src", Device, Img, SpecConsts,
+        isCacheItemSrcEqual(FileName + ".src", Device, SortedImgs, SpecConsts,
                             BuildOptionsString)) {
       try {
         std::string FullFileName = FileName + ".bin";
@@ -243,12 +282,12 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
 
 /* Writing cache item key sources to be used for reliable identification
  * Format: Four pairs of [size, value] for device, build options, specialization
- * constant values, device code SPIR-V image.
+ * constant values, device code SPIR-V images.
  */
 void PersistentDeviceCodeCache::writeSourceItem(
     const std::string &FileName, const device &Device,
-    const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
-    const std::string &BuildOptionsString) {
+    const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::ofstream FileStream{FileName, std::ios::binary};
 
   std::string DeviceString{getDeviceIDString(Device)};
@@ -264,9 +303,13 @@ void PersistentDeviceCodeCache::writeSourceItem(
   FileStream.write((char *)&Size, sizeof(Size));
   FileStream.write((const char *)SpecConsts.data(), Size);
 
-  Size = Img.getSize();
+  Size = 0;
+  for (const RTDeviceBinaryImage *Img : SortedImgs)
+    Size += Img->getSize();
   FileStream.write((char *)&Size, sizeof(Size));
-  FileStream.write((const char *)Img.getRawData().BinaryStart, Size);
+  for (const RTDeviceBinaryImage *Img : SortedImgs)
+    FileStream.write((const char *)Img->getRawData().BinaryStart,
+                     Img->getSize());
   FileStream.close();
 
   if (FileStream.fail()) {
@@ -279,12 +322,14 @@ void PersistentDeviceCodeCache::writeSourceItem(
  */
 bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
     const std::string &FileName, const device &Device,
-    const RTDeviceBinaryImage &Img, const SerializedObj &SpecConsts,
-    const std::string &BuildOptionsString) {
+    const std::vector<const RTDeviceBinaryImage *> &SortedImgs,
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::ifstream FileStream{FileName, std::ios::binary};
 
-  std::string ImgString{(const char *)Img.getRawData().BinaryStart,
-                        Img.getSize()};
+  std::string ImgsString;
+  for (const RTDeviceBinaryImage *Img : SortedImgs)
+    ImgsString.append((const char *)Img->getRawData().BinaryStart,
+                      Img->getSize());
   std::string SpecConstsString{(const char *)SpecConsts.data(),
                                SpecConsts.size()};
 
@@ -310,7 +355,7 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
   FileStream.read((char *)&Size, sizeof(Size));
   res.resize(Size);
   FileStream.read(&res[0], Size);
-  if (ImgString.compare(res))
+  if (ImgsString.compare(res))
     return false;
 
   FileStream.close();
@@ -322,11 +367,11 @@ bool PersistentDeviceCodeCache::isCacheItemSrcEqual(
   return true;
 }
 
-/* Returns directory name to store specific kernel image for specified
+/* Returns directory name to store specific kernel images for specified
  * device, build options and specialization constants values.
  */
 std::string PersistentDeviceCodeCache::getCacheItemPath(
-    const device &Device, const RTDeviceBinaryImage &Img,
+    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
   std::string cache_root{getRootDir()};
   if (cache_root.empty()) {
@@ -334,9 +379,11 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
     return {};
   }
 
-  std::string ImgString = "";
-  if (Img.getRawData().BinaryStart)
-    ImgString.assign((const char *)Img.getRawData().BinaryStart, Img.getSize());
+  std::string ImgsString;
+  for (const RTDeviceBinaryImage *Img : Imgs)
+    if (Img->getRawData().BinaryStart)
+      ImgsString.append((const char *)Img->getRawData().BinaryStart,
+                        Img->getSize());
 
   std::string DeviceString{getDeviceIDString(Device)};
   std::string SpecConstsString{(const char *)SpecConsts.data(),
@@ -344,7 +391,7 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
   std::hash<std::string> StringHasher{};
 
   return cache_root + "/" + std::to_string(StringHasher(DeviceString)) + "/" +
-         std::to_string(StringHasher(ImgString)) + "/" +
+         std::to_string(StringHasher(ImgsString)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
          std::to_string(StringHasher(BuildOptionsString));
 }
@@ -368,5 +415,5 @@ std::string PersistentDeviceCodeCache::getRootDir() {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

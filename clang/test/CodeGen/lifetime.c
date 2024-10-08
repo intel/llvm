@@ -1,7 +1,7 @@
-// RUN: %clang -cc1 -opaque-pointers -S -emit-llvm -o - -O0 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK
-// RUN: %clang -cc1 -opaque-pointers -S -emit-llvm -o - -O1 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
-// RUN: %clang -cc1 -opaque-pointers -S -emit-llvm -o - -O2 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
-// RUN: %clang -cc1 -opaque-pointers -S -emit-llvm -o - -O3 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -cc1 -emit-llvm -o - -O0 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK
+// RUN: %clang -cc1 -emit-llvm -o - -O1 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -cc1 -emit-llvm -o - -O2 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
+// RUN: %clang -cc1 -emit-llvm -o - -O3 %s | FileCheck %s --implicit-check-not="call void @llvm.lifetime" -check-prefixes=CHECK,LIFETIME
 
 extern void use(char *a);
 

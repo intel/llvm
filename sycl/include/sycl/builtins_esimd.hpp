@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/boolean.hpp>
-#include <sycl/detail/builtins.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/ext/intel/esimd/detail/math_intrin.hpp>
@@ -19,7 +17,7 @@
 #define __NOEXC /*noexcept*/
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // cos
 template <int SZ>
@@ -65,7 +63,7 @@ log(__ESIMD_NS::simd<float, SZ> x) __NOEXC {
 #endif // __SYCL_DEVICE_ONLY__
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #undef __NOEXC

@@ -59,7 +59,7 @@ int main() {
   });
   Queue.wait();
 
-  auto Acc = Buf.template get_access<sycl::access::mode::read_write>();
+  auto Acc = Buf.get_host_access();
   assert(Acc[0] == 42 && "Value mismatch");
 
   /*Check FPGA-related device parameters*/
@@ -99,8 +99,8 @@ int main() {
       auto *in_ptr = sycl::malloc_host<int>(1, Queue.get_context());
       Queue.submit([&](sycl::handler &cgh) {
         cgh.single_task<class HostAnnotation>([=]() {
-          sycl::host_ptr<const int> input_ptr(in_ptr);
-          sycl::host_ptr<int> output_ptr(out_ptr);
+          sycl::ext::intel::host_ptr<const int> input_ptr(in_ptr);
+          sycl::ext::intel::host_ptr<int> output_ptr(out_ptr);
           intelfpga::lsu_body<
               int, sycl::access::address_space::ext_intel_global_host_space>(
               input_ptr, output_ptr);

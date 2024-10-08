@@ -5,11 +5,11 @@
 
 #ifdef XPTI_COLLECTOR
 
-#include "../Inputs/buffer_info_collector.cpp"
+#include "../Inputs/memory_info_collector.cpp"
 
 #else
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   bool MismatchFound = false;

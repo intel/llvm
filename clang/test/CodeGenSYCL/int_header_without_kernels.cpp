@@ -10,9 +10,9 @@
 using namespace sycl::ext::oneapi;
 
 // CHECK-HEADER: namespace sycl {
-// CHECK-HEADER-NEXT: __SYCL_INLINE_VER_NAMESPACE(_V1) {
+// CHECK-HEADER-NEXT: inline namespace _V1 {
 // CHECK-HEADER-NEXT: namespace detail {
-// CHECK-HEADER-NEXT: namespace {
+// CHECK-HEADER: namespace {
 // CHECK-HEADER-NEXT: class __sycl_device_global_registration {
 // CHECK-HEADER-NEXT: public:
 // CHECK-HEADER-NEXT:   __sycl_device_global_registration() noexcept;
@@ -20,14 +20,14 @@ using namespace sycl::ext::oneapi;
 // CHECK-HEADER-NEXT: __sycl_device_global_registration __sycl_device_global_registrar;
 // CHECK-HEADER-NEXT: } // namespace
 // CHECK-HEADER: } // namespace detail
-// CHECK-HEADER: } // __SYCL_INLINE_VER_NAMESPACE(_V1)
+// CHECK-HEADER: } // namespace _V1
 // CHECK-HEADER: } // namespace sycl
 
 // CHECK-FOOTER: #include <sycl/detail/defines_elementary.hpp>
 
 // CHECK-FOOTER: #include <sycl/detail/device_global_map.hpp>
 // CHECK-FOOTER: namespace sycl::detail {
-// CHECK-FOOTER-NEXT: namespace {
+// CHECK-FOOTER: namespace {
 // CHECK-FOOTER-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
 
 device_global<int> Basic;
@@ -35,4 +35,4 @@ device_global<int> Basic;
 
 // CHECK-FOOTER-NEXT: }
 // CHECK-FOOTER-NEXT: }
-// CHECK-FOOTER-NEXT: }
+// CHECK-FOOTER: }

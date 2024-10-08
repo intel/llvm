@@ -1,7 +1,8 @@
 // REQUIRES: gpu
 // REQUIRES: level_zero || opencl
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// ZES_SYSMAN_ENABLE should be set to query free_memory.
+// RUN: env ZES_SYSMAN_ENABLE=1 %{run} %t.out
 //
 //==--------- intel-ext-device.cpp - SYCL device test ------------==//
 //
@@ -14,21 +15,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <iostream>
 
 using namespace sycl;
 
-#ifdef _WIN32
-#define setenv(name, value, overwrite) _putenv_s(name, value)
-#endif
-
 int main(int argc, char **argv) {
-  // Must be enabled at the beginning of the application
-  // to obtain the PCI address
-  setenv("SYCL_ENABLE_PCI", "1", 0);
 
   int pltCount = 1;
   for (const auto &plt : platform::get_platforms()) {
@@ -47,8 +41,6 @@ int main(int argc, char **argv) {
       std::cout << "Backend: ";
       if (plt.get_backend() == backend::ext_oneapi_level_zero) {
         std::cout << "Level Zero" << std::endl;
-        // It's required to set the env variable to query free-memory.
-        setenv("ZES_ENABLE_SYSMAN", "1", 0);
       } else if (plt.get_backend() == backend::opencl) {
         std::cout << "OpenCL" << std::endl;
       } else if (plt.get_backend() == backend::ext_oneapi_cuda) {
@@ -113,6 +105,7 @@ int main(int argc, char **argv) {
           auto TotalMemory = dev.get_info<info::device::global_mem_size>();
           auto FreeMemory =
               dev.get_info<ext::intel::info::device::free_memory>();
+          std::cout << "FreeMemory = " << FreeMemory << std::endl;
           assert((TotalMemory >= FreeMemory) &&
                  "Expect total_memory >= free_memory");
         }

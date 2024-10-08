@@ -6,16 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
+// TODO(#15184): Delete this file in the next ABI-breaking window.
+
 #pragma once
 
-#include <sycl/queue.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/event.hpp>         // for event
+#include <sycl/property_list.hpp> // for property_list
+#include <sycl/queue.hpp>         // for queue
+
+#include <memory> // for shared_ptr
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-
-namespace detail {
-class fusion_wrapper_impl;
-}
+inline namespace _V1 {
 
 namespace ext::codeplay::experimental {
 
@@ -87,8 +90,8 @@ public:
   event complete_fusion(const property_list &propList = {});
 
 private:
-  std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
+  std::shared_ptr<detail::queue_impl> MQueue;
 };
 } // namespace ext::codeplay::experimental
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

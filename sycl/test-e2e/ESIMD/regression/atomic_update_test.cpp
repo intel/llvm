@@ -7,17 +7,11 @@
 //===----------------------------------------------------------------------===//
 // This test checks regression in lsc_atomic_update
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// TODO add support for atomic_load and atomic_store on esimd_emulator
-// XFAIL: esimd_emulator
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
-
-#include <CL/sycl.hpp>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
 
 int main() {
   sycl::queue q{};

@@ -12,7 +12,6 @@
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/stl.hpp>
 
 #include <cctype>
 #include <regex>
@@ -20,7 +19,7 @@
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::detail {
 
 std::vector<std::string> tokenize(const std::string &Filter,
@@ -57,7 +56,7 @@ filter create_filter(const std::string &Input) {
   // There should only be up to 3 tokens.
   // BE:Device Type:Device Num
   if (Tokens.size() > 3)
-    throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid), Error);
 
   for (const std::string &Token : Tokens) {
     if (Token == "cpu" && !Result.DeviceType) {
@@ -74,16 +73,14 @@ filter create_filter(const std::string &Input) {
       Result.Backend = backend::ext_oneapi_cuda;
     } else if (Token == "hip" && !Result.Backend) {
       Result.Backend = backend::ext_oneapi_hip;
-    } else if (Token == "esimd_emulator" && !Result.Backend) {
-      Result.Backend = backend::ext_intel_esimd_emulator;
     } else if (std::regex_match(Token, IntegerExpr) && !Result.DeviceNum) {
       try {
         Result.DeviceNum = std::stoi(Token);
       } catch (std::logic_error &) {
-        throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+        throw exception(make_error_code(errc::invalid), Error);
       }
     } else {
-      throw sycl::runtime_error(Error, PI_ERROR_INVALID_VALUE);
+      throw exception(make_error_code(errc::invalid), Error);
     }
   }
 
@@ -91,7 +88,7 @@ filter create_filter(const std::string &Input) {
 }
 
 filter_selector_impl::filter_selector_impl(const std::string &Input)
-    : mFilters(), mRanker(), mNumDevicesSeen(0), mMatchFound(false) {
+    : mFilters(), mNumDevicesSeen(0), mMatchFound(false) {
   std::vector<std::string> Filters = detail::tokenize(Input, ",");
   mNumTotalDevices = device::get_devices().size();
 
@@ -102,9 +99,6 @@ filter_selector_impl::filter_selector_impl(const std::string &Input)
 }
 
 int filter_selector_impl::operator()(const device &Dev) const {
-  assert(!sycl::detail::getSyclObjImpl(Dev)->is_host() &&
-         "filter_selector_impl should not be used with host.");
-
   int Score = REJECT_DEVICE_SCORE;
 
   for (auto &Filter : mFilters) {
@@ -139,7 +133,7 @@ int filter_selector_impl::operator()(const device &Dev) const {
       }
     }
     if (BackendOK && DeviceTypeOK && DeviceNumOK) {
-      Score = mRanker(Dev);
+      Score = default_selector_v(Dev);
       mMatchFound = true;
       break;
     }
@@ -147,9 +141,9 @@ int filter_selector_impl::operator()(const device &Dev) const {
 
   mNumDevicesSeen++;
   if ((mNumDevicesSeen == mNumTotalDevices) && !mMatchFound) {
-    throw sycl::runtime_error(
-        "Could not find a device that matches the specified filter(s)!",
-        PI_ERROR_DEVICE_NOT_FOUND);
+    throw exception(
+        make_error_code(errc::runtime),
+        "Could not find a device that matches the specified filter(s)!");
   }
 
   return Score;
@@ -170,5 +164,5 @@ void filter_selector_impl::reset() const {
 namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 }
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

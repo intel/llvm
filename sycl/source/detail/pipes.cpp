@@ -6,12 +6,13 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/event_impl.hpp>
 #include <detail/host_pipe_map_entry.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext {
 namespace intel {
 namespace experimental {
@@ -22,8 +23,16 @@ __SYCL_EXPORT std::string pipe_base::get_pipe_name(const void *HostPipePtr) {
       ->MUniqueId;
 }
 
+__SYCL_EXPORT bool pipe_base::wait_non_blocking(const event &E) {
+  bool Success = false;
+  std::shared_ptr<sycl::detail::event_impl> EImpl =
+      sycl::detail::getSyclObjImpl(E);
+  EImpl->wait(EImpl, &Success);
+  return Success;
+}
+
 } // namespace experimental
 } // namespace intel
 } // namespace ext
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

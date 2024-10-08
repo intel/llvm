@@ -8,15 +8,15 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <map>
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 using DeviceDescT = std::map<std::string, std::string>;
@@ -27,10 +27,9 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw);
 bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed);
 
-void applyAllowList(std::vector<sycl::detail::pi::PiDevice> &PiDevices,
-                    sycl::detail::pi::PiPlatform PiPlatform,
-                    const PluginPtr &Plugin);
+void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
+                    ur_platform_handle_t UrPlatform, const AdapterPtr &Adapter);
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -20,24 +20,22 @@ entry:
 }
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.start.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: argmemonly nounwind willreturn
-declare void @llvm.lifetime.end.p0i8(i64 immarg, i8* nocapture) #1
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
 
 ; Function Attrs: inlinehint norecurse nounwind
 define linkonce_odr dso_local spir_func i32 @_Z10BitReversei(i32 %value) #3 comdat {
 entry:
   %value.addr = alloca i32, align 4
   %reversed = alloca i32, align 4
-  store i32 %value, i32* %value.addr, align 4, !tbaa !9
-  %0 = bitcast i32* %reversed to i8*
-  call void @llvm.lifetime.start.p0i8(i64 4, i8* %0) #4
-  store i32 0, i32* %reversed, align 4, !tbaa !9
-  %1 = load i32, i32* %reversed, align 4, !tbaa !9
-  %2 = bitcast i32* %reversed to i8*
-  call void @llvm.lifetime.end.p0i8(i64 4, i8* %2) #4
-  ret i32 %1
+  store i32 %value, ptr %value.addr, align 4, !tbaa !9
+  call void @llvm.lifetime.start.p0(i64 4, ptr %reversed) #4
+  store i32 0, ptr %reversed, align 4, !tbaa !9
+  %0 = load i32, ptr %reversed, align 4, !tbaa !9
+  call void @llvm.lifetime.end.p0(i64 4, ptr %reversed) #4
+  ret i32 %0
 }
 
 attributes #0 = { norecurse "correctly-rounded-divide-sqrt-fp-math"="false" "disable-tail-calls"="false" "frame-pointer"="all" "less-precise-fpmad"="false" "min-legal-vector-width"="0" "no-infs-fp-math"="false" "no-jump-tables"="false" "no-nans-fp-math"="false" "no-signed-zeros-fp-math"="false" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="Test.cpp" "uniform-work-group-size"="true" "unsafe-fp-math"="false" "use-soft-float"="false" }

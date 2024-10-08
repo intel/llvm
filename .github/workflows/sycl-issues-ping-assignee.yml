@@ -1,0 +1,68 @@
+name: Ping issue assignees
+# We have some specific pool of the issues we would like to handle. Sometimes
+# the issue from this pool has an assignee, but doesn't get any updates for a
+# long time. In this case it'd be useful to periodically ping the assignee.
+
+# Note: may be we could use "actions/stale@v*", but I'm not sure if it's
+# possible to not set the "stale" label at all. Even so, this action will not
+# ping the assignee of the "stale" issue more than onсe.
+
+# Note2: probably it'd be useful to have a small doc describing this "specific
+# pool" to refer to.
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions: read-all
+
+jobs:
+  run:
+    permissions:
+      issues: write 
+    runs-on: ubuntu-20.04 
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO: ${{ github.repository }}
+    steps:
+    # List specific issues with an assignee but without recent updates.
+    # Note: for some reason gh returns 0 results if the "assignee:*" filter is
+    # added, so we have to manually filter the results.
+    - name: Get the specicifc list of issues
+      run: |
+          gh issue list --search '-label:"help wanted" -label:cuda \
+          -label:confirmed -label:hip -label:sycl-mlir -label:upstream is:open \
+          -label:genx -label:sycl-bindless-images -label:sycl-graph \
+          -label:native-cpu' --limit 200 --json assignees --json number \
+          --json updatedAt \
+          -R https://github.com/${{ env.REPO }}.git > issues.json
+
+    - name: Filter issues and ping
+      run: |
+          days_to_stale=60
+          current_time=$(date +%s)
+
+          cat issues.json | jq -c '.[]' | while read -r issue; do
+            assignees=$(echo "$issue" | jq '.assignees | length')
+            [ "$assignees" -eq 0 ] && continue
+
+            updated_at=$(echo "$issue" | jq -r '.updatedAt')
+            updated_at_seconds=$(date -d "$updated_at" +%s)
+            difference_days=$(( (current_time - updated_at_seconds) / 86400 ))
+            [ "$difference_days" -lt $days_to_stale ] && continue
+
+            issue_number=$(echo "$issue" | jq '.number')
+            assignee_logins=$(echo "$issue" | jq -r '.assignees[].login' | sed 's/^/@/' | paste -s -d ' ' -)
+            comment_body="Hi! There have been no updates for at least the last $days_to_stale days, though the issue has assignee(s).
+
+          $assignee_logins, could you please take one of the following actions:
+          - provide an update if you have any
+          - unassign yourself if you're not looking / going to look into this issue
+          - mark this issue with the 'confirmed' label if you have confirmed the problem/request and our team should work on it
+          - close the issue if it has been resolved
+          - take any other suitable action.
+
+          Thanks!"
+
+            gh issue comment $issue_number -R https://github.com/${{ env.REPO }}.git -b "$comment_body" >> $GITHUB_STEP_SUMMARY
+          done

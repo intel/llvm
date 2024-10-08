@@ -92,10 +92,13 @@ public:
   bool isTypeInt(unsigned Bits = 0) const;
   bool isTypeOpaque() const;
   bool isTypePointer() const;
+  bool isTypeUntypedPointerKHR() const;
   bool isTypeSampler() const;
+  bool isTypeSampledImage() const;
   bool isTypeStruct() const;
   bool isTypeVector() const;
   bool isTypeJointMatrixINTEL() const;
+  bool isTypeCooperativeMatrixKHR() const;
   bool isTypeVectorInt() const;
   bool isTypeVectorFloat() const;
   bool isTypeVectorBool() const;
@@ -105,6 +108,7 @@ public:
   bool isTypeVectorPointer() const;
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
+  bool isTypeTaskSequenceINTEL() const;
 };
 
 class SPIRVTypeVoid : public SPIRVType {
@@ -230,25 +234,47 @@ private:
   unsigned BitWidth; // Bit width
 };
 
-class SPIRVTypePointer : public SPIRVType {
+template <Op TheOpCode = OpTypePointer, SPIRVWord WC = 3>
+class SPIRVTypePointerBase : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypePointerBase(SPIRVModule *M, SPIRVId TheId,
+                       SPIRVStorageClassKind TheStorageClass)
+      : SPIRVType(M, WC, TheOpCode, TheId), ElemStorageClass(TheStorageClass) {
+    validate();
+  }
+  // Incomplete constructor
+  SPIRVTypePointerBase()
+      : SPIRVType(TheOpCode), ElemStorageClass(StorageClassFunction) {}
+
+  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
+
+protected:
+  _SPIRV_DEF_ENCDEC2(Id, ElemStorageClass)
+  void validate() const override {
+    SPIRVEntry::validate();
+    assert(isValid(ElemStorageClass));
+  }
+
+  SPIRVStorageClassKind ElemStorageClass; // Storage Class
+};
+
+class SPIRVTypePointer : public SPIRVTypePointerBase<OpTypePointer, 4> {
 public:
   // Complete constructor
   SPIRVTypePointer(SPIRVModule *M, SPIRVId TheId,
                    SPIRVStorageClassKind TheStorageClass,
                    SPIRVType *ElementType)
-      : SPIRVType(M, 4, OpTypePointer, TheId),
-        ElemStorageClass(TheStorageClass), ElemTypeId(ElementType->getId()) {
+      : SPIRVTypePointerBase(M, TheId, TheStorageClass),
+        ElemTypeId(ElementType->getId()) {
     validate();
   }
   // Incomplete constructor
-  SPIRVTypePointer()
-      : SPIRVType(OpTypePointer), ElemStorageClass(StorageClassFunction),
-        ElemTypeId(0) {}
+  SPIRVTypePointer() : SPIRVTypePointerBase(), ElemTypeId(0) {}
 
   SPIRVType *getElementType() const {
     return static_cast<SPIRVType *>(getEntry(ElemTypeId));
   }
-  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
   SPIRVCapVec getRequiredCapability() const override {
     auto Cap = getVec(CapabilityAddresses);
     if (getElementType()->isTypeFloat(16))
@@ -263,14 +289,33 @@ public:
 
 protected:
   _SPIRV_DEF_ENCDEC3(Id, ElemStorageClass, ElemTypeId)
-  void validate() const override {
-    SPIRVEntry::validate();
-    assert(isValid(ElemStorageClass));
+private:
+  SPIRVId ElemTypeId;
+};
+
+class SPIRVTypeUntypedPointerKHR
+    : public SPIRVTypePointerBase<OpTypeUntypedPointerKHR, 3> {
+public:
+  // Complete constructor
+  SPIRVTypeUntypedPointerKHR(SPIRVModule *M, SPIRVId TheId,
+                             SPIRVStorageClassKind TheStorageClass)
+      : SPIRVTypePointerBase(M, TheId, TheStorageClass) {
+    validate();
+  }
+  // Incomplete constructor
+  SPIRVTypeUntypedPointerKHR() : SPIRVTypePointerBase() {}
+
+  SPIRVStorageClassKind getStorageClass() const { return ElemStorageClass; }
+  SPIRVCapVec getRequiredCapability() const override {
+    auto Cap = getVec(CapabilityUntypedPointersKHR, CapabilityAddresses);
+    auto C = getCapability(ElemStorageClass);
+    Cap.insert(Cap.end(), C.begin(), C.end());
+    return Cap;
   }
 
-private:
-  SPIRVStorageClassKind ElemStorageClass; // Storage Class
-  SPIRVId ElemTypeId;
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_untyped_pointers;
+  }
 };
 
 class SPIRVTypeForwardPointer : public SPIRVEntryNoId<OpTypeForwardPointer> {
@@ -388,13 +433,13 @@ class SPIRVTypeArray : public SPIRVType {
 public:
   // Complete constructor
   SPIRVTypeArray(SPIRVModule *M, SPIRVId TheId, SPIRVType *TheElemType,
-                 SPIRVConstant *TheLength);
+                 SPIRVValue *TheLength);
   // Incomplete constructor
   SPIRVTypeArray()
       : SPIRVType(OpTypeArray), ElemType(nullptr), Length(SPIRVID_INVALID) {}
 
   SPIRVType *getElementType() const { return ElemType; }
-  SPIRVConstant *getLength() const;
+  SPIRVValue *getLength() const;
   SPIRVCapVec getRequiredCapability() const override {
     return getElementType()->getRequiredCapability();
   }
@@ -1113,6 +1158,64 @@ public:
       return Args.size() > 5 ? Args[5] : nullptr;
     return Args.size() > 4 ? Args[4] : nullptr;
   }
+
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    return std::vector<SPIRVEntry *>(1, CompType);
+  }
+};
+
+class SPIRVTypeCooperativeMatrixKHR : public SPIRVType {
+  SPIRVType *CompType;
+  std::vector<SPIRVValue *> Args;
+
+protected:
+  void validate() const override;
+
+public:
+  const static Op OC = OpTypeCooperativeMatrixKHR;
+  const static SPIRVWord FixedWC = 7;
+  // Incomplete constructor
+  SPIRVTypeCooperativeMatrixKHR(SPIRVModule *M, SPIRVId TheId,
+                                SPIRVType *CompType,
+                                std::vector<SPIRVValue *> Args);
+  // Incomplete constructor
+  SPIRVTypeCooperativeMatrixKHR();
+  _SPIRV_DCL_ENCDEC
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_KHR_cooperative_matrix;
+  }
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(CapabilityCooperativeMatrixKHR);
+  }
+
+  SPIRVType *getCompType() const { return CompType; }
+  SPIRVValue *getScope() const { return Args[0]; }
+  SPIRVValue *getRows() const { return Args[1]; }
+  SPIRVValue *getColumns() const { return Args[2]; }
+  SPIRVValue *getUse() const { return Args[3]; }
+
+  std::vector<SPIRVEntry *> getNonLiteralOperands() const override {
+    return std::vector<SPIRVEntry *>(1, CompType);
+  }
+};
+
+class SPIRVTypeTaskSequenceINTEL : public SPIRVType {
+public:
+  // Complete constructor
+  SPIRVTypeTaskSequenceINTEL(SPIRVModule *M, SPIRVId TheId)
+      : SPIRVType(M, 2, internal::OpTypeTaskSequenceINTEL, TheId) {}
+  // Incomplete constructor
+  SPIRVTypeTaskSequenceINTEL() : SPIRVType(internal::OpTypeTaskSequenceINTEL) {}
+  // _SPIRV_DCL_ENCDEC
+  SPIRVCapVec getRequiredCapability() const override {
+    return getVec(internal::CapabilityTaskSequenceINTEL);
+  }
+  std::optional<ExtensionID> getRequiredExtension() const override {
+    return ExtensionID::SPV_INTEL_task_sequence;
+  }
+
+protected:
+  _SPIRV_DEF_ENCDEC1(Id)
 };
 
 } // namespace SPIRV

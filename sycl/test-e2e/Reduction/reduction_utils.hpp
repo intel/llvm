@@ -1,6 +1,11 @@
+#include <cmath>
 #include <iostream>
 #include <optional>
-#include <sycl/sycl.hpp>
+
+#include <sycl/detail/core.hpp>
+
+#include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 

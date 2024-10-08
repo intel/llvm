@@ -11,13 +11,13 @@
 
 #include <time.h>
 
+#include "src/__support/macros/config.h"
 #include "test/UnitTest/Test.h"
 
-namespace __llvm_libc {
-namespace tmmatcher {
+namespace LIBC_NAMESPACE_DECL {
 namespace testing {
 
-class StructTmMatcher : public __llvm_libc::testing::Matcher<::tm> {
+class StructTmMatcher : public Matcher<::tm> {
   ::tm expected;
   ::tm actual;
 
@@ -38,17 +38,17 @@ public:
   }
 
   void describeValue(const char *label, ::tm value) {
-    __llvm_libc::testing::tlog << label;
-    __llvm_libc::testing::tlog << " sec: " << value.tm_sec;
-    __llvm_libc::testing::tlog << " min: " << value.tm_min;
-    __llvm_libc::testing::tlog << " hour: " << value.tm_hour;
-    __llvm_libc::testing::tlog << " mday: " << value.tm_mday;
-    __llvm_libc::testing::tlog << " mon: " << value.tm_mon;
-    __llvm_libc::testing::tlog << " year: " << value.tm_year;
-    __llvm_libc::testing::tlog << " wday: " << value.tm_wday;
-    __llvm_libc::testing::tlog << " yday: " << value.tm_yday;
-    __llvm_libc::testing::tlog << " isdst: " << value.tm_isdst;
-    __llvm_libc::testing::tlog << '\n';
+    tlog << label;
+    tlog << " sec: " << value.tm_sec;
+    tlog << " min: " << value.tm_min;
+    tlog << " hour: " << value.tm_hour;
+    tlog << " mday: " << value.tm_mday;
+    tlog << " mon: " << value.tm_mon;
+    tlog << " year: " << value.tm_year;
+    tlog << " wday: " << value.tm_wday;
+    tlog << " yday: " << value.tm_yday;
+    tlog << " isdst: " << value.tm_isdst;
+    tlog << '\n';
   }
 
   void explainError() override {
@@ -58,11 +58,9 @@ public:
 };
 
 } // namespace testing
-} // namespace tmmatcher
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
 #define EXPECT_TM_EQ(expected, actual)                                         \
-  EXPECT_THAT((actual),                                                        \
-              __llvm_libc::tmmatcher::testing::StructTmMatcher((expected)))
+  EXPECT_THAT((actual), LIBC_NAMESPACE::testing::StructTmMatcher((expected)))
 
 #endif // LLVM_LIBC_TEST_SRC_TIME_TM_MATCHER_H

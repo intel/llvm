@@ -150,9 +150,10 @@ public:
   // A SPIRV value may be translated to a load instruction of a placeholder
   // global variable. This map records load instruction of these placeholders
   // which are supposed to be replaced by the real values later.
-  typedef std::map<SPIRVValue *, LoadInst *> SPIRVToLLVMPlaceholderMap;
+  typedef std::unordered_map<SPIRVValue *, LoadInst *>
+      SPIRVToLLVMPlaceholderMap;
 
-  typedef std::map<const BasicBlock *, const SPIRVValue *>
+  typedef std::unordered_map<const BasicBlock *, const SPIRVValue *>
       SPIRVToLLVMLoopMetadataMap;
 
   // Store all the allocations to Struct Types that are further
@@ -250,12 +251,12 @@ private:
 
   void transUserSemantic(SPIRV::SPIRVFunction *Fun);
   void transGlobalAnnotations();
-  void transGlobalCtorDtors(SPIRVVariable *BV);
+  void transGlobalCtorDtors(SPIRVVariableBase *BV);
   void createCXXStructor(const char *ListName,
                          SmallVectorImpl<Function *> &Funcs);
   void transIntelFPGADecorations(SPIRVValue *BV, Value *V);
   void transMemAliasingINTELDecorations(SPIRVValue *BV, Value *V);
-  void transVarDecorationsToMetadata(SPIRVValue *BV, Value *V);
+  void transDecorationsToMetadata(SPIRVValue *BV, Value *V);
   void transFunctionDecorationsToMetadata(SPIRVFunction *BF, Function *F);
   void
   transFunctionPointerCallArgumentAttributes(SPIRVValue *BV, CallInst *CI,

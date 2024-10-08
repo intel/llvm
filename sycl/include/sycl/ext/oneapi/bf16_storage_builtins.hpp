@@ -1,14 +1,22 @@
+//===- bf16_storage_builtins.hpp ------------------------------------------===//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
+
 #pragma once
 
 #include <CL/__spirv/spirv_ops.hpp>
 #include <sycl/builtins.hpp>
-#include <sycl/detail/builtins.hpp>
+#include <sycl/detail/builtins/builtins.hpp>
 #include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/type_traits.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi {
 
 namespace detail {
@@ -41,8 +49,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fabs(T x) {
   return __clc_fabs(x);
 #else
   (void)x;
-  throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -52,8 +60,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmin(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -63,8 +71,8 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fmax(T x, T y) {
 #else
   (void)x;
   (void)y;
-  throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "bf16 is not supported on host.");
 #endif
 }
 template <typename T>
@@ -75,11 +83,11 @@ std::enable_if_t<detail::is_bf16_storage_type<T>::value, T> fma(T x, T y, T z) {
   (void)x;
   (void)y;
   (void)z;
-  throw runtime_error("bf16 is not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "bf16 is not supported on host.");
 #endif
 }
 
 } // namespace ext::oneapi
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

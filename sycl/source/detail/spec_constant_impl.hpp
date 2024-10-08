@@ -11,13 +11,12 @@
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/stl.hpp>
 
 #include <map>
 #include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // Represents a specialization constant value in SYCL runtime.
@@ -47,5 +46,5 @@ void stableSerializeSpecConstRegistry(const SpecConstRegistryT &Reg,
                                       SerializedObj &Dst);
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

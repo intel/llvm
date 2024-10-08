@@ -27,6 +27,6 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: convergent norecurse nounwind
 define weak_odr dso_local spir_kernel void @foo() {
 entry:
-  %0 = load i64, i64 addrspace(1)* getelementptr inbounds (<3 x i64>, <3 x i64> addrspace(1)* @__spirv_BuiltInWorkgroupId, i64 0, i64 0), align 32
+  %0 = load i64, ptr addrspace(1) @__spirv_BuiltInWorkgroupId, align 32
  ret void
 }

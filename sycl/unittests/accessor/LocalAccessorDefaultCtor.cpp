@@ -29,18 +29,3 @@ TEST(LocalAccessorDefaultCtorTest, LocalAcessorDefaultCtorSizeQueries) {
   EXPECT_TRUE(size == 0);
   EXPECT_TRUE(max_size == 0);
 }
-
-TEST(LocalAccessorDefaultCtorTest, LocalAcessorDefaultCtorPtrQueries) {
-  AccT acc;
-
-  // The return values of get_pointer() and get_multi_ptr() are
-  // unspecified. Just check they can run without any issue.
-  auto ptr = acc.get_pointer();
-  (void)ptr;
-  auto multi_ptr = acc.get_multi_ptr<access::decorated::yes>();
-  (void)multi_ptr;
-  auto multi_ptr_no_decorated = acc.get_multi_ptr<access::decorated::no>();
-  (void)multi_ptr_no_decorated;
-  auto multi_ptr_legacy = acc.get_multi_ptr<access::decorated::legacy>();
-  (void)multi_ptr_legacy;
-}

@@ -4,8 +4,7 @@
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %s -o %t-main.bc
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %p/Inputs/devirt_single_hybrid_foo.ll -o %t-foo.bc
 ; RUN: opt -thinlto-bc -thinlto-split-lto-unit %p/Inputs/devirt_single_hybrid_bar.ll -o %t-bar.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t-main.bc %t-foo.bc %t-bar.bc -pass-remarks=. -o %t \
-; RUN:   -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t-main.bc %t-foo.bc %t-bar.bc -pass-remarks=. -o %t \
 ; RUN:   -whole-program-visibility \
 ; RUN:    -r=%t-foo.bc,_Z3fooP1A,pl \
 ; RUN:    -r=%t-main.bc,main,plx \
@@ -25,11 +24,11 @@
 
 ; REMARK-COUNT-3: single-impl: devirtualized a call to _ZNK1A1fEv
 
-; IMPORT:       define available_externally hidden i32 @_ZNK1A1fEv(ptr %this)
+; IMPORT:       define available_externally hidden {{(noundef )?}}i32 @_ZNK1A1fEv(ptr %this)
 ; IMPORT-NEXT:  entry:
 ; IMPORT-NEXT:      ret i32 3
 
-; CODEGEN:        define hidden i32 @main()
+; CODEGEN:        define hidden {{(noundef )?}}i32 @main()
 ; CODEGEN-NEXT:   entry:
 ; CODEGEN-NEXT:     ret i32 23
 

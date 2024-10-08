@@ -8,12 +8,14 @@
 
 #include "MemoryMatcher.h"
 
+#include "src/__support/macros/config.h"
 #include "test/UnitTest/Test.h"
 
-using __llvm_libc::testing::tlog;
+#if LIBC_TEST_HAS_MATCHERS()
 
-namespace __llvm_libc {
-namespace memory {
+using LIBC_NAMESPACE::testing::tlog;
+
+namespace LIBC_NAMESPACE_DECL {
 namespace testing {
 
 template <typename T>
@@ -76,5 +78,6 @@ void MemoryMatcher::explainError() {
 }
 
 } // namespace testing
-} // namespace memory
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
+
+#endif // LIBC_TEST_HAS_MATCHERS()

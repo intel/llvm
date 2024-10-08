@@ -7,20 +7,20 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
+#include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
+#include <sycl/property_list.hpp>
 #include <sycl/queue.hpp>
 #include <sycl/usm.hpp>
-#include <sycl/usm/usm_enums.hpp>
 
-#include <cstdlib>
-#include <memory>
+#include <cstdlib>     // for size_t, aligned_alloc, free
+#include <type_traits> // for true_type
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 template <typename T, usm::alloc AllocKind, size_t Alignment = 0>
 class usm_allocator {
 public:
@@ -71,11 +71,14 @@ public:
   T *allocate(size_t NumberOfElements, const detail::code_location CodeLoc =
                                            detail::code_location::current()) {
 
+    if (!NumberOfElements)
+      return nullptr;
+
     auto Result = reinterpret_cast<T *>(
         aligned_alloc(getAlignment(), NumberOfElements * sizeof(value_type),
                       MDevice, MContext, AllocKind, MPropList, CodeLoc));
     if (!Result) {
-      throw memory_allocation_error();
+      throw exception(make_error_code(errc::memory_allocation));
     }
     return Result;
   }
@@ -125,5 +128,5 @@ private:
   property_list MPropList;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

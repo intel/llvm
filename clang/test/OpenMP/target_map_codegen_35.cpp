@@ -3,19 +3,19 @@
 #define HEADER
 
 ///==========================================================================///
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK35 --check-prefix CK35-64
-// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-64
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
-// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
+// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck %s --check-prefix CK35 --check-prefix CK35-64
+// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-64
+// RUN: %clang_cc1 -DCK35 -verify -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
+// RUN: %clang_cc1 -DCK35 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck %s  --check-prefix CK35 --check-prefix CK35-32
 
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
-// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
-// RUN: %clang_cc1 -fopenmp-simd -fopenmp-version=50 -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -std=c++11 -triple powerpc64le-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=powerpc64le-ibm-linux-gnu -x c++ -triple powerpc64le-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK35 -verify -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -emit-llvm %s -o - | FileCheck --check-prefix SIMD-ONLY32 %s
+// RUN: %clang_cc1 -DCK35 -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -std=c++11 -triple i386-unknown-unknown -emit-pch -o %t %s
+// RUN: %clang_cc1 -fopenmp-simd -fopenmp-targets=i386-pc-linux-gnu -x c++ -triple i386-unknown-unknown -std=c++11 -include-pch %t -verify %s -emit-llvm -o - | FileCheck --check-prefix SIMD-ONLY32 %s
 // SIMD-ONLY32-NOT: {{__kmpc|__tgt}}
 #ifdef CK35
 
@@ -84,7 +84,7 @@ void ref_map() {
   // CK35-DAG: [[SZ]] = sub i64 [[B_BEGIN_INTPTR:%.+]], [[S_INTPTR:%.+]]
   // CK35-DAG: [[S_INTPTR]] = ptrtoint ptr [[S_VOID:%.+]] to i64
   // CK35-DAG: [[B_BEGIN_INTPTR]] = ptrtoint ptr [[B_BEGIN_VOID:%.+]] to i64
-  // CK35-DAG: [[B_ADDR:%.+]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK35-DAG: [[B_ADDR:%.+]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   // pass MEMBER_OF_1 | TO {&s, &s.b+1, ((ptr)(&s+1)-(ptr)(&s.b+1))} to copy the data of remainder of s.
 
@@ -117,7 +117,7 @@ void ref_map() {
   // CK35-DAG: store ptr [[B_ADDR:%.+]], ptr [[P3]],
 
   // CK35-DAG: [[B_ADDR]] = load ptr, ptr [[B_REF:%.+]],
-  // CK35-DAG: [[B_REF]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK35-DAG: [[B_REF]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
 
   #pragma omp target map(to: s, s.b)
   s.foo();
@@ -150,7 +150,7 @@ void ref_map() {
   // CK35-DAG: [[SZ]] = sub i64 [[SB_1_INTPTR:%.+]], [[SB_INTPTR:%.+]]
   // CK35-DAG: [[SB_1_INTPTR]] = ptrtoint ptr [[SB_1_VOID:%.+]] to i64
   // CK35-DAG: [[SB_INTPTR]] = ptrtoint ptr [[SB_VOID:%.+]] to i64
-  // CK35-DAG: [[SB_ADDR:%.+]] = getelementptr inbounds %class.S, ptr [[S_ADDR]], i32 0, i32 1
+  // CK35-DAG: [[SB_ADDR:%.+]] = getelementptr inbounds nuw %class.S, ptr [[S_ADDR]], i32 0, i32 1
   // CK35-DAG: [[SB_1:%.+]] = getelementptr ptr, ptr [[SB_ADDR]], i{{.+}} 1
 
   // pass MEMBER_OF_1 | PTR_AND_OBJ | FROM {&s, &s.b, 8|4} to copy the data of s.c.

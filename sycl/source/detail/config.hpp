@@ -12,7 +12,8 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
+#include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <algorithm>
@@ -23,7 +24,7 @@
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
@@ -126,8 +127,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_PI_TRACE> {
-  using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
+template <> class SYCLConfig<SYCL_UR_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
 
 public:
   static int get() {
@@ -230,10 +231,23 @@ public:
   }
 };
 
-// Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
-// ONEAPI_DEVICE_SELECTOR
+// Array is used by SYCL_DEVICE_ALLOWLIST and ONEAPI_DEVICE_SELECTOR.
+// The 'supportAcc' parameter is used by SYCL_DEVICE_ALLOWLIST which,
+// unlike ONEAPI_DEVICE_SELECTOR, also accepts 'acc' as a valid device type.
+template <bool supportAcc = false>
 const std::array<std::pair<std::string, info::device_type>, 6> &
-getSyclDeviceTypeMap();
+getSyclDeviceTypeMap() {
+  static const std::array<std::pair<std::string, info::device_type>, 6>
+      SyclDeviceTypeMap = {
+          {{"host", info::device_type::host},
+           {"cpu", info::device_type::cpu},
+           {"gpu", info::device_type::gpu},
+           /* Duplicate entries are fine as this map is one-directional.*/
+           {supportAcc ? "acc" : "fpga", info::device_type::accelerator},
+           {"fpga", info::device_type::accelerator},
+           {"*", info::device_type::all}}};
+  return SyclDeviceTypeMap;
+}
 
 // Array is used by SYCL_DEVICE_FILTER and SYCL_DEVICE_ALLOWLIST and
 // ONEAPI_DEVICE_SELECTOR
@@ -256,6 +270,12 @@ public:
     }
     const char *ValStr = BaseT::getRawValue();
     if (ValStr) {
+      // Throw if the input string is empty.
+      if (ValStr[0] == '\0')
+        throw exception(make_error_code(errc::invalid),
+                        "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
+                        "variable: value should not be null.");
+
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
     }
@@ -264,58 +284,12 @@ public:
   }
 };
 
-// ---------------------------------------
-// SYCL_DEVICE_FILTER support
-
-template <>
-class __SYCL2020_DEPRECATED("Use SYCLConfig<ONEAPI_DEVICE_SELECTOR> instead")
-    SYCLConfig<SYCL_DEVICE_FILTER> {
-  using BaseT = SYCLConfigBase<SYCL_DEVICE_FILTER>;
-
-public:
-  static device_filter_list *get() {
-    static bool Initialized = false;
-    static device_filter_list *FilterList = nullptr;
-
-    // Configuration parameters are processed only once, like reading a string
-    // from environment and converting it into a typed object.
-    if (Initialized) {
-      return FilterList;
-    }
-
-    const char *ValStr = BaseT::getRawValue();
-    if (ValStr) {
-
-      std::cerr
-          << "\nWARNING: The enviroment variable SYCL_DEVICE_FILTER"
-             " is deprecated. Please use ONEAPI_DEVICE_SELECTOR instead.\n"
-             "For more details, please refer to:\n"
-             "https://github.com/intel/llvm/blob/sycl/sycl/doc/"
-             "EnvironmentVariables.md#oneapi_device_selector\n\n";
-
-      FilterList = &GlobalHandler::instance().getDeviceFilterList(ValStr);
-    }
-
-    // As mentioned above, configuration parameters are processed only once.
-    // If multiple threads are checking this env var at the same time,
-    // they will end up setting the configration to the same value.
-    // If other threads check after one thread already set configration,
-    // the threads will get the same value as the first thread.
-    Initialized = true;
-    return FilterList;
-  }
-};
-
 template <> class SYCLConfig<SYCL_ENABLE_DEFAULT_CONTEXTS> {
   using BaseT = SYCLConfigBase<SYCL_ENABLE_DEFAULT_CONTEXTS>;
 
 public:
   static bool get() {
-#ifdef WIN32
-    constexpr bool DefaultValue = false;
-#else
     constexpr bool DefaultValue = true;
-#endif
 
     const char *ValStr = getCachedValue();
 
@@ -327,13 +301,19 @@ public:
 
   static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
+  static void resetWithValue(const char *Val) {
+    (void)getCachedValue(/*ResetCache=*/true, Val);
+  }
+
   static const char *getName() { return BaseT::MConfigName; }
 
 private:
-  static const char *getCachedValue(bool ResetCache = false) {
+  static const char *getCachedValue(bool ResetCache = false,
+                                    const char *Val = nullptr) {
     static const char *ValStr = BaseT::getRawValue();
-    if (ResetCache)
-      ValStr = BaseT::getRawValue();
+    if (ResetCache) {
+      ValStr = (Val != nullptr) ? Val : BaseT::getRawValue();
+    }
     return ValStr;
   }
 };
@@ -352,17 +332,16 @@ public:
         try {
           Result = std::stoi(ValueStr);
         } catch (...) {
-          throw invalid_parameter_error(
-              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-              "variable: value should be a number",
-              PI_ERROR_INVALID_VALUE);
+          throw exception(make_error_code(errc::invalid),
+                          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE "
+                          "environment variable: value should be a number");
         }
 
       if (Result < 1)
-        throw invalid_parameter_error(
+        throw exception(
+            make_error_code(errc::invalid),
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-            "variable: value should be larger than zero",
-            PI_ERROR_INVALID_VALUE);
+            "variable: value should be larger than zero");
 
       return Result;
     }();
@@ -402,7 +381,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }
@@ -506,7 +485,7 @@ private:
       return Result;
 
     std::string ValueStr{ValueRaw};
-    auto DeviceTypeMap = getSyclDeviceTypeMap();
+    auto DeviceTypeMap = getSyclDeviceTypeMap<true /*Enable 'acc'*/>();
 
     // Iterate over all configurations.
     size_t Start = 0, End = 0;
@@ -607,8 +586,120 @@ private:
   }
 };
 
+template <> class SYCLConfig<SYCL_CACHE_IN_MEM> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_IN_MEM>;
+
+public:
+  static constexpr bool Default = true; // default is true
+  static bool get() { return getCachedValue(); }
+  static const char *getName() { return BaseT::MConfigName; }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+private:
+  static bool parseValue() {
+    const char *ValStr = BaseT::getRawValue();
+    if (!ValStr)
+      return Default;
+    if (strlen(ValStr) != 1 || (ValStr[0] != '0' && ValStr[0] != '1')) {
+      std::string Msg =
+          std::string{"Invalid value for bool configuration variable "} +
+          getName() + std::string{": "} + ValStr;
+      throw exception(make_error_code(errc::runtime), Msg);
+    }
+    return ValStr[0] == '1';
+  }
+
+  static bool getCachedValue(bool ResetCache = false) {
+    static bool Val = parseValue();
+    if (ResetCache) {
+      Val = BaseT::getRawValue();
+    }
+    return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_CPU>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

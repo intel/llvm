@@ -1,12 +1,15 @@
-// TODO: enable when Jira ticket resolved
-// XFAIL: gpu
-//
 // Check that full compilation works:
 // RUN: %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t.out
 // RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 //
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
+//
+// RUN: %{build} -DUNIFORM_RET_TYPE -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr -o %t2.out
+// RUN: env IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t2.out
+//
+// VISALTO enable run
+// RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t2.out
 
 /*
  * Test case #1
@@ -44,9 +47,10 @@
  * This test also runs with all types of VISA link time optimizations enabled.
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
 
 #include <functional>
 #include <iostream>
@@ -98,17 +102,35 @@ template <class T>
  * returning the scalar as a SIMD type seems to work fine.
  */
 template <class T>
-__attribute__((always_inline)) T
+__attribute__((always_inline))
+#ifdef UNIFORM_RET_TYPE
+uniform<T>
+#else
+T
+#endif
 ESIMD_CALLEE_return_uniform_scalar(esimd::simd<T, VL> x,
                                    T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+  return uniform<T>{n};
+#else
   return n;
+#endif
 }
 
 template <class T>
 [[intel::device_indirectly_callable]] SYCL_EXTERNAL
-    T __regcall SIMD_CALLEE_return_uniform_scalar(simd<T, VL> x,
-                                                  T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+    uniform<T>
+#else
+    T
+#endif
+    __regcall SIMD_CALLEE_return_uniform_scalar(simd<T, VL> x,
+                                                T n) SYCL_ESIMD_FUNCTION {
+#ifdef UNIFORM_RET_TYPE
+  uniform<T> r = ESIMD_CALLEE_return_uniform_scalar<T>(x, n);
+#else
   T r = ESIMD_CALLEE_return_uniform_scalar<T>(x, n);
+#endif
   return r;
 }
 
@@ -150,8 +172,11 @@ template <class T, bool return_SIMD, class QueueTY> bool test(QueueTY q) {
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
 
-            T va = sg.load(acca.get_pointer() + offset);
-            T vc;
+            T va, vc;
+            group_load(sg,
+                       acca.template get_multi_ptr<access::decorated::yes>() +
+                           offset,
+                       va);
 
             if constexpr (return_SIMD)
               vc = invoke_simd(sg, SIMD_CALLEE_return_uniform_SIMD<T>, va,
@@ -160,7 +185,9 @@ template <class T, bool return_SIMD, class QueueTY> bool test(QueueTY q) {
               vc = invoke_simd(sg, SIMD_CALLEE_return_uniform_scalar<T>, va,
                                uniform{n});
 
-            sg.store(accc.get_pointer() + offset, vc);
+            group_store(sg, vc,
+                        accc.template get_multi_ptr<access::decorated::yes>() +
+                            offset);
           });
     });
     e.wait();

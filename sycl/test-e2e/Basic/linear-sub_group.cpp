@@ -9,21 +9,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../SubGroup/helper.hpp"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
 int main(int argc, char *argv[]) {
   queue q;
-  if (!core_sg_supported(q.get_device())) {
-    std::cout << "Skipping test\n";
-    return 0;
-  }
 
   // Fill output array with sub-group IDs
   const uint32_t outer = 2;
@@ -37,7 +32,7 @@ int main(int argc, char *argv[]) {
           nd_range<2>(range<2>(outer, inner), range<2>(outer, inner)),
           [=](nd_item<2> it) {
             id<2> idx = it.get_global_id();
-            ext::oneapi::sub_group sg = it.get_sub_group();
+            sycl::sub_group sg = it.get_sub_group();
             output[idx] = sg.get_group_id()[0] * sg.get_local_range()[0] +
                           sg.get_local_id()[0];
           });

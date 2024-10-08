@@ -8,17 +8,17 @@
 
 #pragma once
 
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/ext/oneapi/properties/property.hpp>
-#include <sycl/ext/oneapi/properties/property_utils.hpp>
-#include <sycl/ext/oneapi/properties/property_value.hpp>
-#include <sycl/types.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
+#include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
+#include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
+#include <sycl/ext/oneapi/properties/property_value.hpp> // for property_value
 
-#include <tuple>
-#include <type_traits>
+#include <tuple>       // for tuple, tupl...
+#include <type_traits> // for enable_if_t
+#include <variant>     // for tuple
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 namespace detail {
@@ -82,42 +82,90 @@ struct RuntimePropertyStorage<std::tuple<T, Ts...>>
                                              std::tuple<Ts...>>::type>,
                          RuntimePropertyStorage<std::tuple<Ts...>>> {};
 
+// Count occurrences of a type in a tuple.
+template <typename T, typename Tuple> struct CountTypeInTuple;
+template <typename T, typename... TupleTs>
+struct CountTypeInTuple<T, std::tuple<TupleTs...>>
+    : std::integral_constant<
+          size_t, (0 + ... + static_cast<size_t>(std::is_same_v<T, TupleTs>))> {
+};
+
+// Helper for counting the number of properties that are also in PropertyArgsT.
+template <typename PropertyArgsT, typename Props> struct CountContainedProps;
+template <typename PropertyArgsT>
+struct CountContainedProps<PropertyArgsT, std::tuple<>>
+    : std::integral_constant<size_t, 0> {};
+template <typename PropertyArgsT, typename PropertyT, typename... PropertyTs>
+struct CountContainedProps<PropertyArgsT,
+                           std::tuple<PropertyT, PropertyTs...>> {
+  static constexpr size_t NumOccurrences =
+      CountTypeInTuple<PropertyT, PropertyArgsT>::value;
+  static_assert(NumOccurrences <= 1,
+                "Duplicate occurrences of property in constructor arguments.");
+  static constexpr size_t value =
+      CountContainedProps<PropertyArgsT, std::tuple<PropertyTs...>>::value +
+      NumOccurrences;
+};
+
 // Helper class to extract a subset of elements from a tuple.
 // NOTES: This assumes no duplicate properties and that all properties in the
 //        struct template argument appear in the tuple passed to Extract.
-template <typename PropertiesT> struct ExtractProperties {};
-template <typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT = std::tuple<>;
-
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...>) {
-    return {};
+template <typename PropertyArgsT, typename PropertiesT>
+struct ExtractProperties;
+template <typename PropertyArgsT>
+struct ExtractProperties<PropertyArgsT, std::tuple<>> {
+  static constexpr std::tuple<> Extract(const PropertyArgsT &) {
+    return std::tuple<>{};
   }
 };
-template <typename PropertyT, typename... PropertiesTs>
-struct ExtractProperties<std::tuple<PropertyT, PropertiesTs...>> {
-  template <typename... PropertyValueTs>
-  using NextExtractedPropertiesT =
-      typename ExtractProperties<std::tuple<PropertiesTs...>>::
-          template ExtractedPropertiesT<PropertyValueTs...>;
-  template <typename... PropertyValueTs>
-  using ExtractedPropertiesT =
-      typename PrependTuple<PropertyT,
-                            NextExtractedPropertiesT<PropertyValueTs...>>::type;
+template <typename PropertyArgsT, typename PropertyT, typename... PropertiesTs>
+struct ExtractProperties<PropertyArgsT,
+                         std::tuple<PropertyT, PropertiesTs...>> {
+  static constexpr std::tuple<PropertyT, PropertiesTs...>
+  Extract(const PropertyArgsT &PropertyValues) {
+    // TODO: NumOccurrences and checks should be moved out of the function once
+    //       https://github.com/intel/llvm/issues/13677 has been fixed.
+    constexpr size_t NumOccurrences =
+        CountTypeInTuple<PropertyT, PropertyArgsT>::value;
+    static_assert(
+        NumOccurrences <= 1,
+        "Duplicate occurrences of property in constructor arguments.");
+    static_assert(NumOccurrences == 1 ||
+                      std::is_default_constructible_v<PropertyT>,
+                  "Each property in the property list must either be given an "
+                  "argument in the constructor or be default-constructible.");
 
-  template <typename... PropertyValueTs>
-  static constexpr ExtractedPropertiesT<PropertyValueTs...>
-  Extract(std::tuple<PropertyValueTs...> PropertyValues) {
-    PropertyT ThisExtractedProperty = std::get<PropertyT>(PropertyValues);
-    NextExtractedPropertiesT<PropertyValueTs...> NextExtractedProperties =
-        ExtractProperties<std::tuple<PropertiesTs...>>::template Extract<
-            PropertyValueTs...>(PropertyValues);
-    return std::tuple_cat(std::tuple<PropertyT>{ThisExtractedProperty},
-                          NextExtractedProperties);
+    auto NextExtractedProperties =
+        ExtractProperties<PropertyArgsT, std::tuple<PropertiesTs...>>::Extract(
+            PropertyValues);
+
+    if constexpr (NumOccurrences == 1) {
+      return std::tuple_cat(
+          std::tuple<PropertyT>{std::get<PropertyT>(PropertyValues)},
+          NextExtractedProperties);
+    } else {
+      return std::tuple_cat(std::tuple<PropertyT>{PropertyT{}},
+                            NextExtractedProperties);
+    }
   }
+};
+
+// Get the value of a property from a property list
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename PropertiesT>
+struct GetPropertyValueFromPropList {};
+
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename... PropertiesT>
+struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                    std::tuple<PropertiesT...>> {
+  using prop_val_t = std::conditional_t<
+      ContainsProperty<PropKey, std::tuple<PropertiesT...>>::value,
+      typename FindCompileTimePropertyValueType<
+          PropKey, std::tuple<PropertiesT...>>::type,
+      DefaultPropVal>;
+  static constexpr ConstType value =
+      PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
 };
 
 } // namespace detail
@@ -131,12 +179,28 @@ template <typename PropertiesT> class properties {
                 "Properties in property list are not sorted.");
   static_assert(detail::SortedAllUnique<PropertiesT>::value,
                 "Duplicate properties in property list.");
+  static_assert(detail::NoConflictingProperties<PropertiesT>::value,
+                "Conflicting properties in property list.");
 
 public:
-  template <typename... PropertyValueTs>
+  template <typename... PropertyValueTs,
+            std::enable_if_t<detail::AllPropertyValues<
+                                 std::tuple<PropertyValueTs...>>::value,
+                             int> = 0>
   constexpr properties(PropertyValueTs... props)
-      : Storage(detail::ExtractProperties<StorageT>::Extract(
-            std::tuple<PropertyValueTs...>{props...})) {}
+      : Storage(detail::ExtractProperties<std::tuple<PropertyValueTs...>,
+                                          StorageT>::Extract({props...})) {
+    // Default-constructible properties do not need to be in the arguments.
+    // For properties with a storage, default-constructibility is checked in
+    // ExtractProperties, while those without are so by default. As such, all
+    // arguments must be a unique property type and must be in PropertiesT.
+    constexpr size_t NumContainedProps =
+        detail::CountContainedProps<std::tuple<PropertyValueTs...>,
+                                    PropertiesT>::value;
+    static_assert(NumContainedProps == sizeof...(PropertyValueTs),
+                  "One or more property argument is not a property in the "
+                  "property list.");
+  }
 
   template <typename PropertyT>
   static constexpr std::enable_if_t<detail::IsProperty<PropertyT>::value, bool>
@@ -185,6 +249,8 @@ properties(PropertyValueTs... props)
     -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
 #endif
 
+using empty_properties_t = properties<std::tuple<>>;
+
 // Property list traits
 template <typename propertiesT> struct is_property_list : std::false_type {};
 template <typename... PropertyValueTs>
@@ -199,8 +265,6 @@ inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
 #endif
 
 namespace detail {
-// Helper for default properties when deduction guides are not enabled.
-using empty_properties_t = properties<std::tuple<>>;
 
 // Helper for reconstructing a properties type. This assumes that
 // PropertyValueTs is sorted and contains only valid properties.
@@ -237,16 +301,44 @@ struct ValueOrDefault<
   }
 };
 
+// helper: check_all_props_are_keys_of
+template <typename SyclT> constexpr bool check_all_props_are_keys_of() {
+  return true;
+}
+
+template <typename SyclT, typename FirstProp, typename... RestProps>
+constexpr bool check_all_props_are_keys_of() {
+  return ext::oneapi::experimental::is_property_key_of<FirstProp,
+                                                       SyclT>::value &&
+         check_all_props_are_keys_of<SyclT, RestProps...>();
+}
+
+// all_props_are_keys_of
+template <typename SyclT, typename PropertiesT>
+struct all_props_are_keys_of : std::false_type {};
+
+template <typename SyclT>
+struct all_props_are_keys_of<SyclT,
+                             ext::oneapi::experimental::empty_properties_t>
+    : std::true_type {};
+
+template <typename SyclT, typename PropT>
+struct all_props_are_keys_of<
+    SyclT, ext::oneapi::experimental::detail::properties_t<PropT>>
+    : std::bool_constant<
+          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
+};
+
+template <typename SyclT, typename... Props>
+struct all_props_are_keys_of<
+    SyclT, ext::oneapi::experimental::detail::properties_t<Props...>>
+    : std::bool_constant<check_all_props_are_keys_of<SyclT, Props...>()> {};
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
-// If property_list is not trivially copyable, allow properties to propagate
-// is_device_copyable
 template <typename PropertiesT>
-struct is_device_copyable<
-    ext::oneapi::experimental::properties<PropertiesT>,
-    std::enable_if_t<!std::is_trivially_copyable_v<
-        ext::oneapi::experimental::properties<PropertiesT>>>>
+struct is_device_copyable<ext::oneapi::experimental::properties<PropertiesT>>
     : is_device_copyable<PropertiesT> {};
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

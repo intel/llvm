@@ -65,6 +65,11 @@ if config.spirv_tools_have_spirv_as:
     config.available_features.add('spirv-as')
     using_spirv_tools = True
 
+if config.spirv_tools_have_spirv_dis:
+    llvm_config.add_tool_substitutions(['spirv-dis'], [config.spirv_tools_bin_dir])
+    config.available_features.add('spirv-dis')
+    using_spirv_tools = True
+
 if config.spirv_tools_have_spirv_link:
     llvm_config.add_tool_substitutions(['spirv-link'], [config.spirv_tools_bin_dir])
     config.available_features.add('spirv-link')
@@ -75,6 +80,17 @@ if config.spirv_tools_have_spirv_val:
     using_spirv_tools = True
 else:
     config.substitutions.append(('spirv-val', ':'))
+
+if not config.llvm_spirv_build_external and config.llvm_build_shared_libs:
+    config.available_features.add('pass-plugin')
+    config.substitutions.append(
+        (
+            "%load_spirv_lib",
+            "-load-pass-plugin={}/libLLVMSPIRVLib{}".format(
+                config.llvm_shlib_dir, config.llvm_plugin_ext
+            ),
+        )
+    )
 
 llvm_config.with_system_environment('LD_LIBRARY_PATH')
 if using_spirv_tools:

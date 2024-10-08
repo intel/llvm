@@ -14,7 +14,9 @@
 // MSVC provides two different incompatible variants of CRT: debug and release.
 // This test checks if clang driver is able to handle this properly.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 

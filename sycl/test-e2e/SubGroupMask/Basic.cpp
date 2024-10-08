@@ -1,11 +1,10 @@
 // RUN: %{build} -o %t.out
 
 // REQUIRES: gpu
+// REQUIRES: sg-32
 
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: ze_debug
 
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//
 //
@@ -15,8 +14,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
 #include <iostream>
-#include <sycl/sycl.hpp>
 using namespace sycl;
 constexpr int global_size = 128;
 constexpr int local_size = 32;

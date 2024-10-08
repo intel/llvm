@@ -9,17 +9,12 @@
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
 // REQUIRES: cpu
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <iostream>
-#include <sycl/sycl.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
+#include "common.hpp"
 
 #define SG_SZ 16
 
@@ -28,16 +23,6 @@ using bfloat16 = sycl::ext::oneapi::bfloat16;
 #define TM 10
 #define TN 12
 #define TK 16
-
-template <typename T, size_t NUM_ROWS, size_t NUM_COLS> struct big_matrix {
-public:
-  T *mat;
-
-public:
-  T *get_data() { return mat; }
-  void set_data(T *data) { mat = data; }
-  big_matrix(T *data) : mat(data) {}
-};
 
 template <typename T1, typename T2, size_t NUM_ROWS_A, size_t NUM_COLS_A,
           size_t NUM_ROWS_B, size_t NUM_COLS_B, size_t NUM_ROWS_C,
@@ -81,7 +66,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                sub_a;
            // For B, we assume B has been already VNNIed.
            joint_matrix<sub_group, bfloat16, use::b, TK, TN,
-                        ext::intel::experimental::matrix::layout::packed>
+                        layout::ext_intel_packed>
                sub_b;
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            joint_matrix_load(
@@ -101,13 +86,9 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
                  accB.template get_multi_ptr<access::decorated::no>() +
                      (k) * (N) + sg_starty / SG_SZ * TN * 2,
                  N * 2);
-             sub_c = joint_matrix_mad(sg, sub_a, sub_b, sub_c);
+             joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
-           auto wi_slice_c =
-               sycl::ext::intel::experimental::matrix::get_wi_data(sg, sub_c);
-           for (int i = 0; i < wi_slice_c.length(); i++) {
-             wi_slice_c[i] += 5.0;
-           }
+           joint_matrix_apply(sg, sub_c, [](float &x) { x += 5.0; });
            joint_matrix_store(
                sg, sub_c,
                accC.template get_multi_ptr<access::decorated::no>() +
@@ -124,30 +105,6 @@ bfloat16 A[MATRIX_M][MATRIX_K];
 bfloat16 B[MATRIX_K / 2][MATRIX_N * 2];
 float C[MATRIX_M][MATRIX_N];
 float D[MATRIX_M][MATRIX_N];
-
-float make_fp32(bfloat16 x) {
-  unsigned int y = *((int *)&x);
-  y = y << 16;
-  float *res = reinterpret_cast<float *>(&y);
-  return *res;
-}
-
-void matrix_multiply_ref(int *A_mem, int *B_mem, int *C_mem, int M, int N,
-                         int K) {
-  for (int m = 0; m < M; m++)
-    for (int n = 0; n < N; n++) {
-      for (int k = 0; k < K; k++) {
-        bfloat16 *va = (bfloat16 *)(A_mem + m * K + k);
-        bfloat16 *vb = (bfloat16 *)(B_mem + k * N + n);
-        float acc = *((float *)(C_mem + m * N + n));
-        for (int i = 0; i < 2; i++) {
-          acc += (make_fp32(va[i]) * make_fp32(vb[i]));
-        }
-        *((float *)(C_mem + m * N + n)) = acc;
-      }
-      *((float *)(C_mem + m * N + n)) += 5.0;
-    }
-}
 
 int main() {
   for (int i = 0; i < MATRIX_M; i++) {
@@ -172,8 +129,9 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
   big_matrix<bfloat16, MATRIX_K / 2, MATRIX_N * 2> MB((bfloat16 *)&B);
   matrix_multiply(MC, MA, MB);
-  matrix_multiply_ref((int32_t *)A, (int32_t *)B, (int32_t *)D, MATRIX_M,
-                      MATRIX_N, MATRIX_K / 2);
+  matrix_multiply_ref<bfloat16, bfloat16, float, 2>(
+      (bfloat16 *)A, (bfloat16 *)B, (float *)D, MATRIX_M, MATRIX_N,
+      MATRIX_K / 2, false, false, false, [](float &x) { x = x + 5.0; });
 
   bool res = true;
   for (int i = 0; i < MATRIX_M; i++) {

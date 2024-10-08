@@ -9,6 +9,7 @@
 #include "ScanfMatcher.h"
 
 #include "src/__support/FPUtil/FPBits.h"
+#include "src/__support/macros/config.h"
 #include "src/stdio/scanf_core/core_structs.h"
 
 #include "test/UnitTest/StringUtils.h"
@@ -16,11 +17,12 @@
 
 #include <stdint.h>
 
-using __llvm_libc::testing::tlog;
-
-namespace __llvm_libc {
-namespace scanf_core {
+namespace LIBC_NAMESPACE_DECL {
 namespace testing {
+
+using scanf_core::FormatFlags;
+using scanf_core::FormatSection;
+using scanf_core::LengthModifier;
 
 bool FormatSectionMatcher::match(FormatSection actualValue) {
   actual = actualValue;
@@ -98,5 +100,4 @@ void FormatSectionMatcher::explainError() {
 }
 
 } // namespace testing
-} // namespace scanf_core
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

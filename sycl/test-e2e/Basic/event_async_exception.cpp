@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 // This test checks that if there is a submit failure, the asynchronous
 // exception is associated with the returned event.
@@ -34,7 +34,7 @@ int main() {
 
     e.wait_and_throw();
     return 0;
-  } catch (runtime_error e) {
+  } catch (exception e) {
     return 1;
   }
 }

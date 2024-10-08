@@ -11,19 +11,21 @@
 #include <CL/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/property_list.hpp>
 
+#include <mutex>
 #include <unordered_map>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 enum class addressing_mode : unsigned int;
 enum class filtering_mode : unsigned int;
 enum class coordinate_normalization_mode : unsigned int;
 
 namespace detail {
-class __SYCL_EXPORT sampler_impl {
+class sampler_impl {
 public:
   sampler_impl(coordinate_normalization_mode normalizationMode,
                addressing_mode addressingMode, filtering_mode filteringMode,
@@ -37,32 +39,17 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
-
-  /// Checks if this sampler_impl has a property of type propertyT.
-  ///
-  /// \return true if this sampler_impl has a property of type propertyT.
-  template <typename propertyT> bool has_property() const noexcept {
-    return MPropList.has_property<propertyT>();
-  }
-
-  /// Gets the specified property of this sampler_impl.
-  ///
-  /// Throws invalid_object_error if this sampler_impl does not have a property
-  /// of type propertyT.
-  ///
-  /// \return a copy of the property of type propertyT.
-  template <typename propertyT> propertyT get_property() const {
-    return MPropList.get_property<propertyT>();
-  }
+  ur_sampler_handle_t getOrCreateSampler(const context &Context);
 
   ~sampler_impl();
+
+  const property_list &getPropList() const { return MPropList; }
 
 private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
 
-  std::unordered_map<context, sycl::detail::pi::PiSampler> MContextToSampler;
+  std::unordered_map<context, ur_sampler_handle_t> MContextToSampler;
 
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
@@ -71,5 +58,5 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

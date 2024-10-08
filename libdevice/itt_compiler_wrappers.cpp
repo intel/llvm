@@ -8,10 +8,9 @@
 
 #include "device_itt.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 
-DEVICE_EXTERN_C
-void __itt_offload_wi_start_wrapper() {
+SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_start_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -25,8 +24,7 @@ void __itt_offload_wi_start_wrapper() {
   __itt_offload_wi_start_stub(GroupID, WIID, WGSize);
 }
 
-DEVICE_EXTERN_C
-void __itt_offload_wi_finish_wrapper() {
+SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_finish_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -37,16 +35,14 @@ void __itt_offload_wi_finish_wrapper() {
   __itt_offload_wi_finish_stub(GroupID, WIID);
 }
 
-DEVICE_EXTERN_C
-void __itt_offload_wg_barrier_wrapper() {
+SYCL_EXTERNAL EXTERN_C void __itt_offload_wg_barrier_wrapper() {
   if (!isITTEnabled())
     return;
 
   __itt_offload_wg_barrier_stub(0);
 }
 
-DEVICE_EXTERN_C
-void __itt_offload_wi_resume_wrapper() {
+SYCL_EXTERNAL EXTERN_C void __itt_offload_wi_resume_wrapper() {
   if (!isITTEnabled())
     return;
 
@@ -57,4 +53,4 @@ void __itt_offload_wi_resume_wrapper() {
   __itt_offload_wi_resume_stub(GroupID, WIID);
 }
 
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

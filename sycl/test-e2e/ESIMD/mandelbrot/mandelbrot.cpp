@@ -5,19 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// TODO: remove fno-fast-math option once the issue is investigated and the test
-// is fixed.
 // REQUIRES: aspect-ext_intel_legacy_image
-// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// RUN: %{build} %{mathflags} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %T/output.ppm %S/golden_hw.ppm
 
-#include "esimd_test_utils.hpp"
+#include "../esimd_test_utils.hpp"
+
+#include <sycl/accessor_image.hpp>
+
 #include <array>
-#include <iostream>
 #include <memory>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -34,10 +31,6 @@ using namespace sycl::ext::intel::esimd;
 
 #define WIDTH 800
 #define HEIGHT 602
-
-#define EMU_TOTAL_MISMATCH_RATE_TOLERANCE                                      \
-  0.0027 // the observed total mismatch rate (due to inherent divergency in host
-         // vs GPU FP computations)
 
 template <typename ACC>
 ESIMD_INLINE void mandelbrot(ACC out_image, int ix, int iy, int crunch,
@@ -171,11 +164,7 @@ int main(int argc, char *argv[]) {
   fclose(dumpfile);
 
   bool passed = true;
-  if (!esimd_test::cmp_binary_files<unsigned char>(
-          out_file, argv[2], 0,
-          q.get_backend() == sycl::backend::ext_intel_esimd_emulator
-              ? EMU_TOTAL_MISMATCH_RATE_TOLERANCE
-              : 0)) {
+  if (!esimd_test::cmp_binary_files<unsigned char>(out_file, argv[2], 0, 0)) {
     std::cerr << out_file << " does not match the reference file " << argv[2]
               << std::endl;
     passed = false;

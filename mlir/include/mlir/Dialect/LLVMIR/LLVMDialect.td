@@ -15,11 +15,16 @@ def LLVM_Dialect : Dialect {
   let name = "llvm";
   let cppNamespace = "::mlir::LLVM";
 
+  let hasConstantMaterializer = 1;
   let useDefaultAttributePrinterParser = 1;
   let hasRegionArgAttrVerify = 1;
   let hasRegionResultAttrVerify = 1;
   let hasOperationAttrVerify = 1;
-  let usePropertiesForAttributes = 1;
+
+  let discardableAttrs = (ins
+    /// Attribute encoding size and type of GPU workgroup attributions.
+    "WorkgroupAttributionAttr":$workgroup_attribution
+  );
 
   let extraClassDeclaration = [{
     /// Name of the data layout attributes.
@@ -27,6 +32,7 @@ def LLVM_Dialect : Dialect {
     static StringRef getNoAliasScopesAttrName() { return "noalias_scopes"; }
     static StringRef getAliasScopesAttrName() { return "alias_scopes"; }
     static StringRef getAccessGroupsAttrName() { return "access_groups"; }
+    static StringRef getIdentAttrName() { return "llvm.ident"; }
 
     /// Names of llvm parameter attributes.
     static StringRef getAlignAttrName() { return "llvm.align"; }

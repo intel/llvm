@@ -227,7 +227,7 @@ define <4 x i64> @strict_vector_fptoui_v4f64_to_v4i64(<4 x double> %a) #0 {
 ; AVX-32-NEXT:    andl $-8, %esp
 ; AVX-32-NEXT:    subl $32, %esp
 ; AVX-32-NEXT:    vshufpd {{.*#+}} xmm2 = xmm0[1,0]
-; AVX-32-NEXT:    vmovsd {{.*#+}} xmm1 = mem[0],zero
+; AVX-32-NEXT:    vmovsd {{.*#+}} xmm1 = [9.2233720368547758E+18,0.0E+0]
 ; AVX-32-NEXT:    vcomisd %xmm1, %xmm2
 ; AVX-32-NEXT:    vmovapd %xmm1, %xmm3
 ; AVX-32-NEXT:    jae .LBB1_2
@@ -306,7 +306,7 @@ define <4 x i64> @strict_vector_fptoui_v4f64_to_v4i64(<4 x double> %a) #0 {
 ; AVX-64-LABEL: strict_vector_fptoui_v4f64_to_v4i64:
 ; AVX-64:       # %bb.0:
 ; AVX-64-NEXT:    vextractf128 $1, %ymm0, %xmm3
-; AVX-64-NEXT:    vmovsd {{.*#+}} xmm1 = mem[0],zero
+; AVX-64-NEXT:    vmovsd {{.*#+}} xmm1 = [9.2233720368547758E+18,0.0E+0]
 ; AVX-64-NEXT:    vcomisd %xmm1, %xmm3
 ; AVX-64-NEXT:    vxorpd %xmm2, %xmm2, %xmm2
 ; AVX-64-NEXT:    vxorpd %xmm4, %xmm4, %xmm4
@@ -379,7 +379,7 @@ define <4 x i64> @strict_vector_fptoui_v4f64_to_v4i64(<4 x double> %a) #0 {
 ; AVX512F-32-NEXT:    .cfi_offset %ebx, -12
 ; AVX512F-32-NEXT:    vextractf128 $1, %ymm0, %xmm2
 ; AVX512F-32-NEXT:    vshufpd {{.*#+}} xmm3 = xmm2[1,0]
-; AVX512F-32-NEXT:    vmovsd {{.*#+}} xmm1 = mem[0],zero
+; AVX512F-32-NEXT:    vmovsd {{.*#+}} xmm1 = [9.2233720368547758E+18,0.0E+0]
 ; AVX512F-32-NEXT:    xorl %eax, %eax
 ; AVX512F-32-NEXT:    vcomisd %xmm1, %xmm3
 ; AVX512F-32-NEXT:    setae %al
@@ -472,7 +472,7 @@ define <4 x i64> @strict_vector_fptoui_v4f64_to_v4i64(<4 x double> %a) #0 {
 ; AVX512VL-32-NEXT:    .cfi_offset %ebx, -12
 ; AVX512VL-32-NEXT:    vextractf128 $1, %ymm0, %xmm2
 ; AVX512VL-32-NEXT:    vshufpd {{.*#+}} xmm3 = xmm2[1,0]
-; AVX512VL-32-NEXT:    vmovsd {{.*#+}} xmm1 = mem[0],zero
+; AVX512VL-32-NEXT:    vmovsd {{.*#+}} xmm1 = [9.2233720368547758E+18,0.0E+0]
 ; AVX512VL-32-NEXT:    xorl %eax, %eax
 ; AVX512VL-32-NEXT:    vcomisd %xmm1, %xmm3
 ; AVX512VL-32-NEXT:    setae %al
@@ -758,7 +758,7 @@ define <4 x i64> @strict_vector_fptoui_v4f32_to_v4i64(<4 x float> %a) #0 {
 ; AVX-32-NEXT:    andl $-8, %esp
 ; AVX-32-NEXT:    subl $32, %esp
 ; AVX-32-NEXT:    vmovshdup {{.*#+}} xmm2 = xmm0[1,1,3,3]
-; AVX-32-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; AVX-32-NEXT:    vmovss {{.*#+}} xmm1 = [9.22337203E+18,0.0E+0,0.0E+0,0.0E+0]
 ; AVX-32-NEXT:    vcomiss %xmm1, %xmm2
 ; AVX-32-NEXT:    vmovaps %xmm1, %xmm3
 ; AVX-32-NEXT:    jae .LBB3_2
@@ -837,7 +837,7 @@ define <4 x i64> @strict_vector_fptoui_v4f32_to_v4i64(<4 x float> %a) #0 {
 ; AVX-64-LABEL: strict_vector_fptoui_v4f32_to_v4i64:
 ; AVX-64:       # %bb.0:
 ; AVX-64-NEXT:    vshufps {{.*#+}} xmm3 = xmm0[3,3,3,3]
-; AVX-64-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; AVX-64-NEXT:    vmovss {{.*#+}} xmm1 = [9.22337203E+18,0.0E+0,0.0E+0,0.0E+0]
 ; AVX-64-NEXT:    vcomiss %xmm1, %xmm3
 ; AVX-64-NEXT:    vxorps %xmm2, %xmm2, %xmm2
 ; AVX-64-NEXT:    vxorps %xmm4, %xmm4, %xmm4
@@ -909,7 +909,7 @@ define <4 x i64> @strict_vector_fptoui_v4f32_to_v4i64(<4 x float> %a) #0 {
 ; AVX512F-32-NEXT:    subl $40, %esp
 ; AVX512F-32-NEXT:    .cfi_offset %ebx, -12
 ; AVX512F-32-NEXT:    vshufps {{.*#+}} xmm2 = xmm0[3,3,3,3]
-; AVX512F-32-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; AVX512F-32-NEXT:    vmovss {{.*#+}} xmm1 = [9.22337203E+18,0.0E+0,0.0E+0,0.0E+0]
 ; AVX512F-32-NEXT:    xorl %eax, %eax
 ; AVX512F-32-NEXT:    vcomiss %xmm1, %xmm2
 ; AVX512F-32-NEXT:    setae %al
@@ -1002,7 +1002,7 @@ define <4 x i64> @strict_vector_fptoui_v4f32_to_v4i64(<4 x float> %a) #0 {
 ; AVX512VL-32-NEXT:    subl $40, %esp
 ; AVX512VL-32-NEXT:    .cfi_offset %ebx, -12
 ; AVX512VL-32-NEXT:    vshufps {{.*#+}} xmm2 = xmm0[3,3,3,3]
-; AVX512VL-32-NEXT:    vmovss {{.*#+}} xmm1 = mem[0],zero,zero,zero
+; AVX512VL-32-NEXT:    vmovss {{.*#+}} xmm1 = [9.22337203E+18,0.0E+0,0.0E+0,0.0E+0]
 ; AVX512VL-32-NEXT:    xorl %eax, %eax
 ; AVX512VL-32-NEXT:    vcomiss %xmm1, %xmm2
 ; AVX512VL-32-NEXT:    setae %al
@@ -1113,12 +1113,12 @@ define <4 x i32> @strict_vector_fptosi_v4f64_to_v4i32(<4 x double> %a) #0 {
 define <4 x i32> @strict_vector_fptoui_v4f64_to_v4i32(<4 x double> %a) #0 {
 ; AVX-LABEL: strict_vector_fptoui_v4f64_to_v4i32:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovapd {{.*#+}} ymm1 = [2.147483648E+9,2.147483648E+9,2.147483648E+9,2.147483648E+9]
+; AVX-NEXT:    vbroadcastsd {{.*#+}} ymm1 = [2.147483648E+9,2.147483648E+9,2.147483648E+9,2.147483648E+9]
 ; AVX-NEXT:    vcmpltpd %ymm1, %ymm0, %ymm2
 ; AVX-NEXT:    vextractf128 $1, %ymm2, %xmm3
 ; AVX-NEXT:    vshufps {{.*#+}} xmm3 = xmm2[0,2],xmm3[0,2]
 ; AVX-NEXT:    vxorps %xmm4, %xmm4, %xmm4
-; AVX-NEXT:    vmovaps {{.*#+}} xmm5 = [2147483648,2147483648,2147483648,2147483648]
+; AVX-NEXT:    vbroadcastss {{.*#+}} xmm5 = [2147483648,2147483648,2147483648,2147483648]
 ; AVX-NEXT:    vblendvps %xmm3, %xmm4, %xmm5, %xmm3
 ; AVX-NEXT:    vxorps %xmm4, %xmm4, %xmm4
 ; AVX-NEXT:    vblendvpd %ymm2, %ymm4, %ymm1, %ymm1
@@ -1379,10 +1379,10 @@ define <8 x i32> @strict_vector_fptosi_v8f32_to_v8i32(<8 x float> %a) #0 {
 define <8 x i32> @strict_vector_fptoui_v8f32_to_v8i32(<8 x float> %a) #0 {
 ; AVX-LABEL: strict_vector_fptoui_v8f32_to_v8i32:
 ; AVX:       # %bb.0:
-; AVX-NEXT:    vmovaps {{.*#+}} ymm1 = [2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9]
+; AVX-NEXT:    vbroadcastss {{.*#+}} ymm1 = [2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9,2.14748365E+9]
 ; AVX-NEXT:    vcmpltps %ymm1, %ymm0, %ymm2
 ; AVX-NEXT:    vxorps %xmm3, %xmm3, %xmm3
-; AVX-NEXT:    vmovaps {{.*#+}} ymm4 = [2147483648,2147483648,2147483648,2147483648,2147483648,2147483648,2147483648,2147483648]
+; AVX-NEXT:    vbroadcastss {{.*#+}} ymm4 = [2147483648,2147483648,2147483648,2147483648,2147483648,2147483648,2147483648,2147483648]
 ; AVX-NEXT:    vblendvps %ymm2, %ymm3, %ymm4, %ymm4
 ; AVX-NEXT:    vblendvps %ymm2, %ymm3, %ymm1, %ymm1
 ; AVX-NEXT:    vsubps %ymm1, %ymm0, %ymm0

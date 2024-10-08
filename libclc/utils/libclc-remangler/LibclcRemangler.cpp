@@ -396,7 +396,8 @@ private:
           *AST, FDSpecialization->getDeclContext(), SourceLocation(),
           SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
-      TTPD->setDefaultArgument(AST->getTrivialTypeSourceInfo(TemplateArgQT));
+      TTPD->setDefaultArgument(*AST,
+        TemplateArgumentLoc());
 
       TemplateNamedDecls.emplace_back(TTPD);
       auto TA = TemplateArgument(TemplateArgQT);
@@ -601,7 +602,7 @@ private:
         std::string StructName =
             StringRef(KNN->DataStr).split("__spv::").second.str();
         auto *II = &AST->Idents.get(StructName, tok::TokenKind::identifier);
-        RD = RecordDecl::Create(*AST, TTK_Struct, SpvNamespace, SL, SL, II);
+        RD = RecordDecl::Create(*AST, TagTypeKind::Struct, SpvNamespace, SL, SL, II);
         auto *NNS = NestedNameSpecifier::Create(*AST, nullptr, SpvNamespace);
         auto RecordQT = AST->getRecordType(RD);
         NNS = NestedNameSpecifier::Create(*AST, NNS, false,
@@ -614,7 +615,7 @@ private:
             EnumDecl::Create(*AST, RD, SourceLocation(), SourceLocation(),
                              &EnumName, nullptr, false, false, true);
         Res = AST->getEnumType(ED);
-        Res = AST->getElaboratedType(ETK_None, NNS, Res);
+        Res = AST->getElaboratedType(ElaboratedTypeKeyword::None, NNS, Res);
         // Store the elaborated type for reuse, this is important as clang uses
         // substitutions for ET based on the object not the name enclosed in.
         NestedNamesQTMap[N] = Res;
@@ -631,7 +632,7 @@ private:
       }
       case Node::Kind::KVectorType: {
         Res = AST->getVectorType(Res, I->Data,
-                                 clang::VectorType::VectorKind::GenericVector);
+                                 clang::VectorKind::Generic);
         break;
       }
       case Node::Kind::KQualType: {
@@ -777,17 +778,17 @@ public:
 
   void Initialize(ASTContext &C) override {
     ASTCtx = &C;
-    SMDiagnostic Err;
-#if SPIRV_ENABLE_OPAQUE_POINTERS || !defined(__SPIR__)
-    LLVMCtx.setOpaquePointers(true);
-#else
-    LLVMCtx.setOpaquePointers(false);
-#endif
     std::unique_ptr<MemoryBuffer> const Buff = ExitOnErr(
         errorOrToExpected(MemoryBuffer::getFileOrSTDIN(InputIRFilename)));
+
+    SMDiagnostic Err;
     std::unique_ptr<llvm::Module> const M =
-        ExitOnErr(Expected<std::unique_ptr<llvm::Module>>(
-            parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx)));
+        parseIR(Buff.get()->getMemBufferRef(), Err, LLVMCtx);
+
+    if (!M) {
+      Err.print("libclc-remangler", errs());
+      exit(1);
+    }
 
     handleModule(M.get());
   }
@@ -845,7 +846,7 @@ private:
   }
 
   bool remangleFunction(Function &Func, llvm::Module *M) {
-    if (!Func.getName().startswith("_Z"))
+    if (!Func.getName().starts_with("_Z"))
       return true;
 
     std::string const MangledName = Func.getName().str();
@@ -963,7 +964,7 @@ int main(int argc, const char **argv) {
 
   // Use a default Compilation DB instead of the build one, as it might contain
   // toolchain specific options, not compatible with clang.
-  FixedCompilationDatabase Compilations("/", std::vector<std::string>());
+  FixedCompilationDatabase Compilations(".", std::vector<std::string>());
   ClangTool Tool(Compilations, ExpectedParser->getSourcePathList());
 
   LibCLCRemanglerActionFactory LRAF{};

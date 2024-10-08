@@ -229,9 +229,9 @@ void AddLambdaCaptureDecls(StreamString &stream, StackFrame *frame,
   assert(frame);
 
   if (auto thisValSP = ClangExpressionUtil::GetLambdaValueObject(frame)) {
-    uint32_t numChildren = thisValSP->GetNumChildren();
+    uint32_t numChildren = thisValSP->GetNumChildrenIgnoringErrors();
     for (uint32_t i = 0; i < numChildren; ++i) {
-      auto childVal = thisValSP->GetChildAtIndex(i, true);
+      auto childVal = thisValSP->GetChildAtIndex(i);
       ConstString childName(childVal ? childVal->GetName() : ConstString(""));
 
       if (!childName.IsEmpty() && verifier.hasToken(childName.GetStringRef()) &&
@@ -417,7 +417,7 @@ bool ClangExpressionSourceCode::GetText(
     if (sc.comp_unit && sc.line_entry.IsValid()) {
       DebugMacros *dm = sc.comp_unit->GetDebugMacros();
       if (dm) {
-        AddMacroState state(sc.line_entry.file, sc.line_entry.line);
+        AddMacroState state(sc.line_entry.GetFile(), sc.line_entry.line);
         AddMacros(dm, sc.comp_unit, state, debug_macros_stream);
       }
     }

@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -sycl-std=2020 -Wno-sycl-2017-compat -verify
+// RUN: %clang_cc1 %s -fsycl-is-device -internal-isystem %S/Inputs -triple spir64 -fsyntax-only -sycl-std=2020 -verify
 
 // The test checks support and functionality of [[intel::num_simd_work_items()]] attribute.
 

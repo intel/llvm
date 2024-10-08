@@ -8,18 +8,22 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <vector>
+#include <functional>  // for function
+#include <type_traits> // for enable_if_t
+#include <vector>      // for vector
 
 // 4.6.1 Device selection class
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 // Forward declarations
 class device;
+class context;
+enum class aspect;
 
 namespace ext::oneapi {
 class filter_selector;
@@ -90,18 +94,6 @@ public:
   int operator()(const device &dev) const override;
 };
 
-/// Selects SYCL host device.
-///
-/// \sa device
-///
-/// \ingroup sycl_api_dev_sel
-class __SYCL_EXPORT
-__SYCL2020_DEPRECATED("Host device is no longer supported.") host_selector
-    : public device_selector {
-public:
-  int operator()(const device &dev) const override;
-};
-
 // -------------- SYCL 2020
 
 // SYCL 2020 standalone selectors
@@ -166,5 +158,5 @@ detail::DSelectorInvocableType aspect_selector() {
   return aspect_selector({AspectList...}, {});
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

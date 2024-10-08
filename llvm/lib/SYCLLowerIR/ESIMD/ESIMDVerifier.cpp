@@ -31,14 +31,17 @@ namespace id = itanium_demangle;
 #define DEBUG_TYPE "esimd-verifier"
 
 // A list of SYCL functions (regexps) allowed for use in ESIMD context.
+// clang-format off
 static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::accessor<.+>::accessor",
     "^sycl::_V1::accessor<.+>::~accessor",
     "^sycl::_V1::accessor<.+>::getQualifiedPtr",
     "^sycl::_V1::accessor<.+>::__init_esimd",
+    "^sycl::_V1::address_space_cast",
     "^sycl::_V1::local_accessor<.+>::local_accessor",
     "^sycl::_V1::local_accessor<.+>::__init_esimd",
     "^sycl::_V1::local_accessor<.+>::get_pointer",
+    "^sycl::_V1::local_accessor<.+>::get_multi_ptr",
     "^sycl::_V1::local_accessor_base<.+>::local_accessor_base",
     "^sycl::_V1::local_accessor_base<.+>::__init_esimd",
     "^sycl::_V1::local_accessor_base<.+>::getQualifiedPtr",
@@ -50,23 +53,31 @@ static const char *LegalSYCLFunctions[] = {
     "^sycl::_V1::multi_ptr<.+>::.+",
     "^sycl::_V1::nd_item<.+>::.+",
     "^sycl::_V1::group<.+>::.+",
-    "^sycl::_V1::sub_group<.+>::.+",
+    "^sycl::_V1::group_barrier<.+>",
+    "^sycl::_V1::sub_group::.+",
     "^sycl::_V1::range<.+>::.+",
     "^sycl::_V1::kernel_handler::.+",
-    "^sycl::_V1::cos<.+>",
-    "^sycl::_V1::sin<.+>",
-    "^sycl::_V1::log<.+>",
-    "^sycl::_V1::exp<.+>",
+    "^sycl::_V1::cos",
+    "^sycl::_V1::sin",
+    "^sycl::_V1::log",
+    "^sycl::_V1::exp",
     "^sycl::_V1::bit_cast<.+>",
     "^sycl::_V1::operator.+<.+>",
+    "^sycl::_V1::ext::oneapi::experimental::properties",
+    "^sycl::_V1::ext::oneapi::experimental::detail::ExtractProperties",
+    "^sycl::_V1::ext::oneapi::experimental::root_group<.+>::.+",
+    "^sycl::_V1::ext::oneapi::experimental::this_group<.+>",
     "^sycl::_V1::ext::oneapi::sub_group::.+",
     "^sycl::_V1::ext::oneapi::experimental::spec_constant<.+>::.+",
     "^sycl::_V1::ext::oneapi::experimental::this_sub_group",
+    "^sycl::_V1::ext::oneapi::experimental::this_work_item::get_root_group<.+>",
+    "^sycl::_V1::ext::oneapi::experimental::uniform<.+>::.+",
     "^sycl::_V1::ext::oneapi::bfloat16::.+",
     "^sycl::_V1::ext::oneapi::experimental::if_architecture_is"};
 
 static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::accessor<.+>::get_pointer.+",
+    "^sycl::_V1::accessor<.+>::get_multi_ptr.+",
     "^sycl::_V1::accessor<.+>::getPointerAdjusted",
     "^sycl::_V1::accessor<.+>::getTotalOffset",
     "^sycl::_V1::accessor<.+>::getLinearIndex",
@@ -74,6 +85,7 @@ static const char *LegalSYCLFunctionsInStatelessMode[] = {
     "^sycl::_V1::accessor<.+>::getMemoryRange",
     "^sycl::_V1::accessor<.+>::getOffset",
     "^sycl::_V1::accessor<.+>::operator\\[\\]"};
+// clang-format on
 
 namespace {
 
@@ -142,10 +154,12 @@ public:
 
           // We are interested in functions defined in SYCL namespace, but
           // outside of ESIMD namespaces.
-          if (!Name.startswith("sycl::_V1::") ||
-              Name.startswith("sycl::_V1::detail::") ||
-              Name.startswith("sycl::_V1::ext::intel::esimd::") ||
-              Name.startswith("sycl::_V1::ext::intel::experimental::esimd::"))
+          if (!Name.starts_with("sycl::_V1::") ||
+              Name.starts_with("sycl::_V1::detail::") ||
+              Name.starts_with("sycl::_V1::ext::intel::esimd::") ||
+              Name.starts_with(
+                  "sycl::_V1::ext::intel::experimental::esimd::") ||
+              Name.starts_with("sycl::_V1::ext::oneapi::this_work_item::"))
             continue;
 
           // Check if function name matches any allowed SYCL function name.

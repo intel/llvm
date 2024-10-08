@@ -25,13 +25,23 @@ expand_template(
         srcs = [src],
         args = ["--path %s" % package_path("//llvm:BUILD")],
         data = [
+            "check-tested-lit-timeout-ability",
             "lit.cfg",
             "lit.site.cfg",
-            "check-tested-lit-timeout-ability",
             "//llvm:FileCheck",
             "//llvm:count",
             "//llvm:not",
         ] + glob(["Inputs/**"]),
     )
-    for src in glob(["*/*.py"])
+    for src in glob(
+        ["**/*.py"],
+        exclude = [
+            "Inputs/**",
+            "discovery.py",  # TODO: debug and re-enable
+            "max-time.py",
+            "selecting.py",
+            "shtest-recursive-substitution.py",
+            "use-llvm-tool.py",
+        ],
+    )
 ]

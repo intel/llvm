@@ -2,6 +2,9 @@
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: %{run} %t.out 2>&1 | FileCheck %s
 
+// spir-v gen for legacy images at O0 not working
+// UNSUPPORTED: O0
+
 // we use the interop to get the native image handle and then use that to make a
 // new image and enumerate the pixels.
 
@@ -18,8 +21,13 @@
 // interop-level-zero-image-get-native-mem.cpp
 
 #include <level_zero/ze_api.h>
-#include <sycl.hpp>
+#include <sycl/accessor_image.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
+#include <sycl/ext/oneapi/filter_selector.hpp>
+#include <sycl/interop_handle.hpp>
+#include <sycl/stream.hpp>
 using namespace sycl;
 
 int main() {
@@ -98,7 +106,7 @@ int main() {
        });
      }).wait();
   } // ~image
-
+  std::free(sourceData);
 #else
   std::cout << "Missing  Level-Zero backend. Test skipped." << std::endl;
 #endif

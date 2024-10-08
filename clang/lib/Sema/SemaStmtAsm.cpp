@@ -22,6 +22,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaInternal.h"
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSet.h"
 #include "llvm/MC/MCParser/MCAsmParser.h"
 #include <optional>
@@ -70,13 +71,8 @@ static void removeLValueToRValueCast(Expr *E) {
 /// and fix the argument with removing LValueToRValue cast from the expression.
 static void emitAndFixInvalidAsmCastLValue(const Expr *LVal, Expr *BadArgument,
                                            Sema &S) {
-  if (!S.getLangOpts().HeinousExtensions) {
-    S.Diag(LVal->getBeginLoc(), diag::err_invalid_asm_cast_lvalue)
-        << BadArgument->getSourceRange();
-  } else {
-    S.Diag(LVal->getBeginLoc(), diag::warn_invalid_asm_cast_lvalue)
-        << BadArgument->getSourceRange();
-  }
+  S.Diag(LVal->getBeginLoc(), diag::warn_invalid_asm_cast_lvalue)
+      << BadArgument->getSourceRange();
   removeLValueToRValueCast(BadArgument);
 }
 
@@ -270,7 +266,8 @@ StmtResult Sema::ActOnGCCAsmStmt(SourceLocation AsmLoc, bool IsSimple,
       OutputName = Names[i]->getName();
 
     TargetInfo::ConstraintInfo Info(Literal->getString(), OutputName);
-    if (!Context.getTargetInfo().validateOutputConstraint(Info)) {
+    if (!Context.getTargetInfo().validateOutputConstraint(Info) &&
+        !(LangOpts.HIPStdPar && LangOpts.CUDAIsDevice)) {
       targetDiag(Literal->getBeginLoc(),
                  diag::err_asm_invalid_output_constraint)
           << Info.getConstraintStr();
@@ -827,7 +824,7 @@ bool Sema::LookupInlineAsmField(StringRef Base, StringRef Member,
   NamedDecl *FoundDecl = nullptr;
 
   // MS InlineAsm uses 'this' as a base
-  if (getLangOpts().CPlusPlus && Base.equals("this")) {
+  if (getLangOpts().CPlusPlus && Base == "this") {
     if (const Type *PT = getCurrentThisType().getTypePtrOrNull())
       FoundDecl = PT->getPointeeType()->getAsTagDecl();
   } else {

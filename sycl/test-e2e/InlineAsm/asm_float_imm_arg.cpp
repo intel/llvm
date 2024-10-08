@@ -1,16 +1,16 @@
 // UNSUPPORTED: cuda, hip
-// REQUIRES: gpu,linux
+// REQUIRES: gpu,linux,sg-16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "include/asmhelper.h"
 #include <cmath>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <vector>
 
-constexpr double IMM_ARGUMENT = 0.5;
-using dataType = sycl::opencl::cl_double;
+constexpr float IMM_ARGUMENT = 0.5;
+using dataType = sycl::opencl::cl_float;
 
 template <typename T = dataType>
 struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
@@ -27,7 +27,7 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 
     cgh.parallel_for<KernelFunctor<T>>(
         sycl::range<1>{this->getOutputBufferSize()},
-        [=](sycl::id<1> wiID) [[intel::reqd_sub_group_size(16)]] {
+        [=](sycl::id<1> wiID) [[sycl::reqd_sub_group_size(16)]] {
 #if defined(__SYCL_DEVICE_ONLY__)
           asm("mul (M1, 16) %0(0, 0)<1> %1(0, 0)<1;1,0> %2"
               : "=rw"(B[wiID])
@@ -42,10 +42,10 @@ struct KernelFunctor : WithInputBuffers<T, 1>, WithOutputBuffer<T> {
 int main() {
   std::vector<dataType> input(DEFAULT_PROBLEM_SIZE);
   for (int i = 0; i < DEFAULT_PROBLEM_SIZE; i++)
-    input[i] = (double)1 / std::pow(2, i);
+    input[i] = (float)1 / std::pow(2, i);
 
   KernelFunctor<> f(input);
-  if (!launchInlineASMTest(f))
+  if (!launchInlineASMTest(f, {16}))
     return 0;
 
   auto &B = f.getOutputBufferData();

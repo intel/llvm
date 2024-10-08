@@ -10,20 +10,20 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/util.hpp>
 #include <sycl/exception.hpp>
+#include <ur_api.h>
 
 #include <cstring>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 void spec_constant_impl::set(size_t Size, const void *Val) {
   if (0 == Size)
-    throw sycl::runtime_error("invalid spec constant size",
-                              PI_ERROR_INVALID_VALUE);
+    throw exception(make_error_code(errc::invalid),
+                    "invalid spec constant size");
   auto *BytePtr = reinterpret_cast<const char *>(Val);
   this->Bytes.assign(BytePtr, BytePtr + Size);
 }
@@ -50,5 +50,5 @@ std::ostream &operator<<(std::ostream &Out, const spec_constant_impl &V) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

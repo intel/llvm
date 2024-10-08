@@ -36,9 +36,8 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
   SmallVector<Range> getIterationDomain(Operation *op, OpBuilder &b) const {
     ReifiedRankedShapedTypeDims reifiedShapes;
     (void)reifyResultShapes(b, op, reifiedShapes);
-    Location loc = op->getLoc();
-    Value zero = b.create<arith::ConstantIndexOp>(loc, 0);
-    Value one = b.create<arith::ConstantIndexOp>(loc, 1);
+    OpFoldResult zero = b.getIndexAttr(0);
+    OpFoldResult one = b.getIndexAttr(1);
     // Initialize all the ranges to {zero, one, one}. All the `ub`s are
     // overwritten.
     SmallVector<Range> loopRanges(reifiedShapes[0].size(), {zero, one, one});
@@ -68,6 +67,23 @@ struct PadOpTiling : public TilingInterface::ExternalModel<PadOpTiling, PadOp> {
     resultSizes.assign(sizes.begin(), sizes.end());
     return success();
   }
+
+  LogicalResult getIterationDomainTileFromResultTile(
+      Operation *op, OpBuilder &b, unsigned resultNumber,
+      ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+      SmallVectorImpl<OpFoldResult> &iterDomainOffsets,
+      SmallVectorImpl<OpFoldResult> &iterDomainSizes) const {
+    iterDomainOffsets.assign(offsets.begin(), offsets.end());
+    iterDomainSizes.assign(sizes.begin(), sizes.end());
+    return success();
+  }
+
+  FailureOr<TilingResult>
+  generateResultTileValue(Operation *op, OpBuilder &b, unsigned resultNumber,
+                          ArrayRef<OpFoldResult> offsets,
+                          ArrayRef<OpFoldResult> sizes) const {
+    return getTiledImplementation(op, b, offsets, sizes);
+  }
 };
 
 template <typename OpTy>
@@ -76,11 +92,10 @@ static SmallVector<Range> getPackUnPackIterationDomain(OpTy op,
   static_assert(llvm::is_one_of<OpTy, PackOp, UnPackOp>::value,
                 "applies to only pack or unpack operations");
   OpBuilder::InsertionGuard g(builder);
-  Location loc = op.getLoc();
   int64_t rank = (std::is_same<OpTy, PackOp>::value) ? op.getSourceRank()
                                                      : op.getDestRank();
-  Value zero = builder.create<arith::ConstantIndexOp>(loc, 0);
-  Value one = builder.create<arith::ConstantIndexOp>(loc, 1);
+  OpFoldResult zero = builder.getIndexAttr(0);
+  OpFoldResult one = builder.getIndexAttr(1);
   ReifiedRankedShapedTypeDims resultShape;
   (void)reifyResultShapes(builder, op, resultShape);
   SmallVector<Range> loopBounds(rank);
@@ -128,15 +143,15 @@ struct PackOpTiling
     // The tiling is applied on interchanged dimensions. We have to undo the
     // interchange to map sizes and offsets to the original input.
     int64_t inputRank = packOp.getSourceRank();
-    SmallVector<OpFoldResult> origOffsets(offsets.begin(), offsets.end());
-    SmallVector<OpFoldResult> origSizes(sizes.begin(), sizes.end());
+    SmallVector<OpFoldResult> origOffsets(offsets);
+    SmallVector<OpFoldResult> origSizes(sizes);
     applyPermToRange(origOffsets, origSizes,
                      invertPermutationVector(packOp.getOuterDimsPerm()));
 
     DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
         packOp.getDimAndTileMapping();
     SmallVector<OpFoldResult> srcDimValues =
-        tensor::createDimValues(b, loc, packOp.getSource());
+        tensor::getMixedSizes(b, loc, packOp.getSource());
     SmallVector<OpFoldResult> inputIndices, inputSizes;
     for (auto dim : llvm::seq<int64_t>(0, inputRank)) {
       using AV = affine::AffineValueExpr;
@@ -222,6 +237,146 @@ struct PackOpTiling
 
     return success();
   }
+
+  FailureOr<TilingResult>
+  generateResultTileValue(Operation *op, OpBuilder &b, unsigned resultNumber,
+                          ArrayRef<OpFoldResult> offsets,
+                          ArrayRef<OpFoldResult> sizes) const {
+    auto packOp = cast<PackOp>(op);
+    int64_t numTiles = packOp.getInnerDimsPos().size();
+
+    // tensor.pack op is fusible (as a producer) only if full inner tiles are
+    // iterated or inner dims are not tiled. Otherwise, it will generate a
+    // sequence of non-trivial ops (for partial tiles).
+    for (auto offset : offsets.take_back(numTiles))
+      if (!isConstantIntValue(offset, 0))
+        return failure();
+
+    for (auto iter :
+         llvm::zip_equal(packOp.getMixedTiles(), sizes.take_back(numTiles)))
+      if (!isEqualConstantIntOrValue(std::get<0>(iter), std::get<1>(iter)))
+        return failure();
+
+    FailureOr<TilingResult> tilingResult = getTiledImplementation(
+        op, b, offsets.drop_back(numTiles), sizes.drop_back(numTiles));
+    if (failed(tilingResult))
+      return failure();
+    return tilingResult.value();
+  }
+
+  /// Method to return the position of iteration domain tile computed by the
+  /// tiled operation. In current `tensor.pack` context, the `resultOffsets` and
+  /// `resultSizes` only cover outer dimensions.
+  LogicalResult getIterationDomainTileFromOperandTile(
+      Operation *op, OpBuilder &b, unsigned operandNumber,
+      ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+      SmallVectorImpl<OpFoldResult> &resultOffsets,
+      SmallVectorImpl<OpFoldResult> &resultSizes) const {
+    if (operandNumber != 0)
+      return failure();
+
+    auto packOp = cast<PackOp>(op);
+    // It is not trivial to infer dest tile from source tile if `packOp` has
+    // padding semantic.
+    if (packOp.getPaddingValue())
+      return failure();
+
+    Location loc = packOp.getLoc();
+
+    SmallVector<OpFoldResult> outerDimOffsets, outerDimSizes;
+    DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
+        packOp.getDimAndTileMapping();
+    for (auto dim : packOp.getOuterDimsPerm()) {
+      if (dimAndTileMapping.count(dim)) {
+        FailureOr<int64_t> cstSize =
+            ValueBoundsConstraintSet::computeConstantBound(
+                presburger::BoundType::UB, sizes[dim],
+                /*stopCondition=*/nullptr, /*closedUB=*/true);
+        std::optional<int64_t> cstInnerSize =
+            getConstantIntValue(dimAndTileMapping[dim]);
+        // Currently fusing `packOp` as consumer only expects perfect tiling
+        // scenario because even if without padding semantic, the `packOp` may
+        // also yield incomplete tiles. E.g. tensor<30xf32> -> tensor<5x6xf32>,
+        // where the `tileSize` from operand of `packOp` is 5, which is not
+        // exactly divided by `innerTile`(=6) of `packOp`. As the result:
+        // 1. the first slice is extracted from (0) to (4) and inserted into
+        // (0,0)~(0,4) at first row.
+        // 2. the second slice is extracted from (5) to (9) and SHOULD BE
+        // respectively inserted into two rows with different length, including
+        // first row: (0,5) and second row (1,0)~(1,3). It is hard to coordinate
+        // them, thus adding below constraint to bypass them temporarily. In
+        // another word, we can only support tiling with consumer if the tile
+        // size for the producer is a multiple of the inner tile size for the
+        // packed dimensions at this moment.
+        if (failed(cstSize) || !cstInnerSize || *cstSize % *cstInnerSize != 0) {
+          return failure();
+        }
+
+        using AV = affine::AffineValueExpr;
+        affine::AffineBuilder ab(b, loc);
+        AffineExpr dim0, sym;
+        bindDims(b.getContext(), dim0);
+        bindSymbols(b.getContext(), sym);
+        auto avOffset = AV(dim0).bind(offsets[dim]);
+        auto avSize = AV(dim0).bind(sizes[dim]);
+        auto avTileSize = AV(sym).bind(dimAndTileMapping[dim]);
+        outerDimOffsets.push_back(ab.floor(avOffset, avTileSize));
+        outerDimSizes.push_back(ab.ceil(avSize, avTileSize));
+      } else {
+        outerDimOffsets.push_back(offsets[dim]);
+        outerDimSizes.push_back(sizes[dim]);
+      }
+    }
+
+    resultOffsets = outerDimOffsets;
+    resultSizes = outerDimSizes;
+    return success();
+  }
+
+  /// Method to return the tiled implementation of tensor.pack as a consumer.
+  FailureOr<TilingResult> getTiledImplementationFromOperandTile(
+      Operation *op, OpBuilder &b, unsigned operandNumber,
+      ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes) const {
+    if (operandNumber != 0)
+      return failure();
+
+    auto packOp = cast<PackOp>(op);
+    Location loc = packOp.getLoc();
+
+    int64_t inputRank = packOp.getSourceRank();
+    auto oneAttr = b.getI64IntegerAttr(1);
+    SmallVector<OpFoldResult> strides(inputRank, oneAttr);
+
+    SmallVector<Value> tiledOperands;
+    tiledOperands.push_back(b.create<ExtractSliceOp>(loc, packOp.getSource(),
+                                                     offsets, sizes, strides));
+
+    SmallVector<OpFoldResult> outerDimOffsets, outerDimSizes;
+    if (failed(getIterationDomainTileFromOperandTile(
+            op, b, /*operandNumber=*/0, offsets, sizes, outerDimOffsets,
+            outerDimSizes)))
+      return failure();
+
+    SmallVector<OpFoldResult> outputOffsets, outputSizes;
+    if (failed(getResultTilePosition(op, b, 0, outerDimOffsets, outerDimSizes,
+                                     outputOffsets, outputSizes)))
+      return failure();
+
+    strides.append(packOp.getDestRank() - inputRank, oneAttr);
+    auto extractSlice = b.create<ExtractSliceOp>(
+        loc, packOp.getDest(), outputOffsets, outputSizes, strides);
+    tiledOperands.push_back(extractSlice);
+
+    assert(!packOp.getPaddingValue() && "Expect no padding semantic");
+    for (auto tile : packOp.getInnerTiles())
+      tiledOperands.push_back(tile);
+
+    Operation *tiledPackOp = b.create<PackOp>(
+        loc, TypeRange{extractSlice.getType()}, tiledOperands, op->getAttrs());
+
+    return TilingResult{{tiledPackOp},
+                        SmallVector<Value>(tiledPackOp->getResults())};
+  }
 };
 
 struct UnpackTileDimInfo {
@@ -265,8 +420,7 @@ static UnpackTileDimInfo getUnpackTileDimInfo(OpBuilder &b, UnPackOp unpackOp,
 
   info.isAlignedToInnerTileSize = false;
   FailureOr<int64_t> cstSize = ValueBoundsConstraintSet::computeConstantBound(
-      presburger::BoundType::UB,
-      getValueOrCreateConstantIndexOp(b, loc, tileSize), /*dim=*/std::nullopt,
+      presburger::BoundType::UB, tileSize,
       /*stopCondition=*/nullptr, /*closedUB=*/true);
   std::optional<int64_t> cstInnerSize = getConstantIntValue(innerTileSize);
   if (!failed(cstSize) && cstInnerSize) {
@@ -446,6 +600,105 @@ struct UnPackOpTiling
       return failure();
     return tilingResult.value();
   }
+
+  /// Method to return the position of iteration domain tile computed by the
+  /// tiled operation.
+  LogicalResult getIterationDomainTileFromOperandTile(
+      Operation *op, OpBuilder &b, unsigned operandNumber,
+      ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes,
+      SmallVectorImpl<OpFoldResult> &resultOffsets,
+      SmallVectorImpl<OpFoldResult> &resultSizes) const {
+    auto unPackOp = cast<UnPackOp>(op);
+    Location loc = unPackOp.getLoc();
+
+    int64_t numTiles = unPackOp.getInnerDimsPos().size();
+    auto destOffsets = offsets.drop_back(numTiles);
+    auto destSizes = sizes.drop_back(numTiles);
+    // The tiling is applied on interchanged dimensions. We have to undo the
+    // interchange to map sizes and offsets to the original input.
+    int64_t outputRank = unPackOp.getDestRank();
+    SmallVector<OpFoldResult> origOffsets(destOffsets);
+    SmallVector<OpFoldResult> origSizes(destSizes);
+    applyPermToRange(origOffsets, origSizes,
+                     invertPermutationVector(unPackOp.getOuterDimsPerm()));
+
+    DenseMap<int64_t, OpFoldResult> dimAndTileMapping =
+        unPackOp.getDimAndTileMapping();
+
+    for (auto dim : llvm::seq<int64_t>(0, outputRank)) {
+      using AV = affine::AffineValueExpr;
+      affine::AffineBuilder ab(b, loc);
+      AffineExpr dim0, dim1, sym;
+      bindDims(b.getContext(), dim0, dim1);
+      bindSymbols(b.getContext(), sym);
+      if (dimAndTileMapping.count(dim)) {
+        // If the data dimension is tiled, the i-th index is the product of
+        // offset_i and tile_i, and the i-th size is the product of sizes_i and
+        // tile_i.
+        auto avOffset = AV(dim0).bind(origOffsets[dim]);
+        auto avSize = AV(dim0).bind(origSizes[dim]);
+        auto avTileSize = AV(sym).bind(dimAndTileMapping[dim]);
+        resultOffsets.push_back(ab.mul(avOffset, avTileSize));
+        resultSizes.push_back(ab.mul(avSize, avTileSize));
+      } else {
+        resultOffsets.push_back(origOffsets[dim]);
+        resultSizes.push_back(origSizes[dim]);
+      }
+    }
+    return success();
+  }
+
+  /// Method to return the tiled implementation of tensor.unpack as a consumer.
+  FailureOr<TilingResult> getTiledImplementationFromOperandTile(
+      Operation *op, OpBuilder &b, unsigned operandNumber,
+      ArrayRef<OpFoldResult> offsets, ArrayRef<OpFoldResult> sizes) const {
+    auto unPackOp = cast<UnPackOp>(op);
+    // tensor.unpack op is fusible (as a consumer) only if inner dims are not
+    // tiled.
+    int64_t numTiles = unPackOp.getInnerDimsPos().size();
+    for (auto iter :
+         llvm::zip_equal(unPackOp.getMixedTiles(), sizes.take_back(numTiles))) {
+      if (!isEqualConstantIntOrValue(std::get<0>(iter), std::get<1>(iter)))
+        return failure();
+    }
+
+    Location loc = unPackOp.getLoc();
+
+    // Fetch offset/size for creating the slice of the dest operand of
+    // unpack op.
+    SmallVector<OpFoldResult> outputOffsets, outputSizes;
+    if (failed(getIterationDomainTileFromOperandTile(
+            op, b, /*operandNumber=*/0, offsets, sizes, outputOffsets,
+            outputSizes)))
+      return failure();
+
+    auto oneAttr = b.getI64IntegerAttr(1);
+    int64_t outputRank = unPackOp.getDestRank();
+    SmallVector<OpFoldResult> strides(outputRank, oneAttr);
+
+    SmallVector<Value> tiledOperands;
+    // Create slice of the dest operand.
+    auto extractDestSlice = b.create<ExtractSliceOp>(
+        loc, unPackOp.getDest(), outputOffsets, outputSizes, strides);
+    tiledOperands.push_back(extractDestSlice);
+
+    SmallVector<OpFoldResult> inputOffsets, inputSizes;
+    strides.append(unPackOp.getSourceRank() - outputRank, oneAttr);
+    // Create slice of the source operand.
+    auto extractSourceSlice = b.create<ExtractSliceOp>(
+        loc, unPackOp.getSource(), offsets, sizes, strides);
+    tiledOperands.insert(tiledOperands.begin(), extractSourceSlice);
+    for (auto tile : unPackOp.getInnerTiles())
+      tiledOperands.push_back(tile);
+
+    // Create tiled unpack op.
+    Operation *tiledUnPackOp =
+        b.create<UnPackOp>(loc, TypeRange{extractDestSlice.getType()},
+                           tiledOperands, op->getAttrs());
+
+    return TilingResult{{tiledUnPackOp},
+                        SmallVector<Value>(tiledUnPackOp->getResults())};
+  }
 };
 
 } // namespace
@@ -504,8 +757,7 @@ FailureOr<TilingResult> tensor::bubbleUpPadSlice(OpBuilder &b,
     bool hasHighPad = !isConstantIntValue(high, 0);
     auto offset = offsets[dim];
     auto length = sizes[dim];
-    auto srcSize =
-        tensor::createDimValue(b, loc, padOp.getSource(), dim).value();
+    auto srcSize = tensor::getMixedSize(b, loc, padOp.getSource(), dim);
 
     // The new amount of low padding is `low - offset`. Except for the case
     // where none of the low padding is read. In that case, the new amount of

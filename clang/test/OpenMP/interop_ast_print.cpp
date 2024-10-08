@@ -1,21 +1,21 @@
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -fsyntax-only -verify %s
 
 // expected-no-diagnostics
 
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -ast-print %s | FileCheck %s --check-prefix=PRINT
 
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -ast-dump  %s | FileCheck %s --check-prefix=DUMP
 
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -emit-pch -o %t %s
 
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -include-pch %t -ast-dump-all %s | FileCheck %s --check-prefix=DUMP
 
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 \
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp \
 // RUN:   -include-pch %t -ast-print %s | FileCheck %s --check-prefix=PRINT
 
 #ifndef HEADER
@@ -268,7 +268,7 @@ void fooTemp() {
 
   //PRINT: #pragma omp interop init(prefer_type(3,4,"level_one"), target : interop_var)
   //DUMP: FunctionDecl{{.*}}fooTemp
-  //DUMP: TemplateArgument integral 3
+  //DUMP: TemplateArgument integral '3'
   //DUMP: OMPInteropDirective
   //DUMP: OMPInitClause
   //DUMP: DeclRefExpr{{.*}}'omp_interop_t'{{.*}}'interop_var'

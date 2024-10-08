@@ -11,7 +11,8 @@
 
 #include "device.h"
 
-#if defined(__SPIR__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 #include <cstddef>
 #include <cstdint>
@@ -20,7 +21,9 @@
 typedef size_t size_t_vec __attribute__((ext_vector_type(3)));
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalInvocationId;
 __SPIRV_VAR_QUALIFIERS size_t __spirv_BuiltInGlobalLinearId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInGlobalSize;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInLocalInvocationId;
+__SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInNumWorkgroups;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupId;
 __SPIRV_VAR_QUALIFIERS size_t_vec __spirv_BuiltInWorkgroupSize;
 
@@ -51,10 +54,10 @@ DEVICE_EXTERNAL inline size_t __spirv_LocalInvocationId_z() {
   return __spirv_BuiltInLocalInvocationId.z;
 }
 
-#ifndef __SPIR__
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 const size_t_vec __spirv_BuiltInGlobalInvocationId{};
 const size_t_vec __spirv_BuiltInLocalInvocationId{};
-#endif // __SPIR__
+#endif // !__SPIR__ && !__SPIRV__
 
-#endif // __SPIR__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__
 #endif // __LIBDEVICE_SPIRV_VARS_H

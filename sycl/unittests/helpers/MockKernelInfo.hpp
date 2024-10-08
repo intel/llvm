@@ -12,7 +12,7 @@
 #include <cstdint>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace unittest {
 struct MockKernelInfoBase {
   static constexpr unsigned getNumParams() { return 0; }
@@ -27,5 +27,20 @@ struct MockKernelInfoBase {
 };
 
 } // namespace unittest
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
+
+// In most cases we don't need to redefine any other method besides getName(),
+// so here we only have the simplest helper. If any test needs to redefine more
+// methods, they can do that explicitly.
+#define MOCK_INTEGRATION_HEADER(KernelName)                                    \
+  namespace sycl {                                                             \
+  inline namespace _V1 {                                                       \
+  namespace detail {                                                           \
+  template <>                                                                  \
+  struct KernelInfo<KernelName> : public unittest::MockKernelInfoBase {        \
+    static constexpr const char *getName() { return #KernelName; }             \
+  };                                                                           \
+  } /* namespace detail */                                                     \
+  } /* namespace _V1 */                                                        \
+  } /* namespace sycl */

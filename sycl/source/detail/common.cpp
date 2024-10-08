@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/common_info.hpp>
+
+#include <ur_api.h>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 /// @brief CodeLocation information slot in thread local storage
 /// @details This structure is maintained by the SYCL runtime to manage the
@@ -26,6 +27,16 @@ tls_code_loc_t::tls_code_loc_t() {
   // Check TLS to see if a previously stashed code_location object is
   // available; if so, we are in a local scope.
   MLocalScope = GCodeLocTLS.fileName() && GCodeLocTLS.functionName();
+}
+
+ur_code_location_t codeLocationCallback(void *) {
+  ur_code_location_t codeloc;
+  codeloc.columnNumber = GCodeLocTLS.columnNumber();
+  codeloc.lineNumber = GCodeLocTLS.lineNumber();
+  codeloc.functionName = GCodeLocTLS.functionName();
+  codeloc.sourceFile = GCodeLocTLS.fileName();
+
+  return codeloc;
 }
 
 /// @brief Constructor to use at the top level of the calling stack
@@ -54,42 +65,6 @@ tls_code_loc_t::~tls_code_loc_t() {
 
 const detail::code_location &tls_code_loc_t::query() { return GCodeLocTLS; }
 
-const char *stringifyErrorCode(pi_int32 error) {
-  switch (error) {
-#define _PI_ERRC(NAME, VAL)                                                    \
-  case NAME:                                                                   \
-    return #NAME;
-#define _PI_ERRC_WITH_MSG(NAME, VAL, MSG)                                      \
-  case NAME:                                                                   \
-    return MSG;
-#include <sycl/detail/pi_error.def>
-#undef _PI_ERRC
-#undef _PI_ERRC_WITH_MSG
-
-  default:
-    return "Unknown error code";
-  }
-}
-
-std::vector<std::string> split_string(const std::string &str, char delimeter) {
-  std::vector<std::string> result;
-  size_t beg = 0;
-  size_t length = 0;
-  for (const auto &x : str) {
-    if (x == delimeter) {
-      result.push_back(str.substr(beg, length));
-      beg += length + 1;
-      length = 0;
-      continue;
-    }
-    length++;
-  }
-  if (length != 0) {
-    result.push_back(str.substr(beg, length));
-  }
-  return result;
-}
-
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

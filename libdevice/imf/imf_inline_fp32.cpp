@@ -5,8 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-#include "../device_imf.hpp"
+
+#include "../device.h"
+
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE _iml_half_internal __devicelib_imf_fmaf16(
     _iml_half_internal a, _iml_half_internal b, _iml_half_internal c) {
@@ -122,14 +126,6 @@ DEVICE_EXTERN_C_INLINE float __devicelib_imf_rsqrtf(float a) {
 }
 
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_invf(float a) { return 1.0f / a; }
-
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fmaxf(float a, float b) {
-  return __fmax(a, b);
-}
-
-DEVICE_EXTERN_C_INLINE float __devicelib_imf_fminf(float a, float b) {
-  return __fmin(a, b);
-}
 
 DEVICE_EXTERN_C_INLINE float __devicelib_imf_copysignf(float a, float b) {
   return __copysign(a, b);

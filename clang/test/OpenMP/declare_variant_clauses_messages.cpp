@@ -1,10 +1,10 @@
-// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -fopenmp-version=51 -std=c++11 -o - %s
-// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -fopenmp-version=51 -std=c++11 \
+// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -std=c++11 \
 // RUN:  -DNO_INTEROP_T_DEF -o - %s
-// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -fopenmp-version=50 -std=c++11 -o - %s
-// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -fopenmp-version=51 -Wno-strict-prototypes -DC -x c -o - %s
+// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -std=c++11 -o - %s
+// RUN: %clang_cc1 -verify -triple x86_64-unknown-linux -fopenmp -Wno-strict-prototypes -DC -x c -o - %s
 // RUN: %clang_cc1 -verify -triple x86_64-pc-windows-msvc -fms-compatibility \
-// RUN:  -fopenmp -fopenmp-version=51 -Wno-strict-prototypes -DC -DWIN -x c -o - %s
+// RUN:  -fopenmp -Wno-strict-prototypes -DC -DWIN -x c -o - %s
 
 #ifdef NO_INTEROP_T_DEF
 void foo_v1(float *, void *);
@@ -185,6 +185,16 @@ void vararg_bar2(const char *fmt) { return; }
 
 // expected-error@+1 {{variant in '#pragma omp declare variant' with type 'void (float *, float *, int *, omp_interop_t)' (aka 'void (float *, float *, int *, void *)') is incompatible with type 'void (float *, float *, int *)'}}
 #pragma omp declare variant(foo_v4) match(construct={dispatch})
+
+// expected-error@+3 {{incorrect adjust_args type, expected 'need_device_ptr' or 'nothing'}}
+#pragma omp declare variant(foo_v1)                        \
+   match(construct={dispatch}, device={arch(arm)})         \
+   adjust_args(badaaop:AAA,BBB)
+
+// expected-error@+3 {{incorrect adjust_args type, expected 'need_device_ptr' or 'nothing'}}
+#pragma omp declare variant(foo_v1)                        \
+   match(construct={dispatch}, device={arch(arm)})         \
+   adjust_args(badaaop AAA,BBB)
 
 #endif // _OPENMP >= 202011
 #if _OPENMP < 202011  // OpenMP 5.0 or lower

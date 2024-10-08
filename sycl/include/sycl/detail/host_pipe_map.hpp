@@ -8,8 +8,10 @@
 
 #pragma once
 
+#include <sycl/detail/export.hpp>
+
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 namespace host_pipe_map {
 
@@ -17,5 +19,5 @@ __SYCL_EXPORT void add(const void *HostPipePtr, const char *UniqueId);
 
 } // namespace host_pipe_map
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -8,9 +8,9 @@
 
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringRef.h"
-#include "llvm/ADT/StringSwitch.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/LLVMDriver.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/WithColor.h"
@@ -33,7 +33,7 @@ static void printHelpMessage() {
                << subcommands
                << "\n  Type \"llvm <subcommand> --help\" to get more help on a "
                   "specific subcommand\n\n"
-               << "OPTIONS:\n\n  --help - Display this message";
+               << "OPTIONS:\n\n  --help - Display this message\n";
 }
 
 static int findTool(int Argc, char **Argv, const char *Argv0) {
@@ -80,4 +80,7 @@ static int findTool(int Argc, char **Argv, const char *Argv0) {
   return 1;
 }
 
-int main(int Argc, char **Argv) { return findTool(Argc, Argv, Argv[0]); }
+int main(int Argc, char **Argv) {
+  llvm::InitLLVM X(Argc, Argv);
+  return findTool(Argc, Argv, Argv[0]);
+}

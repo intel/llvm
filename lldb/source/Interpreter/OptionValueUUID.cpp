@@ -23,7 +23,7 @@ void OptionValueUUID::DumpValue(const ExecutionContext *exe_ctx, Stream &strm,
   if (dump_mask & eDumpOptionValue) {
     if (dump_mask & eDumpOptionType)
       strm.PutCString(" = ");
-    m_uuid.Dump(&strm);
+    m_uuid.Dump(strm);
   }
 }
 
@@ -39,8 +39,8 @@ Status OptionValueUUID::SetValueFromString(llvm::StringRef value,
   case eVarSetOperationReplace:
   case eVarSetOperationAssign: {
     if (!m_uuid.SetFromStringRef(value))
-      error.SetErrorStringWithFormat("invalid uuid string value '%s'",
-                                     value.str().c_str());
+      error = Status::FromErrorStringWithFormat(
+          "invalid uuid string value '%s'", value.str().c_str());
     else {
       m_value_was_set = true;
       NotifyValueChanged();

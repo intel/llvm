@@ -10,8 +10,8 @@ For general contribution process see [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 [![oneAPI logo](https://spec.oneapi.io/oneapi-logo-white-scaled.jpg)](https://www.oneapi.io/)
 
-[![SYCL Post Commit](https://github.com/intel/llvm/actions/workflows/sycl_post_commit.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl_post_commit.yml)
-[![Generate Doxygen documentation](https://github.com/intel/llvm/actions/workflows/gh_pages.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/gh_pages.yml)
+[![SYCL Post Commit](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-post-commit.yml)
+[![Generate Doxygen documentation](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml/badge.svg?branch=sycl)](https://github.com/intel/llvm/actions/workflows/sycl-docs.yml)
 
 The DPC++ is a LLVM-based compiler project that implements compiler and runtime
 support for the SYCL\* language. The project is hosted in the
@@ -42,7 +42,7 @@ source project. One of the examples is
 Features parity between this project and downstream projects is not guaranteed.
 
 Project documentation is available at:
-[DPC++ Documentation](https://intel.github.io/llvm-docs/).
+[DPC++ Documentation](https://intel.github.io/llvm/).
 
 ### How to use DPC++
 
@@ -74,11 +74,14 @@ Submit an [issue](https://github.com/intel/llvm/issues) or initiate a
 
 ### How to contribute to DPC++
 
-See [ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md).
+This project welcomes contributions from the community. Please refer to [CONTRIBUTING](/CONTRIBUTING.md) 
+for general guidelines around contributing to this project. You can then see 
+[ContributeToDPCPP](./sycl/doc/developer/ContributeToDPCPP.md) for DPC++ specific 
+guidelines.
 
 ## Late-outline OpenMP\* and OpenMP\* Offload
 
-See [openmp](/tree/openmp) branch.
+See [openmp](/openmp) branch.
 
 # License
 

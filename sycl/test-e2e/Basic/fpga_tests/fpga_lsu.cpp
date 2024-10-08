@@ -10,8 +10,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 int test_lsu(sycl::queue Queue) {
   int output_data[2];
@@ -35,8 +35,10 @@ int test_lsu(sycl::queue Queue) {
           input_buffer.get_access<sycl::access::mode::read>(cgh);
 
       cgh.single_task<class kernel>([=] {
-        auto input_ptr = input_accessor.get_pointer();
-        auto output_ptr = output_accessor.get_pointer();
+        auto input_ptr =
+            input_accessor.get_multi_ptr<sycl::access::decorated::no>();
+        auto output_ptr =
+            output_accessor.get_multi_ptr<sycl::access::decorated::no>();
 
         using PrefetchingLSU =
             sycl::ext::intel::lsu<sycl::ext::intel::prefetch<true>,
@@ -74,7 +76,7 @@ int test_lsu(sycl::queue Queue) {
 }
 
 int main() {
-  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector_v};
 
   return test_lsu(Queue);
 }

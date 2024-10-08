@@ -8,17 +8,41 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/handler.hpp>
+#include <sycl/access/access.hpp>  // for target, mode, address_space
+#include <sycl/accessor.hpp>       // for accessor
+#include <sycl/aliases.hpp>        // for half
+#include <sycl/atomic.hpp>         // for atomic
+#include <sycl/builtins.hpp>       // for isinf, isnan, signbit
+#include <sycl/detail/array.hpp>   // for array
+#include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
+#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
+#include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
+#include <sycl/group.hpp>                     // for group
+#include <sycl/h_item.hpp>                    // for h_item
+#include <sycl/half_type.hpp>                 // for half, operator-, operator<
+#include <sycl/handler.hpp>                   // for handler
+#include <sycl/item.hpp>                      // for item
+#include <sycl/nd_item.hpp>                   // for nd_item
+#include <sycl/nd_range.hpp>                  // for nd_range
+#include <sycl/property_list.hpp>             // for property_list
+#include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>                 // for multi_ptr
+#include <sycl/types.hpp>                     // for vec, SwizzleOp
+
+#include <cstddef>     // for size_t, byte
+#include <memory>      // for hash, shared_ptr
+#include <stdint.h>    // for uint16_t, uint8_t
+#include <type_traits> // for enable_if_t, is_same, fal...
+#include <variant>     // for hash
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
+
+class stream_impl;
 
 using FmtFlags = unsigned int;
 
@@ -60,27 +84,23 @@ constexpr size_t MAX_ARRAY_SIZE =
 constexpr unsigned FLUSH_BUF_OFFSET_SIZE = 2;
 
 template <class F, class T = void>
-using EnableIfFP = typename std::enable_if_t<std::is_same_v<F, float> ||
-                                                 std::is_same_v<F, double> ||
-                                                 std::is_same_v<F, half>,
-                                             T>;
+using EnableIfFP = typename std::enable_if_t<
+    detail::check_type_in_v<F, float, double, half, ext::oneapi::bfloat16>, T>;
 
 using GlobalBufAccessorT = accessor<char, 1, sycl::access::mode::read_write,
-                                    sycl::access::target::global_buffer,
-                                    sycl::access::placeholder::false_t>;
+                                    sycl::access::target::device>;
 
 constexpr static access::address_space GlobalBufAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalBufPtrType =
     typename detail::DecoratedType<char, GlobalBufAS>::type *;
 constexpr static int GlobalBufDim = 1;
 
 using GlobalOffsetAccessorT = accessor<unsigned, 1, sycl::access::mode::atomic,
-                                       sycl::access::target::global_buffer,
-                                       sycl::access::placeholder::false_t>;
+                                       sycl::access::target::device>;
 
 constexpr static access::address_space GlobalOffsetAS =
-    TargetToAS<sycl::access::target::global_buffer>::AS;
+    TargetToAS<sycl::access::target::device>::AS;
 using GlobalOffsetPtrType =
     typename detail::DecoratedType<unsigned, GlobalBufAS>::type *;
 constexpr static int GlobalOffsetDim = 1;
@@ -226,7 +246,7 @@ inline unsigned append(char *Dst, const char *Src) {
   return Len;
 }
 
-static inline unsigned F2I32(float Val) {
+inline unsigned F2I32(float Val) {
   union {
     float FVal;
     unsigned I32Val;
@@ -235,7 +255,7 @@ static inline unsigned F2I32(float Val) {
   return Internal.I32Val;
 }
 
-static inline unsigned long long D2I64(double Val) {
+inline unsigned long long D2I64(double Val) {
   union {
     double DVal;
     unsigned long long I64Val;
@@ -313,11 +333,31 @@ checkForInfNan(char *Buf, T Val) {
     return append(Buf, "nan");
 
   // Extract the sign from the bits
-  const uint16_t Sign = reinterpret_cast<uint16_t &>(Val) & 0x8000;
+  const uint16_t Sign = sycl::bit_cast<uint16_t>(Val) & 0x8000;
   // Extract the exponent from the bits
-  const uint16_t Exp16 = (reinterpret_cast<uint16_t &>(Val) & 0x7c00) >> 10;
+  const uint16_t Exp16 = (sycl::bit_cast<uint16_t>(Val) & 0x7c00) >> 10;
 
   if (Exp16 == 0x1f) {
+    if (Sign)
+      return append(Buf, "-inf");
+    return append(Buf, "inf");
+  }
+  return 0;
+}
+
+template <typename T>
+inline typename std::enable_if_t<std::is_same_v<T, ext::oneapi::bfloat16>,
+                                 unsigned>
+checkForInfNan(char *Buf, T Val) {
+  if (Val != Val)
+    return append(Buf, "nan");
+
+  // Extract the sign from the bits
+  const uint16_t Sign = sycl::bit_cast<uint16_t>(Val) & 0x8000;
+  // Extract the exponent from the bits
+  const uint16_t Exp16 = (sycl::bit_cast<uint16_t>(Val) & 0x7f80) >> 7;
+
+  if (Exp16 == 0x7f) {
     if (Sign)
       return append(Buf, "-inf");
     return append(Buf, "inf");
@@ -873,9 +913,13 @@ public:
 
   bool operator!=(const stream &LHS) const;
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -883,7 +927,8 @@ private:
 #else
   std::shared_ptr<detail::stream_impl> impl;
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
   // NOTE: Some members are required for reconstructing the stream, but are not
@@ -1002,8 +1047,6 @@ private:
     WIOffset = GlobalOffset[1].fetch_add(FlushBufferSize);
 
     // Initialize flush subbuffer's offset for each work item on device.
-    // Initialization on host device is performed via submition of additional
-    // host task.
     SetFlushBufOffset(GlobalFlushBuf, WIOffset, 0);
   }
 
@@ -1012,9 +1055,6 @@ private:
     // necessary if user hasn't yet flushed data on its own and kernel execution
     // is finished
     // NOTE: A call to this function will be generated by compiler
-    // NOTE: In the current implementation user should explicitly flush data on
-    // the host device. Data is not flushed automatically after kernel execution
-    // because of the missing feature in scheduler.
     flushBuffer(GlobalOffset, GlobalBuf, GlobalFlushBuf, WIOffset);
   }
 #endif
@@ -1032,6 +1072,8 @@ private:
   friend const stream &operator<<(const stream &, const float &);
   friend const stream &operator<<(const stream &, const double &);
   friend const stream &operator<<(const stream &, const half &);
+  friend const stream &operator<<(const stream &,
+                                  const ext::oneapi::bfloat16 &);
 
   friend const stream &operator<<(const stream &, const stream_manipulator);
 
@@ -1071,6 +1113,8 @@ private:
   template <int Dimensions>
   friend const stream &operator<<(const stream &Out,
                                   const h_item<Dimensions> &RHS);
+
+  const property_list &getPropList() const;
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -1135,6 +1179,14 @@ inline const stream &operator<<(const stream &Out, const half &RHS) {
   detail::writeFloatingPoint<half>(Out.GlobalFlushBuf, Out.FlushBufferSize,
                                    Out.WIOffset, Out.get_flags(),
                                    Out.get_width(), Out.get_precision(), RHS);
+  return Out;
+}
+
+inline const stream &operator<<(const stream &Out,
+                                const ext::oneapi::bfloat16 &RHS) {
+  detail::writeFloatingPoint<ext::oneapi::bfloat16>(
+      Out.GlobalFlushBuf, Out.FlushBufferSize, Out.WIOffset, Out.get_flags(),
+      Out.get_width(), Out.get_precision(), RHS);
   return Out;
 }
 
@@ -1266,7 +1318,7 @@ inline const stream &operator<<(const stream &Out, const T &RHS) {
   return Out;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 namespace std {
 template <> struct hash<sycl::stream> {

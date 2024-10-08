@@ -1,6 +1,6 @@
-// RUN: %clang_cc1 -verify -fopenmp -fopenmp-version=50 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp %s -Wuninitialized
 
-// RUN: %clang_cc1 -verify -fopenmp-simd -fopenmp-version=50 %s -Wuninitialized
+// RUN: %clang_cc1 -verify -fopenmp-simd %s -Wuninitialized
 
 typedef void **omp_allocator_handle_t;
 extern const omp_allocator_handle_t omp_null_allocator;
@@ -56,7 +56,7 @@ public:
   S5(int v) : a(v) {}
   S5 &operator=(S5 &s) {
 #pragma omp target simd private(a) private(this->a) private(s.a) // expected-error {{expected variable name or data member of current class}}
-    for (int k = 0; k < s.a; ++k) // expected-warning {{Type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
+    for (int k = 0; k < s.a; ++k) // expected-warning {{type 'S5' is not trivially copyable and not guaranteed to be mapped correctly}}
       ++s.a;
     return *this;
   }

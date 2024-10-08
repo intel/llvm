@@ -99,6 +99,12 @@ void Generator::emitParseDispatch(StringRef kind, ArrayRef<Record *> vec) {
   os << formatv(head, capitalize(kind));
   auto funScope = os.scope(" {\n", "}\n\n");
 
+  if (vec.empty()) {
+    os << "return reader.emitError() << \"unknown attribute\", "
+       << capitalize(kind) << "();\n";
+    return;
+  }
+
   os << "uint64_t kind;\n";
   os << "if (failed(reader.readVarInt(kind)))\n"
      << "  return " << capitalize(kind) << "();\n";
@@ -128,7 +134,7 @@ void Generator::emitParse(StringRef kind, Record &x) {
       R"(static {0} read{1}(MLIRContext* context, DialectBytecodeReader &reader) )";
   mlir::raw_indented_ostream os(output);
   std::string returnType = getCType(&x);
-  os << formatv(head, returnType, x.getName());
+  os << formatv(head, kind == "attribute" ? "::mlir::Attribute" : "::mlir::Type", x.getName());
   DagInit *members = x.getValueAsDag("members");
   SmallVector<std::string> argNames =
       llvm::to_vector(map_range(members->getArgNames(), [](StringInit *init) {

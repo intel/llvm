@@ -15,7 +15,6 @@
 */
 
 #include "common.hpp"
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -125,7 +124,7 @@ void test_normalized_repeat_nearest_sampler(image_channel_order ChanOrder,
 
     // REPORT RESULTS
     size_t offset = 0;
-    auto test_acc = testResults.get_access<access::mode::read>();
+    auto test_acc = testResults.get_host_access();
 
     std::cout << "read four pixels at low-boundary locations,  sample:   "
                  "Normalized +  Repeat  + Nearest"

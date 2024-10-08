@@ -11,6 +11,7 @@
 #include "llvm/ExecutionEngine/JITLink/x86_64.h"
 #include "llvm/ExecutionEngine/Orc/OrcABISupport.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Module.h"
 #include "llvm/MC/MCDisassembler/MCDisassembler.h"
 #include "llvm/MC/MCInstrAnalysis.h"
 #include "llvm/Support/Format.h"
@@ -43,7 +44,7 @@ private:
     Result[Name] = {Compile(), JITSymbolFlags::Exported};
     // No dependencies, so these calls cannot fail.
     cantFail(R->notifyResolved(Result));
-    cantFail(R->notifyEmitted());
+    cantFail(R->notifyEmitted({}));
   }
 
   void discard(const JITDylib &JD, const SymbolStringPtr &Name) override {
@@ -244,8 +245,7 @@ Constant* createIRTypedAddress(FunctionType &FT, ExecutorAddr Addr) {
   Constant *AddrIntVal =
     ConstantInt::get(Type::getInt64Ty(FT.getContext()), Addr.getValue());
   Constant *AddrPtrVal =
-    ConstantExpr::getCast(Instruction::IntToPtr, AddrIntVal,
-                          PointerType::get(&FT, 0));
+    ConstantExpr::getIntToPtr(AddrIntVal, PointerType::get(&FT, 0));
   return AddrPtrVal;
 }
 
@@ -286,7 +286,7 @@ std::vector<GlobalValue *> SymbolLinkagePromoter::operator()(Module &M) {
     // Rename if necessary.
     if (!GV.hasName())
       GV.setName("__orc_anon." + Twine(NextId++));
-    else if (GV.getName().startswith("\01L"))
+    else if (GV.getName().starts_with("\01L"))
       GV.setName("__" + GV.getName().substr(1) + "." + Twine(NextId++));
     else if (GV.hasLocalLinkage())
       GV.setName("__orc_lcl." + GV.getName() + "." + Twine(NextId++));
@@ -325,26 +325,6 @@ Function* cloneFunctionDecl(Module &Dst, const Function &F,
   return NewF;
 }
 
-void moveFunctionBody(Function &OrigF, ValueToValueMapTy &VMap,
-                      ValueMaterializer *Materializer,
-                      Function *NewF) {
-  assert(!OrigF.isDeclaration() && "Nothing to move");
-  if (!NewF)
-    NewF = cast<Function>(VMap[&OrigF]);
-  else
-    assert(VMap[&OrigF] == NewF && "Incorrect function mapping in VMap.");
-  assert(NewF && "Function mapping missing from VMap.");
-  assert(NewF->getParent() != OrigF.getParent() &&
-         "moveFunctionBody should only be used to move bodies between "
-         "modules.");
-
-  SmallVector<ReturnInst *, 8> Returns; // Ignore returns cloned.
-  CloneFunctionInto(NewF, &OrigF, VMap,
-                    CloneFunctionChangeType::DifferentModule, Returns, "",
-                    nullptr, nullptr, Materializer);
-  OrigF.deleteBody();
-}
-
 GlobalVariable* cloneGlobalVariableDecl(Module &Dst, const GlobalVariable &GV,
                                         ValueToValueMapTy *VMap) {
   GlobalVariable *NewGV = new GlobalVariable(
@@ -357,24 +337,6 @@ GlobalVariable* cloneGlobalVariableDecl(Module &Dst, const GlobalVariable &GV,
   return NewGV;
 }
 
-void moveGlobalVariableInitializer(GlobalVariable &OrigGV,
-                                   ValueToValueMapTy &VMap,
-                                   ValueMaterializer *Materializer,
-                                   GlobalVariable *NewGV) {
-  assert(OrigGV.hasInitializer() && "Nothing to move");
-  if (!NewGV)
-    NewGV = cast<GlobalVariable>(VMap[&OrigGV]);
-  else
-    assert(VMap[&OrigGV] == NewGV &&
-           "Incorrect global variable mapping in VMap.");
-  assert(NewGV->getParent() != OrigGV.getParent() &&
-         "moveGlobalVariableInitializer should only be used to move "
-         "initializers between modules");
-
-  NewGV->setInitializer(MapValue(OrigGV.getInitializer(), VMap, RF_None,
-                                 nullptr, Materializer));
-}
-
 GlobalAlias* cloneGlobalAliasDecl(Module &Dst, const GlobalAlias &OrigA,
                                   ValueToValueMapTy &VMap) {
   assert(OrigA.getAliasee() && "Original alias doesn't have an aliasee?");
@@ -384,15 +346,6 @@ GlobalAlias* cloneGlobalAliasDecl(Module &Dst, const GlobalAlias &OrigA,
   NewA->copyAttributesFrom(&OrigA);
   VMap[&OrigA] = NewA;
   return NewA;
-}
-
-void cloneModuleFlagsMetadata(Module &Dst, const Module &Src,
-                              ValueToValueMapTy &VMap) {
-  auto *MFs = Src.getModuleFlagsMetadata();
-  if (!MFs)
-    return;
-  for (auto *MF : MFs->operands())
-    Dst.addModuleFlag(MapMetadata(MF, VMap));
 }
 
 Error addFunctionPointerRelocationsToCurrentSymbol(jitlink::Symbol &Sym,

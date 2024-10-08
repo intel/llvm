@@ -31,16 +31,14 @@ AMDGPUMCAsmInfo::AMDGPUMCAsmInfo(const Triple &TT,
   InlineAsmEnd = ";#ASMEND";
 
   //===--- Data Emission Directives -------------------------------------===//
-  SunStyleELFSectionSwitchSyntax = true;
   UsesELFSectionDirectiveForBSS = true;
 
   //===--- Global Variable Emission Directives --------------------------===//
-  HasAggressiveSymbolFolding = true;
   COMMDirectiveAlignmentIsInBytes = false;
   HasNoDeadStrip = true;
   //===--- Dwarf Emission Directives -----------------------------------===//
   SupportsDebugInformation = true;
-  UsesCFIForDebug = true;
+  UsesCFIWithoutEH = true;
   DwarfRegNumForCFI = true;
 
   UseIntegratedAssembler = false;

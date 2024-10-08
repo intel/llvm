@@ -11,6 +11,7 @@
 #include "clang/AST/ASTFwd.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclFriend.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
@@ -22,8 +23,8 @@
 #include "clang/Basic/IdentifierTable.h"
 #include "clang/Basic/SourceLocation.h"
 #include "clang/Basic/Specifiers.h"
-#include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/STLFunctionalExtras.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/Support/Casting.h"
 
 namespace clang::include_cleaner {
@@ -125,12 +126,29 @@ public:
   }
 
   bool VisitDeclRefExpr(DeclRefExpr *DRE) {
-    // Static class members are handled here, as they don't produce MemberExprs.
-    if (DRE->getFoundDecl()->isCXXClassMember()) {
-      if (auto *Qual = DRE->getQualifier())
-        report(DRE->getLocation(), Qual->getAsRecordDecl(), RefType::Implicit);
-    } else {
-      report(DRE->getLocation(), DRE->getFoundDecl());
+    auto *FD = DRE->getFoundDecl();
+    // Prefer the underlying decl if FoundDecl isn't a shadow decl, e.g:
+    // - For templates, found-decl is always primary template, but we want the
+    // specializaiton itself.
+    if (!llvm::isa<UsingShadowDecl>(FD))
+      FD = DRE->getDecl();
+    // For refs to non-meber-like decls, use the found decl.
+    // For member-like decls, we should have a reference from the qualifier to
+    // the container decl instead, which is preferred as it'll handle
+    // aliases/exports properly.
+    if (!FD->isCXXClassMember() && !llvm::isa<EnumConstantDecl>(FD)) {
+      report(DRE->getLocation(), FD);
+      return true;
+    }
+    // If the ref is without a qualifier, and is a member, ignore it. As it is
+    // available in current context due to some other construct (e.g. base
+    // specifiers, using decls) that has to spell the name explicitly.
+    //
+    // If it's an enum constant, it must be due to prior decl. Report references
+    // to it when qualifier isn't a type.
+    if (llvm::isa<EnumConstantDecl>(FD)) {
+      if (!DRE->getQualifier() || DRE->getQualifier()->getAsNamespace())
+        report(DRE->getLocation(), FD);
     }
     return true;
   }
@@ -163,18 +181,49 @@ public:
 
   bool VisitOverloadExpr(OverloadExpr *E) {
     // Since we can't prove which overloads are used, report all of them.
-    llvm::for_each(E->decls(), [this, E](NamedDecl *D) {
+    for (NamedDecl *D : E->decls())
       report(E->getNameLoc(), D, RefType::Ambiguous);
-    });
     return true;
   }
 
+  // Report all (partial) specializations of a class/var template decl.
+  template <typename TemplateDeclType, typename ParitialDeclType>
+  void reportSpecializations(SourceLocation Loc, NamedDecl *ND) {
+    const auto *TD = llvm::dyn_cast<TemplateDeclType>(ND);
+    if (!TD)
+      return;
+
+    for (auto *Spec : TD->specializations())
+      report(Loc, Spec, RefType::Ambiguous);
+    llvm::SmallVector<ParitialDeclType *> PartialSpecializations;
+    TD->getPartialSpecializations(PartialSpecializations);
+    for (auto *PartialSpec : PartialSpecializations)
+      report(Loc, PartialSpec, RefType::Ambiguous);
+  }
   bool VisitUsingDecl(UsingDecl *UD) {
     for (const auto *Shadow : UD->shadows()) {
       auto *TD = Shadow->getTargetDecl();
-      auto IsUsed = TD->isUsed() || TD->isReferenced();
+      // For function-decls, we might have overloads brought in due to
+      // transitive dependencies. Hence we only want to report explicit
+      // references for those if they're used.
+      // But for record decls, spelling of the type always refers to primary
+      // decl non-ambiguously. Hence spelling is already a use.
+      auto IsUsed = TD->isUsed() || TD->isReferenced() || !TD->getAsFunction();
       report(UD->getLocation(), TD,
              IsUsed ? RefType::Explicit : RefType::Ambiguous);
+
+      // All (partial) template specializations are visible via a using-decl,
+      // However a using-decl only refers to the primary template (per C++ name
+      // lookup). Thus, we need to manually report all specializations.
+      reportSpecializations<ClassTemplateDecl,
+                            ClassTemplatePartialSpecializationDecl>(
+          UD->getLocation(), TD);
+      reportSpecializations<VarTemplateDecl,
+                            VarTemplatePartialSpecializationDecl>(
+          UD->getLocation(), TD);
+      if (const auto *FTD = llvm::dyn_cast<FunctionTemplateDecl>(TD))
+        for (auto *Spec : FTD->specializations())
+          report(UD->getLocation(), Spec, RefType::Ambiguous);
     }
     return true;
   }
@@ -183,9 +232,18 @@ public:
     // Mark declaration from definition as it needs type-checking.
     if (FD->isThisDeclarationADefinition())
       report(FD->getLocation(), FD);
+    // Explicit specializaiton/instantiations of a function template requires
+    // primary template.
+    if (clang::isTemplateExplicitInstantiationOrSpecialization(
+            FD->getTemplateSpecializationKind()))
+      report(FD->getLocation(), FD->getPrimaryTemplate());
     return true;
   }
   bool VisitVarDecl(VarDecl *VD) {
+    // Ignore the parameter decl itself (its children were handled elsewhere),
+    // as they don't contribute to the main-file #include.
+    if (llvm::isa<ParmVarDecl>(VD))
+      return true;
     // Mark declaration from definition as it needs type-checking.
     if (VD->isThisDeclarationADefinition())
       report(VD->getLocation(), VD);
@@ -200,18 +258,32 @@ public:
     return true;
   }
 
-  // Report a reference from explicit specializations to the specialized
-  // template. Implicit ones are filtered out by RAV and explicit instantiations
-  // are already traversed through typelocs.
+  bool VisitFriendDecl(FriendDecl *D) {
+    // We already visit the TypeLoc properly, but need to special case the decl
+    // case.
+    if (auto *FD = D->getFriendDecl())
+      report(D->getLocation(), FD);
+    return true;
+  }
+
+  bool VisitConceptReference(const ConceptReference *CR) {
+    report(CR->getConceptNameLoc(), CR->getFoundDecl());
+    return true;
+  }
+
+  // Report a reference from explicit specializations/instantiations to the
+  // specialized template. Implicit ones are filtered out by RAV.
   bool
   VisitClassTemplateSpecializationDecl(ClassTemplateSpecializationDecl *CTSD) {
-    if (CTSD->isExplicitSpecialization())
+    if (clang::isTemplateExplicitInstantiationOrSpecialization(
+            CTSD->getTemplateSpecializationKind()))
       report(CTSD->getLocation(),
              CTSD->getSpecializedTemplate()->getTemplatedDecl());
     return true;
   }
   bool VisitVarTemplateSpecializationDecl(VarTemplateSpecializationDecl *VTSD) {
-    if (VTSD->isExplicitSpecialization())
+    if (clang::isTemplateExplicitInstantiationOrSpecialization(
+            VTSD->getTemplateSpecializationKind()))
       report(VTSD->getLocation(),
              VTSD->getSpecializedTemplate()->getTemplatedDecl());
     return true;
@@ -271,6 +343,25 @@ public:
       return true;
     }
     return RecursiveASTVisitor::TraverseTemplateArgumentLoc(TL);
+  }
+
+  bool VisitCXXStdInitializerListExpr(CXXStdInitializerListExpr *E) {
+    // Reliance on initializer_lists requires std::initializer_list to be
+    // visible per standard. So report a reference to it, otherwise include of
+    // `<initializer_list>` might not receive any use.
+    report(E->getExprLoc(),
+           const_cast<CXXRecordDecl *>(E->getBestDynamicClassType()),
+           RefType::Implicit);
+    return true;
+  }
+
+  bool VisitCXXNewExpr(CXXNewExpr *E) {
+    report(E->getExprLoc(), E->getOperatorNew(), RefType::Ambiguous);
+    return true;
+  }
+  bool VisitCXXDeleteExpr(CXXDeleteExpr *E) {
+    report(E->getExprLoc(), E->getOperatorDelete(), RefType::Ambiguous);
+    return true;
   }
 };
 

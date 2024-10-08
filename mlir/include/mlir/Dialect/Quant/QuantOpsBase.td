@@ -20,7 +20,6 @@ def Quantization_Dialect : Dialect {
   let cppNamespace = "::mlir::quant";
 
   let useDefaultTypePrinterParser = 1;
-  let usePropertiesForAttributes = 1;
 }
 
 //===----------------------------------------------------------------------===//
@@ -59,8 +58,8 @@ def quant_StorageValueType :
 
 // Either a real valued or storage primitive or container type.
 def quant_RealOrStorageValueType :
-    Type<Or<[quant_RealValueType.predicate,
-                quant_StorageValueType.predicate]>>;
+    Type<Or<[quant_RealValueType.predicate, quant_StorageValueType.predicate]>,
+    "real valued or storage primitive or container type">;
 
 // An implementation of UniformQuantizedType.
 def quant_UniformQuantizedType :

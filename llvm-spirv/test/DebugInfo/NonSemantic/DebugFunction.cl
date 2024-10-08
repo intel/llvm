@@ -13,7 +13,7 @@
 // RUN: llvm-spirv %t.spv -to-text -o %t.spt
 // RUN: FileCheck %s --input-file %t.spt  --check-prefix=CHECK-SPIRV
 
-// RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+// RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 float foo(int i) {
     return i * 3.14;
@@ -25,7 +25,7 @@ void kernel k() {
 // CHECK-SPIRV-DAG: String [[foo:[0-9]+]] "foo"
 // CHECK-SPIRV-DAG: String [[#EmptyStr:]] ""
 // CHECK-SPIRV-DAG: String [[k:[0-9]+]] "k"
-// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].0.0
+// CHECK-SPIRV-DAG: String [[#CV:]] "{{.*}}clang version [[#]].[[#]].[[#]]
 // CHECK-SPIRV: [[#CU:]] [[#]] DebugCompilationUnit
 // CHECK-SPIRV: [[#FuncFoo:]] [[#]] DebugFunction [[foo]] {{.*}} [[#CU]]
 // CHECK-SPIRV: [[#FuncK:]] [[#]] DebugFunction [[k]] {{.*}} [[#CU]]

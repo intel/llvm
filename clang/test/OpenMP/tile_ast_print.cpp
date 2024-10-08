@@ -1,15 +1,15 @@
 // Check no warnings/errors
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -fsyntax-only -verify %s
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fsyntax-only -verify %s
 // expected-no-diagnostics
 
 // Check AST and unparsing
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -ast-dump  %s | FileCheck %s --check-prefix=DUMP
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -ast-print %s | FileCheck %s --check-prefix=PRINT
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -ast-dump  %s | FileCheck %s --check-prefix=DUMP
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -ast-print %s | FileCheck %s --check-prefix=PRINT
 
 // Check same results after serialization round-trip
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -emit-pch -o %t %s
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -include-pch %t -ast-dump-all %s | FileCheck %s --check-prefix=DUMP
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -fopenmp-version=51 -include-pch %t -ast-print    %s | FileCheck %s --check-prefix=PRINT
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -emit-pch -o %t %s
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -include-pch %t -ast-dump-all %s | FileCheck %s --check-prefix=DUMP
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fopenmp -include-pch %t -ast-print    %s | FileCheck %s --check-prefix=PRINT
 
 #ifndef HEADER
 #define HEADER
@@ -182,5 +182,22 @@ void tfoo7() {
   foo7<5>(0, 42, 2);
 }
 
+
+// PRINT-LABEL: void foo8(
+// DUMP-LABEL:  FunctionDecl {{.*}} foo8
+void foo8(int a) {
+  // PRINT:     #pragma omp tile sizes(a)
+  // DUMP:      OMPTileDirective
+  // DUMP-NEXT:   OMPSizesClause
+  // DUMP-NEXT:     ImplicitCastExpr
+  // DUMP-NEXT:       DeclRefExpr {{.*}} 'a'
+  #pragma omp tile sizes(a)
+  // PRINT-NEXT: for (int i = 7; i < 19; i += 3)
+  // DUMP-NEXT: ForStmt
+  for (int i = 7; i < 19; i += 3)
+    // PRINT: body(i);
+    // DUMP:  CallExpr
+    body(i);
+}
 
 #endif

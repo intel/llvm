@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -mconstructor-aliases -no-opaque-pointers -emit-codegen-only -verify %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -mconstructor-aliases -emit-codegen-only -verify %s
 
 // Tests for warnings when propagated aspects do not match the aspects available
 // in a function, as specified through the 'sycl::device_has' attribute.

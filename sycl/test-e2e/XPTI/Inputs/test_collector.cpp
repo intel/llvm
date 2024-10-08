@@ -9,7 +9,7 @@ std::mutex GMutex;
 XPTI_CALLBACK_API void syclCallback(uint16_t, xpti::trace_event_data_t *,
                                     xpti::trace_event_data_t *, uint64_t,
                                     const void *);
-XPTI_CALLBACK_API void syclPiCallback(uint16_t, xpti::trace_event_data_t *,
+XPTI_CALLBACK_API void syclUrCallback(uint16_t, xpti::trace_event_data_t *,
                                       xpti::trace_event_data_t *, uint64_t,
                                       const void *);
 
@@ -19,54 +19,22 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int MajorVersion,
                                      const char *StreamName) {
   std::cout << "xptiTraceInit: Stream Name = " << StreamName << "\n";
   std::string_view NameView{StreamName};
+  using type = xpti::trace_point_type_t;
 
-  if (NameView == "sycl.pi") {
+  if (NameView == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::function_begin),
-        syclPiCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_end),
-        syclPiCallback);
+    for (type t : std::initializer_list<type>{type::function_with_args_begin})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclUrCallback);
   }
   if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::graph_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::node_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::edge_create),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::task_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID,
-        static_cast<uint16_t>(xpti::trace_point_type_t::barrier_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::barrier_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_begin),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::wait_end),
-        syclCallback);
-    xptiRegisterCallback(
-        StreamID, static_cast<uint16_t>(xpti::trace_point_type_t::signal),
-        syclCallback);
+
+    for (type t : std::initializer_list<type>{
+             type::graph_create, type::node_create, type::edge_create,
+             type::task_begin, type::task_end, type::signal,
+             type::barrier_begin, type::barrier_end, type::wait_begin,
+             type::wait_end})
+      xptiRegisterCallback(StreamID, static_cast<uint16_t>(t), syclCallback);
   }
 }
 
@@ -74,25 +42,29 @@ XPTI_CALLBACK_API void xptiTraceFinish(const char *streamName) {
   std::cout << "xptiTraceFinish: Stream Name = " << streamName << "\n";
 }
 
-XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
+XPTI_CALLBACK_API void syclUrCallback(uint16_t TraceType,
                                       xpti::trace_event_data_t *,
                                       xpti::trace_event_data_t *, uint64_t,
                                       const void *UserData) {
   std::lock_guard Lock{GMutex};
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
-  const char *funcName = static_cast<const char *>(UserData);
-  if (Type == xpti::trace_point_type_t::function_begin) {
-    std::cout << "PI Call Begin : ";
-  } else if (Type == xpti::trace_point_type_t::function_end) {
-    std::cout << "PI Call End : ";
+  auto *args = static_cast<const xpti::function_with_args_t *>(UserData);
+  if (Type == xpti::trace_point_type_t::function_with_args_begin) {
+    std::cout << "UR Call Begin : ";
+  } else if (Type == xpti::trace_point_type_t::function_with_args_end) {
+    std::cout << "UR Call End : ";
   }
-  std::cout << funcName << "\n";
+  std::cout << args->function_name << "\n";
 }
 
 XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
                                     xpti::trace_event_data_t *,
                                     xpti::trace_event_data_t *Event, uint64_t,
                                     const void *UserData) {
+  char *Key = 0;
+  uint64_t Value;
+  bool HaveKeyValue =
+      (xptiGetStashedTuple(&Key, Value) == xpti::result_t::XPTI_RESULT_SUCCESS);
   std::lock_guard Lock{GMutex};
   auto Type = static_cast<xpti::trace_point_type_t>(TraceType);
   switch (Type) {
@@ -130,9 +102,12 @@ XPTI_CALLBACK_API void syclCallback(uint16_t TraceType,
     std::cout << "Unknown tracepoint\n";
   }
 
+  if (HaveKeyValue) {
+    std::cout << "  " << Key << " : " << Value << "\n";
+  }
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (auto &Item : *Metadata) {
     std::cout << "  " << xptiLookupString(Item.first) << " : "
-              << xptiLookupString(Item.second) << "\n";
+              << xpti::readMetadata(Item) << "\n";
   }
 }

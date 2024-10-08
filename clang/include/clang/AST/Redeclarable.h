@@ -191,6 +191,7 @@ protected:
   }
 
 public:
+  friend class ASTDeclMerger;
   friend class ASTDeclReader;
   friend class ASTDeclWriter;
   friend class IncrementalParser;
@@ -240,7 +241,7 @@ public:
   class redecl_iterator {
     /// Current - The current declaration.
     decl_type *Current = nullptr;
-    decl_type *Starter;
+    decl_type *Starter = nullptr;
     bool PassedFirst = false;
 
   public:
@@ -281,10 +282,10 @@ public:
       return tmp;
     }
 
-    friend bool operator==(redecl_iterator x, redecl_iterator y) {
+    friend bool operator==(const redecl_iterator &x, const redecl_iterator &y) {
       return x.Current == y.Current;
     }
-    friend bool operator!=(redecl_iterator x, redecl_iterator y) {
+    friend bool operator!=(const redecl_iterator &x, const redecl_iterator &y) {
       return x.Current != y.Current;
     }
   };

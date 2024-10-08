@@ -8,10 +8,14 @@
 
 #pragma once
 
+#include <sycl/bit_cast.hpp>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-#define NOMINMAX
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
+#include <sycl/usm/usm_allocator.hpp>
 
+#define NOMINMAX
 #include <algorithm>
 #include <chrono>
 #include <cstring>
@@ -26,6 +30,10 @@ using namespace sycl;
 
 namespace esimd_test {
 
+template <typename T>
+using shared_allocator = sycl::usm_allocator<T, sycl::usm::alloc::shared>;
+template <typename T> using shared_vector = std::vector<T, shared_allocator<T>>;
+
 // This is the function provided to SYCL runtime by the application to decide
 // on which device to run, or whether to run at all.
 // When selecting a device, SYCL runtime first takes (1) a selector provided by
@@ -37,10 +45,7 @@ namespace esimd_test {
 // Require GPU device
 inline int ESIMDSelector(const device &device) {
   const std::string intel{"Intel(R) Corporation"};
-  if (device.get_backend() == backend::ext_intel_esimd_emulator) {
-    return 1000;
-  } else if (device.is_gpu() &&
-             (device.get_info<info::device::vendor>() == intel)) {
+  if (device.is_gpu() && (device.get_info<info::device::vendor>() == intel)) {
     // pick gpu device if esimd not available but give it a lower score in
     // order not to compete with the esimd in environments where both are
     // present
@@ -149,7 +154,7 @@ bool cmp_binary_files(const char *testOutFile, const char *referenceFile,
   double maxRelativeDiff = 0;
   bool status = true;
   for (size_t i = 0; i < size; i++) {
-    const auto diff = abs(testVec[i] - referenceVec[i]);
+    const auto diff = std::abs(testVec[i] - referenceVec[i]);
     if (diff > tolerance) {
       if (!mismatchRateTolerance || (totalMismatches < mismatchReportLimit)) {
 
@@ -608,6 +613,30 @@ std::string toString(sycl::ext::intel::experimental::esimd::lsc_data_size DS) {
   }
   assert(false && "Unknown lsc_data_size");
   return "INVALID lsc_data_size";
+}
+
+template <typename... ArgT> void printTestLabel(queue Q, ArgT &&...Args) {
+  auto Dev = Q.get_device();
+  auto Name = Dev.get_info<sycl::info::device::name>();
+  auto Driver = Dev.get_info<sycl::info::device::driver_version>();
+  std::cout << "Running on " << Name << ", driver=[" << Driver << "]";
+  if constexpr (sizeof...(ArgT) > 0) {
+    ([&] { std::cout << " : " << Args; }(), ...);
+  }
+  std::cout << std::endl;
+}
+
+template <typename T> T getRandomValue() {
+  using Tuint = std::conditional_t<
+      sizeof(T) == 1, uint8_t,
+      std::conditional_t<
+          sizeof(T) == 2, uint16_t,
+          std::conditional_t<sizeof(T) == 4, uint32_t,
+                             std::conditional_t<sizeof(T) == 8, uint64_t, T>>>>;
+  Tuint v = rand();
+  if constexpr (sizeof(Tuint) > 4)
+    v = (v << 32) | rand();
+  return sycl::bit_cast<T>(v);
 }
 
 } // namespace esimd_test

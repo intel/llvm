@@ -13,10 +13,11 @@ Using oneAPI DPC++ for Application Development
    PreprocessorMacros
    cuda/contents
    Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/extensions>
+   syclcompat/README.md
    FAQ
-   User API Reference <https://intel.github.io/llvm-docs/doxygen/group__sycl__api.html>
    EnvironmentVariables
    MultiTileCardWithLevelZero
+   syclgraph/SYCLGraphUsageGuide
 
 Design Documents for the oneAPI DPC++ Compiler
 ----------------------------------------------
@@ -24,9 +25,7 @@ Design Documents for the oneAPI DPC++ Compiler
 .. toctree::
    :maxdepth: 1
 
-   API Reference <https://intel.github.io/llvm-docs/doxygen>
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
-   Clang API Reference <https://intel.github.io/llvm-docs/clang_doxygen>
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
    design/PluginInterface
@@ -37,6 +36,7 @@ Design Documents for the oneAPI DPC++ Compiler
    design/Assert
    design/SharedLibraries
    design/OptionalDeviceFeatures
+   design/ParallelForRangeRounding
    design/SYCLInstrumentationUsingXPTI
    design/ITTAnnotations
    design/DeviceGlobal
@@ -50,6 +50,10 @@ Design Documents for the oneAPI DPC++ Compiler
    design/DeviceAspectTraitDesign
    design/DeviceConfigFile
    design/PropagateCompilerFlagsToRuntime
+   design/SYCLNativeCPU
+   design/CommandGraph
+   design/OffloadDesign
+   design/PrivateAlloca
    New OpenCL Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/opencl-extensions>
    New SPIR-V Extensions <https://github.com/intel/llvm/tree/sycl/sycl/doc/design/spirv-extensions>
 

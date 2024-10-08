@@ -1,8 +1,7 @@
 ; Test that linkonce_odr and weak_odr variables which are visible to regular
 ; object (and so are not readonly) are not internalized by thin LTO.
 ; RUN: opt -module-summary %s -o %t.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t.bc -o %t.out \
-; RUN:               -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t.bc -o %t.out \
 ; RUN:               -r=%t.bc,_ZL5initSv,plx \
 ; RUN:               -r=%t.bc,_ZN9SingletonI1SE11getInstanceEv,lx \
 ; RUN:               -r=%t.bc,_ZZN9SingletonI1SE11getInstanceEvE8instance,lx \

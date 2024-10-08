@@ -10,16 +10,17 @@
 
 #include <sycl/aliases.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/half_type.hpp>
 
 #include <array>
+#include <cstddef>
+#include <cstdint>
 #include <type_traits>
 #include <utility>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename DataT, std::size_t N> class marray;
 
@@ -132,7 +133,7 @@ public:
 
   // Available only when: NumElements == 1
   template <std::size_t Size = NumElements,
-            typename = typename std::enable_if<Size == 1>>
+            typename = std::enable_if_t<Size == 1>>
   operator Type() const {
     return MData[0];
   }
@@ -210,7 +211,7 @@ public:
 
 #define __SYCL_BINOP_INTEGRAL(BINOP, OPASSIGN)                                 \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray operator BINOP(const marray &Lhs, const marray &Rhs) {         \
     marray Ret;                                                                \
     for (size_t I = 0; I < NumElements; ++I) {                                 \
@@ -235,7 +236,7 @@ public:
     return marray(static_cast<DataT>(Lhs)) BINOP Rhs;                          \
   }                                                                            \
   template <typename T = DataT,                                                \
-            typename = std::enable_if<std::is_integral_v<T>, marray>>          \
+            typename = std::enable_if_t<std::is_integral_v<T>, marray>>        \
   friend marray &operator OPASSIGN(marray &Lhs, const marray &Rhs) {           \
     Lhs = Lhs BINOP Rhs;                                                       \
     return Lhs;                                                                \
@@ -312,11 +313,36 @@ public:
 #endif
 
 #define __SYCL_UOP(UOP, OPASSIGN)                                              \
-  friend marray &operator UOP(marray &Lhs) {                                   \
+  template <typename T = DataT>                                                \
+  friend std::enable_if_t<                                                     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
+      &operator UOP(marray & Lhs) {                                            \
     Lhs OPASSIGN 1;                                                            \
     return Lhs;                                                                \
   }                                                                            \
-  friend marray operator UOP(marray &Lhs, int) {                               \
+  template <typename T = DataT>                                                \
+  friend std::enable_if_t<                                                     \
+      !std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>         \
+  operator UOP(marray & Lhs, int) {                                            \
+    marray Ret(Lhs);                                                           \
+    Lhs OPASSIGN 1;                                                            \
+    return Ret;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+      &operator UOP(marray & Lhs) {                                            \
+    Lhs OPASSIGN 1;                                                            \
+    return Lhs;                                                                \
+  }                                                                            \
+  template <typename T = DataT>                                                \
+  __SYCL_DEPRECATED(                                                           \
+      "++ and -- operators are deprecated for marray<bool, ...>")              \
+  friend std::enable_if_t<                                                     \
+      std::is_same_v<typename std::remove_cv<T>::type, bool>, marray>          \
+  operator UOP(marray & Lhs, int) {                                            \
     marray Ret(Lhs);                                                           \
     Lhs OPASSIGN 1;                                                            \
     return Ret;                                                                \
@@ -363,6 +389,10 @@ public:
   }
 };
 
+// marray is device copyable if element type is device copyable.
+template <typename T, std::size_t N>
+struct is_device_copyable<sycl::marray<T, N>> : is_device_copyable<T> {};
+
 #define __SYCL_MAKE_MARRAY_ALIAS(ALIAS, TYPE, N)                               \
   using ALIAS##N = sycl::marray<TYPE, N>;
 
@@ -404,5 +434,5 @@ __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH(16)
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_SIGNED_AND_UNSIGNED_TYPES
 #undef __SYCL_MAKE_MARRAY_ALIASES_FOR_MARRAY_LENGTH
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

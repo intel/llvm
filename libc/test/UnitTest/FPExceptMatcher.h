@@ -6,26 +6,27 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_UTILS_UNITTEST_FPEXCEPTMATCHER_H
-#define LLVM_LIBC_UTILS_UNITTEST_FPEXCEPTMATCHER_H
+#ifndef LLVM_LIBC_TEST_UNITTEST_FPEXCEPTMATCHER_H
+#define LLVM_LIBC_TEST_UNITTEST_FPEXCEPTMATCHER_H
 
-#ifndef LIBC_COPT_TEST_USE_FUCHSIA
-
+#include "src/__support/macros/config.h"
 #include "test/UnitTest/Test.h"
+#include "test/UnitTest/TestLogger.h"
 
-namespace __llvm_libc {
-namespace fputil {
+#if LIBC_TEST_HAS_MATCHERS()
+
+namespace LIBC_NAMESPACE_DECL {
 namespace testing {
 
 // TODO: Make the matcher match specific exceptions instead of just identifying
 // that an exception was raised.
-class FPExceptMatcher : public __llvm_libc::testing::Matcher<bool> {
+class FPExceptMatcher : public Matcher<bool> {
   bool exceptionRaised;
 
 public:
   class FunctionCaller {
   public:
-    virtual ~FunctionCaller(){};
+    virtual ~FunctionCaller() {}
     virtual void call() = 0;
   };
 
@@ -45,24 +46,24 @@ public:
   bool match(bool unused) { return exceptionRaised; }
 
   void explainError() override {
-    __llvm_libc::testing::tlog
-        << "A floating point exception should have been raised but it "
-        << "wasn't\n";
+    tlog << "A floating point exception should have been raised but it "
+         << "wasn't\n";
   }
 };
 
 } // namespace testing
-} // namespace fputil
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL
 
 #define ASSERT_RAISES_FP_EXCEPT(func)                                          \
   ASSERT_THAT(                                                                 \
       true,                                                                    \
-      __llvm_libc::fputil::testing::FPExceptMatcher(                           \
-          __llvm_libc::fputil::testing::FPExceptMatcher::getFunctionCaller(    \
-              func)))
-#else
-#define ASSERT_RAISES_FP_EXCEPT(func) ASSERT_DEATH(func, WITH_SIGNAL(SIGFPE))
-#endif // LIBC_COPT_TEST_USE_FUCHSIA
+      LIBC_NAMESPACE::testing::FPExceptMatcher(                                \
+          LIBC_NAMESPACE::testing::FPExceptMatcher::getFunctionCaller(func)))
 
-#endif // LLVM_LIBC_UTILS_UNITTEST_FPEXCEPTMATCHER_H
+#else // !LIBC_TEST_HAS_MATCHERS()
+
+#define ASSERT_RAISES_FP_EXCEPT(func) ASSERT_DEATH(func, WITH_SIGNAL(SIGFPE))
+
+#endif // LIBC_TEST_HAS_MATCHERS()
+
+#endif // LLVM_LIBC_TEST_UNITTEST_FPEXCEPTMATCHER_H

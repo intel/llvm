@@ -7,7 +7,7 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 class KernelName;
 

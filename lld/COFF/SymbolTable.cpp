@@ -19,8 +19,8 @@
 #include "llvm/DebugInfo/DIContext.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/LTO/LTO.h"
-#include "llvm/Object/WindowsMachineFlag.h"
 #include "llvm/Support/Debug.h"
+#include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/raw_ostream.h"
 #include <utility>
 
@@ -61,6 +61,10 @@ void SymbolTable::addFile(InputFile *file) {
     if (auto *f = dyn_cast<ObjFile>(file)) {
       ctx.objFileInstances.push_back(f);
     } else if (auto *f = dyn_cast<BitcodeFile>(file)) {
+      if (ltoCompilationDone) {
+        error("LTO object file " + toString(file) + " linked in after "
+              "doing LTO compilation.");
+      }
       ctx.bitcodeFileInstances.push_back(f);
     } else if (auto *f = dyn_cast<ImportFile>(file)) {
       ctx.importFileInstances.push_back(f);
@@ -458,8 +462,10 @@ void SymbolTable::reportUnresolvable() {
     StringRef name = undef->getName();
     if (name.starts_with("__imp_")) {
       Symbol *imp = find(name.substr(strlen("__imp_")));
-      if (imp && isa<Defined>(imp))
+      if (Defined *def = dyn_cast_or_null<Defined>(imp)) {
+        def->isUsedInRegularObj = true;
         continue;
+      }
     }
     if (name.contains("_PchSym_"))
       continue;
@@ -473,6 +479,7 @@ void SymbolTable::reportUnresolvable() {
 }
 
 void SymbolTable::resolveRemainingUndefines() {
+  llvm::TimeTraceScope timeScope("Resolve remaining undefined symbols");
   SmallPtrSet<Symbol *, 8> undefs;
   DenseMap<Symbol *, Symbol *> localImports;
 
@@ -487,20 +494,8 @@ void SymbolTable::resolveRemainingUndefines() {
     StringRef name = undef->getName();
 
     // A weak alias may have been resolved, so check for that.
-    if (Defined *d = undef->getWeakAlias()) {
-      // We want to replace Sym with D. However, we can't just blindly
-      // copy sizeof(SymbolUnion) bytes from D to Sym because D may be an
-      // internal symbol, and internal symbols are stored as "unparented"
-      // Symbols. For that reason we need to check which type of symbol we
-      // are dealing with and copy the correct number of bytes.
-      if (isa<DefinedRegular>(d))
-        memcpy(sym, d, sizeof(DefinedRegular));
-      else if (isa<DefinedAbsolute>(d))
-        memcpy(sym, d, sizeof(DefinedAbsolute));
-      else
-        memcpy(sym, d, sizeof(SymbolUnion));
+    if (undef->resolveWeakAlias())
       continue;
-    }
 
     // If we can resolve a symbol by removing __imp_ prefix, do that.
     // This odd rule is for compatibility with MSVC linker.
@@ -544,6 +539,9 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name) {
     sym->pendingArchiveLoad = false;
     sym->canInline = true;
     inserted = true;
+
+    if (isArm64EC(ctx.config.machine) && name.starts_with("EXP+"))
+      expSymbols.push_back(sym);
   }
   return {sym, inserted};
 }
@@ -553,6 +551,28 @@ std::pair<Symbol *, bool> SymbolTable::insert(StringRef name, InputFile *file) {
   if (!file || !isa<BitcodeFile>(file))
     result.first->isUsedInRegularObj = true;
   return result;
+}
+
+void SymbolTable::addEntryThunk(Symbol *from, Symbol *to) {
+  entryThunks.push_back({from, to});
+}
+
+void SymbolTable::initializeEntryThunks() {
+  for (auto it : entryThunks) {
+    auto *to = dyn_cast<Defined>(it.second);
+    if (!to)
+      continue;
+    auto *from = dyn_cast<DefinedRegular>(it.first);
+    // We need to be able to add padding to the function and fill it with an
+    // offset to its entry thunks. To ensure that padding the function is
+    // feasible, functions are required to be COMDAT symbols with no offset.
+    if (!from || !from->getChunk()->isCOMDAT() ||
+        cast<DefinedRegular>(from)->getValue()) {
+      error("non COMDAT symbol '" + from->getName() + "' in hybrid map");
+      continue;
+    }
+    from->getChunk()->setEntryThunk(to);
+  }
 }
 
 Symbol *SymbolTable::addUndefined(StringRef name, InputFile *f,
@@ -875,9 +895,11 @@ Symbol *SymbolTable::addUndefined(StringRef name) {
 }
 
 void SymbolTable::compileBitcodeFiles() {
+  ltoCompilationDone = true;
   if (ctx.bitcodeFileInstances.empty())
     return;
 
+  llvm::TimeTraceScope timeScope("Compile bitcode");
   ScopedTimer t(ctx.ltoTimer);
   lto.reset(new BitcodeCompiler(ctx));
   for (BitcodeFile *f : ctx.bitcodeFileInstances)

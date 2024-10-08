@@ -1,14 +1,14 @@
 // REQUIRES: cpu
-// RUN: %{build} -fsycl-id-queries-fit-in-int -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-fit-in-int -o %t.out
 // RUN: %{run} %t.out
 
 #include <climits>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 namespace S = sycl;
 
-void checkRangeException(S::runtime_error &E) {
+void checkRangeException(S::exception &E) {
   constexpr char Msg[] = "Provided range is out of integer limits. "
                          "Pass `-fno-sycl-id-queries-fit-in-int' to "
                          "disable range check.";
@@ -18,7 +18,7 @@ void checkRangeException(S::runtime_error &E) {
   assert(std::string(E.what()).find(Msg) == 0 && "Unexpected message");
 }
 
-void checkOffsetException(S::runtime_error &E) {
+void checkOffsetException(S::exception &E) {
   constexpr char Msg[] = "Provided offset is out of integer limits. "
                          "Pass `-fno-sycl-id-queries-fit-in-int' to "
                          "disable offset check.";
@@ -73,7 +73,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -101,7 +101,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -117,7 +117,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -134,7 +134,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -150,7 +150,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkOffsetException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -178,7 +178,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -194,7 +194,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -210,7 +210,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkOffsetException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -238,7 +238,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");
@@ -254,7 +254,7 @@ void test() {
     });
 
     assert(false && "Exception expected");
-  } catch (S::runtime_error &E) {
+  } catch (S::exception &E) {
     checkRangeException(E);
   } catch (...) {
     assert(false && "Unexpected exception catched");

@@ -8,7 +8,6 @@
 
 #include "helper.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
 template <typename T> class sycl_subgr;
 using namespace sycl;
 template <typename T> void check(queue &Queue) {
@@ -21,7 +20,7 @@ template <typename T> void check(queue &Queue) {
       auto syclacc = syclbuf.template get_access<access::mode::read_write>(cgh);
       auto sgsizeacc = sgsizebuf.get_access<access::mode::read_write>(cgh);
       cgh.parallel_for<sycl_subgr<T>>(NdRange, [=](nd_item<1> NdItem) {
-        ext::oneapi::sub_group SG = NdItem.get_sub_group();
+        sycl::sub_group SG = NdItem.get_sub_group();
         /*Broadcast GID of element with SGLID == SGID % SGMLR*/
         syclacc[NdItem.get_global_id()] =
             group_broadcast(SG, T(NdItem.get_global_id(0)),

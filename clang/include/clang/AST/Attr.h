@@ -28,6 +28,8 @@
 #include "clang/Basic/SourceLocation.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringSwitch.h"
+#include "llvm/Frontend/HLSL/HLSLResource.h"
+#include "llvm/Support/CodeGen.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/VersionTuple.h"
 #include "llvm/Support/raw_ostream.h"
@@ -43,17 +45,23 @@ class OMPTraitInfo;
 /// Attr - This represents one attribute.
 class Attr : public AttributeCommonInfo {
 private:
+  LLVM_PREFERRED_TYPE(attr::Kind)
   unsigned AttrKind : 16;
 
 protected:
   /// An index into the spelling list of an
   /// attribute defined in Attr.td file.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned Inherited : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsPackExpansion : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned Implicit : 1;
   // FIXME: These are properties of the attribute kind, not state for this
   // instance of the attribute.
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsLateParsed : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned InheritEvenIfAlreadyPresent : 1;
 
   void *operator new(size_t bytes) noexcept {
@@ -220,20 +228,7 @@ protected:
                              InheritEvenIfAlreadyPresent) {}
 
 public:
-  ParameterABI getABI() const {
-    switch (getKind()) {
-    case attr::SwiftContext:
-      return ParameterABI::SwiftContext;
-    case attr::SwiftAsyncContext:
-      return ParameterABI::SwiftAsyncContext;
-    case attr::SwiftErrorResult:
-      return ParameterABI::SwiftErrorResult;
-    case attr::SwiftIndirectResult:
-      return ParameterABI::SwiftIndirectResult;
-    default:
-      llvm_unreachable("bad parameter ABI attribute kind");
-    }
-  }
+  ParameterABI getABI() const;
 
   static bool classof(const Attr *A) {
     return A->getKind() >= attr::FirstParameterABIAttr &&
@@ -246,7 +241,9 @@ public:
 class ParamIdx {
   // Idx is exposed only via accessors that specify specific encodings.
   unsigned Idx : 30;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned HasThis : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IsValid : 1;
 
   void assertComparable(const ParamIdx &I) const {
@@ -366,12 +363,35 @@ public:
 static_assert(sizeof(ParamIdx) == sizeof(ParamIdx::SerialType),
               "ParamIdx does not fit its serialization type");
 
-#include "clang/AST/Attrs.inc"
+#include "clang/AST/Attrs.inc" // IWYU pragma: export
 
 inline const StreamingDiagnostic &operator<<(const StreamingDiagnostic &DB,
                                              const Attr *At) {
   DB.AddTaggedVal(reinterpret_cast<uint64_t>(At), DiagnosticsEngine::ak_attr);
   return DB;
+}
+
+inline ParameterABI ParameterABIAttr::getABI() const {
+  switch (getKind()) {
+  case attr::SwiftContext:
+    return ParameterABI::SwiftContext;
+  case attr::SwiftAsyncContext:
+    return ParameterABI::SwiftAsyncContext;
+  case attr::SwiftErrorResult:
+    return ParameterABI::SwiftErrorResult;
+  case attr::SwiftIndirectResult:
+    return ParameterABI::SwiftIndirectResult;
+  case attr::HLSLParamModifier: {
+    const auto *A = cast<HLSLParamModifierAttr>(this);
+    if (A->isOut())
+      return ParameterABI::HLSLOut;
+    if (A->isInOut())
+      return ParameterABI::HLSLInOut;
+    return ParameterABI::Ordinary;
+  }
+  default:
+    llvm_unreachable("bad parameter ABI attribute kind");
+  }
 }
 }  // end namespace clang
 

@@ -6,15 +6,20 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/compiler.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
+#include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
+#include <cstddef>
 #include <set>
+#include <vector>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 kernel_id::kernel_id(const char *Name)
     : impl(std::make_shared<detail::kernel_id_impl>(Name)) {}
@@ -36,7 +41,7 @@ bool device_image_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-pi_native_handle device_image_plain::getNative() const {
+ur_native_handle_t device_image_plain::getNative() const {
   return impl->getNative();
 }
 
@@ -111,6 +116,14 @@ bool kernel_bundle_plain::is_specialization_constant_set(
   return impl->is_specialization_constant_set(SpecName);
 }
 
+bool kernel_bundle_plain::ext_oneapi_has_kernel(detail::string_view name) {
+  return impl->ext_oneapi_has_kernel(name.data());
+}
+
+kernel kernel_bundle_plain::ext_oneapi_get_kernel(detail::string_view name) {
+  return impl->ext_oneapi_get_kernel(name.data(), impl);
+}
+
 //////////////////////////////////
 ///// sycl::detail free functions
 //////////////////////////////////
@@ -128,8 +141,9 @@ removeDuplicateDevices(const std::vector<device> &Devs) {
   return UniqueDevices;
 }
 
-kernel_id get_kernel_id_impl(std::string KernelName) {
-  return detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
+kernel_id get_kernel_id_impl(string_view KernelName) {
+  return detail::ProgramManager::getInstance().getSYCLKernelID(
+      KernelName.data());
 }
 
 detail::KernelBundleImplPtr
@@ -300,28 +314,23 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
                                        const detail::RTDeviceBinaryImage &Img) {
     const char *Target = Img.getRawData().DeviceTargetSpec;
     auto BE = Dev.get_backend();
-    // ESIMD emulator backend is only compatible with esimd kernels.
-    if (BE == sycl::backend::ext_intel_esimd_emulator) {
-      pi_device_binary_property Prop = Img.getProperty("isEsimdImage");
-      return (Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0));
-    }
-    if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
                0) {
       return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-               0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
       return Dev.is_gpu() && (BE == sycl::backend::opencl ||
                               BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
-               0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
       return Dev.is_accelerator();
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
       return BE == sycl::backend::ext_oneapi_cuda;
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
       return BE == sycl::backend::ext_oneapi_hip;
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
+      return BE == sycl::backend::ext_oneapi_native_cpu;
     }
 
     return false;
@@ -346,5 +355,125 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   return true;
 }
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+/////////////////////////
+// * kernel_compiler extension *
+/////////////////////////
+namespace ext::oneapi::experimental {
+
+using source_kb = kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+using exe_kb = kernel_bundle<bundle_state::executable>;
+using kernel_bundle_impl = sycl::detail::kernel_bundle_impl;
+
+namespace detail {
+
+/////////////////////////
+// syclex::detail::is_source_kernel_bundle_supported
+/////////////////////////
+bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
+  // Support is limited to the opencl and level_zero backends.
+  bool BE_Acceptable = (BE == sycl::backend::ext_oneapi_level_zero) ||
+                       (BE == sycl::backend::opencl);
+  if (BE_Acceptable) {
+    if (Language == source_language::opencl) {
+      return detail::OpenCLC_Compilation_Available();
+    } else if (Language == source_language::spirv) {
+      return true;
+    } else if (Language == source_language::sycl) {
+      return detail::SYCL_Compilation_Available();
+    }
+  }
+
+  // otherwise
+  return false;
+}
+
+/////////////////////////
+// syclex::detail::create_kernel_bundle_from_source
+/////////////////////////
+
+using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
+using include_pairs_view_t = std::vector<
+    std::pair<sycl::detail::string_view, sycl::detail::string_view>>;
+
+source_kb
+make_kernel_bundle_from_source(const context &SyclContext,
+                               source_language Language,
+                               sycl::detail::string_view SourceView,
+                               include_pairs_view_t IncludePairViews) {
+  // TODO: if we later support a "reason" why support isn't present
+  // (like a missing shared library etc.) it'd be nice to include it in
+  // the exception message here.
+  std::string Source{SourceView.data()};
+  include_pairs_t IncludePairs;
+  size_t n = IncludePairViews.size();
+  IncludePairs.reserve(n);
+  for (auto &p : IncludePairViews)
+    IncludePairs.push_back({p.first.data(), p.second.data()});
+
+  backend BE = SyclContext.get_backend();
+  if (!is_source_kernel_bundle_supported(BE, Language))
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "kernel_bundle creation from source not supported");
+
+  // throw if include not supported?   awaiting guidance
+  // if(!IncludePairs.empty() && is_include_supported(Languuage)){ throw invalid
+  // }
+
+  std::shared_ptr<kernel_bundle_impl> KBImpl =
+      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Source,
+                                           IncludePairs);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+}
+
+source_kb make_kernel_bundle_from_source(const context &SyclContext,
+                                         source_language Language,
+                                         const std::vector<std::byte> &Bytes,
+                                         include_pairs_view_t IncludePairs) {
+  (void)IncludePairs;
+  backend BE = SyclContext.get_backend();
+  if (!is_source_kernel_bundle_supported(BE, Language))
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "kernel_bundle creation from source not supported");
+
+  std::shared_ptr<kernel_bundle_impl> KBImpl =
+      std::make_shared<kernel_bundle_impl>(SyclContext, Language, Bytes);
+  return sycl::detail::createSyclObjFromImpl<source_kb>(KBImpl);
+}
+
+/////////////////////////
+// syclex::detail::build_from_source(source_kb) => exe_kb
+/////////////////////////
+
+exe_kb build_from_source(
+    source_kb &SourceKB, const std::vector<device> &Devices,
+    const std::vector<sycl::detail::string_view> &BuildOptions,
+    sycl::detail::string *LogView,
+    const std::vector<sycl::detail::string_view> &RegisteredKernelNames) {
+  std::vector<std::string> Options;
+  for (const sycl::detail::string_view option : BuildOptions)
+    Options.push_back(option.data());
+
+  std::vector<std::string> KernelNames;
+  for (const sycl::detail::string_view name : RegisteredKernelNames)
+    KernelNames.push_back(name.data());
+
+  std::string Log;
+  std::string *LogPtr = nullptr;
+  if (LogView)
+    LogPtr = &Log;
+  std::vector<device> UniqueDevices =
+      sycl::detail::removeDuplicateDevices(Devices);
+  std::shared_ptr<kernel_bundle_impl> sourceImpl = getSyclObjImpl(SourceKB);
+  std::shared_ptr<kernel_bundle_impl> KBImpl = sourceImpl->build_from_source(
+      UniqueDevices, Options, LogPtr, KernelNames);
+  auto result = sycl::detail::createSyclObjFromImpl<exe_kb>(KBImpl);
+  if (LogView)
+    *LogView = Log;
+  return result;
+}
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
+
+} // namespace _V1
 } // namespace sycl

@@ -30,7 +30,7 @@
 
 #define LENGTH 10
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 using namespace sycl;
 
 void update_d2_data(queue &q) {

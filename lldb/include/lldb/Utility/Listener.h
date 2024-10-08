@@ -27,7 +27,6 @@
 #include <cstdint>
 
 namespace lldb_private {
-class ConstString;
 class Event;
 }
 
@@ -95,8 +94,6 @@ public:
 
   size_t HandleBroadcastEvent(lldb::EventSP &event_sp);
 
-  void SetShadow(bool is_shadow) { m_is_shadow = is_shadow; }
-
 private:
   // Classes that inherit from Listener can see and modify these
   struct BroadcasterInfo {
@@ -119,24 +116,20 @@ private:
   bool
   FindNextEventInternal(std::unique_lock<std::mutex> &lock,
                         Broadcaster *broadcaster, // nullptr for any broadcaster
-                        const ConstString *sources, // nullptr for any event
-                        uint32_t num_sources, uint32_t event_type_mask,
-                        lldb::EventSP &event_sp, bool remove);
+                        uint32_t event_type_mask, lldb::EventSP &event_sp,
+                        bool remove);
 
   bool GetEventInternal(const Timeout<std::micro> &timeout,
                         Broadcaster *broadcaster, // nullptr for any broadcaster
-                        const ConstString *sources, // nullptr for any event
-                        uint32_t num_sources, uint32_t event_type_mask,
-                        lldb::EventSP &event_sp);
+                        uint32_t event_type_mask, lldb::EventSP &event_sp);
 
   std::string m_name;
   broadcaster_collection m_broadcasters;
-  std::recursive_mutex m_broadcasters_mutex; // Protects m_broadcasters
+  std::mutex m_broadcasters_mutex; // Protects m_broadcasters
   event_collection m_events;
   std::mutex m_events_mutex; // Protects m_broadcasters and m_events
   std::condition_variable m_events_condition;
   broadcaster_manager_collection m_broadcaster_managers;
-  bool m_is_shadow = false;
 
   void BroadcasterWillDestruct(Broadcaster *);
 

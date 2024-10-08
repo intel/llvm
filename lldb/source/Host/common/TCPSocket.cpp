@@ -150,7 +150,7 @@ Status TCPSocket::CreateSocket(int domain) {
 Status TCPSocket::Connect(llvm::StringRef name) {
 
   Log *log = GetLog(LLDBLog::Communication);
-  LLDB_LOGF(log, "TCPSocket::%s (host/port = %s)", __FUNCTION__, name.data());
+  LLDB_LOG(log, "Connect to host/port {0}", name);
 
   Status error;
   llvm::Expected<HostAndPort> host_port = DecodeHostAndPort(name);
@@ -183,13 +183,13 @@ Status TCPSocket::Connect(llvm::StringRef name) {
     return error;
   }
 
-  error.SetErrorString("Failed to connect port");
+  error = Status::FromErrorString("Failed to connect port");
   return error;
 }
 
 Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
   Log *log = GetLog(LLDBLog::Connection);
-  LLDB_LOGF(log, "TCPSocket::%s (%s)", __FUNCTION__, name.data());
+  LLDB_LOG(log, "Listen to {0}", name);
 
   Status error;
   llvm::Expected<HostAndPort> host_port = DecodeHostAndPort(name);
@@ -257,7 +257,7 @@ void TCPSocket::CloseListenSockets() {
 Status TCPSocket::Accept(Socket *&conn_socket) {
   Status error;
   if (m_listen_sockets.size() == 0) {
-    error.SetErrorString("No open listening sockets!");
+    error = Status::FromErrorString("No open listening sockets!");
     return error;
   }
 

@@ -8,16 +8,18 @@
 
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_helper.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/property_helper.hpp> // for DataLessPropKind, Propert...
+#include <sycl/exception.hpp>
 
-#include <bitset>
-#include <memory>
-#include <vector>
+#include <algorithm>   // for iter_swap
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr, __shared_ptr_...
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class PropertyListBase {
 protected:
@@ -89,15 +91,15 @@ protected:
   get_property_helper() const {
     const int PropKind = static_cast<int>(PropT::getKind());
     if (PropKind >= PropWithDataKind::PropWithDataKindSize)
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The property is not found");
 
     for (const std::shared_ptr<PropertyWithDataBase> &Prop : MPropsWithData)
       if (Prop->isSame(PropKind))
         return *static_cast<PropT *>(Prop.get());
 
-    throw sycl::invalid_object_error("The property is not found",
-                                     PI_ERROR_INVALID_VALUE);
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "The property is not found");
   }
 
   void add_or_replace_accessor_properties_helper(
@@ -130,5 +132,5 @@ protected:
   std::vector<std::shared_ptr<PropertyWithDataBase>> MPropsWithData;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

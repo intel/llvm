@@ -1,5 +1,5 @@
 ; RUN: opt -module-summary -o %t.bc %s
-; RUN: llvm-lto2 run -opaque-pointers %t.bc -r %t.bc,foo,px -r %t.bc,bar, -o %t2
+; RUN: llvm-lto2 run %t.bc -r %t.bc,foo,px -r %t.bc,bar, -o %t2
 ; RUN: llvm-nm %t2.1 | FileCheck %s
 
 ; CHECK: U bar

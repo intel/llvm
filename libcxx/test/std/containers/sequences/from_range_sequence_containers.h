@@ -17,6 +17,7 @@
 #include <ranges>
 #include <utility>
 
+#include "../exception_safety_helpers.h"
 #include "../from_range_helpers.h"
 #include "MoveOnly.h"
 #include "almost_satisfies_types.h"
@@ -60,19 +61,19 @@ template <template <class ...> class Container,
           std::size_t N,
           class ValidateFunc>
 constexpr void test_sequence_container_with_input(std::array<T, N>&& input, ValidateFunc validate) {
-  auto in = wrap_input<Iter, Sent>(input);
-
   { // (range)
+    auto in = wrap_input<Iter, Sent>(input);
     Container<T> c(std::from_range, in);
 
     if constexpr (HasSize<Container<T>>) {
       assert(c.size() == static_cast<std::size_t>(std::distance(c.begin(), c.end())));
     }
-    assert(std::ranges::equal(in, c));
+    assert(std::ranges::equal(input, c));
     validate(c);
   }
 
   { // (range, allocator)
+    auto in = wrap_input<Iter, Sent>(input);
     Alloc alloc;
     Container<T, Alloc> c(std::from_range, in, alloc);
 
@@ -80,7 +81,7 @@ constexpr void test_sequence_container_with_input(std::array<T, N>&& input, Vali
     if constexpr (HasSize<Container<T, Alloc>>) {
       assert(c.size() == static_cast<std::size_t>(std::distance(c.begin(), c.end())));
     }
-    assert(std::ranges::equal(in, c));
+    assert(std::ranges::equal(input, c));
     validate(c);
   }
 }
@@ -125,18 +126,11 @@ constexpr void test_vector_bool(ValidateFunc validate) {
 template <template <class ...> class Container>
 void test_exception_safety_throwing_copy() {
 #if !defined(TEST_HAS_NO_EXCEPTIONS)
-  using T = ThrowingCopy<3>;
-  T::reset();
-  T in[5];
-
-  try {
-    Container<T> c(std::from_range, in);
-    assert(false); // The constructor call above should throw.
-
-  } catch (int) {
-    assert(T::created_by_copying == 3);
-    assert(T::destroyed == 2); // No destructor call for the partially-constructed element.
-  }
+  constexpr int ThrowOn = 3;
+  using T = ThrowingCopy<ThrowOn>;
+  test_exception_safety_throwing_copy<ThrowOn, /*Size=*/5>([](T* from, T* to) {
+    [[maybe_unused]] Container<T> c(std::from_range, std::ranges::subrange(from, to));
+  });
 #endif
 }
 

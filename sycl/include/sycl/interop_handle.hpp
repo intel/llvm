@@ -8,17 +8,29 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/accessor.hpp>
-#include <sycl/backend_types.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/access/access.hpp>     // for target, mode, place...
+#include <sycl/accessor.hpp>          // for AccessorBaseHost
+#include <sycl/backend_types.hpp>     // for backend, backend_re...
+#include <sycl/context.hpp>           // for context
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/detail/helpers.hpp>    // for context_impl
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+#include <sycl/device.hpp>            // for device, device_impl
+#include <sycl/exception.hpp>
+#include <sycl/exception_list.hpp>                    // for queue_impl
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
+#include <sycl/image.hpp>                             // for image
+#include <sycl/properties/buffer_properties.hpp>      // for buffer
+#include <ur_api.h> // for ur_mem_handle_t, ur...
 
-#include <memory>
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for int32_t
+#include <type_traits> // for enable_if_t
+#include <utility>     // for move, pair
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 namespace detail {
 class AccessorBaseHost;
@@ -59,8 +71,8 @@ public:
                   "The method is available only for target::device accessors");
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, DataT, Dims>(
         detail::getSyclObjImpl(*AccBase).get());
@@ -85,8 +97,8 @@ public:
                                    IsPlh /*, PropertyListT */> &Acc) const {
 #ifndef __SYCL_DEVICE_ONLY__
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     const auto *AccBase = static_cast<const detail::AccessorBaseHost *>(&Acc);
     return getMemImpl<Backend, Dims>(detail::getSyclObjImpl(*AccBase).get());
 #else
@@ -115,8 +127,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     int32_t NativeHandleDesc;
     return reinterpret_cast<backend_return_t<Backend, queue>>(
         getNativeQueue(NativeHandleDesc));
@@ -138,8 +150,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     // C-style cast required to allow various native types
     return (backend_return_t<Backend, device>)getNativeDevice();
 #else
@@ -160,8 +172,8 @@ public:
     // with the error code 'errc::backend_mismatch' when those new exceptions
     // are ready to be used.
     if (Backend != get_backend())
-      throw invalid_object_error("Incorrect backend argument was passed",
-                                 PI_ERROR_INVALID_MEM_OBJECT);
+      throw exception(make_error_code(errc::invalid),
+                      "Incorrect backend argument was passed");
     return reinterpret_cast<backend_return_t<Backend, context>>(
         getNativeContext());
 #else
@@ -173,7 +185,7 @@ public:
 private:
   friend class detail::ExecCGCommand;
   friend class detail::DispatchHostTask;
-  using ReqToMem = std::pair<detail::AccessorImplHost *, pi_mem>;
+  using ReqToMem = std::pair<detail::AccessorImplHost *, ur_mem_handle_t>;
 
   interop_handle(std::vector<ReqToMem> MemObjs,
                  const std::shared_ptr<detail::queue_impl> &Queue,
@@ -185,7 +197,7 @@ private:
   template <backend Backend, typename DataT, int Dims>
   backend_return_t<Backend, buffer<DataT, Dims>>
   getMemImpl(detail::AccessorImplHost *Req) const {
-    std::vector<pi_native_handle> NativeHandles{getNativeMem(Req)};
+    std::vector<ur_native_handle_t> NativeHandles{getNativeMem(Req)};
     return detail::BufferInterop<Backend, DataT, Dims>::GetNativeObjs(
         NativeHandles);
   }
@@ -197,12 +209,12 @@ private:
     return reinterpret_cast<image_return_t>(getNativeMem(Req));
   }
 
-  __SYCL_EXPORT pi_native_handle
+  __SYCL_EXPORT ur_native_handle_t
   getNativeMem(detail::AccessorImplHost *Req) const;
-  __SYCL_EXPORT pi_native_handle
+  __SYCL_EXPORT ur_native_handle_t
   getNativeQueue(int32_t &NativeHandleDesc) const;
-  __SYCL_EXPORT pi_native_handle getNativeDevice() const;
-  __SYCL_EXPORT pi_native_handle getNativeContext() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeDevice() const;
+  __SYCL_EXPORT ur_native_handle_t getNativeContext() const;
 
   std::shared_ptr<detail::queue_impl> MQueue;
   std::shared_ptr<detail::device_impl> MDevice;
@@ -211,5 +223,5 @@ private:
   std::vector<ReqToMem> MMemObjs;
 };
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

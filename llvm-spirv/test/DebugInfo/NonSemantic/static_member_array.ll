@@ -1,12 +1,12 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc -o %t.spv -spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; Generated from:
@@ -47,8 +47,8 @@ source_filename = "static_member_array.cpp"
 target datalayout = "e-m:o-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "spir64-unknown-unknown"
 
-@_ZN1A15fully_specifiedE = global i32 0, align 4, !dbg !0
-@_ZN1A4smemE = global [4 x i32] [i32 0, i32 1, i32 2, i32 3], align 16, !dbg !6
+@_ZN1A15fully_specifiedE = addrspace(1) global i32 0, align 4, !dbg !0
+@_ZN1A4smemE = addrspace(1) global [4 x i32] [i32 0, i32 1, i32 2, i32 3], align 16, !dbg !6
 
 !llvm.dbg.cu = !{!2}
 !llvm.module.flags = !{!19, !20, !21}

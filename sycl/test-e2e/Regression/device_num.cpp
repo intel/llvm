@@ -5,13 +5,12 @@
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:2" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR="*:3" env TEST_DEV_CONFIG_FILE_NAME=%t1.conf %{run-unfiltered-devices} %t.out
 
-// Temporarily disable on L0 due to fails in CI
-// UNSUPPORTED: level_zero
-
+#include "../helpers.hpp"
 #include <fstream>
 #include <iostream>
 #include <map>
-#include <sycl/sycl.hpp>
+#include <sstream>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;
@@ -19,16 +18,14 @@ using namespace std;
 const std::map<info::device_type, std::string> DeviceTypeStringMap = {
     {info::device_type::cpu, "cpu"},
     {info::device_type::gpu, "gpu"},
-    {info::device_type::host, "host"},
     {info::device_type::accelerator, "acc"}};
 
 const std::map<backend, std::string> BackendStringMap = {
     {backend::opencl, "opencl"},
-    {backend::host, "host"},
     {backend::ext_oneapi_level_zero, "ext_oneapi_level_zero"},
-    {backend::ext_intel_esimd_emulator, "ext_intel_esimd_emulator"},
     {backend::ext_oneapi_cuda, "ext_oneapi_cuda"},
-    {backend::ext_oneapi_hip, "ext_oneapi_hip"}};
+    {backend::ext_oneapi_hip, "ext_oneapi_hip"},
+    {backend::ext_oneapi_native_cpu, "ext_oneapi_native_cpu"}};
 
 std::string getDeviceTypeName(const device &d) {
   auto DeviceType = d.get_info<info::device::device_type>();
@@ -77,7 +74,7 @@ void PrintSystemConfiguration() {
 
 using DevInfo = std::pair<info::device_type, backend>;
 using DevInfoMap = std::map<int, std::vector<DevInfo>>;
-bool ReadInitialSystemConfiguration(char *fileName, DevInfoMap &devices) {
+bool ReadInitialSystemConfiguration(const char *fileName, DevInfoMap &devices) {
   fstream confFile;
   confFile.open(fileName, ios::in);
   if (!confFile.is_open())
@@ -111,8 +108,7 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
   const std::map<info::device_type, int> scoreByType = {
       {info::device_type::cpu, 300},
       {info::device_type::gpu, 500},
-      {info::device_type::accelerator, 75},
-      {info::device_type::host, 100}};
+      {info::device_type::accelerator, 75}};
   int score = -1;
   int index = -1;
   int devCount = devices.size();
@@ -135,20 +131,21 @@ int GetPreferredDeviceIndex(const std::vector<device> &devices,
 
 int main() {
   // Expected that the sycl device filter is not set
-  if (getenv("PRINT_FULL_DEVICE_INFO")) {
+  if (env::isDefined("PRINT_FULL_DEVICE_INFO")) {
     PrintSystemConfiguration();
     return 0;
   }
 
   DevInfoMap unfilteredDevices;
-  assert(ReadInitialSystemConfiguration(getenv("TEST_DEV_CONFIG_FILE_NAME"),
-                                        unfilteredDevices) &&
+  assert(ReadInitialSystemConfiguration(
+             env::getVal("TEST_DEV_CONFIG_FILE_NAME").c_str(),
+             unfilteredDevices) &&
          "Failed to parse file with initial system configuration data");
 
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   int deviceNum;
   std::cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
-  deviceNum = std::atoi(std::string(envVal).substr(2).c_str());
+  deviceNum = std::stoi(envVal.substr(2));
 
   auto devices = device::get_devices();
   std::cout << "Device count to analyze =" << devices.size() << std::endl;
@@ -177,27 +174,24 @@ int main() {
     targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::all);
     assert(targetDevIndex >= 0 &&
            "Failed to find target device for default selector.");
-    default_selector ds;
-    device d = ds.select_device();
-    std::cout << "default_selector selected ";
+    device d(default_selector_v);
+    std::cout << "default_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
   }
   targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::gpu);
   if (targetDevIndex >= 0) {
-    gpu_selector gs;
-    device d = gs.select_device();
-    std::cout << "gpu_selector selected ";
+    device d(gpu_selector_v);
+    std::cout << "gpu_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
   }
   targetDevIndex = GetPreferredDeviceIndex(devices, info::device_type::cpu);
   if (targetDevIndex >= 0) {
-    cpu_selector cs;
-    device d = cs.select_device();
-    std::cout << "cpu_selector selected ";
+    device d(cpu_selector_v);
+    std::cout << "cpu_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");
@@ -205,9 +199,8 @@ int main() {
   targetDevIndex =
       GetPreferredDeviceIndex(devices, info::device_type::accelerator);
   if (targetDevIndex >= 0) {
-    accelerator_selector as;
-    device d = as.select_device();
-    std::cout << "accelerator_selector selected ";
+    device d(accelerator_selector_v);
+    std::cout << "accelerator_selector_v selected ";
     printDeviceType(d);
     assert(devices[targetDevIndex] == d &&
            "The selected device is not the target device specified.");

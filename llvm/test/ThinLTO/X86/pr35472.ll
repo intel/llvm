@@ -5,7 +5,13 @@
 
 ; RUN: opt -module-hash -module-summary %s -o %t1.bc
 ; RUN: opt -module-hash -module-summary %p/Inputs/pr35472.ll -o %t2.bc
-; RUN: llvm-lto -thinlto-action=run -opaque-pointers %t1.bc %t2.bc -exported-symbol=_Z5Alphav
+; RUN: llvm-lto -thinlto-action=run %t1.bc %t2.bc -exported-symbol=_Z5Alphav
+; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s -check-prefix=ThinLTOa
+; RUN: llvm-nm %t2.bc.thinlto.o | FileCheck %s -check-prefix=ThinLTOb
+
+;; Re-run with "new" debug-info mode, checking that we load / convert / emit
+;; the dbg.declares below correctly.
+; RUN: llvm-lto -thinlto-action=run %t1.bc %t2.bc -exported-symbol=_Z5Alphav --try-experimental-debuginfo-iterators
 ; RUN: llvm-nm %t1.bc.thinlto.o | FileCheck %s -check-prefix=ThinLTOa
 ; RUN: llvm-nm %t2.bc.thinlto.o | FileCheck %s -check-prefix=ThinLTOb
 

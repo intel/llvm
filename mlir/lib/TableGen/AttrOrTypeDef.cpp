@@ -11,6 +11,7 @@
 #include "llvm/ADT/FunctionExtras.h"
 #include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Support/ErrorHandling.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 
@@ -183,6 +184,12 @@ bool AttrOrTypeDef::genVerifyDecl() const {
   return def->getValueAsBit("genVerifyDecl");
 }
 
+bool AttrOrTypeDef::genVerifyInvariantsImpl() const {
+  return any_of(parameters, [](const AttrOrTypeParameter &p) {
+    return p.getConstraint() != std::nullopt;
+  });
+}
+
 std::optional<StringRef> AttrOrTypeDef::getExtraDecls() const {
   auto value = def->getValueAsString("extraClassDeclaration");
   return value.empty() ? std::optional<StringRef>() : value;
@@ -217,6 +224,22 @@ std::optional<StringRef> AttrDef::getTypeBuilder() const {
 
 bool AttrDef::classof(const AttrOrTypeDef *def) {
   return def->getDef()->isSubClassOf("AttrDef");
+}
+
+StringRef AttrDef::getAttrName() const {
+  return def->getValueAsString("attrName");
+}
+
+//===----------------------------------------------------------------------===//
+// TypeDef
+//===----------------------------------------------------------------------===//
+
+bool TypeDef::classof(const AttrOrTypeDef *def) {
+  return def->getDef()->isSubClassOf("TypeDef");
+}
+
+StringRef TypeDef::getTypeName() const {
+  return def->getValueAsString("typeName");
 }
 
 //===----------------------------------------------------------------------===//
@@ -257,7 +280,18 @@ StringRef AttrOrTypeParameter::getComparator() const {
 StringRef AttrOrTypeParameter::getCppType() const {
   if (auto *stringType = dyn_cast<llvm::StringInit>(getDef()))
     return stringType->getValue();
-  return *getDefValue<llvm::StringInit>("cppType");
+  auto cppType = getDefValue<llvm::StringInit>("cppType");
+  if (cppType)
+    return *cppType;
+  if (auto *init = dyn_cast<llvm::DefInit>(getDef()))
+    llvm::PrintFatalError(
+        init->getDef()->getLoc(),
+        Twine("Missing `cppType` field in Attribute/Type parameter: ") +
+            init->getAsString());
+  llvm::report_fatal_error(
+      Twine("Missing `cppType` field in Attribute/Type parameter: ") +
+          getDef()->getAsString(),
+      /*gen_crash_diag=*/false);
 }
 
 StringRef AttrOrTypeParameter::getCppAccessorType() const {
@@ -302,6 +336,13 @@ std::optional<StringRef> AttrOrTypeParameter::getDefaultValue() const {
 }
 
 llvm::Init *AttrOrTypeParameter::getDef() const { return def->getArg(index); }
+
+std::optional<Constraint> AttrOrTypeParameter::getConstraint() const {
+  if (auto *param = dyn_cast<llvm::DefInit>(getDef()))
+    if (param->getDef()->isSubClassOf("Constraint"))
+      return Constraint(param->getDef());
+  return std::nullopt;
+}
 
 //===----------------------------------------------------------------------===//
 // AttributeSelfTypeParameter

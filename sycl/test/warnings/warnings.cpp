@@ -1,6 +1,6 @@
-// RUN: %clangxx -fsycl --no-system-header-prefix=sycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %s
+// RUN: %clangxx -fsycl --no-system-header-prefix=sycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wmismatched-tags -Wno-unknown-cuda-version -Wno-unused-command-line-argument %s
 // RUN: %clangxx -fsycl -E --no-system-header-prefix=sycl %s -o %t.ii
-// RUN: %clangxx -fsycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wunused-variable -Wmismatched-tags -Wunneeded-internal-declaration -Wno-unknown-cuda-version -Wno-unused-parameter -Wno-unused-command-line-argument %t.ii
+// RUN: %clangxx -fsycl -fsyntax-only -Wall -Wextra -Werror -Wno-ignored-attributes -Wno-deprecated-declarations -Wpessimizing-move -Wmismatched-tags -Wno-unknown-cuda-version -Wno-unused-command-line-argument %t.ii
 #include <sycl/sycl.hpp>
 
 using namespace sycl;

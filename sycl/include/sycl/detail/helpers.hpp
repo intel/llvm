@@ -8,22 +8,24 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <CL/__spirv/spirv_vars.hpp>
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/memcpy.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/type_traits.hpp>
+#include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
+#include <sycl/access/access.hpp>     // for fence_space
+#include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
+#include <sycl/memory_enums.hpp>      // for memory_order
 
-#include <memory>
-#include <stdexcept>
-#include <type_traits>
-#include <vector>
+#ifdef __SYCL_DEVICE_ONLY__
+#include <CL/__spirv/spirv_vars.hpp>
+#endif
+
+#include <cstddef>     // for size_t
+#include <memory>      // for shared_ptr
+#include <stdint.h>    // for uint32_t
+#include <type_traits> // for enable_if_t, integral_constant
+#include <utility>     // for forward, integer_sequence, mak...
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class context;
 class event;
 template <int Dims, bool WithOffset> class item;
@@ -36,19 +38,18 @@ template <typename Type, std::size_t NumElements> class marray;
 enum class memory_order;
 
 namespace detail {
+class buffer_impl;
 
-class context_impl;
-// The function returns list of events that can be passed to OpenCL API as
-// dependency list and waits for others.
-__SYCL_EXPORT std::vector<sycl::detail::pi::PiEvent>
-getOrWaitEvents(std::vector<sycl::event> DepEvents,
-                std::shared_ptr<sycl::detail::context_impl> Context);
-
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
 __SYCL_EXPORT void waitEvents(std::vector<sycl::event> DepEvents);
+#endif
+
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl);
 
 template <typename T> T *declptr() { return static_cast<T *>(nullptr); }
 
-// Function to get of store id, item, nd_item, group for the host implementation
+// Function to get or store id, item, nd_item, group for the host implementation
 // Pass nullptr to get stored object. Pass valid address to store object
 template <typename T> T get_or_store(const T *obj) {
   static thread_local auto stored = *obj;
@@ -123,15 +124,15 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
 
   template <int N>
-  using is_valid_dimensions = std::integral_constant<bool, (N > 0) && (N < 4)>;
+  static inline constexpr bool is_valid_dimensions = (N > 0) && (N < 4);
 
   template <int Dims> static const id<Dims> getElement(id<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     return __spirv::initGlobalInvocationId<Dims, id<Dims>>();
   }
 
   template <int Dims> static const group<Dims> getElement(group<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
     range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
@@ -141,7 +142,7 @@ public:
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     id<Dims> GlobalOffset{__spirv::initGlobalOffset<Dims, id<Dims>>()};
@@ -150,14 +151,14 @@ public:
 
   template <int Dims, bool WithOffset>
   static std::enable_if_t<!WithOffset, const item<Dims, WithOffset>> getItem() {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     id<Dims> GlobalId{__spirv::initGlobalInvocationId<Dims, id<Dims>>()};
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     return createItem<Dims, false>(GlobalSize, GlobalId);
   }
 
   template <int Dims> static const nd_item<Dims> getElement(nd_item<Dims> *) {
-    static_assert(is_valid_dimensions<Dims>::value, "invalid dimensions");
+    static_assert(is_valid_dimensions<Dims>, "invalid dimensions");
     range<Dims> GlobalSize{__spirv::initGlobalSize<Dims, range<Dims>>()};
     range<Dims> LocalSize{__spirv::initWorkgroupSize<Dims, range<Dims>>()};
     range<Dims> GroupRange{__spirv::initNumWorkgroups<Dims, range<Dims>>()};
@@ -246,8 +247,8 @@ void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
 template <size_t count, class F> void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
-
+inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }
 } // namespace detail
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

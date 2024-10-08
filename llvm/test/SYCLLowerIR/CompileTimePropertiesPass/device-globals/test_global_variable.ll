@@ -9,7 +9,7 @@ source_filename = "test_global_variable.cpp"
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"
 
-%"class.cl::sycl::ext::oneapi::device_global.0" = type { i32 addrspace(4)* }
+%"class.cl::sycl::ext::oneapi::device_global.0" = type { ptr addrspace(4) }
 %"class.cl::sycl::ext::oneapi::device_global.1" = type { i8 }
 %class.anon.0 = type { i8 }
 
@@ -24,24 +24,24 @@ target triple = "spir64-unknown-unknown"
 @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8 #6
 ; CHECK-IR: @_ZL7no_dg_int1 = internal addrspace(1) constant %"class.cl::sycl::ext::oneapi::device_global.0" zeroinitializer, align 8, !spirv.Decorations ![[#MN12:]]
 
-define internal spir_func void @_ZZ4mainENKUlvE_clEv(%class.anon.0 addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2 {
+define internal spir_func void @_ZZ4mainENKUlvE_clEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %this) #4 align 2 {
 entry:
-  %this.addr = alloca %class.anon.0 addrspace(4)*, align 8
-  %this.addr.ascast = addrspacecast %class.anon.0 addrspace(4)** %this.addr to %class.anon.0 addrspace(4)* addrspace(4)*
-  store %class.anon.0 addrspace(4)* %this, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
-  %this1 = load %class.anon.0 addrspace(4)*, %class.anon.0 addrspace(4)* addrspace(4)* %this.addr.ascast, align 8
-  %call1 = call spir_func align 4 dereferenceable(4) i32 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)* align 8 dereferenceable_or_null(8) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int1 to %"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)*)) #5
-  %call2 = call spir_func align 4 dereferenceable(4) i32 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)* align 8 dereferenceable_or_null(8) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(1)* @_ZL7dg_int2 to %"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)*)) #5
-  %call3 = call spir_func align 1 dereferenceable(1) i8 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)* align 1 dereferenceable_or_null(1) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(1)* @_ZL8dg_bool3 to %"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)*)) #5
-  %call4 = call spir_func align 1 dereferenceable(1) i8 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)* align 1 dereferenceable_or_null(1) addrspacecast (%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(1)* @_ZL8dg_bool4 to %"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)*)) #5
+  %this.addr = alloca ptr addrspace(4), align 8
+  %this.addr.ascast = addrspacecast ptr %this.addr to ptr addrspace(4)
+  store ptr addrspace(4) %this, ptr addrspace(4) %this.addr.ascast, align 8
+  %this1 = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast, align 8
+  %call1 = call spir_func align 4 dereferenceable(4) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 8 dereferenceable_or_null(8) addrspacecast (ptr addrspace(1) @_ZL7dg_int1 to ptr addrspace(4))) #5
+  %call2 = call spir_func align 4 dereferenceable(4) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 8 dereferenceable_or_null(8) addrspacecast (ptr addrspace(1) @_ZL7dg_int2 to ptr addrspace(4))) #5
+  %call3 = call spir_func align 1 dereferenceable(1) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) addrspacecast (ptr addrspace(1) @_ZL8dg_bool3 to ptr addrspace(4))) #5
+  %call4 = call spir_func align 1 dereferenceable(1) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) addrspacecast (ptr addrspace(1) @_ZL8dg_bool4 to ptr addrspace(4))) #5
   ret void
 }
 
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
-declare spir_func align 4 dereferenceable(4) i32 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.0" addrspace(4)* align 8 dereferenceable_or_null(8) %this) #4 align 2
+declare spir_func align 4 dereferenceable(4) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIiJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 8 dereferenceable_or_null(8) %this) #4 align 2
 
 ; Function Attrs: convergent mustprogress noinline norecurse nounwind optnone
-declare spir_func align 1 dereferenceable(1) i8 addrspace(4)* @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(%"class.cl::sycl::ext::oneapi::device_global.1" addrspace(4)* align 1 dereferenceable_or_null(1) %this) #4 align 2
+declare spir_func align 1 dereferenceable(1) ptr addrspace(4) @_ZNK2cl4sycl3ext6oneapi13device_globalIbJNS2_8PropertyIXadsoKcL_ZL5Name1EEEXadsoS5_L_ZL6Value1EEEEENS4_IXadsoS5_L_ZL5Name2EEEXadsoS5_L_ZL6Value2EEEEENS4_IXadsoS5_L_ZL5Name3EEEXadsoS5_L_ZL6Value3EEEEENS4_IXadsoS5_L_ZL5Name4EEEXadsoS5_L_ZL6Value4EEEEEEE3getEv(ptr addrspace(4) align 1 dereferenceable_or_null(1) %this) #4 align 2
 
 attributes #0 = { "sycl-unique-id"="6da74a122db9f35d____ZL7dg_int1" "sycl-device-image-scope"="false" "sycl-host-access"="1" "sycl-implement-in-csr"="true" "sycl-init-mode"="0" "sycl-device-global-size"="4" }
 attributes #1 = { "sycl-unique-id"="7da74a1187b9f35d____ZL7dg_int2" "sycl-implement-in-csr"="false" "sycl-init-mode"="1" "sycl-device-global-size"="4" }

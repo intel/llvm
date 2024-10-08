@@ -14,28 +14,11 @@
 #ifndef LLVM_TRANSFORMS_IPO_H
 #define LLVM_TRANSFORMS_IPO_H
 
-#include "llvm/ADT/SmallVector.h"
-#include <functional>
-#include <vector>
-
 namespace llvm {
 
-struct InlineParams;
 class ModulePass;
 class Pass;
-class BasicBlock;
-class GlobalValue;
 class raw_ostream;
-
-//===----------------------------------------------------------------------===//
-/// createGVExtractionPass - If deleteFn is true, this pass deletes
-/// the specified global values. Otherwise, it deletes as much of the module as
-/// possible, except for the global values specified. If keepConstInit is true,
-/// the initializers of global constants are not deleted even if they are
-/// unused.
-///
-ModulePass *createGVExtractionPass(std::vector<GlobalValue*>& GVs, bool
-                                  deleteFn = false, bool keepConstInit = false);
 
 //===----------------------------------------------------------------------===//
 /// createDeadArgEliminationPass - This pass removes arguments from functions

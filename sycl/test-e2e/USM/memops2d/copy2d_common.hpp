@@ -1,6 +1,7 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include "memops2d_utils.hpp"
 

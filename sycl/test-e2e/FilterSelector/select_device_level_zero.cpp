@@ -1,5 +1,5 @@
-// RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
 // when ONEAPI_DEVICE_SELECTOR is set
@@ -8,53 +8,44 @@
 //
 // REQUIRES: level_zero,gpu
 
+#include "../helpers.hpp"
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
-  if (envVal) {
-    cout << "ONEAPI_DEVICE_SELECTOR=" << envVal << std::endl;
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
 
   {
-    default_selector ds;
-    device d = ds.select_device();
+    device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
-    cout << "Level-Zero GPU Device is found: " << boolalpha << d.is_gpu()
-         << std::endl;
   }
   {
-    gpu_selector gs;
-    device d = gs.select_device();
+    device d(gpu_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
-    cout << name << " is found: " << boolalpha << d.is_gpu() << std::endl;
   }
   {
-    cpu_selector cs;
     try {
-      device d = cs.select_device();
+      device d(cpu_selector_v);
       cerr << "CPU device is found in error: " << d.is_cpu() << std::endl;
       return -1;
     } catch (...) {
-      cout << "Expectedly, cpu device is not found." << std::endl;
     }
   }
   {
-    accelerator_selector as;
     try {
-      device d = as.select_device();
+      device d(accelerator_selector_v);
       cerr << "ACC device is found in error: " << d.is_accelerator()
            << std::endl;
     } catch (...) {
-      cout << "Expectedly, ACC device is not found." << std::endl;
     }
   }
 

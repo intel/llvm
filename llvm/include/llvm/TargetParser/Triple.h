@@ -88,14 +88,13 @@ public:
     xtensa,         // Tensilica: Xtensa
     nvptx,          // NVPTX: 32-bit
     nvptx64,        // NVPTX: 64-bit
-    le32,           // le32: generic little-endian 32-bit CPU (PNaCl)
-    le64,           // le64: generic little-endian 64-bit CPU (PNaCl)
     amdil,          // AMDIL
     amdil64,        // AMDIL with 64-bit pointers
     hsail,          // AMD HSAIL
     hsail64,        // AMD HSAIL with 64-bit pointers
     spir,           // SPIR: standard portable IR for OpenCL 32-bit version
     spir64,         // SPIR: standard portable IR for OpenCL 64-bit version
+    spirv,          // SPIR-V with logical memory layout.
     spirv32,        // SPIR-V with 32-bit pointers
     spirv64,        // SPIR-V with 64-bit pointers
     kalimba,        // Kalimba: generic kalimba
@@ -112,6 +111,7 @@ public:
   enum SubArchType {
     NoSubArch,
 
+    ARMSubArch_v9_5a,
     ARMSubArch_v9_4a,
     ARMSubArch_v9_3a,
     ARMSubArch_v9_2a,
@@ -155,8 +155,11 @@ public:
     MipsSubArch_r6,
 
     SPIRSubArch_fpga,
+    SPIRSubArch_fpga_image,
     SPIRSubArch_gen,
+    SPIRSubArch_gen_image,
     SPIRSubArch_x86_64,
+    SPIRSubArch_x86_64_image,
 
     PPCSubArch_spe,
 
@@ -167,6 +170,19 @@ public:
     SPIRVSubArch_v13,
     SPIRVSubArch_v14,
     SPIRVSubArch_v15,
+    SPIRVSubArch_v16,
+
+    // DXIL sub-arch corresponds to its version.
+    DXILSubArch_v1_0,
+    DXILSubArch_v1_1,
+    DXILSubArch_v1_2,
+    DXILSubArch_v1_3,
+    DXILSubArch_v1_4,
+    DXILSubArch_v1_5,
+    DXILSubArch_v1_6,
+    DXILSubArch_v1_7,
+    DXILSubArch_v1_8,
+    LatestDXILSubArch = DXILSubArch_v1_8,
   };
   enum VendorType {
     UnknownVendor,
@@ -181,7 +197,6 @@ public:
     MipsTechnologies,
     NVIDIA,
     CSR,
-    Myriad,
     AMD,
     Mesa,
     SUSE,
@@ -191,8 +206,6 @@ public:
   enum OSType {
     UnknownOS,
 
-    Ananas,
-    CloudABI,
     Darwin,
     DragonFly,
     FreeBSD,
@@ -200,7 +213,7 @@ public:
     IOS,
     KFreeBSD,
     Linux,
-    Lv2,        // PS3
+    Lv2, // PS3
     MacOSX,
     NetBSD,
     OpenBSD,
@@ -209,21 +222,21 @@ public:
     Win32,
     ZOS,
     Haiku,
-    Minix,
     RTEMS,
-    NaCl,       // Native Client
+    NaCl, // Native Client
     AIX,
-    CUDA,       // NVIDIA CUDA
-    NVCL,       // NVIDIA OpenCL
-    AMDHSA,     // AMD HSA Runtime
+    CUDA,   // NVIDIA CUDA
+    NVCL,   // NVIDIA OpenCL
+    AMDHSA, // AMD HSA Runtime
     PS4,
     PS5,
     ELFIAMCU,
-    TvOS,       // Apple tvOS
-    WatchOS,    // Apple watchOS
-    DriverKit,  // Apple DriverKit
+    TvOS,      // Apple tvOS
+    WatchOS,   // Apple watchOS
+    BridgeOS,  // Apple bridgeOS
+    DriverKit, // Apple DriverKit
+    XROS,      // Apple XROS
     Mesa3D,
-    Contiki,
     AMDPAL,     // AMD PAL Runtime
     HermitCore, // HermitCore Unikernel/Multikernel
     Hurd,       // GNU/Hurd
@@ -231,7 +244,9 @@ public:
     Emscripten,
     ShaderModel, // DirectX ShaderModel
     LiteOS,
-    LastOSType = LiteOS
+    Serenity,
+    Vulkan, // Vulkan SPIR-V
+    LastOSType = Vulkan
   };
   enum EnvironmentType {
     UnknownEnvironment,
@@ -260,7 +275,7 @@ public:
     Cygnus,
     CoreCLR,
     Simulator, // Simulator variants of other systems, e.g., Apple's iOS
-    MacABI, // Mac Catalyst variant of Apple's iOS deployment target.
+    MacABI,    // Mac Catalyst variant of Apple's iOS deployment target.
 
     // Shader Stages
     // The order of these values matters, and must be kept in sync with the
@@ -281,8 +296,12 @@ public:
     Callable,
     Mesh,
     Amplification,
+    OpenCL,
     OpenHOS,
-    LastEnvironmentType = OpenHOS
+
+    PAuthTest,
+
+    LastEnvironmentType = PAuthTest
   };
   enum ObjectFormatType {
     UnknownObjectFormat,
@@ -415,6 +434,14 @@ public:
   /// Parse the version number as with getOSVersion.
   VersionTuple getDriverKitVersion() const;
 
+  /// Parse the Vulkan version number from the OSVersion and SPIR-V version
+  /// (SubArch).  This should only be called with Vulkan SPIR-V triples.
+  VersionTuple getVulkanVersion() const;
+
+  /// Parse the DXIL version number from the OSVersion and DXIL version
+  /// (SubArch).  This should only be called with DXIL triples.
+  VersionTuple getDXILVersion() const;
+
   /// @}
   /// @name Direct Component Access
   /// @{
@@ -425,9 +452,6 @@ public:
 
   /// Get the architecture (first) component of the triple.
   StringRef getArchName() const;
-
-  /// Get the architecture name based on Kind and SubArch.
-  StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch) const;
 
   /// Get the vendor (second) component of the triple.
   StringRef getVendorName() const;
@@ -443,9 +467,23 @@ public:
   /// string (separated by a '-' if the environment component is present).
   StringRef getOSAndEnvironmentName() const;
 
+  /// Get the version component of the environment component as a single
+  /// string (the version after the environment).
+  ///
+  /// For example, "fooos1.2.3" would return "1.2.3".
+  StringRef getEnvironmentVersionString() const;
+
   /// @}
   /// @name Convenience Predicates
   /// @{
+
+  /// Returns the pointer width of this architecture.
+  static unsigned getArchPointerBitWidth(llvm::Triple::ArchType Arch);
+
+  /// Returns the pointer width of this architecture.
+  unsigned getArchPointerBitWidth() const {
+    return getArchPointerBitWidth(getArch());
+  }
 
   /// Test whether the architecture is 64-bit
   ///
@@ -517,14 +555,17 @@ public:
     return getSubArch() == Triple::ARMSubArch_v7k;
   }
 
+  /// Is this an Apple XROS triple.
+  bool isXROS() const { return getOS() == Triple::XROS; }
+
   /// Is this an Apple DriverKit triple.
   bool isDriverKit() const { return getOS() == Triple::DriverKit; }
 
   bool isOSzOS() const { return getOS() == Triple::ZOS; }
 
-  /// Is this a "Darwin" OS (macOS, iOS, tvOS, watchOS, or DriverKit).
+  /// Is this a "Darwin" OS (macOS, iOS, tvOS, watchOS, XROS, or DriverKit).
   bool isOSDarwin() const {
-    return isMacOSX() || isiOS() || isWatchOS() || isDriverKit();
+    return isMacOSX() || isiOS() || isWatchOS() || isDriverKit() || isXROS();
   }
 
   bool isSimulatorEnvironment() const {
@@ -576,10 +617,6 @@ public:
            Env == Triple::GNUEABIHF || Env == Triple::GNUF32 ||
            Env == Triple::GNUF64 || Env == Triple::GNUSF ||
            Env == Triple::GNUX32;
-  }
-
-  bool isOSContiki() const {
-    return getOS() == Triple::Contiki;
   }
 
   /// Tests whether the OS is Haiku.
@@ -683,6 +720,10 @@ public:
     return getOS() == Triple::AIX;
   }
 
+  bool isOSSerenity() const {
+    return getOS() == Triple::Serenity;
+  }
+
   /// Tests whether the OS uses the ELF binary format.
   bool isOSBinFormatELF() const {
     return getObjectFormat() == Triple::ELF;
@@ -770,15 +811,48 @@ public:
     return getArch() == Triple::dxil;
   }
 
+  bool isShaderModelOS() const {
+    return getOS() == Triple::ShaderModel;
+  }
+
+  bool isVulkanOS() const { return getOS() == Triple::Vulkan; }
+
+  bool isShaderStageEnvironment() const {
+    EnvironmentType Env = getEnvironment();
+    return Env == Triple::Pixel || Env == Triple::Vertex ||
+           Env == Triple::Geometry || Env == Triple::Hull ||
+           Env == Triple::Domain || Env == Triple::Compute ||
+           Env == Triple::Library || Env == Triple::RayGeneration ||
+           Env == Triple::Intersection || Env == Triple::AnyHit ||
+           Env == Triple::ClosestHit || Env == Triple::Miss ||
+           Env == Triple::Callable || Env == Triple::Mesh ||
+           Env == Triple::Amplification;
+  }
+
   /// Tests whether the target is SPIR (32- or 64-bit).
   bool isSPIR() const {
     return getArch() == Triple::spir || getArch() == Triple::spir64;
   }
 
-  /// Tests whether the target is SPIR-V (32/64-bit).
-  bool isSPIRV() const {
-    return getArch() == Triple::spirv32 || getArch() == Triple::spirv64;
+  /// Tests whether the target is SPIR and AOT related.
+  bool isSPIRAOT() const {
+    return isSPIR() && (getSubArch() == Triple::SPIRSubArch_fpga ||
+                        getSubArch() == Triple::SPIRSubArch_gen ||
+                        getSubArch() == Triple::SPIRSubArch_x86_64);
   }
+
+  /// Tests whether the target is SPIR-V (32/64-bit/Logical).
+  bool isSPIRV() const {
+    return getArch() == Triple::spirv32 || getArch() == Triple::spirv64 ||
+           getArch() == Triple::spirv;
+  }
+
+  /// Tests whether the target is SPIR-V Logical
+  bool isSPIRVLogical() const {
+    return getArch() == Triple::spirv;
+  }
+
+  bool isSPIROrSPIRV() const { return isSPIR() || isSPIRV(); }
 
   /// Tests whether the target is NVPTX (32- or 64-bit).
   bool isNVPTX() const {
@@ -869,10 +943,14 @@ public:
                : PointerWidth == 64;
   }
 
+  /// Tests whether the target is 32-bit LoongArch.
+  bool isLoongArch32() const { return getArch() == Triple::loongarch32; }
+
+  /// Tests whether the target is 64-bit LoongArch.
+  bool isLoongArch64() const { return getArch() == Triple::loongarch64; }
+
   /// Tests whether the target is LoongArch (32- and 64-bit).
-  bool isLoongArch() const {
-    return getArch() == Triple::loongarch32 || getArch() == Triple::loongarch64;
-  }
+  bool isLoongArch() const { return isLoongArch32() || isLoongArch64(); }
 
   /// Tests whether the target is MIPS 32-bit (little and big endian).
   bool isMIPS32() const {
@@ -998,6 +1076,10 @@ public:
            isWindowsCygwinEnvironment() || isOHOSFamily();
   }
 
+  /// True if the target supports both general-dynamic and TLSDESC, and TLSDESC
+  /// is enabled by default.
+  bool hasDefaultTLSDESC() const { return isAndroid() && isRISCV64(); }
+
   /// Tests whether the target uses -data-sections as default.
   bool hasDefaultDataSections() const {
     return isOSBinFormatXCOFF() || isWasm();
@@ -1103,6 +1185,9 @@ public:
 
   /// Get the canonical name for the \p Kind architecture.
   static StringRef getArchTypeName(ArchType Kind);
+
+  /// Get the architecture name based on \p Kind and \p SubArch.
+  static StringRef getArchName(ArchType Kind, SubArchType SubArch = NoSubArch);
 
   /// Get the "prefix" canonical name for the \p Kind architecture. This is the
   /// prefix used by the architecture specific builtins, and is suitable for

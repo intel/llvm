@@ -10,7 +10,8 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 
@@ -110,7 +111,7 @@ bool group__get_linear_id() {
       cgh.parallel_for<class group__get_linear_id>(
           nd_range<3>{GlobalRange, LocalRange}, [=](nd_item<DIMS> I) {
             const auto Off = I.get_global_linear_id() * 3;
-            const auto LI = I.get_group().get_linear_id();
+            const auto LI = I.get_group().get_group_linear_id();
             Ptr[Off + 0] = LI;
             Ptr[Off + 1] = LI;
             Ptr[Off + 2] = LI;
@@ -189,7 +190,7 @@ bool group__async_work_group_copy() {
         cgh.parallel_for<class group__async_work_group_copy>(
             nd_range<2>{GlobalRange, LocalRange}, [=](nd_item<DIMS> I) {
               const auto Group = I.get_group();
-              const auto NumElem = AccLocal.get_count();
+              const auto NumElem = AccLocal.size();
               const auto Off = Group[0] * I.get_group_range(1) * NumElem +
                                Group[1] * I.get_local_range(1);
               auto PtrGlobal =

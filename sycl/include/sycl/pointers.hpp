@@ -7,10 +7,11 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-#include <sycl/access/access.hpp>
+
+#include <sycl/access/access.hpp> // for decorated, address_space
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 template <typename ElementType, access::address_space Space,
           access::decorated DecorateAddress>
@@ -26,23 +27,6 @@ template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
 using global_ptr =
     multi_ptr<ElementType, access::address_space::global_space, IsDecorated>;
-
-// Note: Templated alias deprecation is not currently working in clang. See
-// https://github.com/llvm/llvm-project/issues/18236.
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using device_ptr __SYCL_DEPRECATED(
-    "Use 'sycl::ext::intel::device_ptr' instead.") =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_device_space,
-              IsDecorated>;
-
-// Note: Templated alias deprecation is not currently working in clang. See
-// https://github.com/llvm/llvm-project/issues/18236.
-template <typename ElementType,
-          access::decorated IsDecorated = access::decorated::legacy>
-using host_ptr __SYCL_DEPRECATED("Use 'sycl::ext::intel::host_ptr' instead.") =
-    multi_ptr<ElementType, access::address_space::ext_intel_global_host_space,
-              IsDecorated>;
 
 template <typename ElementType,
           access::decorated IsDecorated = access::decorated::legacy>
@@ -95,5 +79,5 @@ using decorated_private_ptr =
     multi_ptr<ElementType, access::address_space::private_space,
               access::decorated::yes>;
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

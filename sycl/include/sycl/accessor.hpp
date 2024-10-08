@@ -8,35 +8,39 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
-#include <sycl/atomic.hpp>
-#include <sycl/buffer.hpp>
-#include <sycl/detail/accessor_iterator.hpp>
-#include <sycl/detail/cl.h>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/generic_type_traits.hpp>
-#include <sycl/detail/handler_proxy.hpp>
-#include <sycl/detail/image_accessor_util.hpp>
-#include <sycl/detail/image_ocl_types.hpp>
-#include <sycl/detail/owner_less_base.hpp>
-#include <sycl/device.hpp>
-#include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/accessor_property_list.hpp>
-#include <sycl/ext/oneapi/weak_object_base.hpp>
-#include <sycl/id.hpp>
-#include <sycl/image.hpp>
-#include <sycl/pointers.hpp>
-#include <sycl/properties/accessor_properties.hpp>
-#include <sycl/properties/buffer_properties.hpp>
-#include <sycl/property_list.hpp>
-#include <sycl/property_list_conversion.hpp>
-#include <sycl/sampler.hpp>
+#include <sycl/access/access.hpp>                     // for target, mode
+#include <sycl/atomic.hpp>                            // for atomic
+#include <sycl/buffer.hpp>                            // for range
+#include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
+#include <sycl/detail/common.hpp>                     // for code_location
+#include <sycl/detail/defines.hpp>                    // for __SYCL_SPECIAL...
+#include <sycl/detail/defines_elementary.hpp>         // for __SYCL2020_DEP...
+#include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
+#include <sycl/detail/generic_type_traits.hpp>        // for is_genint, Try...
+#include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
+#include <sycl/detail/helpers.hpp>                    // for loop
+#include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
+#include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
+#include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
+#include <sycl/detail/type_list.hpp>                  // for is_contained
+#include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
+#include <sycl/exception.hpp>                         // for make_error_code
+#include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
+#include <sycl/ext/oneapi/weak_object_base.hpp>       // for getSyclWeakObj...
+#include <sycl/id.hpp>                                // for id
+#include <sycl/multi_ptr.hpp>                         // for multi_ptr
+#include <sycl/pointers.hpp>                          // for local_ptr, glo...
+#include <sycl/properties/accessor_properties.hpp>    // for buffer_location
+#include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
+#include <sycl/property_list.hpp>                     // for property_list
+#include <sycl/range.hpp>                             // for range
 
-#include <iterator>
-#include <type_traits>
-
-#include <utility>
+#include <cstddef>     // for size_t
+#include <functional>  // for hash
+#include <iterator>    // for reverse_iterator
+#include <limits>      // for numeric_limits
+#include <memory>      // for shared_ptr
+#include <type_traits> // for enable_if_t
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
@@ -210,7 +214,7 @@
 /// accessor(3)
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 class stream;
 namespace ext::intel::esimd::detail {
 // Forward declare a "back-door" access class to support ESIMD.
@@ -265,6 +269,13 @@ struct IsCxPropertyList<ext::oneapi::accessor_property_list<Props...>> {
 template <> struct IsCxPropertyList<ext::oneapi::accessor_property_list<>> {
   constexpr static bool value = false;
 };
+
+// Zero-dimensional accessors references at-most a single element, so the range
+// is either 0 if the associated buffer is empty or 1 otherwise.
+template <typename BufferT>
+sycl::range<1> GetZeroDimAccessRange(BufferT Buffer) {
+  return std::min(Buffer.size(), size_t{1});
+}
 
 __SYCL_EXPORT device getDeviceFromHandler(handler &CommandGroupHandlerRef);
 
@@ -500,13 +511,13 @@ protected:
 public:
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, int OffsetInBytes = 0,
+                   int ElemSize, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
+                   int ElemSize, bool IsPlaceH, size_t OffsetInBytes = 0,
                    bool IsSubBuffer = false,
                    const property_list &PropertyList = {});
 
@@ -514,14 +525,15 @@ public:
   id<3> &getOffset();
   range<3> &getAccessRange();
   range<3> &getMemoryRange();
-  void *getPtr();
+  void *getPtr() noexcept;
   unsigned int getElemSize() const;
 
   const id<3> &getOffset() const;
   const range<3> &getAccessRange() const;
   const range<3> &getMemoryRange() const;
-  void *getPtr() const;
+  void *getPtr() const noexcept;
   bool isPlaceholder() const;
+  bool isMemoryObjectUsedByGraph() const;
 
   detail::AccHostDataT &getAccData();
 
@@ -530,7 +542,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -565,597 +577,14 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   LocalAccessorImplPtr impl;
 };
-
-class UnsampledImageAccessorImplHost;
-class SampledImageAccessorImplHost;
-using UnsampledImageAccessorImplPtr =
-    std::shared_ptr<UnsampledImageAccessorImplHost>;
-using SampledImageAccessorImplPtr =
-    std::shared_ptr<SampledImageAccessorImplHost>;
-
-void __SYCL_EXPORT
-addHostUnsampledImageAccessorAndWait(UnsampledImageAccessorImplHost *Req);
-void __SYCL_EXPORT
-addHostSampledImageAccessorAndWait(SampledImageAccessorImplHost *Req);
-
-class __SYCL_EXPORT UnsampledImageAccessorBaseHost {
-protected:
-  UnsampledImageAccessorBaseHost(const UnsampledImageAccessorImplPtr &Impl)
-      : impl{Impl} {}
-
-public:
-  UnsampledImageAccessorBaseHost(sycl::range<3> Size, access_mode AccessMode,
-                                 void *SYCLMemObject, int Dims, int ElemSize,
-                                 id<3> Pitch, image_channel_type ChannelType,
-                                 image_channel_order ChannelOrder,
-                                 const property_list &PropertyList = {});
-  const sycl::range<3> &getSize() const;
-  void *getMemoryObject() const;
-  detail::AccHostDataT &getAccData();
-  void *getPtr();
-  void *getPtr() const;
-  int getNumOfDims() const;
-  int getElementSize() const;
-  id<3> getPitch() const;
-  image_channel_type getChannelType() const;
-  image_channel_order getChannelOrder() const;
-  const property_list &getPropList() const;
-
-protected:
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  UnsampledImageAccessorImplPtr impl;
-
-  // The function references helper methods required by GDB pretty-printers
-  void GDBMethodsAnchor() {
-#ifndef NDEBUG
-    const auto *this_const = this;
-    (void)getSize();
-    (void)this_const->getSize();
-    (void)getPtr();
-    (void)this_const->getPtr();
-#endif
-  }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  // Reads a pixel of the underlying image at the specified coordinate. It is
-  // the responsibility of the caller to ensure that the coordinate type is
-  // valid.
-  template <typename DataT, typename CoordT>
-  DataT read(const CoordT &Coords) const noexcept {
-    image_sampler Smpl{addressing_mode::none,
-                       coordinate_normalization_mode::unnormalized,
-                       filtering_mode::nearest};
-    return imageReadSamplerHostImpl<CoordT, DataT>(
-        Coords, Smpl, getSize(), getPitch(), getChannelType(),
-        getChannelOrder(), getPtr(), getElementSize());
-  }
-
-  // Writes to a pixel of the underlying image at the specified coordinate. It
-  // is the responsibility of the caller to ensure that the coordinate type is
-  // valid.
-  template <typename DataT, typename CoordT>
-  void write(const CoordT &Coords, const DataT &Color) const {
-    imageWriteHostImpl(Coords, Color, getPitch(), getElementSize(),
-                       getChannelType(), getChannelOrder(), getPtr());
-  }
-#endif
-};
-
-class __SYCL_EXPORT SampledImageAccessorBaseHost {
-protected:
-  SampledImageAccessorBaseHost(const SampledImageAccessorImplPtr &Impl)
-      : impl{Impl} {}
-
-public:
-  SampledImageAccessorBaseHost(sycl::range<3> Size, void *SYCLMemObject,
-                               int Dims, int ElemSize, id<3> Pitch,
-                               image_channel_type ChannelType,
-                               image_channel_order ChannelOrder,
-                               image_sampler Sampler,
-                               const property_list &PropertyList = {});
-  const sycl::range<3> &getSize() const;
-  void *getMemoryObject() const;
-  detail::AccHostDataT &getAccData();
-  void *getPtr();
-  void *getPtr() const;
-  int getNumOfDims() const;
-  int getElementSize() const;
-  id<3> getPitch() const;
-  image_channel_type getChannelType() const;
-  image_channel_order getChannelOrder() const;
-  image_sampler getSampler() const;
-  const property_list &getPropList() const;
-
-protected:
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
-  SampledImageAccessorImplPtr impl;
-
-  // The function references helper methods required by GDB pretty-printers
-  void GDBMethodsAnchor() {
-#ifndef NDEBUG
-    const auto *this_const = this;
-    (void)getSize();
-    (void)this_const->getSize();
-    (void)getPtr();
-    (void)this_const->getPtr();
-#endif
-  }
-
-#ifndef __SYCL_DEVICE_ONLY__
-  // Reads a pixel of the underlying image at the specified coordinate. It is
-  // the responsibility of the caller to ensure that the coordinate type is
-  // valid.
-  template <typename DataT, typename CoordT>
-  DataT read(const CoordT &Coords) const {
-    return imageReadSamplerHostImpl<CoordT, DataT>(
-        Coords, getSampler(), getSize(), getPitch(), getChannelType(),
-        getChannelOrder(), getPtr(), getElementSize());
-  }
-#endif
-};
-
-template <int Dim, typename T> struct IsValidCoordDataT;
-template <typename T> struct IsValidCoordDataT<1, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<opencl::cl_int, opencl::cl_float>>::type::value;
-};
-template <typename T> struct IsValidCoordDataT<2, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 2>,
-                           vec<opencl::cl_float, 2>>>::type::value;
-};
-template <typename T> struct IsValidCoordDataT<3, T> {
-  constexpr static bool value = detail::is_contained<
-      T, detail::type_list<vec<opencl::cl_int, 4>,
-                           vec<opencl::cl_float, 4>>>::type::value;
-};
-
-template <int Dim, typename T> struct IsValidUnsampledCoord2020DataT;
-template <typename T> struct IsValidUnsampledCoord2020DataT<1, T> {
-  constexpr static bool value = std::is_same_v<T, int>;
-};
-template <typename T> struct IsValidUnsampledCoord2020DataT<2, T> {
-  constexpr static bool value = std::is_same_v<T, int2>;
-};
-template <typename T> struct IsValidUnsampledCoord2020DataT<3, T> {
-  constexpr static bool value = std::is_same_v<T, int4>;
-};
-
-template <int Dim, typename T> struct IsValidSampledCoord2020DataT;
-template <typename T> struct IsValidSampledCoord2020DataT<1, T> {
-  constexpr static bool value = std::is_same_v<T, float>;
-};
-template <typename T> struct IsValidSampledCoord2020DataT<2, T> {
-  constexpr static bool value = std::is_same_v<T, float2>;
-};
-template <typename T> struct IsValidSampledCoord2020DataT<3, T> {
-  constexpr static bool value = std::is_same_v<T, float4>;
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-class __image_array_slice__;
-
-// Image accessor
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::target AccessTarget, access::placeholder IsPlaceholder>
-class image_accessor
-#ifndef __SYCL_DEVICE_ONLY__
-    : public detail::AccessorBaseHost {
-  size_t MImageCount;
-  image_channel_order MImgChannelOrder;
-  image_channel_type MImgChannelType;
-#else
-{
-
-  using OCLImageTy = typename detail::opencl_image_type<Dimensions, AccessMode,
-                                                        AccessTarget>::type;
-  OCLImageTy MImageObj;
-  char MPadding[sizeof(detail::AccessorBaseHost) +
-                sizeof(size_t /*MImageCount*/) + sizeof(image_channel_order) +
-                sizeof(image_channel_type) - sizeof(OCLImageTy)];
-
-protected:
-  void imageAccessorInit(OCLImageTy Image) { MImageObj = Image; }
-
-private:
-#endif
-  template <typename T1, int T2, access::mode T3, access::placeholder T4>
-  friend class __image_array_slice__;
-
-  constexpr static bool IsHostImageAcc =
-      (AccessTarget == access::target::host_image);
-
-  constexpr static bool IsImageAcc = (AccessTarget == access::target::image);
-
-  constexpr static bool IsImageArrayAcc =
-      (AccessTarget == access::target::image_array);
-
-  constexpr static bool IsImageAccessWriteOnly =
-      (AccessMode == access::mode::write ||
-       AccessMode == access::mode::discard_write);
-
-  constexpr static bool IsImageAccessAnyWrite =
-      (IsImageAccessWriteOnly || AccessMode == access::mode::read_write);
-
-  constexpr static bool IsImageAccessReadOnly =
-      (AccessMode == access::mode::read);
-
-  constexpr static bool IsImageAccessAnyRead =
-      (IsImageAccessReadOnly || AccessMode == access::mode::read_write);
-
-  static_assert(std::is_same_v<DataT, vec<opencl::cl_int, 4>> ||
-                    std::is_same_v<DataT, vec<opencl::cl_uint, 4>> ||
-                    std::is_same_v<DataT, vec<opencl::cl_float, 4>> ||
-                    std::is_same_v<DataT, vec<opencl::cl_half, 4>>,
-                "The data type of an image accessor must be only cl_int4, "
-                "cl_uint4, cl_float4 or cl_half4 from SYCL namespace");
-
-  static_assert(IsImageAcc || IsHostImageAcc || IsImageArrayAcc,
-                "Expected image type");
-
-  static_assert(IsPlaceholder == access::placeholder::false_t,
-                "Expected false as Placeholder value for image accessor.");
-
-  static_assert(
-      ((IsImageAcc || IsImageArrayAcc) &&
-       (IsImageAccessWriteOnly || IsImageAccessReadOnly)) ||
-          (IsHostImageAcc && (IsImageAccessAnyWrite || IsImageAccessAnyRead)),
-      "Access modes can be only read/write/discard_write for image/image_array "
-      "target accessor, or they can be only "
-      "read/write/discard_write/read_write for host_image target accessor.");
-
-  static_assert(Dimensions > 0 && Dimensions <= 3,
-                "Dimensions can be 1/2/3 for image accessor.");
-
-#ifdef __SYCL_DEVICE_ONLY__
-
-  sycl::vec<int, Dimensions> getRangeInternal() const {
-    return __invoke_ImageQuerySize<sycl::vec<int, Dimensions>, OCLImageTy>(
-        MImageObj);
-  }
-
-  size_t getElementSize() const {
-    int ChannelType = __invoke_ImageQueryFormat<int, OCLImageTy>(MImageObj);
-    int ChannelOrder = __invoke_ImageQueryOrder<int, OCLImageTy>(MImageObj);
-    int ElementSize = getSPIRVElementSize(ChannelType, ChannelOrder);
-    return ElementSize;
-  }
-
-#else
-
-  sycl::vec<int, Dimensions> getRangeInternal() const {
-    // TODO: Implement for host.
-    throw runtime_error("image::getRangeInternal() is not implemented for host",
-                        PI_ERROR_INVALID_OPERATION);
-    return sycl::vec<int, Dimensions>{1};
-  }
-
-#endif
-
-#ifndef __SYCL_DEVICE_ONLY__
-protected:
-  image_accessor(const AccessorImplPtr &Impl) : AccessorBaseHost{Impl} {}
-#endif // __SYCL_DEVICE_ONLY__
-
-private:
-  friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
-
-#ifdef __SYCL_DEVICE_ONLY__
-  const OCLImageTy getNativeImageObj() const { return MImageObj; }
-#endif // __SYCL_DEVICE_ONLY__
-
-public:
-  using value_type = DataT;
-  using reference = DataT &;
-  using const_reference = const DataT &;
-
-  // image_accessor Constructors.
-
-#ifdef __SYCL_DEVICE_ONLY__
-  // Default constructor for objects later initialized with __init member.
-  image_accessor() : MImageObj() {}
-#endif
-
-  // Available only when: accessTarget == access::target::host_image
-  // template <typename AllocatorT>
-  // accessor(image<dimensions, AllocatorT> &imageRef);
-  template <
-      typename AllocatorT, int Dims = Dimensions,
-      typename = std::enable_if_t<(Dims > 0 && Dims <= 3) && IsHostImageAcc>>
-  image_accessor(image<Dims, AllocatorT> &ImageRef, int ImageElementSize)
-#ifdef __SYCL_DEVICE_ONLY__
-  {
-    (void)ImageRef;
-    (void)ImageElementSize;
-    // No implementation needed for device. The constructor is only called by
-    // host.
-  }
-#else
-      : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                         detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
-        MImageCount(ImageRef.size()),
-        MImgChannelOrder(ImageRef.getChannelOrder()),
-        MImgChannelType(ImageRef.getChannelType()) {
-    addHostAccessorAndWait(AccessorBaseHost::impl.get());
-  }
-#endif
-
-  // Available only when: accessTarget == access::target::image
-  // template <typename AllocatorT>
-  // accessor(image<dimensions, AllocatorT> &imageRef,
-  //          handler &commandGroupHandlerRef);
-  template <typename AllocatorT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0 && Dims <= 3) && IsImageAcc>>
-  image_accessor(image<Dims, AllocatorT> &ImageRef,
-                 handler &CommandGroupHandlerRef, int ImageElementSize)
-#ifdef __SYCL_DEVICE_ONLY__
-  {
-    (void)ImageRef;
-    (void)CommandGroupHandlerRef;
-    (void)ImageElementSize;
-    // No implementation needed for device. The constructor is only called by
-    // host.
-  }
-#else
-      : AccessorBaseHost({ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                         detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                         AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                         Dimensions, ImageElementSize),
-        MImageCount(ImageRef.size()),
-        MImgChannelOrder(ImageRef.getChannelOrder()),
-        MImgChannelType(ImageRef.getChannelType()) {
-
-    device Device = getDeviceFromHandler(CommandGroupHandlerRef);
-    if (!Device.has(aspect::ext_intel_legacy_image))
-      throw feature_not_supported(
-          "SYCL 1.2.1 images are not supported by this device.",
-          PI_ERROR_INVALID_OPERATION);
-  }
-#endif
-
-  /* -- common interface members -- */
-
-  // operator == and != need to be defined only for host application as per the
-  // SYCL spec 1.2.1
-#ifndef __SYCL_DEVICE_ONLY__
-  bool operator==(const image_accessor &Rhs) const { return Rhs.impl == impl; }
-#else
-  // The operator with __SYCL_DEVICE_ONLY__ need to be declared for compilation
-  // of host application with device compiler.
-  // Usage of this operator inside the kernel code will give a runtime failure.
-  bool operator==(const image_accessor &Rhs) const;
-#endif
-
-  bool operator!=(const image_accessor &Rhs) const { return !(Rhs == *this); }
-
-  // get_count() method : Returns the number of elements of the SYCL image this
-  // SYCL accessor is accessing.
-  //
-  // get_range() method :  Returns a range object which represents the number of
-  // elements of dataT per dimension that this accessor may access.
-  // The range object returned must equal to the range of the image this
-  // accessor is associated with.
-
-#ifdef __SYCL_DEVICE_ONLY__
-
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); }
-  size_t size() const noexcept { return get_range<Dimensions>().size(); }
-
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 1>>
-  range<1> get_range() const {
-    int Range = getRangeInternal();
-    return range<1>(Range);
-  }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 2>>
-  range<2> get_range() const {
-    int2 Range = getRangeInternal();
-    return range<2>(Range[0], Range[1]);
-  }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 3>>
-  range<3> get_range() const {
-    int3 Range = getRangeInternal();
-    return range<3>(Range[0], Range[1], Range[2]);
-  }
-
-#else
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); };
-  size_t size() const noexcept { return MImageCount; };
-
-  template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
-  range<Dims> get_range() const {
-    return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
-  }
-
-#endif
-
-  // Available only when:
-  // (accessTarget == access::target::image && accessMode == access::mode::read)
-  // || (accessTarget == access::target::host_image && ( accessMode ==
-  // access::mode::read || accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                (detail::is_genint<CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
-  DataT read(const CoordT &Coords) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __invoke__ImageRead<DataT, OCLImageTy, CoordT>(MImageObj, Coords);
-#else
-    sampler Smpl(coordinate_normalization_mode::unnormalized,
-                 addressing_mode::none, filtering_mode::nearest);
-    return read<CoordT, Dims>(Coords, Smpl);
-#endif
-  }
-
-  // Available only when:
-  // (accessTarget == access::target::image && accessMode == access::mode::read)
-  // || (accessTarget == access::target::host_image && ( accessMode ==
-  // access::mode::read || accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessReadOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyRead))>>
-  DataT read(const CoordT &Coords, const sampler &Smpl) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    return __invoke__ImageReadSampler<DataT, OCLImageTy, CoordT>(
-        MImageObj, Coords, Smpl.impl.m_Sampler);
-#else
-    return imageReadSamplerHostImpl<CoordT, DataT>(
-        Coords, Smpl, getAccessRange() /*Image Range*/,
-        getOffset() /*Image Pitch*/, MImgChannelType, MImgChannelOrder,
-        AccessorBaseHost::getPtr() /*ptr to image*/,
-        AccessorBaseHost::getElemSize());
-#endif
-  }
-
-  // Available only when:
-  // (accessTarget == access::target::image && (accessMode ==
-  // access::mode::write || accessMode == access::mode::discard_write)) ||
-  // (accessTarget == access::target::host_image && (accessMode ==
-  // access::mode::write || accessMode == access::mode::discard_write ||
-  // accessMode == access::mode::read_write))
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (detail::is_genint<CoordT>::value) &&
-                (IsValidCoordDataT<Dims, CoordT>::value) &&
-                ((IsImageAcc && IsImageAccessWriteOnly) ||
-                 (IsHostImageAcc && IsImageAccessAnyWrite))>>
-  void write(const CoordT &Coords, const DataT &Color) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    __invoke__ImageWrite<OCLImageTy, CoordT, DataT>(MImageObj, Coords, Color);
-#else
-    imageWriteHostImpl(Coords, Color, getOffset() /*ImagePitch*/,
-                       AccessorBaseHost::getElemSize(), MImgChannelType,
-                       MImgChannelOrder,
-                       AccessorBaseHost::getPtr() /*Ptr to Image*/);
-#endif
-  }
-};
-
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-class __image_array_slice__ {
-
-  static_assert(Dimensions < 3,
-                "Image slice cannot have more then 2 dimensions");
-
-  constexpr static int AdjustedDims = (Dimensions == 2) ? 4 : Dimensions + 1;
-
-  template <typename CoordT,
-            typename CoordElemType =
-                typename detail::TryToGetElementType<CoordT>::type>
-  sycl::vec<CoordElemType, AdjustedDims>
-  getAdjustedCoords(const CoordT &Coords) const {
-    CoordElemType LastCoord = 0;
-
-    if (std::is_same<float, CoordElemType>::value) {
-      sycl::vec<int, Dimensions + 1> Size = MBaseAcc.getRangeInternal();
-      LastCoord =
-          MIdx / static_cast<float>(Size.template swizzle<Dimensions>());
-    } else {
-      LastCoord = MIdx;
-    }
-
-    sycl::vec<CoordElemType, Dimensions> LeftoverCoords{LastCoord};
-    sycl::vec<CoordElemType, AdjustedDims> AdjustedCoords{Coords,
-                                                          LeftoverCoords};
-    return AdjustedCoords;
-  }
-
-public:
-  __image_array_slice__(
-      accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-               IsPlaceholder, ext::oneapi::accessor_property_list<>>
-          BaseAcc,
-      size_t Idx)
-      : MBaseAcc(BaseAcc), MIdx(Idx) {}
-
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<
-                (Dims > 0) && (IsValidCoordDataT<Dims, CoordT>::value)>>
-  DataT read(const CoordT &Coords) const {
-    return MBaseAcc.read(getAdjustedCoords(Coords));
-  }
-
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
-  DataT read(const CoordT &Coords, const sampler &Smpl) const {
-    return MBaseAcc.read(getAdjustedCoords(Coords), Smpl);
-  }
-
-  template <typename CoordT, int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims > 0) &&
-                                        IsValidCoordDataT<Dims, CoordT>::value>>
-  void write(const CoordT &Coords, const DataT &Color) const {
-    return MBaseAcc.write(getAdjustedCoords(Coords), Color);
-  }
-
-#ifdef __SYCL_DEVICE_ONLY__
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); }
-  size_t size() const noexcept { return get_range<Dimensions>().size(); }
-
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 1>>
-  range<1> get_range() const {
-    int2 Count = MBaseAcc.getRangeInternal();
-    return range<1>(Count.x());
-  }
-  template <int Dims = Dimensions, typename = std::enable_if_t<Dims == 2>>
-  range<2> get_range() const {
-    int3 Count = MBaseAcc.getRangeInternal();
-    return range<2>(Count.x(), Count.y());
-  }
-
-#else
-
-  __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
-  size_t get_count() const { return size(); }
-  size_t size() const noexcept {
-    return MBaseAcc.MImageCount / MBaseAcc.getAccessRange()[Dimensions];
-  }
-
-  template <int Dims = Dimensions,
-            typename = std::enable_if_t<(Dims == 1 || Dims == 2)>>
-  range<Dims> get_range() const {
-    return detail::convertToArrayOfN<Dims, 1>(MBaseAcc.getAccessRange());
-  }
-
-#endif
-
-private:
-  size_t MIdx;
-  accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-           IsPlaceholder, ext::oneapi::accessor_property_list<>>
-      MBaseAcc;
-};
-
 } // namespace detail
 
 /// Buffer accessor.
@@ -1395,7 +824,7 @@ public:
             /*MemoryRange=*/{0, 0, 0},
             /*AccessMode=*/getAdjustedMode({}),
             /*SYCLMemObject=*/nullptr, /*Dims=*/0, /*ElemSize=*/0,
-            /*IsPlaceH=*/true,
+            /*IsPlaceH=*/false,
             /*OffsetInBytes=*/0, /*IsSubBuffer=*/false, /*PropertyList=*/{}){};
 
   template <typename, int, access_mode> friend class host_accessor;
@@ -1407,7 +836,8 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1434,6 +864,18 @@ public:
   using difference_type =
       typename std::iterator_traits<iterator>::difference_type;
   using size_type = std::size_t;
+
+  /// If creating a host_accessor this checks to see if the underlying memory
+  /// object is currently in use by a command_graph, and throws if it is.
+  void throwIfUsedByGraph() const {
+#ifndef __SYCL_DEVICE_ONLY__
+    if (IsHostBuf && AccessorBaseHost::isMemoryObjectUsedByGraph()) {
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "Host accessors cannot be created for buffers "
+                            "which are currently in use by a command graph.");
+    }
+#endif
+  }
 
   // The list of accessor constructors with their arguments
   // -------+---------+-------+----+-----+--------------
@@ -1501,16 +943,21 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1537,16 +984,21 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1568,17 +1020,22 @@ public:
       const property_list &PropertyList = {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1601,17 +1058,22 @@ public:
           {},
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(id<AdjustedDim>(), range<1>{1}, BufferRef.get_range()) {
+      : impl(id<AdjustedDim>(), detail::GetZeroDimAccessRange(BufferRef),
+             BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
-            /*Offset=*/{0, 0, 0}, detail::convertToArrayOfN<3, 1>(range<1>{1}),
+            /*Offset=*/{0, 0, 0},
+            detail::convertToArrayOfN<3, 1>(
+                detail::GetZeroDimAccessRange(BufferRef)),
             detail::convertToArrayOfN<3, 1>(BufferRef.get_range()),
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1634,6 +1096,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1644,6 +1107,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1669,6 +1133,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(id<Dimensions>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1679,6 +1144,7 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
@@ -1732,6 +1198,7 @@ public:
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1741,6 +1208,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
@@ -1766,6 +1234,7 @@ public:
       : impl(id<AdjustedDim>(), BufferRef.get_range(), BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(
@@ -1775,6 +1244,7 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1941,6 +1411,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -1950,15 +1421,15 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1983,6 +1454,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -1992,15 +1464,15 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -2054,6 +1526,7 @@ public:
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2063,13 +1536,13 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -2096,6 +1569,7 @@ public:
       : impl(AccessOffset, AccessRange, BufferRef.get_range()) {
     (void)CommandGroupHandler;
     (void)PropertyList;
+    (void)CodeLoc;
   }
 #else
       : AccessorBaseHost(detail::convertToArrayOfN<3, 0>(AccessOffset),
@@ -2105,13 +1579,13 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -2171,6 +1645,7 @@ public:
     static_assert(
         PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
         "Compile-time-constant properties must be the same");
+    (void)CodeLoc;
 #ifndef __SYCL_DEVICE_ONLY__
     detail::constructorNotification(getMemoryObject(), impl.get(), AccessTarget,
                                     AccessMode, CodeLoc);
@@ -2291,10 +1766,20 @@ public:
   template <access::target AccessTarget_ = AccessTarget,
             typename = std::enable_if_t<
                 (AccessTarget_ == access::target::host_buffer) ||
-                (AccessTarget_ == access::target::host_task) ||
-                (AccessTarget_ == access::target::device)>>
+                (AccessTarget_ == access::target::host_task)>>
   std::add_pointer_t<value_type> get_pointer() const noexcept {
     return getPointerAdjusted();
+  }
+
+  template <
+      access::target AccessTarget_ = AccessTarget,
+      typename = std::enable_if_t<(AccessTarget_ == access::target::device)>>
+  __SYCL2020_DEPRECATED(
+      "accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  global_ptr<value_type> get_pointer() const noexcept {
+    return global_ptr<value_type>(
+        const_cast<typename detail::DecoratedType<value_type, AS>::type *>(
+            getPointerAdjusted()));
   }
 
   template <access::target AccessTarget_ = AccessTarget,
@@ -2304,7 +1789,18 @@ public:
     return constant_ptr<DataT>(getPointerAdjusted());
   }
 
-  template <access::decorated IsDecorated>
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ == access::target::device, int> = 0>
+  accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+    return accessor_ptr<IsDecorated>(getPointerAdjusted());
+  }
+
+  template <access::decorated IsDecorated,
+            access::target AccessTarget_ = AccessTarget,
+            std::enable_if_t<AccessTarget_ != access::target::device, int> = 0>
+  __SYCL_DEPRECATED(
+      "accessor::get_multi_ptr() is deprecated for non-device accessors")
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
     return accessor_ptr<IsDecorated>(getPointerAdjusted());
   }
@@ -2395,10 +1891,7 @@ public:
 private:
   template <int Dims, typename = std::enable_if_t<(Dims > 0)>>
   range<Dims> getRange() const {
-    if constexpr (Dimensions == 0)
-      return range<1>{1};
-    else
-      return detail::convertToArrayOfN<Dims, 1>(getAccessRange());
+    return detail::convertToArrayOfN<AdjustedDim, 1>(getAccessRange());
   }
 
   template <int Dims = Dimensions, typename = std::enable_if_t<(Dims > 0)>>
@@ -2442,9 +1935,8 @@ private:
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
-      throw sycl::invalid_object_error(
-          "accessor would cannot be both read_only and no_init",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "accessor cannot be both read_only and no_init");
     }
   }
 
@@ -2737,7 +2229,8 @@ protected:
   }
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2753,7 +2246,9 @@ public:
   local_accessor_base(handler &, const detail::code_location CodeLoc =
                                      detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(range<AdjustedDim>{1}){}
+      : impl(range<AdjustedDim>{1}) {
+    (void)CodeLoc;
+  }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
     detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
@@ -2769,6 +2264,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(range<AdjustedDim>{1}) {
     (void)propList;
+    (void)CodeLoc;
   }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
@@ -2784,7 +2280,9 @@ public:
       range<Dimensions> AllocationSize, handler &,
       const detail::code_location CodeLoc = detail::code_location::current())
 #ifdef __SYCL_DEVICE_ONLY__
-      : impl(AllocationSize){}
+      : impl(AllocationSize) {
+    (void)CodeLoc;
+  }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
@@ -2803,6 +2301,7 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
       : impl(AllocationSize) {
     (void)propList;
+    (void)CodeLoc;
   }
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
@@ -3063,12 +2562,24 @@ public:
     return const_reverse_iterator(begin());
   }
 
-  std::add_pointer_t<value_type> get_pointer() const noexcept {
-    return std::add_pointer_t<value_type>(local_acc::getQualifiedPtr());
+  __SYCL2020_DEPRECATED(
+      "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
+  local_ptr<DataT> get_pointer() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_pointer must not be called on the host for a local accessor");
+#endif
+    return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_multi_ptr must not be called on the host for a local accessor");
+#endif
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
@@ -3106,169 +2617,6 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 };
 
-/// Image accessors.
-///
-/// Available only when accessTarget == access::target::image.
-///
-/// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
-    DataT, Dimensions, AccessMode, access::target::image, IsPlaceholder>
-    : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                                    access::target::image, IsPlaceholder>,
-      public detail::OwnerLessBase<
-          accessor<DataT, Dimensions, AccessMode, access::target::image,
-                   IsPlaceholder>> {
-private:
-  accessor(const detail::AccessorImplPtr &Impl)
-      : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder>{Impl} {}
-
-public:
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions, AllocatorT> &Image,
-           handler &CommandGroupHandler)
-      : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler, Image.getElementSize()) {
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::associateWithHandler(CommandGroupHandler, this,
-                                 access::target::image);
-#endif
-  }
-
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions, AllocatorT> &Image,
-           handler &CommandGroupHandler, const property_list &propList)
-      : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler, Image.getElementSize()) {
-    (void)propList;
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::associateWithHandler(CommandGroupHandler, this,
-                                 access::target::image);
-#endif
-  }
-#ifdef __SYCL_DEVICE_ONLY__
-private:
-  using OCLImageTy =
-      typename detail::opencl_image_type<Dimensions, AccessMode,
-                                         access::target::image>::type;
-
-  // Front End requires this method to be defined in the accessor class.
-  // It does not call the base class's init method.
-  void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
-
-  // __init variant used by the device compiler for ESIMD kernels.
-  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
-
-public:
-  // Default constructor for objects later initialized with __init member.
-  accessor() = default;
-#endif
-};
-
-/// Host image accessor.
-///
-/// Available only when accessTarget == access::target::host_image.
-///
-/// \sa image
-///
-/// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-class __SYCL_EBO accessor<DataT, Dimensions, AccessMode,
-                          access::target::host_image, IsPlaceholder>
-    : public detail::image_accessor<DataT, Dimensions, AccessMode,
-                                    access::target::host_image, IsPlaceholder>,
-      public detail::OwnerLessBase<
-          accessor<DataT, Dimensions, AccessMode, access::target::host_image,
-                   IsPlaceholder>> {
-public:
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions, AllocatorT> &Image)
-      : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::host_image, IsPlaceholder>(
-            Image, Image.getElementSize()) {}
-
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions, AllocatorT> &Image,
-           const property_list &propList)
-      : detail::image_accessor<DataT, Dimensions, AccessMode,
-                               access::target::host_image, IsPlaceholder>(
-            Image, Image.getElementSize()) {
-    (void)propList;
-  }
-};
-
-/// Image array accessor.
-///
-/// Available only when accessTarget == access::target::image_array and
-/// dimensions < 3.
-///
-/// \sa image
-///
-/// \ingroup sycl_api_acc
-template <typename DataT, int Dimensions, access::mode AccessMode,
-          access::placeholder IsPlaceholder>
-class __SYCL_EBO __SYCL_SPECIAL_CLASS __SYCL_TYPE(accessor) accessor<
-    DataT, Dimensions, AccessMode, access::target::image_array, IsPlaceholder>
-    : public detail::image_accessor<DataT, Dimensions + 1, AccessMode,
-                                    access::target::image, IsPlaceholder>,
-      public detail::OwnerLessBase<
-          accessor<DataT, Dimensions, AccessMode, access::target::image_array,
-                   IsPlaceholder>> {
-#ifdef __SYCL_DEVICE_ONLY__
-private:
-  using OCLImageTy =
-      typename detail::opencl_image_type<Dimensions + 1, AccessMode,
-                                         access::target::image>::type;
-
-  // Front End requires this method to be defined in the accessor class.
-  // It does not call the base class's init method.
-  void __init(OCLImageTy Image) { this->imageAccessorInit(Image); }
-
-  // __init variant used by the device compiler for ESIMD kernels.
-  void __init_esimd(OCLImageTy Image) { this->imageAccessorInit(Image); }
-
-public:
-  // Default constructor for objects later initialized with __init member.
-  accessor() = default;
-#endif
-public:
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,
-           handler &CommandGroupHandler)
-      : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
-                               access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler, Image.getElementSize()) {
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::associateWithHandler(CommandGroupHandler, this,
-                                 access::target::image_array);
-#endif
-  }
-
-  template <typename AllocatorT>
-  accessor(sycl::image<Dimensions + 1, AllocatorT> &Image,
-           handler &CommandGroupHandler, const property_list &propList)
-      : detail::image_accessor<DataT, Dimensions + 1, AccessMode,
-                               access::target::image, IsPlaceholder>(
-            Image, CommandGroupHandler, Image.getElementSize()) {
-    (void)propList;
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::associateWithHandler(CommandGroupHandler, this,
-                                 access::target::image_array);
-#endif
-  }
-
-  detail::__image_array_slice__<DataT, Dimensions, AccessMode, IsPlaceholder>
-  operator[](size_t Index) const {
-    return detail::__image_array_slice__<DataT, Dimensions, AccessMode,
-                                         IsPlaceholder>(*this, Index);
-  }
-};
-
 template <typename DataT, int Dimensions = 1,
           access_mode AccessMode = access_mode::read_write>
 class __SYCL_EBO host_accessor
@@ -3300,7 +2648,7 @@ protected:
                  access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -3476,6 +2824,7 @@ public:
     AccessorT::MAccData = other.MAccData;
 #else
   {
+    (void)other;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -3491,6 +2840,7 @@ public:
     AccessorT::MAccData = other.MAccData;
 #else
   {
+    (void)other;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -3550,473 +2900,7 @@ host_accessor(buffer<DataT, Dimensions, AllocatorT>, Type1, Type2, Type3, Type4,
               Type5) -> host_accessor<DataT, Dimensions,
                                       detail::deduceAccessMode<Type4, Type5>()>;
 
-// SYCL 2020 image accessors
-
-template <typename DataT, int Dimensions, access_mode AccessMode,
-          image_target AccessTarget = image_target::device>
-class __SYCL_EBO unsampled_image_accessor :
-#ifndef __SYCL_DEVICE_ONLY__
-    private detail::UnsampledImageAccessorBaseHost,
-#endif // __SYCL_DEVICE_ONLY__
-    public detail::OwnerLessBase<
-        unsampled_image_accessor<DataT, Dimensions, AccessMode, AccessTarget>> {
-  static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
-                    std::is_same_v<DataT, float4> ||
-                    std::is_same_v<DataT, half4>,
-                "The data type of an image accessor must be only int4, "
-                "uint4, float4 or half4 from SYCL namespace");
-  static_assert(AccessMode == access_mode::read ||
-                    AccessMode == access_mode::write,
-                "Access mode must be either read or write.");
-
-#ifdef __SYCL_DEVICE_ONLY__
-  char MPadding[sizeof(detail::UnsampledImageAccessorBaseHost)];
-#else
-  using host_base_class = detail::UnsampledImageAccessorBaseHost;
-#endif // __SYCL_DEVICE_ONLY__
-
-public:
-  using value_type = typename std::conditional<AccessMode == access_mode::read,
-                                               const DataT, DataT>::type;
-  using reference = value_type &;
-  using const_reference = const DataT &;
-
-  template <typename AllocatorT>
-  unsampled_image_accessor(unsampled_image<Dimensions, AllocatorT> &ImageRef,
-                           handler &CommandGroupHandlerRef,
-                           const property_list &PropList = {})
-#ifdef __SYCL_DEVICE_ONLY__
-      {}
-#else
-      : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                        AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                        Dimensions, ImageRef.getElementSize(),
-                        {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                        ImageRef.getChannelType(), ImageRef.getChannelOrder(),
-                        PropList) {
-    device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
-    // Avoid aspect::image warning.
-    aspect ImageAspect = aspect::image;
-    if (AccessTarget == image_target::device && !Device.has(ImageAspect))
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::feature_not_supported),
-          "Device associated with command group handler does not have "
-          "aspect::image.");
-
-    detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
-    GDBMethodsAnchor();
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  /* -- common interface members -- */
-
-  unsampled_image_accessor(const unsampled_image_accessor &Rhs) = default;
-
-  unsampled_image_accessor(unsampled_image_accessor &&Rhs) = default;
-
-  unsampled_image_accessor &
-  operator=(const unsampled_image_accessor &Rhs) = default;
-
-  unsampled_image_accessor &operator=(unsampled_image_accessor &&Rhs) = default;
-
-  ~unsampled_image_accessor() = default;
-
-#ifdef __SYCL_DEVICE_ONLY__
-  bool operator==(const unsampled_image_accessor &Rhs) const;
-#else
-  bool operator==(const unsampled_image_accessor &Rhs) const {
-    return Rhs.impl == impl;
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  bool operator!=(const unsampled_image_accessor &Rhs) const {
-    return !(Rhs == *this);
-  }
-
-  /* -- property interface members -- */
-
-  size_t size() const noexcept {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Currently not reachable on device.
-    return 0;
-#else
-    return host_base_class::getSize().size();
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  /* Available only when: AccessMode == access_mode::read
-  if Dimensions == 1, CoordT = int
-  if Dimensions == 2, CoordT = int2
-  if Dimensions == 3, CoordT = int4 */
-  template <typename CoordT,
-            typename = std::enable_if_t<AccessMode == access_mode::read &&
-                                        detail::IsValidUnsampledCoord2020DataT<
-                                            Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const noexcept {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Currently not reachable on device.
-    std::ignore = Coords;
-    return {0, 0, 0, 0};
-#else
-    return host_base_class::read<DataT>(Coords);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  /* Available only when: AccessMode == access_mode::write
-  if Dimensions == 1, CoordT = int
-  if Dimensions == 2, CoordT = int2
-  if Dimensions == 3, CoordT = int4 */
-  template <typename CoordT,
-            typename = std::enable_if_t<AccessMode == access_mode::write &&
-                                        detail::IsValidUnsampledCoord2020DataT<
-                                            Dimensions, CoordT>::value>>
-  void write(const CoordT &Coords, const DataT &Color) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Currently not reachable on device.
-    std::ignore = Coords;
-    std::ignore = Color;
-#else
-    host_base_class::write<DataT>(Coords, Color);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-private:
-  unsampled_image_accessor(const detail::UnsampledImageAccessorImplPtr &Impl)
-#ifndef __SYCL_DEVICE_ONLY__
-      : host_base_class{Impl}
-#endif // __SYCL_DEVICE_ONLY__
-  {
-    std::ignore = Impl;
-  }
-
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-};
-
-template <typename DataT, int Dimensions = 1,
-          access_mode AccessMode =
-              (std::is_const_v<DataT> ? access_mode::read
-                                      : access_mode::read_write)>
-class __SYCL_EBO host_unsampled_image_accessor
-    : private detail::UnsampledImageAccessorBaseHost,
-      public detail::OwnerLessBase<
-          host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
-  static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
-                    std::is_same_v<DataT, float4> ||
-                    std::is_same_v<DataT, half4>,
-                "The data type of an image accessor must be only int4, "
-                "uint4, float4 or half4 from SYCL namespace");
-
-  using base_class = detail::UnsampledImageAccessorBaseHost;
-
-public:
-  using value_type = typename std::conditional<AccessMode == access_mode::read,
-                                               const DataT, DataT>::type;
-  using reference = value_type &;
-  using const_reference = const DataT &;
-
-  template <typename AllocatorT>
-  host_unsampled_image_accessor(
-      unsampled_image<Dimensions, AllocatorT> &ImageRef,
-      const property_list &PropList = {})
-      : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                   AccessMode, detail::getSyclObjImpl(ImageRef).get(),
-                   Dimensions, ImageRef.getElementSize(),
-                   {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                   ImageRef.getChannelType(), ImageRef.getChannelOrder(),
-                   PropList) {
-    addHostUnsampledImageAccessorAndWait(base_class::impl.get());
-  }
-
-  /* -- common interface members -- */
-
-  host_unsampled_image_accessor(const host_unsampled_image_accessor &Rhs) =
-      default;
-
-  host_unsampled_image_accessor(host_unsampled_image_accessor &&Rhs) = default;
-
-  host_unsampled_image_accessor &
-  operator=(const host_unsampled_image_accessor &Rhs) = default;
-
-  host_unsampled_image_accessor &
-  operator=(host_unsampled_image_accessor &&Rhs) = default;
-
-  ~host_unsampled_image_accessor() = default;
-
-  bool operator==(const host_unsampled_image_accessor &Rhs) const {
-    return Rhs.impl == impl;
-  }
-  bool operator!=(const host_unsampled_image_accessor &Rhs) const {
-    return !(Rhs == *this);
-  }
-
-  /* -- property interface members -- */
-
-  size_t size() const noexcept { return base_class::getSize().size(); }
-
-  /* Available only when: (AccessMode == access_mode::read ||
-                           AccessMode == access_mode::read_write)
-  if Dimensions == 1, CoordT = int
-  if Dimensions == 2, CoordT = int2
-  if Dimensions == 3, CoordT = int4 */
-  template <
-      typename CoordT,
-      typename = std::enable_if_t<
-          (AccessMode == access_mode::read ||
-           AccessMode == access_mode::read_write) &&
-          detail::IsValidUnsampledCoord2020DataT<Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const noexcept
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
-    // Host implementation is only available in host code. Device is not allowed
-    // to use host_unsampled_image_accessor.
-    return base_class::read<DataT>(Coords);
-  }
-#endif
-
-  /* Available only when: (AccessMode == access_mode::write ||
-                           AccessMode == access_mode::read_write)
-  if Dimensions == 1, CoordT = int
-  if Dimensions == 2, CoordT = int2
-  if Dimensions == 3, CoordT = int4 */
-  template <
-      typename CoordT,
-      typename = std::enable_if_t<
-          (AccessMode == access_mode::write ||
-           AccessMode == access_mode::read_write) &&
-          detail::IsValidUnsampledCoord2020DataT<Dimensions, CoordT>::value>>
-  void write(const CoordT &Coords, const DataT &Color) const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
-    // Host implementation is only available in host code. Device is not allowed
-    // to use host_unsampled_image_accessor.
-    base_class::write<DataT>(Coords, Color);
-  }
-#endif
-
-private:
-  host_unsampled_image_accessor(
-      const detail::UnsampledImageAccessorImplPtr &Impl)
-      : base_class{Impl} {}
-
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-};
-
-template <typename DataT, int Dimensions,
-          image_target AccessTarget = image_target::device>
-class __SYCL_EBO sampled_image_accessor :
-#ifndef __SYCL_DEVICE_ONLY__
-    private detail::SampledImageAccessorBaseHost,
-#endif // __SYCL_DEVICE_ONLY__
-    public detail::OwnerLessBase<
-        sampled_image_accessor<DataT, Dimensions, AccessTarget>> {
-  static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
-                    std::is_same_v<DataT, float4> ||
-                    std::is_same_v<DataT, half4>,
-                "The data type of an image accessor must be only int4, "
-                "uint4, float4 or half4 from SYCL namespace");
-
-#ifdef __SYCL_DEVICE_ONLY__
-  char MPadding[sizeof(detail::SampledImageAccessorBaseHost)];
-#else
-  using host_base_class = detail::SampledImageAccessorBaseHost;
-#endif // __SYCL_DEVICE_ONLY__
-
-public:
-  using value_type = const DataT;
-  using reference = const DataT &;
-  using const_reference = const DataT &;
-
-  template <typename AllocatorT>
-  sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                         handler &CommandGroupHandlerRef,
-                         const property_list &PropList = {})
-#ifdef __SYCL_DEVICE_ONLY__
-      {}
-#else
-      : host_base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                        detail::getSyclObjImpl(ImageRef).get(), Dimensions,
-                        ImageRef.getElementSize(),
-                        {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                        ImageRef.getChannelType(), ImageRef.getChannelOrder(),
-                        ImageRef.getSampler(), PropList) {
-    device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
-    // Avoid aspect::image warning.
-    aspect ImageAspect = aspect::image;
-    if (AccessTarget == image_target::device && !Device.has(ImageAspect))
-      throw sycl::exception(
-          sycl::make_error_code(sycl::errc::feature_not_supported),
-          "Device associated with command group handler does not have "
-          "aspect::image.");
-
-    detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
-    GDBMethodsAnchor();
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  /* -- common interface members -- */
-
-  sampled_image_accessor(const sampled_image_accessor &Rhs) = default;
-
-  sampled_image_accessor(sampled_image_accessor &&Rhs) = default;
-
-  sampled_image_accessor &
-  operator=(const sampled_image_accessor &Rhs) = default;
-
-  sampled_image_accessor &operator=(sampled_image_accessor &&Rhs) = default;
-
-  ~sampled_image_accessor() = default;
-
-#ifdef __SYCL_DEVICE_ONLY__
-  bool operator==(const sampled_image_accessor &Rhs) const;
-#else
-  bool operator==(const sampled_image_accessor &Rhs) const {
-    return Rhs.impl == impl;
-  }
-#endif // __SYCL_DEVICE_ONLY__
-
-  bool operator!=(const sampled_image_accessor &Rhs) const {
-    return !(Rhs == *this);
-  }
-
-  /* -- property interface members -- */
-
-  size_t size() const noexcept {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Currently not reachable on device.
-    return 0;
-#else
-    return host_base_class::getSize().size();
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-  /* if Dimensions == 1, CoordT = float
-     if Dimensions == 2, CoordT = float2
-     if Dimensions == 3, CoordT = float4 */
-  template <typename CoordT,
-            typename = std::enable_if_t<detail::IsValidSampledCoord2020DataT<
-                Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const noexcept {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Currently not reachable on device.
-    std::ignore = Coords;
-    return {0, 0, 0, 0};
-#else
-    return host_base_class::read<DataT>(Coords);
-#endif // __SYCL_DEVICE_ONLY__
-  }
-
-private:
-  sampled_image_accessor(const detail::SampledImageAccessorImplPtr &Impl)
-#ifndef __SYCL_DEVICE_ONLY__
-      : host_base_class{Impl}
-#endif // __SYCL_DEVICE_ONLY__
-  {
-    std::ignore = Impl;
-  }
-
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-};
-
-template <typename DataT, int Dimensions>
-class __SYCL_EBO host_sampled_image_accessor
-    : private detail::SampledImageAccessorBaseHost,
-      public detail::OwnerLessBase<
-          host_sampled_image_accessor<DataT, Dimensions>> {
-  static_assert(std::is_same_v<DataT, int4> || std::is_same_v<DataT, uint4> ||
-                    std::is_same_v<DataT, float4> ||
-                    std::is_same_v<DataT, half4>,
-                "The data type of an image accessor must be only int4, "
-                "uint4, float4 or half4 from SYCL namespace");
-
-  using base_class = detail::SampledImageAccessorBaseHost;
-
-public:
-  using value_type = const DataT;
-  using reference = const DataT &;
-  using const_reference = const DataT &;
-
-  template <typename AllocatorT>
-  host_sampled_image_accessor(sampled_image<Dimensions, AllocatorT> &ImageRef,
-                              const property_list &PropList = {})
-      : base_class(detail::convertToArrayOfN<3, 1>(ImageRef.get_range()),
-                   detail::getSyclObjImpl(ImageRef).get(), Dimensions,
-                   ImageRef.getElementSize(),
-                   {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
-                   ImageRef.getChannelType(), ImageRef.getChannelOrder(),
-                   ImageRef.getSampler(), PropList) {
-    addHostSampledImageAccessorAndWait(base_class::impl.get());
-  }
-
-  /* -- common interface members -- */
-
-  host_sampled_image_accessor(const host_sampled_image_accessor &Rhs) = default;
-
-  host_sampled_image_accessor(host_sampled_image_accessor &&Rhs) = default;
-
-  host_sampled_image_accessor &
-  operator=(const host_sampled_image_accessor &Rhs) = default;
-
-  host_sampled_image_accessor &
-  operator=(host_sampled_image_accessor &&Rhs) = default;
-
-  ~host_sampled_image_accessor() = default;
-
-  bool operator==(const host_sampled_image_accessor &Rhs) const {
-    return Rhs.impl == impl;
-  }
-  bool operator!=(const host_sampled_image_accessor &Rhs) const {
-    return !(Rhs == *this);
-  }
-
-  /* -- property interface members -- */
-
-  size_t size() const noexcept { return base_class::getSize().size(); }
-
-  /* if Dimensions == 1, CoordT = float
-     if Dimensions == 2, CoordT = float2
-     if Dimensions == 3, CoordT = float4 */
-  template <typename CoordT,
-            typename = std::enable_if_t<detail::IsValidSampledCoord2020DataT<
-                Dimensions, CoordT>::value>>
-  DataT read(const CoordT &Coords) const
-#ifdef __SYCL_DEVICE_ONLY__
-      ;
-#else
-  {
-    // Host implementation is only available in host code. Device is not allowed
-    // to use host_sampled_image_accessor.
-    return base_class::read<DataT>(Coords);
-  }
-#endif
-
-private:
-  host_sampled_image_accessor(const detail::SampledImageAccessorImplPtr &Impl)
-      : base_class{Impl} {}
-
-  template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
-
-  template <class T>
-  friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-};
-
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 namespace std {
@@ -4073,63 +2957,6 @@ struct hash<sycl::local_accessor<DataT, Dimensions>> {
     auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
     return hash<decltype(AccImplPtr)>()(AccImplPtr);
 #endif
-  }
-};
-
-template <typename DataT, int Dimensions, sycl::access_mode AccessMode,
-          sycl::image_target AccessTarget>
-struct hash<sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                           AccessTarget>> {
-  using AccType = sycl::unsampled_image_accessor<DataT, Dimensions, AccessMode,
-                                                 AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
-
-template <typename DataT, int Dimensions, sycl::access_mode AccessMode>
-struct hash<
-    sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>> {
-  using AccType =
-      sycl::host_unsampled_image_accessor<DataT, Dimensions, AccessMode>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-  }
-};
-
-template <typename DataT, int Dimensions, sycl::image_target AccessTarget>
-struct hash<sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>> {
-  using AccType = sycl::sampled_image_accessor<DataT, Dimensions, AccessTarget>;
-
-  size_t operator()(const AccType &A) const {
-#ifdef __SYCL_DEVICE_ONLY__
-    // Hash is not supported on DEVICE. Just return 0 here.
-    (void)A;
-    return 0;
-#else
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
-#endif
-  }
-};
-
-template <typename DataT, int Dimensions>
-struct hash<sycl::host_sampled_image_accessor<DataT, Dimensions>> {
-  using AccType = sycl::host_sampled_image_accessor<DataT, Dimensions>;
-
-  size_t operator()(const AccType &A) const {
-    auto AccImplPtr = sycl::detail::getSyclObjImpl(A);
-    return hash<decltype(AccImplPtr)>()(AccImplPtr);
   }
 };
 

@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an idea/improvement for this project
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Is your feature request related to a problem? Please describe
+      description: |
+        A clear and concise description of what the problem is.
+        Include reproducer or code/pseudo-code example.
+        Include specific environment details where problem occurs.
+    validations:
+      required: true
+  - type: textarea
+    id: desired-solution
+    attributes:
+      label: Describe the solution you would like
+      description: |
+        A clear and concise description of what you want to happen.
+    validations:
+      required: false
+  - type: textarea
+    id: alternative-solution
+    attributes:
+      label: Describe alternatives you have considered
+      description: |
+        A clear and concise description of any alternative solutions or features
+        you have considered.
+    validations:
+      required: false
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional context
+      description: |
+        Add any other context about the feature request here.
+    validations:
+      required: false

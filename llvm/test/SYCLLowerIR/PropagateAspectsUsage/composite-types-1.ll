@@ -18,9 +18,9 @@
 
 %E.contains.optional = type { %B.core, %C.core, %D1.contains.optional }
 
-%F1.points.to.optional = type { %B.core, %C.core*, %D1.contains.optional* }
+%F1.points.to.optional = type { %B.core, ptr, ptr }
 
-%F2.does.not.contain.optional = type { %B.core, %C.core*, %D2.does.not.contain.optional* }
+%F2.does.not.contain.optional = type { %B.core, ptr, ptr }
 
 ; CHECK: spir_kernel void @kernelD1.uses.optional() !sycl_used_aspects ![[MDID:[0-9]+]]
 define spir_kernel void @kernelD1.uses.optional() {
@@ -85,7 +85,7 @@ define spir_func void @funcF2.does.not.use.optional() {
 ; CHECK: spir_func %A.optional @funcA.returns.optional() !sycl_used_aspects ![[MDID]] {
 define spir_func %A.optional @funcA.returns.optional() {
   %tmp = alloca %A.optional
-  %ret = load %A.optional, %A.optional* %tmp
+  %ret = load %A.optional, ptr %tmp
   ret %A.optional %ret
 }
 

@@ -76,6 +76,71 @@ class TestStructuredDataAPI(TestBase):
         # Tests for array data type
         self.array_struct_test(dict_struct)
 
+        s.Clear()
+        self.assertSuccess(example.GetAsJSON(s))
+        py_obj = json.loads(s.GetData())
+        self.assertTrue(py_obj)
+        self.assertIn("key_dict", py_obj)
+
+        py_dict = py_obj["key_dict"]
+        self.assertEqual(py_dict["key_string"], "STRING")
+        self.assertEqual(py_dict["key_uint"], 0xFFFFFFFF00000000)
+        self.assertEqual(py_dict["key_sint"], -42)
+        self.assertEqual(py_dict["key_float"], 2.99)
+        self.assertEqual(py_dict["key_bool"], True)
+        self.assertEqual(py_dict["key_array"], ["23", "arr"])
+
+        class MyRandomClass:
+            payload = "foo"
+
+        py_dict["key_generic"] = MyRandomClass()
+
+        stp = lldb.SBScriptObject(py_dict, lldb.eScriptLanguagePython)
+        self.assertEqual(stp.ptr, py_dict)
+
+        sd = lldb.SBStructuredData(stp, self.dbg)
+        self.assertTrue(sd.IsValid())
+        self.assertEqual(sd.GetSize(), len(py_dict))
+
+        generic_sd = sd.GetValueForKey("key_generic")
+        self.assertTrue(generic_sd.IsValid())
+        self.assertEqual(generic_sd.GetType(), lldb.eStructuredDataTypeGeneric)
+
+        my_random_class = generic_sd.GetGenericValue()
+        self.assertTrue(my_random_class)
+        self.assertEqual(my_random_class.payload, MyRandomClass.payload)
+
+        example = lldb.SBStructuredData()
+        self.assertSuccess(example.SetFromJSON("1"))
+        self.assertEqual(example.GetType(), lldb.eStructuredDataTypeInteger)
+        self.assertEqual(example.GetIntegerValue(), 1)
+
+        self.assertSuccess(example.SetFromJSON("4.19"))
+        self.assertEqual(example.GetType(), lldb.eStructuredDataTypeFloat)
+        self.assertEqual(example.GetFloatValue(), 4.19)
+
+        self.assertSuccess(example.SetFromJSON('"Bonjour, 123!"'))
+        self.assertEqual(example.GetType(), lldb.eStructuredDataTypeString)
+        self.assertEqual(example.GetStringValue(42), "Bonjour, 123!")
+
+        self.assertSuccess(example.SetFromJSON("true"))
+        self.assertEqual(example.GetType(), lldb.eStructuredDataTypeBoolean)
+        self.assertTrue(example.GetBooleanValue())
+
+        self.assertSuccess(example.SetFromJSON("null"))
+        self.assertEqual(example.GetType(), lldb.eStructuredDataTypeNull)
+
+        example_arr = [1, 2.3, "4", {"5": False}]
+        arr_str = json.dumps(example_arr)
+        s.Clear()
+        s.Print(arr_str)
+        self.assertSuccess(example.SetFromJSON(s))
+
+        s.Clear()
+        self.assertSuccess(example.GetAsJSON(s))
+        sb_data = json.loads(s.GetData())
+        self.assertEqual(sb_data, example_arr)
+
     def invalid_struct_test(self, example):
         invalid_struct = lldb.SBStructuredData()
         invalid_struct = example.GetValueForKey("invalid_key")

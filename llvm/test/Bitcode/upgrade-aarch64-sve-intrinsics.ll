@@ -1,4 +1,4 @@
-; RUN: llvm-as %s -o - | llvm-dis -opaque-pointers - | FileCheck %s
+; RUN: llvm-as %s -o - | llvm-dis - | FileCheck %s
 
 define <vscale x 32 x i8> @ld2.nxv32i8(<vscale x 16 x i1> %Pg, i8 *%base_ptr) {
 ; CHECK:  %1 = call { <vscale x 16 x i8>, <vscale x 16 x i8> } @llvm.aarch64.sve.ld2.sret.nxv16i8(<vscale x 16 x i1> %Pg, ptr %base_ptr)

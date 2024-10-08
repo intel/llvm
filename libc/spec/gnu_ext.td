@@ -2,6 +2,10 @@ def CpuSetT : NamedType<"cpu_set_t">;
 def CpuSetPtr : PtrType<CpuSetT>;
 def ConstCpuSetPtr : ConstType<CpuSetPtr>;
 
+def QSortRCompareT : NamedType<"__qsortrcompare_t">;
+def StructHsearchData : NamedType<"struct hsearch_data">;
+def StructHsearchDataPtr : PtrType<StructHsearchData>;
+
 def GnuExtensions : StandardSpec<"GNUExtensions"> {
   NamedType CookieIOFunctionsT = NamedType<"cookie_io_functions_t">;
   HeaderSpec CType = HeaderSpec<
@@ -29,7 +33,21 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
             RetValSpec<VoidType>,
             [ArgSpec<FloatType>, ArgSpec<FloatPtr>, ArgSpec<FloatPtr>]
         >,
-        FunctionSpec<"exp10f", RetValSpec<FloatType>, [ArgSpec<FloatType>]>,
+        FunctionSpec<
+            "lgamma_r",
+            RetValSpec<DoubleType>,
+            [ArgSpec<DoubleType>, ArgSpec<IntPtr>]
+        >,
+        FunctionSpec<
+            "lgammaf_r",
+            RetValSpec<FloatType>,
+            [ArgSpec<FloatType>, ArgSpec<IntPtr>]
+        >,
+        FunctionSpec<
+            "lgammal_r",
+            RetValSpec<LongDoubleType>,
+            [ArgSpec<LongDoubleType>, ArgSpec<IntPtr>]
+        >,
       ]
   >;
 
@@ -51,7 +69,6 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
         >,
       ]
   >;
-
   HeaderSpec String = HeaderSpec<
       "string.h",
       [], // Macros
@@ -66,7 +83,7 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
         FunctionSpec<
             "memrchr",
             RetValSpec<VoidPtr>,
-            [ArgSpec<VoidPtr>, ArgSpec<IntType>, ArgSpec<SizeTType>]
+            [ArgSpec<ConstVoidPtr>, ArgSpec<IntType>, ArgSpec<SizeTType>]
         >,
         FunctionSpec<
             "strerror_r",
@@ -84,6 +101,42 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
             [ArgSpec<ConstCharPtr>, ArgSpec<IntType>]
         >,
       ]
+  >;
+
+  HeaderSpec Search = HeaderSpec<
+    "search.h",
+    [], // Macros
+    [
+        StructHsearchData
+    ],
+    [], // Enumerations
+    [
+        FunctionSpec<
+            "hcreate_r",
+            RetValSpec<IntType>,
+            [
+                ArgSpec<SizeTType>,
+                ArgSpec<StructHsearchDataPtr>
+            ]
+        >,
+        FunctionSpec<
+            "hdestroy_r",
+            RetValSpec<VoidType>,
+            [
+                ArgSpec<StructHsearchDataPtr>
+            ]
+        >,
+        FunctionSpec<
+            "hsearch_r",
+            RetValSpec<IntType>,
+            [
+                ArgSpec<EntryType>,
+                ArgSpec<ActionType>,
+                ArgSpec<EntryTypePtrPtr>,
+                ArgSpec<StructHsearchDataPtr>
+            ]
+        >,
+    ]
   >;
 
   HeaderSpec FEnv = HeaderSpec<
@@ -160,6 +213,20 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       ]
   >;
 
+  HeaderSpec StdLib = HeaderSpec<
+      "stdlib.h",
+      [], // Macros
+      [QSortRCompareT], // Types
+      [], // Enumerations
+      [
+          FunctionSpec<
+                "qsort_r",
+                RetValSpec<VoidType>,
+                [ArgSpec<VoidPtr>, ArgSpec<SizeTType>, ArgSpec<SizeTType>, ArgSpec<QSortRCompareT>, ArgSpec<VoidPtr>]
+          >,
+      ]
+  >;
+
   HeaderSpec PThread = HeaderSpec<
       "pthread.h",
       [], // Macros
@@ -184,7 +251,13 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
       [], // Macros
       [], // Types
       [], // Enumerations
-      []  // Functions
+      [
+          FunctionSpec<
+              "getauxval",
+              RetValSpec<UnsignedLongType>,
+              [ArgSpec<UnsignedLongType>]
+          >,
+      ]  // Functions
   >;
 
   HeaderSpec SendFile = HeaderSpec<
@@ -224,7 +297,9 @@ def GnuExtensions : StandardSpec<"GNUExtensions"> {
     SendFile,
     SysAuxv,
     StdIO,
+    StdLib,
     String,
+    Search,
     UniStd,
   ];
 }

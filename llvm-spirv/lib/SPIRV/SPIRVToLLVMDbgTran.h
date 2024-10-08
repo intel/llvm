@@ -83,9 +83,10 @@ public:
     DebugInstCache[DebugInst] = Res;
     return static_cast<T *>(Res);
   }
-  Instruction *transDebugIntrinsic(const SPIRVExtInst *DebugInst,
-                                   BasicBlock *BB);
+
+  DbgInstPtr transDebugIntrinsic(const SPIRVExtInst *DebugInst, BasicBlock *BB);
   void finalize();
+  llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
 
 private:
   DIFile *getFile(const SPIRVId SourceId);
@@ -99,11 +100,15 @@ private:
 
   MDNode *transDebugInstImpl(const SPIRVExtInst *DebugInst);
 
+  DIType *transNonNullDebugType(const SPIRVExtInst *DebugInst);
+
   llvm::DebugLoc transDebugLocation(const SPIRVExtInst *DebugInst);
 
-  llvm::DebugLoc transDebugScope(const SPIRVInstruction *Inst);
-
   MDNode *transDebugInlined(const SPIRVExtInst *Inst);
+  MDNode *transDebugInlinedNonSemanticShader200(const SPIRVExtInst *Inst);
+
+  void appendToSourceLangLiteral(DICompileUnit *CompileUnit,
+                                 SPIRVWord SourceLang);
 
   DICompileUnit *transCompilationUnit(const SPIRVExtInst *DebugInst,
                                       const std::string CompilerVersion = "",
@@ -166,7 +171,8 @@ private:
 
   DINode *transTypedef(const SPIRVExtInst *DebugInst);
 
-  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst);
+  DINode *transTypeInheritance(const SPIRVExtInst *DebugInst,
+                               DIType *ChildClass = nullptr);
 
   DINode *transImportedEntry(const SPIRVExtInst *DebugInst);
 

@@ -1,18 +1,19 @@
 // REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
-// RUN: %{build} -O2 -o %t.opt.out
+// RUN: %{build} -Wno-error=deprecated-declarations -O2 -o %t.opt.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.opt.out | FileCheck %s --check-prefix=CHECK-OPT
-// RUN: %{build} -fno-sycl-dead-args-optimization -o %t.noopt.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fno-sycl-dead-args-optimization -o %t.noopt.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.noopt.out | FileCheck %s --check-prefix=CHECK-NOOPT
 
 #ifdef XPTI_COLLECTOR
 
-#include "../Inputs/buffer_info_collector.cpp"
+#include "../Inputs/memory_info_collector.cpp"
 
 #else
 #include <array>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/reduction.hpp>
 
 using namespace sycl;
 int main() {

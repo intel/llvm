@@ -1,7 +1,7 @@
-// REQUIRES: linux, gpu-intel-pvc, level_zero, level_zero_dev_kit
+// REQUIRES: linux, arch-intel_gpu_pvc, level_zero, level_zero_dev_kit
 //
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 // CHECK-NOT: zeCommandListCreate(
 // CHECK: zeCommandListCreateImmediate(
@@ -9,7 +9,7 @@
 // This test checks that immediate commandlists are used and not regular ones on
 // PVC Linux.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main(int argc, char **argv) {
   sycl::queue Q;

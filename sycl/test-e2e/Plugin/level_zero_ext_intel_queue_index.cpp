@@ -1,12 +1,28 @@
 // REQUIRES: aspect-ext_intel_device_id
 // REQUIRES: level_zero
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
-// RUN: env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+
+// TODO: at this time PVC 1T systems are not correctly supporting CSLICE
+// affinity partitioning So the test is marked as UNSUPPORTED until that is
+// fixed.
+
+// TODO - at this time ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
+// which is the new default on PVC.  Once it is supported, we'll test on both.
+// In the interim, these are the environment vars that must be set to get cslice
+// or the extra level of partition_by_affinity_domain with the "EXPOSE_" env
+// var.
+// DEFINE: %{setup_env} = env ZE_FLAT_DEVICE_HIERARCHY=COMPOSITE ZE_AFFINITY_MASK=0 ZEX_NUMBER_OF_CCS=0:4
+
+// RUN: %{setup_env} env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 //
 // Same with Immediate CommandLists
-// RUN: env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 env ZEX_NUMBER_OF_CCS=0:4 env ZE_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
+// RUN: %{setup_env} env SYCL_PI_LEVEL_ZERO_EXPOSE_CSLICE_IN_AFFINITY_PARTITIONING=1 env UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-PVC
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
 
 using namespace sycl;
 
@@ -85,7 +101,7 @@ void test_pvc(device &d) {
     }
   } else {
     // Make FileCheck pass.
-    std::cout << "Fake ZE_DEBUG output for FileCheck:" << std::endl;
+    std::cout << "Fake UR_L0_DEBUG output for FileCheck:" << std::endl;
     // clang-format off
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 0 (round robin in [0, 0])" << std::endl;
     std::cout << "[getZeQueue]: create queue ordinal = 0, index = 2 (round robin in [2, 2])" << std::endl;

@@ -18,7 +18,7 @@
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   uint8_t *h_A = (uint8_t *)malloc(256);
@@ -31,5 +31,6 @@ int main() {
   q.submit([&](sycl::handler &cgh) {
     cgh.copy(h_A, bufs[1].get_access<sycl::access::mode::write>(cgh));
   });
+  free(h_A);
   return 0;
 }

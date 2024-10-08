@@ -9,7 +9,7 @@
 
 #include "device_complex.h"
 
-#ifdef __SPIR__
+#if defined(__SPIR__) || defined(__SPIRV__)
 #include <cmath>
 
 // To support fallback device libraries on-demand loading, please update the
@@ -153,8 +153,14 @@ double __complex__ __devicelib_cexp(double __complex__ z) {
     return z;
   }
   double __e = __spirv_ocl_exp(z_real);
-  return CMPLX((__e * __spirv_ocl_cos(z_imag)),
-               (__e * __spirv_ocl_sin(z_imag)));
+  double ret_real = __e * __spirv_ocl_cos(z_imag);
+  double ret_imag = __e * __spirv_ocl_sin(z_imag);
+
+  if (__spirv_IsNan(ret_real))
+    ret_real = 0.;
+  if (__spirv_IsNan(ret_imag))
+    ret_imag = 0.;
+  return CMPLX(ret_real, ret_imag);
 }
 
 DEVICE_EXTERN_C_INLINE
@@ -249,8 +255,9 @@ double __complex__ __devicelib_ctanh(double __complex__ z) {
   double z_imag = __devicelib_cimag(z);
   if (__spirv_IsInf(z_real)) {
     if (!__spirv_IsFinite(z_imag))
-      return CMPLX(1.0, 0.0);
-    return CMPLX(1.0, __spirv_ocl_copysign(0.0, __spirv_ocl_sin(2.0 * z_imag)));
+      return CMPLX(__spirv_ocl_copysign(1.0, z_real), 0.0);
+    return CMPLX(__spirv_ocl_copysign(1.0, z_real),
+                 __spirv_ocl_copysign(0.0, __spirv_ocl_sin(2.0 * z_imag)));
   }
   if (__spirv_IsNan(z_real) && z_imag == 0)
     return z;
@@ -311,8 +318,8 @@ double __complex__ __devicelib_cacos(double __complex__ z) {
       return CMPLX(z_real, -z_imag);
     return CMPLX(z_real, z_real);
   }
-  if (__spirv_IsInf(z_real))
-    return CMPLX(__pi / 2.0, -z_real);
+  if (__spirv_IsInf(z_imag))
+    return CMPLX(__pi / 2.0, -z_imag);
   if (z_real == 0 && (z_imag == 0 || __spirv_IsNan(z_imag)))
     return CMPLX(__pi / 2.0, -z_imag);
   double __complex__ w =
@@ -428,4 +435,4 @@ double __complex__ __devicelib_catan(double __complex__ z) {
       __devicelib_catanh(CMPLX(-__devicelib_cimag(z), __devicelib_creal(z)));
   return CMPLX(__devicelib_cimag(w), -__devicelib_creal(w));
 }
-#endif // __SPIR__
+#endif // __SPIR__ || __SPIRV__

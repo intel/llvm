@@ -8,13 +8,20 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/property_list_base.hpp>
-#include <sycl/property_list.hpp>
+#include <sycl/access/access.hpp>             // for mode, placeholder, target
+#include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
+#include <sycl/detail/property_helper.hpp>    // for DataLessPropKind, Prop...
+#include <sycl/detail/property_list_base.hpp> // for PropertyListBase
+#include <sycl/exception.hpp>
+#include <sycl/property_list.hpp>             // for property_list
+
+#include <bitset>      // for bitset
+#include <memory>      // for shared_ptr
+#include <type_traits> // for conditional_t, enable_...
+#include <vector>      // for vector
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 // Forward declaration
 template <typename DataT, int Dimensions, access::mode AccessMode,
           access::target AccessTarget, access::placeholder IsPlaceholder,
@@ -176,8 +183,8 @@ public:
                                 !is_compile_time_property<PropT>::value>>
   PropT get_property() const {
     if (!has_property<PropT>())
-      throw sycl::invalid_object_error("The property is not found",
-                                       PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "The property is not found");
 
     return get_property_helper<PropT>();
   }
@@ -226,7 +233,14 @@ private:
                                   PropsT...>::value;
   }
 };
+
+namespace detail {
+template <typename T> struct is_accessor_property_list : std::false_type {};
+template <typename... Props>
+struct is_accessor_property_list<accessor_property_list<Props...>>
+    : std::true_type {};
+} // namespace detail
 } // namespace ext::oneapi
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

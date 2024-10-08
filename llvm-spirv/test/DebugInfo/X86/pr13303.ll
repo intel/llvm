@@ -1,16 +1,16 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc %t.ll -o %t -filetype=obj -mtriple=x86_64-unknown-linux-gnu
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc %t.ll -o %t -filetype=obj -mtriple=x86_64-unknown-linux-gnu
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o %t.ll
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
 ; RUN: llc %t.ll -o %t -filetype=obj -mtriple=x86_64-unknown-linux-gnu
 ; RUN: llvm-dwarfdump -debug-line %t | FileCheck %s
 
@@ -24,7 +24,7 @@ target triple = "spir64-unknown-unknown"
 define i32 @main() nounwind uwtable !dbg !5 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval
+  store i32 0, ptr %retval
   ret i32 0, !dbg !10
 }
 

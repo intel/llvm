@@ -19,7 +19,6 @@
 
 static uint8_t GStreamID = 0;
 std::mutex GIOMutex;
-xpti::ThreadID GThreadIDEnum;
 
 // The lone callback function we are going to use to demonstrate how to attach
 // the collector to the running executable
@@ -83,6 +82,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         GStreamID, (uint16_t)xpti::trace_point_type_t::wait_begin, tpCallback);
     xptiRegisterCallback(
         GStreamID, (uint16_t)xpti::trace_point_type_t::wait_end, tpCallback);
+    xptiRegisterCallback(GStreamID,
+                         (uint16_t)xpti::trace_point_type_t::queue_create,
+                         tpCallback);
+    xptiRegisterCallback(GStreamID,
+                         (uint16_t)xpti::trace_point_type_t::queue_destroy,
+                         tpCallback);
     xptiRegisterCallback(GStreamID, (uint16_t)xpti::trace_point_type_t::signal,
                          tpCallback);
     printf("Registered all callbacks\n");
@@ -111,9 +116,10 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
                                   xpti::trace_event_data_t *Event,
                                   uint64_t Instance, const void *UserData) {
   auto Payload = xptiQueryPayload(Event);
-  xpti::timer::tick_t Time = xpti::timer::rdtsc();
-  auto TID = xpti::timer::getThreadID();
-  uint32_t CPU = GThreadIDEnum.enumID(TID);
+  xpti::utils::timer::measurement_t M;
+  uint64_t Time = M.clock();
+  auto TID = M.thread();
+  uint32_t CPU = M.cpu();
   std::string Name;
 
   if (Payload->name_sid() != xpti::invalid_id) {
@@ -126,8 +132,9 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   // Lock while we print information
   std::lock_guard<std::mutex> Lock(GIOMutex);
   // Print the record information
-  printf("%-25lu: name=%-35s cpu=%3d event_id=%10lu\n", Time, Name.c_str(), CPU,
-         ID);
+  printf("%-25lu: name=%-35s cpu=%3d event_id=%10lu, InstanceID=%6lu, "
+         "TraceType=%d\n",
+         Time, Name.c_str(), CPU, ID, Instance, TraceType);
   // Go through all available meta-data for an event and print it out
   xpti::metadata_t *Metadata = xptiQueryMetadata(Event);
   for (const auto &Item : *Metadata) {

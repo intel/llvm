@@ -8,9 +8,7 @@
 
 // UNSUPPORTED: c++03, c++11, c++14, c++17
 // UNSUPPORTED: no-localization
-
-// TODO FMT It seems GCC uses too much memory in the CI and fails.
-// UNSUPPORTED: gcc-12
+// UNSUPPORTED: GCC-ALWAYS_INLINE-FIXME
 
 // TODO FMT This test should not require std::to_chars(floating-point)
 // XFAIL: availability-fp_to_chars-missing
@@ -73,8 +71,45 @@ template <class CharT>
 static void test_c() {
   using namespace std::literals::chrono_literals;
 
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-946'688'523'123'456'789ns}) ==
+         SV("1940-01-01 22:57:56.876543211"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-946'688'523'123'456us}) ==
+         SV("1940-01-01 22:57:56.876544"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-946'688'523'123ms}) ==
+         SV("1940-01-01 22:57:56.877"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1000000000ns}) ==
+         SV("1969-12-31 23:59:59.000000000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-1000000us}) ==
+         SV("1969-12-31 23:59:59.000000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-1000ms}) ==
+         SV("1969-12-31 23:59:59.000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1ns}) ==
+         SV("1969-12-31 23:59:59.999999999"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{0ns}) ==
+         SV("1970-01-01 00:00:00.000000000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1ns}) ==
+         SV("1970-01-01 00:00:00.000000001"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1000000000ns}) ==
+         SV("1970-01-01 00:00:01.000000000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{1000000us}) ==
+         SV("1970-01-01 00:00:01.000000"));
+
+  assert(stream_c_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{1000ms}) ==
+         SV("1970-01-01 00:00:01.000"));
+
   assert(stream_c_locale<CharT>(file_time<std::chrono::nanoseconds>{946'688'523'123'456'789ns}) ==
          SV("2000-01-01 01:02:03.123456789"));
+
   assert(stream_c_locale<CharT>(file_time<std::chrono::microseconds>{946'688'523'123'456us}) ==
          SV("2000-01-01 01:02:03.123456"));
 
@@ -108,6 +143,42 @@ static void test_c() {
 template <class CharT>
 static void test_fr_FR() {
   using namespace std::literals::chrono_literals;
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-946'688'523'123'456'789ns}) ==
+         SV("1940-01-01 22:57:56,876543211"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-946'688'523'123'456us}) ==
+         SV("1940-01-01 22:57:56,876544"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-946'688'523'123ms}) ==
+         SV("1940-01-01 22:57:56,877"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1000000000ns}) ==
+         SV("1969-12-31 23:59:59,000000000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-1000000us}) ==
+         SV("1969-12-31 23:59:59,000000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-1000ms}) ==
+         SV("1969-12-31 23:59:59,000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1ns}) ==
+         SV("1969-12-31 23:59:59,999999999"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{0ns}) ==
+         SV("1970-01-01 00:00:00,000000000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1ns}) ==
+         SV("1970-01-01 00:00:00,000000001"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1000000000ns}) ==
+         SV("1970-01-01 00:00:01,000000000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{1000000us}) ==
+         SV("1970-01-01 00:00:01,000000"));
+
+  assert(stream_fr_FR_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{1000ms}) ==
+         SV("1970-01-01 00:00:01,000"));
 
   assert(stream_fr_FR_locale<CharT>(file_time<std::chrono::nanoseconds>{946'688'523'123'456'789ns}) ==
          SV("2000-01-01 01:02:03,123456789"));
@@ -145,6 +216,42 @@ static void test_fr_FR() {
 template <class CharT>
 static void test_ja_JP() {
   using namespace std::literals::chrono_literals;
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-946'688'523'123'456'789ns}) ==
+         SV("1940-01-01 22:57:56.876543211"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-946'688'523'123'456us}) ==
+         SV("1940-01-01 22:57:56.876544"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-946'688'523'123ms}) ==
+         SV("1940-01-01 22:57:56.877"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1000000000ns}) ==
+         SV("1969-12-31 23:59:59.000000000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{-1000000us}) ==
+         SV("1969-12-31 23:59:59.000000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{-1000ms}) ==
+         SV("1969-12-31 23:59:59.000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{-1ns}) ==
+         SV("1969-12-31 23:59:59.999999999"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{0ns}) ==
+         SV("1970-01-01 00:00:00.000000000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1ns}) ==
+         SV("1970-01-01 00:00:00.000000001"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::nanoseconds>{1000000000ns}) ==
+         SV("1970-01-01 00:00:01.000000000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::microseconds>{1000000us}) ==
+         SV("1970-01-01 00:00:01.000000"));
+
+  assert(stream_ja_JP_locale<CharT>(std::chrono::file_time<std::chrono::milliseconds>{1000ms}) ==
+         SV("1970-01-01 00:00:01.000"));
 
   assert(stream_ja_JP_locale<CharT>(file_time<std::chrono::nanoseconds>{946'688'523'123'456'789ns}) ==
          SV("2000-01-01 01:02:03.123456789"));

@@ -8,9 +8,8 @@
 
 import os
 import pickle
-import pipes
 import platform
-import re
+import shlex
 import shutil
 import tempfile
 
@@ -68,8 +67,14 @@ def _memoizeExpensiveOperation(extractCacheKey):
             if cacheKey not in cache:
                 cache[cacheKey] = function(config, *args, **kwargs)
                 # Update the persistent cache so it knows about the new key
-                with open(persistentCache, "wb") as cacheFile:
+                # We write to a PID-suffixed file and rename the result to
+                # ensure that the cache is not corrupted when running the test
+                # suite with multiple shards. Since this file is in the same
+                # directory as the destination, os.replace() will be atomic.
+                unique_suffix = ".tmp." + str(os.getpid())
+                with open(persistentCache + unique_suffix, "wb") as cacheFile:
                     pickle.dump(cache, cacheFile)
+                os.replace(persistentCache + unique_suffix, persistentCache)
             return cache[cacheKey]
 
         return f
@@ -179,7 +184,7 @@ def programOutput(config, program, args=None):
                 "Failed to run program, cmd:\n{}\nstderr is:\n{}".format(runcmd, err)
             )
 
-        return libcxx.test.format._parseLitOutput(out)
+        return out
 
 
 @_memoizeExpensiveOperation(
@@ -202,6 +207,19 @@ def programSucceeds(config, program, args=None):
 
 
 @_memoizeExpensiveOperation(lambda c, f: (c.substitutions, c.environment, f))
+def tryCompileFlag(config, flag):
+    """
+    Try using the given compiler flag and return the exit code along with stdout and stderr.
+    """
+    # fmt: off
+    with _makeConfigTest(config) as test:
+        out, err, exitCode, timeoutInfo, _ = _executeWithFakeConfig(test, [
+            "%{{cxx}} -xc++ {} -Werror -fsyntax-only %{{flags}} %{{compile_flags}} {}".format(os.devnull, flag)
+        ])
+        return exitCode, out, err
+    # fmt: on
+
+
 def hasCompileFlag(config, flag):
     """
     Return whether the compiler in the configuration supports a given compiler flag.
@@ -209,16 +227,8 @@ def hasCompileFlag(config, flag):
     This is done by executing the %{cxx} substitution with the given flag and
     checking whether that succeeds.
     """
-    with _makeConfigTest(config) as test:
-        out, err, exitCode, timeoutInfo, _ = _executeWithFakeConfig(
-            test,
-            [
-                "%{{cxx}} -xc++ {} -Werror -fsyntax-only %{{flags}} %{{compile_flags}} {}".format(
-                    os.devnull, flag
-                )
-            ],
-        )
-        return exitCode == 0
+    (exitCode, _, _) = tryCompileFlag(config, flag)
+    return exitCode == 0
 
 
 @_memoizeExpensiveOperation(lambda c, s: (c.substitutions, c.environment, s))
@@ -280,7 +290,7 @@ def hasAnyLocale(config, locales):
       }
     #endif
   """
-    return programSucceeds(config, program, args=[pipes.quote(l) for l in locales])
+    return programSucceeds(config, program, args=[shlex.quote(l) for l in locales])
 
 
 @_memoizeExpensiveOperation(lambda c, flags="": (c.substitutions, c.environment, flags))
@@ -298,8 +308,8 @@ def compilerMacros(config, flags=""):
         with open(test.getSourcePath(), "w") as sourceFile:
             sourceFile.write(
                 """
-      #if __has_include(<__config_site>)
-      #  include <__config_site>
+      #if __has_include(<__config>)
+      #  include <__config>
       #endif
       """
             )
@@ -338,12 +348,23 @@ def featureTestMacros(config, flags=""):
     }
 
 
+def _getSubstitution(substitution, config):
+  for (orig, replacement) in config.substitutions:
+    if orig == substitution:
+      return replacement
+  raise ValueError('Substitution {} is not in the config.'.format(substitution))
+
 def _appendToSubstitution(substitutions, key, value):
     return [(k, v + " " + value) if k == key else (k, v) for (k, v) in substitutions]
 
-
 def _prependToSubstitution(substitutions, key, value):
     return [(k, value + " " + v) if k == key else (k, v) for (k, v) in substitutions]
+
+def _ensureFlagIsSupported(config, flag):
+    (exitCode, out, err) = tryCompileFlag(config, flag)
+    assert (
+        exitCode == 0
+    ), f"Trying to enable compiler flag {flag}, which is not supported. stdout was:\n{out}\n\nstderr was:\n{err}"
 
 
 class ConfigAction(object):
@@ -420,16 +441,13 @@ class AddFlag(ConfigAction):
 
     def applyTo(self, config):
         flag = self._getFlag(config)
-        assert hasCompileFlag(
-            config, flag
-        ), "Trying to enable flag {}, which is not supported".format(flag)
+        _ensureFlagIsSupported(config, flag)
         config.substitutions = _appendToSubstitution(
             config.substitutions, "%{flags}", flag
         )
 
     def pretty(self, config, litParams):
         return "add {} to %{{flags}}".format(self._getFlag(config))
-
 
 class AddFlagIfSupported(ConfigAction):
     """
@@ -467,9 +485,7 @@ class AddCompileFlag(ConfigAction):
 
     def applyTo(self, config):
         flag = self._getFlag(config)
-        assert hasCompileFlag(
-            config, flag
-        ), "Trying to enable compile flag {}, which is not supported".format(flag)
+        _ensureFlagIsSupported(config, flag)
         config.substitutions = _appendToSubstitution(
             config.substitutions, "%{compile_flags}", flag
         )
@@ -491,9 +507,7 @@ class AddLinkFlag(ConfigAction):
 
     def applyTo(self, config):
         flag = self._getFlag(config)
-        assert hasCompileFlag(
-            config, flag
-        ), "Trying to enable link flag {}, which is not supported".format(flag)
+        _ensureFlagIsSupported(config, flag)
         config.substitutions = _appendToSubstitution(
             config.substitutions, "%{link_flags}", flag
         )
@@ -515,9 +529,7 @@ class PrependLinkFlag(ConfigAction):
 
     def applyTo(self, config):
         flag = self._getFlag(config)
-        assert hasCompileFlag(
-            config, flag
-        ), "Trying to enable link flag {}, which is not supported".format(flag)
+        _ensureFlagIsSupported(config, flag)
         config.substitutions = _prependToSubstitution(
             config.substitutions, "%{link_flags}", flag
         )

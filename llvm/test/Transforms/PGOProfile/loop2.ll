@@ -1,9 +1,9 @@
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-gen -pgo-instrument-entry=false -S | FileCheck %s --check-prefixes=GEN,NOTENTRY
+; RUN: opt < %s -passes=pgo-instr-gen -pgo-instrument-entry=false -S | FileCheck %s --check-prefixes=GEN,NOTENTRY
 ; RUN: llvm-profdata merge %S/Inputs/loop2.proftext -o %t.profdata
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-use -pgo-instrument-entry=false -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-gen -pgo-instrument-entry=true -S | FileCheck %s --check-prefixes=GEN,ENTRY
+; RUN: opt < %s -passes=pgo-instr-use -pgo-instrument-entry=false -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
+; RUN: opt < %s -passes=pgo-instr-gen -pgo-instrument-entry=true -S | FileCheck %s --check-prefixes=GEN,ENTRY
 ; RUN: llvm-profdata merge %S/Inputs/loop2_entry.proftext -o %t.profdata
-; RUN: opt -opaque-pointers < %s -passes=pgo-instr-use -pgo-instrument-entry=true -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
+; RUN: opt < %s -passes=pgo-instr-use -pgo-instrument-entry=true -pgo-test-profile-file=%t.profdata -S | FileCheck %s --check-prefix=USE
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-unknown-linux-gnu"
 
@@ -30,7 +30,8 @@ for.cond.outer:
 
 for.body.outer:
 ; GEN: for.body.outer:
-; GEN-NOT: call void @llvm.instrprof.increment
+; NOTENTRY: call void @llvm.instrprof.increment(ptr @__profn_test_nested_for, i64 798733566382720768, i32 3, i32 1)
+; ENTRY: call void @llvm.instrprof.increment(ptr @__profn_test_nested_for, i64 798733566382720768, i32 3, i32 2)
   br label %for.cond.inner
 
 for.cond.inner:
@@ -62,8 +63,7 @@ for.end.inner:
 
 for.inc.outer:
 ; GEN: for.inc.outer:
-; NOTENTRY: call void @llvm.instrprof.increment(ptr @__profn_test_nested_for, i64 {{[0-9]+}}, i32 3, i32 1)
-; ENTRY: call void @llvm.instrprof.increment(ptr @__profn_test_nested_for, i64 {{[0-9]+}}, i32 3, i32 2)
+; GEN-NOT: call void @llvm.instrprof.increment
   %inc.2 = add nsw i32 %i.0, 1
   br label %for.cond.outer
 

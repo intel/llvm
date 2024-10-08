@@ -17,10 +17,6 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 static_assert(SIZE >= VL, "Size must greater than or equal to VL");
 static_assert(SIZE % VL == 0, "Size must be multiple of VL");
 constexpr unsigned ROWS = SIZE / VL;
@@ -31,6 +27,12 @@ class KernelID;
 
 template <typename TA, typename TB, typename TC>
 ESIMD_NOINLINE TC add(TA A, TB B) {
+#ifdef __SYCL_DEVICE_ONLY__
+  // Noop inline asm to prevent arguments being
+  // optimized to be pass by value as this
+  // test is very sensitive to stack size.
+  __asm__("" : : "r"(A.data()), "r"(B.data()));
+#endif
   return (TC)A + (TC)B;
 }
 

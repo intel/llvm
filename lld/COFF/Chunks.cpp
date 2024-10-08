@@ -13,6 +13,7 @@
 #include "Symbols.h"
 #include "Writer.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/BinaryFormat/COFF.h"
 #include "llvm/Object/COFF.h"
@@ -30,8 +31,8 @@ using llvm::support::ulittle32_t;
 
 namespace lld::coff {
 
-SectionChunk::SectionChunk(ObjFile *f, const coff_section *h)
-    : Chunk(SectionKind), file(f), header(h), repl(this) {
+SectionChunk::SectionChunk(ObjFile *f, const coff_section *h, Kind k)
+    : Chunk(k), file(f), header(h), repl(this) {
   // Initialize relocs.
   if (file)
     setRelocs(file->getCOFFObj()->getRelocations(header));
@@ -409,6 +410,12 @@ void SectionChunk::writeTo(uint8_t *buf) const {
 
     applyRelocation(buf + rel.VirtualAddress, rel);
   }
+
+  // Write the offset to EC entry thunk preceding section contents. The low bit
+  // is always set, so it's effectively an offset from the last byte of the
+  // offset.
+  if (Defined *entryThunk = getEntryThunk())
+    write32le(buf - sizeof(uint32_t), entryThunk->getRVA() - rva + 1);
 }
 
 void SectionChunk::applyRelocation(uint8_t *off,
@@ -436,19 +443,17 @@ void SectionChunk::applyRelocation(uint8_t *off,
   // Compute the RVA of the relocation for relative relocations.
   uint64_t p = rva + rel.VirtualAddress;
   uint64_t imageBase = file->ctx.config.imageBase;
-  switch (file->ctx.config.machine) {
-  case AMD64:
+  switch (getArch()) {
+  case Triple::x86_64:
     applyRelX64(off, rel.Type, os, s, p, imageBase);
     break;
-  case I386:
+  case Triple::x86:
     applyRelX86(off, rel.Type, os, s, p, imageBase);
     break;
-  case ARMNT:
+  case Triple::thumb:
     applyRelARM(off, rel.Type, os, s, p, imageBase);
     break;
-  case ARM64:
-  case ARM64EC:
-  case ARM64X:
+  case Triple::aarch64:
     applyRelARM64(off, rel.Type, os, s, p, imageBase);
     break;
   default:
@@ -515,27 +520,25 @@ void SectionChunk::addAssociative(SectionChunk *child) {
 }
 
 static uint8_t getBaserelType(const coff_relocation &rel,
-                              llvm::COFF::MachineTypes machine) {
-  switch (machine) {
-  case AMD64:
+                              Triple::ArchType arch) {
+  switch (arch) {
+  case Triple::x86_64:
     if (rel.Type == IMAGE_REL_AMD64_ADDR64)
       return IMAGE_REL_BASED_DIR64;
     if (rel.Type == IMAGE_REL_AMD64_ADDR32)
       return IMAGE_REL_BASED_HIGHLOW;
     return IMAGE_REL_BASED_ABSOLUTE;
-  case I386:
+  case Triple::x86:
     if (rel.Type == IMAGE_REL_I386_DIR32)
       return IMAGE_REL_BASED_HIGHLOW;
     return IMAGE_REL_BASED_ABSOLUTE;
-  case ARMNT:
+  case Triple::thumb:
     if (rel.Type == IMAGE_REL_ARM_ADDR32)
       return IMAGE_REL_BASED_HIGHLOW;
     if (rel.Type == IMAGE_REL_ARM_MOV32T)
       return IMAGE_REL_BASED_ARM_MOV32T;
     return IMAGE_REL_BASED_ABSOLUTE;
-  case ARM64:
-  case ARM64EC:
-  case ARM64X:
+  case Triple::aarch64:
     if (rel.Type == IMAGE_REL_ARM64_ADDR64)
       return IMAGE_REL_BASED_DIR64;
     return IMAGE_REL_BASED_ABSOLUTE;
@@ -550,7 +553,7 @@ static uint8_t getBaserelType(const coff_relocation &rel,
 // Only called when base relocation is enabled.
 void SectionChunk::getBaserels(std::vector<Baserel> *res) {
   for (const coff_relocation &rel : getRelocs()) {
-    uint8_t ty = getBaserelType(rel, file->ctx.config.machine);
+    uint8_t ty = getBaserelType(rel, getArch());
     if (ty == IMAGE_REL_BASED_ABSOLUTE)
       continue;
     Symbol *target = file->getSymbol(rel.SymbolTableIndex);
@@ -651,6 +654,13 @@ void SectionChunk::getRuntimePseudoRelocs(
         dyn_cast_or_null<Defined>(file->getSymbol(rel.SymbolTableIndex));
     if (!target || !target->isRuntimePseudoReloc)
       continue;
+    // If the target doesn't have a chunk allocated, it may be a
+    // DefinedImportData symbol which ended up unnecessary after GC.
+    // Normally we wouldn't eliminate section chunks that are referenced, but
+    // references within DWARF sections don't count for keeping section chunks
+    // alive. Thus such dangling references in DWARF sections are expected.
+    if (!target->getChunk())
+      continue;
     int sizeInBits =
         getRuntimePseudoRelocSize(rel.Type, file->ctx.config.machine);
     if (sizeInBits == 0) {
@@ -659,6 +669,13 @@ void SectionChunk::getRuntimePseudoRelocs(
             file->getCOFFObj()->getRelocationTypeName(rel.Type) + " in " +
             toString(file));
       continue;
+    }
+    int addressSizeInBits = file->ctx.config.is64() ? 64 : 32;
+    if (sizeInBits < addressSizeInBits) {
+      warn("runtime pseudo relocation in " + toString(file) + " against " +
+           "symbol " + target->getName() + " is too narrow (only " +
+           Twine(sizeInBits) + " bits wide); this can fail at runtime " +
+           "depending on memory layout");
     }
     // sizeInBits is used to initialize the Flags field; currently no
     // other flags are defined.
@@ -825,14 +842,9 @@ const uint8_t arm64Thunk[] = {
     0x00, 0x02, 0x1f, 0xd6, // br   x16
 };
 
-size_t RangeExtensionThunkARM64::getSize() const {
-  assert(ctx.config.machine == ARM64);
-  (void)&ctx;
-  return sizeof(arm64Thunk);
-}
+size_t RangeExtensionThunkARM64::getSize() const { return sizeof(arm64Thunk); }
 
 void RangeExtensionThunkARM64::writeTo(uint8_t *buf) const {
-  assert(ctx.config.machine == ARM64);
   memcpy(buf, arm64Thunk, sizeof(arm64Thunk));
   applyArm64Addr(buf + 0, target->getRVA(), rva, 12);
   applyArm64Imm(buf + 4, target->getRVA() & 0xfff, 0);
@@ -886,6 +898,20 @@ void RVAFlagTableChunk::writeTo(uint8_t *buf) const {
                                 const RVAFlag &b) { return a.rva == b.rva; }) ==
              flags.end() &&
          "RVA tables should be de-duplicated");
+}
+
+size_t ECCodeMapChunk::getSize() const {
+  return map.size() * sizeof(chpe_range_entry);
+}
+
+void ECCodeMapChunk::writeTo(uint8_t *buf) const {
+  auto table = reinterpret_cast<chpe_range_entry *>(buf);
+  for (uint32_t i = 0; i < map.size(); i++) {
+    const ECCodeMapEntry &entry = map[i];
+    uint32_t start = entry.first->getRVA();
+    table[i].StartOffset = start | entry.type;
+    table[i].Length = entry.last->getRVA() + entry.last->getSize() - start;
+  }
 }
 
 // MinGW specific, for the "automatic import of variables from DLLs" feature.
@@ -1039,6 +1065,40 @@ void AbsolutePointerChunk::writeTo(uint8_t *buf) const {
     write64le(buf, value);
   } else {
     write32le(buf, value);
+  }
+}
+
+void ECExportThunkChunk::writeTo(uint8_t *buf) const {
+  memcpy(buf, ECExportThunkCode, sizeof(ECExportThunkCode));
+  write32le(buf + 10, target->getRVA() - rva - 14);
+}
+
+size_t CHPECodeRangesChunk::getSize() const {
+  return exportThunks.size() * sizeof(chpe_code_range_entry);
+}
+
+void CHPECodeRangesChunk::writeTo(uint8_t *buf) const {
+  auto ranges = reinterpret_cast<chpe_code_range_entry *>(buf);
+
+  for (uint32_t i = 0; i < exportThunks.size(); i++) {
+    Chunk *thunk = exportThunks[i].first;
+    uint32_t start = thunk->getRVA();
+    ranges[i].StartRva = start;
+    ranges[i].EndRva = start + thunk->getSize();
+    ranges[i].EntryPoint = start;
+  }
+}
+
+size_t CHPERedirectionChunk::getSize() const {
+  return exportThunks.size() * sizeof(chpe_redirection_entry);
+}
+
+void CHPERedirectionChunk::writeTo(uint8_t *buf) const {
+  auto entries = reinterpret_cast<chpe_redirection_entry *>(buf);
+
+  for (uint32_t i = 0; i < exportThunks.size(); i++) {
+    entries[i].Source = exportThunks[i].first->getRVA();
+    entries[i].Destination = exportThunks[i].second->getRVA();
   }
 }
 

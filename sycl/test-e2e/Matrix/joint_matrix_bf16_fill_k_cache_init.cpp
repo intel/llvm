@@ -5,11 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -o %t.out -DSYCL_EXT_ONEAPI_MATRIX_VERSION=4 -DINIT_LIST
+// RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out
 
-#define SG_SZ 16
+// -ffp-model=precise is added to not depend on compiler defaults.
 
+#include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

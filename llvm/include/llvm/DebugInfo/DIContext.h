@@ -30,6 +30,7 @@ namespace llvm {
 
 /// A format-neutral container for source line information.
 struct DILineInfo {
+  static constexpr const char *const ApproxString = "(approximate)";
   // DILineInfo contains "<invalid>" for function/filename it cannot fetch.
   static constexpr const char *const BadString = "<invalid>";
   // Use "??" instead of "<invalid>" to make our output closer to addr2line.
@@ -37,7 +38,11 @@ struct DILineInfo {
   std::string FileName;
   std::string FunctionName;
   std::string StartFileName;
+  // Full source corresponding to `FileName`
   std::optional<StringRef> Source;
+  // Source code for this particular line
+  // (in case if `Source` is not available)
+  std::optional<StringRef> LineSource;
   uint32_t Line = 0;
   uint32_t Column = 0;
   uint32_t StartLine = 0;
@@ -46,6 +51,7 @@ struct DILineInfo {
   // DWARF-specific.
   uint32_t Discriminator = 0;
 
+  bool IsApproximateLine = false;
   DILineInfo()
       : FileName(BadString), FunctionName(BadString), StartFileName(BadString) {
   }
@@ -149,13 +155,14 @@ struct DILineInfoSpecifier {
     AbsoluteFilePath
   };
   using FunctionNameKind = DINameKind;
-
   FileLineInfoKind FLIKind;
   FunctionNameKind FNKind;
+  bool ApproximateLine;
 
   DILineInfoSpecifier(FileLineInfoKind FLIKind = FileLineInfoKind::RawValue,
-                      FunctionNameKind FNKind = FunctionNameKind::None)
-      : FLIKind(FLIKind), FNKind(FNKind) {}
+                      FunctionNameKind FNKind = FunctionNameKind::None,
+                      bool ApproximateLine = false)
+      : FLIKind(FLIKind), FNKind(FNKind), ApproximateLine(ApproximateLine) {}
 
   inline bool operator==(const DILineInfoSpecifier &RHS) const {
     return FLIKind == RHS.FLIKind && FNKind == RHS.FNKind;
@@ -200,6 +207,9 @@ struct DIDumpOptions {
   bool Verbose = false;
   bool DisplayRawContents = false;
   bool IsEH = false;
+  bool DumpNonSkeleton = false;
+  bool ShowAggregateErrors = false;
+  std::string JsonErrSummaryFile;
   std::function<llvm::StringRef(uint64_t DwarfRegNum, bool IsEH)>
       GetNameForDWARFReg;
 
@@ -228,7 +238,7 @@ struct DIDumpOptions {
 
 class DIContext {
 public:
-  enum DIContextKind { CK_DWARF, CK_PDB };
+  enum DIContextKind { CK_DWARF, CK_PDB, CK_BTF };
 
   DIContext(DIContextKind K) : Kind(K) {}
   virtual ~DIContext() = default;

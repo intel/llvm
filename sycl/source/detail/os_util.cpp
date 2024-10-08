@@ -7,9 +7,15 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/os_util.hpp>
-#include <sycl/exception.hpp>
 
 #include <cassert>
+#include <limits>
+
+#if __GNUC__ && __GNUC__ < 8
+// Don't include <filesystem> for GCC versions less than 8
+#else
+#include <filesystem> // C++ 17 std::create_directories
+#endif
 
 #if defined(__SYCL_RT_OS_LINUX)
 
@@ -29,8 +35,9 @@
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
+#include <detail/windows_os_utils.hpp>
+
 #include <Windows.h>
-#include <direct.h>
 #include <malloc.h>
 #include <shlwapi.h>
 
@@ -43,7 +50,7 @@
 #endif // __SYCL_RT_OS
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #if defined(__SYCL_RT_OS_LINUX)
@@ -139,26 +146,9 @@ std::string OSUtil::getDirName(const char *Path) {
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
-// TODO: Just inline it.
-using OSModuleHandle = intptr_t;
-static constexpr OSModuleHandle ExeModuleHandle = -1;
-static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
-  HMODULE PhModule;
-  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
-  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
-  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
-    // Expect the caller to check for zero and take
-    // necessary action
-    return 0;
-  }
-  if (PhModule == GetModuleHandleA(nullptr))
-    return ExeModuleHandle;
-  return reinterpret_cast<OSModuleHandle>(PhModule);
-}
 
 /// Returns an absolute path where the object was found.
-//  pi_win_proxy_loader.dll uses this same logic. If it is changed
+//  ur_win_proxy_loader.dll uses this same logic. If it is changed
 //  significantly, it might be wise to change it there too.
 std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
@@ -248,15 +238,14 @@ void OSUtil::alignedFree(void *Ptr) {
 #endif
 }
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-
-/* Create directory recursively and return non zero code on success*/
+// Make all directories on the path, throws on error.
 int OSUtil::makeDir(const char *Dir) {
   assert((Dir != nullptr) && "Passed null-pointer as directory name.");
   if (isPathPresent(Dir))
     return 0;
 
+// older GCC doesn't have full C++ 17 support.
+#if __GNUC__ && __GNUC__ < 8
   std::string Path{Dir}, CurPath;
   size_t pos = 0;
 
@@ -269,11 +258,18 @@ int OSUtil::makeDir(const char *Dir) {
     auto Res = _mkdir(CurPath.c_str());
 #endif
     if (Res && errno != EEXIST)
-      return Res;
+      throw std::runtime_error("Failed to mkdir: " + CurPath + " (" +
+                               std::strerror(errno) + ")");
+
   } while (pos != std::string::npos);
+#else
+  // using filesystem is simpler, more reliable, works better on Win
+  std::filesystem::path path(Dir);
+  std::filesystem::create_directories(path.make_preferred());
+#endif
   return 0;
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

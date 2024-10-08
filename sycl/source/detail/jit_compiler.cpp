@@ -6,32 +6,85 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
 #include <detail/device_image_impl.hpp>
+#include <detail/helpers.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
-jit_compiler::jit_compiler() : MJITContext{new ::jit_compiler::JITContext{}} {}
+static inline void printPerformanceWarning(const std::string &Message) {
+  if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
+    std::cerr << "WARNING: " << Message << "\n";
+  }
+}
 
-jit_compiler::~jit_compiler() = default;
+jit_compiler::jit_compiler() {
+  auto checkJITLibrary = [this]() -> bool {
+    static const std::string JITLibraryName = "libsycl-jit.so";
+
+    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
+    if (LibraryPtr == nullptr) {
+      printPerformanceWarning("Could not find JIT library " + JITLibraryName);
+      return false;
+    }
+
+    this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "addToJITConfiguration"));
+    if (!this->AddToConfigHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "resetJITConfiguration"));
+    if (!this->ResetConfigHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+    if (!this->FuseKernelsHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->MaterializeSpecConstHandle =
+        reinterpret_cast<MaterializeSpecConstFuncT>(
+            sycl::detail::ur::getOsLibraryFuncAddress(
+                LibraryPtr, "materializeSpecConstants"));
+    if (!this->MaterializeSpecConstHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    return true;
+  };
+  Available = checkJITLibrary();
+}
 
 static ::jit_compiler::BinaryFormat
-translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
+translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   switch (Type) {
-  case PI_DEVICE_BINARY_TYPE_SPIRV:
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     return ::jit_compiler::BinaryFormat::SPIRV;
-  case PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return ::jit_compiler::BinaryFormat::LLVM;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -47,6 +100,8 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
     return ::jit_compiler::BinaryFormat::SPIRV;
   case backend::ext_oneapi_cuda:
     return ::jit_compiler::BinaryFormat::PTX;
+  case backend::ext_oneapi_hip:
+    return ::jit_compiler::BinaryFormat::AMDGCN;
   default:
     throw sycl::exception(
         sycl::make_error_code(sycl::errc::feature_not_supported),
@@ -54,63 +109,11 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
   }
 }
 
-std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
-retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
-  auto KernelName = KernelCG->getKernelName();
-
-  bool isNvidia =
-      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
-  if (isNvidia) {
-    auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds{KernelID};
-    auto DeviceImages =
-        ProgramManager::getInstance().getRawDeviceImages(KernelIds);
-    auto DeviceImage = std::find_if(
-        DeviceImages.begin(), DeviceImages.end(), [](RTDeviceBinaryImage *DI) {
-          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
-                 DI->getRawData().DeviceTargetSpec ==
-                     std::string("llvm_nvptx64");
-        });
-    if (DeviceImage == DeviceImages.end()) {
-      return {nullptr, nullptr};
-    }
-    auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
-    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    sycl::detail::pi::PiProgram Program =
-        detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
-                                                              Context, Device);
-    return {*DeviceImage, Program};
-  }
-
-  const RTDeviceBinaryImage *DeviceImage = nullptr;
-  sycl::detail::pi::PiProgram Program = nullptr;
-  if (KernelCG->getKernelBundle() != nullptr) {
-    // Retrieve the device image from the kernel bundle.
-    auto KernelBundle = KernelCG->getKernelBundle();
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-
-    auto SyclKernel = detail::getSyclObjImpl(
-        KernelBundle->get_kernel(KernelID, KernelBundle));
-
-    DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = SyclKernel->getDeviceImage()->get_program_ref();
-  } else if (KernelCG->MSyclKernel != nullptr) {
-    DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
-  } else {
-    auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
-    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, Context, Device);
-    Program = detail::ProgramManager::getInstance().createPIProgram(
-        *DeviceImage, Context, Device);
-  }
-  return {DeviceImage, Program};
+::jit_compiler::TargetInfo getTargetInfo(QueueImplPtr &Queue) {
+  ::jit_compiler::BinaryFormat Format = getTargetFormat(Queue);
+  return ::jit_compiler::TargetInfo::get(
+      Format, static_cast<::jit_compiler::DeviceArchitecture>(
+                  Queue->getDeviceImplPtr()->getDeviceArch()));
 }
 
 static ::jit_compiler::ParameterKind
@@ -145,33 +148,14 @@ struct PromotionInformation {
   Requirement *Definition;
   NDRDescT NDRange;
   size_t LocalSize;
+  size_t ElemSize;
   std::vector<bool> UsedParams;
 };
 
 using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
 
-static inline void printPerformanceWarning(const std::string &Message) {
-  if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
-    std::cerr << "WARNING: " << Message << "\n";
-  }
-}
-
-template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
-  auto Result = Promotion::None;
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_private>()) {
-    Result = Promotion::Private;
-  }
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_local>()) {
-    if (Result != Promotion::None) {
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Two contradicting promotion properties on the "
-                            "same buffer/accessor are not allowed.");
-    }
-    Result = Promotion::Local;
-  }
-  return Result;
+template <typename Obj> Promotion getPromotionTarget(const Obj &) {
+  return Promotion::None;
 }
 
 static Promotion getInternalizationInfo(Requirement *Req) {
@@ -193,10 +177,17 @@ static Promotion getInternalizationInfo(Requirement *Req) {
   return (AccPromotion != Promotion::None) ? AccPromotion : BuffPromotion;
 }
 
-static std::optional<size_t> getLocalSize(NDRDescT NDRange, Requirement *Req,
-                                          Promotion Target) {
+static std::optional<size_t> getLocalSize(NDRDescT NDRange,
+                                          std::optional<size_t> UserGlobalSize,
+                                          Requirement *Req, Promotion Target) {
+  assert((!UserGlobalSize.has_value() || Target != Promotion::Local) &&
+         "Unexpected range rounding");
   auto NumElementsMem = static_cast<SYCLMemObjT *>(Req->MSYCLMemObj)->size();
   if (Target == Promotion::Private) {
+    if (UserGlobalSize.has_value()) {
+      // Only the first dimension is affected by range rounding.
+      NDRange.GlobalSize[0] = *UserGlobalSize;
+    }
     auto NumWorkItems = NDRange.GlobalSize.size();
     // For private internalization, the local size is
     // (Number of elements in buffer)/(number of work-items)
@@ -227,13 +218,15 @@ static bool accessorEquals(Requirement *Req, Requirement *Other) {
 
 static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
                                    unsigned ArgFunctionIndex, NDRDescT NDRange,
+                                   std::optional<size_t> UserGlobalSize,
                                    PromotionMap &Promotions) {
   assert(Arg.MType == kernel_param_kind_t::kind_accessor);
 
   Requirement *Req = static_cast<Requirement *>(Arg.MPtr);
 
   auto ThisPromotionTarget = getInternalizationInfo(Req);
-  auto ThisLocalSize = getLocalSize(NDRange, Req, ThisPromotionTarget);
+  auto ThisLocalSize =
+      getLocalSize(NDRange, UserGlobalSize, Req, ThisPromotionTarget);
 
   if (Promotions.count(Req->MSYCLMemObj)) {
     // We previously encountered an accessor for the same buffer.
@@ -268,7 +261,7 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
         // Recompute the local size for the previous definition with adapted
         // promotion target.
         auto NewPrevLocalSize =
-            getLocalSize(PreviousDefinition.NDRange,
+            getLocalSize(PreviousDefinition.NDRange, std::nullopt,
                          PreviousDefinition.Definition, Promotion::Local);
 
         if (!NewPrevLocalSize.has_value()) {
@@ -306,7 +299,8 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
 
       if (PreviousDefinition.PromotionTarget == Promotion::Local) {
         // Recompute the local size with adapted promotion target.
-        auto ThisLocalSize = getLocalSize(NDRange, Req, Promotion::Local);
+        auto ThisLocalSize =
+            getLocalSize(NDRange, std::nullopt, Req, Promotion::Local);
         if (!ThisLocalSize.has_value()) {
           printPerformanceWarning("Work-group size for local promotion not "
                                   "specified, not performing internalization");
@@ -360,11 +354,11 @@ static void resolveInternalization(ArgDesc &Arg, unsigned KernelIndex,
       ThisLocalSize = 0;
     }
     assert(ThisLocalSize.has_value());
-    Promotions.emplace(Req->MSYCLMemObj,
-                       PromotionInformation{ThisPromotionTarget, KernelIndex,
-                                            ArgFunctionIndex, Req, NDRange,
-                                            ThisLocalSize.value(),
-                                            std::vector<bool>()});
+    Promotions.emplace(
+        Req->MSYCLMemObj,
+        PromotionInformation{ThisPromotionTarget, KernelIndex, ArgFunctionIndex,
+                             Req, NDRange, ThisLocalSize.value(),
+                             Req->MElemSize, std::vector<bool>()});
   }
 }
 
@@ -407,15 +401,6 @@ detectIdenticalParameter(std::vector<Param> &Params, ArgDesc Arg) {
   return Params.end();
 }
 
-template <typename T, typename F = typename std::remove_const_t<
-                          typename std::remove_reference_t<T>>>
-F *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
-  ArgStorage.emplace_back(sizeof(T));
-  auto Storage = reinterpret_cast<F *>(ArgStorage.back().data());
-  *Storage = Arg;
-  return Storage;
-}
-
 void *storePlainArgRaw(std::vector<std::vector<char>> &ArgStorage, void *ArgPtr,
                        size_t ArgSize) {
   ArgStorage.emplace_back(ArgSize);
@@ -424,13 +409,18 @@ void *storePlainArgRaw(std::vector<std::vector<char>> &ArgStorage, void *ArgPtr,
   return Storage;
 }
 
+template <typename T>
+void *storePlainArg(std::vector<std::vector<char>> &ArgStorage, T &&Arg) {
+  return storePlainArgRaw(ArgStorage, &Arg, sizeof(T));
+}
+
 static ParamIterator preProcessArguments(
     std::vector<std::vector<char>> &ArgStorage, ParamIterator Arg,
     PromotionMap &PromotedAccs,
     std::vector<::jit_compiler::ParameterInternalization> &InternalizeParams,
     std::vector<::jit_compiler::JITConstant> &JITConstants,
     ParamList &NonIdenticalParams,
-    ::jit_compiler::ParamIdentList &ParamIdentities) {
+    std::vector<::jit_compiler::ParameterIdentity> &ParamIdentities) {
 
   // Unused arguments are still in the list at this point (because we
   // need them for accessor handling), but there's not pre-processing
@@ -502,7 +492,7 @@ static ParamIterator preProcessArguments(
             (PromotionTarget == Promotion::Private)
                 ? ::jit_compiler::Internalization::Private
                 : ::jit_compiler::Internalization::Local,
-            Internalization.LocalSize);
+            Internalization.LocalSize, Internalization.ElemSize);
         // If an accessor will be promoted, i.e., if it has the promotion
         // property attached to it, the next three arguments, that are
         // associated with the accessor (access range, memory range, offset),
@@ -581,20 +571,21 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
       // argument is later on passed to the kernel.
       const size_t SizeAccField =
           sizeof(size_t) * (Req->MDims == 0 ? 1 : Req->MDims);
-      // Compute the local size and use it for the range parameters.
-      auto LocalSize = getLocalSize(NDRange, Req,
-                                    (PromotedToPrivate) ? Promotion::Private
-                                                        : Promotion::Local);
-      range<3> AccessRange{1, 1, LocalSize.value()};
-      auto *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
+      // Compute the local size and use it for the range parameters (only
+      // relevant for local promotion).
+      size_t LocalSize = PromotedToLocal ? *getLocalSize(NDRange, std::nullopt,
+                                                         Req, Promotion::Local)
+                                         : 0;
+      range<3> AccessRange{1, 1, LocalSize};
+      void *RangeArg = storePlainArg(FusedArgStorage, AccessRange);
       // Use all-zero as the offset
       id<3> AcessOffset{0, 0, 0};
-      auto *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
+      void *OffsetArg = storePlainArg(FusedArgStorage, AcessOffset);
 
       // Override the arguments.
       // 1. Override the pointer with a std-layout argument with 'nullptr' as
       // value. handler.cpp does the same for local accessors.
-      int SizeInBytes = Req->MElemSize * LocalSize.value();
+      int SizeInBytes = Req->MElemSize * LocalSize;
       FusedArgs[ArgIndex] =
           ArgDesc{kernel_param_kind_t::kind_std_layout, nullptr, SizeInBytes,
                   static_cast<int>(ArgIndex)};
@@ -620,10 +611,116 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
   }
 }
 
+ur_kernel_handle_t jit_compiler::materializeSpecConstants(
+    QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName,
+    const std::vector<unsigned char> &SpecConstBlob) {
+  if (!BinImage) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+  }
+  if (KernelName.empty()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Cannot jit kernel with invalid kernel function name");
+  }
+  auto &PM = detail::ProgramManager::getInstance();
+  if (auto CachedKernel =
+          PM.getCachedMaterializedKernel(KernelName, SpecConstBlob))
+    return CachedKernel;
+
+  auto &RawDeviceImage = BinImage->getRawData();
+  auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
+                                             RawDeviceImage.BinaryStart);
+  // Set 0 as the number of address bits, because the JIT compiler can set this
+  // field based on information from LLVM module's data-layout.
+  auto BinaryImageFormat = translateBinaryImageFormat(BinImage->getFormat());
+  if (BinaryImageFormat == ::jit_compiler::BinaryFormat::INVALID) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+  }
+  ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
+      BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
+
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
+  bool DebugEnabled =
+      detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  auto SetUpOption = [](const std::string &Value) {
+    ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
+    return Option;
+  };
+  ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+  ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
+
+  auto MaterializerResult =
+      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+  if (MaterializerResult.failed()) {
+    std::string Message{"Compilation for kernel failed with message:\n"};
+    Message.append(MaterializerResult.getErrorMessage());
+    if (DebugEnabled) {
+      std::cerr << Message << "\n";
+    }
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
+  }
+
+  auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
+  sycl_device_binary_struct MaterializedRawDeviceImage{RawDeviceImage};
+  MaterializedRawDeviceImage.BinaryStart =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart;
+  MaterializedRawDeviceImage.BinaryEnd =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart +
+      MaterializerKernelInfo.BinaryInfo.BinarySize;
+
+  const bool OrigCacheCfg = SYCLConfig<SYCL_CACHE_IN_MEM>::get();
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "0", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec constel.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+
+  RTDeviceBinaryImage MaterializedRTDevBinImage{&MaterializedRawDeviceImage};
+  const auto &Context = Queue->get_context();
+  const auto &Device = Queue->get_device();
+  auto NewKernel = PM.getOrCreateMaterializedKernel(
+      MaterializedRTDevBinImage, Context, Device, KernelName, SpecConstBlob);
+
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "1", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec const.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+
+  return NewKernel;
+}
+
 std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
-                          const property_list &PropList) {
+                          const property_list &) {
+  if (!isAvailable()) {
+    printPerformanceWarning("JIT library not available");
+    return nullptr;
+  }
+  if (InputKernels.empty()) {
+    printPerformanceWarning("Fusion list is empty");
+    return nullptr;
+  }
+
   // Retrieve the device binary from each of the input
   // kernels to hand them over to the JIT compiler.
   std::vector<::jit_compiler::SYCLKernelInfo> InputKernelInfo;
@@ -636,17 +733,16 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
-  // TODO(Lukas, ONNX-399): Collect information about streams and auxiliary
-  // resources (which contain reductions) and figure out how to fuse them.
+  // TODO: Collect information about streams and figure out how
+  // to fuse them.
   for (auto &RawCmd : InputKernels) {
     auto *KernelCmd = static_cast<ExecCGCommand *>(RawCmd);
     auto &CG = KernelCmd->getCG();
-    assert(CG.getType() == CG::Kernel);
+    assert(KernelCmd->isFusable());
     auto *KernelCG = static_cast<CGExecKernel *>(&CG);
 
     auto KernelName = KernelCG->MKernelName;
@@ -656,8 +752,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
 
-    auto [DeviceImage, Program] = retrieveKernelBinary(Queue, KernelCG);
-
+    auto [DeviceImage, Program] =
+        retrieveKernelBinary(Queue, KernelName.c_str(), KernelCG);
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
@@ -679,19 +775,44 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return A.MIndex < B.MIndex;
     });
 
-    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor;
+    // Determine whether the kernel has been subject to DPCPP's range rounding.
+    // If so, the first argument will be the original ("user") range.
+    std::optional<size_t> UserGlobalSize;
+    if ((KernelName.find("_ZTSN4sycl3_V16detail18RoundedRangeKernel") == 0 ||
+         KernelName.find("_ZTSN4sycl3_V16detail19__pf_kernel_wrapper") == 0) &&
+        !Args.empty()) {
+      auto &A0 = Args[0];
+      [[maybe_unused]] auto Dims = KernelCG->MNDRDesc.Dims;
+      assert(A0.MPtr && A0.MSize == static_cast<int>(Dims * sizeof(size_t)) &&
+             A0.MType == kernel_param_kind_t::kind_std_layout &&
+             "Unexpected signature for rounded range kernel");
+
+      size_t *UGS = reinterpret_cast<size_t *>(A0.MPtr);
+      // Range-rounding only applies to the first dimension.
+      assert(UGS[0] > KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 2 || UGS[1] == KernelCG->MNDRDesc.GlobalSize[1]);
+      assert(Dims < 3 || UGS[2] == KernelCG->MNDRDesc.GlobalSize[2]);
+      UserGlobalSize = UGS[0];
+    }
+
+    ::jit_compiler::SYCLArgumentDescriptor ArgDescriptor{Args.size()};
     size_t ArgIndex = 0;
     // The kernel function in SPIR-V will only have the non-eliminated
     // arguments, so keep track of this "actual" argument index.
     unsigned ArgFunctionIndex = 0;
+    auto KindIt = ArgDescriptor.Kinds.begin();
+    auto UsageMaskIt = ArgDescriptor.UsageMask.begin();
     for (auto &Arg : Args) {
-      ArgDescriptor.Kinds.push_back(translateArgType(Arg.MType));
+      *KindIt = translateArgType(Arg.MType);
+      ++KindIt;
+
       // DPC++ internally uses 'true' to indicate that an argument has been
       // eliminated, while the JIT compiler uses 'true' to indicate an
       // argument is used. Translate this here.
       bool Eliminated = EliminatedArgs && !EliminatedArgs->empty() &&
                         (*EliminatedArgs)[ArgIndex++];
-      ArgDescriptor.UsageMask.emplace_back(!Eliminated);
+      *UsageMaskIt = !Eliminated;
+      ++UsageMaskIt;
 
       // If the argument has not been eliminated, i.e., is still present on
       // the kernel function in LLVM-IR/SPIR-V, collect information about the
@@ -699,7 +820,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       if (!Eliminated) {
         if (Arg.MType == kernel_param_kind_t::kind_accessor) {
           resolveInternalization(Arg, KernelIndex, ArgFunctionIndex,
-                                 KernelCG->MNDRDesc, PromotedAccs);
+                                 KernelCG->MNDRDesc, UserGlobalSize,
+                                 PromotedAccs);
         }
         FusedParams.emplace_back(Arg, KernelIndex, ArgFunctionIndex, true);
         ++ArgFunctionIndex;
@@ -708,8 +830,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       }
     }
 
-    // TODO(Lukas, ONNX-399): Check for the correct kernel bundle state of the
-    // device image?
+    // TODO: Check for the correct kernel bundle state of the device image?
     auto &RawDeviceImage = DeviceImage->getRawData();
     auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
                                                RawDeviceImage.BinaryStart);
@@ -736,9 +857,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
         SYCLTypeToIndices(CurrentNDR.GlobalOffset)};
 
     Ranges.push_back(JITCompilerNDR);
-    InputKernelInfo.emplace_back(KernelName, ArgDescriptor, JITCompilerNDR,
-                                 BinInfo);
-    InputKernelNames.push_back(KernelName);
+    InputKernelInfo.emplace_back(KernelName.c_str(), ArgDescriptor,
+                                 JITCompilerNDR, BinInfo);
 
     // Collect information for the fused kernel
 
@@ -752,8 +872,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       // Not all overloads of parallel_for_work_group only specify the number of
       // work-groups, so the above mechanism might not detect all hierarchical
       // parallelism.
-      // TODO(Lukas, CRD-6): Find a more reliable way to detect hierarchical
-      // parallelism.
+      // TODO: Find a more reliable way to detect hierarchical parallelism.
     }
 
     // We need to copy the storages here. The input CGs might be eliminated
@@ -764,9 +883,9 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
                        KernelCG->getArgsStorage().end());
     AccStorage.insert(AccStorage.end(), KernelCG->getAccStorage().begin(),
                       KernelCG->getAccStorage().end());
-    // TODO(Lukas, ONNX-399): Does the MSharedPtrStorage contain any
-    // information about actual shared pointers beside the kernel bundle and
-    // handler impl? If yes, we might need to copy it here.
+    // TODO: Does the MSharedPtrStorage contain any information about actual
+    // shared pointers beside the kernel bundle and handler impl? If yes, we
+    // might need to copy it here.
     Requirements.insert(Requirements.end(), KernelCG->getRequirements().begin(),
                         KernelCG->getRequirements().end());
     Events.insert(Events.end(), KernelCG->getEvents().begin(),
@@ -777,7 +896,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     if (KernelIndex == 0) {
       KernelCacheConfig = KernelCG->MKernelCacheConfig;
     } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
-      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+      KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
     }
 
     ++KernelIndex;
@@ -787,38 +906,36 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // can be constant-propagated by the JIT compiler.
   std::vector<::jit_compiler::ParameterInternalization> InternalizeParams;
   std::vector<::jit_compiler::JITConstant> JITConstants;
-  ::jit_compiler::ParamIdentList ParamIdentities;
+  std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
-  for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
-    PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, InternalizeParams,
+  for (auto UR = FusedParams.begin(); UR != FusedParams.end();) {
+    UR = preProcessArguments(ArgsStorage, UR, PromotedAccs, InternalizeParams,
                              JITConstants, NonIdenticalParameters,
                              ParamIdentities);
   }
 
   // Retrieve barrier flags.
-  int BarrierFlags =
-      (PropList
-           .has_property<ext::codeplay::experimental::property::no_barriers>())
-          ? -1
-          : 3;
+  ::jit_compiler::BarrierFlags BarrierFlags =
+      ::jit_compiler::getLocalAndGlobalBarrierFlag();
 
   static size_t FusedKernelNameIndex = 0;
-  std::stringstream FusedKernelName;
-  FusedKernelName << "fused_" << FusedKernelNameIndex++;
-  ::jit_compiler::Config JITConfig;
+  auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
+  ResetConfigHandle();
   bool DebugEnabled =
       detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
-  JITConfig.set<::jit_compiler::option::JITEnableVerbose>(DebugEnabled);
-  JITConfig.set<::jit_compiler::option::JITEnableCaching>(
-      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get());
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  AddToConfigHandle(::jit_compiler::option::JITEnableCaching::set(
+      detail::SYCLConfig<detail::SYCL_ENABLE_FUSION_CACHING>::get()));
 
-  ::jit_compiler::BinaryFormat TargetFormat = getTargetFormat(Queue);
-  JITConfig.set<::jit_compiler::option::JITTargetFormat>(TargetFormat);
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  ::jit_compiler::BinaryFormat TargetFormat = TargetInfo.getFormat();
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
 
-  auto FusionResult = ::jit_compiler::KernelFusion::fuseKernels(
-      *MJITContext, std::move(JITConfig), InputKernelInfo, InputKernelNames,
-      FusedKernelName.str(), ParamIdentities, BarrierFlags, InternalizeParams,
-      JITConstants);
+  auto FusionResult = FuseKernelsHandle(
+      InputKernelInfo, FusedKernelName.c_str(), ParamIdentities, BarrierFlags,
+      InternalizeParams, JITConstants);
 
   if (FusionResult.failed()) {
     if (DebugEnabled) {
@@ -830,6 +947,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   }
 
   auto &FusedKernelInfo = FusionResult.getKernelInfo();
+  std::string FusedOrCachedKernelName{FusedKernelInfo.Name.c_str()};
 
   std::vector<ArgDesc> FusedArgs;
   int FusedArgIndex = 0;
@@ -866,7 +984,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   // Create a kernel bundle for the fused kernel.
   // Kernel bundles are stored in the CG as one of the "extended" members.
   auto FusedKernelId = detail::ProgramManager::getInstance().getSYCLKernelID(
-      FusedKernelInfo.Name);
+      FusedOrCachedKernelName);
 
   std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr;
   if (TargetFormat == ::jit_compiler::BinaryFormat::SPIRV) {
@@ -877,28 +995,34 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::unique_ptr<detail::CG> FusedCG;
   FusedCG.reset(new detail::CGExecKernel(
       NDRDesc, nullptr, nullptr, std::move(KernelBundleImplPtr),
-      std::move(CGData), std::move(FusedArgs), FusedKernelInfo.Name, {}, {},
-      CG::CGTYPE::Kernel, KernelCacheConfig));
+      std::move(CGData), std::move(FusedArgs), FusedOrCachedKernelName, {}, {},
+      CGType::Kernel, KernelCacheConfig, false /* KernelIsCooperative */,
+      false /* KernelUsesClusterLaunch*/));
   return FusedCG;
 }
 
-pi_device_binaries jit_compiler::createPIDeviceBinary(
+sycl_device_binaries jit_compiler::createPIDeviceBinary(
     const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
     ::jit_compiler::BinaryFormat Format) {
 
   const char *TargetSpec = nullptr;
-  pi_device_binary_type BinFormat = PI_DEVICE_BINARY_TYPE_NATIVE;
+  sycl_device_binary_type BinFormat = SYCL_DEVICE_BINARY_TYPE_NATIVE;
   switch (Format) {
   case ::jit_compiler::BinaryFormat::PTX: {
-    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
-    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    TargetSpec = __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
+    break;
+  }
+  case ::jit_compiler::BinaryFormat::AMDGCN: {
+    TargetSpec = __SYCL_DEVICE_BINARY_TARGET_AMDGCN;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
     break;
   }
   case ::jit_compiler::BinaryFormat::SPIRV: {
     TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
-                     ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
-                     : __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32;
-    BinFormat = PI_DEVICE_BINARY_TYPE_SPIRV;
+                     ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                     : __SYCL_DEVICE_BINARY_TARGET_SPIRV32;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_SPIRV;
     break;
   }
   default:
@@ -906,50 +1030,60 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
                     "Invalid output format");
   }
 
+  std::string FusedKernelName{FusedKernelInfo.Name.c_str()};
   DeviceBinaryContainer Binary;
 
   // Create an offload entry for the fused kernel.
   // It seems to be OK to set zero for most of the information here, at least
   // that is the case for compiled SPIR-V binaries.
-  OffloadEntryContainer Entry{FusedKernelInfo.Name, nullptr, 0, 0, 0};
+  OffloadEntryContainer Entry{FusedKernelName, nullptr, 0, 0, 0};
   Binary.addOffloadEntry(std::move(Entry));
 
   // Create a property entry for the argument usage mask for the fused kernel.
   auto ArgMask = encodeArgUsageMask(FusedKernelInfo.Args.UsageMask);
-  PropertyContainer ArgMaskProp{FusedKernelInfo.Name, ArgMask.data(),
-                                ArgMask.size(),
-                                pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PropertyContainer ArgMaskProp{
+      FusedKernelName, ArgMask.data(), ArgMask.size(),
+      sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   // Create a property set for the argument usage masks of all kernels
   // (currently only one).
   PropertySetContainer ArgMaskPropSet{
-      __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
+      __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
 
   ArgMaskPropSet.addProperty(std::move(ArgMaskProp));
 
   Binary.addProperty(std::move(ArgMaskPropSet));
 
-  if (Format == ::jit_compiler::BinaryFormat::PTX) {
+  if (Format == ::jit_compiler::BinaryFormat::PTX ||
+      Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
-    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
         FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
         [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
-          return Attr.AttributeName == "reqd_work_group_size";
+          return Attr.Kind == ::jit_compiler::SYCLKernelAttribute::AttrKind::
+                                  ReqdWorkGroupSize;
         });
     if (ReqdWGS != FusedKernelInfo.Attributes.end()) {
       auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
       std::stringstream PropName;
-      PropName << FusedKernelInfo.Name;
-      PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+      PropName << FusedKernelInfo.Name.c_str();
+      PropName << __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
       PropertyContainer ReqdWorkGroupSizeProp{
           PropName.str(), Encoded.data(), Encoded.size(),
-          pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+          sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY};
       PropertySetContainer ProgramMetadata{
-          __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+          __SYCL_PROPERTY_SET_PROGRAM_METADATA};
       ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
       Binary.addProperty(std::move(ProgramMetadata));
     }
+  }
+  if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
+    PropertyContainer NeedFinalization{
+        __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
+    PropertySetContainer ProgramMetadata{__SYCL_PROPERTY_SET_PROGRAM_METADATA};
+    ProgramMetadata.addProperty(std::move(NeedFinalization));
+    Binary.addProperty(std::move(ProgramMetadata));
   }
 
   DeviceBinariesCollection Collection;
@@ -993,15 +1127,16 @@ std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
 
 std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
     const ::jit_compiler::SYCLKernelAttribute &Attr) const {
-  assert(Attr.AttributeName == "reqd_work_group_size");
+  assert(Attr.Kind ==
+         ::jit_compiler::SYCLKernelAttribute::AttrKind::ReqdWorkGroupSize);
   size_t NumBytes = sizeof(uint64_t) + (Attr.Values.size() * sizeof(uint32_t));
   std::vector<uint8_t> Encoded(NumBytes, 0u);
   uint8_t *Ptr = Encoded.data();
   // Skip 64-bit wide size argument with value 0 at the start of the data.
-  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
   Ptr += sizeof(uint64_t);
   for (const auto &Val : Attr.Values) {
-    uint32_t UVal = std::stoul(Val);
+    auto UVal = static_cast<uint32_t>(Val);
     std::memcpy(Ptr, &UVal, sizeof(uint32_t));
     Ptr += sizeof(uint32_t);
   }
@@ -1009,7 +1144,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE

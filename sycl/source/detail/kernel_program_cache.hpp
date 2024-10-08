@@ -8,25 +8,28 @@
 
 #pragma once
 
+#include "sycl/exception.hpp"
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/locked.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 
 #include <atomic>
 #include <condition_variable>
-#include <map>
 #include <mutex>
 #include <type_traits>
+
+#include <boost/unordered/unordered_flat_map.hpp>
+#include <boost/unordered_map.hpp>
 
 // For testing purposes
 class MockKernelProgramCache;
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class context_impl;
 class KernelProgramCache {
@@ -35,23 +38,22 @@ public:
   /// class instance.
   struct BuildError {
     std::string Msg;
-    pi_int32 Code;
+    int32_t Code;
 
     bool isFilledIn() const { return !Msg.empty(); }
   };
 
   /// Denotes the state of a build.
-  enum BuildState { BS_InProgress, BS_Done, BS_Failed };
+  enum class BuildState { BS_Initial, BS_InProgress, BS_Done, BS_Failed };
 
   /// Denotes pointer to some entity with its general state and build error.
   /// The pointer is not null if and only if the entity is usable.
   /// State of the entity is provided by the user of cache instance.
   /// Currently there is only a single user - ProgramManager class.
   template <typename T> struct BuildResult {
-    std::atomic<T *> Ptr;
     T Val;
-    std::atomic<BuildState> State;
-    BuildError Error;
+    std::atomic<BuildState> State{BuildState::BS_Initial};
+    BuildError Error{"", 0};
 
     /// Condition variable to signal that build result is ready.
     /// A per-object (i.e. kernel or program) condition variable is employed
@@ -67,19 +69,62 @@ public:
     /// A mutex to be employed along with MBuildCV.
     std::mutex MBuildResultMutex;
 
-    BuildResult(T *P, BuildState S) : Ptr{P}, State{S}, Error{"", 0} {}
+    BuildState
+    waitUntilTransition(BuildState From = BuildState::BS_InProgress) {
+      BuildState To;
+      std::unique_lock<std::mutex> Lock(MBuildResultMutex);
+      MBuildCV.wait(Lock, [&] {
+        To = State;
+        return State != From;
+      });
+      return To;
+    }
+
+    void updateAndNotify(BuildState DesiredState) {
+      {
+        std::lock_guard<std::mutex> Lock(MBuildResultMutex);
+        State.store(DesiredState);
+      }
+      MBuildCV.notify_all();
+    }
   };
 
-  using ProgramWithBuildStateT = BuildResult<sycl::detail::pi::PiProgram>;
+  struct ProgramBuildResult : public BuildResult<ur_program_handle_t> {
+    AdapterPtr Adapter;
+    ProgramBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+      Val = nullptr;
+    }
+    ProgramBuildResult(const AdapterPtr &Adapter, BuildState InitialState)
+        : Adapter(Adapter) {
+      Val = nullptr;
+      this->State.store(InitialState);
+    }
+    ~ProgramBuildResult() {
+      try {
+        if (Val) {
+          ur_result_t Err =
+              Adapter->call_nocheck<UrApiKind::urProgramRelease>(Val);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+        }
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~ProgramBuildResult",
+                                          e);
+      }
+    }
+  };
+  using ProgramBuildResultPtr = std::shared_ptr<ProgramBuildResult>;
+
+  /* Drop LinkOptions and CompileOptions from CacheKey since they are only used
+   * when debugging environment variables are set and we can just ignore them
+   * since all kernels will have their build options overridden with the same
+   * string*/
   using ProgramCacheKeyT =
-      std::pair<std::pair<SerializedObj, std::uintptr_t>,
-                std::pair<sycl::detail::pi::PiDevice, std::string>>;
-  using CommonProgramKeyT =
-      std::pair<std::uintptr_t, sycl::detail::pi::PiDevice>;
+      std::pair<std::pair<SerializedObj, std::uintptr_t>, ur_device_handle_t>;
+  using CommonProgramKeyT = std::pair<std::uintptr_t, ur_device_handle_t>;
 
   struct ProgramCache {
-    std::map<ProgramCacheKeyT, ProgramWithBuildStateT> Cache;
-    std::multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
+    ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
 
     size_t size() const noexcept { return Cache.size(); }
   };
@@ -87,19 +132,45 @@ public:
   using ContextPtr = context_impl *;
 
   using KernelArgMaskPairT =
-      std::pair<sycl::detail::pi::PiKernel, const KernelArgMask *>;
-  using KernelByNameT = std::map<std::string, BuildResult<KernelArgMaskPairT>>;
-  using KernelCacheT = std::map<sycl::detail::pi::PiProgram, KernelByNameT>;
+      std::pair<ur_kernel_handle_t, const KernelArgMask *>;
+  struct KernelBuildResult : public BuildResult<KernelArgMaskPairT> {
+    AdapterPtr Adapter;
+    KernelBuildResult(const AdapterPtr &Adapter) : Adapter(Adapter) {
+      Val.first = nullptr;
+    }
+    ~KernelBuildResult() {
+      try {
+        if (Val.first) {
+          ur_result_t Err =
+              Adapter->call_nocheck<UrApiKind::urKernelRelease>(Val.first);
+          __SYCL_CHECK_UR_CODE_NO_EXC(Err);
+        }
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~KernelBuildResult", e);
+      }
+    }
+  };
+  using KernelBuildResultPtr = std::shared_ptr<KernelBuildResult>;
+
+  using KernelByNameT =
+      ::boost::unordered_map<std::string, KernelBuildResultPtr>;
+  using KernelCacheT =
+      ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, sycl::detail::pi::PiDevice, std::string,
-                 std::string>;
+      std::tuple<SerializedObj, ur_device_handle_t, std::string, std::string>;
   using KernelFastCacheValT =
-      std::tuple<sycl::detail::pi::PiKernel, std::mutex *,
-                 const KernelArgMask *, sycl::detail::pi::PiProgram>;
-  using KernelFastCacheT = std::map<KernelFastCacheKeyT, KernelFastCacheValT>;
+      std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
+                 ur_program_handle_t>;
+  // This container is used as a fast path for retrieving cached kernels.
+  // unordered_flat_map is used here to reduce lookup overhead.
+  // The slow path is used only once for each newly created kernel, so the
+  // higher overhead of insertion that comes with unordered_flat_map is more
+  // of an issue there. For that reason, those use regular unordered maps.
+  using KernelFastCacheT =
+      ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
-  ~KernelProgramCache();
+  ~KernelProgramCache() = default;
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
@@ -111,61 +182,52 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  std::pair<ProgramWithBuildStateT *, bool>
+  std::pair<ProgramBuildResultPtr, bool>
   getOrInsertProgram(const ProgramCacheKeyT &CacheKey) {
     auto LockedCache = acquireCachedPrograms();
     auto &ProgCache = LockedCache.get();
-    auto Inserted = ProgCache.Cache.emplace(
-        std::piecewise_construct, std::forward_as_tuple(CacheKey),
-        std::forward_as_tuple(nullptr, BS_InProgress));
-    if (Inserted.second) {
+    auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
+    if (DidInsert) {
+      It->second = std::make_shared<ProgramBuildResult>(getAdapter());
       // Save reference between the common key and the full key.
       CommonProgramKeyT CommonKey =
-          std::make_pair(CacheKey.first.second, CacheKey.second.first);
-      ProgCache.KeyMap.emplace(std::piecewise_construct,
-                               std::forward_as_tuple(CommonKey),
-                               std::forward_as_tuple(CacheKey));
+          std::make_pair(CacheKey.first.second, CacheKey.second);
+      ProgCache.KeyMap.emplace(CommonKey, CacheKey);
     }
-    return std::make_pair(&Inserted.first->second, Inserted.second);
+    return std::make_pair(It->second, DidInsert);
   }
 
-  std::pair<BuildResult<KernelArgMaskPairT> *, bool>
-  getOrInsertKernel(sycl::detail::pi::PiProgram Program,
+  // Used in situation where you have several cache keys corresponding to the
+  // same program. An example would be a multi-device build, or use of virtual
+  // functions in kernels.
+  //
+  // Returns whether or not an insertion took place.
+  bool insertBuiltProgram(const ProgramCacheKeyT &CacheKey,
+                          ur_program_handle_t Program) {
+    auto LockedCache = acquireCachedPrograms();
+    auto &ProgCache = LockedCache.get();
+    auto [It, DidInsert] = ProgCache.Cache.try_emplace(CacheKey, nullptr);
+    if (DidInsert) {
+      It->second = std::make_shared<ProgramBuildResult>(getAdapter(),
+                                                        BuildState::BS_Done);
+      It->second->Val = Program;
+      // Save reference between the common key and the full key.
+      CommonProgramKeyT CommonKey =
+          std::make_pair(CacheKey.first.second, CacheKey.second);
+      ProgCache.KeyMap.emplace(CommonKey, CacheKey);
+    }
+    return DidInsert;
+  }
+
+  std::pair<KernelBuildResultPtr, bool>
+  getOrInsertKernel(ur_program_handle_t Program,
                     const std::string &KernelName) {
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
-    auto Inserted = Cache.emplace(
-        std::piecewise_construct, std::forward_as_tuple(KernelName),
-        std::forward_as_tuple(nullptr, BS_InProgress));
-    return std::make_pair(&Inserted.first->second, Inserted.second);
-  }
-
-  template <typename T, class Predicate>
-  void waitUntilBuilt(BuildResult<T> &BR, Predicate Pred) const {
-    std::unique_lock<std::mutex> Lock(BR.MBuildResultMutex);
-
-    BR.MBuildCV.wait(Lock, Pred);
-  }
-
-  template <typename ExceptionT, typename RetT>
-  RetT *waitUntilBuilt(BuildResult<RetT> *BuildResult) {
-    // Any thread which will find nullptr in cache will wait until the pointer
-    // is not null anymore.
-    waitUntilBuilt(*BuildResult, [BuildResult]() {
-      int State = BuildResult->State.load();
-      return State == BuildState::BS_Done || State == BuildState::BS_Failed;
-    });
-
-    if (BuildResult->Error.isFilledIn()) {
-      const BuildError &Error = BuildResult->Error;
-      throw ExceptionT(Error.Msg, Error.Code);
-    }
-
-    return BuildResult->Ptr.load();
-  }
-
-  template <typename T> void notifyAllBuild(BuildResult<T> &BR) const {
-    BR.MBuildCV.notify_all();
+    auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
+    if (DidInsert)
+      It->second = std::make_shared<KernelBuildResult>(getAdapter());
+    return std::make_pair(It->second, DidInsert);
   }
 
   template <typename KeyT>
@@ -190,9 +252,97 @@ public:
   ///
   /// This member function should only be used in unit tests.
   void reset() {
+    std::lock_guard<std::mutex> L1(MProgramCacheMutex);
+    std::lock_guard<std::mutex> L2(MKernelsPerProgramCacheMutex);
+    std::lock_guard<std::mutex> L3(MKernelFastCacheMutex);
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
+  }
+
+  /// Try to fetch entity (kernel or program) from cache. If there is no such
+  /// entity try to build it. Throw any exception build process may throw.
+  /// This method eliminates unwanted builds by employing atomic variable with
+  /// build state and waiting until the entity is built in another thread.
+  /// If the building thread has failed the awaiting thread will fail either.
+  /// Exception thrown by build procedure are rethrown.
+  ///
+  /// \tparam RetT type of entity to get
+  /// \tparam Errc error code of exception to throw on awaiting thread if the
+  ///         building thread fails build step.
+  /// \tparam KeyT key (in cache) to fetch built entity with
+  /// \tparam AcquireFT type of function which will acquire the locked version
+  /// of
+  ///         the cache. Accept reference to KernelProgramCache.
+  /// \tparam GetCacheFT type of function which will fetch proper cache from
+  ///         locked version. Accepts reference to locked version of cache.
+  /// \tparam BuildFT type of function which will build the entity if it is not
+  /// in
+  ///         cache. Accepts nothing. Return pointer to built entity.
+  ///
+  /// \return a pointer to cached build result, return value must not be
+  /// nullptr.
+  template <errc Errc, typename GetCachedBuildFT, typename BuildFT>
+  auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build) {
+    using BuildState = KernelProgramCache::BuildState;
+    constexpr size_t MaxAttempts = 2;
+    for (size_t AttemptCounter = 0;; ++AttemptCounter) {
+      auto Res = GetCachedBuild();
+      auto &BuildResult = Res.first;
+      BuildState Expected = BuildState::BS_Initial;
+      BuildState Desired = BuildState::BS_InProgress;
+      if (!BuildResult->State.compare_exchange_strong(Expected, Desired)) {
+        // no insertion took place, thus some other thread has already inserted
+        // smth in the cache
+        BuildState NewState = BuildResult->waitUntilTransition();
+
+        // Build succeeded.
+        if (NewState == BuildState::BS_Done)
+          return BuildResult;
+
+        // Build failed, or this is the last attempt.
+        if (NewState == BuildState::BS_Failed ||
+            AttemptCounter + 1 == MaxAttempts) {
+          if (BuildResult->Error.isFilledIn())
+            throw detail::set_ur_error(
+                exception(make_error_code(Errc), BuildResult->Error.Msg),
+                BuildResult->Error.Code);
+          else
+            throw exception();
+        }
+
+        // NewState == BuildState::BS_Initial
+        // Build state was set back to the initial state,
+        // which means to go back to the beginning of the
+        // loop and try again.
+        continue;
+      }
+
+      // only the building thread will run this
+      try {
+        BuildResult->Val = Build();
+
+        BuildResult->updateAndNotify(BuildState::BS_Done);
+        return BuildResult;
+      } catch (const exception &Ex) {
+        BuildResult->Error.Msg = Ex.what();
+        BuildResult->Error.Code = detail::get_ur_error(Ex);
+        if (Ex.code() == errc::memory_allocation ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY ||
+            BuildResult->Error.Code == UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY) {
+          reset();
+          BuildResult->updateAndNotify(BuildState::BS_Initial);
+          continue;
+        }
+
+        BuildResult->updateAndNotify(BuildState::BS_Failed);
+        std::rethrow_exception(std::current_exception());
+      } catch (...) {
+        BuildResult->updateAndNotify(BuildState::BS_Initial);
+        std::rethrow_exception(std::current_exception());
+      }
+    }
   }
 
 private:
@@ -206,7 +356,9 @@ private:
   std::mutex MKernelFastCacheMutex;
   KernelFastCacheT MKernelFastCache;
   friend class ::MockKernelProgramCache;
+
+  const AdapterPtr &getAdapter();
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

@@ -5,14 +5,18 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #pragma once
 
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
+
+#ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/defines.hpp>
+#include <type_traits>
+#endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace access {
 
 enum class target {
@@ -56,7 +60,12 @@ enum class address_space : int {
   generic_space = 6, // TODO generic_space address space is not supported yet
 };
 
-enum class decorated : int { no = 0, yes = 1, legacy = 2 };
+enum class decorated : int {
+  no = 0,
+  yes = 1,
+  legacy __SYCL2020_DEPRECATED("sycl::access::decorated::legacy "
+                               "is deprecated since SYCL 2020") = 2
+};
 } // namespace access
 
 using access::target;
@@ -247,10 +256,44 @@ struct deduce_AS
 };
 #endif
 
+template <typename T> struct remove_decoration_impl {
+  using type = T;
+};
+
+#ifdef __SYCL_DEVICE_ONLY__
+template <typename T> struct remove_decoration_impl<__OPENCL_GLOBAL_AS__ T> {
+  using type = T;
+};
+
+#ifdef __ENABLE_USM_ADDR_SPACE__
+template <typename T>
+struct remove_decoration_impl<__OPENCL_GLOBAL_DEVICE_AS__ T> {
+  using type = T;
+};
+
+template <typename T>
+struct remove_decoration_impl<__OPENCL_GLOBAL_HOST_AS__ T> {
+  using type = T;
+};
+
+#endif // __ENABLE_USM_ADDR_SPACE__
+
+template <typename T> struct remove_decoration_impl<__OPENCL_PRIVATE_AS__ T> {
+  using type = T;
+};
+
+template <typename T> struct remove_decoration_impl<__OPENCL_LOCAL_AS__ T> {
+  using type = T;
+};
+
+template <typename T> struct remove_decoration_impl<__OPENCL_CONSTANT_AS__ T> {
+  using type = T;
+};
+#endif // __SYCL_DEVICE_ONLY__
 } // namespace detail
 
 template <typename T> struct remove_decoration {
-  using type = T;
+  using type = typename detail::remove_decoration_impl<T>::type;
 };
 
 // Propagate through const qualifier.
@@ -278,35 +321,6 @@ template <typename T> struct remove_decoration<const T &> {
   using type = const typename remove_decoration<T>::type &;
 };
 
-#ifdef __SYCL_DEVICE_ONLY__
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_AS__ T> {
-  using type = T;
-};
-
-#ifdef __ENABLE_USM_ADDR_SPACE__
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_DEVICE_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_GLOBAL_HOST_AS__ T> {
-  using type = T;
-};
-
-#endif // __ENABLE_USM_ADDR_SPACE__
-
-template <typename T> struct remove_decoration<__OPENCL_PRIVATE_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_LOCAL_AS__ T> {
-  using type = T;
-};
-
-template <typename T> struct remove_decoration<__OPENCL_CONSTANT_AS__ T> {
-  using type = T;
-};
-#endif // __SYCL_DEVICE_ONLY__
-
 template <typename T>
 using remove_decoration_t = typename remove_decoration<T>::type;
 
@@ -318,7 +332,7 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
   constexpr access::address_space ToAS = deduce_AS<ToT>::value;
   constexpr access::address_space FromAS = deduce_AS<FromT>::value;
   if constexpr (FromAS == access::address_space::generic_space) {
-#if defined(__NVPTX__) || defined(__AMDGCN__)
+#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__SYCL_NATIVE_CPU__)
     // TODO: NVPTX and AMDGCN backends do not currently support the
     //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
     //       we do C-style casting. This may produce warnings when targetting
@@ -372,5 +386,5 @@ template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
 #undef __OPENCL_CONSTANT_AS__
 #undef __OPENCL_PRIVATE_AS__
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

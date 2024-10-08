@@ -10,13 +10,12 @@
 // decomposition without pivoting. The program contains multiple branches
 // corresponding to LU input sizes; all internal functions are inlined.
 //
-#include <iostream>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+
+#include "../../esimd_test_utils.hpp"
 
 #define ABS(x) ((x) >= 0 ? (x) : -(x))
 #define MIN(x, y) ((x) <= (y) ? (x) : (y))
@@ -445,7 +444,8 @@ void dgetrfnp_batch_strided_c(int64_t m, int64_t n, double *a, int64_t lda,
                               int64_t *info);
 
 int main(int argc, char *argv[]) {
-  queue queue((gpu_selector()));
+  queue queue(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
+  esimd_test::printTestLabel(queue);
 
   if (!queue.get_device().has(aspect::fp64))
     return 0;

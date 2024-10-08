@@ -18,7 +18,7 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 using bfloat16 = sycl::ext::oneapi::bfloat16;
@@ -30,8 +30,8 @@ template <> struct element_type_traits<bfloat16> {
   // operations to:
   using EnclosingCppT = float;
   // Can't map bfloat16 operations to opertations on RawT:
-  static inline constexpr bool use_native_cpp_ops = false;
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool use_native_cpp_ops = false;
+  static constexpr bool is_floating_point = true;
 };
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -55,12 +55,7 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
     // cast from _Float16 to int16_t:
     return sycl::bit_cast<vector_type_t<RawT, N>>(ConvVal);
 #else
-    vector_type_t<RawT, N> Output = 0;
-
-    for (int i = 0; i < N; i++) {
-      Output[i] = sycl::bit_cast<RawT>(static_cast<bfloat16>(Val[i]));
-    }
-    return Output;
+    __ESIMD_UNSUPPORTED_ON_HOST;
 #endif // __SYCL_DEVICE_ONLY__
   }
 
@@ -71,12 +66,7 @@ template <int N> struct vector_conversion_traits<bfloat16, N> {
     RawVecT Bits = sycl::bit_cast<RawVecT>(Val);
     return __esimd_bf_cvt<StdT, vc_be_bfloat16_raw_t, N>(Bits);
 #else
-    vector_type_t<StdT, N> Output;
-
-    for (int i = 0; i < N; i++) {
-      Output[i] = sycl::bit_cast<bfloat16>(Val[i]);
-    }
-    return Output;
+    __ESIMD_UNSUPPORTED_ON_HOST;
 #endif // __SYCL_DEVICE_ONLY__
   }
 };
@@ -104,8 +94,10 @@ inline std::ostream &operator<<(std::ostream &O, bfloat16 const &rhs) {
   return O;
 }
 
+template <> struct is_esimd_arithmetic_type<bfloat16, void> : std::true_type {};
+
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

@@ -1,8 +1,8 @@
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
-; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_bit_instructions -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_bit_instructions %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; CHECK-SPIRV: 4 TypeInt [[int:[0-9]+]] 32
 ; CHECK-SPIRV: 4 BitReverse [[int]]
@@ -13,10 +13,10 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: convergent nounwind writeonly
-define spir_kernel void @testBitRev(i32 %a, i32 %b, i32 %c, i32 addrspace(1)* nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
+define spir_kernel void @testBitRev(i32 %a, i32 %b, i32 %c, ptr addrspace(1) nocapture %res) local_unnamed_addr #0 !kernel_arg_addr_space !3 !kernel_arg_access_qual !4 !kernel_arg_type !5 !kernel_arg_base_type !5 !kernel_arg_type_qual !6 {
 entry:
   %call = tail call i32 @llvm.bitreverse.i32(i32 %b)
-  store i32 %call, i32 addrspace(1)* %res, align 4, !tbaa !7
+  store i32 %call, ptr addrspace(1) %res, align 4, !tbaa !7
   ret void
 }
 

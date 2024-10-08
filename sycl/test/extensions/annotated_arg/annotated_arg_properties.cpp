@@ -1,9 +1,11 @@
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fsyntax-only -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 // expected-no-diagnostics
 
-#include <sycl/sycl.hpp>
+#include "sycl/sycl.hpp"
+#include <sycl/ext/intel/fpga_extensions.hpp>
 
 using namespace sycl::ext::oneapi::experimental;
+using namespace sycl::ext::intel::experimental;
 
 static annotated_arg<int, decltype(properties())> AnnotatedArg1;
 static annotated_arg<int, decltype(properties(register_map))> AnnotatedArg2;
@@ -44,15 +46,6 @@ template <typename T> void checkIsPropertyOf() {
       is_property_value_of<decltype(wait_request_requested), T>::value);
 }
 
-// Checks is_property_key_of and is_property_value_of are false for non-pointer
-// type T.
-template <typename T> void checkIsValidPropertyOfNonPtr() {
-  static_assert(
-      is_valid_property<T, decltype(wait_request_not_requested)>::value ==
-      false);
-  static_assert(is_valid_property<T, decltype(latency<8>)>::value == false);
-}
-
 int main() {
   static_assert(is_property_key<register_map_key>::value);
   static_assert(is_property_key<buffer_location_key>::value);
@@ -88,7 +81,5 @@ int main() {
   static_assert(AnnotatedArg4.get_property<read_write_mode_key>() ==
                 read_write_mode_read);
 
-  // Check if a property is valid for a given type
-  checkIsValidPropertyOfNonPtr<A>();
   return 0;
 }

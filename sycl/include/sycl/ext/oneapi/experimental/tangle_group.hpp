@@ -7,20 +7,33 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
+#include <sycl/aspects.hpp>
+#include <sycl/detail/spirv.hpp>
+#include <sycl/detail/type_traits.hpp> // for is_group, is_user_cons...
+#include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
-#include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
+#include <sycl/id.hpp>                        // for id
+#include <sycl/memory_enums.hpp>              // for memory_scope
+#include <sycl/range.hpp>                     // for range
+#include <sycl/sub_group.hpp>                 // for sub_group
+
+#include <type_traits> // for enable_if_t, decay_t
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
 template <typename ParentGroup> class tangle_group;
 
 template <typename Group>
+#ifdef __SYCL_DEVICE_ONLY__
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle_group)]]
+#endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        tangle_group<Group>>
-get_tangle_group(Group group);
+                        tangle_group<Group>> get_tangle_group(Group group);
 
 template <typename ParentGroup> class tangle_group {
 public:
@@ -34,8 +47,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<id_type>(0);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -43,8 +56,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::detail::CallerPositionInMask(Mask);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -52,8 +65,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return 1;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -61,8 +74,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return Mask.count();
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -70,8 +83,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -79,8 +92,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_id()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -88,8 +101,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_group_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -97,8 +110,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return static_cast<linear_id_type>(get_local_range()[0]);
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -107,8 +120,8 @@ public:
     uint32_t Lowest = static_cast<uint32_t>(Mask.find_low()[0]);
     return __spirv_SubgroupLocalInvocationId() == Lowest;
 #else
-    throw runtime_error("Non-uniform groups are not supported on host device.",
-                        PI_ERROR_INVALID_DEVICE);
+    throw exception(make_error_code(errc::runtime),
+                    "Non-uniform groups are not supported on host.");
 #endif
   }
 
@@ -130,7 +143,7 @@ inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
 get_tangle_group(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
-#if defined(__SPIR__)
+#if defined(__SPIR__) || defined(__SPIRV__)
   // All SPIR-V devices that we currently target execute in SIMD fashion,
   // and so the group of work-items in converged control flow is implicit.
   // We store the mask here because it is required to calculate IDs, not
@@ -138,11 +151,14 @@ get_tangle_group(Group group) {
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, true);
   return tangle_group<sycl::sub_group>(mask);
 #elif defined(__NVPTX__)
-  // TODO: Construct from compiler-generated mask
+  // TODO: Construct from compiler-generated mask. Return an invalid group in
+  //       in the meantime. CUDA devices will report false for the tangle_group
+  //       support aspect so kernels launch should ensure this is never run.
+  return tangle_group<sycl::sub_group>(0);
 #endif
 #else
-  throw runtime_error("Non-uniform groups are not supported on host device.",
-                      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "Non-uniform groups are not supported on host.");
 #endif
 
 } // namespace this_kernel
@@ -156,5 +172,5 @@ template <typename ParentGroup>
 struct is_group<ext::oneapi::experimental::tangle_group<ParentGroup>>
     : std::true_type {};
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

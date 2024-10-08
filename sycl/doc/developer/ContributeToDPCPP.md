@@ -2,7 +2,7 @@
 
 ## General guidelines
 
-Read [CONTRIBUTING.md](/CONTRIBUTING.md) first.
+Read [CONTRIBUTING.md](https://github.com/intel/llvm/blob/sycl/CONTRIBUTING.md) first.
 
 ## Maintaining stable ABI/API
 
@@ -10,6 +10,8 @@ All changes made to the DPC++ compiler and runtime library should generally
 preserve existing ABI/API and contributors should avoid making incompatible
 changes. One of the exceptions is experimental APIs, clearly marked so by
 namespace or related specification.
+If you wish to propose a new experimental DPC++ extension then read
+[README-process.md](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/README-process.md).
 
 Another exceptional case is the transition from SYCL 1.2.1 to SYCL 2020
 standard.
@@ -36,12 +38,14 @@ commit message title. To a reasonable extent, additional tags can be used
 to signify the component changed, e.g.: `[PI]`, `[CUDA]`, `[Doc]`.
 
 ## Using \<iostream\> 
-According to [LLVM Coding Standards](https://llvm.org/docs/CodingStandards.html#include-iostream-is-forbidden),
+
+According to 
+[LLVM Coding Standards](https://llvm.org/docs/CodingStandards.html#include-iostream-is-forbidden),
 the use `#include <iostream>` is forbidden in library files. Instead, the
 sycl/detail/iostream_proxy.hpp header offers the functionality of <iostream>
 without its static constructor.
-This header should be used in place of <iostream> in DPC++ headers 
-and runtime library files.
+This header should be used in place of <iostream> in DPC++ headers and runtime
+library files.
 
 ## Tests development
 
@@ -56,8 +60,8 @@ There are 3 types of tests which are used for DPC++ toolchain validation:
 ### DPC++ device-independent tests
 
 DPC++ device-independent tests are hosted in this repository. They can be run by
-[check-llvm](/llvm/test), [check-clang](/clang/test),
-[check-llvm-spirv](/llvm-spirv/test) and [check-sycl](/sycl/test) targets.
+[check-llvm](https://github.com/intel/llvm/blob/sycl/llvm/test), [check-clang](https://github.com/intel/llvm/blob/sycl/clang/test),
+[check-llvm-spirv](https://github.com/intel/llvm/blob/sycl/llvm-spirv/test) and [check-sycl](https://github.com/intel/llvm/blob/sycl/sycl/test) targets.
 These tests are expected not to have hardware (e.g. GPU, FPGA, etc.) or
 external software (e.g. OpenCL, Level Zero, CUDA runtimes) dependencies. All
 other tests should land at DPC++ end-to-end or SYCL CTS tests.
@@ -104,11 +108,11 @@ end-to-end or SYCL-CTS tests.
 
 #### DPC++ headers and runtime tests
 
-- [check-sycl](/sycl/test) target contains 2 types of tests: LIT tests and
+- [check-sycl](https://github.com/intel/llvm/blob/sycl/sycl/test) target contains 2 types of tests: LIT tests and
   unit tests. LIT tests make compile-time checks of DPC++ headers, e.g. device
   code IR verification, `static_assert` tests. Unit tests check DPC++ runtime
   behavior and do not perform any device code compilation, instead relying on
-  redefining plugin API with [PiMock](/sycl/unittests/helpers/PiMock.hpp) when
+  redefining plugin API with [PiMock](https://github.com/intel/llvm/blob/sycl/sycl/unittests/helpers/PiMock.hpp) when
   necessary.
 
 When adding new test to `check-sycl`, please consider the following:
@@ -124,7 +128,7 @@ When adding new test to `check-sycl`, please consider the following:
   launch only host compilation, use `%fsycl-host-only` substitution.
 
 - tests which want to check generated device code (either in LLVM IR or SPIR-V
-  form) should be placed under [check_device_code](/sycl/test/check_device_code)
+  form) should be placed under [check_device_code](https://github.com/intel/llvm/blob/sycl/sycl/test/check_device_code)
   folder.
 
 - if compiler invocation in your LIT test produces an output file, please make
@@ -144,9 +148,9 @@ When adding new test to `check-sycl`, please consider the following:
 
 ### DPC++ end-to-end (E2E) tests
 
-These tests are located in [/sycl/test-e2e](/sycl/test-e2e) directory and are not
+These tests are located in [/sycl/test-e2e](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e) directory and are not
 configured to be run by default. See
-[End-to-End tests documentation](/sycl/test-e2e/README.md)
+[End-to-End tests documentation](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/README.md)
 for instructions on how to run them.
 
 A test which requires full stack including backend runtimes (e.g. OpenCL,
@@ -160,3 +164,39 @@ These tests verify SYCL specification conformance. All implementation details
 are out of scope for the tests.
 See DPC++ compiler invocation definitions at
 [FindIntel_SYCL](https://github.com/KhronosGroup/SYCL-CTS/blob/SYCL-1.2.1/master/cmake/FindIntel_SYCL.cmake))
+
+## Unified Runtime Updates
+
+To integrate changes from the [Unified Runtime][ur] project into DPC++ there
+two main options which depend on the scope of those changes and the current
+state of DPC++.
+
+1. Synchronized update:
+  * When: If the Unified Runtime change touches the API/ABI, more than one
+    adapter, or common code such as the loader.
+  * How: Update the `UNIFIED_RUNTIME_TAG` to point at the desired commit or tag
+    name in the Unified Runtime repository and ensure that any tag for specific
+    adapters are set to use `${UNIFIED_RUNTIME_TAG}`.
+
+2. Decoupled update:
+  * When: If only a single Unified Runtime adatper has changed.
+  * How: Update the tag used in the `fetch_adapter_source()` call for a
+    specific Unified Runtime adapter, e.g. Level Zero, OpenCL, CUDA, HIP, or
+    Native CPU.
+
+In general, a synchronized update should be the default. However, when there
+are a lot of changes in flight in parallel always synchronizing the tag can be
+troublesome. This is when a decoupled update can help sustain the merge
+velocity of Unified Runtime changes.
+
+The [intel/unified-runtime-reviewers][ur-reviewers-team] team is responsible
+for ensuring that the Unified Runtime tag is updated correctly and will only
+provide code owner approval to pull requests once the following criteria are
+met:
+
+* Tags are pointing to a valid commit or tag on Unified Runtime main branch.
+* Changes to additional code owned files are in a good state.
+* GitHub Actions checks are passing.
+
+[ur]: https://github.com/oneapi-src/unified-runtime
+[ur-reviewers-team]: https://github.com/orgs/intel/teams/unified-runtime-reviewers

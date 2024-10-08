@@ -7,17 +7,16 @@
 //===----------------------------------------------------------------------===//
 
 #include "memory_check_utils.h"
+#include "src/__support/macros/config.h"
+#include "src/__support/macros/properties/types.h" // LIBC_TYPES_HAS_INT64
 #include "src/string/memory_utils/op_aarch64.h"
 #include "src/string/memory_utils/op_builtin.h"
 #include "src/string/memory_utils/op_generic.h"
+#include "src/string/memory_utils/op_riscv.h"
 #include "src/string/memory_utils/op_x86.h"
 #include "test/UnitTest/Test.h"
 
-#if defined(LIBC_TARGET_ARCH_IS_X86_64) || defined(LIBC_TARGET_ARCH_IS_AARCH64)
-#define LLVM_LIBC_HAS_UINT64
-#endif
-
-namespace __llvm_libc {
+namespace LIBC_NAMESPACE_DECL {
 
 template <typename T> struct has_head_tail {
   template <typename C> static char sfinae(decltype(&C::head_tail));
@@ -127,17 +126,17 @@ using MemsetImplementations = testing::TypeList<
     builtin::Memset<32>, //
     builtin::Memset<64>,
 #endif
-#ifdef LLVM_LIBC_HAS_UINT64
+#ifdef LIBC_TYPES_HAS_INT64
     generic::Memset<uint64_t>, generic::Memset<cpp::array<uint64_t, 2>>,
-#endif
+#endif // LIBC_TYPES_HAS_INT64
 #ifdef __AVX512F__
-    generic::Memset<uint8x64_t>, generic::Memset<cpp::array<uint8x64_t, 2>>,
+    generic::Memset<generic_v512>, generic::Memset<cpp::array<generic_v512, 2>>,
 #endif
 #ifdef __AVX__
-    generic::Memset<uint8x32_t>, generic::Memset<cpp::array<uint8x32_t, 2>>,
+    generic::Memset<generic_v256>, generic::Memset<cpp::array<generic_v256, 2>>,
 #endif
 #ifdef __SSE2__
-    generic::Memset<uint8x16_t>, generic::Memset<cpp::array<uint8x16_t, 2>>,
+    generic::Memset<generic_v128>, generic::Memset<cpp::array<generic_v128, 2>>,
 #endif
     generic::Memset<uint32_t>, generic::Memset<cpp::array<uint32_t, 2>>, //
     generic::Memset<uint16_t>, generic::Memset<cpp::array<uint16_t, 2>>, //
@@ -193,36 +192,48 @@ TYPED_TEST(LlvmLibcOpTest, Memset, MemsetImplementations) {
   }
 }
 
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
+// Prevent GCC warning due to ignored __aligned__ attributes when passing x86
+// SIMD types as template arguments.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif // LIBC_TARGET_ARCH_IS_X86_64
+
 using BcmpImplementations = testing::TypeList<
-#ifdef __SSE2__
-    x86::sse2::Bcmp<16>,  //
-    x86::sse2::Bcmp<32>,  //
-    x86::sse2::Bcmp<64>,  //
-    x86::sse2::Bcmp<128>, //
-#endif
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
+#ifdef __SSE4_1__
+    generic::Bcmp<__m128i>,
+#endif // __SSE4_1__
 #ifdef __AVX2__
-    x86::avx2::Bcmp<32>,  //
-    x86::avx2::Bcmp<64>,  //
-    x86::avx2::Bcmp<128>, //
-#endif
+    generic::Bcmp<__m256i>,
+#endif // __AVX2__
 #ifdef __AVX512BW__
-    x86::avx512bw::Bcmp<64>,  //
-    x86::avx512bw::Bcmp<128>, //
-#endif
+    generic::Bcmp<__m512i>,
+#endif // __AVX512BW__
+
+#endif // LIBC_TARGET_ARCH_IS_X86_64
 #ifdef LIBC_TARGET_ARCH_IS_AARCH64
     aarch64::Bcmp<16>, //
-    aarch64::Bcmp<32>, //
+    aarch64::Bcmp<32>,
 #endif
-#ifdef LLVM_LIBC_HAS_UINT64
-    generic::Bcmp<8>, //
-#endif
-    generic::Bcmp<1>,  //
-    generic::Bcmp<2>,  //
-    generic::Bcmp<4>,  //
-    generic::Bcmp<16>, //
-    generic::Bcmp<32>, //
-    generic::Bcmp<64>  //
-    >;
+#ifndef LIBC_TARGET_ARCH_IS_ARM // Removing non uint8_t types for ARM
+    generic::Bcmp<uint16_t>,
+    generic::Bcmp<uint32_t>, //
+#ifdef LIBC_TYPES_HAS_INT64
+    generic::Bcmp<uint64_t>,
+#endif // LIBC_TYPES_HAS_INT64
+    generic::BcmpSequence<uint16_t, uint8_t>,
+    generic::BcmpSequence<uint32_t, uint8_t>,  //
+    generic::BcmpSequence<uint32_t, uint16_t>, //
+    generic::BcmpSequence<uint32_t, uint16_t, uint8_t>,
+#endif // LIBC_TARGET_ARCH_IS_ARM
+    generic::BcmpSequence<uint8_t, uint8_t>,
+    generic::BcmpSequence<uint8_t, uint8_t, uint8_t>, //
+    generic::Bcmp<uint8_t>>;
+
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
+#pragma GCC diagnostic pop
+#endif // LIBC_TARGET_ARCH_IS_X86_64
 
 // Adapt CheckBcmp signature to op implementation signatures.
 template <auto FnImpl>
@@ -247,7 +258,8 @@ TYPED_TEST(LlvmLibcOpTest, Bcmp, BcmpImplementations) {
         ASSERT_TRUE((CheckBcmp<BlockImpl>(span1, span2, kSize)));
     }
   }
-  { // Test head tail operations from kSize to 2 * kSize.
+  if constexpr (has_head_tail<Impl>::value) {
+    // Test head tail operations from kSize to 2 * kSize.
     static constexpr auto HeadTailImpl = CmpAdaptor<Impl::head_tail>;
     Buffer Buffer1(2 * kSize);
     Buffer Buffer2(2 * kSize);
@@ -258,7 +270,8 @@ TYPED_TEST(LlvmLibcOpTest, Bcmp, BcmpImplementations) {
       ASSERT_TRUE((CheckBcmp<HeadTailImpl>(span1, span2, size)));
     }
   }
-  { // Test loop operations from kSize to 3 * kSize.
+  if constexpr (has_loop_and_tail<Impl>::value) {
+    // Test loop operations from kSize to 3 * kSize.
     if constexpr (kSize > 1) {
       static constexpr auto LoopImpl = CmpAdaptor<Impl::loop_and_tail>;
       Buffer Buffer1(3 * kSize);
@@ -273,33 +286,45 @@ TYPED_TEST(LlvmLibcOpTest, Bcmp, BcmpImplementations) {
   }
 }
 
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
+// Prevent GCC warning due to ignored __aligned__ attributes when passing x86
+// SIMD types as template arguments.
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wignored-attributes"
+#endif // LIBC_TARGET_ARCH_IS_X86_64
+
 using MemcmpImplementations = testing::TypeList<
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
 #ifdef __SSE2__
-    x86::sse2::Memcmp<16>,  //
-    x86::sse2::Memcmp<32>,  //
-    x86::sse2::Memcmp<64>,  //
-    x86::sse2::Memcmp<128>, //
+    generic::Memcmp<__m128i>, //
 #endif
 #ifdef __AVX2__
-    x86::avx2::Memcmp<32>,  //
-    x86::avx2::Memcmp<64>,  //
-    x86::avx2::Memcmp<128>, //
+    generic::Memcmp<__m256i>, //
 #endif
 #ifdef __AVX512BW__
-    x86::avx512bw::Memcmp<64>,  //
-    x86::avx512bw::Memcmp<128>, //
+    generic::Memcmp<__m512i>, //
 #endif
-#ifdef LLVM_LIBC_HAS_UINT64
-    generic::Memcmp<8>, //
+#endif // LIBC_TARGET_ARCH_IS_X86_64
+#ifdef LIBC_TARGET_ARCH_IS_AARCH64
+    generic::Memcmp<uint8x16_t>, //
+    generic::Memcmp<uint8x16x2_t>,
 #endif
-    generic::Memcmp<1>,  //
-    generic::Memcmp<2>,  //
-    generic::Memcmp<3>,  //
-    generic::Memcmp<4>,  //
-    generic::Memcmp<16>, //
-    generic::Memcmp<32>, //
-    generic::Memcmp<64>  //
-    >;
+#ifndef LIBC_TARGET_ARCH_IS_ARM // Removing non uint8_t types for ARM
+    generic::Memcmp<uint16_t>,
+    generic::Memcmp<uint32_t>, //
+#ifdef LIBC_TYPES_HAS_INT64
+    generic::Memcmp<uint64_t>,
+#endif // LIBC_TYPES_HAS_INT64
+    generic::MemcmpSequence<uint16_t, uint8_t>,
+    generic::MemcmpSequence<uint32_t, uint16_t, uint8_t>, //
+#endif // LIBC_TARGET_ARCH_IS_ARM
+    generic::MemcmpSequence<uint8_t, uint8_t>,
+    generic::MemcmpSequence<uint8_t, uint8_t, uint8_t>,
+    generic::Memcmp<uint8_t>>;
+
+#ifdef LIBC_TARGET_ARCH_IS_X86_64
+#pragma GCC diagnostic pop
+#endif // LIBC_TARGET_ARCH_IS_X86_64
 
 TYPED_TEST(LlvmLibcOpTest, Memcmp, MemcmpImplementations) {
   using Impl = ParamType;
@@ -314,7 +339,8 @@ TYPED_TEST(LlvmLibcOpTest, Memcmp, MemcmpImplementations) {
         ASSERT_TRUE((CheckMemcmp<BlockImpl>(span1, span2, kSize)));
     }
   }
-  { // Test head tail operations from kSize to 2 * kSize.
+  if constexpr (has_head_tail<Impl>::value) {
+    // Test head tail operations from kSize to 2 * kSize.
     static constexpr auto HeadTailImpl = CmpAdaptor<Impl::head_tail>;
     Buffer Buffer1(2 * kSize);
     Buffer Buffer2(2 * kSize);
@@ -325,7 +351,8 @@ TYPED_TEST(LlvmLibcOpTest, Memcmp, MemcmpImplementations) {
       ASSERT_TRUE((CheckMemcmp<HeadTailImpl>(span1, span2, size)));
     }
   }
-  { // Test loop operations from kSize to 3 * kSize.
+  if constexpr (has_loop_and_tail<Impl>::value) {
+    // Test loop operations from kSize to 3 * kSize.
     if constexpr (kSize > 1) {
       static constexpr auto LoopImpl = CmpAdaptor<Impl::loop_and_tail>;
       Buffer Buffer1(3 * kSize);
@@ -340,4 +367,4 @@ TYPED_TEST(LlvmLibcOpTest, Memcmp, MemcmpImplementations) {
   }
 }
 
-} // namespace __llvm_libc
+} // namespace LIBC_NAMESPACE_DECL

@@ -12,16 +12,18 @@
 //
 //===--------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 class MyKernel;
 
 void test() {
   sycl::queue Queue;
   sycl::context Context = Queue.get_context();
+  sycl::device Device = Queue.get_device();
 
   auto BundleInput =
-      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context);
+      sycl::get_kernel_bundle<MyKernel, sycl::bundle_state::input>(Context,
+                                                                   {Device});
   auto BundleObject = sycl::compile(BundleInput);
 
   try {

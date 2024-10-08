@@ -1,5 +1,5 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Windows doesn't yet have full shutdown().
 // UNSUPPORTED: ze_debug && windows
@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   size_t size = 3;
@@ -21,7 +21,7 @@ int main() {
   sycl::buffer<int, 1> buf(size);
   {
     sycl::queue q;
-    auto host_acc = buf.get_access<sycl::access::mode::read_write>();
+    auto host_acc = buf.get_host_access();
     q.submit([&](sycl::handler &cgh) {
       auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
       cgh.parallel_for<class SingleTask>(
@@ -35,5 +35,5 @@ int main() {
 }
 
 // CHECK:host acc destructor call
-// CHECK:---> piEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK:end of scope

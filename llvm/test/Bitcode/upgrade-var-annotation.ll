@@ -1,7 +1,7 @@
 ; Test upgrade of var.annotation intrinsics.
 ;
-; RUN: llvm-as < %s | llvm-dis -opaque-pointers | FileCheck %s
-; RUN: llvm-dis -opaque-pointers < %s.bc | FileCheck %s
+; RUN: llvm-as < %s | llvm-dis | FileCheck %s
+; RUN: llvm-dis < %s.bc | FileCheck %s
 
 
 define void @f(i8* %arg0, i8* %arg1, i8* %arg2, i32 %arg3) {

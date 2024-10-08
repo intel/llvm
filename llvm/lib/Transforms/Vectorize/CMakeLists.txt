@@ -1,16 +1,19 @@
 add_llvm_component_library(LLVMVectorize
   LoadStoreVectorizer.cpp
+  LoopIdiomVectorize.cpp
   LoopVectorizationLegality.cpp
   LoopVectorize.cpp
   SLPVectorizer.cpp
   Vectorize.cpp
   VectorCombine.cpp
   VPlan.cpp
+  VPlanAnalysis.cpp
   VPlanHCFGBuilder.cpp
   VPlanRecipes.cpp
   VPlanSLP.cpp
   VPlanTransforms.cpp
   VPlanVerifier.cpp
+  VPlanUtils.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/Transforms
@@ -23,5 +26,6 @@ add_llvm_component_library(LLVMVectorize
   Analysis
   Core
   Support
+  TargetParser
   TransformUtils
   )

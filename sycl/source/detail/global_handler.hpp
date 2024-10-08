@@ -15,22 +15,21 @@
 #include <unordered_map>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 class platform_impl;
 class context_impl;
 class Scheduler;
 class ProgramManager;
 class Sync;
-class plugin;
-class device_filter_list;
+class Adapter;
 class ods_target_list;
 class XPTIRegistry;
 class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
 using ContextImplPtr = std::shared_ptr<context_impl>;
-using PluginPtr = std::shared_ptr<plugin>;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 /// Wrapper class for global data structures with non-trivial destructors.
 ///
@@ -54,9 +53,11 @@ public:
 
   GlobalHandler(const GlobalHandler &) = delete;
   GlobalHandler(GlobalHandler &&) = delete;
+  GlobalHandler &operator=(const GlobalHandler &) = delete;
 
   void registerSchedulerUsage(bool ModifyCounter = true);
   Scheduler &getScheduler();
+  bool isSchedulerAlive() const;
   ProgramManager &getProgramManager();
   Sync &getSync();
   std::vector<PlatformImplPtr> &getPlatformCache();
@@ -67,18 +68,19 @@ public:
   std::mutex &getPlatformToDefaultContextCacheMutex();
   std::mutex &getPlatformMapMutex();
   std::mutex &getFilterMutex();
-  std::vector<PluginPtr> &getPlugins();
-  device_filter_list &getDeviceFilterList(const std::string &InitValue);
+  std::vector<AdapterPtr> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
   XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
-  static void registerDefaultContextReleaseHandler();
+  static void registerEarlyShutdownHandler();
 
-  void unloadPlugins();
+  bool isOkToDefer() const;
+  void endDeferredRelease();
+  void unloadAdapters();
   void releaseDefaultContexts();
   void drainThreadPool();
-  void prepareSchedulerToRelease();
+  void prepareSchedulerToRelease(bool Blocking);
 
   void InitXPTI();
   void TraceEventXPTI(const char *Message);
@@ -91,7 +93,11 @@ private:
   void *GSYCLCallEvent = nullptr;
 #endif
 
-  friend void shutdown();
+  bool OkToDefer = true;
+
+  friend void shutdown_win();
+  friend void shutdown_early();
+  friend void shutdown_late();
   friend class ObjectUsageCounter;
   static GlobalHandler *&getInstancePtr();
   static SpinLock MSyclGlobalHandlerProtector;
@@ -118,13 +124,12 @@ private:
   InstWithLock<std::mutex> MPlatformToDefaultContextCacheMutex;
   InstWithLock<std::mutex> MPlatformMapMutex;
   InstWithLock<std::mutex> MFilterMutex;
-  InstWithLock<std::vector<PluginPtr>> MPlugins;
-  InstWithLock<device_filter_list> MDeviceFilterList;
+  InstWithLock<std::vector<AdapterPtr>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
   InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

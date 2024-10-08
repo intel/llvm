@@ -151,8 +151,7 @@ note: candidate function not viable: requires single argument 'x', but 2 argumen
         value = frame.EvaluateExpression("struct Redef { float y; };", top_level_opts)
         self.assertFalse(value.GetError().Success())
         self.assertIn(
-            """
-error: <user expression 9>:1:8: redefinition of 'Redef'
+            """error: <user expression 9>:1:8: redefinition of 'Redef'
     1 | struct Redef { float y; };
       |        ^
 <user expression 8>:1:8: previous definition is here
@@ -173,7 +172,7 @@ error: <user expression 9>:1:8: redefinition of 'Redef'
 
         # Import foundation so that the Obj-C module is loaded (which contains source locations
         # that can be used by LLDB).
-        self.runCmd("expr @import Foundation")
+        self.runCmd("expr --language objective-c++ -- @import Foundation")
         value = frame.EvaluateExpression("NSLog(1);")
         self.assertFalse(value.GetError().Success())
         # LLDB should print the source line that defines NSLog. To not rely on any

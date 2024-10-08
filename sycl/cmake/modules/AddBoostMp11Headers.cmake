@@ -5,10 +5,9 @@ include(FetchContent)
 
 set(BOOST_MP11_GIT_REPO https://github.com/boostorg/mp11.git)
 # Author: pdimov
-# Date: Feb 16, 2022
-# Comment:
-#   Merge pull request #71 from grisumbras/feature/mp_valid_and_true
-set(BOOST_MP11_GIT_TAG 7bc4e1ae9b36ec8ee635c3629b59ec525bbe82b9)
+# Date: Dec 31, 2023
+# Release: boost-1.85.0
+set(BOOST_MP11_GIT_TAG 863d8b8d2b20f2acd0b5870f23e553df9ce90e6c)
 
 # Either download from github or use existing if BOOST_MP11_SOURCE_DIR is set
 if (NOT DEFINED BOOST_MP11_SOURCE_DIR)

@@ -8,11 +8,22 @@
 
 #include <spirv/spirv.h>
 
-float __ocml_remainder_f32(float,float);
-double __ocml_remainder_f64(double,double);
-
 #define __CLC_FUNCTION __spirv_ocl_remainder
 #define __CLC_BUILTIN __ocml_remainder
+
+float __ocml_remainder_f32(float, float);
 #define __CLC_BUILTIN_F __CLC_XCONCAT(__CLC_BUILTIN, _f32)
+
+#ifdef cl_khr_fp64
+#pragma OPENCL EXTENSION cl_khr_fp64 : enable
+double __ocml_remainder_f64(double, double);
 #define __CLC_BUILTIN_D __CLC_XCONCAT(__CLC_BUILTIN, _f64)
+#endif // cl_khr_fp64
+
+#ifdef cl_khr_fp16
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+half __ocml_remainder_f16(half, half);
+#define __CLC_BUILTIN_H __CLC_XCONCAT(__CLC_BUILTIN, _f16)
+#endif // cl_khr_fp16
+
 #include <math/binary_builtin.inc>

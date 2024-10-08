@@ -1,0 +1,159 @@
+= sycl_ext_oneapi_copy_optimize
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 7 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback. Interfaces defined in this
+specification are implemented in DPC\++ but they are not finalized and may
+change incompatibly in future versions of DPC++ without prior notice.
+Shipping software products should not rely on APIs defined in this
+specification.
+
+
+== Overview
+
+SYCL provides explicit copy APIs that copy memory between a device and the host.
+Some backends can optimize these copy operations if the backend knows in
+advance that the host memory will be used for such a copy operation.
+If a SYCL application knows that it will frequently copy to or from the same
+host memory, it can use the APIs in this extension to inform the backend
+about this, which can result in a performance benefit.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine
+the macro `SYCL_EXT_ONEAPI_COPY_OPTIMIZE` to one of the values defined
+in the table below.  Applications can test for the existence of this macro
+to determine if the implementation supports this feature, or applications
+can test the macro's value to determine which of the extension's features
+the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== API of the extension
+
+This extension adds the following free functions:
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+void prepare_for_device_copy(const void *Ptr, size_t NumBytes,
+                             const context &Context);
+void prepare_for_device_copy(const void *Ptr, size_t NumBytes,
+                             const queue &Queue);
+
+void release_from_device_copy(const void *Ptr, const context &Context);
+void release_from_device_copy(const void *Ptr, const queue &Queue);
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+Table 1. Functions added by this extension.
+|====
+| Member Function | Description
+a|
+```
+void prepare_for_device_copy(
+    const void *Ptr,
+    size_t NumBytes,
+    const context &Context);
+```
+
+| Informs the implementation that the host memory range starting at `Ptr` and
+extending for `NumBytes` bytes may be used as either the source or destination
+of an explicit copy operation to a queue using context Context. Calling this
+function may allow the implementation to accelerate these copy operations.
+Generally, it is only useful to call this function if the host memory range will
+be used for several subsequent copy operations; it is not generally useful to
+call it before each individual copy operation.
+
+The behavior is undefined when multiple calls to `prepare_for_device_copy`
+specify memory ranges that overlap, even when using different
+SYCL contexts. No error message is issued.
+
+a|
+```
+void prepare_for_device_copy(
+    const void *Ptr,
+    size_t NumBytes,
+    const queue &Queue)
+```
+| Has the same effect as
+`prepare_for_device_copy(Ptr, NumBytes, Queue.get_context())`.
+
+a|
+```
+void release_from_device_copy(
+    const void *Ptr,
+    const context &Context)
+```
+| Undoes the effect of a previous call to prepare_for_device_copy on `Ptr`.
+It is still valid to copy to or from `Ptr`, but these copies might not be
+optimized.
+
+The `Ptr` and `Context` must match the values passed to a previous call to
+`prepare_for_device_copy` for a memory range that has not yet been
+released, otherwise the behavior is undefined.
+
+a|
+```
+void release_from_device_copy(
+    const void *Ptr,
+    const queue &Queue)
+```
+| Has the same effect as
+`release_from_device_copy(Ptr, Queue.get_context())`.
+
+|====

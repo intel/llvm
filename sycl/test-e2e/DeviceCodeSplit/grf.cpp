@@ -13,21 +13,28 @@
 // - SYCL device binary images are compiled with the corresponding
 //   compiler option
 
-// REQUIRES: gpu && gpu-intel-pvc
-// UNSUPPORTED: cuda || hip
-// TODO/FIXME: esimd_emulator does not support online compilation that
-//             invokes 'piProgramBuild'/'piKernelCreate'
-// UNSUPPORTED: esimd_emulator
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// REQUIRES: arch-intel_gpu_pvc
+
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_AUTO_GRF=1 -Wno-error=deprecated-declarations -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "../helpers.hpp"
 #include <iostream>
+#include <sycl/detail/core.hpp>
+#ifdef USE_NEW_API
+#include <sycl/ext/intel/experimental/grf_size_properties.hpp>
+#else
 #include <sycl/detail/kernel_properties.hpp>
-#include <sycl/sycl.hpp>
+#endif
 
 using namespace sycl;
 using namespace sycl::detail;
@@ -92,7 +99,11 @@ int main(void) {
 
   try {
     buffer<float, 1> bufa(A.data(), range<1>(Size));
-#ifdef USE_AUTO_GRF
+#if defined(USE_NEW_API) && defined(USE_AUTO_GRF)
+    properties prop{grf_size_automatic};
+#elif defined(USE_NEW_API)
+    properties prop{grf_size<256>};
+#elif USE_AUTO_GRF
     properties prop{register_alloc_mode<register_alloc_mode_enum::automatic>};
 #else
     properties prop{register_alloc_mode<register_alloc_mode_enum::large>};
@@ -124,20 +135,16 @@ int main(void) {
   return 0;
 }
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NOT: -ze-opt-large-register-file
-// CHECK-WITH-VAR: -g
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SingleGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK-LABEL: <--- urProgramBuild
+// CHECK-WITH-VAR-SAME: -g
+// CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK-LABEL: ---> piProgramBuild(
-// CHECK-NO-VAR: -ze-opt-large-register-file
-// CHECK-WITH-VAR: -g -ze-opt-large-register-file
-// CHECK-AUTO-NO-VAR: -ze-intel-enable-auto-large-GRF-mode
-// CHECK-AUTO-WITH-VAR: -g -ze-intel-enable-auto-large-GRF-mode
-// CHECK: ) ---> pi_result : PI_SUCCESS
-// CHECK-LABEL: ---> piKernelCreate(
-// CHECK: <const char *>: {{.*}}SpecifiedGRF
-// CHECK: ) ---> pi_result : PI_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
+
+// CHECK-NO-VAR: <--- urProgramBuild{{.*}}-ze-opt-large-register-file
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: <--- urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
+// CHECK-SAME: -> UR_RESULT_SUCCESS
+
+// CHECK: <--- urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS

@@ -32,10 +32,11 @@ Build LLVM/Clang with `CMake <https://llvm.org/docs/CMake.html>`_.
 Usage
 =====
 
-Use ``clang++`` to compile and link your program with ``-fsanitize=undefined``
-flag. Make sure to use ``clang++`` (not ``ld``) as a linker, so that your
-executable is linked with proper UBSan runtime libraries. You can use ``clang``
-instead of ``clang++`` if you're compiling/linking C code.
+Use ``clang++`` to compile and link your program with the ``-fsanitize=undefined``
+option. Make sure to use ``clang++`` (not ``ld``) as a linker, so that your
+executable is linked with proper UBSan runtime libraries, unless all enabled
+checks use trap mode. You can use ``clang`` instead of ``clang++`` if you're
+compiling/linking C code.
 
 .. code-block:: console
 
@@ -49,27 +50,55 @@ instead of ``clang++`` if you're compiling/linking C code.
   % ./a.out
   test.cc:3:5: runtime error: signed integer overflow: 2147483647 + 1 cannot be represented in type 'int'
 
-You can enable only a subset of :ref:`checks <ubsan-checks>` offered by UBSan,
-and define the desired behavior for each kind of check:
-
-* ``-fsanitize=...``: print a verbose error report and continue execution (default);
-* ``-fno-sanitize-recover=...``: print a verbose error report and exit the program;
-* ``-fsanitize-trap=...``: execute a trap instruction (doesn't require UBSan run-time support).
-* ``-fno-sanitize=...``: disable any check, e.g., -fno-sanitize=alignment.
-
-Note that the ``trap`` / ``recover`` options do not enable the corresponding
-sanitizer, and in general need to be accompanied by a suitable ``-fsanitize=``
-flag.
-
-For example if you compile/link your program as:
+You can use ``-fsanitize=...`` and ``-fno-sanitize=`` to enable and disable one
+check or one check group. For an individual check, the last option that enabling
+or disabling it wins.
 
 .. code-block:: console
 
-  % clang++ -fsanitize=signed-integer-overflow,null,alignment -fno-sanitize-recover=null -fsanitize-trap=alignment
+  # Enable all checks in the "undefined" group, but disable "alignment".
+  % clang -fsanitize=undefined -fno-sanitize=alignment a.c
 
-the program will continue execution after signed integer overflows, exit after
+  # Enable just "alignment".
+  % clang -fsanitize=alignment a.c
+
+  # The same. -fno-sanitize=undefined nullifies the previous -fsanitize=undefined.
+  % clang -fsanitize=undefined -fno-sanitize=undefined -fsanitize=alignment a.c
+
+For most checks (:ref:`checks <ubsan-checks>`), the instrumented program prints
+a verbose error report and continues execution upon a failed check.
+You can use the following options to change the error reporting behavior:
+
+* ``-fno-sanitize-recover=...``: print a verbose error report and exit the program;
+* ``-fsanitize-trap=...``: execute a trap instruction (doesn't require UBSan
+  run-time support). If the signal is not caught, the program will typically
+  terminate due to a ``SIGILL`` or ``SIGTRAP`` signal.
+
+For example:
+
+.. code-block:: console
+
+  % clang++ -fsanitize=signed-integer-overflow,null,alignment -fno-sanitize-recover=null -fsanitize-trap=alignment a.cc
+
+The program will continue execution after signed integer overflows, exit after
 the first invalid use of a null pointer, and trap after the first use of misaligned
 pointer.
+
+.. code-block:: console
+
+  % clang++ -fsanitize=undefined -fsanitize-trap=all a.cc
+
+All checks in the "undefined" group are put into trap mode. Since no check
+needs run-time support, the UBSan run-time library it not linked. Note that
+some other sanitizers also support trap mode and ``-fsanitize-trap=all``
+enables trap mode for them.
+
+.. code-block:: console
+
+  % clang -fsanitize-trap=undefined -fsanitize-recover=all a.c
+
+``-fsanitize-trap=`` and ``-fsanitize-recover=`` are a no-op in the absence of
+a ``-fsanitize=`` option. There is no unused command line option warning.
 
 .. _ubsan-checks:
 
@@ -119,6 +148,11 @@ Available checks are:
      Issues caught by this sanitizer are not undefined behavior,
      but are often unintentional.
   -  ``-fsanitize=integer-divide-by-zero``: Integer division by zero.
+  -  ``-fsanitize=implicit-bitfield-conversion``: Implicit conversion from
+     integer of larger bit width to smaller bitfield, if that results in data
+     loss. This includes unsigned/signed truncations and sign changes, similarly
+     to how the ``-fsanitize=implicit-integer-conversion`` group works, but
+     explicitly for bitfields.
   -  ``-fsanitize=nonnull-attribute``: Passing null pointer as a function
      parameter which is declared to never be null.
   -  ``-fsanitize=null``: Use of a null pointer or creation of a null
@@ -156,15 +190,16 @@ Available checks are:
      ``-fsanitize=shift-exponent`` to check only left-hand side or
      right-hand side of shift operation, respectively.
   -  ``-fsanitize=unsigned-shift-base``: check that an unsigned left-hand side of
-     a left shift operation doesn't overflow. Issues caught by this sanitizer are 
+     a left shift operation doesn't overflow. Issues caught by this sanitizer are
      not undefined behavior, but are often unintentional.
   -  ``-fsanitize=signed-integer-overflow``: Signed integer overflow, where the
      result of a signed integer computation cannot be represented in its type.
      This includes all the checks covered by ``-ftrapv``, as well as checks for
-     signed division overflow (``INT_MIN/-1``), but not checks for
-     lossy implicit conversions performed before the computation
-     (see ``-fsanitize=implicit-conversion``). Both of these two issues are
-     handled by ``-fsanitize=implicit-conversion`` group of checks.
+     signed division overflow (``INT_MIN/-1``). Note that checks are still
+     added even when ``-fwrapv`` is enabled. This sanitizer does not check for
+     lossy implicit conversions performed before the computation (see
+     ``-fsanitize=implicit-integer-conversion``). Both of these two issues are handled
+     by ``-fsanitize=implicit-integer-conversion`` group of checks.
   -  ``-fsanitize=unreachable``: If control flow reaches an unreachable
      program point.
   -  ``-fsanitize=unsigned-integer-overflow``: Unsigned integer overflow, where
@@ -172,7 +207,7 @@ Available checks are:
      type. Unlike signed integer overflow, this is not undefined behavior, but
      it is often unintentional. This sanitizer does not check for lossy implicit
      conversions performed before such a computation
-     (see ``-fsanitize=implicit-conversion``).
+     (see ``-fsanitize=implicit-integer-conversion``).
   -  ``-fsanitize=vla-bound``: A variable-length array whose bound
      does not evaluate to a positive value.
   -  ``-fsanitize=vptr``: Use of an object whose vptr indicates that it is of
@@ -194,11 +229,15 @@ You can also use the following check groups:
   -  ``-fsanitize=implicit-integer-arithmetic-value-change``: Catches implicit
      conversions that change the arithmetic value of the integer. Enables
      ``implicit-signed-integer-truncation`` and ``implicit-integer-sign-change``.
-  -  ``-fsanitize=implicit-conversion``: Checks for suspicious
-     behavior of implicit conversions. Enables
+  -  ``-fsanitize=implicit-integer-conversion``: Checks for suspicious
+     behavior of implicit integer conversions. Enables
      ``implicit-unsigned-integer-truncation``,
      ``implicit-signed-integer-truncation``, and
      ``implicit-integer-sign-change``.
+  -  ``-fsanitize=implicit-conversion``: Checks for suspicious
+     behavior of implicit conversions. Enables
+     ``implicit-integer-conversion``, and
+     ``implicit-bitfield-conversion``.
   -  ``-fsanitize=integer``: Checks for undefined or suspicious integer
      behavior (e.g. unsigned integer overflow).
      Enables ``signed-integer-overflow``, ``unsigned-integer-overflow``,
@@ -253,6 +292,71 @@ To silence reports from unsigned integer overflow, you can set
 ``UBSAN_OPTIONS=silence_unsigned_overflow=1``.  This feature, combined with
 ``-fsanitize-recover=unsigned-integer-overflow``, is particularly useful for
 providing fuzzing signal without blowing up logs.
+
+Disabling instrumentation for common overflow patterns
+------------------------------------------------------
+
+There are certain overflow-dependent or overflow-prone code patterns which
+produce a lot of noise for integer overflow/truncation sanitizers. Negated
+unsigned constants, post-decrements in a while loop condition and simple
+overflow checks are accepted and pervasive code patterns. However, the signal
+received from sanitizers instrumenting these code patterns may be too noisy for
+some projects. To disable instrumentation for these common patterns one should
+use ``-fsanitize-undefined-ignore-overflow-pattern=``.
+
+Currently, this option supports three overflow-dependent code idioms:
+
+``negated-unsigned-const``
+
+.. code-block:: c++
+
+    /// -fsanitize-undefined-ignore-overflow-pattern=negated-unsigned-const
+    unsigned long foo = -1UL; // No longer causes a negation overflow warning
+    unsigned long bar = -2UL; // and so on...
+
+``unsigned-post-decr-while``
+
+.. code-block:: c++
+
+    /// -fsanitize-undefined-ignore-overflow-pattern=unsigned-post-decr-while
+    unsigned char count = 16;
+    while (count--) { /* ... */ } // No longer causes unsigned-integer-overflow sanitizer to trip
+
+``add-signed-overflow-test,add-unsigned-overflow-test``
+
+.. code-block:: c++
+
+    /// -fsanitize-undefined-ignore-overflow-pattern=add-(signed|unsigned)-overflow-test
+    if (base + offset < base) { /* ... */ } // The pattern of `a + b < a`, and other re-orderings,
+                                            // won't be instrumented (signed or unsigned types)
+
+.. list-table:: Overflow Pattern Types
+   :widths: 30 50
+   :header-rows: 1
+
+   * - Pattern
+     - Sanitizer
+   * - negated-unsigned-const
+     - unsigned-integer-overflow
+   * - unsigned-post-decr-while
+     - unsigned-integer-overflow
+   * - add-unsigned-overflow-test
+     - unsigned-integer-overflow
+   * - add-signed-overflow-test
+     - signed-integer-overflow
+
+
+
+Note: ``add-signed-overflow-test`` suppresses only the check for Undefined
+Behavior. Eager Undefined Behavior optimizations are still possible. One may
+remedy this with ``-fwrapv`` or ``-fno-strict-overflow``.
+
+You can enable all exclusions with
+``-fsanitize-undefined-ignore-overflow-pattern=all`` or disable all exclusions
+with ``-fsanitize-undefined-ignore-overflow-pattern=none``. If
+``-fsanitize-undefined-ignore-overflow-pattern`` is not specified ``none`` is
+implied. Specifying ``none`` alongside other values also implies ``none`` as
+``none`` has precedence over other values -- including ``all``.
 
 Issue Suppression
 =================

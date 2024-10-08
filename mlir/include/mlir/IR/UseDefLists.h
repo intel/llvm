@@ -22,8 +22,6 @@ namespace mlir {
 class Operation;
 template <typename OperandType>
 class ValueUseIterator;
-template <typename OperandType>
-class FilteredValueUseIterator;
 template <typename UseIteratorT, typename OperandType>
 class ValueUserIterator;
 
@@ -146,6 +144,16 @@ public:
     if (value)
       insertIntoCurrent();
     return *this;
+  }
+
+  /// Two operands are equal if they have the same owner and the same operand
+  /// number. They are stored inside of ops, so it is valid to compare their
+  /// pointers to determine equality.
+  bool operator==(const IROperand<DerivedT, IRValueT> &other) const {
+    return this == &other;
+  }
+  bool operator!=(const IROperand<DerivedT, IRValueT> &other) const {
+    return !(*this == other);
   }
 
   /// Return the current value being used by this operand.

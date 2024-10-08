@@ -51,14 +51,20 @@ const char *getEdgeKindName(Edge::Kind R) {
     return "TestAndBranch14PCRel";
   case CondBranch19PCRel:
     return "CondBranch19PCRel";
+  case ADRLiteral21:
+    return "ADRLiteral21";
   case Page21:
     return "Page21";
   case PageOffset12:
     return "PageOffset12";
+  case GotPageOffset15:
+    return "GotPageOffset15";
   case RequestGOTAndTransformToPage21:
     return "RequestGOTAndTransformToPage21";
   case RequestGOTAndTransformToPageOffset12:
     return "RequestGOTAndTransformToPageOffset12";
+  case RequestGOTAndTransformToPageOffset15:
+    return "RequestGOTAndTransformToPageOffset15";
   case RequestGOTAndTransformToDelta32:
     return "RequestGOTAndTransformToDelta32";
   case RequestTLVPAndTransformToPage21:

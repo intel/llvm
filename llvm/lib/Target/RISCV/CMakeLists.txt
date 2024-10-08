@@ -5,9 +5,9 @@ set(LLVM_TARGET_DEFINITIONS RISCV.td)
 tablegen(LLVM RISCVGenAsmMatcher.inc -gen-asm-matcher)
 tablegen(LLVM RISCVGenAsmWriter.inc -gen-asm-writer)
 tablegen(LLVM RISCVGenCompressInstEmitter.inc -gen-compress-inst-emitter)
+tablegen(LLVM RISCVGenMacroFusion.inc -gen-macro-fusion-pred)
 tablegen(LLVM RISCVGenDAGISel.inc -gen-dag-isel)
 tablegen(LLVM RISCVGenDisassemblerTables.inc -gen-disassembler)
-tablegen(LLVM RISCVGenGlobalISel.inc -gen-global-isel)
 tablegen(LLVM RISCVGenInstrInfo.inc -gen-instr-info)
 tablegen(LLVM RISCVGenMCCodeEmitter.inc -gen-emitter)
 tablegen(LLVM RISCVGenMCPseudoLowering.inc -gen-pseudo-lowering)
@@ -16,35 +16,53 @@ tablegen(LLVM RISCVGenRegisterInfo.inc -gen-register-info)
 tablegen(LLVM RISCVGenSearchableTables.inc -gen-searchable-tables)
 tablegen(LLVM RISCVGenSubtargetInfo.inc -gen-subtarget)
 
+set(LLVM_TARGET_DEFINITIONS RISCVGISel.td)
+tablegen(LLVM RISCVGenGlobalISel.inc -gen-global-isel)
+tablegen(LLVM RISCVGenO0PreLegalizeGICombiner.inc -gen-global-isel-combiner
+              -combiners="RISCVO0PreLegalizerCombiner")
+tablegen(LLVM RISCVGenPreLegalizeGICombiner.inc -gen-global-isel-combiner
+              -combiners="RISCVPreLegalizerCombiner")
+tablegen(LLVM RISCVGenPostLegalizeGICombiner.inc -gen-global-isel-combiner
+              -combiners="RISCVPostLegalizerCombiner")
+
 add_public_tablegen_target(RISCVCommonTableGen)
 
 add_llvm_target(RISCVCodeGen
   RISCVAsmPrinter.cpp
   RISCVCodeGenPrepare.cpp
+  RISCVDeadRegisterDefinitions.cpp
   RISCVMakeCompressible.cpp
   RISCVExpandAtomicPseudoInsts.cpp
   RISCVExpandPseudoInsts.cpp
   RISCVFrameLowering.cpp
   RISCVGatherScatterLowering.cpp
+  RISCVIndirectBranchTracking.cpp
   RISCVInsertVSETVLI.cpp
+  RISCVInsertReadWriteCSR.cpp
+  RISCVInsertWriteVXRM.cpp
   RISCVInstrInfo.cpp
   RISCVISelDAGToDAG.cpp
   RISCVISelLowering.cpp
+  RISCVLandingPadSetup.cpp
   RISCVMachineFunctionInfo.cpp
-  RISCVMacroFusion.cpp
-  RISCVMCInstLower.cpp
   RISCVMergeBaseOffset.cpp
   RISCVOptWInstrs.cpp
+  RISCVPostRAExpandPseudoInsts.cpp
   RISCVRedundantCopyElimination.cpp
+  RISCVMoveMerger.cpp
+  RISCVPushPopOptimizer.cpp
   RISCVRegisterInfo.cpp
-  RISCVRVVInitUndef.cpp
   RISCVSubtarget.cpp
   RISCVTargetMachine.cpp
   RISCVTargetObjectFile.cpp
   RISCVTargetTransformInfo.cpp
+  RISCVVectorPeephole.cpp
   GISel/RISCVCallLowering.cpp
   GISel/RISCVInstructionSelector.cpp
   GISel/RISCVLegalizerInfo.cpp
+  GISel/RISCVPostLegalizerCombiner.cpp
+  GISel/RISCVO0PreLegalizerCombiner.cpp
+  GISel/RISCVPreLegalizerCombiner.cpp
   GISel/RISCVRegisterBankInfo.cpp
 
   LINK_COMPONENTS
@@ -58,11 +76,13 @@ add_llvm_target(RISCVCodeGen
   MC
   RISCVDesc
   RISCVInfo
+  Scalar
   SelectionDAG
   Support
   Target
   TargetParser
   TransformUtils
+  Vectorize
 
   ADD_TO_COMPONENT
   RISCV

@@ -1,41 +1,41 @@
 // REQUIRES: gpu
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=return-type -o %t.out
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_ERROR_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_ERROR_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out REG_EX_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_NAME_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATFORM_NAME_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MULTI_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DEVICE_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATOFRM_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out DRIVER_MALFORMED_INFO read %t.txt
 //
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO write > %t.txt
-// RUN: env "ONEAPI_DEVICE_SELECTOR=\*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO read %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO write > %t.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="*:gpu" %{run-unfiltered-devices} %t.out PLATVER_MALFORMED_INFO read %t.txt
 //
 
 //==------------ select_device.cpp - SYCL_DEVICE_ALLOWLIST test ------------==//
@@ -57,7 +57,7 @@
 #include <iostream>
 #include <regex>
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -72,10 +72,10 @@ struct DevDescT {
   std::string platVer;
 };
 
-static void addEscapeSymbolToSpecialCharacters(std::string &str) {
-  std::vector<std::string> specialCharacters{"(", ")", "[", "]", "."};
+static void addEscapeSymbolToSpecialCharacters(std::string &str, size_t start_pos=0) {
+  std::vector<std::string> specialCharacters{"(", ")", "[", "]", ".", "+", "-"};
   for (const auto &character : specialCharacters) {
-    size_t pos = 0;
+    size_t pos = start_pos;
     while ((pos = str.find(character, pos)) != std::string::npos) {
       std::string modifiedCharacter("\\" + character);
       str.replace(pos, character.size(), modifiedCharacter);
@@ -84,86 +84,66 @@ static void addEscapeSymbolToSpecialCharacters(std::string &str) {
   }
 }
 
-static std::vector<DevDescT> getAllowListDesc(std::string allowList) {
+static std::vector<DevDescT> getAllowListDesc(std::string_view allowList) {
   if (allowList.empty())
     return {};
 
-  std::string deviceName("DeviceName:");
-  std::string driverVersion("DriverVersion:");
-  std::string platformName("PlatformName:");
-  std::string platformVersion("PlatformVersion:");
   std::vector<DevDescT> decDescs;
   decDescs.emplace_back();
 
-  size_t pos = 0;
-  while (pos < allowList.size()) {
-    if ((allowList.compare(pos, deviceName.size(), deviceName)) == 0) {
-      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed device allowlist");
-      }
-      size_t start = pos + 2;
-      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed device allowlist");
-      }
-      decDescs.back().devName = allowList.substr(start, pos - start);
-      pos = pos + 2;
+  auto try_parse = [&](std::string_view str) -> std::optional<std::string> {
+    // std::string_view::starts_with is C++20.
+    if (allowList.compare(0, str.size(), str) != 0)
+      return {};
 
-      if (allowList[pos] == ',') {
-        pos++;
-      }
+    allowList.remove_prefix(str.size());
+
+    using namespace std::string_literals;
+    auto pattern_start = allowList.find("{{");
+    if (pattern_start == std::string::npos)
+      throw std::runtime_error("Malformed "s + std::string{str} + " allowlist"s);
+
+    allowList.remove_prefix(pattern_start + 2);
+    auto pattern_end = allowList.find("}}");
+    if (pattern_end == std::string::npos)
+      throw std::runtime_error("Malformed "s + std::string{str} + " allowlist"s);
+
+    auto result =  allowList.substr(0, pattern_end);
+    allowList.remove_prefix(pattern_end + 2);
+
+    if (allowList[0] == ',')
+      allowList.remove_prefix(1);
+    return {std::string{result}};
+  };
+
+  while (!allowList.empty()) {
+    if (auto pattern = try_parse("DeviceName:")) {
+      decDescs.back().devName = *pattern;
+      continue;
+    }
+    if (auto pattern = try_parse("DriverVersion:")) {
+      decDescs.back().devDriverVer = *pattern;
+      continue;
+    }
+    if (auto pattern = try_parse("PlatformName:")) {
+      decDescs.back().platName = *pattern;
+      continue;
+    }
+    if (auto pattern = try_parse("PlatformVersion:")) {
+      decDescs.back().platVer = *pattern;
+      continue;
     }
 
-    else if ((allowList.compare(pos, driverVersion.size(), driverVersion)) ==
-             0) {
-      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed device allowlist");
-      }
-      size_t start = pos + 2;
-      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed device allowlist");
-      }
-      decDescs.back().devDriverVer = allowList.substr(start, pos - start);
-      pos = pos + 3;
-    }
+    auto next = allowList.find('|');
+    if (next == std::string::npos)
+      throw std::runtime_error("Malformed allowlist");
+    allowList.remove_prefix(next + 1);
 
-    else if ((allowList.compare(pos, platformName.size(), platformName)) == 0) {
-      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed platform allowlist");
-      }
-      size_t start = pos + 2;
-      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed platform allowlist");
-      }
-      decDescs.back().platName = allowList.substr(start, pos - start);
-      pos = pos + 2;
-      if (allowList[pos] == ',') {
-        pos++;
-      }
-    }
+    auto non_space = allowList.find_first_not_of(" ");
+    allowList.remove_prefix(non_space);
+    decDescs.emplace_back();
+  }
 
-    else if ((allowList.compare(pos, platformVersion.size(),
-                                platformVersion)) == 0) {
-      if ((pos = allowList.find("{{", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed platform allowlist");
-      }
-      size_t start = pos + 2;
-      if ((pos = allowList.find("}}", pos)) == std::string::npos) {
-        throw std::runtime_error("Malformed platform allowlist");
-      }
-      decDescs.back().platVer = allowList.substr(start, pos - start);
-      pos = pos + 2;
-    }
-
-    else if (allowList.find('|', pos) != std::string::npos) {
-      pos = allowList.find('|') + 1;
-      while (allowList[pos] == ' ') {
-        pos++;
-      }
-      decDescs.emplace_back();
-    } else {
-      throw std::runtime_error("Malformed platform allowlist");
-    }
-  } // while (pos <= allowList.size())
   return decDescs;
 }
 
@@ -245,6 +225,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = dev->get_info<info::device::driver_version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -277,6 +258,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -312,6 +294,7 @@ int main(int argc, char *argv[]) {
       std::string name = dev->get_info<info::device::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver("98.76.54321");
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                 << "}}" << std::endl;
       return 0;
@@ -353,6 +336,7 @@ int main(int argc, char *argv[]) {
           assert(false);
         }
       }();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:{{" << ver << "}}"
          << std::endl;
       return 0;
@@ -408,6 +392,7 @@ int main(int argc, char *argv[]) {
               pos++;
               ver.replace(pos, ver.length(), "*");
             }
+            addEscapeSymbolToSpecialCharacters(ver, pos+1);
 
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:{{" << ver
                       << "}}" << std::endl;
@@ -496,6 +481,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             if (count > 0) {
               std::cout << "|";
@@ -549,7 +535,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DeviceName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -575,7 +561,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformName of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -592,6 +578,7 @@ int main(int argc, char *argv[]) {
           std::string name = dev.get_info<info::device::name>();
           addEscapeSymbolToSpecialCharacters(name);
           std::string ver = dev.get_info<info::device::driver_version>();
+          addEscapeSymbolToSpecialCharacters(ver);
           if (is_known_be(plt.get_backend())) {
             std::cout << "DeviceName:{{" << name << "}},DriverVersion:HAHA{{"
                       << ver << "}}" << std::endl;
@@ -608,7 +595,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key DriverVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;
@@ -625,6 +612,7 @@ int main(int argc, char *argv[]) {
       std::string name = plt->get_info<info::platform::name>();
       addEscapeSymbolToSpecialCharacters(name);
       std::string ver = plt->get_info<info::platform::version>();
+      addEscapeSymbolToSpecialCharacters(ver);
       std::cout << "PlatformName:{{" << name << "}},PlatformVersion:HAHA{{"
                 << ver << "}}" << std::endl;
       return 0;
@@ -636,7 +624,7 @@ int main(int argc, char *argv[]) {
       } catch (sycl::exception &E) {
         std::cout << "Caught exception: " << E.what() << std::endl;
         if (E.what() ==
-            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ -30 (PI_ERROR_INVALID_VALUE)"sv)
+            "Key PlatformVersion of SYCL_DEVICE_ALLOWLIST should have value which starts with {{ 4 (UR_RESULT_ERROR_INVALID_VALUE)"sv)
           return 0;
       }
       return 1;

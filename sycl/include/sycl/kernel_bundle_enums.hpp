@@ -9,9 +9,33 @@
 #pragma once
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
-enum class bundle_state : char { input = 0, object = 1, executable = 2 };
+enum class bundle_state : char {
+  input = 0,
+  object = 1,
+  executable = 2,
+  ext_oneapi_source = 3
+};
 
-}
+namespace ext::oneapi::experimental {
+
+enum class source_language : int { opencl = 0, spirv = 1, sycl = 2 /* cuda */ };
+
+// opencl versions
+struct cl_version {
+  unsigned major : 10;
+  unsigned minor : 10;
+  unsigned patch : 12;
+};
+
+inline constexpr cl_version opencl_c_1_0 = {1, 0, 0};
+inline constexpr cl_version opencl_c_1_1 = {1, 1, 0};
+inline constexpr cl_version opencl_c_1_2 = {1, 2, 0};
+inline constexpr cl_version opencl_c_2_0 = {2, 0, 0};
+inline constexpr cl_version opencl_c_3_0 = {3, 0, 0};
+
+} // namespace ext::oneapi::experimental
+
+} // namespace _V1
 } // namespace sycl

@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// https://github.com/intel/llvm/issues/14868
+// UNSUPPORTED: windows
 
 // The test verifies ESIMD API that adds 2 32-bit integer scalars/vectors with
 // carry returning the result as 2 parts: carry flag the input modified operand
@@ -14,13 +16,8 @@
 
 #include "esimd_test_utils.hpp"
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
-namespace iesimd = sycl::ext::intel::experimental::esimd;
 
 template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
   static_assert(AIsVector || BIsVector || N == 1,
@@ -84,7 +81,7 @@ template <int N, bool AIsVector, bool BIsVector> bool test(sycl::queue Q) {
            using ResType = std::conditional_t<AIsVector || BIsVector,
                                               simd<uint32_t, N>, uint32_t>;
            ResType Carry = 0;
-           ResType Res = iesimd::addc(Carry, A, B);
+           ResType Res = addc(Carry, A, B);
 
            if constexpr (AIsVector || BIsVector) {
              Carry.copy_to(CarryMatrixPtr + (ValuesToTrySize * AI + BI) * N);

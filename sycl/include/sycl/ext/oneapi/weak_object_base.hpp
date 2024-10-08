@@ -8,10 +8,13 @@
 
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
+
+#include <memory>  // for weak_ptr
+#include <utility> // for declval
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::oneapi::detail {
 template <typename SYCLObjT> class weak_object_base;
 
@@ -60,8 +63,9 @@ public:
 protected:
 #ifndef __SYCL_DEVICE_ONLY__
   // Store a weak variant of the impl in the SYCLObjT.
-  typename decltype(sycl::detail::getSyclObjImpl(
-      std::declval<SYCLObjT>()))::weak_type MObjWeakPtr;
+  typename std::remove_reference<decltype(sycl::detail::getSyclObjImpl(
+      std::declval<SYCLObjT>()))>::type::weak_type MObjWeakPtr;
+  // relies on <type_traits> from impl_utils.h
 
   static decltype(MObjWeakPtr) GetWeakImpl(const SYCLObjT &SYCLObj) {
     return sycl::detail::getSyclObjImpl(SYCLObj);
@@ -77,5 +81,5 @@ protected:
   detail::getSyclWeakObjImpl(const weak_object_base<Obj> &WeakObj);
 };
 } // namespace ext::oneapi::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

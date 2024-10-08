@@ -9,6 +9,7 @@
 #include <detail/platform_util.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/exception.hpp>
+#include <ur_api.h>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <errno.h>
@@ -25,7 +26,7 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 #if defined(__x86_64__) || defined(__i386__)
@@ -40,9 +41,8 @@ static void cpuid(uint32_t *CPUInfo, uint32_t Type, uint32_t SubType = 0) {
 #endif
 
 uint32_t PlatformUtil::getMaxClockFrequency() {
-  throw runtime_error(
-      "max_clock_frequency parameter is not supported for host device",
-      PI_ERROR_INVALID_DEVICE);
+  throw exception(make_error_code(errc::runtime),
+                  "max_clock_frequency parameter is not supported on host");
   return 0;
 }
 
@@ -152,5 +152,5 @@ void PlatformUtil::prefetch(const char *Ptr, size_t NumBytes) {
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

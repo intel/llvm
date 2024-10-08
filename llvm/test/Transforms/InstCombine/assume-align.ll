@@ -56,10 +56,10 @@ define void @f2(ptr %a) {
 ; CHECK-NEXT:    [[TMP3:%.*]] = icmp eq i64 [[TMP2]], 0
 ; CHECK-NEXT:    br i1 [[TMP3]], label [[IF_THEN:%.*]], label [[IF_ELSE:%.*]]
 ; CHECK:       if.then:
-; CHECK-NEXT:    store i64 16, ptr [[TMP0]], align 8
+; CHECK-NEXT:    store i64 16, ptr [[TMP0]], align 4
 ; CHECK-NEXT:    br label [[IF_END:%.*]]
 ; CHECK:       if.else:
-; CHECK-NEXT:    store i8 1, ptr [[TMP0]], align 8
+; CHECK-NEXT:    store i8 1, ptr [[TMP0]], align 1
 ; CHECK-NEXT:    br label [[IF_END]]
 ; CHECK:       if.end:
 ; CHECK-NEXT:    ret void
@@ -88,7 +88,7 @@ define void @f3(i64 %a, ptr %b) {
 ; CHECK-LABEL: @f3(
 ; CHECK-NEXT:    [[C:%.*]] = ptrtoint ptr [[B:%.*]] to i64
 ; CHECK-NEXT:    call void @llvm.assume(i1 true) [ "align"(ptr [[B]], i64 4294967296) ]
-; CHECK-NEXT:    [[D:%.*]] = add i64 [[C]], [[A:%.*]]
+; CHECK-NEXT:    [[D:%.*]] = add i64 [[A:%.*]], [[C]]
 ; CHECK-NEXT:    call void @g(i64 [[D]])
 ; CHECK-NEXT:    ret void
 ;

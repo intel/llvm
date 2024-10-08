@@ -73,8 +73,8 @@ OpenCL backends.
 | Front-end option | L0 backend option | OpenCL backend option |
 | ---------------- | ----------------- | --------------------- |
 |      -O0         |  -ze-opt-disable  |   -cl-opt-disable     |
-|      -O1         |  -ze-opt-level=1  |   /* no option */     |
-|      -O2         |  -ze-opt-level=1  |   /* no option */     |
+|      -O1         |  -ze-opt-level=2  |   /* no option */     |
+|      -O2         |  -ze-opt-level=2  |   /* no option */     |
 |      -O3         |  -ze-opt-level=2  |   /* no option */     |
 
 
@@ -128,7 +128,7 @@ pi_result piPluginGetBackendOption(pi_platform platform,
 
 In the level-zero and OpenCL plugins, the table provided in the 'Requirements'
 section is used as a guide to identify the appropriate backend option.
-The option is returned in `backend_option`. For other plugins (HIP, cuda, and
-ESIMD emulator), empty string is returned. This API returns `PI_SUCCESS` for
+The option is returned in `backend_option`. For other plugins (HIP, cuda),
+empty string is returned. This API returns `PI_SUCCESS` for
 valid inputs (frontend_option != ""). For invalid inputs, it returns
 `PI_ERROR_INVALID_VALUE`.

@@ -85,12 +85,15 @@ ConstString ValueObjectDynamicValue::GetDisplayTypeName() {
   return m_parent->GetDisplayTypeName();
 }
 
-size_t ValueObjectDynamicValue::CalculateNumChildren(uint32_t max) {
+llvm::Expected<uint32_t>
+ValueObjectDynamicValue::CalculateNumChildren(uint32_t max) {
   const bool success = UpdateValueIfNeeded(false);
   if (success && m_dynamic_type_info.HasType()) {
     ExecutionContext exe_ctx(GetExecutionContextRef());
     auto children_count = GetCompilerType().GetNumChildren(true, &exe_ctx);
-    return children_count <= max ? children_count : max;
+    if (!children_count)
+      return children_count;
+    return *children_count <= max ? *children_count : max;
   } else
     return m_parent->GetNumChildren(max);
 }
@@ -149,7 +152,18 @@ bool ValueObjectDynamicValue::UpdateValue() {
   if (known_type != lldb::eLanguageTypeUnknown &&
       known_type != lldb::eLanguageTypeC) {
     runtime = process->GetLanguageRuntime(known_type);
-    if (runtime)
+    if (auto *preferred_runtime =
+            runtime->GetPreferredLanguageRuntime(*m_parent)) {
+      // Try the preferred runtime first.
+      found_dynamic_type = preferred_runtime->GetDynamicTypeAndAddress(
+          *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
+          value_type);
+      if (found_dynamic_type)
+        // Set the operative `runtime` for later use in this function.
+        runtime = preferred_runtime;
+    }
+    if (!found_dynamic_type)
+      // Fallback to the runtime for `known_type`.
       found_dynamic_type = runtime->GetDynamicTypeAndAddress(
           *m_parent, m_use_dynamic, class_type_or_name, dynamic_address,
           value_type);
@@ -198,7 +212,7 @@ bool ValueObjectDynamicValue::UpdateValue() {
       SetValueDidChange(true);
     ClearDynamicTypeInformation();
     m_dynamic_type_info.Clear();
-    m_error.SetErrorString("no dynamic type found");
+    m_error = Status::FromErrorString("no dynamic type found");
     return false;
   }
 
@@ -272,7 +286,7 @@ bool ValueObjectDynamicValue::IsInScope() { return m_parent->IsInScope(); }
 bool ValueObjectDynamicValue::SetValueFromCString(const char *value_str,
                                                   Status &error) {
   if (!UpdateValueIfNeeded(false)) {
-    error.SetErrorString("unable to read value");
+    error = Status::FromErrorString("unable to read value");
     return false;
   }
 
@@ -280,7 +294,7 @@ bool ValueObjectDynamicValue::SetValueFromCString(const char *value_str,
   uint64_t parent_value = m_parent->GetValueAsUnsigned(UINT64_MAX);
 
   if (my_value == UINT64_MAX || parent_value == UINT64_MAX) {
-    error.SetErrorString("unable to read value");
+    error = Status::FromErrorString("unable to read value");
     return false;
   }
 
@@ -292,7 +306,7 @@ bool ValueObjectDynamicValue::SetValueFromCString(const char *value_str,
   if (my_value != parent_value) {
     // but NULL'ing out a value should always be allowed
     if (strcmp(value_str, "0")) {
-      error.SetErrorString(
+      error = Status::FromErrorString(
           "unable to modify dynamic value, use 'expression' command");
       return false;
     }
@@ -305,7 +319,7 @@ bool ValueObjectDynamicValue::SetValueFromCString(const char *value_str,
 
 bool ValueObjectDynamicValue::SetData(DataExtractor &data, Status &error) {
   if (!UpdateValueIfNeeded(false)) {
-    error.SetErrorString("unable to read value");
+    error = Status::FromErrorString("unable to read value");
     return false;
   }
 
@@ -313,7 +327,7 @@ bool ValueObjectDynamicValue::SetData(DataExtractor &data, Status &error) {
   uint64_t parent_value = m_parent->GetValueAsUnsigned(UINT64_MAX);
 
   if (my_value == UINT64_MAX || parent_value == UINT64_MAX) {
-    error.SetErrorString("unable to read value");
+    error = Status::FromErrorString("unable to read value");
     return false;
   }
 
@@ -327,7 +341,7 @@ bool ValueObjectDynamicValue::SetData(DataExtractor &data, Status &error) {
     lldb::offset_t offset = 0;
 
     if (data.GetAddress(&offset) != 0) {
-      error.SetErrorString(
+      error = Status::FromErrorString(
           "unable to modify dynamic value, use 'expression' command");
       return false;
     }

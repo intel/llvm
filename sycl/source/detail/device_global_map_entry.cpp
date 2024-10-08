@@ -14,7 +14,7 @@
 #include <detail/usm/usm_impl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
@@ -22,24 +22,23 @@ DeviceGlobalUSMMem::~DeviceGlobalUSMMem() {
   // and the event. When asserts are enabled the values are set, so we check
   // these here.
   assert(MPtr == nullptr && "MPtr has not been cleaned up.");
-  assert(!MZeroInitEvent.has_value() &&
-         "MZeroInitEvent has not been cleaned up.");
+  assert(!MInitEvent.has_value() && "MInitEvent has not been cleaned up.");
 }
 
-OwnedPiEvent DeviceGlobalUSMMem::getZeroInitEvent(const PluginPtr &Plugin) {
-  std::lock_guard<std::mutex> Lock(MZeroInitEventMutex);
-  // If there is a zero-init event we can remove it if it is done.
-  if (MZeroInitEvent.has_value()) {
+OwnedUrEvent DeviceGlobalUSMMem::getInitEvent(const AdapterPtr &Adapter) {
+  std::lock_guard<std::mutex> Lock(MInitEventMutex);
+  // If there is a init event we can remove it if it is done.
+  if (MInitEvent.has_value()) {
     if (get_event_info<info::event::command_execution_status>(
-            *MZeroInitEvent, Plugin) == info::event_command_status::complete) {
-      Plugin->call<PiApiKind::piEventRelease>(*MZeroInitEvent);
-      MZeroInitEvent = {};
-      return OwnedPiEvent(Plugin);
+            *MInitEvent, Adapter) == info::event_command_status::complete) {
+      Adapter->call<UrApiKind::urEventRelease>(*MInitEvent);
+      MInitEvent = {};
+      return OwnedUrEvent(Adapter);
     } else {
-      return OwnedPiEvent(*MZeroInitEvent, Plugin);
+      return OwnedUrEvent(*MInitEvent, Adapter);
     }
   }
-  return OwnedPiEvent(Plugin);
+  return OwnedUrEvent(Adapter);
 }
 
 DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
@@ -67,14 +66,24 @@ DeviceGlobalUSMMem &DeviceGlobalMapEntry::getOrAllocateDeviceGlobalUSM(
          "USM allocation for device and context already happened.");
   DeviceGlobalUSMMem &NewAlloc = NewAllocIt.first->second;
 
-  // Zero-initialize here and save the event.
+  // Initialize here and save the event.
   {
-    std::lock_guard<std::mutex> Lock(NewAlloc.MZeroInitEventMutex);
-    sycl::detail::pi::PiEvent InitEvent;
-    MemoryManager::fill_usm(NewAlloc.MPtr, QueueImpl, MDeviceGlobalTSize, 0,
-                            std::vector<sycl::detail::pi::PiEvent>{},
-                            &InitEvent);
-    NewAlloc.MZeroInitEvent = InitEvent;
+    std::lock_guard<std::mutex> Lock(NewAlloc.MInitEventMutex);
+    ur_event_handle_t InitEvent;
+    // C++ guarantees members appear in memory in the order they are declared,
+    // so since the member variable that contains the initial contents of the
+    // device_global is right after the usm_ptr member variable we can do
+    // some pointer arithmetic to memcopy over this value to the usm_ptr. This
+    // value inside of the device_global will be zero-initialized if it was not
+    // given a value on construction.
+
+    MemoryManager::copy_usm(reinterpret_cast<const void *>(
+                                reinterpret_cast<uintptr_t>(MDeviceGlobalPtr) +
+                                sizeof(MDeviceGlobalPtr)),
+                            QueueImpl, MDeviceGlobalTSize, NewAlloc.MPtr,
+                            std::vector<ur_event_handle_t>{}, &InitEvent,
+                            nullptr);
+    NewAlloc.MInitEvent = InitEvent;
   }
 
   CtxImpl->addAssociatedDeviceGlobal(MDeviceGlobalPtr);
@@ -90,14 +99,14 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
     if (USMPtrIt != MDeviceToUSMPtrMap.end()) {
       DeviceGlobalUSMMem &USMMem = USMPtrIt->second;
       detail::usm::freeInternal(USMMem.MPtr, CtxImpl);
-      if (USMMem.MZeroInitEvent.has_value())
-        CtxImpl->getPlugin()->call<PiApiKind::piEventRelease>(
-            *USMMem.MZeroInitEvent);
+      if (USMMem.MInitEvent.has_value())
+        CtxImpl->getAdapter()->call<UrApiKind::urEventRelease>(
+            *USMMem.MInitEvent);
 #ifndef NDEBUG
       // For debugging we set the event and memory to some recognizable values
       // to allow us to check that this cleanup happens before erasure.
       USMMem.MPtr = nullptr;
-      USMMem.MZeroInitEvent = {};
+      USMMem.MInitEvent = {};
 #endif
       MDeviceToUSMPtrMap.erase(USMPtrIt);
     }
@@ -105,5 +114,5 @@ void DeviceGlobalMapEntry::removeAssociatedResources(
 }
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

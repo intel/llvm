@@ -1,10 +1,10 @@
 // RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
 // RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
-// RUN: %clang_cc1 -verify=expected,omp51,omp51warn -fopenmp-version=51 -fopenmp -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp51,omp51warn -fopenmp -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
 
 // RUN: %clang_cc1 -verify=expected,omp45 -fopenmp-version=45 -fopenmp-simd -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
 // RUN: %clang_cc1 -verify=expected,omp50 -fopenmp-version=50 -fopenmp-simd -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
-// RUN: %clang_cc1 -verify=expected,omp51,omp51warn -fopenmp-version=51 -fopenmp-simd -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
+// RUN: %clang_cc1 -verify=expected,omp51,omp51warn -fopenmp-simd -ferror-limit 100 -o - -std=c++11 %s -Wuninitialized
 
 typedef void *omp_depend_t;
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv, char *env[]) {
   #pragma omp task depend(in : argv[ : argc][1 : argc - 1])
   #pragma omp task depend(in : arr[0])
   #pragma omp task depend(depobj:argc) // omp45-error {{expected 'in', 'out', 'inout' or 'mutexinoutset' in OpenMP clause 'depend'}} omp50-error {{expected lvalue expression of 'omp_depend_t' type, not 'int'}} omp51-error {{expected lvalue expression of 'omp_depend_t' type, not 'int'}}
-  #pragma omp task depend(depobj : argv[ : argc][1 : argc - 1]) // omp45-error {{expected 'in', 'out', 'inout' or 'mutexinoutset' in OpenMP clause 'depend'}} omp50-error {{expected lvalue expression of 'omp_depend_t' type, not '<OpenMP array section type>'}} omp51-error {{expected lvalue expression of 'omp_depend_t' type, not '<OpenMP array section type>'}}
+  #pragma omp task depend(depobj : argv[ : argc][1 : argc - 1]) // omp45-error {{expected 'in', 'out', 'inout' or 'mutexinoutset' in OpenMP clause 'depend'}} omp50-error {{expected lvalue expression of 'omp_depend_t' type, not '<array section type>'}} omp51-error {{expected lvalue expression of 'omp_depend_t' type, not '<array section type>'}}
   #pragma omp task depend(depobj : arr[0]) // omp45-error {{expected 'in', 'out', 'inout' or 'mutexinoutset' in OpenMP clause 'depend'}}
   #pragma omp task depend(in : ([ // expected-error {{expected variable name or 'this' in lambda capture list}} expected-error {{expected ')'}} expected-note {{to match this '('}}
   #pragma omp task depend(in : ([] // expected-error {{expected body of lambda expression}} expected-error {{expected ')'}} expected-note {{to match this '('}}

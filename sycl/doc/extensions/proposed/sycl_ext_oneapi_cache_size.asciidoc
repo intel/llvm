@@ -1,0 +1,162 @@
+= sycl_ext_oneapi_cache_size
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+SYCL 2020's device partitioning functions acknowledge that devices will
+typically have multiple levels of cache (L1, L2, L3 and L4) but its device
+queries only allow developers to request information about one (unnamed) level
+of cache.
+
+This extension proposes a mechanism to query the availability and size of
+specific levels of cache on individual devices, to help developers with
+performance tuning and writing other cache-aware operations.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_CACHE_SIZES` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+
+=== Cache Levels
+
+A new `enum` is added to describe the four levels of cache:
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+enum class cache_level : /* unspecified */
+{
+    L1 = 1,
+    L2 = 2,
+    L3 = 3,
+    L4 = 4,
+};
+} // namespace sycl::ext::oneapi::experimental
+----
+
+
+=== Device Queries
+
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental::info::device {
+template <cache_level CacheLevel>
+struct cache_size {
+  using return_type = size_t;
+};
+} // namespace sycl::ext::oneapi::experimental::info::device
+----
+
+_Remarks_: Template parameter to `device::get_info`.
+
+_Returns_: The size in bytes of the cache at the requested `cache_level` for
+this device, or 0 if this level of cache does not exist on this device.
+
+The set of cache levels for which a device returns a non-zero value is not
+required to be continuous (e.g., a device may report an L1 and L3 cache without
+reporting an L2 cache).
+
+[_Note:_ Although this may seem an unusual choice, there are several real-life
+devices that name their cache levels such that there are gaps. This extension
+allows for this behavior to minimize the cognitive burden to developers of
+shifting between the naming of cache levels in hardware specification sheets
+and in SYCL. _{endnote}_]
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension.  It is not part of the specification of the
+extension's API.
+
+CUDA exposes an `l2CacheSize` property via the `cudaDeviceProp` struct, which
+could be used to implement the size query for `cache_level::L2`. Other sizes
+could be derived from the Compute Capability.
+
+
+== Issues
+
+. Should devices be able to signal an "unknown"/"unsupported" cache size?
++
+--
+*UNRESOLVED*:
+There are many mechanisms that could be used to signal that an implementation
+simply does not know anything about a specific level of cache (e.g.,
+an exception, a special return value, an orthogonal query). However, requiring
+implementations to determine and return an accurate size would make the query
+significantly easier for developers to use.
+
+We should revisit this issue once we have implementation experience across
+multiple backends, which should give us a better idea of how hard it is to
+return accurate cache sizes in practice.
+--

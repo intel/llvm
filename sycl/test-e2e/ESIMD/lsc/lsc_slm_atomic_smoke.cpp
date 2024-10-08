@@ -7,18 +7,11 @@
 //===----------------------------------------------------------------------===//
 // This test checks LSC SLM atomic operations.
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc
-// TODO: esimd_emulator fails due to random timeouts (_XFAIL_: esimd_emulator)
-// TODO: esimd_emulator doesn't support xchg operation
-// UNSUPPORTED: esimd_emulator
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../esimd_test_utils.hpp"
-
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -48,6 +41,10 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::add";
   case LSCAtomicOp::sub:
     return "lsc::sub";
+  case LSCAtomicOp::fadd:
+    return "lsc::fadd";
+  case LSCAtomicOp::fsub:
+    return "lsc::fsub";
   case LSCAtomicOp::inc:
     return "lsc::inc";
   case LSCAtomicOp::dec:
@@ -56,6 +53,8 @@ const char *to_string(LSCAtomicOp op) {
     return "lsc::umin";
   case LSCAtomicOp::umax:
     return "lsc::umax";
+  case LSCAtomicOp::xchg:
+    return "lsc::xchg";
   case LSCAtomicOp::cmpxchg:
     return "lsc::cmpxchg";
   case LSCAtomicOp::bit_and:
@@ -118,8 +117,8 @@ bool test(queue q) {
   try {
     auto e = q.submit([&](handler &cgh) {
       cgh.parallel_for<TestID<T, N, ImplF>>(
-          rng, [=](id<1> ii) SYCL_ESIMD_KERNEL {
-            int i = ii;
+          rng, [=](sycl::nd_item<1> ndi) SYCL_ESIMD_KERNEL {
+            int i = ndi.get_global_id(0);
             slm_init<32768>();
             simd<uint32_t, N> offsets(start_ind * sizeof(T),
                                       stride * sizeof(T));
@@ -127,7 +126,8 @@ bool test(queue q) {
             data.copy_from(arr);
 
             simd<uint32_t, size> slm_offsets(0, sizeof(T));
-            lsc_slm_scatter(slm_offsets, data);
+            if (ndi.get_local_id(0) == 0)
+              lsc_slm_scatter(slm_offsets, data);
 
             simd_mask<N> m = 1;
             if (masked_lane < N)
@@ -149,15 +149,18 @@ bool test(queue q) {
                 // arg0 and arg1 must provide values which guarantee the loop
                 // is not endless:
                 for (auto old_val = lsc_slm_atomic_update<op, T>(
-                         offsets, new_val, exp_val, m);
+                         offsets, exp_val, new_val, m);
                      any(old_val < exp_val, !m);
-                     old_val = lsc_slm_atomic_update<op, T>(offsets, new_val,
-                                                            exp_val, m))
+                     old_val = lsc_slm_atomic_update<op, T>(offsets, exp_val,
+                                                            new_val, m))
                   ;
               }
             }
-            auto data0 = lsc_slm_gather<T>(slm_offsets);
-            data0.copy_to(arr);
+            barrier();
+            if (ndi.get_local_id(0) == 0) {
+              auto data0 = lsc_slm_gather<T>(slm_offsets);
+              data0.copy_to(arr);
+            }
           });
     });
     e.wait();
@@ -491,10 +494,8 @@ int main(void) {
 
   // Check load/store operations
   passed &= test_int_types_and_sizes<ImplLoad>(q);
-  if (q.get_backend() != sycl::backend::ext_intel_esimd_emulator) {
-    passed &= test_int_types_and_sizes<ImplStore>(q);
-    passed &= test_fp_types_and_sizes<ImplStore>(q);
-  }
+  passed &= test_int_types_and_sizes<ImplStore>(q);
+  passed &= test_fp_types_and_sizes<ImplStore>(q);
 #else
   passed &= test_int_types_and_sizes<ImplCmpxchg>(q);
   passed &= test_fp_types_and_sizes<ImplLSCFcmpwr>(q);

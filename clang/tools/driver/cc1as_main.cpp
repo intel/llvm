@@ -19,6 +19,7 @@
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Frontend/Utils.h"
 #include "llvm/ADT/STLExtras.h"
+#include "llvm/ADT/StringExtras.h"
 #include "llvm/ADT/StringSwitch.h"
 #include "llvm/IR/DataLayout.h"
 #include "llvm/MC/MCAsmBackend.h"
@@ -88,10 +89,13 @@ struct AssemblerInvocation {
   /// @{
 
   std::vector<std::string> IncludePaths;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned NoInitialTextSection : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned SaveTemporaryLabels : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned GenDwarfForAssembly : 1;
-  unsigned RelaxELFRelocations : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned Dwarf64 : 1;
   unsigned DwarfVersion;
   std::string DwarfDebugFlags;
@@ -116,7 +120,9 @@ struct AssemblerInvocation {
     FT_Obj   ///< Object file output.
   };
   FileType OutputType;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowHelp : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowVersion : 1;
 
   /// @}
@@ -124,23 +130,47 @@ struct AssemblerInvocation {
   /// @{
 
   unsigned OutputAsmVariant;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowEncoding : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned ShowInst : 1;
 
   /// @}
   /// @name Assembler Options
   /// @{
 
+  LLVM_PREFERRED_TYPE(bool)
   unsigned RelaxAll : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned NoExecStack : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned FatalWarnings : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned NoWarn : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned NoTypeCheck : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned IncrementalLinkerCompatible : 1;
+  LLVM_PREFERRED_TYPE(bool)
   unsigned EmbedBitcode : 1;
 
   /// Whether to emit DWARF unwind info.
   EmitDwarfUnwindType EmitDwarfUnwind;
+
+  // Whether to emit compact-unwind for non-canonical entries.
+  // Note: maybe overriden by other constraints.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned EmitCompactUnwindNonCanonical : 1;
+
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned Crel : 1;
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned ImplicitMapsyms : 1;
+
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned X86RelaxRelocations : 1;
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned X86Sse2Avx : 1;
 
   /// The name of the relocation model to use.
   std::string RelocationModel;
@@ -181,6 +211,11 @@ public:
     DwarfVersion = 0;
     EmbedBitcode = 0;
     EmitDwarfUnwind = EmitDwarfUnwindType::Default;
+    EmitCompactUnwindNonCanonical = false;
+    Crel = false;
+    ImplicitMapsyms = 0;
+    X86RelaxRelocations = 0;
+    X86Sse2Avx = 0;
   }
 
   static bool CreateFromArgs(AssemblerInvocation &Res,
@@ -198,10 +233,10 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
   // Parse the arguments.
   const OptTable &OptTbl = getDriverOptTable();
 
-  const unsigned IncludedFlagsBitmask = options::CC1AsOption;
+  llvm::opt::Visibility VisibilityMask(options::CC1AsOption);
   unsigned MissingArgIndex, MissingArgCount;
-  InputArgList Args = OptTbl.ParseArgs(Argv, MissingArgIndex, MissingArgCount,
-                                       IncludedFlagsBitmask);
+  InputArgList Args =
+      OptTbl.ParseArgs(Argv, MissingArgIndex, MissingArgCount, VisibilityMask);
 
   // Check for missing argument error.
   if (MissingArgCount) {
@@ -214,7 +249,7 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
   for (const Arg *A : Args.filtered(OPT_UNKNOWN)) {
     auto ArgString = A->getAsString(Args);
     std::string Nearest;
-    if (OptTbl.findNearest(ArgString, Nearest, IncludedFlagsBitmask) > 1)
+    if (OptTbl.findNearest(ArgString, Nearest, VisibilityMask) > 1)
       Diags.Report(diag::err_drv_unknown_argument) << ArgString;
     else
       Diags.Report(diag::err_drv_unknown_argument_with_suggestion)
@@ -260,7 +295,6 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
             .Default(llvm::DebugCompressionType::None);
   }
 
-  Opts.RelaxELFRelocations = !Args.hasArg(OPT_mrelax_relocations_no);
   if (auto *DwarfFormatArg = Args.getLastArg(OPT_gdwarf64, OPT_gdwarf32))
     Opts.Dwarf64 = DwarfFormatArg->getOption().matches(OPT_gdwarf64);
   Opts.DwarfVersion = getLastArgIntValue(Args, OPT_dwarf_version_EQ, 2, Diags);
@@ -348,6 +382,13 @@ bool AssemblerInvocation::CreateFromArgs(AssemblerInvocation &Opts,
             .Case("default", EmitDwarfUnwindType::Default);
   }
 
+  Opts.EmitCompactUnwindNonCanonical =
+      Args.hasArg(OPT_femit_compact_unwind_non_canonical);
+  Opts.Crel = Args.hasArg(OPT_crel);
+  Opts.ImplicitMapsyms = Args.hasArg(OPT_mmapsyms_implicit);
+  Opts.X86RelaxRelocations = !Args.hasArg(OPT_mrelax_relocations_no);
+  Opts.X86Sse2Avx = Args.hasArg(OPT_msse2avx);
+
   Opts.AsSecureLogFile = Args.getLastArgValue(OPT_as_secure_log_file);
 
   return Success;
@@ -400,7 +441,15 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   assert(MRI && "Unable to create target register info!");
 
   MCTargetOptions MCOptions;
+  MCOptions.MCRelaxAll = Opts.RelaxAll;
   MCOptions.EmitDwarfUnwind = Opts.EmitDwarfUnwind;
+  MCOptions.EmitCompactUnwindNonCanonical = Opts.EmitCompactUnwindNonCanonical;
+  MCOptions.MCSaveTempLabels = Opts.SaveTemporaryLabels;
+  MCOptions.Crel = Opts.Crel;
+  MCOptions.ImplicitMapSyms = Opts.ImplicitMapsyms;
+  MCOptions.X86RelaxRelocations = Opts.X86RelaxRelocations;
+  MCOptions.X86Sse2Avx = Opts.X86Sse2Avx;
+  MCOptions.CompressDebugSections = Opts.CompressDebugSections;
   MCOptions.AsSecureLogFile = Opts.AsSecureLogFile;
 
   std::unique_ptr<MCAsmInfo> MAI(
@@ -409,9 +458,7 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
 
   // Ensure MCAsmInfo initialization occurs before any use, otherwise sections
   // may be created with a combination of default and explicit settings.
-  MAI->setCompressDebugSections(Opts.CompressDebugSections);
 
-  MAI->setRelaxELFRelocations(Opts.RelaxELFRelocations);
 
   bool IsBinary = Opts.OutputType == AssemblerInvocation::FT_Obj;
   if (Opts.OutputPath.empty())
@@ -449,14 +496,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   // MCObjectFileInfo needs a MCContext reference in order to initialize itself.
   std::unique_ptr<MCObjectFileInfo> MOFI(
       TheTarget->createMCObjectFileInfo(Ctx, PIC));
-  if (Opts.DarwinTargetVariantTriple)
-    MOFI->setDarwinTargetVariantTriple(*Opts.DarwinTargetVariantTriple);
-  if (!Opts.DarwinTargetVariantSDKVersion.empty())
-    MOFI->setDarwinTargetVariantSDKVersion(Opts.DarwinTargetVariantSDKVersion);
   Ctx.setObjectFileInfo(MOFI.get());
 
-  if (Opts.SaveTemporaryLabels)
-    Ctx.setAllowTemporaryLabels(false);
   if (Opts.GenDwarfForAssembly)
     Ctx.setGenDwarfForAssembly(true);
   if (!Opts.DwarfDebugFlags.empty())
@@ -493,6 +534,9 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
   MCOptions.MCNoWarn = Opts.NoWarn;
   MCOptions.MCFatalWarnings = Opts.FatalWarnings;
   MCOptions.MCNoTypeCheck = Opts.NoTypeCheck;
+  MCOptions.ShowMCInst = Opts.ShowInst;
+  MCOptions.AsmVerbose = true;
+  MCOptions.MCUseDwarfDirectory = MCTargetOptions::EnableDwarfDirectory;
   MCOptions.ABIName = Opts.TargetABI;
 
   // FIXME: There is a bit of code duplication with addPassesToEmitFile.
@@ -507,10 +551,8 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
         TheTarget->createMCAsmBackend(*STI, *MRI, MCOptions));
 
     auto FOut = std::make_unique<formatted_raw_ostream>(*Out);
-    Str.reset(TheTarget->createAsmStreamer(
-        Ctx, std::move(FOut), /*asmverbose*/ true,
-        /*useDwarfDirectory*/ true, IP, std::move(CE), std::move(MAB),
-        Opts.ShowInst));
+    Str.reset(TheTarget->createAsmStreamer(Ctx, std::move(FOut), IP,
+                                           std::move(CE), std::move(MAB)));
   } else if (Opts.OutputType == AssemblerInvocation::FT_Null) {
     Str.reset(createNullStreamer(Ctx));
   } else {
@@ -533,10 +575,15 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
 
     Triple T(Opts.Triple);
     Str.reset(TheTarget->createMCObjectStreamer(
-        T, Ctx, std::move(MAB), std::move(OW), std::move(CE), *STI,
-        Opts.RelaxAll, Opts.IncrementalLinkerCompatible,
-        /*DWARFMustBeAtTheEnd*/ true));
+        T, Ctx, std::move(MAB), std::move(OW), std::move(CE), *STI));
     Str.get()->initSections(Opts.NoExecStack, *STI);
+    if (T.isOSBinFormatMachO() && T.isOSDarwin()) {
+      Triple *TVT = Opts.DarwinTargetVariantTriple
+                        ? &*Opts.DarwinTargetVariantTriple
+                        : nullptr;
+      Str->emitVersionForTarget(T, VersionTuple(), TVT,
+                                Opts.DarwinTargetVariantSDKVersion);
+    }
   }
 
   // When -fembed-bitcode is passed to clang_as, a 1-byte marker
@@ -547,9 +594,6 @@ static bool ExecuteAssemblerImpl(AssemblerInvocation &Opts,
     Str.get()->switchSection(AsmLabel);
     Str.get()->emitZeros(1);
   }
-
-  // Assembly to object compilation should leverage assembly info.
-  Str->setUseAssemblerInfoForParsing(true);
 
   bool Failed = false;
 
@@ -633,9 +677,10 @@ int cc1as_main(ArrayRef<const char *> Argv, const char *Argv0, void *MainAddr) {
   if (Asm.ShowHelp) {
     getDriverOptTable().printHelp(
         llvm::outs(), "clang -cc1as [options] file...",
-        "Clang Integrated Assembler",
-        /*Include=*/driver::options::CC1AsOption, /*Exclude=*/0,
-        /*ShowAllAliases=*/false);
+        "Clang Integrated Assembler", /*ShowHidden=*/false,
+        /*ShowAllAliases=*/false,
+        llvm::opt::Visibility(driver::options::CC1AsOption));
+
     return 0;
   }
 

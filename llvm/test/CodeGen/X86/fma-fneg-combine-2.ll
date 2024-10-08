@@ -145,7 +145,7 @@ define <4 x double> @negated_constant_v4f64(<4 x double> %a) {
 define <4 x double> @negated_constant_v4f64_2fmas(<4 x double> %a, <4 x double> %b) {
 ; FMA3-LABEL: negated_constant_v4f64_2fmas:
 ; FMA3:       # %bb.0:
-; FMA3-NEXT:    vmovapd {{.*#+}} ymm2 = <-5.0E-1,u,-2.5E+0,-4.5E+0>
+; FMA3-NEXT:    vmovapd {{.*#+}} ymm2 = [-5.0E-1,u,-2.5E+0,-4.5E+0]
 ; FMA3-NEXT:    vmovapd %ymm2, %ymm3
 ; FMA3-NEXT:    vfmadd213pd {{.*#+}} ymm3 = (ymm0 * ymm3) + ymm1
 ; FMA3-NEXT:    vfnmadd213pd {{.*#+}} ymm2 = -(ymm0 * ymm2) + ymm1
@@ -154,7 +154,7 @@ define <4 x double> @negated_constant_v4f64_2fmas(<4 x double> %a, <4 x double> 
 ;
 ; FMA4-LABEL: negated_constant_v4f64_2fmas:
 ; FMA4:       # %bb.0:
-; FMA4-NEXT:    vmovapd {{.*#+}} ymm2 = <-5.0E-1,u,-2.5E+0,-4.5E+0>
+; FMA4-NEXT:    vmovapd {{.*#+}} ymm2 = [-5.0E-1,u,-2.5E+0,-4.5E+0]
 ; FMA4-NEXT:    vfmaddpd {{.*#+}} ymm3 = (ymm0 * ymm2) + ymm1
 ; FMA4-NEXT:    vfnmaddpd {{.*#+}} ymm0 = -(ymm0 * ymm2) + ymm1
 ; FMA4-NEXT:    vaddpd %ymm0, %ymm3, %ymm0
@@ -189,7 +189,7 @@ define <4 x double> @negated_constant_v4f64_fadd(<4 x double> %a) {
 define <4 x double> @negated_constant_v4f64_2fma_undefs(<4 x double> %a, <4 x double> %b) {
 ; FMA3-LABEL: negated_constant_v4f64_2fma_undefs:
 ; FMA3:       # %bb.0:
-; FMA3-NEXT:    vmovapd {{.*#+}} ymm2 = [-5.0E-1,-5.0E-1,-5.0E-1,-5.0E-1]
+; FMA3-NEXT:    vbroadcastsd {{.*#+}} ymm2 = [-5.0E-1,-5.0E-1,-5.0E-1,-5.0E-1]
 ; FMA3-NEXT:    vfnmadd213pd {{.*#+}} ymm0 = -(ymm2 * ymm0) + mem
 ; FMA3-NEXT:    vfmadd132pd {{.*#+}} ymm1 = (ymm1 * mem) + ymm2
 ; FMA3-NEXT:    vaddpd %ymm1, %ymm0, %ymm0
@@ -197,7 +197,7 @@ define <4 x double> @negated_constant_v4f64_2fma_undefs(<4 x double> %a, <4 x do
 ;
 ; FMA4-LABEL: negated_constant_v4f64_2fma_undefs:
 ; FMA4:       # %bb.0:
-; FMA4-NEXT:    vmovapd {{.*#+}} ymm2 = [-5.0E-1,-5.0E-1,-5.0E-1,-5.0E-1]
+; FMA4-NEXT:    vbroadcastsd {{.*#+}} ymm2 = [-5.0E-1,-5.0E-1,-5.0E-1,-5.0E-1]
 ; FMA4-NEXT:    vfnmaddpd {{.*#+}} ymm0 = -(ymm0 * ymm2) + mem
 ; FMA4-NEXT:    vfmaddpd {{.*#+}} ymm1 = (ymm1 * mem) + ymm2
 ; FMA4-NEXT:    vaddpd %ymm1, %ymm0, %ymm0

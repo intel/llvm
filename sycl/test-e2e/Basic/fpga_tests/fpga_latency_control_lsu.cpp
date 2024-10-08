@@ -11,8 +11,8 @@
 // RUN: %{run} %t.out
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/fpga_extensions.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -38,8 +38,10 @@ int test_latency_control(queue Queue) {
       auto output_accessor = output_buffer.get_access<access::mode::write>(cgh);
 
       cgh.single_task<class kernel>([=] {
-        auto in_ptr = input_accessor.get_pointer();
-        auto out_ptr = output_accessor.get_pointer();
+        auto in_ptr =
+            input_accessor.get_multi_ptr<sycl::access::decorated::no>();
+        auto out_ptr =
+            output_accessor.get_multi_ptr<sycl::access::decorated::no>();
 
         float value = PrefetchingLSU::load(
             in_ptr, ext::oneapi::experimental::properties(
@@ -65,7 +67,7 @@ int test_latency_control(queue Queue) {
 }
 
 int main() {
-  queue Queue{ext::intel::fpga_emulator_selector{}};
+  queue Queue{ext::intel::fpga_emulator_selector_v};
 
   return test_latency_control(Queue);
 }

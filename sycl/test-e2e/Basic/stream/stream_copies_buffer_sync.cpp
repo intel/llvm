@@ -1,7 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %if !gpu || linux %{ | FileCheck %s %}
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/stream.hpp>
 
 using namespace sycl;
 

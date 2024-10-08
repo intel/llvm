@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
 //==---------- barrier.cpp - SYCL sub_group barrier test -------*- C++ -*---==//
@@ -12,7 +12,7 @@
 #include "helper.hpp"
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/group_barrier.hpp>
 
 template <typename T, bool UseNewSyntax> class sycl_subgr;
 using namespace sycl;
@@ -30,7 +30,7 @@ void check(queue &Queue, size_t G = 240, size_t L = 60) {
 
       cgh.parallel_for<sycl_subgr<T, UseNewSyntax>>(
           NdRange, [=](nd_item<1> NdItem) {
-            ext::oneapi::sub_group SG = NdItem.get_sub_group();
+            sycl::sub_group SG = NdItem.get_sub_group();
             size_t lid = SG.get_local_id().get(0);
             size_t gid = NdItem.get_global_id(0);
             size_t SGoff = gid - lid;

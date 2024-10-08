@@ -8,6 +8,7 @@
 #pragma once
 
 #include "xpti/xpti_trace_framework.hpp"
+#include "xpti_helpers.hpp"
 
 #include <chrono>
 #include <iomanip>
@@ -24,13 +25,68 @@
 
 namespace test {
 namespace utils {
-enum class OptionType { Boolean, Integer, Float, String, Range };
 
-// We are using C++ 11, hence we cannot use
-// std::variant or std::any
-using table_row_t = std::map<int, long double>;
-using table_t = std::map<int, table_row_t>;
-using titles_t = std::vector<std::string>;
+constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
+constexpr uint16_t graph_create =
+    (uint16_t)xpti::trace_point_type_t::graph_create;
+constexpr uint16_t node_create =
+    (uint16_t)xpti::trace_point_type_t::node_create;
+constexpr uint16_t edge_create =
+    (uint16_t)xpti::trace_point_type_t::edge_create;
+
+class ScopedNotify {
+public:
+  ScopedNotify(const char *stream, uint16_t trace_type,
+               xpti::trace_event_data_t *parent,
+               xpti::trace_event_data_t *object, uint64_t instance,
+               const void *user_data = nullptr)
+      : MObject(object), MParent(parent), MStreamId(0), MTraceType(trace_type),
+        MUserData(user_data), MInstance(instance) {
+    if (xptiTraceEnabled()) {
+      uint16_t open = MTraceType & 0xfffe;
+      MStreamId = xptiRegisterStream(stream);
+      xptiNotifySubscribers(MStreamId, open, parent, object, instance,
+                            MUserData);
+    }
+  }
+  ScopedNotify(uint8_t stream_id, uint16_t trace_type,
+               xpti::trace_event_data_t *parent,
+               xpti::trace_event_data_t *object, uint64_t instance,
+               const void *user_data = nullptr)
+      : MObject(object), MParent(parent), MStreamId(stream_id),
+        MTraceType(trace_type), MUserData(user_data), MInstance(instance) {
+    if (!xptiTraceEnabled())
+      return;
+    uint16_t open = MTraceType & 0xfffe;
+    xptiNotifySubscribers(MStreamId, open, parent, object, instance, MUserData);
+  }
+
+  ~ScopedNotify() {
+    if (xptiTraceEnabled())
+      return;
+    switch (MTraceType) {
+    case signal:
+    case graph_create:
+    case node_create:
+    case edge_create:
+      break;
+    default: {
+      uint16_t close = MTraceType | 1;
+      xptiNotifySubscribers(MStreamId, close, MParent, MObject, MInstance,
+                            MUserData);
+    } break;
+    }
+  }
+
+private:
+  xpti::trace_event_data_t *MObject, *MParent;
+  uint8_t MStreamId;
+  uint16_t MTraceType;
+  const void *MUserData;
+  uint64_t MInstance;
+};
+
+enum class OptionType { Boolean, Integer, Float, String, Range };
 
 class ScopedTimer {
 public:
@@ -142,6 +198,7 @@ public:
       }
       return MEmptyString;
     }
+    return MEmptyString;
   }
 
 private:
@@ -300,56 +357,6 @@ private:
   std::string MAppName;
 };
 
-class TableModel {
-public:
-  using row_titles_t = std::map<int, std::string>;
-
-  TableModel() {}
-
-  void setHeaders(titles_t &Titles) { MColumnTitles = Titles; }
-
-  table_row_t &addRow(int Row, std::string &RowName) {
-    if (MRowTitles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    MRowTitles[Row] = RowName;
-    return MTable[Row];
-  }
-
-  table_row_t &addRow(int Row, const char *RowName) {
-    if (MRowTitles.count(Row)) {
-      std::cout << "Warning: Row title already specified!\n";
-    }
-    MRowTitles[Row] = RowName;
-    return MTable[Row];
-  }
-
-  table_row_t &operator[](int Row) { return MTable[Row]; }
-
-  void print() {
-    std::cout << std::setw(14) << " ";
-    for (auto &Title : MColumnTitles) {
-      std::cout << std::setw(14) << Title; // Column headers
-    }
-    std::cout << "\n";
-
-    for (auto &Row : MTable) {
-      std::cout << std::setw(14) << MRowTitles[Row.first];
-      for (auto &Data : Row.second) {
-        std::cout << std::fixed << std::setw(14) << std::setprecision(0)
-                  << Data.second;
-      }
-      std::cout << "\n";
-    }
-    std::cout << "\n";
-  }
-
-private:
-  titles_t MColumnTitles;
-  row_titles_t MRowTitles;
-  table_t MTable;
-};
-
 class RangeDecoder {
 public:
   RangeDecoder(std::string &RangeStr) : MRange(RangeStr) {
@@ -435,16 +442,16 @@ public:
 private:
   void runStringTableTests();
   void runStringTableTestThreads(int RunNo, int NThreads,
-                                 test::utils::TableModel &Table);
+                                 xpti::utils::TableModel &Table);
   void runTracepointTests();
   void runTracepointTestThreads(int RunNo, int nt,
-                                test::utils::TableModel &Table);
+                                xpti::utils::TableModel &Table);
   void runNotificationTests();
   void runNotificationTestThreads(int RunNo, int NThreads,
-                                  test::utils::TableModel &Table);
+                                  xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
-  test::utils::TableModel MTable;
+  xpti::utils::TableModel MTable;
   std::set<long> MThreads, MTests;
   long MTracepoints;
   const char *MSource = "foo.cpp";
@@ -597,13 +604,17 @@ public:
 private:
   void runDataStructureTests();
   void runDataStructureTestsThreads(int RunNo, int NThreads,
-                                    test::utils::TableModel &Table);
+                                    xpti::utils::TableModel &Table);
+  void runNewDataStructureTestsThreads(int RunNo, int NThreads,
+                                       xpti::utils::TableModel &Table);
   void runInstrumentationTests();
   void runInstrumentationTestsThreads(int RunNo, int NThreads,
-                                      test::utils::TableModel &Table);
+                                      xpti::utils::TableModel &Table);
+  void runNewInstrumentationTestsThreads(int RunNo, int NThreads,
+                                         xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
-  test::utils::TableModel MTable;
+  xpti::utils::TableModel MTable;
   std::set<long> MThreads, MTests;
   long MTracepoints;
   long MTracepointInstances;

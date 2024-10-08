@@ -161,11 +161,15 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationMergeINTEL, "MergeINTEL");
   add(DecorationBankBitsINTEL, "BankBitsINTEL");
   add(DecorationForcePow2DepthINTEL, "ForcePow2DepthINTEL");
+  add(DecorationStridesizeINTEL, "StridesizeINTEL");
+  add(DecorationWordsizeINTEL, "WordsizeINTEL");
+  add(DecorationTrueDualPortINTEL, "TrueDualPortINTEL");
   add(DecorationBurstCoalesceINTEL, "BurstCoalesceINTEL");
   add(DecorationCacheSizeINTEL, "CacheSizeINTEL");
   add(DecorationDontStaticallyCoalesceINTEL, "DontStaticallyCoalesceINTEL");
   add(DecorationPrefetchINTEL, "PrefetchINTEL");
   add(DecorationStallEnableINTEL, "StallEnableINTEL");
+  add(DecorationStallFreeINTEL, "StallFreeINTEL");
   add(DecorationFuseLoopsInFunctionINTEL, "FuseLoopsInFunctionINTEL");
   add(DecorationAliasScopeINTEL, "AliasScopeINTEL");
   add(DecorationNoAliasINTEL, "NoAliasINTEL");
@@ -211,6 +215,14 @@ template <> inline void SPIRVMap<Decoration, std::string>::init() {
   add(DecorationStableKernelArgumentINTEL, "StableKernelArgumentINTEL");
   add(DecorationLatencyControlLabelINTEL, "LatencyControlLabelINTEL");
   add(DecorationLatencyControlConstraintINTEL, "LatencyControlConstraintINTEL");
+  add(DecorationFPMaxErrorDecorationINTEL, "FPMaxErrorDecorationINTEL");
+
+  add(DecorationHostAccessINTEL, "HostAccessINTEL");
+  add(DecorationInitModeINTEL, "InitModeINTEL");
+  add(DecorationImplementInRegisterMapINTEL, "ImplementInRegisterMapINTEL");
+
+  add(DecorationCacheControlLoadINTEL, "CacheControlLoadINTEL");
+  add(DecorationCacheControlStoreINTEL, "CacheControlStoreINTEL");
 
   // From spirv_internal.hpp
   add(internal::DecorationFuncParamKindINTEL, "FuncParamKindINTEL");
@@ -466,6 +478,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityRoundingModeRTZ, "RoundingModeRTZ");
   add(CapabilityRayQueryProvisionalKHR, "RayQueryProvisionalKHR");
   add(CapabilityRayQueryKHR, "RayQueryKHR");
+  add(CapabilityUntypedPointersKHR, "UntypedPointersKHR");
   add(CapabilityRayTraversalPrimitiveCullingKHR,
       "RayTraversalPrimitiveCullingKHR");
   add(CapabilityRayTracingKHR, "RayTracingKHR");
@@ -599,6 +612,7 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityFPGAKernelAttributesv2INTEL, "FPGAKernelAttributesv2INTEL");
   add(CapabilityFPGAMemoryAccessesINTEL, "FPGAMemoryAccessesINTEL");
   add(CapabilityFPGAClusterAttributesINTEL, "FPGAClusterAttributesINTEL");
+  add(CapabilityFPGAClusterAttributesV2INTEL, "FPGAClusterAttributesV2INTEL");
   add(CapabilityLoopFuseINTEL, "LoopFuseINTEL");
   add(CapabilityMemoryAccessAliasingINTEL, "MemoryAccessAliasingINTEL");
   add(CapabilityFPGABufferLocationINTEL, "FPGABufferLocationINTEL");
@@ -618,15 +632,19 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityDotProduct, "DotProduct");
   add(CapabilityDotProductKHR, "DotProductKHR");
   add(CapabilityRayCullMaskKHR, "RayCullMaskKHR");
+  add(CapabilityCooperativeMatrixKHR, "CooperativeMatrixKHR");
   add(CapabilityBitInstructions, "BitInstructions");
   add(CapabilityGroupNonUniformRotateKHR, "GroupNonUniformRotateKHR");
   add(CapabilityAtomicFloat32AddEXT, "AtomicFloat32AddEXT");
   add(CapabilityAtomicFloat64AddEXT, "AtomicFloat64AddEXT");
-  add(CapabilityLongConstantCompositeINTEL, "LongConstantCompositeINTEL");
+  add(CapabilityLongCompositesINTEL, "LongCompositesINTEL");
   add(CapabilityOptNoneINTEL, "OptNoneINTEL");
   add(CapabilityAtomicFloat16AddEXT, "AtomicFloat16AddEXT");
   add(CapabilityDebugInfoModuleINTEL, "DebugInfoModuleINTEL");
   add(CapabilitySplitBarrierINTEL, "SplitBarrierINTEL");
+  add(CapabilityGlobalVariableFPGADecorationsINTEL,
+      "GlobalVariableFPGADecorationsINTEL");
+  add(CapabilityGlobalVariableHostAccessINTEL, "GlobalVariableHostAccessINTEL");
   add(CapabilityGroupUniformArithmeticKHR, "GroupUniformArithmeticKHR");
   add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGADSPControlINTEL, "FPGADSPControlINTEL");
@@ -636,6 +654,8 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
   add(CapabilityMax, "Max");
   add(CapabilityFPGAArgumentInterfacesINTEL, "FPGAArgumentInterfacesINTEL");
   add(CapabilityFPGALatencyControlINTEL, "FPGALatencyControlINTEL");
+  add(CapabilityFPMaxErrorINTEL, "FPMaxErrorINTEL");
+  add(CapabilityRegisterLimitsINTEL, "RegisterLimitsINTEL");
   // From spirv_internal.hpp
   add(internal::CapabilityFastCompositeINTEL, "FastCompositeINTEL");
   add(internal::CapabilityOptNoneINTEL, "OptNoneINTEL");
@@ -660,8 +680,46 @@ template <> inline void SPIRVMap<Capability, std::string>::init() {
       "JointMatrixPackedInt2ComponentTypeINTEL");
   add(internal::CapabilityJointMatrixPackedInt4ComponentTypeINTEL,
       "JointMatrixPackedInt4ComponentTypeINTEL");
+  add(internal::CapabilityCacheControlsINTEL, "CacheControlsINTEL");
+  add(internal::CapabilityCooperativeMatrixPrefetchINTEL,
+      "CooperativeMatrixPrefetchINTEL");
+  add(internal::CapabilityCooperativeMatrixInvocationInstructionsINTEL,
+      "CooperativeMatrixInvocationInstructionsINTEL");
+  add(internal::CapabilityCooperativeMatrixCheckedInstructionsINTEL,
+      "CooperativeMatrixCheckedInstructionsINTEL");
+  add(internal::CapabilitySubgroupRequirementsINTEL,
+      "SubgroupRequirementsINTEL");
+  add(internal::CapabilityTaskSequenceINTEL, "TaskSequenceINTEL");
+  add(internal::CapabilityBindlessImagesINTEL, "BindlessImagesINTEL");
 }
 SPIRV_DEF_NAMEMAP(Capability, SPIRVCapabilityNameMap)
+
+template <>
+inline void SPIRVMap<InitializationModeQualifier, std::string>::init() {
+  add(InitializationModeQualifierInitOnDeviceReprogramINTEL,
+      "InitOnDeviceReprogramINTEL");
+  add(InitializationModeQualifierInitOnDeviceResetINTEL,
+      "InitOnDeviceResetINTEL");
+  add(InitializationModeQualifierMax, "Max");
+}
+SPIRV_DEF_NAMEMAP(InitializationModeQualifier,
+                  SPIRVInitializationModeQualifierNameMap)
+
+template <> inline void SPIRVMap<HostAccessQualifier, std::string>::init() {
+  add(HostAccessQualifierNoneINTEL, "NoneINTEL");
+  add(HostAccessQualifierReadINTEL, "ReadINTEL");
+  add(HostAccessQualifierWriteINTEL, "WriteINTEL");
+  add(HostAccessQualifierReadWriteINTEL, "ReadWriteINTEL");
+  add(HostAccessQualifierMax, "Max");
+}
+SPIRV_DEF_NAMEMAP(HostAccessQualifier, SPIRVHostAccessQualifierNameMap)
+
+template <>
+inline void SPIRVMap<NamedMaximumNumberOfRegisters, std::string>::init() {
+  add(NamedMaximumNumberOfRegistersAutoINTEL, "AutoINTEL");
+}
+SPIRV_DEF_NAMEMAP(NamedMaximumNumberOfRegisters,
+                  SPIRVNamedMaximumNumberOfRegistersNameMap)
 
 } /* namespace SPIRV */
 

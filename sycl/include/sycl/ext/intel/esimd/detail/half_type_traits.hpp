@@ -17,20 +17,15 @@
 /// @cond ESIMD_DETAIL
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel::esimd::detail {
 
 // Standalone definitions to use w/o instantiating element_type_traits.
-#ifdef __SYCL_DEVICE_ONLY__
-// Can't use sycl::detail::half_impl::StorageT as RawT for both host and
-// device as it still maps to struct on/ host (even though the struct is a
-// trivial wrapper around uint16_t), and for ESIMD we need a type which can be
-// an element of clang vector.
 using half_raw_type = sycl::detail::half_impl::StorageT;
+#ifdef __SYCL_DEVICE_ONLY__
 // On device, _Float16 is native Cpp type, so it is the enclosing C++ type
 using half_enclosing_cpp_type = half_raw_type;
 #else
-using half_raw_type = uint16_t;
 using half_enclosing_cpp_type = float;
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -40,14 +35,14 @@ template <> struct element_type_traits<sycl::half> {
 #ifdef __SYCL_DEVICE_ONLY__
   // On device, operations on half are translated to operations on _Float16,
   // which is natively supported by the device compiler
-  static inline constexpr bool use_native_cpp_ops = true;
+  static constexpr bool use_native_cpp_ops = true;
 #else
   // On host, we can't use native Cpp '+', '-' etc. over uint16_t to emulate the
   // operations on half type.
-  static inline constexpr bool use_native_cpp_ops = false;
+  static constexpr bool use_native_cpp_ops = false;
 #endif // __SYCL_DEVICE_ONLY__
 
-  static inline constexpr bool is_floating_point = true;
+  static constexpr bool is_floating_point = true;
 };
 
 // ------------------- Type conversion traits
@@ -63,15 +58,7 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
       ;
 #else
   {
-    vector_type_t<half_raw_type, N> Output = 0;
-
-    for (int i = 0; i < N; i += 1) {
-      // 1. Convert Val[i] to float (x) using c++ static_cast
-      // 2. Convert x to half (using float2half)
-      // 3. Output[i] = half_of(x)
-      Output[i] = ::sycl::detail::float2Half(static_cast<float>(Val[i]));
-    }
-    return Output;
+    __ESIMD_UNSUPPORTED_ON_HOST;
   }
 #endif // __SYCL_DEVICE_ONLY__
 
@@ -82,15 +69,7 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
       ;
 #else
   {
-    vector_type_t<StdT, N> Output;
-
-    for (int i = 0; i < N; i += 1) {
-      // 1. Convert Val[i] to float y(using half2float)
-      // 2. Convert y to StdT using c++ static_cast
-      // 3. Store in Output[i]
-      Output[i] = static_cast<StdT>(::sycl::detail::half2Float(Val[i]));
-    }
-    return Output;
+    __ESIMD_UNSUPPORTED_ON_HOST;
   }
 #endif // __SYCL_DEVICE_ONLY__
 };
@@ -102,16 +81,12 @@ template <int N> struct vector_conversion_traits<sycl::half, N> {
 class WrapperElementTypeProxy {
 public:
   static ESIMD_INLINE half_raw_type bitcast_to_raw_scalar(sycl::half Val) {
-#ifdef __SYCL_DEVICE_ONLY__
     return Val.Data;
-#else
-    return Val.Data.Buf;
-#endif // __SYCL_DEVICE_ONLY__
   }
 
   static ESIMD_INLINE sycl::half bitcast_to_wrapper_scalar(half_raw_type Val) {
 #ifndef __SYCL_DEVICE_ONLY__
-    return sycl::half(::sycl::detail::host_half_impl::half(Val));
+    __ESIMD_UNSUPPORTED_ON_HOST;
 #else
     sycl::half Res;
     Res.Data = Val;
@@ -137,6 +112,9 @@ template <>
 struct is_esimd_arithmetic_type<half_raw_type, void> : std::true_type {};
 #endif // __SYCL_DEVICE_ONLY__
 
+template <>
+struct is_esimd_arithmetic_type<sycl::half, void> : std::true_type {};
+
 // Misc
 inline std::ostream &operator<<(std::ostream &O, sycl::half const &rhs) {
   O << static_cast<float>(rhs);
@@ -151,7 +129,7 @@ inline std::istream &operator>>(std::istream &I, sycl::half &rhs) {
 }
 
 } // namespace ext::intel::esimd::detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 /// @endcond ESIMD_DETAIL

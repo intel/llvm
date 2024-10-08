@@ -6,15 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#ifndef LLVM_LIBC_SRC_SUPPORT_FPUTIL_FENVIMPL_H
-#define LLVM_LIBC_SRC_SUPPORT_FPUTIL_FENVIMPL_H
+#ifndef LLVM_LIBC_SRC___SUPPORT_FPUTIL_FENVIMPL_H
+#define LLVM_LIBC_SRC___SUPPORT_FPUTIL_FENVIMPL_H
 
+#include "hdr/fenv_macros.h"
+#include "hdr/math_macros.h"
+#include "hdr/types/fenv_t.h"
 #include "src/__support/macros/attributes.h" // LIBC_INLINE
+#include "src/__support/macros/config.h"
 #include "src/__support/macros/properties/architectures.h"
 #include "src/errno/libc_errno.h"
-
-#include <fenv.h>
-#include <math.h>
 
 #if defined(LIBC_TARGET_ARCH_IS_AARCH64)
 #if defined(__APPLE__)
@@ -28,19 +29,22 @@
 // the apple condition here should be removed.
 #elif defined(LIBC_TARGET_ARCH_IS_X86) && !defined(__APPLE__)
 #include "x86_64/FEnvImpl.h"
-#elif defined(LIBC_TARGET_ARCH_IS_ARM)
+#elif defined(LIBC_TARGET_ARCH_IS_ARM) && defined(__ARM_FP)
 #include "arm/FEnvImpl.h"
-#elif defined(LIBC_TARGET_ARCH_IS_RISCV64)
-#include "riscv64/FEnvImpl.h"
+#elif defined(LIBC_TARGET_ARCH_IS_ANY_RISCV) && defined(__riscv_flen)
+#include "riscv/FEnvImpl.h"
 #else
 
-namespace __llvm_libc::fputil {
+namespace LIBC_NAMESPACE_DECL {
+namespace fputil {
 
 // All dummy functions silently succeed.
 
 LIBC_INLINE int clear_except(int) { return 0; }
 
 LIBC_INLINE int test_except(int) { return 0; }
+
+LIBC_INLINE int get_except() { return 0; }
 
 LIBC_INLINE int set_except(int) { return 0; }
 
@@ -52,16 +56,26 @@ LIBC_INLINE int disable_except(int) { return 0; }
 
 LIBC_INLINE int get_round() { return FE_TONEAREST; }
 
-LIBC_INLINE int set_round(int) { return 0; }
+LIBC_INLINE int set_round(int rounding_mode) {
+  return (rounding_mode == FE_TONEAREST) ? 0 : 1;
+}
 
 LIBC_INLINE int get_env(fenv_t *) { return 0; }
 
 LIBC_INLINE int set_env(const fenv_t *) { return 0; }
 
-} // namespace __llvm_libc::fputil
+} // namespace fputil
+} // namespace LIBC_NAMESPACE_DECL
 #endif
 
-namespace __llvm_libc::fputil {
+namespace LIBC_NAMESPACE_DECL {
+namespace fputil {
+
+LIBC_INLINE int clear_except_if_required(int excepts) {
+  if (math_errhandling & MATH_ERREXCEPT)
+    return clear_except(excepts);
+  return 0;
+}
 
 LIBC_INLINE int set_except_if_required(int excepts) {
   if (math_errhandling & MATH_ERREXCEPT)
@@ -80,6 +94,7 @@ LIBC_INLINE void set_errno_if_required(int err) {
     libc_errno = err;
 }
 
-} // namespace __llvm_libc::fputil
+} // namespace fputil
+} // namespace LIBC_NAMESPACE_DECL
 
-#endif // LLVM_LIBC_SRC_SUPPORT_FPUTIL_FENVIMPL_H
+#endif // LLVM_LIBC_SRC___SUPPORT_FPUTIL_FENVIMPL_H

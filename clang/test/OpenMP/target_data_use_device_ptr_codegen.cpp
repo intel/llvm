@@ -131,7 +131,6 @@ void foo(float *&lr, T *&tr) {
     ++l;
   }
   // CK1:     [[BEND]]:
-  // CK1:     [[CMP:%.+]] = icmp ne ptr %{{.+}}, null
   // CK1:     br i1 [[CMP]], label %[[BTHEN:.+]], label %[[BELSE:.+]]
 
   // CK1:     [[BTHEN]]:
@@ -361,7 +360,7 @@ struct ST {
       a++;
     }
     // CK2:     call void @__tgt_target_data_end{{.+}}[[MTYPE00]]
-    // CK2:     [[DECL:%.+]] = getelementptr inbounds [[ST]], ptr %this1, i32 0, i32 0
+    // CK2:     [[DECL:%.+]] = getelementptr inbounds nuw [[ST]], ptr %this1, i32 0, i32 0
     // CK2:     [[TTT:%.+]] = load ptr, ptr [[DECL]],
     // CK2:     getelementptr inbounds double, ptr [[TTT]], i32 1
     a++;
@@ -380,7 +379,7 @@ struct ST {
       b++;
     }
     // CK2:     call void @__tgt_target_data_end{{.+}}[[MTYPE01]]
-    // CK2:     [[DECL:%.+]] = getelementptr inbounds [[ST]], ptr %{{.+}}, i32 0, i32 1
+    // CK2:     [[DECL:%.+]] = getelementptr inbounds nuw [[ST]], ptr %{{.+}}, i32 0, i32 1
     // CK2:     [[TTT:%.+]] = load ptr, ptr [[DECL]],
     // CK2:     [[TTTT:%.+]] = load ptr, ptr [[TTT]],
     // CK2:     getelementptr inbounds double, ptr [[TTTT]], i32 1
@@ -401,7 +400,7 @@ struct ST {
       la++;
     }
     // CK2:     call void @__tgt_target_data_end{{.+}}[[MTYPE02]]
-    // CK2:     [[DECL:%.+]] = getelementptr inbounds [[ST]], ptr %this1, i32 0, i32 0
+    // CK2:     [[DECL:%.+]] = getelementptr inbounds nuw [[ST]], ptr %this1, i32 0, i32 0
     // CK2:     [[TTT:%.+]] = load ptr, ptr [[DECL]],
     // CK2:     getelementptr inbounds double, ptr [[TTT]], i32 1
     a++;
@@ -412,11 +411,11 @@ struct ST {
     // CK2:     [[BP2:%.+]] = getelementptr inbounds [3 x ptr], ptr %{{.+}}, i32 0, i32 2
     // CK2:     store ptr [[RVAL2:%.+]], ptr [[BP2]],
     // CK2:     call void @__tgt_target_data_begin{{.+}}[[MTYPE03]]
+    // CK2:     [[VAL1:%.+]] = load ptr, ptr [[BP1]],
+    // CK2:     store ptr [[VAL1]], ptr [[PVT1:%.+]],
     // CK2:     [[VAL2:%.+]] = load ptr, ptr [[BP2]],
     // CK2:     store ptr [[VAL2]], ptr [[PVT2:%.+]],
     // CK2:     store ptr [[PVT2]], ptr [[_PVT2:%.+]],
-    // CK2:     [[VAL1:%.+]] = load ptr, ptr [[BP1]],
-    // CK2:     store ptr [[VAL1]], ptr [[PVT1:%.+]],
     // CK2:     store ptr [[PVT1]], ptr [[_PVT1:%.+]],
     // CK2:     [[TT2:%.+]] = load ptr, ptr [[_PVT2]],
     // CK2:     [[_TT2:%.+]] = load ptr, ptr [[TT2]],
@@ -430,10 +429,10 @@ struct ST {
       b++;
     }
     // CK2:     call void @__tgt_target_data_end{{.+}}[[MTYPE03]]
-    // CK2:     [[DECL:%.+]] = getelementptr inbounds [[ST]], ptr %this1, i32 0, i32 0
+    // CK2:     [[DECL:%.+]] = getelementptr inbounds nuw [[ST]], ptr %this1, i32 0, i32 0
     // CK2:     [[TTT:%.+]] = load ptr, ptr [[DECL]],
     // CK2:     getelementptr inbounds double, ptr [[TTT]], i32 1
-    // CK2:     [[_DECL:%.+]] = getelementptr inbounds [[ST]], ptr %this1, i32 0, i32 1
+    // CK2:     [[_DECL:%.+]] = getelementptr inbounds nuw [[ST]], ptr %this1, i32 0, i32 1
     // CK2:     [[_TTT:%.+]] = load ptr, ptr [[_DECL]],
     // CK2:     [[_TTTT:%.+]] = load ptr, ptr [[_TTT]],
     // CK2:     getelementptr inbounds double, ptr [[_TTTT]], i32 1

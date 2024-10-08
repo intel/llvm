@@ -5,8 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || esimd_emulator
-// TODO : esimd_emulator does not support lsc-atomic yet
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -15,8 +14,6 @@
 #include <algorithm>
 #include <cmath>
 #include <numeric>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 int main() {
   using namespace sycl;
@@ -36,13 +33,13 @@ int main() {
   auto vec_2 = std::vector<int>(size);
   auto vec_3 = std::vector<int>(size);
   auto vec_4 = std::vector<int>(size);
-  auto buf_0 = buffer{vec_0};
-  auto buf_1 = buffer{vec_1};
-  auto buf_2 = buffer{vec_2};
-  auto buf_3 = buffer{vec_3};
-  auto buf_4 = buffer{vec_4};
 
   try {
+    auto buf_0 = buffer{vec_0};
+    auto buf_1 = buffer{vec_1};
+    auto buf_2 = buffer{vec_2};
+    auto buf_3 = buffer{vec_3};
+    auto buf_4 = buffer{vec_4};
     q.submit([&](handler &h) {
       auto access_0 = buf_0.template get_access<access::mode::read_write>(h);
       auto access_1 = buf_1.template get_access<access::mode::read_write>(h);
@@ -87,11 +84,6 @@ int main() {
           });
     });
     q.wait();
-    buf_0.template get_access<access::mode::read_write>();
-    buf_1.template get_access<access::mode::read_write>();
-    buf_2.template get_access<access::mode::read_write>();
-    buf_3.template get_access<access::mode::read_write>();
-    buf_4.template get_access<access::mode::read_write>();
   } catch (sycl::exception e) {
     std::cout << "SYCL exception caught: " << e.what();
     return 1;

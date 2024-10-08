@@ -7,12 +7,11 @@
 // ===--------------------------------------------------------------------=== //
 #pragma once
 
-#include <sycl/detail/common.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/usm/usm_enums.hpp>
+#include <sycl/detail/export.hpp> // for __SYCL_EXPORT
+#include <sycl/usm/usm_enums.hpp> // for alloc
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 
 class device;
 class context;
@@ -25,11 +24,12 @@ class context;
 __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 
 /// Queries the device against which the pointer was allocated
-/// Throws an invalid_object_error if ptr is a host allocation.
+/// Throws an exception with errc::invalid error code if ptr is a host
+/// allocation.
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in
 __SYCL_EXPORT device get_pointer_device(const void *ptr, const context &ctxt);
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

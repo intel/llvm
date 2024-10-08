@@ -8,7 +8,7 @@
 
 // <locale>
 
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
+// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS -D_LIBCPP_ENABLE_CXX26_REMOVED_WSTRING_CONVERT
 
 // wbuffer_convert<Codecvt, Elem, Tr>
 
@@ -22,7 +22,7 @@
 // XFAIL: no-wide-characters
 
 // TODO: Avoid using <fstream> in this test.
-// XFAIL: no-fstream
+// XFAIL: no-filesystem
 
 #include <locale>
 #include <codecvt>

@@ -7,11 +7,12 @@
 // Test that the UUID is read correctly from Level Zero.
 
 // CHECK: PASSED
-#include <CL/sycl.hpp>
 #include <iomanip>
 #include <iostream>
 #include <level_zero/ze_api.h>
 #include <sstream>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   sycl::device dev;

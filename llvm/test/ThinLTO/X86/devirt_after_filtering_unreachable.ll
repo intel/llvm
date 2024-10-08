@@ -12,7 +12,7 @@
 ; RUN: llvm-dis -o - %t-foo.bc.0 | FileCheck %s --check-prefix=UNREACHABLEFLAG
 
 ; Tests that devirtualization happens.
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t-main.bc %t-foo.bc -pass-remarks=. -o %t \
+; RUN: llvm-lto2 run -save-temps %t-main.bc %t-foo.bc -pass-remarks=. -o %t \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -r=%t-foo.bc,_Z3fooP4Base,pl \
 ; RUN:   -r=%t-foo.bc,_ZN7DerivedD0Ev,pl \
@@ -40,7 +40,7 @@
 ; UNREACHABLEFLAG: gv: (name: "_ZN4BaseD0Ev", {{.*}}, funcFlags: ({{.*}} mustBeUnreachable: 1
 
 ; Test that devirtualized happen in index based WPD
-; RUN: llvm-lto2 run -opaque-pointers %t4.o %t3.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t4.o %t3.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \
@@ -71,7 +71,7 @@ target triple = "x86_64-unknown-linux-gnu"
 define hidden i32 @main() {
 entry:
   %call = tail call ptr @_Znwm(i64 8)
-  store ptr getelementptr inbounds ({ [5 x ptr] }, ptr @_ZTV7Derived, i64 0, inrange i32 0, i64 2), ptr %call
+  store ptr getelementptr inbounds ({ [5 x ptr] }, ptr @_ZTV7Derived, i64 0, i32 0, i64 2), ptr %call
   tail call void @_Z3fooP4Base(ptr nonnull %call)
   ret i32 0
 }

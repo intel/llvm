@@ -8,7 +8,9 @@
 // SYCL_PI_LEVEL_ZERO_USE_MULTIPLE_COMMANDLIST_BARRIERS to enable fix on certain
 // hardware.
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
+#include <sycl/usm.hpp>
 
 constexpr size_t NElemsPerSplit = 1000;
 constexpr size_t Splits = 8;

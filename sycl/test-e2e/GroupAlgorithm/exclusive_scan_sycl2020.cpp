@@ -1,37 +1,21 @@
-// UNSUPPORTED: hip
-// RUN: %{build} -fsycl-device-code-split=per_kernel -I . -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-device-code-split=per_kernel -I . -o %t.out
 // RUN: %{run} %t.out
 
+#include "../helpers.hpp"
 #include "support.h"
 #include <algorithm>
 #include <cassert>
+#include <complex>
 #include <iostream>
 #include <limits>
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 #include <vector>
 using namespace sycl;
 
 template <class SpecializationKernelName, int TestNumber>
 class exclusive_scan_kernel;
-
-// std::exclusive_scan isn't implemented yet, so use serial implementation
-// instead
-// TODO: use std::exclusive_scan when it will be supported
-namespace emu {
-template <typename InputIterator, typename OutputIterator,
-          class BinaryOperation, typename T>
-OutputIterator exclusive_scan(InputIterator first, InputIterator last,
-                              OutputIterator result, T init,
-                              BinaryOperation binary_op) {
-  T partial = init;
-  for (InputIterator it = first; it != last; ++it) {
-    *(result++) = partial;
-    partial = binary_op(partial, *it);
-  }
-  return result;
-}
-} // namespace emu
 
 queue q;
 
@@ -57,11 +41,12 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name0>(nd_range<1>(G, G), [=](nd_item<1> it) {
-        group<1> g = it.get_group();
-        int lid = it.get_local_id(0);
-        out[lid] = exclusive_scan_over_group(g, in[lid], binary_op);
-      });
+      cgh.parallel_for<kernel_name0>(
+          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
+            group<1> g = it.get_group();
+            int lid = it.get_local_id(0);
+            out[lid] = exclusive_scan_over_group(g, in[lid], binary_op);
+          });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + confirmRange,
@@ -82,11 +67,12 @@ void test(const InputContainer &input, BinaryOperation binary_op,
     q.submit([&](handler &cgh) {
       accessor in{in_buf, cgh, sycl::read_only};
       accessor out{out_buf, cgh, sycl::write_only, sycl::no_init};
-      cgh.parallel_for<kernel_name1>(nd_range<1>(G, G), [=](nd_item<1> it) {
-        group<1> g = it.get_group();
-        int lid = it.get_local_id(0);
-        out[lid] = exclusive_scan_over_group(g, in[lid], init, binary_op);
-      });
+      cgh.parallel_for<kernel_name1>(
+          nd_range<1>(confirmRange, confirmRange), [=](nd_item<1> it) {
+            group<1> g = it.get_group();
+            int lid = it.get_local_id(0);
+            out[lid] = exclusive_scan_over_group(g, in[lid], init, binary_op);
+          });
     });
   }
   emu::exclusive_scan(input.begin(), input.begin() + confirmRange,

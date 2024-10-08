@@ -1,7 +1,7 @@
 // REQUIRES: aspect-fp16
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <iostream>
 
@@ -29,7 +29,7 @@ int main() {
 
   Q.wait_and_throw();
 
-  auto Acc = Buf.get_access<sycl::access::mode::read>();
+  auto Acc = Buf.get_host_access();
   if (1 != Acc[0]) {
     std::cerr << "Incorrect result, got: " << Acc[0] << ", expected: 1"
               << std::endl;

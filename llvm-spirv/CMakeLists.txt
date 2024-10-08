@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.13.4)
 
 if(NOT DEFINED BASE_LLVM_VERSION)
-  set (BASE_LLVM_VERSION 17.0.0)
+  set (BASE_LLVM_VERSION 20.0.0)
 endif(NOT DEFINED BASE_LLVM_VERSION)
 set(LLVM_SPIRV_VERSION ${BASE_LLVM_VERSION}.0)
 
@@ -98,8 +98,16 @@ if(LLVM_SPIRV_BUILD_EXTERNAL)
   )
   include(AddLLVM)
   include(HandleLLVMOptions)
+  include(LLVM-Config)
 
   message(STATUS "Found LLVM: ${LLVM_VERSION}")
+
+  is_llvm_target_library("SPIRV" spirv_present_result INCLUDED_TARGETS)
+  if(spirv_present_result)
+    message(STATUS "Found SPIR-V Backend")
+    set(SPIRV_BACKEND_FOUND TRUE)
+    add_compile_definitions(LLVM_SPIRV_BACKEND_TARGET_PRESENT)
+  endif()
 
   option(CCACHE_ALLOWED "allow use of ccache" TRUE)
   find_program(CCACHE_EXE_FOUND ccache)
@@ -120,8 +128,19 @@ if (NOT SPIRV_TOOLS_FOUND)
   find_package(SPIRV-Tools-tools)
   if (SPIRV-Tools_FOUND AND SPIRV-Tools-tools_FOUND)
     set(SPIRV_TOOLS_FOUND TRUE)
-    set(SPIRV_TOOLS_LDFLAGS SPIRV-Tools-shared)
-    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS SPIRV-Tools-shared INTERFACE_INCLUDE_DIRECTORIES)
+    # check for the existance of library targets in the found packages
+    if(TARGET SPIRV-Tools-shared)
+      # use the shared libary target if present
+      set(SPIRV-Tools-library SPIRV-Tools-shared)
+    elseif(TARGET SPIRV-Tools-static)
+      # otherwise fallback to the static library target
+      set(SPIRV-Tools-library SPIRV-Tools-static)
+    else()
+      message(FATAL_ERROR "Found SPIRV-Tools package but neither "
+              "SPIRV-Tools-shared or SPIRV-Tools-static targets exist.")
+    endif()
+    set(SPIRV_TOOLS_LDFLAGS ${SPIRV-Tools-library})
+    get_target_property(SPIRV_TOOLS_INCLUDE_DIRS ${SPIRV-Tools-library} INTERFACE_INCLUDE_DIRECTORIES)
   endif()
 endif()
 

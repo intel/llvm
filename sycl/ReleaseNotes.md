@@ -1,3 +1,1406 @@
+# Release notes Jul'24
+
+Release notes for commit range
+[d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
+...
+[ebb3b4a21b3b0e](https://github.com/intel/llvm/commit/ebb3b4a21b3b0e977f44434781729df7de83e436)
+
+## New Features
+
+### SYCL Compiler
+
+- Added `-fsycl-range-rounding` command line option which allows control over
+  the range rounding feature. In comparison with the previously available
+  `-fsycl-disable-range-rounding` command line option and
+  `__SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING__` macro the new flag also allows
+  to _force_ range rounding which will completely disable the generation of
+  non-rounded kernels, thus improving binary size. intel/llvm#12715
+- Added `-fsycl-exp-range-rounding` command line option that enables
+  experimental range rounding mode in which range rounding is performed across
+  all dimensions. intel/llvm#12690
+- Added support for the so-called [new offloading model](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/OffloadDesign.md).
+  It can be enabled by the `--offload-new-driver` command line option and
+  provides an improved infrastructure for us. In the future we expect to
+  leverage that infrastructure to improve link times by reducing the amount of
+  I/O used by the compiler and the amount of external processes that it spawns.
+  The foundation for this work has been performed in previous release time frame
+  and the following list of PRs only includes those done within this release
+  time frame. intel/llvm#14252 intel/llvm#13394 intel/llvm#13648 intel/llvm#13687
+  intel/llvm#14001 intel/llvm#14006 intel/llvm#14101 intel/llvm#14151
+  intel/llvm#14253 intel/llvm#14177 intel/llvm#13672 intel/llvm#13688
+  intel/llvm#13579 intel/llvm#13869 intel/llvm#14102 intel/llvm#14541
+  intel/llvm#14541 intel/llvm#13898 intel/llvm#14143
+  allow us to improve link time by reducing amount of external processes and
+  temporary files used by the compiler.
+- Added `-fsycl-fp64-conv-emu` command line option which allows the enabling of
+  partial (only conversion operations are supported) emulation of `double` data
+  type. This mode is only supported by Intel GPUs. intel/llvm#13912
+- Introduced `__PTX_VERSION__` macro that corresponds to the PTX version used
+  when compiling NVPTX. intel/llvm#14621
+- Added support for `::rand` and `::srand` in device code on Intel devices. intel/llvm#13506
+- Added support for `sm90a` CUDA target architecture. intel/llvm#14075
+- Added support for detecting misaligned data accesses via address sanitizer. intell/llvm#14148
+- Added support for emitting multiple error reports via address sanitizer
+  through `-fsanitize-recover=address`. intel/llvm#13948
+- Added initial support for
+  [dynamic linking](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/SharedLibraries.md).
+  Current implementation lacks support for `kernel_bundle` API and AOT mode.
+  intel/llvm#14587 intel/llvm#14189 intel/llvm#14103
+- Added `-fno-sycl-decompose-functor` compiler flag which instructs compiler
+  to emit less kernel arguments if possible. The flag is experimental and it
+  only has effect when compiling for CUDA targets. intel/llvm#14434
+
+### SYCL Library
+
+- Added support for JIT-compilation for AMD and NVIDIA backends. intel/llvm#14280
+- Implemented [`sycl_ext_oneapi_prod`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_oneapi_prod.asciidoc) extension. intel/llvm#13555
+- Implemented [`sycl_ext_oneapi_profiling_tag`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_profiling_tag.asciidoc) extension. intel/llvm#12838
+- Implemented [`sycl_ext_oneapi_forward_progress`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_forward_progress.asciidoc) extension. intel/llvm#13389
+- Implemented [`sycl_ext_oneapi_private_alloca`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_private_alloca.asciidoc) extension. intel/llvm#12966 intel/llvm#13490 intel/llvm#13181
+- Implemented
+  [`sycl_ext_oneapi_enqueue_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc)
+  extension. intel/llvm#13512 intel/llvm#13924 intel/llvm#14743
+- Added support for `get_backend_info` API into various SYCL classes (`platform`, `context`, etc.). intel/llvm#12906
+- Implemented [`sycl_ext_oneapi_group_load_store`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_load_store.asciidoc).
+  Please note that the implementation exposes native block read/write HW
+  capabilities only if the operation can be directly mapped to a single block
+  operation. In other cases, it uses a naive implementation in form of a simple
+  loop and group barriers. intel/llvm#13043 intel/llvm#13734 intel/llvm#13673
+- Implemented [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
+- Added initial support for [`sycl_ext_oneapi_free_function_kernels`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) extension. intel/llvm#13207 intel/llvm#13885
+  Known limitations:
+    - free function kernels are only supported if defined at file scope
+    - `SYCL_EXTERNAL` has to be used alongside `SYCL_EXT_ONEAPI_FUNCTION_PROPERTY`
+      to define free function kernel
+    - compiler won't emit any diagnostics if some restrictions from the
+      extension specification are violated
+    - arguments of a free function kernels cannot be composite data types like
+      structs or SYCL classes like `accessor`
+    - using `-fsycl-dead-args-optimization` (ON by default) can lead to failures
+    - `info::kernel::num_args` won't return the right result for free function
+      kernels
+- Added experimental ESIMD function `fma` which results in a guaranteed fused
+  multiply-add operation performed. intel/llvm#13366
+- Implemented revision 2 of
+  [`sycl_ext_oneapi_group_sort`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
+  extension. intel/llvm#14399 intel/llvm#14185 intel/llvm#13942 intel/llvm#13908
+  intel/llvm#14591
+
+
+### SYCLcompat library
+
+- Added support for 2-byte and 4-byte `memset` operations. intel/llvm#13409
+- Added `compare`, `compare_both`, `compare_mask` and their `unordered_*`
+  counterparts. intel/llvm#12998
+- Added APIs for performing arithmetic operations on 33-bit extended values. intel/llvm#13006
+- Added APIs for performing bitwise operations on 33-bit extended values. intel/llvm#13727
+- Added `device_count` and `get_device_id` utility APIs. intel/llvm#14013
+- Added `wait` and `wait_and_throw` free functions. intel/llvm#13029
+- Added vectorized comparison `extend_vcompare[2|4]` APIs. intel/llvm#14079
+- Added vectorized math `extend_v*2` APIs. intel/llvm#13953
+- Added vectorized math `extend_v*4` APIs. intel/llvm#14078
+- Added bitfield manipulation APIs `bfe_safe` and `bfi_safe`. intel/llvm#14006
+- Added dot-product accumulate APIs `dp4a`, `dp2a_lo` and `dp2a_hi`. intel/llvm#14032
+- Added `wait_and_free` API. intel/llvm#14015
+- Added `filter_device` and `list_devices` APIs. intel/llvm#14016
+- Added `funnelshift_*` APIs. intel/llvm#13825
+- Added `match_[any|all]_over_sub_group` APIs. intel/llvm#12973
+- Added APIs to manage kernel libraries loading/unloading. intel/llvm#13053
+  intel/llvm#13932
+- Added `cmul_add` API. intel/llvm#12969
+- Added experimental APIs for masked operations over sub-groups (`select`,
+  `shift`, etc.). intel/llvm#12972
+- Added various helper APIs: a mechanism to extract arguments from a kernel and
+  its kernel parameters; type casting helper for generic address -> queue
+  pointer; a wrapper to provide better support for logical groups; an enum to
+  list supported group types. intel/llvm#12970
+- Added wrappers/support to math functions `clamp`, `isnan`, `cbrt`, `min`,
+  `max`, `fmin_nan`, `fmax_nan`, `pow`, `relu`; wrappers are needed to support
+  variety of combinations of argument types compared to `sycl::` counterparts
+  of those functions. intel/llvm#13005
+- Added `SYCLCOMPAT_CHECK_ERROR` macro which is an error handling utility for
+  expressions that throw exceptions.
+- Added `image1d_max`, `image2d_max` and `image3d_max` `device_info` getters
+  and setters. intel/llvm#13973
+- Added `get_major_version` and `get_minor_version` free functions. intel/llvm#14011
+- Expanded list of properties available through `device_info` class. intel/llvm#13050
+
+### Documentation
+
+- Added specification for [`sycl_ext_oneapi_group_load_store`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_group_load_store.asciidoc) extension. intel/llvm#7593
+- Added specification for [`sycl_ext_oneapi_work_group_memory`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_memory.asciidoc) extension. intel/llvm#13725
+- Added [implementation design document](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/PrivateAlloca.md) for [`sycl_ext_oneapi_private_alloca`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_private_alloca.asciidoc) extension. intel/llvm#13514
+- Added specification for [`sycl_ext_intel_fpga_task_sequence`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_intel_fpga_task_sequence.asciidoc) extension. intel/llvm#6348
+- Added specification for [`sycl_ext_codeplay_enqueue_native_command`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_codeplay_enqueue_native_command.asciidoc) extension. intel/llvm#14136
+- Added specification for [`SPV_INTEL_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/spirv-extensions/SPV_INTEL_bindless_images.asciidoc) extension. intel/llvm#12927
+
+## Improvements
+
+### SYCL Compiler
+
+- Improved compilation flow around integration footer when no 3rd-party host
+  compiler is used. New compilation flow creates less temporary files and
+  therefore should result in a slightly faster compilation. intel/llvm#13607 intel/llvm#14402
+- Added support for `truncf`, `sinpif`, `rsqrtf`, `exp10f`, `ceilf`,
+  `copysignf`, `cospif`, `fmaxf` and `fminf` functions in SYCL kernels as part of
+  [C-CXX-StandardLibrary](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/C-CXX-StandardLibrary.rst)
+  extension. intel/llvm#14132 intel/llvm#13714
+- Added support for more IMF functions as part of [C-CXX-StandardLibrary](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/C-CXX-StandardLibrary.rst) extension. intel/llvm#13786
+- Added `-fsystem-debug` command line option to complement existing
+  `-fno-system-debug`. intel/llvm#13256
+- Improved wording of an error about implicit `this` capture in a kernel. intel/llvm#14100
+- Improved `--save-temps` to work with `-fsycl-host-compiler`. intel/llvm#14751
+- Improved error message about missing AMDGPU architecture when several values
+  are passed into `-fsycl-targets`. intel/llvm#13078
+- Reduced list of commands invoked to generate dependencies using `-MD` flag
+  by one command. intel/llvm#13217
+- Enhanced diagnostic emitted if CUDA target triple passed to `-fsycl-targets`
+  is incorrect. intel/llvm#14673
+- Reduced size of shadow memory used by address sanitizer to avoid running out
+  of memory in multi-GPU environments. intel/llvm#13857
+- Enhanced address sanitizer to be able to detect out-of-bounds access to
+  local accessors. intel/llvm#13503
+- Enhanced address sanitizer to detect incorrect uses of USM deallocation
+  functions (like calling `sycl::free` on a pointer that was not allocated as
+  a USM pointer). intel/llvm#12882
+- Enhanced `-fintelfpga` flag. When used together with `-fp-module=fast` it
+  also implies that `-vpfp-relaxed` will be passed to backend (device) compiler.
+  intel/llvm#13651
+- Implemented support for `memory_order::seq_cst` on CUDA backend, resolving
+  intel/llvm#11208. intel/llvm#12516
+- Implementation of optional kernel features mechanism has been extended to also
+  support AOT compilation if so-called "special" targets are passed to
+  `-fsycl-targets` (see corresponding
+  [documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/UsersManual.md#generic-options)).
+  Please note that this functionality relies on the compile knowing which
+  targets support which optional kernel features and that database is not yet
+  fully complete. In particular, data for Lunar Lake and Battlemage Intel GPUs
+  is still missing. intel/llvm#14590 intel/llvm#14188 intel/lvm#12727
+  intel/llvm#14757 intel/llvm#13486 intel/llvm#13974 intel/llvm#13617
+- Enhanced compiler to annotate SYCL kernel arguments passed by value with
+  `__grid_constant__` for CUDA backend. intel/llvm#14322
+- Added initial support for sub-groups on Native CPU backend. intel/llvm#13979
+- Added support for `reqd_work_group_size` attribute to Native CPU backend.
+  intel/llvm#13175
+- Introduced some extra address space inference for `invoke_simd` API so that
+  backends are able to generate better code. intel/llvm#14628
+- Improved math built-ins support on Native CPU backend: added support for bf16
+  and pointers in generic address space. intel/llvm#13109 intel/llvm#13829
+  intel/llvm#13911 intel/llvm#13428 intel/llvm#13478 intel/llvm#13249
+  intel/llvm#13765
+- Improved debugging experience on Linux (CPU & GPU) and Windows (CPU AOT only).
+  intel/llvm#13107 intel/llvm#13938
+- Optimized device code linking process by providing device libraries in LLVM
+  IR format instead of fat object files which allowed us to skip unbundling
+  step. Note: FPGA path still uses fat object files.
+  intel/llvm#13604 intel/llvm#13693
+- Added missing lowering of `reqd_work_group_size` attribute for CUDA devices
+  so that device compiler can now see the attribute and use it during
+  compilation. intel/llvm#14502
+- Strengthened security-related compilation flags used to build libraries and
+  tools which are part of the intel/llvm SYCL implementation. intel/llvm#13327
+  intel/llvm#14135 intel/llvm#13800
+
+### SYCL Library
+
+- Added support for `sqrt` and `rsqrt` ESIMD function for `double` data type. intel/llvm#13254
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support cubemap images. intel/llvm#12996
+- Added ESIMD API for dynamic allocation of named barriers. intel/llvm#13826
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension implementation to support sampled image arrays. intel/llvm#14237
+- Added implementation for whole graph update
+  (`executable_command_graph::update`).
+  intel/llvm#13220 intel/llvm#14379 intel/llvm#14236 intel/llvm#14111
+  intel/llvm#13987 intel/llvm#12724
+- Added a warning about use of the deprecated `<CL/sycl.hpp>` header. intel/llvm#13569
+- Made `local_accessor::get_pointer` and `local_accessor::get_multi_ptr` throw
+  `invalid` exception if they are called on host. intel/llvm#13747
+- Extended detection of nested `queue` operations to support shortcut methods. intel/llvm#13659
+- Added overloads of various ESIMD APIs (`atomic_update`, `block_[load|store]`
+  and some other) which allow thee omission of some template arguments, thus
+  simplifying the interface. intel/llvm#14043 intel/llvm#14065 intel/llvm#14000
+  intel/llvm#14024 intel/llvm#13978 intel/llvm#13964 intel/llvm#13977
+  intel/llvm#13956 intel/llvm#13941 intel/llvm#13920
+- Updated [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc)
+  extension implementation to support vectors of `bfloat16` to be passed to math
+  functions. intel/llvm#14002 intel/llvm#14106
+- Improved performance of `sycl::vec::as` by optimizing implementation of
+  `sycl::detail::memcpy`. Resolved intel/llvm#7901. intel/llvm#13751
+- Updated implementation to throw SYCL 2020 exceptions instead of legacy
+  SYCL 1.2.1 exception sub-classes everywhere. intel/llvm#14484 intel/llvm#14545
+  intel/llvm#14520 intel/llvm#14485 intel/llvm#14510 intel/llvm#14483
+  intel/llvm#14487 intel/llvm#14488
+- Added support for `sycl::vec::convert` to/from `vec<bfloat16, N>`.
+  intel/llvm#14105 intel/llvm#14085
+- Deprecated `marray<bool, n>::operator++/--`. intel/llvm#13443
+- Deprecated `accessor::get_multi_ptr` for non-device accessors. intel/llvm#13443
+- Moved ESIMD named barrier APIs out of `experimental` namespace. intel/llvm#13704
+- Implemented latest revision of [`sycl_ext_oneapi_free_function_queries`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_oneapi_free_function_queries.asciidoc)
+  extension. intel/llvm#13257
+- Extended `sycl-ls --verbose` to print device's UUID, information about its
+  sub- and sub-sub- devices and its architecture. intel/llvm#13999 intel/llvm#13976
+- Added support for compile-time properties to `copy_to` and `copy_from` ESIMD
+  APIs. intel/llvm#13586
+- Switched `experimental::printf` implementation to use non-variadic interface
+  by default. This should improve usability when printing `float` values on
+  devices that doesn't support `fp64` aspect by disabling `float` -> `double`
+  promotion in `printf` arguments. intel/llvm#13055
+- Added a diagnostic if `slm_init` ESIMD API is called more than once in
+  a kernel. intel/llvm#12804
+- Updated implementation of
+  [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  extension to return `unknown` enumerator on an unsupported HW. intel/llvm#14190
+- Extended list of known Intel GPU architectures available through
+  [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  extension. intel/llvm#13520 intel/llvm#14582
+- Extended mechanism to clear in-memory cache in heavy tests to also work on
+  `opencl` backend. intel/llvm#14119
+- Moved bit shift and rotate ESIMD functions out of `experimental` namespace.
+  intel/llvm#13545
+- Moved `rdtsc` ESIMD function out of `experimental` namespace. intel/llvm#13417
+- Added check for template argument `N` of `media_block_load` ESIMD API. intel/llvm#13668
+- Enhanced deprecation message for `sub_group::barrier` to indicate which API
+  should be used instead. intel/llvm#13276
+- Added deprecation messages for `image_max_array_size` and `opencl_c_version`
+  device info queries. intel/llvm#13279
+- Updated [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
+  extension implementation to throw synchronious exception with
+  `feature_not_supported` error code. intel/llvm#14788
+- Reduced startup overhead of `libsycl.so` by outlining SYCL JIT compiler (used
+  for kernel fusion feature) into a standalone library which is dynamically
+  loaded on the first use. intel/llvm#13433
+- Deprecated `this_kernel::get_root_group` in favor of
+  `this_work_item::get_root_group`. intel/llvm#13304
+- Relaxed diagnostic about using virtual functions in SYCL kernels: now it is
+  only emitted if a call is perfomed using virtual call mechanism, but it is not
+  emitted for non-virtual calls of virtual functions. See also
+  KhronosGroup/SYCL-Docs#565. intel/llvm#114051 intel/llvm#14141
+- ESIMD API `inv` was extended to support `double` arguments. intel/llvm#13838
+- Enhanced validation (via `static_assert` mechanism) of template arguments of
+  ESIMD `rdregion` and `wrregion` APIs. intel/llvm#13158
+- Aligned mutating swizzle operators with the SYCL 2020 specification by making
+  it a `friend` instead of member function. intel/llvm#13012
+- Aligned `vec` conversion operator to a scalar with the SYCL 2020 specification
+  by making it a non-template. intel/llvm#14668
+- Removed deprecation warnings from math built-ins that accept raw pointers to
+  align with the SYCL 2020 spec changes. intel/llvm#13238 intel/llvm#13893
+- Added support for 1- and 2-byte data types to ESIMD prefetch APIs.
+  intel/llvm#13452
+- Enabled `ext_intel_matrix` support for Intel GNR devices. intel/llvm#14436
+- Added support for 1x64x16 `bfloat16` matrices on PVC. intel/llvm#13391
+- Added new overloads of `load_2d`, `store_2d` or `prefetch_2d` ESIMD APIs that
+  accept compile-time properties. intel/llvm#13046
+- Added support for `shift_group_left`, `shift_group_right`,
+  `permute_group_by_xor` and `select_from_group` algorithms for non-uniform
+  groups. intel/llvm#12705
+- Removed Plugin Interface. That is a collection of internal libraries which
+  implemented unified interface to various lower-level runtimes like OpenCL,
+  Level Zero, etc. It is now completely replaced by
+  [Unified Runtime](https://github.com/oneapi-src/unified-runtime/) and this
+  removal should reduce amount and size of redistributable libraries.
+- Enhanced ESIMD `slm_atomic_update` API to also support `fsub` and `fadd`
+  operations. intel/llvm#13535
+- Lifted some of the restrictions from ESIMD `block_store` API. intel/llvm#13150
+- Added support for graph update functionality. intel/llvm#12840
+- Added support for external semaphore wait and signal operations that can take
+  a value to bindless images extension. intel/llvm#13860
+- Added support for device-to-device copying of `image_device_handle`.
+  intel/llvm#12449
+- Improved performance of `queue::fill` on CUDA backend by making it use 2- and
+  4-byte operations instead of only using 1-byte operations. intel/llvm#13788
+  intel/llvm#13779
+- Enhanced `sycl_ext_oneapi_graph` extension implementation on Level Zero
+  backend by taking advantage of copy engines available on some devices to be
+  able to execute kernels and memory operations in parallel. intel/llvm#13051
+- Expanded list of supported atomic memory fence scopes supported by HIP
+  devices. intel/llvm#12872
+- Added SYCL wrappers for more Intel Math Functions. SYCL wrappers are in
+  `sycl::ext::intel::math::` namespace and provide nicer names that do not
+  start with `__`. intel/llvm#13762
+- Added initial support for bindless images on Intel GPUs (only DG2 and MTL).
+  It is very limited in functionality that is supported and it only works if
+  certain environment variables are set. Therefore, it is not yet ready for a
+  wide adoption, but could be used for very early adoption. intel/llvm#13946
+  intel/llvm#13753 intel/llvm#14493 intel/llvm#14266
+- Introduced an optimization to graphs where linear graphs would require less
+  amount of synchronization. This optimization is backend-specific and only
+  performed in very limited amount of cases. intel/llvm#13088
+- Implemented new `fetch_image` overload which accepts sampled image and
+  coordinates. intel/llvm#12447
+- Extended address sanitizer support to cover Intel DG2 GPUs. intel/llvm#13450
+- Updated `info::device::max_mem_alloc_size` query to return total amount of
+  a device memory for CUDA devices, because they have no limit on size of
+  memory allocations. intel/llvm#13344
+
+### Documentation
+
+- Added more detailed description of some of ESIMD methods and functions in a
+  new [`sycl_ext_intel_esimd_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md) document. intel/llvm#13071
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support cubemap images. intel/llvm#12996
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support sampled image arrays. intel/llvm#14237
+- Updated [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) extension to support support default-construction of `image_descriptor`. intel/llvm#13781
+- Updated [ESIMD functions documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md)
+  to list restrictions for `atomic_update`, `gather` and `scatter` functions.
+  intel/llvm#13202 intel/llvm#13196
+- Updated [ESIMD functions documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md)
+  to document new overloads of `load_2d`, `store_2d` or `prefetch_2d` APIs that
+  accept compile-time properties. intel/llvm#13218
+- Updated [ESIMD functions documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_esimd/sycl_ext_intel_esimd_functions.md)
+  to document `fence` API. intel/llvm#13135
+- Updated [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc)
+  extension to support vectors of `bfloat16` to be passed to math functions. intel/llvm#14002
+- Updated [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
+  extension to clarify behavior of `free_memory` query when there are multiple
+  processes using the same device. intel/llvm#14640
+- Promoted [`sycl_ext_oneapi_profiling_tag`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_profiling_tag.asciidoc)
+  extension from proposed into experimental status. intel/llvm#14165
+- Promoted [`sycl_ext_oneapi_group_sort`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_group_sort.asciidoc)
+  extension from proposed into experimental status. intel/llvm#14531
+- Moved [`sycl_ext_oneapi_enqueue_functions`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc)
+  extension from proposed to experimental status. intel/llvm#14017
+- Updated [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc)
+  to return new `unknown` enumerator if device architecture cannot be properly
+  detected. intel/llvm#14077
+- Clarified [`sycl_ext_intel_device_info`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/supported/sycl_ext_intel_device_info.md)
+  extension to specify which exact exceptions are being thrown on errors. intel/llvm#14576
+- Introduced versioning and release process
+  [documentation](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/syclcompat/README.md#versioning)
+  for SYCLcompat. intel/llvm#14457
+- Extended our
+  [contribution guidelines](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/developer/ContributeToDPCPP.md#unified-runtime-updates)
+  to document update process for Unified Runtime component.
+- Updated
+  [`sycl_ext_oneapi_work_group_static`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_static.asciidoc)
+  extension (it is not `work_group_specific` anymore). intel/llvm#14271
+- Updated
+  [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc)
+  extension:
+  - listed 1x64x16 `bfloat16` matrix combination as available on PVC.
+    intel/llvm#13587
+  - clarified the meaning of `joint_matrix_prefetch` template arguments.
+    intel/llvm#13796
+  - added a note about known issue with some CUDA devices. intel/llvm#14178
+- Added revision 2 of
+  [`sycl_ext_intel_matrix`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc)
+  extension which introduces load, store and fill matrix operations with
+  out-of-bounds checks. intel/llvm#11172
+- Updated
+  [`sycl_ext_oneapi_group`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc)
+  extension:
+  - added new functionality to update arguments and ND-range sizes of kernel
+    nodes within a graph. intel/llvm#12486
+  - clarified `enable_profiling` property in `command_graph::finalize`
+    intel/llvm#14067
+  - clarified how graph edges are recorded in a graph with in-order queues.
+    intel/llvm#12916
+  - clarified how code within command-group functions is handled.
+    intel/llvm#13699
+  - clarified interaction between queue properties and graphs. intel/llvm#13681
+  - added `enable_profiling` property. intel/llvm#13088
+- Updated
+  [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
+  extension:
+  - added support for external semaphore wait and signal operations that can
+    take a value. intel/llvm#13860
+  - added support for importing externally allocated buffers and semaphores
+    through Win32 NT handles, as well as DirectX 12 resources and fences.
+    intel/llvm#13860
+  - added support for copying `image_mem_handle` between devices via
+    `ext_oneapi_copy`. intel/llvm#12449
+  - added `fetch_image` overload which accepts sampled image and coordinates.
+    intel/llvm#12447
+  - added type hint template argument to `fetch_cubemap` and `sample_cubemap`
+    APIs. intel/llvm#13742
+
+### SYCLcompat
+
+- Added non-`const` `image2d_max` and `image3d_max` getters. intel/llvm#14138
+- Introduced versioning scheme for the library. intel/llvm#14457
+- Enhanced  masked shuffle functions `select_from_sub_group`,
+  `shift_sub_group_left`, `shift_sub_group_right` and `permute_sub_group_by_xor`
+  to support CUDA devices. intel/llvm#13363
+- Restricted `memory_order` argument of `atomic_ref` passed to
+  `experimental::nd_range_barrier` to match supported on a device.
+  intel/llvm#12974 intel/llvm#13641
+
+## Bug Fixes
+
+### SYCL Compiler
+
+- Fixed a bug where using `-fsycl-link-targets` flag would inadvertently trigger
+  some additional device code linking steps. intel/llvm#13004
+- Fixed a bug that when AOT-compiling for Intel GPUs the compiler would pass
+  some PVC-specific flags even if target device is not a PVC. intel/llvm#13794
+- Fixed a bug with incorrect file extensions being emitted in AOT compilation
+  when `--save-temps` is used. intel/llvm#14214
+- Made `-fsycl-add-default-spec-consts-image` available with `clang-cl`. intel/llvm#13168
+- Fixed an issue where performing separate compilation and linking with
+  `-fsycl-link` would result in "number of output files and targets should match
+  in unbundling mode" error emitted by the compiler during link step. intel/llvm#13002
+- Fixed a bug in address sanitizer which may lead to crashes when an application
+  is launched on the OpenCL CPU device. intel/llvm#13262
+- Fixed a bug where calling certain built-in math functions that accept
+  pointers (like `fract`, `frexp`, `modf`, etc.) and passing pointers in the
+  generic address space there would not compile for AMD devices.
+  intel/llvm#13015 intel/llvm#13092 intel/llvm#13361 intel/llvm#13792
+  intel/llvm#13546
+- Fixed a bug where compiling a program that contains kernels with different
+  `reqd_work_group_size` attributes attached to them using
+  `-fsycl-device-code-split=none` would result in an exception being thrown at
+  runtime about mismatching work-group size. intel/llvm#13523
+- Fixed a bug where compiling a kernel that is annotated with
+  `reqd_work_group_size` attribute that has less than 3 arguments for HIP
+  target caused compiler to crash. intel/llvm#13600
+- Fixed a bug with `shift_group_[right|left]`, `permute_by_xor` and
+  `select_from_group` algorithms would return invalid values if used with
+  `half` data type on AMD devices. intel/llvm#13016
+- Fixed a bug where compiling a program that contains kernels which make calls
+  to standard C/C++ math functions would fail when targeting CUDA on Windows.
+  intel/llvm#14007
+
+### SYCL Library
+
+- Fixed a situation when querying
+  `sycl::ext::oneapi::experimental::info::device` could result in an exception
+  being thrown instead of an empty vector being returned. intel/llvm#13968
+- Fixed `esimd::atan` implementation under `-ffast-math` flag. intel/llvm#13186
+- Fixed an issue that component devices were not considered to be a descendent
+  from their composite devices when creating a queue. intel/llvm#13513
+- Fixed an issue that querying for
+  `ext::oneapi::experimental::info::device::composite_device` would *not*
+  throw an exception if device is not a component device. intel/llvm#13868
+- Fixed an issue that querying for composite devices may result in some devices
+  returned twice. intel/llvm#14442
+- Fixed a bug that querying for composite devices may result in an exception
+  being thrown instead of an empty vector being returned. intel/llvm#13931
+- Fixed a bug in copy-constructor of `config_2d_mem_access` ESIMD class which
+  would lead to compilation errors. intel/llvm#13632
+- Fixed an issue that use of `atomic_ref<T *>` would not be detected as a use
+  of `atomic64` aspect leading to errors due to speculative compilation. intel/llvm#14052
+- Fixed `ctanh` and `cexp` returning incorrect values in some edge cases.
+  intel/llvm#14329
+- Fixed a bug where values passed to `-Xs` option through `build_options`
+  property were not passed down to device compiler when using
+  [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc)
+  extension. intel/llvm#14522
+- Fixed a bug where defining kernel as a named functor whilst using
+  `-fno-sycl-unnamed-lambda` would lead to a compilation error about unnamed
+  lambdas being unsupported. intel/lvm#14614
+- Fixed an issue on CUDA & AMDGPU backends where `multi_ptr` relational
+  operators taking `std::nullptr_t` would produce different results to their
+  corresponding standard C++ helpers like `std::less`. intel/llvm#13201
+- Fixed a compilation issue with `-fpreview-breaking-changes` flag when
+  `windows.h` is included caued by conflict with `min`/`max` macro. intel/llvm#14260
+- Fixed strict alias violations in `sycl::vec<sycl::half, N>::operator[]`
+  implementation that could lead to spurious errors. intel/llvm#13596
+- Fixed a bug where a barrier submitted into a command queue with host tasks
+  could ignore them, as well as a few bugs related to synchronization of host
+  tasks with barriers. intel/llvm#13094 intel/llvm#13863 intel/llvm#13094
+- Fixed a compilation issue occurring when `printf` is used on CUDA backend
+  on Windows. intel/llvm#13784
+- Fixed an issue where the compiler could emit SPIR-V instructions for reversing
+  bits in a variable which are not supported by device compilers.
+  intel/llvm#13810 intel/llvm#13044
+- Fixed a bug where having a default-constructed `local_accessor` as an argument
+  could lead to runtime errors reported about being unable to set kernel
+  argument. The issue manifested itself on Windows and under `-O0` optimization
+  level on Linux as well. intel/llvm#13382
+- Fixed a hang when invalid values were passed into `ONEAPI_DEVICE_SELECTOR`. intel/llvm#13367
+- Fixed shuffles over non-uniform groups on CUDA backend. intel/llvm#13230
+- Fixed an issue with persistent cache where under certain circumstances (like
+  cache directory being located on a network drive on Windows) SYCL RT would
+  fail to create necessary directories for the cache to work. intel/llvm#13019
+- Fixed a bug where querying a kernel by name from a kernel bundle would crash
+  a program. intel/llvm#13155
+- Fixed an error handling bug where non-blocking `pipe` operations would lead
+  to exceptions being mistakenly thrown. intel/llvm#13166
+- Fixed compilation issues happening when non-uniform group built-ins were used
+  with `marray` and `vec`. intel/llvm#14364
+- Fixed a bug where memory attributes applied to a struct that is used as a type
+  of a `device_global` variable would be silently dropped and ignored.
+  intel/llvm#14414
+- Added missing `value_type` and `vector_t` member type aliases to swizzles. intel/llvm#13040
+- Fixed shutdown sequence issues when SYCL RT is used from an application or
+  library that has its own shutdown sequence using global destructors. intel/llvm#14153
+- Fixed a bug where calling `event::get_backend()` on default-constructed event
+  in environment where `ONEAPI_DEVICE_SELECTOR` is set and mall-formed would
+  result in a crash. intel/llvm#13419 intel/llvm#13521
+- Fixed a bug in `sycl-ls` where using `--ignore-device-selectors` option won't
+  actually ignore the env variable, but still honor them. intel/llvm#13047
+- Fixed memory order capabilities returned by Native CPU backend. intel/llvm#13469
+- Fixed variadic constructor of `sycl::ext::oneapi::experimental::properties`
+  to match the extension specification, i.e. there must be exactly one argument
+  of each property type in the `properties` that is not default constructible
+  and at most one argument of each property type in the `properties` that is
+  default constructible. intel/llvm#13676
+- Fixed a bug where using `load_2d`, `store_2d` or `prefetch_2d` ESIMD
+  functions would lead to a build program failure error emitted by device
+  compiler. intel/llvm#13613
+- Fixed a bug where querying free device memory of integrated Intel GPUs would
+  return 0 instead of throwing an exception that the feature is not supported
+  for that device. intel/llvm#13209
+- Fixed a heap buffer overflow in `sycl_ext_oneapi_kernel_compiler_opencl`
+  extension implementation. intel/llvm#13214 intel/llvm#13448
+- Fixed intel/llvm#12473 about `sycl_ext_oneapi_graph` extension implementation
+  ignoring access mode of accessors and thus creating unnecessary edges in a
+  graph. intel/llvm#13011
+- Fixed a bug where a command submission time would not be always recorded in
+  profiling info when using `sycl_ext_oneapi_graph` extension. intel/llvm#14678
+- Fixed a bug with graph recording where submitting a barrier using the same
+  queue for two different graphs would result in the runtime error "Graph nodes
+  cannot depend on events from another graph". intel/llvm#14212
+- Fixed intel/llvm#13066 where submitting a barrier into an empty in-order queue
+  whilst recording a graph would result in the in runtime error "No event has
+  been recorded for the specified graph node". intel/llvm#13193
+- Fixed a resource leak in graph update implementation. intel/llvm#14029
+- Fixed a bug with invalid handling of discard filters within
+  `ONEAPI_DEVICE_SELECTOR` env variable caused RT to mistakenly say that the
+  env variable value is ill-formed. intel/llvm#13927
+- Fixed incorrect behavior of ESIMD atomic operations on data types smaller than
+  4 bytes on Gen12 Intel GPUs. intel/llvm#13340
+- Fixed a bug where SYCL RT could link fallback implementation for `assert`
+  even though target device supports that functionality natively.
+  intel/llvm#13312
+- Fixed a bug in `sycl_ext_oneapi_kernel_compiler` extension implementation
+  where passing certain combinations of options into `build` API would lead to
+  compilation errors. intel/llvm#14433
+- Fixed a UB caused by improper dealing with alignment in
+  `sycl_ext_oneapi_group_sort` extension implementation. intel/llvm#13975
+- Fixed a bug where `device::ext_oneapi_cl_profile` could return some extra
+  symbols for Intel GPU devices, thus violating the format of returned value.
+  intel/llvm#13584
+- Fixed a bug where use of `SYCL_EXTERNAL` functions defined within a static
+  produced by `llvm-ar` would result in runtime error from JIT compilation
+  about that `SYCL_EXTERNAL` function being unresolved. intel/llvm#14256
+- Fixed a bug where calling `sycl::make_device` using an interop object obtained
+  from a SYCL `device` object would result in a device that is not equally
+  comparable with the original `device` object. See related issue
+  intel/llvm#6055. The bug is fixed for Level Zero backend, but it still may
+  exhibit itself on OpenCL backend when sub-devices are involved.
+  intel/llvm#13483
+- Partially fixed profiling information provided by events from in-order queues
+  that have barries submitted to them. There are still issues on Level Zero
+  backend due to certain optimizations that it performs for barriers in
+  in-order queues. intel/llvm#14123
+- Fixed a memory leak in bindless images extension implementation.
+  intel/llvm#13364
+- Fixed performance regression when kernels without any dependencies are
+  submitted into in-order queue. intel/llvm#13333
+- Fixed a bug where profiling info timestamps could be zeros on Level Zero
+  backend. intel/llvm#14360
+- Fixed a bug where using multiple queues with `immediate_command_list` and
+  `no_immediate_command_list` properties could result in a crash.
+  intel/llvm#14341
+- Fixed a bug where `info::kernel_device_specific::work_group_size` would
+  return `device`-specific limit ignoring the kernel on Level Zero backend.
+  intel/llvm#13474
+
+### Documentation
+
+- Actualized default value for `SYCL_PI_LEVEL_ZERO_USM_ALLOCATOR` debugging
+  environment variable (it is now set to enabled by default). intel/llvm#12088
+- Fixed link to range rounding
+  [implementation design document](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/design/ParallelForRangeRounding.md)
+  from [environment variables](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/EnvironmentVariables.md)
+  documentation.
+- Corrected installation steps for CPU/FPGA low-level runtimes in
+  [Get Started Guide](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/GetStartedGuide.md). intel/llvm#14204
+
+### SYCLcompat
+
+- Fixed compilation issue on Windows with `syclcompat::cabs`. intel/llvm#13518
+- Fixed `atomic_compare_exchange_strong` not using address space template
+  parameter. intel/llvm#13821
+- Fixed compilation issues when `SYCL_COMPAT_PROFILING_ENABLED` is defined. intel/llvm#14574
+
+## Misc
+
+### SYCL Compiler
+
+- Reverted changes previously made as a bugfix on Windows to support a separate
+  compilation scenario where compilation step is performed _without_ the
+  `-fsycl` flag, but link step _with_ the `-fsycl` flag, expecting the compiler
+  to do the right thing. However, this is now considered to be a unsupported
+  scenario, because during link step the compiler doesn't know which version
+  (debug or release) of the standard library to link. intel/llvm#13326
+
+## API/ABI Breaking Changes
+
+This release is an *ABI* breaking release, meaning that any applications which
+were built using older versions of the toolchain have to be recompiled in order
+to be launched using newer versions of SYCL runtime library.
+
+- Bumped major version of SYCL runtime library to `8`. intel/llvm#13097
+- Cleaned up list of symbols exported from SYCL runtime library: dropped some
+  legacy symbols, hidden some symbols which shouldn't have been exported in the
+  first place, etc.
+  intel/llvm#14638 intel/llvm14626 intel/llvm#14624 intel/llvm#14615
+  intel/llvm#14585 intel/llvm#14616 intel/llvm#14494 intel/llvm#14460
+  intel/llvm#14368 intel/llvm#13493 intel/llvm#13191 intel/llvm#14549
+  intel/llvm#13597 intel/llvm#13271
+- Updated ABI of several functions/methods to avoid using `std::string` and
+  some other objects in library interface. This should allow to use SYCL RT
+  in applications which were built with pre-C++11 ABI.
+  intel/llvm#13183 intel/llvm#13549 intel/llvm#13560 intel/llvm#13212
+  intel/llvm#13213 intel/llvm#13447
+- Changed `ext_oneapi_copy` API from experimental
+  `sycl_ext_oneapi_bindless_images` extension to accept `const`-qualified
+  types for `Src` parameter. intel/llvm#14140
+
+Several API breaking changes were made as well, mostly completely dropping
+support for previously deprecated APIs and in some cases switching
+implementations of some classes to use so-called preview implementation.
+
+- Removed `sycl::abs` overload taking floating-point argument. intel/llvm#13286
+- Removed `sycl::host_ptr` and `sycl::device_ptr`. intel/llvm#13240
+- Removed `queue::discard_or_return`. intel/llvm#14550
+- Removed `sycl::make_unique_ptr`. intel/llvm#13232
+- Removed `use_primary_contaxt` property. intel/llvm#13496
+- Methods and functions related to previously removed host device like
+  `platform::is_host`. intel/llvm#14258
+- Removed SYCL 1.2.1 exception subclasses:
+  - `runtime_error`, `nd_range_error`, `invalid_parameter_error`. intel/llvm#14546
+  - `device_error`. intel/llvm#14486
+  - `feature_not_supported`. intel/llvm#14423
+- Removed `queue::mem_advice` overload accepting `pi_mem_advice`. intel/llvm#14618
+- Removed number of deprecated ESIMD APIs. intel/llvm#14415
+- Removed non-standard `sycl::id` -> `sycl::range` conversion operator. intel/llvm#13293
+- Removed deprecated APIs from
+  [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc)
+  extension implementation. intel/llvm#14555
+- Renamed experimental `destroy_external_semaphore` API from
+  `sycl_ext_oneapi_bindless_images` extension into `release_external_semaphore`.
+  intel/llvm#14535
+- Replaced `image_channel_order` field of `image_descriptor` struct with
+  number of channels in experimental `sycl_ext_oneapi_bindless_images`
+  extension. intel/llvm#13745
+- Renamed SYCLcompat function `async_free` to `enqueue_free`. intel/llvm#14015
+- Enforced restrictions on first argument of lambdas/functors passed to
+  `parallel_for(range)` and `parallel_for(nd_range)`. intel/llvm#13198
+- Switched `sycl::vec` implementation to use its preview version. New version:
+  - uses different storage type under the hood which should fix several strict
+    aliasing rules violations that we had in the implementation.
+    intel/llvm#14317 intel/llvm#13182 intel/llvm#14130
+  - restricts math operations available to `vec<std::byte, N>` to those which
+    are available to `std::byte` (bitwise shifts are affected).
+    intel/llvm#13947
+- Switched `sycl::exception` implementation to us its preview version. intel/llvm#14548
+- Switched math built-ins implementation to use their preview version. intel/llvm#13152
+- Switched `bfloat16` implementation to use its preview version. intel/llvm#13233
+- Switched `sycl::nd_item` implementation to use its preview version. intel/llvm#13197
+- Enforced restriction that `buffer`'s element type must be device copyable. intel/llvm#13200
+- Restructured SYCL headers so that `<cmath>` and `<complex>` are not included
+  in there anymore. intel/llvm#11528
+- Dropped support for `SYCL_DEVICE_FILTER` environment variable. intel/llvm#13192
+- Updated `accessor::get_pointer` interface to return `global_ptr<value_type>`
+  which can be `const`-qualified if an accessor data type is `const`-qualified,
+  or if an accessor is read-only. intel/llvm#13443
+- Removed deprecated APIs related to `sycl_ext_oneapi_free_function_queries`.
+  intel/llvm#13257
+- Moved `slm_allocator` ESIMD APIs into `experimental` namespace. intel/llvm#13901
+- Removed deprecated `usm_system_allocator` aspect. intel/llvm#13279
+- Removed `get_child_group` API from experimental
+  [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/blob/ebb3b4a21b3b0e977f44434781729df7de83e436/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc)
+  extension. intel/llvm#13482
+- Simplified template arguments related to `simd_view` of many ESIMD APIs. intel/llvm#13231
+- Removed ESIMD `atomic_op::predec`. intel/llvm#14480
+- Dropped interfaces from revision 1 of experimental
+  `sycl_ext_oneapi_group_sort` extension. intel/llvm14531
+- Changed return type of `command_graph::begin_recording` and
+  `command_graph::end_recording` from `void` to `bool` in the experimental
+  `sycl_ext_oneapi_graph` extension. intel/llvm#13480
+
+Breaking changes were also made to compiler flags:
+
+- Removed `-fsycl-link-huge-device-code` flag (it was deprecated in favor of
+  `-flink-huge-device-code`). intel/llvm#14731
+- Updated `-sycl-std` to disallow selection of SYCL 1.2.1. intel/llvm#14544
+- Removed deprecated `-fsycl-[add|link]-targets` flag. intel/llvm#13834
+- Removed deprecated `-foffload-static-lib` and `-foffload-whole-static-lib`.
+  Corresponding functionality is already available without the need to pass any
+  special options. intel/llvm#13835
+- Deprecated `-fsycl-disable-range-rounding` flag in favor of the new
+  `-fsycl-range-rounding`. intel/llvm#12715
+
+## Known Issues
+
+- On Windows, the Unified Runtime's Level Zero leak check does not work correctly with
+  the default contexts on Windows. This is because on Windows the release
+  of the plugin DLLs races against the release of static global variables
+  (like the default context).
+- Intel Graphic Compiler's Vector Compute backend does not support O0 code and
+  often gets miscompiled, produces wrong answers and crashes. This issue directly
+  affects ESIMD code at O0. As a temporary workaround, we have optimize ESIMD code
+  even in O0 mode.
+  [00749b1e8](https://github.com/intel/llvm/commit/00749b1e8e3085acfdc63108f073a255842533e2)
+- [new] Use of some SYCL math built-ins (like `abs` or `clz`) in a program where
+  `sycl/ext/intel/esimd.hpp` header is included causes compilation errors.
+  This will be fixed in the next release (intel/llvm#14793)
+- [new] When using `sycl_ext_oneapi_matrix` extension it is important for some
+  devices to use the sm version (Compute Capability) corresponding to the device
+  that will run the program, i.e. use `-fsycl-targets=nvidia_gpu_sm_xx` during
+  compilation. This particularly affects matrix operations using `half` data
+  type. For more information on this issue consult with
+  https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html#wmma-restrictions
+- [new] When using `queue` shortcut functions with in-order queues dependencies
+  between commands submitted to different queues may be ignored:
+  ```c++
+  // q1 long running task
+  sycl::event e = q1.single_task([=](){ /* ... */ });
+  // q2 task
+  q2.single_task(e, [=](){ /* ... */ });
+  ```
+  In the example above, the seocnd kernel will start execution *before* the
+  first completes its execution. A workaround is to explicitly call `.wait()`.
+  This will be fixed in the next release, see intel/llvm#15412
+- [new] C/C++ math built-ins (like `exp` or `tanh`) can return incorrect
+  results for some edge-case input when they are called from SYCL kernels.
+
+# Mar'24 release notes
+Release notes for commit range [f4e0d3177338](https://github.com/intel/llvm/commit/f4ed132f243ab43816ebe826669d978139964df2).. [d2817d6d317db1](https://github.com/intel/llvm/commit/d2817d6d317db1143bb227168e85c409d5ab7c82)
+
+## New Features
+### SYCL Compiler
+
+- Added more available CPU for `-march` option in OpenCL AOT compiler. [7911773c]
+- Added support for additional AMD GPU targets. [c1ce15944]
+- Supported detecting out-of-bound errors on CPU device, static local memory, and device globals via AddressSanitizer. [f331ba2063] [a14cfdd7999]
+- Provide a preprocessor macro to locate the CUPTI library when XPTI tracing is enabled during compiler build. [e15ebd08] [acf89a6c90]
+- Made `-fsycl-dump-device-code` save PTX files generated for the CUDA backend. [16e06ff]
+- When multiple floating point accuracy-related options are specified on the CLI, made the last option take precedence over others. [69e2b91]
+- Added a new `-fsycl-dump-device-code` option to dump device code generated during SYCL compilation into a user-specified directory. [96ce6ea]
+- Added support for `-fsycl-link` with ahead-of-time (AOT) compilation. [22fab5a]
+- Added support for `-O3` on Windows when using `clang-cl`. [0af4ac7]
+
+### SYCL Library
+
+- Implemented [ext_oneapi_kernel_compiler](https://github.com/intel/llvm/blob/096676e8d4d87475860723ed8a4d8c256bcd98c2/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler.asciidoc) SYCL extension.  [096676e8] [e5826540] [67086100]
+- Implemented [ext_intel_fp_control](https://github.com/intel/llvm/blob/bf8ea96f/sycl/doc/extensions/experimental/sycl_ext_intel_fp_control.asciidoc) SYCL extension. [bf8ea96f]
+- Implemented [ext_oneapi_kernel_compiler_opencl](https://github.com/intel/llvm/blob/6344ead19/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc) SYCL extension. [6344ead19]
+- Enabled kernel fusion with heterogeneous ND ranges for HIP targets. [e44888873]
+- Enabled [ext_oneapi_graph](https://github.com/intel/llvm/blob/5d7524543/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension for OpenCL and HIP backend. [5d7524543] [897b27076]
+- Supported graph partitioning for host task dependencies in [ext_oneapi_graph](https://github.com/intel/llvm/blob/d53f123a/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension. [d53f123a]
+- Added ESIMD APIs for stochastic rounding, property-based gather, masked-gather, and ReaD timestamp counting. [aa4e87801] [3eca2d473] [1261e0518]
+- Added out-of-bounds `load`,`store`,`fill` and overloads accepting annotated pointers in [ext_oneapi_matrix](https://github.com/intel/llvm/blob/4c17a7f39/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc) SYCL extension [4c17a7f39] [f3137e99]
+- Added support for `queue::mem_advise` on HIP backends. [a669374b7] [ab86d0db]
+- Supported `fill` and `memset` nodes in [ext_oneapi_graph](https://github.com/intel/llvm/blob/8ea022954/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension. [8ea022954]
+- Implemented [ext_oneapi_in_order_queue_events](https://github.com/intel/llvm/blob/19072756e/sycl/doc/extensions/experimental/sycl_ext_oneapi_in_order_queue_events.asciidoc) SYCL extension. [19072756e]
+- Implemented [ext_oneapi_address_cast](https://github.com/intel/llvm/blob/123705190/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) SYCL extension. [123705190]
+- Implemented [ext_oneapi_kernel_compiler_spirv](https://github.com/intel/llvm/blob/36e123d3e1/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc) SYCL extension. [36e123d3e1]
+- Implemented [ext_oneapi_composite_device](https://github.com/intel/llvm/blob/2db1a4f6a5/sycl/doc/extensions/experimental/sycl_ext_oneapi_composite_device.asciidoc) SYCL extension. [2db1a4f6a5]
+- Implemented joint matrix query from [ext_oneapi_matrix](https://github.com/intel/llvm/blob/00eebe1e4/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc) SYCL extension on CUDA and HIP backends. [00eebe1e4]
+- Added support for unsampled image arrays in [ext_oneapi_bindless_images](https://github.com/intel/llvm/blob/76ec3f0f7/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) SYCL extension. [76ec3f0f7]
+- Added `__imf_rcp64h` - equivalent to CUDA's `__nv_rcp64h` - and `sqrt` function with selectable rounding modes to Intel math libdevice. [ce70cb521] [6c1dde4243b5]
+- Integrated OneAPI construction kit's vectorizer to Native CPU backend. [330ac57d6]
+- Added ability to compare device architecture and support for PVC-VG to [ext_oneapi_device_architecture](https://github.com/intel/llvm/blob/68445467/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) SYCL extension. [68445467] [ac0e142e12]
+- Added `sycl::length` wrapper and a helper functions in SYCLCompat library for occupancy calculation in Intel GPUs. [b209b321] [2525570]
+- Added support for SYCL barriers on Native CPU. [3c39d132a]
+- Added support for `bfloat16` to `sycl::vec`. [bbbe8839]
+- Added vectorized binary and unary operations through callable structs in the SYCLCompat library. [5505e03]
+- Supported profiling information for default-constructed events when `ext_oneapi_barrier` is submitted to an empty in-order queue. [200694b]
+- Implemented `ext_oneapi_private_alloca` by adding code generation capabilities for `private_alloca`. [f4e0d31]
+- Added support for memory attributes on `non-const` device global variables on FPGA. [3bb5f40] [3fc6708]
+- Added `set_default_queue` functionality to SYCLCompat library to enable changing the default queue of the current device. [e72b85c]
+- Propagate annotations from `annotated_ptr` to the underlying raw pointers to enable additional optimization opportunities. [8f182cd]
+
+### Documentation
+- Proposed [ext_intel_fp_control](https://github.com/intel/llvm/blob/bf8ea96f4/sycl/doc/extensions/experimental/sycl_ext_intel_fp_control.asciidoc) extension to allow specifying the rounding and denorm mode for floating-point operations in SYCL kernels. [bf8ea96f4]
+- Proposed [ext_oneapi_raw_kernel_arg](https://github.com/intel/llvm/blob/4168793978/sycl/doc/extensions/proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc) SYCL extension to allow opaque types to be passed to SYCL kernels. [4168793978]
+- Proposed [ext_oneapi_composite_device](https://github.com/intel/llvm/blob/9a1b9084/sycl/doc/extensions/experimental/sycl_ext_oneapi_composite_device.asciidoc) SYCL extension to allow card-level device access on PVC GPUs. [9a1b9084]
+- Proposed [ext_oneapi_in_order_queue_events](https://github.com/intel/llvm/blob/19072756e/sycl/doc/extensions/experimental/sycl_ext_oneapi_in_order_queue_events.asciidoc) SYCL extension to allow getting event from the last submitted command and setting an external event as an implicit dependence on the next command submitted to the queue [19072756e]
+- Proposed [ext_oneapi_profiling_tag](https://github.com/intel/llvm/blob/b4ade420/sycl/doc/extensions/proposed/sycl_ext_oneapi_profiling_tag.asciidoc) SYCL extension to time commands submitted to the queue. [b4ade420]
+- Proposed [ext_oneapi_private_alloca](https://github.com/intel/llvm/blob/aaf7a58863/sycl/doc/extensions/experimental/sycl_ext_oneapi_private_alloca.asciidoc) SYCL extension to have specialization constant-length private memory allocations. [aaf7a58863]
+- Added `joint_matrix_prefetch` and overloads of load and store with `annotated_ptr` in [ext_intel_matrix](https://github.com/intel/llvm/blob/04a222f7bb3022f3623ad40c9de70fd97579061a/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc) and [ext_oneapi_matrix](https://github.com/intel/llvm/blob/04a222f7bb3022f3623ad40c9de70fd97579061a/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_oneapi_matrix.asciidoc) SYCL extensions. [04a222f]
+
+### Other changes
+- Created an additional version-agnostic copy of the SYCL import library during compiler build. [2d2e418c]
+
+## Improvements
+### SYCL Compiler
+- Enabled default selection of general register file (GRF) size on Linux for PVC GPUs. [8083f8a8]
+- Disabled passing `-sycl-opt` for NativeCPU to enable the original full LLVM optimization pipeline. [3fe77b9]
+- Enabled `-fsycl-esimd-force-stateless-mem` flag by default. [f316273]
+- Enable `-emit-only-kernels-as-entry-point` by default on Intel backends for `sycl-post-link` to prevent device code bloating. [70fddbb]
+
+
+### SYCL Library
+- Improved error messages for invalid properties specified on non pointer types. [728b132a5]
+- Adopted a unified and scalable way to pass alignment and cache flags to all ESIMD functions. [a2208484ab] [960d898c] [5ef8df837d] [a57a96c77] [19cd6144a] [646ab086e5] [0bf2e666c]
+- Added default constructor to bindless sampler and image handler in [ext_oneapi_bindless_images](https://github.com/intel/llvm/blob/d65f3aa560/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) SYCL extension. [d65f3aa560] [7bfdcfd4cabf]
+- Added `SYCL_CACHE_IN_MEM` environment variable to disable in-memory caching of programs and facilitated automatic program cache cleaning when running out of memory. [9322d14ce] [6cf1ae081ac]
+- Improved templated and convertible builtins after clarification in SYCL 2020 revision 8. [92861835]
+- Allowed generic_space `multi_ptr` in math builtins. [eda8a587f1]
+- Improved error message when writing beyond the bounds of `simd_view` object. [197c33a2b]
+- Optimized `ext_oneapi_submit_barrier` from [ext_oneapi_enqueue_barrier](https://github.com/intel/llvm/blob/7e08c15dd/sycl/doc/extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc) into `NOP` for in-order queues with empty waitlist. [7e08c15dd]
+- Supported prefetch, memory advise, and automatic management of dependencies for multiple command-buffer submissions in [ext_oneapi_graph](https://github.com/intel/llvm/blob/c6fbac59/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension. [c6fbac59] [56f8d38c]
+- Added support for profiling command buffers. [b04f894dbd06b]
+- Implemented ESIMD APIs that accepts compile-time properties. [655ab100] [5582ce4db] [d286f4ab1c] [961793913] [0cfe7e35] [656b8be7]
+- Removed deprecated esimd_emulators from device filters and depreciated `SYCL_DEVICE_FILTER` in favor of `ONEAPI_DEVICE_SELECTOR`. [9d0888ca3] [8d0fa9875]
+- Improved error message when trying to fuse kernels with incompatible ND-Ranges in [ext_codeplay_kernel_fusion](https://github.com/intel/llvm/blob/7d492f87ec97/sycl/doc/extensions/experimental/sycl_ext_codeplay_kernel_fusion.asciidoc). [7d492f87ec97]
+- Made user functions to always inline in the SYCL kernels to reduce overhead in SYCLCompat library. [e121c8811]
+- Made runtime choose device image with inlined specialization constant when `-fsycl-add-default-spec-consts-image` option is used. [73d34739b]
+- Made `nd_item` stateless to reduce initialization overhead. [7999e27b]
+- Improved warning messages and added `-ignore-device-selector` flag to `sycl-ls` to ignore device selection environment variables. [6e3aa218]
+- Improved error handling when calling `matrix_combinations` query on platforms unsupported by [ext_oneapi_device_architecture](https://github.com/intel/llvm/blob/c00305b73/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) SYCL extension. [c00305b73]
+- Made default `sycl::queue` context reusable on Windows. [491e6e4ea]
+- Changed default cache hints for `prefetch` ESIMD API. [984c88c]
+- Limited `bfloat16` ESIMD operations to data types convertible to `float`, as required by the SPEC. [f81b5a2]
+- Removed the implicitly passed `-ze-take-global-address` IGC option as it is by default enabled on newer IGC versions. [7e414a9]
+- Improved product security by ensuring that `pi_win_proxy_loader.dll` is loaded only from trusted directories. [85b7145] [218d9fe] [9c504a5]
+- Aligned `sycl-ls` output with `ONEAPI_DEVICE_SELECTOR` environment variable syntax. [38ce764] [f720291]
+- Improved error message when kernel compilation fails. [eba7b7e]
+
+
+### Documentation
+- Updated [ext_oneapi_kernel_compiler_opencl](https://github.com/intel/llvm/blob/6344ead19e/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc) SYCL extension to allow querying OpenCL version. [6344ead19e]
+- Updated [ext_intel_data_flow_pipes_properties](https://github.com/intel/llvm/blob/2a0911892/sycl/doc/extensions/experimental/sycl_ext_intel_data_flow_pipes_properties.asciidoc) to include AXI streaming as a protocol choice on FPGAs. [2a0911892]
+- Updated [KernelFusionJIT](https://github.com/intel/llvm/blob/b9854a12/sycl/doc/design/KernelFusionJIT.md) to include details on local/private memory allocation size, different promotion hints, etc. [b9854a12]
+- Updated [ext_oneapi_in_order_queue_events](https://github.com/intel/llvm/blob/b0f584c675f9/sycl/doc/extensions/experimental/sycl_ext_oneapi_in_order_queue_events.asciidoc) to make external events wait when queue is waited on. [b0f584c675f9]
+- Improved [ext_oneapi_address_cast](https://github.com/intel/llvm/blob/84a92e03/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) SYCL extension to allow casting raw pointers to multi_ptr. [84a92e03]
+
+## Bug Fixes
+### SYCL Compiler
+- Made the device binary generated by `-fsycl-link=image` linkable by adding more information into the binary. [219d4ef54]
+- Fixed linking error when separately compiling and linking a SYCL program with SYCL libraries. [d6eecfa]
+- Fixed `clangd` parsing crash with `-fsycl` flag when using `!nullptr` asserts. [f42bbcc]
+
+### SYCL Library
+- Fixed computation of submit time based on host timestamps. [254756369c]
+- Fixed SYCL CTS failures for Unified Runtime's OpenCL adapter. [4c0780e76]
+- Fixed strict aliasing violations in `sycl::vec` routines. [a9d0e1b8]
+- Fixed logical operations and integer conversions among sycl::vec types. [3d5e41fddf] [ff48612f] [7868596d]
+- Fixed compound operators on `annoted_ptr` when the user-defined type only defines a compound operator. [c43a90f2]
+- Fixed exponential slowdown in multiple calls to `queue::ext_oneapi_submit_barrier`. [079fc97b]
+- Fixed input handling for `ONEAPI_DEVICE_SELECTOR` environment variable. [90b6aee46]
+- Fixed in-order dependency filtering for isolated kernels. [8e7995df]
+- Fixed double-free bug in kernel-program cache. [04ff5b81]
+- Fixed resource leak in `SYCL_FALLBACK_ASSERT`. [b478d2fa]
+- Fixed deadlock in in-order queue when submitting a host task and simultaneously accessing stream service events. [3031733]
+- Made `sycl::vec` interface consistent with `sycl::marray` and `sycl::buffer` by defining `value_type` alias. [33e5b10]
+- Fix handling of enumeration specialization constants. [1f0dc36]
+- Fixes `-O0 -fno-inline-functions` ESIMD failures by inlining some non-inline functions due to VC limitations. [89327e0]
+
+### Documentation
+- Clarified [ext_oneapi_graph](https://github.com/intel/llvm/blob/2581123a1/sycl/doc/extensions/experimental/sycl_ext_oneapi_graph.asciidoc) SYCL extension to make it illegal for graph nodes to depend on events from outside the graph. [2581123a1]
+- Updated [ext_oneapi_non_uniform_groups](https://github.com/intel/llvm/blob/90a55a5/sycl/doc/extensions/experimental/sycl_ext_oneapi_non_uniform_groups.asciidoc) to invert group numbering for ballot groups. [90a55a5]
+- Updated [ext_oneapi_free_function_kernels](https://github.com/intel/llvm/blob/a452e06a0ebcbabbfecbeb2ca05675265bddbf8d/sycl/doc/extensions/proposed/sycl_ext_oneapi_free_function_kernels.asciidoc) to remove `range kernels` from the extension. [a452e06]
+
+## Known Issues
+- On Windows, the Unified Runtime's Level Zero leak check does not work correctly with
+the default contexts on Windows. This is because on Windows the release
+of the plugin DLLs races against the release of static global variables
+(like the default context).
+- Intel Graphic Compiler's Vector Compute backend does not support O0 code and often gets miscompiled, produces wrong answers and crashes. This issue directly affects ESIMD code at O0. As a temporary workaround, we have optimize ESIMD code even in O0 mode. [00749b1e8](https://github.com/intel/llvm/commit/00749b1e8e3085acfdc63108f073a255842533e2)
+- `multi_ptr` relational operators assume the lowest possible value of `std::null_ptr` which might cause issues with the CUDA and AMDGPU backends. This will be fixed in the next release. ([13201](https://github.com/intel/llvm/pull/13201))
+- When `-fsycl-device-code-split=off` is set, having kernels with different `reqd_work_group_size` attributes could lead to runtime errors about local size mismatching the attribute value. The issue is also reproducible when there is a kernel with `reqd_work_group_size` attribute, but other kernels don't have that attribute set. This will be fixed in the next release. ([#13523](https://github.com/intel/llvm/pull/13523))
+- Having default-constructed `local_accessor` as unused kernel argument could lead to runtime errors during kernel arguments setting. The issue is reproducible when optimizations are explicitly disabled through `-O0`, or when optimizations failed to remove that unused kernel argument. This will be fixed in the next release. ([#13382](https://github.com/intel/llvm/pull/13382))
+- ONEAPI_DEVICE_SELECTOR incorrectly parses `!` from discard filters. This will be fixed in the next release. ([SYCL] Fix ONEAPI_DEVICE_SELECTOR handling of discard filters. #13927)
+
+## API/ABI breaking changes
+- Renamed and removed some APIs from [ext_oneapi_free_function_queries](https://github.com/intel/llvm/commit/287fd3733#diff-4ab48d4a7f26c356939d42c6aed9c67d4d59aafac11565f3bfe71d7e053a4db4) SYCL extension. [287fd3733]
+
+## Upcoming API/ABI breakages
+The following changes ared only in effect if the `-fpreview-breaking-changes` flag is set.
+- Changed return type of `abs_diff` to be same as that of the input. [2a3e1ab82]
+- Added a preview of pre-C++11 ABI support for GCC on Linux.  This feature  allows users to set a GCC compiler flag -D_GLIBCXX_USE_CXX11_ABI=0 to use pre-C++11 ABI. Details about GCC C++11 ABI is available at https://gcc.gnu.org/onlinedocs/libstdc++/manual/using_dual_abi.html. In this release, this feature is enabled under the flag -fpreview-breaking-changes, and the support is incomplete and may not work for some cases.  [459e122a]
+- Removed some sub-group class APIs that do not appear in SYCL 2020 Spec. [2985395]
+
+
+# Nov'23 release notes
+Release notes for commit range f4e0d3177338..f4ed132f243a
+
+## New Features
+### SYCL Compiler
+- Added `-fpreview-breaking-changes` option (see ["Upcoming API/ABI breakages"](#upcoming-apiabi-breakages) section for more details) [08febcfcb64a] [99b97eef4278]
+- Enabled early AOT abilities when creating objects [6f248088541c]
+- Added support for `-faltmathlib` [32c3e642d644]
+- Added support for `-ftarget-register-alloc-mode` [8e5275af77af]
+- Added `-fsycl-add-default-spec-consts-image` command line option to Clang Driver [3847c7c6c5c7]
+
+### SYCL Library
+- Added experimental implementation of SYCL bindless images extension [58a8f2001d8b] [380453deeb51] [b1aab046f408]
+- Added support for local accessors to `copy_from`/`copy_to` for ESIMD [474461cb2e1d]
+- Added support for local accessors to atomic update for ESIMD [8974cb944b3c]
+- Added support for local accessors to lsc for ESIMD [9dce2d227b31]
+- Added new `raw_send` APIs moving compile time params to template params for ESIMD [1a5e53216b00]
+- Added SYCLcompat library [bedd818eb281] [465aa56ee5b3] [75b31a4c24b4] [4dfaf20884c7] [47d84897a87b] [8c07a840311a] [ab578107b6f8] [ac5a90e0c1b5] [a733fa74b583] [c39c2138f5a0]
+- Implemented `sycl_ext_oneapi_auto_local_range` [a6d4c2120b5c]
+- Implemented [`sycl_ext_oneapi_sub_group_mask`](https://github.com/intel/llvm/blob/3bd09b9089c5221f72f19ab1adde19da909661a7/sycl/doc/extensions/supported/sycl_ext_oneapi_sub_group_mask.asciidoc) version 2 [3bd09b9089c5]
+- Implemented [`sycl_ext_oneapi_queue_priority`](https://github.com/intel/llvm/blob/0c33fea5fac067066cc942ee6f98612700e05d57/sycl/doc/extensions/supported/sycl_ext_oneapi_queue_priority.asciidoc) [0c33fea5fac0]
+- Implemented optional kernel feature for `joint_matrix` and `joint_matrix_mad` [946b1f236167] [c38dfcf64681]
+- Implemented [`sycl_ext_oneapi_prefetch`](https://github.com/intel/llvm/blob/b5d69df53620a1c9d33f7575cd3e6dd1ade54508/sycl/doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc) [e7139b0f15d0] [0229456e19d5] [b5d69df53620]
+- Implemented [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/1ad69e59eb13245cda5c58b04db0bb79f35a597b/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) for HIP and CUDA devices [1ad69e59eb13]
+- Improved error message when running ESIMD code on unsupported devices [a5f471ea1535]
+- Added [`ext_oneapi_non_uniform_groups`](https://github.com/intel/llvm/blob/de92299c2c09d626dcbc633c83e259d828220d03/sycl/doc/extensions/proposed/sycl_ext_oneapi_non_uniform_groups.asciidoc) aspect [de92299c2c09]
+
+### Documentation
+- Moved [`sycl_ext_oneapi_complex`](https://github.com/intel/llvm/blob/ea6aea37c6dd777ef8df68e45a93646be2ad9558/sycl/doc/extensions/experimental/sycl_ext_oneapi_complex.asciidoc) from proposed to experimental [ea6aea37c6dd]
+- Added [SYCLcompat documentation](https://github.com/intel/llvm/blob/180a92ad707bd35df9e98c1474dc52a1e9b3dead/sycl/doc/syclcompat/README.md) [180a92ad707b]
+- Added [`sycl_ext_oneapi_forward_progress`](https://github.com/intel/llvm/blob/67461148b16938a318796f639ee857b02831c38d/sycl/doc/extensions/proposed/sycl_ext_oneapi_forward_progress.asciidoc) extension spec [67461148b169]
+- Added [`sycl_ext_oneapi_launch_queries`](https://github.com/intel/llvm/blob/67461148b16938a318796f639ee857b02831c38d/sycl/doc/extensions/proposed/sycl_ext_oneapi_launch_queries.asciidoc) extension spec [67461148b169]
+- Added [`sycl_ext_oneapi_kernel_compiler`](https://github.com/intel/llvm/blob/5e64f96d20c22a6c2a1600515160ddf248637641/sycl/doc/extensions/proposed/sycl_ext_oneapi_kernel_compiler.asciidoc) extension spec [5e64f96d20c2]
+- Added [`sycl_ext_oneapi_kernel_compiler_opencl`](https://github.com/intel/llvm/blob/5e64f96d20c22a6c2a1600515160ddf248637641/sycl/doc/extensions/proposed/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc) extension spec [5e64f96d20c2]
+- Added [`sycl_ext_oneapi_enqueue_functions`](https://github.com/intel/llvm/blob/ebc3ddb9a60bad6f1f0e331da4044000e3a7fb60/sycl/doc/extensions/proposed/sycl_ext_oneapi_enqueue_functions.asciidoc) extension spec [ebc3ddb9a60b]
+- Added [`sycl_ext_oneapi_graph_fusion`](https://github.com/intel/llvm/blob/8c4cad45faba815ad252de895a2a1434d8c0bd1a/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph_fusion.asciidoc) extension spec [8c4cad45faba]
+- Added [`sycl_ext_intel_fpga_datapath`](https://github.com/intel/llvm/blob/a162179381fd1b0ebab5cab8978e7cef9dfdac8c/sycl/doc/extensions/proposed/sycl_ext_intel_fpga_datapath.asciidoc) extension spec [a162179381fd]
+- Added [`sycl_ext_intel_fpga_mem`](https://github.com/intel/llvm/blob/a162179381fd1b0ebab5cab8978e7cef9dfdac8c/sycl/doc/extensions/proposed/sycl_ext_intel_fpga_mem.asciidoc) extension spec [a162179381fd]
+- Added [`sycl_ext_intel_cache_controls`](https://github.com/intel/llvm/blob/deb020bf740b1d34d71189f5900b1558934a09d7/sycl/doc/extensions/proposed/sycl_ext_intel_cache_controls.asciidoc) extension spec [deb020bf740b]
+- Added [design doc](https://github.com/intel/llvm/blob/1713ed19f71c4401b2ff62dcbc32a8e71b336701/sycl/doc/design/CommandGraph.md) for `sycl_ext_oneapi_graph` extension [1713ed19f71c]
+
+## Improvements
+### SYCL Compiler
+- Added diagnostics if SYCL-specific command line options are used without `-fsycl` [bf128c873e74]
+- Enabled `INTEL_SYCL_OPAQUEPOINTER_READY` [a47705f2d865] [9dded21c5984]
+- Supported multiple SYCL targets with `native_cpu` in the same compiler invocation [aab5d747c46e]
+- Made `-fintelfpga` flag imply `-fsycl`. [ad2f959d8b88] [6d48bc13c456]
+- Ensured debug format for SYCL device on Windows is the expected format [73bba79a3ffb]
+- Disabled parallel for range rounding at `-O0` [2c117d7a6104]
+- Fixed missing `optnone` attribute in `-O0` mode on non-FPGA target to improve debuggability [993fe5b31b43]
+
+### SYCL Library
+- Supported missing types for the `ldg` in the [sycl_ext_oneapi_cuda_tex_cache_read](https://github.com/intel/llvm/blob/aec8a35788c1953c6ae74ab1e6eb924fa09d5e4e/sycl/doc/extensions/experimental/sycl_ext_oneapi_cuda_tex_cache_read.asciidoc) [aec8a35788c1]
+- Stopped throwing exception when passing empty accessor to `handler::require()` [7bf1f57bc26e]
+- Moved `addc()` and `subb()` functions out of experimental namespace [9e3852bc1c2e]
+- Moved BFN function from experimental namespace [c9da5c7ff7e8]
+- Improved error message when `queue::memcpy` receives a null pointer by reporting source code info(file/line number) [626c4b5078c1]
+- Improved accuracy of double `tanpi` host implementation [041a74c0cbda]
+- Added support bitwise and/or/xor and logical and/or subgroup collective functions for AMD[288aeaef03a9]
+- Updated `annotated_ptr` API to match spec changes [954730e7a823] [fbad42a398ef] [43336a15fcaf]
+- Implemented info::event_profiling::command_submit support for platforms that use OpenCL version less than 2.1 [7cfa951303eb]
+- Fixed required alignment in buffers [093dae1f7214]
+- Improved error message when using `sycl_ext_oneapi_graph` features that are not yet implemented [8d8d3f4f52b0]
+- Supported `get_multi_ptr` in ESIMD context [2f0f3814c541]
+- Accept integral type in parallel_for with offsets [ecfc49c825c6]
+- Added support for `assert()` in ESIMD kernels [545a043ebaf5]
+- Added missing Intel archs to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/blob/c4db251179dcd1b30a1043d4780634dbe39b3e3a/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) [c4db251179dc]
+- Enabled range rounding for unnamed lambdas [4f30e6648d9e]
+- Fixed loading of plugins when path to them contains non-ANSI symbols [5c30815d4821]
+- Improved the error message when the command group function object passed to `queue::submit` has the wrong signature [5801970585b2]
+- Improved `handler::fill` performance on 2D and 3D buffers [0249a55f810e]
+- Added defaults for streaming and register_map fpga_kernel_properties [23a6f389c1e4]
+- Moved GRF property conflict check to compile time [4fb92d35c7be]
+- Added error when using invoke_simd with callables with struct arguments [03c13fd53a24]
+- Added missing `rintf` for CUDA [3c327c736ced]
+- Optimized kernel launch on CUDA by caching the max local mem size so that CUDA driver is called less [1c892f952cae]
+- Made `sycl_ext_oneapi_graph` functions thread-safe [c8c64a673eeb]
+- Improved diagnostic for `nd_item` passed to `parallel_for` with range [e600d7922489]
+- Implemented missing exceptions defined by `sycl_ext_oneapi_graph` specification [77b794bcaad6]
+- Implemented supported `make_device`, `make_queue`, `make_event` interop functions for HIP backend [5e9d07b14a47]
+- Added missing `nearbyint` for CUDA [0ef26d3ee808]
+- Implemented runtime query for matrix combinations [a09491f4e389]
+- Supported basic kernel launches over 64-bit global ranges [192c3016e76b]
+- Clarified runtime error for nested kernel submissions [7afc2d03fd00]
+- Fix compiler crash when spec constants are structs with padding in the middle [292309c826a3]
+- Added support for CUDA backend with `sycl_ext_oneapi_graph` [367b662a49ba]
+- Added support for specialization constants in `sycl_ext_oneapi_graph` nodes [fca7f5e2e3fb]
+- Improved `vec::convert` implementation to use a single instruction instead of per-element [f634cc9bf799]
+- Made `annotated_arg<T>` implicitly device copyable if `T` is device copyable [9f65e61a2dbf]
+
+### Documentation
+- Updated [`sycl_ext_oneapi_local_memory`](https://github.com/intel/llvm/blob/457251feceb81845de962383f227e14522d4cf96/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc) [457251feceb8]
+- Added get-coord API and general query example to [`sycl_ext_intel_matrix`](https://github.com/intel/llvm/blob/579f1dec0b5b2ecd177dfb95c3d1522f57079cc6/sycl/doc/extensions/experimental/sycl_ext_matrix/sycl_ext_intel_matrix.asciidoc) [579f1dec0b5b] [38ac2124c1e8]
+- Updated design doc for new offloading model [115808f5128f]
+- Updated description of the default value of the environment variable `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS` to reflect actual behavior [ad973f3383e2]
+- Added overloads with `sycl::queue` for some functions in [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/blob/4d0c552985bd0e4fc16740a0fc89393ef7fe3d04/sycl/doc/extensions/experimental/sycl_ext_oneapi_bindless_images.asciidoc) [4d0c552985bd]
+- Specify an error in `sycl_ext_oneapi_graph` if an executable graph is submitted to a queue with a different device or context [2c53815c6c1e]
+
+## Bug Fixes
+### SYCL Compiler
+- Fixed backend option passing issues with multiple targets [12ca2db0e30b]
+- Fixed `-fgpu-rdc` option for CUDA [f7595ac7527e]
+- Fixed triple in offload mismatch warning [0fd9a4eb17a2]
+- Fixed a compilation issue when `-enable-global-offset=false` for AMDGU and NVPTX targets [00cf4c29740b]
+
+### SYCL Library
+- Fixed stack corruption in `sycl::modf` for `sycl::half` type [7c6541dc18e3]
+- Fixed `nextafter(half)` precision on host [1f10f3588e8c]
+- Fixed identity values for (sub)group collectives min/max for AMD and CUDA [248389371932]
+- Corrected exception thrown when kernel is submitted with a large (unsupported) `reqd_work_group_size` attribute [25c3666dffa9]
+- Implemented hip `prefetch`/`mem_advise` (noop) for rocm < 5.0 [7e4cc1113987]
+- Adjusted `range` definition so it has a default constructor in accordance with the SYCL spec [0289d2ac94f9]
+- Added missing return statement in the `multi_ptr<void..>` conversion operator [836469ba88e2]
+- Optimized kernel fusion implementation so that some resources can be released earlier [a33b0a950ae6]
+- Fixed an integer overflow that happened when sub-buffer size exceeds `INT_MAX` [2fb0b140ad3b]
+- Fixed `std::enable_if` typo for `marray` and `multi_ptr` [0ef25ec3bdf8]
+- Fixed an issue with `reqd_work_group_size` attribute values bigger than `INT_MAX` being incorrectly handled [cee07d3d2652]
+- Fixed UB in group sort scratch memory access [ed4c01301a7c]
+- Use primary context in HIP adapter [d1c92cb95b29]
+- Fixed a crash when default-constructed accessor is passed to a kernel [fb8ddbf7b0ea]
+- Stopped `sycl_ext_oneapi_graph` subgraph nodes from creating incorrect dependencies on subsequent usages of the subgraph [92ddf8d562d7]
+- Fixed ambiguous `log2` call in host code [12fa0af28e88]
+
+### Documentation
+- Updated `device_image_scope` property  in `sycl_ext_oneapi_device_global` [be8e031cd078]
+
+## API/ABI breakages
+- Deprecated experimental functions for ESIMD: `quot`, `div`, `mod`, `dp*`, `line`, `lrp` [76976a22ba2e]
+- Removed ESIMD Emulator plugin [1ece6da6b113]
+- Deprecated `sycl::abs(genfloat)` [d15d4409b2cf]
+
+## Upcoming API/ABI breakages
+The following changes ared only in effect if the `-fpreview-breaking-changes` flag is set.
+- Fixed sycl::vec ABI inconsistencies and made it trivially copyable [531aabfdee91] [f4ed132f243a] 
+- Updated `sycl.hpp` to not include `<complex>` and `<cmath>` [6ed0ab887d18] [d22c9c58d2e7]
+
+## Known Issues
+- Having MESA OpenCL implementation which provides no devices on a
+  system may cause incorrect device discovery. As a workaround such an OpenCL
+  implementation can be disabled by removing `/etc/OpenCL/vendor/mesa.icd`.
+- `-fsycl-dead-args-optimization` can't help eliminate offset of
+  accessor even though it's created with no offset specified
+- SYCL 2020 barriers show worse performance than SYCL 1.2.1 do. [18c80faa]
+- When using fallback assert in separate compilation flow it requires explicit
+  linking against `lib/libsycl-fallback-cassert.o` or
+  `lib/libsycl-fallback-cassert.spv`
+- Limit alignment of allocation requests at 64KB which is the only alignment
+  supported by Level Zero. 7dfaf3bd
+- User-defined functions with the name and signature matching those of any
+  OpenCL C built-in function (i.e. an exact match of arguments, return type
+  doesn't matter) can lead to Undefined Behavior.
+- A DPC++ system that has FPGAs installed does not support multi-process
+  execution. Creating a context opens the device associated with the context
+  and places a lock on it for that process. No other process may use that
+  device. Some queries about the device through `device.get_info<>()` also
+  open up the device and lock it to that process since the runtime needs
+  to query the actual device to obtain that information.
+- The format of the object files produced by the compiler can change between
+  versions. The workaround is to rebuild the application.
+- Using `sycl::kernel_bundle` API to refer to a kernel defined
+  in another translation unit leads to undefined behavior.
+- Linkage errors with the following message:
+  `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+  can happen when a SYCL application is built using MS Visual Studio 2019
+  version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+- Printing internal defines isn't supported on Windows. [50628db1]
+- The support of accessor and local_accessor for ESIMD is still limited comparing to SYCL.
+- [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) implementation has the following limitations: `max_num_work_group_sync` query always returns `1` and the implemented barrier has work group scope since all work items in a root group are currently in the same work group.
+
+
+# Oct'23 release notes
+
+Release notes for commit range [`cb91c232c661..f4e0d3177338`](https://github.com/intel/llvm/compare/cb91c232c661..f4e0d3177338)
+
+## New features
+
+### SYCL Compiler
+- Enabled Pre-Compiled header (PCH) inclusion while performing host compilation with `-fsycl`. [7f12b287236f]
+- Added support for `-ftarget-export-symbols` option which allows to export symbols for AOT. [c33ba5dafe91]
+- Added support for `reqd_sub_group_size` to `sycl::is_compatible` and implemented device code split based on `reqd-sub-group-size` optional kernel feature. [841768794f7a]
+- Added support for `-ftarget-compile-fast` for spir64_gen and JIT mode. [b6b01b48cfd9][92855bea87f4]
+- Implemented adding C++ libraries to the linker with `-fsycl`. [da5e1b98f1c3]
+- Added support for multiple call operators in a kernel functor. [84cc1e1eff04]
+- Added support to propagate compile flags to device backend compiler.[f45fb51ba6cf]
+- Added new FPGA loop attribute `enable_loop_pipelining`. [4147b8ded75f]
+
+### SYCL Library
+- Enabled [`sycl_ext_oneapi_annotated_arg`](https://github.com/intel/llvm/tree/80b7de1d63f4/sycl/doc/extensions/experimental/sycl_ext_oneapi_annotated_arg.asciidoc) and [`sycl_ext_oneapi_annotated_ptr`](https://github.com/intel/llvm/tree/80b7de1d63f4/sycl/doc/extensions/experimental/sycl_ext_oneapi_annotated_ptr.asciidoc) experimental extensions. [05d3be63f996][80b7de1d63f4][557204abf242]
+- Implemented [`sycl_ext_intel_queue_immediate_command_list`](https://github.com/intel/llvm/tree/2f2560fe74e6/sycl/doc/extensions/supported/sycl_ext_intel_queue_immediate_command_list.asciidoc) extension. [2f2560fe74e6]
+- Implemented [`sycl_ext_oneapi_copy_optimize`](https://github.com/intel/llvm/tree/65cc0cfe809f/sycl/doc/extensions/experimental/sycl_ext_oneapi_copy_optimize.asciidoc) experimental extension. [65cc0cfe809f]
+- Added initial implementation of the experimental SYCL Graph extension [`sycl_ext_oneapi_graph`](https://github.com/intel/llvm/tree/f9d4830babca/sycl/doc/extensions/proposed/sycl_ext_oneapi_graph.asciidoc)  [35465da4824a][f9d4830babca][72341ee375d6][96a605095665]
+- Added `dimensions` member to item/range-like types. [9c7bd9ea046f]
+- Added support of `queue::priority_*` properties for OpenCL backend. [25fd689999f7]
+- Implemented initial version of the SYCL Native CPU Plug-in designed in [`SYCLNativeCPU`](https://github.com/intel/llvm/tree/5b501eeca963/sycl/doc/design/SYCLNativeCPU.md). [b2d0837e9644] [5b501eeca963]
+- Added `__imf_max/min/hadd/fast_*` functions to imf device libraries. [fe01366e8b08][d96e5075303a]
+- Introduced and implemented new `sycl::ext::oneapi::experimental::info::device::architecture` device descriptor and `device::ext_oneapi_architecture_is(ext::oneapi::experimental::architecture)` host API as part of [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/d0b01b265d92/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension (for Level Zero and OpenCL). [d0b01b265d92]
+- Added experimental implementation of [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/370aa2a01711/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) [370aa2a01711]
+- Experimental [`sycl_ext_oneapi_device_global`](https://github.com/intel/llvm/tree/d812d1e13ab5/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) extension is supported now. [d812d1e13ab5]
+- Enabled media API that works with image accessors for ESIMD. Those accessors do not depend on stateful/stateless mode. [b95b2d88e446]
+- Allowed implicit conversion from `std::experimental::simd_mask` to `ESIMD::simd_mask`. [de5b479a2de9]
+- Added `host_task` image accessor support. [b6faefb08e23]
+- Started to support 64-bit offsets with accessors in stateless mode for ESIMD APIs. [f28ae00bf6a3][d04ebb03c1c8][62955fc20e14]
+- Added `__imf_llabs` to the imf device libraries. [3c19581f828c]
+- Added explicit conversion of `multi_ptr<T>` to `multi_ptr<const T>`. [10d2f5b613f3]
+- Added support for scalar logical operators with group algorithms. [11ac73003056][90406b2ba07c]
+- Implemented device query for 64 bit atomic support in ESIMD emulator. [c40baa6db64b]
+- Added support of 16 bit data for `lsc_atomic_update` and `lsc_slm_atomic_update` ESIMD API. [3028d82a75d2]
+- Added initial implementation of [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) extension. There are severe limitations: `max_num_work_group_sync` query always returns `1` and the implemented barrier has work group scope since all work items in a root group are currently in the same work group. [743c35be2da7]
+- Added support for tf32 type using the unified interface for SYCL Matrix extension. [aba6d85f9f16]
+- Implemented Host Pipes described in [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/992ef064289f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension. [992ef064289f][5bd42eb6a7df]
+- Added support for more math built-ins for `bfloat16` together with the extension specification [`sycl_ext_oneapi_bfloat16_math_functions`](https://github.com/intel/llvm/tree/c7759bb8cd0b/sycl/doc/extensions/experimental/sycl_ext_oneapi_bfloat16_math_functions.asciidoc) update [c7759bb8cd0b]
+- Added decorated `async_work_group_copy` overloads. [d1f67ca228f2]
+- Added initial implementation of the Unified Runtime plugin and routed to it with `SYCL_PREFER_UR`. [5a239c6a08e1]
+- Added support for accessors to `atomic_update` ESIMD API. [59a1aa0841da]
+- Enabled pretty-printing of reference objects by GDB. [e3fc16f56c0e]
+- Added Xmethods that help GDB to support reading local_accessors on GPU from SLM. [ddfc5220afaa]
+- Enabled passing local accessors to ESIMD kernel and via `invoke_simd()` API, enabled usage of `get_pointer()` and `operator[]` for accessors in ESIMD kernel. The support of accessor and local_accessor is still limited comparing to SYCL. [21ca00fb1cc5][82ae85d12bf0]
+- Implement unpadding for 2d block load/store ESIMD API. [9be8a306d0eb]
+- Added SYCL 2020 image classes. [9035cdb0898d][1a3e99307e4f]
+- Added interfaces for SYCL 2020 image accessors, only the host accessors interfaces are actually functional. [a58d8e3e88c0]
+- Added XPTI notifications for SYCL 2020 images as well as for the associated accessor classes. [8c535276785d][73d5c04d0305]
+- Started to print device aspects in `sycl-ls --verbose`. [e32ab1759fed]
+- Enabled group algorithms to be used with `tangle_group` and `opportunistic_group` arguments. [29e629e00e83]
+- Implemented `info::device::backend_version` query. [df743a5c97e1]
+- Added `fixed_size_group` support to algorithms. [01ac0338bfa9]
+- Added simple `abs(int)` to imf libdevice. [2a3aaeea5be8]
+- Added `ballot_group` support to algorithms. [70a35de4eacb]
+- Implemented interoperability support for images for the Level Zero backend. [836ceec36b57]
+- Added `marray` support for math built-in functions. [a7a6de2e40a2][c274f40588ff][2953d2548791]
+- Enabled inline assembly support in ESIMD kernels. [f5a062dd057f][48abe38c0bee]
+- Enhanced interop queue interface to choose standard or immediate commandlists. [0ff3ec40e241]
+- Enabled double type for `atomic_update()` ESIMD API. [98c443543c72]
+- Added support for `addc` and `subb` operations for ESIMD. [0a098933d9ba]
+- Allowed zero-sized 3D accessors. [5cb8279ddb8e]
+
+### Documentation
+- Added experimental SYCL bindless images extension [`sycl_ext_oneapi_bindless_images`](https://github.com/intel/llvm/tree/99cbdd15fef2/sycl/doc/extensions/proposed/sycl_ext_oneapi_bindless_images.asciidoc) proposal. [74e83d5af06c][99cbdd15fef2]
+- Added [`sycl_ext_oneapi_work_group_local`](https://github.com/intel/llvm/tree/1d6cff1a8e5a/sycl/doc/extensions/proposed/sycl_ext_oneapi_work_group_local.asciidoc) extension proposal. [1d6cff1a8e5a]
+- Moved [`sycl_ext_oneapi_device_global`](https://github.com/intel/llvm/tree/d812d1e13ab5/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_global.asciidoc) from proposed to experimental. [d812d1e13ab5]
+- Added [`DeviceConfigFile`](https://github.com/intel/llvm/tree/3f4b778dd163/sycl/doc/design/DeviceConfigFile.md) design document. [3f4b778dd163]
+- Added [`sycl_ext_oneapi_address_cast`](https://github.com/intel/llvm/tree/9cab5598bc82/sycl/doc/extensions/proposed/sycl_ext_oneapi_address_cast.asciidoc) extension. [9cab5598bc82]
+- Added [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/83d099758770/sycl/doc/extensions/proposed/sycl_ext_intel_grf_size.asciidoc) extension. [83d099758770]
+- Added proposal for [`sycl_ext_oneapi_append_and_shift`](https://github.com/intel/llvm/tree/1a283acaac3c/sycl/doc/extensions/proposed/sycl_ext_oneapi_append_and_shift.asciidoc) extension. [1a283acaac3c]
+- Updated description of accessor-based memory APIs in [`sycl_ext_intel_esimd`](https://github.com/intel/llvm/tree/9e5889918277/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [9e5889918277]
+- Added draft of [`sycl_ext_oneapi_prefetch`](https://github.com/intel/llvm/tree/034ac0958662/sycl/doc/extensions/proposed/sycl_ext_oneapi_prefetch.asciidoc). [034ac0958662]
+- Added draft of [`sycl_ext_oneapi_barrier`](https://github.com/intel/llvm/tree/32144edcf982/sycl/doc/extensions/proposed/sycl_ext_oneapi_barrier.asciidoc) [32144edcf982]
+- Added legacy SYCL 1.2.1 image aspect [`sycl_ext_intel_legacy_image` extension](https://github.com/intel/llvm/tree/78b709dd5bb8/sycl/doc/extensions/supported/sycl_ext_intel_legacy_image.asciidoc). [78b709dd5bb8]
+- Added [`sycl_ext_intel_data_flow_pipes_properties`](https://github.com/intel/llvm/tree/5b0a4615874b/sycl/doc/extensions/experimental/sycl_ext_intel_data_flow_pipes_properties.asciidoc) extension. [5b0a4615874b]
+- Updated [`sycl_ext_intel_dataflow_pipes`](https://github.com/intel/llvm/tree/6b2d66b8d52f/sycl/doc/extensions/supported/sycl_ext_intel_dataflow_pipes.asciidoc) extension for FPGA host. [6b2d66b8d52f]
+
+## Improvements
+
+### SYCL Compiler
+- Deprecated `-fsycl-link-huge-device-code` in favor of a new option, `-flink-huge-device-code`. The new option is identical in functionality but allowed with `-fopenmp-targets`. [79ea9b7aa52b]
+- Optimized size of produced binaries when `device_global` is used. [f99335f5e71a]
+- Started to emit an error when PCH is triggered in SYCL mode. [062446584d52]
+- Improved FPGA archive device unbundling with AOCO. [4ed3676f6402]
+- Moved imf `abs` to a separate device library for Deep Learning. [e4f074a6aabe]
+- Fixed the bug report URL for DPC++. [98b7de88a7d9]
+- Started to link with `bfloat16` related device libraries only when they are used. [663042b04b63]
+- Started to properly pass `-fsycl-esimd-force-stateless-mem` to the host code compilation. [8b85b6400b82]
+
+### SYCL Library
+- Combined ADL-S and RPL-S device architectures. [f87be6f17428]
+- Implemented `multi_ptr` default to be legacy to avoid code break with SYCL 1.2.1. [52edb3798749]
+- Started to use aggregate initialization for `group_local_memory` arrays according to updated [`sycl_ext_oneapi_local_memory`](https://github.com/intel/llvm/tree/b50440ec76b9/sycl/doc/extensions/supported/sycl_ext_oneapi_local_memory.asciidoc).[b50440ec76b9]
+- Deprecated ESIMD Emulator.  [177680e3e918]
+- Deprecated `ext::oneapi::sub_group`. [0662e2a81014]
+- Improved error message related to `ext_intel_free_memory` aspect. [c1bfcaf6d6ed]
+- Removed non-necessary barrier after region copy in the Level Zero backend. [768e61e7966c]
+- Fixed `get_info<device::free_memory>` to check its aspect. [dfb75675bc0a]
+- Removed the workaround for release of auxiliary buffers. [fda9171fc218]
+- Enabled optimization for read-only buffer accesses from multiple devices in a context. [dddaf7f5d54d]
+- Removed old specialization constants extension and implementation. [e50ae05e28d3][833a9fe0a9cf]
+- Improved `is_compatible` to check if specific target is defined with `-fsycl-targets` and change the result. [ef033238cfb5]
+- Improved quotient approximation for host `sycl::remquo`. [d335fdf4afa2]
+- Allowed `accessor` constructed with zero-size buffers. [0c0809590f37]
+- Improved resources recycling for the Level Zero backend by cleaning up events on in-order queue wait. [260182a1ad75]
+- Added `code_location` parameter to the rest of `sycl::queue` methods which allows to improve error reporting. [fdd609a5c724]
+- Enabled `xpti::node_create` signal emit for parallel_for that bypasses graph. [4eaaaa963ca2]
+- Improved the accuracy of host `sycl::cospi`. [37aa84b7afd5]
+- Replaced usage of outdated memset OpenCL API `clEnqueueMemsetINTEL` with `clEnqueueMemFillINTEL`. [c5d0e1d4d9be]
+- Added memory pointer to XPTI memory allocation event metadata to allow more informative XPTI memory tracing. [01ffe65da562]
+- Implemented recycling of immediate command lists for queues in a context for the Level Zero backend. [2ddbf8c3b7a5]
+- Optimized `ext_oneapi_submit_barrier()` for in-order queue for the Level Zero backend. [c21fd476c78a]
+- Change the `SYCL_PI_LEVEL_ZERO_USM_RESIDENT` default to force device allocations only. [33874f76c59f]
+- Started to report false for `aspect::image` on all devices. [5cf0f7cf5c21]
+- Removed lambda parameter from "if_architecture_is" according to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/71f745bcda7d/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
+- Improved error reporting when `reqd_work_group_size` is not supported by a device. [084c02797084]
+- Adjusted static restriction checks for `block_2d` APIs. [7902d6b35348]
+- Disallowed local accessor misuse according to SYCL 2020. [d7a5ec048368]
+- Implemented passing address space information to SPIR-V Joint Matrix Load/Store intrinsics. [854ab7eab5e4]
+- Enabled immediate command lists by default for the Level Zero backend. [9e5b2ed1ddc3]
+- Improved SYCL RT performance by removing extra map lookup for eliminated kernel arguments during enqueue of cached kernels. [7a1fa6c38e03]
+- Changed the default to `SYCL_PI_LEVEL_ZERO_USM_RESIDENT=2`. [85435666d477]
+- Added heuristics to reduce overhead from immediate command-list cleanup in the Level Zero backend. [ce69d6906e30]
+- Renamed `cluster_group` to `fixed_size_group`. [62c091a0af17]
+- Added error for invalid uniform arguments in InvokeSIMD. [487c1f8cb040]
+- Reduced overhead from queue profiling by using `steady_clock::now()` to retrieve host time as `piGetDeviceAndHostTimer` has large overhead. [070598e433a7]
+- Implemented graceful handling of the case that Level Zero runtime was already unloaded when we do cleanup. [928a919f15d9]
+- Improved error messages for InvokeSIMD. [0c74bbb20e65]
+- Updated `native_specialization_constant()` for the case when no specialization constants are present. [9eb1184686fb]
+- Optimized re-use of command lists in the Level Zero backend. [24ae0153e8e8]
+- Changed the behavior of `sycl::maximum` and `sycl::minimum` to be consistent with `std::max` and `std::min`. [77d648d949c3]
+- Switched to sycl::exception instead of sycl::runtime_error in the majority of SYCL device headers. sycl::runtime_error is deprecated in SYCL 2020. [23a836f39af6]
+
+### SYCL Tools
+- Added USM calls parameter verification layer to `sycl-trace` which provides improved diagnostic on accessing invalid device memory under USM. [758bd264bb90]
+- Started to print supported SG sizes in `sycl-ls --verbose`. [12515177ab03]
+
+### Documentation
+- Updated restrictions in [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/a69a54f38f2f/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) extension. [a69a54f38f2f]
+- Added `invoke_simd` SLM example and `simd_view` example to [`README`](https://github.com/intel/llvm/tree/f1986b40e04b/sycl/doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [c99668ee5985][f1986b40e04b]
+- Clarified ways to set sub-group sizes in [`sycl_ext_oneapi_named_sub_group_sizes`](https://github.com/intel/llvm/tree/3285e0fe5590/sycl/doc/extensions/proposed/sycl_ext_oneapi_named_sub_group_sizes.asciidoc) [3285e0fe5590]
+- Added `invoke_simd` example to [`README`](https://github.com/intel/llvm/tree/e860b140d506/sycl/doc/extensions/supported/sycl_ext_intel_esimd/examples/README.md). [e860b140d506]
+- Added [`README`](https://github.com/intel/llvm/blob/453ffdcf41dd50ec66b5cc9ea6304fadd10f18e8/sycl/plugins/unified_runtime/README.md) for the Unified Runtime directory. [453ffdcf41dd]
+- Updated the versioning section in [`ABIPolicyGuide`](https://github.com/intel/llvm/tree/dfe6e4e542ab/sycl/doc/developer/ABIPolicyGuide.md). [dfe6e4e542ab]
+- Added `invoke_simd` section to [`README`](https://github.com/intel/llvm/tree/52567e8cd428/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/README.md) and updated [sycl_ext_intel_esimd](https://github.com/intel/llvm/tree/52567e8cd428/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md) [52567e8cd428]
+- Updated [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/acfc905a994a/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) and [`sycl_ext_oneapi_device_if`](https://github.com/intel/llvm/tree/acfc905a994a/sycl/doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) to allow captures in `if_device_has`, `if_architecture_is`. [acfc905a994a]
+- Updated [`SPV_INTEL_joint_matrix`](https://github.com/intel/llvm/tree/adbbf0f39c25/sycl/doc/design/spirv-extensions/SPV_INTEL_joint_matrix.asciidoc) extension. [adbbf0f39c25]
+
+## Bug fixes
+
+### SYCL Compiler
+- Fixed `uses_aspects` to be applied to function declarations and not only function definitions. [5d928976f9e2]
+- Fixed `ivdep` attribute in template contexts. [008e3743929e]
+- Fixed option restriction for device with Windows. [be3482ff3f0e]
+- Fixed handling unsupported attributes for ESIMD. [8990c5503d47]
+- Fixed optimization option processing for device options. [9a82d283ae2b]
+- Enabled proper behavior of optional kernel features with `SYCL_EXTERNAL`. [1dce70f413e6]
+- Fixed "SLM init call is supported only in kernels" message for `slm_init()` inside a ESIMD kernel when compiling with `-O0` option. [2056c669b122]
+- Fixed memory leak in `Base64::decode`. [28113ec69167]
+- Fixed crash when using libraries with `-fsycl`. [ef0d151e57a4]
+- Added predefines for `/MDd` to fix certain build issues when using reductions on Windows. [1a602d77b7b2]
+- Fixed compilation issue when kernel name is a `class` defined with `final` keyword. [9eeb7825ea2d]
+- Fixed an issue with setting `VCSLMSize` attribute which was causing JIT compilation failure when using `slm_init()` in ESIMD kernel.  [f24a0bb343b2]
+- Fixed option for undefined symbols for hostdep link to work with gold linker. [554ed2187d32]
+- Fixed directory field of `DIFile`. [797187de2199]
+
+### SYCL Library
+- Fixed the bug in the Level zero backend where `zeModuleDestroy` is called although `ext::oneapi::level_zero::ownership::keep` is passed to `make_kernel_bundle` leading to a double free corruption. [1344fa29e6eb]
+- Addressed specification mismatches for `multi_ptr`. [ed5941feb363]
+- Fixed corner case when using `short` or `char` with exclusive scan. [aa31c1e2deb9]
+- Updated the legacy `multi_ptr` construction from `local_accessor`s to conform with the construction method used by other accessors. [6314af860c8c]
+- Made `get_pointer` `noexcept` to comply with SYCL 2020. [85d84114510c]
+- Started to return the correct `sycl::errc` in case of invalid `sycl::reqd_work_group_size`. [d16a1fd39c08]
+- Fixed `sycl::remquo` truncation error. [43fbde38e26f]
+- Fixed linkage errors when trying to get `mem_channel` property or check it using `has_property()`. [9352172a9b81]
+- Fixed dynamic loading of `ocloc` tool for online_compiler. [1854b263672b]
+- Fixed global memory reporting for Arc. [0a99d87a7f31]
+- Fixed `sycl::sub_group` to follow by-value semantics according to SYCL 2020. [064f332f156c]
+- Fixed invalid value returned by `event.get_info<sycl::info::event::command_execution_status>()` for OpenCL backend. [5a91df97973a]
+- Fixed assignment operator for ESIMD globals. [a3a9dd02d420]
+- Fixed the Level Zero backend to not destroy build log on program build failure.[b7ffbc776b37]
+- Fixed error appearing when validation layer is enabled for the Level Zero with `ZE_DEBUG=6`. [abfdb6306d7c]
+- Allowed group algorithms to accept a function object with an explicit type. [78f09e6f31c6]
+- Fixed `sycl::is_compatible()` for the case when vector of kernels ids is empty. [23fbba1e6b8b]
+- Fixed `multi_ptr` ctor for extended address spaces. [a69e5152874e]
+- Fixed trivially_copyable to device_copyable for `fill` and `copy`. [9c662e228fa4]
+- Fixed range deductions in reduction `parallel_for`. [3024161f1b7b]
+- Adjusted `multi_ptr` deduction guides to comply with SYCL 2020. [3df6fdc58b00]
+- Fixed gather/scatter with accessors when passing scalar for ESIMD backend. [27755824d050]
+- Fixed lost data during implicit conversion in local and host accessors. [7618dffd78ae]
+- Fixed memory leak because of unnecessary kernel retain. [f110fd73f8e7]
+- Fixed the pointer type contained by a read-only accessor to const. [fd4598035b7e]
+- Fixed `max_sub_group_size` query for devices without sub groups.[98cdf4c3acda]
+- Removed undefined behavior in host-side `abs_diff`. [a4105101e3c5]
+- Fixed `vec::as<vec<bool, N>>()`. [72cffff649f5]
+- Fixed segfault when using `ZE_DEBUG` and an exception is thrown on device selection phase. [05866c17ce87]
+- Removed an unnecessary `multi_ptr` conversion which had conflict with an existing one resulting in ambiguity on implicit conversion. [aba3007fe71b]
+- Fixed lost data in accessor implicit conversion. [10551294dcc7]
+- Fixed stack smashing which happened in some device info queries on OpenCL backend. [f4577ff62ace]
+- Stopped shipping the Level Zero loader and headers with the DPCPP toolchain installation. [6581bc013a46][ad8b7d447612]
+- Corrected the PVC device id check in the Level Zero backend. [59a23020e1be]
+- Fixed ambiguity for `bit_cast`. [834df4737a85]
+- Fixed nan/inf handling in `sycl::stream` when in `-fast-math` mode. [757e4a72d58d]
+- Allowed for different types in group algorithms `reduce`, `exclusive_scan`, and `inclusive_scan`. [8ad0e1df6e76]
+- Fixed bug in get methods in the `config_2d_mem_access` class for 2D block stateless load/store API. [7e5f529db655]
+- Fixed compilation error for `sycl::fabs` builtin in `-fast-math` mode. [43cb2c0e4867]
+- Allowed `host_task` deduction tags in placeholder accessors. [21beef77542b]
+- Added iterator operations for zero-dimension accessors to comply with SYCL 2020. [6eb8b4369b64]
+- Fixed rounding issue in `__imf_vavgs`. [38d05361f06e]
+- Fixed bug in `fill` operation for zero-dimensional accessor. [5b46e0dbcd2c]
+- Fixed arguments passed to `ocloc` via `-ftarget-compile-fast`. [d8bb69e5b166]
+- Implemented implicit conversion for local and host accessors to comply with SYCL 2020. [3d4da8fb5eee]
+- Throw exception when empty accessor calls `require()` to comply with SYCL 2020. [aa08c7e9664a]
+- Fixed `operator~` for `sycl::vec<bool, N>`. [58e64ce83be6]
+- Fixed `sub_group` shuffle for vectors of `long long` and `half`.  [eeba87925d53]
+- Fixed static destruction order issue in OpenCL extension fptr cache. [379a094d8726]
+- Fixed leak of active barriers' events in the Level Zero backend. [86860693375c]
+- Implemented proper queries for `aspect::ext_oneapi_srgb`. [23978b462fc7]
+- Added `vec` assignment from scalar and more `vec` modulus overloads to comply with SYCL 2020. [68e13d41f9c3]
+- Fixed handling of `mem_channel` buffer property. [909343107452]
+- Fixed `operator&` and `operator[]` in `local_accessor<const T>`. [d5477c87c700]
+- Fixed the third argugment type for `select` built-in. [528eba8660a9]
+- Fixed `native_specialization_constant()` API implementation. [41344ed7da50]
+- Moved Level Zero specific collectors to dynamic libraries loaded by request in sycl-trace tool to support the case when Level Zero driver is not available. [4c5250643b3c]
+- Added missing `marray` relational functions: `any`, `all`, `bitselect`; fixed scalar `select` relational function; aligned scalar `abs` integer function with SYCL 2020 and fixed math functions which take `multi_ptr` argument. [8b0b210a95db]
+- Added `operator[]` and `element_type` to swizzle vec to align with SYCL 2020. [9050d3325f2c]
+- Fixed buffer range in `atomic_memory_order_acq_rel`. [9fb49f757f04]
+- Started to throw for invalid `global_work_size` query. [61433888d4b5]
+- Fixed the Level Zero backend to report events as submitted, not running, until they are completed. [502e0fdd3f3c]
+- Allowed raw send ESIMD API to use non-standard types like `sycl::half`. [8022c6a4f6ec]
+- Started to throw for invalid `info::kernel::num_args query` to comply with SYCL 2020. [93e8ca3ed2eb]
+- Updated `group_broadcast` to support `vec` types. [09ae6434f55f]
+- Fixed reductions to avoid implicit `atomic64` requirements. [e11b35835722]
+- Added a partial profiling workaround for acc devices because queue profiling is no longer supported for OpenCL version < 2.1 after recent changes regarding command submit profiling info. [097d21c33599]
+- Fixed program build API for the Level Zero backend to retain build-log when program build failed. [7d9f5ac5e5da]
+- Implemented missing std::hash specializations for local_accessor and host_accessor to comply with SYCL 2020. [919246bacb82]
+- Fixed `global_work_size` kernel query. [d666b95af56a]
+- Fixed incorrect `sycl::vec<bool, N>` constructor behavior. [45aa49bb3f06]
+- Fixed `weak_object` for `host_accessor` and `stream`. [225b3ecad28d]
+- Fixed incorrect behaviors in some operations using `sycl::vec<bool, N>`. [61f6ce4579b7]
+- Fixed integration footer for `specialization_id`. [dd96dfaf12da]
+- Fixed compilation break occurring when `bfloat16` constructor is used in a kernel. [bc063ac7a9e1]
+- Fixed crash in subgroup info queries when running on OpenCL backend which doesn't support sub-groups. [2408035da9c9]
+- Added missing support for `target::host_task` specialised accessor constructor using `mode_target Tag`. [c01d8824b1aa]
+- Fixed identityless reductions with unwritten reducers. [cb15f33e861a]
+- Fixed dangling pointer issue in xpti tracing. [8a49660d4b44]
+- Fixed PI event leak in memcpy2d device-host fallback. [24ec33c39c85]
+- Fixed `weak_object` and `owner_less` for `device` objects. [b9b85136d492]
+- Added `noexcept` specifier to `vec::byte_size` to comply with SYCL 2020. [cb6c0580dc30]
+- Fixed undefined behaviour in vector printf specifier. [d190de65a4e1]
+- Fixed `handler::fill` so it works even if pattern is not supported by a backend natively. [7f49367d234b]
+- Fixed mechanism to throw exception when placeholder accessor passed to a command. (#10110) [93f477358d74]
+- Fixed empty zero-dimensional accessor access range. [b4d2b2c966b1]
+- Fixed incorrect write back in a case when a sycl::buffer is constructed with a `const T*` as host data. [d05818637be3][1b2b9ddc7f37]
+- Fixed empty accessor default constructor to not create a placeholder to comply with SYCL 2020. [e753fae9fad7]
+
+### Documentation
+- Fixed link anchors in [`EnvironmentVariables`](https://github.com/intel/llvm/tree/ba1fc2e68d04/sycl/doc/EnvironmentVariables.md) documentation. [ba1fc2e68d04]
+- Fixed InlineAsm example in [`sycl_ext_intel_esimd`](https://github.com/intel/llvm/tree/5ff169559712/sycl/doc/extensions/experimental/sycl_ext_intel_esimd/sycl_ext_intel_esimd.md). [5ff169559712]
+
+## API/ABI breakages
+- Removed deprecated `piclCreateProgramWithSource`. [42f560977a0a]
+- Removed deprecated `barrier` API. [00533e0b1e7e]
+- Removed deprecated `interop_task` [aff7fbb287d0]
+- Removed deprecated `sycl::group_local_memory`. [1dc77a73b391]
+- Removed deprecated `sycl::detail::bitcast` [61f3650c28ed]
+- Removed deprecated `piEnqueueNativeKernel` [c3781336d0f1]
+- Removed deprecated backend enum values: `level_zero`, `cuda`, `esimd_cpu`, `hip`. [81900499327a]
+- Removed the workaround for release of auxiliary buffers. [fda9171fc218]
+- Removed old specialization constants extension and implementation. [e50ae05e28d3][833a9fe0a9cf]
+- Removed non-standard RT namespace from `sycl` namespace. [fd636ef3ab99]
+- Removed deprecated ESIMD APIs. [91e8364164c6]
+- Removed `DISABLE_SYCL_INSTRUMENTATION_METADATA` macro and `_CODELOC*` macro usage from API. [f4525e901cd6]
+- Removed non-standard RT namespace from sycl namespace. [b3e0428ffef4]
+- Removed `getOSModuleHandle` usage. [f73230d8a8ba]
+- Removed deprecated `sycldevice` triple support. [01d7fc097ec6]
+- Dropped support for `sycl_ext_oneapi_extended_atomics` extension. [17ea6d10f1d5]
+- Dropped support for `sycl_ext_oneapi_group_algorithms` extension. [8b9d2106af0d]
+- Removed unneeded backwards compatibility of `make_queue` and `get_native`. [c5f150a41b1d][5918e0c208a1]
+- Removed support for binaries generated for triples with `-sycldevice` environment component. [5fc53134fcfc]
+- Removed lambda parameter from `if_architecture_is` according to [`sycl_ext_oneapi_device_architecture`](https://github.com/intel/llvm/tree/71f745bcda7d/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc). [71f745bcda7d]
+- Updated `sycl::exception` to be SYCL2020 compliant. [ce26ac08a383]
+- Replaced deprecated `sycl::runtime_error` with SYCL 2020 compliant `sycl::exception` in SYCL RT. [f08dc9473d40]
+- Renamed `win_proxy_loader` to `pi_win_proxy_loader`. [2648b7c5e1a4]
+- Promoted the return type changes of SYCL relational builtins that changed between SYCL 1.2.1 and SYCL 2020 out from the guard of `SYCL2020_CONFORMANT_APIS`. [35fe4a21e1cb]
+- Fixed `get_pointer` to return `T*` for `target::device` specialized accessor according to specification. [712cb4e4f75e]
+- Fixed `max_work_item_sizes` return type from `id` to `range` according to SYCL 2020. [8f09d3e603da]
+- Deprecated experimental `set_kernel_properties` API and `use_double_grf/use_large_grf` properties were removed. New API provided in the extension [`sycl_ext_intel_grf_size`](https://github.com/intel/llvm/tree/370aa2a01711/sycl/doc/extensions/experimental/sycl_ext_intel_grf_size.asciidoc) has to be used. [f363bb272b5a]
+
+## Known issues
+- Having MESA OpenCL implementation which provides no devices on a
+  system may cause incorrect device discovery. As a workaround such an OpenCL
+  implementation can be disabled by removing `/etc/OpenCL/vendor/mesa.icd`.
+- `-fsycl-dead-args-optimization` can't help eliminate offset of
+  accessor even though it's created with no offset specified
+- SYCL 2020 barriers show worse performance than SYCL 1.2.1 do. [18c80faa]
+- When using fallback assert in separate compilation flow it requires explicit
+  linking against `lib/libsycl-fallback-cassert.o` or
+  `lib/libsycl-fallback-cassert.spv`
+- Limit alignment of allocation requests at 64KB which is the only alignment
+  supported by Level Zero. 7dfaf3bd
+- User-defined functions with the name and signature matching those of any
+  OpenCL C built-in function (i.e. an exact match of arguments, return type
+  doesn't matter) can lead to Undefined Behavior.
+- A DPC++ system that has FPGAs installed does not support multi-process
+  execution. Creating a context opens the device associated with the context
+  and places a lock on it for that process. No other process may use that
+  device. Some queries about the device through `device.get_info<>()` also
+  open up the device and lock it to that process since the runtime needs
+  to query the actual device to obtain that information.
+- The format of the object files produced by the compiler can change between
+  versions. The workaround is to rebuild the application.
+- Using `sycl::kernel_bundle` API to refer to a kernel defined
+  in another translation unit leads to undefined behavior
+- Linkage errors with the following message:
+  `error LNK2005: "bool const std::_Is_integral<bool>" (??$_Is_integral@_N@std@@3_NB) already defined`
+  can happen when a SYCL application is built using MS Visual Studio 2019
+  version below 16.3.0 and user specifies `-std=c++14` or `/std:c++14`.
+- Printing internal defines isn't supported on Windows. [50628db1]
+- The support of accessor and local_accessor for ESIMD is still limited comparing to SYCL.
+- [`sycl_ext_oneapi_root_group`](https://github.com/intel/llvm/tree/743c35be2da7/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc) implementation has the following limitations: `max_num_work_group_sync` query always returns `1` and the implemented barrier has work group scope since all work items in a root group are currently in the same work group.
+
+
 # March'23 release notes
 
 Release notes for commit range [`ca54ea30..cb91c232`](https://github.com/intel/llvm/compare/ca54ea30...cb91c232)
@@ -293,7 +1696,7 @@ extension. [1d993446] [4f7787c8]
 - Implemented `ext::oneapi::experimental::radix_sorter` from the
 [`sycl_ext_oneapi_group_sort`](doc/extensions/proposed/sycl_ext_oneapi_group_sort.asciidoc)
 extension proposal. [86ba1809]
-- Implemented a new unified interface for the [`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+- Implemented a new unified interface for the [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/7dab76e1d33341b1e6bf339ab933552281abb3e2/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
 extension for CUDA. [166bbc36]
 - Added support for sorting over sub-groups. [168767c6]
 - Added C++ API wrappers for the Intel math functions `ceil`, `floor`, `rint`,
@@ -407,7 +1810,7 @@ extension proposal to allow the compiler to determine the initiation interval.
 - Updated the [`sycl_ext_intel_usm_address_spaces`](doc/extensions/supported/sycl_ext_intel_usm_address_spaces.asciidoc)
 extension to adhere to SYCL 2020 `multi_ptr`. [4a9e9a0e]
 - Added a new matrix use parameter to `joint_matrix` from the
-[`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+[`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/f2983fc0d8fcd7bd6022a7006ad489c591838041/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
 extension specification. [52f34fd5]
 - Removed `queue::size` and `queue::get_wait_list` functions from the
 `sycl_ext_oneapi_queue_status_query` extension due to performance overhead
@@ -654,7 +2057,7 @@ Release notes for commit range [`4043dda3..0f579bae`](https://github.com/intel/l
   to mark `has_property` API as `noexcept`. [7805aa3f]
 - Updated [`sycl_ext_intel_device_info`](doc/extensions/supported/sycl_ext_intel_device_info.md)
   to support querying free device memory. [0eeef2b3]
-- Updated [`sycl_ext_oneapi_matrix`](doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
+- Updated [`sycl_ext_oneapi_matrix`](https://github.com/intel/llvm/blob/770f540d8b600c8c16df12dfccbf38fa780cf77a/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix.asciidoc)
   with description of new matrix features. [770f540d]
 - Moved [`sycl_ext_oneapi_invoke_simd`](doc/extensions/experimental/sycl_ext_oneapi_invoke_simd.asciidoc)
   extensions specification from `proposed` to `experimental` because
@@ -1300,7 +2703,7 @@ Release notes for commit range 23ca0c2..27f59d8
    Level Zero, ESIMD emulator, HIP [2b0ebab376dc]
  - Added support for `sycl::ext::intel::experimental::esimd_ballot` function
    [0bbb091c1baa]
- - Added initial support for [Tensorcore matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+ - Added initial support for [Tensor Cores matrix extension](https://github.com/intel/llvm/blob/f2983fc0d8fcd7bd6022a7006ad489c591838041/sycl/doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
    [711ba58c30a8]
 
 ### Documentation
@@ -1692,7 +3095,7 @@ Release notes for commit range 4fc5ebe..bd68232
  - Added [sRGBA support](doc/extensions/supported/sycl_ext_oneapi_srgb.asciidoc)
    [e488327][191efdd]
  - Added a preview feature implementation for the DPC++ experimental
-   [matrix extension](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+   [matrix extension](https://github.com/intel/llvm/blob/467ef25a309ec882027052f3d4c3df58c11ee2ac/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
    [7f218531] [a95f46d]
  - Added support for SYCL 2020 exceptions [5c0f748][eef07606][5af8c43d]
  - Added support for [sycl_ext_intel_bf16_conversion extension](doc/extensions/experimental/sycl_ext_intel_bf16_conversion.asciidoc)
@@ -1956,7 +3359,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
    for querying of free device memory in LevelZero backend extension [fa428bf]
  - Added [InvokeSIMD](doc/extensions/proposed/sycl_ext_oneapi_invoke_simd.asciidoc) and
    [Uniform](doc/extensions/proposed/sycl_ext_oneapi_uniform.asciidoc) extensions [72e1611]
- - Added [Matrix Programming Extension for DPC++ document](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc) [ace4c733]
+ - Added [Matrix Programming Extension for DPC++ document](https://github.com/intel/llvm/blob/ce12ec028681aa90133c518126014b0881d9e6bc/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc) [ace4c733]
  - Implemented SYCL 2020 `sycl::span` [9356d53]
  - Added [device-if](doc/extensions/proposed/sycl_ext_oneapi_device_if.asciidoc) extension
    [4fb95fc]
@@ -2102,7 +3505,7 @@ Release notes for commit range 6a49170027fb..962909fe9e78
  - Fixed build issue when CUDA 11 is used [f7224f1]
  - Fixed caching of sub-devices in Level Zero backend[4c34f93]
  - Fixed requesting of USM memory allocation info on CUDA [691f842]
- - Fixed [`joint_matrix_mad`](doc/extensions/experimental/sycl_ext_oneapi_matrix/sycl_ext_oneapi_matrix.asciidoc)
+ - Fixed [`joint_matrix_mad`](https://github.com/intel/llvm/blob/ce12ec028681aa90133c518126014b0881d9e6bc/sycl/doc/extensions/Matrix/dpcpp-joint-matrix.asciidoc)
    behaviour to return `A*B+C` instead of assigning the result to `C` [ea59c2b]
  - Workaround an issue in Level Zero backend when event isn't waited upon its
    completion but is queried for its status in an infinite loop  [bfef316]

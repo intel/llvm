@@ -1,8 +1,7 @@
 ; Test writeOnly attribute
 ; RUN: opt -module-summary %s -o %t1.bc
 ; RUN: opt -module-summary %p/Inputs/dot-dumper2.ll -o %t2.bc
-; RUN: llvm-lto2 run -opaque-pointers -save-temps %t1.bc %t2.bc -o %t3 \
-; RUN:  -opaque-pointers \
+; RUN: llvm-lto2 run -save-temps %t1.bc %t2.bc -o %t3 \
 ; RUN:  -r=%t1.bc,main,px \
 ; RUN:  -r=%t1.bc,A, \
 ; RUN:  -r=%t2.bc,A,p

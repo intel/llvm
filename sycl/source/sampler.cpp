@@ -7,12 +7,13 @@
 //===----------------------------------------------------------------------===//
 
 #include <detail/sampler_impl.hpp>
+#include <sycl/image.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/sampler.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 sampler::sampler(coordinate_normalization_mode normalizationMode,
                  addressing_mode addressingMode, filtering_mode filteringMode,
                  const property_list &propList)
@@ -43,23 +44,11 @@ bool sampler::operator!=(const sampler &rhs) const {
   return !(impl == rhs.impl);
 }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool sampler::has_property<param_type>() const noexcept {      \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
+const property_list &sampler::getPropList() const {
+  return impl->getPropList();
+}
 
 #undef __SYCL_PARAM_TRAITS_SPEC
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type sampler::get_property<param_type>() const {         \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

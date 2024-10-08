@@ -11,7 +11,7 @@
 #include <detail/queue_impl.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
 #include <cstring>
@@ -24,15 +24,44 @@
 #endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
+// Treat 0 as reserved for host task traces
+std::atomic<unsigned long long> queue_impl::MNextAvailableQueueID = 1;
+
+thread_local bool NestedCallsDetector = false;
+class NestedCallsTracker {
+public:
+  NestedCallsTracker() {
+    if (NestedCallsDetector)
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Calls to sycl::queue::submit cannot be nested. Command group "
+          "function objects should use the sycl::handler API instead.");
+    NestedCallsDetector = true;
+  }
+
+  ~NestedCallsTracker() { NestedCallsDetector = false; }
+};
+
+static std::vector<ur_event_handle_t>
+getUrEvents(const std::vector<sycl::event> &DepEvents) {
+  std::vector<ur_event_handle_t> RetUrEvents;
+  for (const sycl::event &Event : DepEvents) {
+    const EventImplPtr &EventImpl = detail::getSyclObjImpl(Event);
+    auto Handle = EventImpl->getHandle();
+    if (Handle != nullptr)
+      RetUrEvents.push_back(Handle);
+  }
+  return RetUrEvents;
+}
+
 template <>
 uint32_t queue_impl::get_info<info::queue::reference_count>() const {
-  sycl::detail::pi::PiResult result = PI_SUCCESS;
-  if (!is_host())
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
-        nullptr);
+  ur_result_t result = UR_RESULT_SUCCESS;
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_REFERENCE_COUNT, sizeof(result), &result,
+      nullptr);
   return result;
 }
 
@@ -44,11 +73,45 @@ template <> device queue_impl::get_info<info::queue::device>() const {
   return get_device();
 }
 
-static event
-prepareUSMEvent(const std::shared_ptr<detail::queue_impl> &QueueImpl,
-                sycl::detail::pi::PiEvent NativeEvent) {
+template <>
+typename info::platform::version::return_type
+queue_impl::get_backend_info<info::platform::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::platform::version info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  return get_device().get_platform().get_info<info::platform::version>();
+}
+
+template <>
+typename info::device::version::return_type
+queue_impl::get_backend_info<info::device::version>() const {
+  if (getContextImplPtr()->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::version info descriptor can only "
+                          "be queried with an OpenCL backend");
+  }
+  return get_device().get_info<info::device::version>();
+}
+
+template <>
+typename info::device::backend_version::return_type
+queue_impl::get_backend_info<info::device::backend_version>() const {
+  if (getContextImplPtr()->getBackend() != backend::ext_oneapi_level_zero) {
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::backend_version info descriptor "
+                          "can only be queried with a Level Zero backend");
+  }
+  return "";
+  // Currently The Level Zero backend does not define the value of this
+  // information descriptor and implementations are encouraged to return the
+  // empty string as per specification.
+}
+
+static event prepareSYCLEventAssociatedWithQueue(
+    const std::shared_ptr<detail::queue_impl> &QueueImpl) {
   auto EventImpl = std::make_shared<detail::event_impl>(QueueImpl);
-  EventImpl->getHandleRef() = NativeEvent;
   EventImpl->setContextImpl(detail::getSyclObjImpl(QueueImpl->get_context()));
   EventImpl->setStateIncomplete();
   return detail::createSyclObjFromImpl<event>(EventImpl);
@@ -60,265 +123,177 @@ static event createDiscardedEvent() {
   return createSyclObjFromImpl<event>(EventImpl);
 }
 
+const std::vector<event> &
+queue_impl::getExtendDependencyList(const std::vector<event> &DepEvents,
+                                    std::vector<event> &MutableVec,
+                                    std::unique_lock<std::mutex> &QueueLock) {
+  if (!isInOrder())
+    return DepEvents;
+
+  QueueLock.lock();
+  EventImplPtr ExtraEvent = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                             : MExtGraphDeps.LastEventPtr;
+  std::optional<event> ExternalEvent = popExternalEvent();
+
+  if (!ExternalEvent && !ExtraEvent)
+    return DepEvents;
+
+  MutableVec = DepEvents;
+  if (ExternalEvent)
+    MutableVec.push_back(*ExternalEvent);
+  if (ExtraEvent)
+    MutableVec.push_back(detail::createSyclObjFromImpl<event>(ExtraEvent));
+  return MutableVec;
+}
+
 event queue_impl::memset(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Ptr, int Value, size_t Count,
-                         const std::vector<event> &DepEvents) {
+                         const std::vector<event> &DepEvents,
+                         bool CallerNeedsEvent) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we use the object ptr; if code location
   // information is available, we will have function name and source file
   // information
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memset()");
+                          SYCL_STREAM_NAME, "memory_transfer_node::memset");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "memory_ptr", reinterpret_cast<size_t>(Ptr));
     xpti::addMetadata(TEvent, "value_set", Value);
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
+  // Before we notifiy the subscribers, we broadcast the 'queue_id', which was a
+  // metadata entry to TLS for use by callback handlers
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
   // Notify XPTI about the memset submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-  event ResEvent;
-  {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
-      MLastEvent.wait();
+  const std::vector<unsigned char> Pattern{static_cast<unsigned char>(Value)};
+  return submitMemOpHelper(
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) { CGH.memset(Ptr, Value, Count); },
+      [](const auto &...Args) { MemoryManager::fill_usm(Args...); }, Ptr, Self,
+      Count, Pattern);
+}
 
-    sycl::detail::pi::PiEvent NativeEvent{};
-    MemoryManager::fill_usm(Ptr, Self, Count, Value,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
-  }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+void report(const code_location &CodeLoc) {
+  std::cout << "Exception caught at ";
+  if (CodeLoc.fileName())
+    std::cout << "File: " << CodeLoc.fileName();
+  if (CodeLoc.functionName())
+    std::cout << " | Function: " << CodeLoc.functionName();
+  if (CodeLoc.lineNumber())
+    std::cout << " | Line: " << CodeLoc.lineNumber();
+  if (CodeLoc.columnNumber())
+    std::cout << " | Column: " << CodeLoc.columnNumber();
+  std::cout << '\n';
 }
 
 event queue_impl::memcpy(const std::shared_ptr<detail::queue_impl> &Self,
                          void *Dest, const void *Src, size_t Count,
-                         const std::vector<event> &DepEvents) {
+                         const std::vector<event> &DepEvents,
+                         bool CallerNeedsEvent, const code_location &CodeLoc) {
 #if XPTI_ENABLE_INSTRUMENTATION
   // We need a code pointer value and we duse the object ptr; If code location
   // is available, we use the source file information along with the object
   // pointer.
   XPTIScope PrepareNotify((void *)this,
                           (uint16_t)xpti::trace_point_type_t::node_create,
-                          SYCL_MEM_ALLOC_STREAM_NAME, "queue.memcpy()");
+                          SYCL_STREAM_NAME, "memory_transfer_node::memcpy");
   PrepareNotify.addMetadata([&](auto TEvent) {
     xpti::addMetadata(TEvent, "sycl_device",
-                      reinterpret_cast<size_t>(
-                          MDevice->is_host() ? 0 : MDevice->getHandleRef()));
+                      reinterpret_cast<size_t>(MDevice->getHandleRef()));
     xpti::addMetadata(TEvent, "src_memory_ptr", reinterpret_cast<size_t>(Src));
     xpti::addMetadata(TEvent, "dest_memory_ptr",
                       reinterpret_cast<size_t>(Dest));
     xpti::addMetadata(TEvent, "memory_size", Count);
+    xpti::addMetadata(TEvent, "queue_id", MQueueID);
   });
-  // Notify XPTI about the memset submission
+  xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
+  // Notify XPTI about the memcpy submission
   PrepareNotify.notify();
   // Emit a begin/end scope for this call
   PrepareNotify.scopedNotify((uint16_t)xpti::trace_point_type_t::task_begin);
 #endif
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
+
+  if ((!Src || !Dest) && Count != 0) {
+    report(CodeLoc);
+    throw exception(make_error_code(errc::invalid),
+                    "NULL pointer argument in memory copy operation.");
   }
-  event ResEvent;
-  {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
-      MLastEvent.wait();
-
-    sycl::detail::pi::PiEvent NativeEvent{};
-    MemoryManager::copy_usm(Src, Self, Count, Dest,
-                            getOrWaitEvents(DepEvents, MContext), &NativeEvent);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
-  }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+  return submitMemOpHelper(
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) { CGH.memcpy(Dest, Src, Count); },
+      [](const auto &...Args) { MemoryManager::copy_usm(Args...); }, Src, Self,
+      Count, Dest);
 }
 
 event queue_impl::mem_advise(const std::shared_ptr<detail::queue_impl> &Self,
                              const void *Ptr, size_t Length,
-                             pi_mem_advice Advice,
-                             const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-  event ResEvent;
-  {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
-      MLastEvent.wait();
-
-    sycl::detail::pi::PiEvent NativeEvent{};
-    MemoryManager::advise_usm(Ptr, Self, Length, Advice,
-                              getOrWaitEvents(DepEvents, MContext),
-                              &NativeEvent);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
-  }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+                             ur_usm_advice_flags_t Advice,
+                             const std::vector<event> &DepEvents,
+                             bool CallerNeedsEvent) {
+  return submitMemOpHelper(
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) { CGH.mem_advise(Ptr, Length, Advice); },
+      [](const auto &...Args) { MemoryManager::advise_usm(Args...); }, Ptr,
+      Self, Length, Advice);
 }
 
 event queue_impl::memcpyToDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *DeviceGlobalPtr,
     const void *Src, bool IsDeviceImageScope, size_t NumBytes, size_t Offset,
-    const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_to_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-  event ResEvent;
-  {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
-      MLastEvent.wait();
-
-    sycl::detail::pi::PiEvent NativeEvent{};
-    MemoryManager::copy_to_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
-  }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+    const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
+  return submitMemOpHelper(
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) {
+        CGH.memcpyToDeviceGlobal(DeviceGlobalPtr, Src, IsDeviceImageScope,
+                                 NumBytes, Offset);
+      },
+      [](const auto &...Args) {
+        MemoryManager::copy_to_device_global(Args...);
+      },
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Src);
 }
 
 event queue_impl::memcpyFromDeviceGlobal(
     const std::shared_ptr<detail::queue_impl> &Self, void *Dest,
     const void *DeviceGlobalPtr, bool IsDeviceImageScope, size_t NumBytes,
-    size_t Offset, const std::vector<event> &DepEvents) {
-  if (MHasDiscardEventsSupport) {
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), nullptr);
-    return createDiscardedEvent();
-  }
-  event ResEvent;
+    size_t Offset, const std::vector<event> &DepEvents, bool CallerNeedsEvent) {
+  return submitMemOpHelper(
+      Self, DepEvents, CallerNeedsEvent,
+      [&](handler &CGH) {
+        CGH.memcpyFromDeviceGlobal(Dest, DeviceGlobalPtr, IsDeviceImageScope,
+                                   NumBytes, Offset);
+      },
+      [](const auto &...Args) {
+        MemoryManager::copy_from_device_global(Args...);
+      },
+      DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest);
+}
+
+event queue_impl::getLastEvent() {
   {
-    // We need to submit command and update the last event under same lock if we
-    // have in-order queue.
-    auto ScopeLock = isInOrder() ? std::unique_lock<std::mutex>(MLastEventMtx)
-                                 : std::unique_lock<std::mutex>();
-    // If the last submitted command in the in-order queue is host_task then
-    // wait for it before submitting usm command.
-    if (isInOrder() && (MLastCGType == CG::CGTYPE::CodeplayHostTask ||
-                        MLastCGType == CG::CGTYPE::CodeplayInteropTask))
-      MLastEvent.wait();
-
-    sycl::detail::pi::PiEvent NativeEvent{};
-    MemoryManager::copy_from_device_global(
-        DeviceGlobalPtr, IsDeviceImageScope, Self, NumBytes, Offset, Dest,
-        getOrWaitEvents(DepEvents, MContext), &NativeEvent);
-
-    if (MContext->is_host())
-      return MDiscardEvents ? createDiscardedEvent() : event();
-
-    ResEvent = prepareUSMEvent(Self, NativeEvent);
-
-    if (isInOrder()) {
-      MLastEvent = ResEvent;
-      // We don't create a command group for usm commands, so set it to None.
-      // This variable is used to perform explicit dependency management when
-      // required.
-      MLastCGType = CG::CGTYPE::None;
-    }
+    // The external event is required to finish last if set, so it is considered
+    // the last event if present.
+    std::lock_guard<std::mutex> Lock(MInOrderExternalEventMtx);
+    if (MInOrderExternalEvent)
+      return *MInOrderExternalEvent;
   }
-  // Track only if we won't be able to handle it with piQueueFinish.
-  if (MEmulateOOO)
-    addSharedEvent(ResEvent);
-  return MDiscardEvents ? createDiscardedEvent() : ResEvent;
+
+  std::lock_guard<std::mutex> Lock{MMutex};
+  if (MDiscardEvents)
+    return createDiscardedEvent();
+  if (!MGraph.expired() && MExtGraphDeps.LastEventPtr)
+    return detail::createSyclObjFromImpl<event>(MExtGraphDeps.LastEventPtr);
+  if (!MDefaultGraphDeps.LastEventPtr)
+    MDefaultGraphDeps.LastEventPtr = std::make_shared<event_impl>(std::nullopt);
+  return detail::createSyclObjFromImpl<event>(MDefaultGraphDeps.LastEventPtr);
 }
 
 void queue_impl::addEvent(const event &Event) {
@@ -328,13 +303,13 @@ void queue_impl::addEvent(const event &Event) {
   if (!Cmd) {
     // if there is no command on the event, we cannot track it with MEventsWeak
     // as that will leave it with no owner. Track in MEventsShared only if we're
-    // unable to call piQueueFinish during wait.
-    if (is_host() || MEmulateOOO)
+    // unable to call urQueueFinish during wait.
+    if (MEmulateOOO)
       addSharedEvent(Event);
   }
-  // As long as the queue supports piQueueFinish we only need to store events
+  // As long as the queue supports urQueueFinish we only need to store events
   // for unenqueued commands and host tasks.
-  else if (is_host() || MEmulateOOO || EImpl->getHandleRef() == nullptr) {
+  else if (MEmulateOOO || EImpl->getHandle() == nullptr) {
     std::weak_ptr<event_impl> EventWeakPtr{EImpl};
     std::lock_guard<std::mutex> Lock{MMutex};
     MEventsWeak.push_back(std::move(EventWeakPtr));
@@ -345,7 +320,7 @@ void queue_impl::addEvent(const event &Event) {
 /// but some events have no other owner. In this case,
 /// addSharedEvent will have the queue track the events via a shared pointer.
 void queue_impl::addSharedEvent(const event &Event) {
-  assert(is_host() || MEmulateOOO);
+  assert(MEmulateOOO);
   std::lock_guard<std::mutex> Lock(MMutex);
   // Events stored in MEventsShared are not released anywhere else aside from
   // calls to queue::wait/wait_and_throw, which a user application might not
@@ -373,6 +348,129 @@ void queue_impl::addSharedEvent(const event &Event) {
   MEventsShared.push_back(Event);
 }
 
+event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
+                              const std::shared_ptr<queue_impl> &Self,
+                              const std::shared_ptr<queue_impl> &PrimaryQueue,
+                              const std::shared_ptr<queue_impl> &SecondaryQueue,
+                              bool CallerNeedsEvent,
+                              const detail::code_location &Loc,
+                              bool IsTopCodeLoc,
+                              const SubmitPostProcessF *PostProcess) {
+  handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
+  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
+
+  {
+    NestedCallsTracker tracker;
+    CGF(Handler);
+  }
+
+  // Scheduler will later omit events, that are not required to execute tasks.
+  // Host and interop tasks, however, are not submitted to low-level runtimes
+  // and require separate dependency management.
+  const CGType Type = detail::getSyclObjImpl(Handler)->MCGType;
+  event Event = detail::createSyclObjFromImpl<event>(
+      std::make_shared<detail::event_impl>());
+  std::vector<StreamImplPtr> Streams;
+  if (Type == CGType::Kernel)
+    Streams = std::move(Handler.MStreamStorage);
+
+  if (PostProcess) {
+    bool IsKernel = Type == CGType::Kernel;
+    bool KernelUsesAssert = false;
+
+    if (IsKernel)
+      // Kernel only uses assert if it's non interop one
+      KernelUsesAssert = !(Handler.MKernel && Handler.MKernel->isInterop()) &&
+                         ProgramManager::getInstance().kernelUsesAssert(
+                             Handler.MKernelName.c_str());
+    finalizeHandler(Handler, Event);
+
+    (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+  } else
+    finalizeHandler(Handler, Event);
+
+  addEvent(Event);
+
+  auto EventImpl = detail::getSyclObjImpl(Event);
+  for (auto &Stream : Streams) {
+    // We don't want stream flushing to be blocking operation that is why submit
+    // a host task to print stream buffer. It will fire up as soon as the kernel
+    // finishes execution.
+    event FlushEvent = submit_impl(
+        [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
+        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
+        IsTopCodeLoc, {});
+    EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
+    registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
+  }
+
+  return Event;
+}
+
+template <typename HandlerFuncT>
+event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
+                                    const std::vector<event> &DepEvents,
+                                    HandlerFuncT HandlerFunc) {
+  return submit(
+      [&](handler &CGH) {
+        CGH.depends_on(DepEvents);
+        HandlerFunc(CGH);
+      },
+      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+}
+
+template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
+event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
+                                    const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
+                                    HandlerFuncT HandlerFunc,
+                                    MemOpFuncT MemOpFunc,
+                                    MemOpArgTs... MemOpArgs) {
+  // We need to submit command and update the last event under same lock if we
+  // have in-order queue.
+  {
+    std::unique_lock<std::mutex> Lock(MMutex, std::defer_lock);
+
+    std::vector<event> MutableDepEvents;
+    const std::vector<event> &ExpandedDepEvents =
+        getExtendDependencyList(DepEvents, MutableDepEvents, Lock);
+
+    // If we have a command graph set we need to capture the op through the
+    // handler rather than by-passing the scheduler.
+    if (MGraph.expired() && Scheduler::areEventsSafeForSchedulerBypass(
+                                ExpandedDepEvents, MContext)) {
+      if ((MDiscardEvents || !CallerNeedsEvent) &&
+          supportsDiscardingPiEvents()) {
+        NestedCallsTracker tracker;
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
+                  /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
+        return createDiscardedEvent();
+      }
+
+      event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
+      auto EventImpl = detail::getSyclObjImpl(ResEvent);
+      {
+        NestedCallsTracker tracker;
+        ur_event_handle_t UREvent = nullptr;
+        MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
+                  EventImpl);
+        EventImpl->setHandle(UREvent);
+      }
+
+      if (isInOrder()) {
+        auto &EventToStoreIn = MGraph.expired() ? MDefaultGraphDeps.LastEventPtr
+                                                : MExtGraphDeps.LastEventPtr;
+        EventToStoreIn = EventImpl;
+      }
+      // Track only if we won't be able to handle it with urQueueFinish.
+      if (MEmulateOOO)
+        addSharedEvent(ResEvent);
+      return discard_or_return(ResEvent);
+    }
+  }
+  return submitWithHandler(Self, DepEvents, HandlerFunc);
+}
+
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
                                         std::string &Name, int32_t StreamID,
                                         uint64_t &IId) {
@@ -382,8 +480,8 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   (void)StreamID;
   (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  xpti::trace_event_data_t *WaitEvent = nullptr;
-  if (!xptiTraceEnabled())
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
+  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
     return TraceEvent;
 
   xpti::payload_t Payload;
@@ -407,23 +505,12 @@ void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,
   // event based on the code location info and if this has been seen before, a
   // previously created event will be returned.
   uint64_t QWaitInstanceNo = 0;
-  WaitEvent = xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
-                            xpti_at::active, &QWaitInstanceNo);
+  xpti::trace_event_data_t *WaitEvent =
+      xptiMakeEvent(Name.c_str(), &Payload, xpti::trace_graph_event,
+                    xpti_at::active, &QWaitInstanceNo);
   IId = QWaitInstanceNo;
   if (WaitEvent) {
-    device D = get_device();
-    std::string DevStr;
-    if (getSyclObjImpl(D)->is_host())
-      DevStr = "HOST";
-    else if (D.is_cpu())
-      DevStr = "CPU";
-    else if (D.is_gpu())
-      DevStr = "GPU";
-    else if (D.is_accelerator())
-      DevStr = "ACCELERATOR";
-    else
-      DevStr = "UNKNOWN";
-    xpti::addMetadata(WaitEvent, "sycl_device", DevStr);
+    xpti::addMetadata(WaitEvent, "sycl_device_type", queueDeviceToString(this));
     if (HasSourceInfo) {
       xpti::addMetadata(WaitEvent, "sym_function_name", CodeLoc.functionName());
       xpti::addMetadata(WaitEvent, "sym_source_file_name", CodeLoc.fileName());
@@ -448,12 +535,14 @@ void queue_impl::instrumentationEpilog(void *TelemetryEvent, std::string &Name,
   (void)StreamID;
   (void)IId;
 #ifdef XPTI_ENABLE_INSTRUMENTATION
-  if (!(xptiTraceEnabled() && TelemetryEvent))
+  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
+  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
+        TelemetryEvent))
     return;
   // Close the wait() scope
   xpti::trace_event_data_t *TraceEvent =
       (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, xpti::trace_wait_end, nullptr, TraceEvent,
+  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
                         IId, static_cast<const void *>(Name.c_str()));
 #endif
 }
@@ -468,33 +557,66 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
   TelemetryEvent = instrumentationProlog(CodeLoc, Name, StreamID, IId);
 #endif
 
+  if (MGraph.lock()) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "wait cannot be called for a queue which is "
+                          "recording to a command graph.");
+  }
+
+  // If there is an external event set, we know we are using an in-order queue
+  // and the event is required to finish after the last event in the queue. As
+  // such, we can just wait for it and finish.
+  std::optional<event> ExternalEvent = popExternalEvent();
+  if (ExternalEvent) {
+    ExternalEvent->wait();
+
+    // Additionally, we can clean up the event lists that we would have
+    // otherwise cleared.
+    if (!MEventsWeak.empty() || !MEventsShared.empty()) {
+      std::lock_guard<std::mutex> Lock(MMutex);
+      MEventsWeak.clear();
+      MEventsShared.clear();
+    }
+    if (!MStreamsServiceEvents.empty()) {
+      std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
+      MStreamsServiceEvents.clear();
+    }
+  }
+
   std::vector<std::weak_ptr<event_impl>> WeakEvents;
   std::vector<event> SharedEvents;
   {
     std::lock_guard<std::mutex> Lock(MMutex);
     WeakEvents.swap(MEventsWeak);
     SharedEvents.swap(MEventsShared);
+
+    {
+      std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+      for (auto &UpdatedGraph : MMissedCleanupRequests)
+        doUnenqueuedCommandCleanup(UpdatedGraph);
+      MMissedCleanupRequests.clear();
+    }
   }
   // If the queue is either a host one or does not support OOO (and we use
   // multiple in-order queues as a result of that), wait for each event
   // directly. Otherwise, only wait for unenqueued or host task events, starting
   // from the latest submitted task in order to minimize total amount of calls,
-  // then handle the rest with piQueueFinish.
-  const bool SupportsPiFinish = !is_host() && !MEmulateOOO;
+  // then handle the rest with urQueueFinish.
+  const bool SupportsPiFinish = !MEmulateOOO;
   for (auto EventImplWeakPtrIt = WeakEvents.rbegin();
        EventImplWeakPtrIt != WeakEvents.rend(); ++EventImplWeakPtrIt) {
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock()) {
-      // A nullptr PI event indicates that piQueueFinish will not cover it,
+      // A nullptr UR event indicates that urQueueFinish will not cover it,
       // either because it's a host task event or an unenqueued one.
-      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandleRef()) {
+      if (!SupportsPiFinish || nullptr == EventImplSharedPtr->getHandle()) {
         EventImplSharedPtr->wait(EventImplSharedPtr);
       }
     }
   }
   if (SupportsPiFinish) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call<detail::PiApiKind::piQueueFinish>(getHandleRef());
+    const AdapterPtr &Adapter = getAdapter();
+    Adapter->call<UrApiKind::urQueueFinish>(getHandleRef());
     assert(SharedEvents.empty() && "Queues that support calling piQueueFinish "
                                    "shouldn't have shared events");
   } else {
@@ -504,7 +626,7 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 
   std::vector<EventImplPtr> StreamsServiceEvents;
   {
-    std::lock_guard<std::mutex> Lock(MMutex);
+    std::lock_guard<std::mutex> Lock(MStreamsServiceEventsMutex);
     StreamsServiceEvents.swap(MStreamsServiceEvents);
   }
   for (const EventImplPtr &Event : StreamsServiceEvents)
@@ -515,13 +637,75 @@ void queue_impl::wait(const detail::code_location &CodeLoc) {
 #endif
 }
 
-pi_native_handle queue_impl::getNative(int32_t &NativeHandleDesc) const {
-  const PluginPtr &Plugin = getPlugin();
+void queue_impl::constructorNotification() {
+#if XPTI_ENABLE_INSTRUMENTATION
+  if (xptiTraceEnabled()) {
+    MStreamID = xptiRegisterStream(SYCL_STREAM_NAME);
+    constexpr uint16_t NotificationTraceType =
+        static_cast<uint16_t>(xpti::trace_point_type_t::queue_create);
+    if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+      xpti::utils::StringHelper SH;
+      std::string AddrStr = SH.addressAsString<size_t>(MQueueID);
+      std::string QueueName = SH.nameWithAddressString("queue", AddrStr);
+      // Create a payload for the queue create event as we do not get code
+      // location for the queue create event
+      xpti::payload_t QPayload(QueueName.c_str());
+      MInstanceID = xptiGetUniqueId();
+      uint64_t RetInstanceNo;
+      xpti_td *TEvent =
+          xptiMakeEvent("queue_create", &QPayload,
+                        (uint16_t)xpti::trace_event_type_t::algorithm,
+                        xpti_at::active, &RetInstanceNo);
+      // Cache the trace event, stream id and instance IDs for the destructor
+      MTraceEvent = (void *)TEvent;
+
+      xpti::addMetadata(TEvent, "sycl_context",
+                        reinterpret_cast<size_t>(MContext->getHandleRef()));
+      if (MDevice) {
+        xpti::addMetadata(TEvent, "sycl_device_name", MDevice->getDeviceName());
+        xpti::addMetadata(TEvent, "sycl_device",
+                          reinterpret_cast<size_t>(MDevice->getHandleRef()));
+      }
+      xpti::addMetadata(TEvent, "is_inorder", MIsInorder);
+      xpti::addMetadata(TEvent, "queue_id", MQueueID);
+      xpti::addMetadata(TEvent, "queue_handle",
+                        reinterpret_cast<size_t>(getHandleRef()));
+      // Also publish to TLS before notification
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, MQueueID);
+      xptiNotifySubscribers(
+          MStreamID, (uint16_t)xpti::trace_point_type_t::queue_create, nullptr,
+          TEvent, MInstanceID, static_cast<const void *>("queue_create"));
+    }
+  }
+#endif
+}
+
+void queue_impl::destructorNotification() {
+#if XPTI_ENABLE_INSTRUMENTATION
+  constexpr uint16_t NotificationTraceType =
+      static_cast<uint16_t>(xpti::trace_point_type_t::queue_destroy);
+  if (xptiCheckTraceEnabled(MStreamID, NotificationTraceType)) {
+    // Use the cached trace event, stream id and instance IDs for the
+    // destructor
+    xptiNotifySubscribers(MStreamID, NotificationTraceType, nullptr,
+                          (xpti::trace_event_data_t *)MTraceEvent, MInstanceID,
+                          static_cast<const void *>("queue_destroy"));
+    xptiReleaseEvent((xpti::trace_event_data_t *)MTraceEvent);
+  }
+#endif
+}
+
+ur_native_handle_t queue_impl::getNative(int32_t &NativeHandleDesc) const {
+  const AdapterPtr &Adapter = getAdapter();
   if (getContextImplPtr()->getBackend() == backend::opencl)
-    Plugin->call<PiApiKind::piQueueRetain>(MQueues[0]);
-  pi_native_handle Handle{};
-  Plugin->call<PiApiKind::piextQueueGetNativeHandle>(MQueues[0], &Handle,
-                                                     &NativeHandleDesc);
+    Adapter->call<UrApiKind::urQueueRetain>(MQueues[0]);
+  ur_native_handle_t Handle{};
+  ur_queue_native_desc_t UrNativeDesc{UR_STRUCTURE_TYPE_QUEUE_NATIVE_DESC,
+                                      nullptr, nullptr};
+  UrNativeDesc.pNativeData = &NativeHandleDesc;
+
+  Adapter->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], &UrNativeDesc,
+                                                   &Handle);
   return Handle;
 }
 
@@ -529,20 +713,26 @@ bool queue_impl::ext_oneapi_empty() const {
   // If we have in-order queue where events are not discarded then just check
   // the status of the last event.
   if (isInOrder() && !MDiscardEvents) {
-    std::lock_guard<std::mutex> Lock(MLastEventMtx);
-    return MLastEvent.get_info<info::event::command_execution_status>() ==
-           info::event_command_status::complete;
+    std::lock_guard<std::mutex> Lock(MMutex);
+    // If there is no last event we know that no work has been submitted, so it
+    // must be trivially empty.
+    if (!MDefaultGraphDeps.LastEventPtr)
+      return true;
+    // Otherwise, check if the last event is finished.
+    // Note that we fall back to the backend query if the event was discarded,
+    // which may happend despite the queue not being a discard event queue.
+    if (!MDefaultGraphDeps.LastEventPtr->isDiscarded())
+      return MDefaultGraphDeps.LastEventPtr
+                 ->get_info<info::event::command_execution_status>() ==
+             info::event_command_status::complete;
   }
 
   // Check the status of the backend queue if this is not a host queue.
-  if (!is_host()) {
-    pi_bool IsReady = false;
-    getPlugin()->call<PiApiKind::piQueueGetInfo>(
-        MQueues[0], PI_EXT_ONEAPI_QUEUE_INFO_EMPTY, sizeof(pi_bool), &IsReady,
-        nullptr);
-    if (!IsReady)
-      return false;
-  }
+  ur_bool_t IsReady = false;
+  getAdapter()->call<UrApiKind::urQueueGetInfo>(
+      MQueues[0], UR_QUEUE_INFO_EMPTY, sizeof(IsReady), &IsReady, nullptr);
+  if (!IsReady)
+    return false;
 
   // We may have events like host tasks which are not submitted to the backend
   // queue so we need to get their status separately.
@@ -556,7 +746,7 @@ bool queue_impl::ext_oneapi_empty() const {
        EventImplWeakPtrIt != MEventsWeak.end(); ++EventImplWeakPtrIt)
     if (std::shared_ptr<event_impl> EventImplSharedPtr =
             EventImplWeakPtrIt->lock())
-      if (EventImplSharedPtr->is_host() &&
+      if (EventImplSharedPtr->isHost() &&
           EventImplSharedPtr
                   ->get_info<info::event::command_execution_status>() !=
               info::event_command_status::complete)
@@ -567,6 +757,54 @@ bool queue_impl::ext_oneapi_empty() const {
   return true;
 }
 
+event queue_impl::discard_or_return(const event &Event) {
+  if (!(MDiscardEvents))
+    return Event;
+  return createDiscardedEvent();
+}
+
+void queue_impl::revisitUnenqueuedCommandsState(
+    const EventImplPtr &CompletedHostTask) {
+  if (MIsInorder)
+    return;
+  std::unique_lock<std::mutex> Lock{MMutex, std::try_to_lock};
+  if (Lock.owns_lock())
+    doUnenqueuedCommandCleanup(CompletedHostTask->getCommandGraph());
+  else {
+    std::lock_guard<std::mutex> RequestLock(MMissedCleanupRequestsMtx);
+    MMissedCleanupRequests.push_back(CompletedHostTask->getCommandGraph());
+  }
+}
+
+void queue_impl::doUnenqueuedCommandCleanup(
+    const std::shared_ptr<ext::oneapi::experimental::detail::graph_impl>
+        &Graph) {
+  auto tryToCleanup = [](DependencyTrackingItems &Deps) {
+    if (Deps.LastBarrier && Deps.LastBarrier->isEnqueued()) {
+      Deps.LastBarrier = nullptr;
+      Deps.UnenqueuedCmdEvents.clear();
+    } else {
+      if (Deps.UnenqueuedCmdEvents.empty())
+        return;
+      Deps.UnenqueuedCmdEvents.erase(
+          std::remove_if(
+              Deps.UnenqueuedCmdEvents.begin(), Deps.UnenqueuedCmdEvents.end(),
+              [](const EventImplPtr &CommandEvent) {
+                return (CommandEvent->isHost() ? CommandEvent->isCompleted()
+                                               : CommandEvent->isEnqueued());
+              }),
+          Deps.UnenqueuedCmdEvents.end());
+    }
+  };
+  // Barrier enqueue could be significantly postponed due to host task
+  // dependency if any. No guarantee that it will happen while same graph deps
+  // are still recording.
+  if (Graph && Graph == getCommandGraph())
+    tryToCleanup(MExtGraphDeps);
+  else
+    tryToCleanup(MDefaultGraphDeps);
+}
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

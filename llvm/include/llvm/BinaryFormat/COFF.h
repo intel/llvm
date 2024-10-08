@@ -130,6 +130,10 @@ template <typename T> bool isAnyArm64(T Machine) {
   return Machine == IMAGE_FILE_MACHINE_ARM64 || isArm64EC(Machine);
 }
 
+template <typename T> bool is64Bit(T Machine) {
+  return Machine == IMAGE_FILE_MACHINE_AMD64 || isAnyArm64(Machine);
+}
+
 enum Characteristics : unsigned {
   C_Invalid = 0,
 
@@ -411,6 +415,21 @@ enum RelocationTypesARM64 : unsigned {
   IMAGE_REL_ARM64_BRANCH19 = 0x000F,
   IMAGE_REL_ARM64_BRANCH14 = 0x0010,
   IMAGE_REL_ARM64_REL32 = 0x0011,
+};
+
+enum DynamicRelocationType : unsigned {
+  IMAGE_DYNAMIC_RELOCATION_GUARD_RF_PROLOGUE = 1,
+  IMAGE_DYNAMIC_RELOCATION_GUARD_RF_EPILOGUE = 2,
+  IMAGE_DYNAMIC_RELOCATION_GUARD_IMPORT_CONTROL_TRANSFER = 3,
+  IMAGE_DYNAMIC_RELOCATION_GUARD_INDIR_CONTROL_TRANSFER = 4,
+  IMAGE_DYNAMIC_RELOCATION_GUARD_SWITCHTABLE_BRANCH = 5,
+  IMAGE_DYNAMIC_RELOCATION_ARM64X = 6,
+};
+
+enum Arm64XFixupType : uint8_t {
+  IMAGE_DVRT_ARM64X_FIXUP_TYPE_ZEROFILL = 0,
+  IMAGE_DVRT_ARM64X_FIXUP_TYPE_VALUE = 1,
+  IMAGE_DVRT_ARM64X_FIXUP_TYPE_DELTA = 2,
 };
 
 enum COMDATType : uint8_t {
@@ -712,7 +731,10 @@ enum ImportNameType : unsigned {
   IMPORT_NAME_NOPREFIX = 2,
   /// The import name is the public symbol name, but skipping the leading ?,
   /// @, or optionally _, and truncating at the first @.
-  IMPORT_NAME_UNDECORATE = 3
+  IMPORT_NAME_UNDECORATE = 3,
+  /// The import name is specified as a separate string in the import library
+  /// object file.
+  IMPORT_NAME_EXPORTAS = 4
 };
 
 enum class GuardFlags : uint32_t {
@@ -797,6 +819,12 @@ enum Feat00Flags : uint32_t {
   GuardEHCont = 0x4000,
   // Object was compiled with /kernel.
   Kernel = 0x40000000,
+};
+
+enum Arm64ECThunkType : uint8_t {
+  GuestExit = 0,
+  Entry = 1,
+  Exit = 4,
 };
 
 inline bool isReservedSectionNumber(int32_t SectionNumber) {

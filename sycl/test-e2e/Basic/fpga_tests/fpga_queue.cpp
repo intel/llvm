@@ -12,8 +12,9 @@
 //===----------------------------------------------------------------------===//
 #include <iostream>
 #include <set>
+#include <sycl/backend.hpp>
 #include <sycl/backend/opencl.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 
@@ -30,7 +31,7 @@ void GetCLQueue(event sycl_event, std::set<cl_command_queue> &cl_queues) {
     assert(CL_SUCCESS == error && "Failed to obtain queue from OpenCL event");
 
     cl_queues.insert(cl_queue);
-  } catch (invalid_object_error e) {
+  } catch (const exception &e) {
     std::cout << "Failed to get OpenCL queue from SYCL event: " << e.what()
               << std::endl;
   }
@@ -116,7 +117,7 @@ int main() {
       return -1;
     }
 
-    auto readBufferC = bufC.get_access<access::mode::read>();
+    auto readBufferC = bufC.get_host_access();
     for (size_t i = 0; i != dataSize; ++i) {
       if (readBufferC[i] != 2 * i) {
         std::cout << "Result mismatches " << readBufferC[i] << " Vs expected "

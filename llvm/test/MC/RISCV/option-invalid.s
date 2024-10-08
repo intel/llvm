@@ -1,5 +1,5 @@
 # RUN: not llvm-mc -triple riscv32 < %s 2>&1 \
-# RUN:   | FileCheck -check-prefixes=CHECK %s
+# RUN:   | FileCheck --implicit-check-not=error: %s
 
 # CHECK: :[[#@LINE+1]]:8: error: expected identifier
 .option
@@ -34,27 +34,27 @@
 # CHECK: :[[#@LINE+1]]:18: error: expected comma
 .option arch, +c foo
 
-# CHECK: :[[#@LINE+1]]:16: error: Extension version number parsing not currently implemented
+# CHECK: :[[#@LINE+1]]:16: error: extension version number parsing not currently implemented
 .option arch, +c2p0
 
 .option arch, +d
-# CHECK: :[[#@LINE+1]]:16: error: Can't disable f extension, d extension requires f extension be enabled
+# CHECK: :[[#@LINE+1]]:16: error: can't disable f extension; d extension requires f extension
 .option arch, -f
 
-# CHECK: :[[#@LINE+1]]:16: error: Can't disable zicsr extension, f extension requires zicsr extension be enabled
+# CHECK: :[[#@LINE+1]]:16: error: can't disable zicsr extension; f extension requires zicsr extension
 .option arch, -zicsr
 
 # CHECK: :[[#@LINE+1]]:20: error: 'f' and 'zfinx' extensions are incompatible
 .option arch, +f, +zfinx
+
+## Make sure the above error isn't sticky
+.option arch, +f
 
 # CHECK: :[[#@LINE+1]]:13: error: expected newline
 .option rvc foo
 
 # CHECK: :[[#@LINE+1]]:12: warning: unknown option, expected 'push', 'pop', 'rvc', 'norvc', 'arch', 'relax' or 'norelax'
 .option bar
-
-# CHECK: :[[#@LINE+1]]:16: error: unknown extension feature
-.option arch, -i
 
 # CHECK: :[[#@LINE+1]]:12: error: .option pop with no .option push
 .option pop

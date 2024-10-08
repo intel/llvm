@@ -16,6 +16,6 @@ target triple = "spir-unknown-unknown"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo() {
 entry:
-  %0 = load i32, i32 addrspace(4)* addrspacecast (i32 addrspace(1)* @__spirv_BuiltInSubDeviceIDINTEL to i32 addrspace(4)*), align 4
+  %0 = load i32, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInSubDeviceIDINTEL to ptr addrspace(4)), align 4
   ret void
 }

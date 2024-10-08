@@ -5,18 +5,15 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
-// Use -O2 to avoid huge stack usage under -O0.
-// RUN: %{build} -O2 -I%S/.. -o %t.out
+// REQUIRES: aspect-ext_intel_legacy_image
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out %S/linear_in.bmp %S/linear_gold_hw.bmp
 
+#include "../esimd_test_utils.hpp"
 #include "bitmap_helpers.h"
-#include "esimd_test_utils.hpp"
+#include <sycl/accessor_image.hpp>
 
 #include <array>
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

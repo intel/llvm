@@ -41,7 +41,7 @@ int main() {
 In this use-case every work-item with even index along 0 dimension will trigger
 assertion failure. Assertion failure should trigger a call to `std::abort()` at
 host as described in
-[extension](../extensions/supported/SYCL_EXT_ONEAPI_ASSERT.asciidoc).
+[extension](../extensions/supported/sycl_ext_oneapi_assert.asciidoc).
 Even though multiple failures of the same or different assertions can happen in
 multiple work-items, implementation is required to deliver at least one
 assertion. The assertion failure message is printed to `stderr` by DPCPP
@@ -81,7 +81,7 @@ practical cases.
 ## How it works?
 
 `assert(expr)` macro ends up in call to `__devicelib_assert_fail`. This function
-is part of [Device library extension](DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
+is part of [Device library extension](https://github.com/intel/llvm/blob/sycl/doc/design/DeviceLibExtensions.rst#cl_intel_devicelib_cassert).
 
 The format of the assert message is unspecified, but it will always include the
 text of the failing expression, the values of the standard macros `__FILE__` and
@@ -168,6 +168,7 @@ image. All of them should have `extern` declaration of program scope variable
 available. Definition of the variable is only available within devicelib in the
 same binary image where fallback `__devicelib_assert_fail` resides.
 
+(prog-scope-var-decl)=
 <a name="prog-scope-var-decl">The variable has the following structure and
 declaration:</a>
 

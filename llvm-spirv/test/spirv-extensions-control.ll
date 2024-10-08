@@ -10,11 +10,11 @@
 ;
 ; Bunch of positive tests:
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc --spirv-ext=+all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_KHR_untyped_pointers -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-all -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
-; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
+; RUN: llvm-spirv %t.bc --spirv-ext=+all,-SPV_INTEL_subgroups,-SPV_KHR_untyped_pointers -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-all,+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ; RUN: llvm-spirv %t.bc --spirv-ext=-SPV_INTEL_subgroups,+SPV_INTEL_subgroups -o - 2>&1 | FileCheck %s --check-prefix=CHECK-VALID
 ;
@@ -27,10 +27,10 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
 target triple = "spir-unknown-unknown"
 
 ; Function Attrs: nounwind
-define spir_kernel void @foo(i32 addrspace(1)* %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
+define spir_kernel void @foo(ptr addrspace(1) %a) #0 !kernel_arg_addr_space !1 !kernel_arg_access_qual !2 !kernel_arg_type !3 !kernel_arg_base_type !4 !kernel_arg_type_qual !5 {
 entry:
-  %a.addr = alloca i32 addrspace(1)*, align 4
-  store i32 addrspace(1)* %a, i32 addrspace(1)** %a.addr, align 4
+  %a.addr = alloca ptr addrspace(1), align 4
+  store ptr addrspace(1) %a, ptr %a.addr, align 4
   ret void
 }
 

@@ -17,7 +17,7 @@
 ; RUN: llvm-dis -o - %t4.o | FileCheck %s --check-prefix=EXTERNAL
 ; EXTERNAL: gv: (name: "_ZTV1D", {{.*}} vTableFuncs: ((virtFunc:
 
-; RUN: llvm-lto2 run -opaque-pointers %t3.o %t4.o -save-temps -pass-remarks=. \
+; RUN: llvm-lto2 run %t3.o %t4.o -save-temps -pass-remarks=. \
 ; RUN:   -whole-program-visibility \
 ; RUN:   -wholeprogramdevirt-print-index-based \
 ; RUN:   -o %t5 \

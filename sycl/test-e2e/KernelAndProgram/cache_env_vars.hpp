@@ -64,7 +64,8 @@
 
 #include <chrono>
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+
 class Inc;
 template <class Kernel> void check_build_time(sycl::queue &q) {
   auto start = std::chrono::steady_clock::now();

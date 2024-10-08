@@ -4,7 +4,7 @@
 ; REQUIRES: spirv-as
 
 ; RUN: spirv-as --target-env spv1.3 %s -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis | FileCheck %s
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s
 
 ; SPIR-V
 ; Version: 1.1
@@ -36,5 +36,7 @@
                OpReturn
                OpFunctionEnd
 
-; CHECK: !{i32 2, !"Source Lang Literal", i32 42}
-; CHECK: !DICompileUnit(language: DW_LANG_OpenCL,
+; CHECK: {{![0-9]+}} = !{i32 2, !"Source Lang Literal", [[LIST:![0-9]+]]}
+; CHECK: [[LIST]] = !{[[ENTRY:![0-9]+]]}
+; CHECK: [[ENTRY]] = !{[[CU:![0-9]+]], i32 42}
+; CHECK: [[CU]] = distinct !DICompileUnit(language: DW_LANG_OpenCL

@@ -9,7 +9,8 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/pipes.hpp>
 
 class some_nb_pipe;
 
@@ -41,7 +42,7 @@ template <typename PipeName> int test_simple_nb_pipe(sycl::queue Queue) {
     });
   });
 
-  auto readHostBuffer = writeBuf.get_access<sycl::access::mode::read>();
+  auto readHostBuffer = writeBuf.get_host_access();
   if (readHostBuffer[0] != 42) {
     std::cout << "Result mismatches " << readHostBuffer[0] << " Vs expected "
               << 42 << std::endl;

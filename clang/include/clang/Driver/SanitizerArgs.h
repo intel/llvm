@@ -33,6 +33,7 @@ class SanitizerArgs {
   std::vector<std::string> BinaryMetadataIgnorelistFiles;
   int CoverageFeatures = 0;
   int BinaryMetadataFeatures = 0;
+  int OverflowPatternExclusions = 0;
   int MsanTrackOrigins = 0;
   bool MsanUseAfterDtor = true;
   bool MsanParamRetval = true;
@@ -76,6 +77,7 @@ public:
                 bool DiagnoseErrors = true);
 
   bool needsSharedRt() const { return SharedRuntime; }
+  bool needsStableAbi() const { return StableABI; }
 
   bool needsMemProfRt() const { return NeedsMemProfRt; }
   bool needsAsanRt() const { return Sanitizers.has(SanitizerKind::Address); }
@@ -102,6 +104,10 @@ public:
   bool needsCfiDiagRt() const;
   bool needsStatsRt() const { return Stats; }
   bool needsScudoRt() const { return Sanitizers.has(SanitizerKind::Scudo); }
+  bool needsNsanRt() const {
+    return Sanitizers.has(SanitizerKind::NumericalStability);
+  }
+  bool needsRtsanRt() const { return Sanitizers.has(SanitizerKind::Realtime); }
 
   bool hasMemTag() const {
     return hasMemtagHeap() || hasMemtagStack() || hasMemtagGlobals();

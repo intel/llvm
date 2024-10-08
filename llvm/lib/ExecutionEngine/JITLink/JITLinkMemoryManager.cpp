@@ -26,10 +26,10 @@ BasicLayout::BasicLayout(LinkGraph &G) : G(G) {
   for (auto &Sec : G.sections()) {
     // Skip empty sections, and sections with NoAlloc lifetime policies.
     if (Sec.blocks().empty() ||
-        Sec.getMemLifetimePolicy() == orc::MemLifetimePolicy::NoAlloc)
+        Sec.getMemLifetime() == orc::MemLifetime::NoAlloc)
       continue;
 
-    auto &Seg = Segments[{Sec.getMemProt(), Sec.getMemLifetimePolicy()}];
+    auto &Seg = Segments[{Sec.getMemProt(), Sec.getMemLifetime()}];
     for (auto *B : Sec.blocks())
       if (LLVM_LIKELY(!B->isZeroFill()))
         Seg.ContentBlocks.push_back(B);
@@ -90,7 +90,7 @@ BasicLayout::getContiguousPageBasedLayoutSizes(uint64_t PageSize) {
                                      inconvertibleErrorCode());
 
     uint64_t SegSize = alignTo(Seg.ContentSize + Seg.ZeroFillSize, PageSize);
-    if (AG.getMemLifetimePolicy() == orc::MemLifetimePolicy::Standard)
+    if (AG.getMemLifetime() == orc::MemLifetime::Standard)
       SegsSizes.StandardSegs += SegSize;
     else
       SegsSizes.FinalizeSegs += SegSize;
@@ -155,8 +155,8 @@ void SimpleSegmentAlloc::Create(JITLinkMemoryManager &MemMgr,
       "__---.finalize", "__R--.finalize", "__-W-.finalize", "__RW-.finalize",
       "__--X.finalize", "__R-X.finalize", "__-WX.finalize", "__RWX.finalize"};
 
-  auto G =
-      std::make_unique<LinkGraph>("", Triple(), 0, support::native, nullptr);
+  auto G = std::make_unique<LinkGraph>("", Triple(), 0,
+                                       llvm::endianness::native, nullptr);
   orc::AllocGroupSmallMap<Block *> ContentBlocks;
 
   orc::ExecutorAddr NextAddr(0x100000);
@@ -164,15 +164,15 @@ void SimpleSegmentAlloc::Create(JITLinkMemoryManager &MemMgr,
     auto &AG = KV.first;
     auto &Seg = KV.second;
 
-    assert(AG.getMemLifetimePolicy() != orc::MemLifetimePolicy::NoAlloc &&
+    assert(AG.getMemLifetime() != orc::MemLifetime::NoAlloc &&
            "NoAlloc segments are not supported by SimpleSegmentAlloc");
 
     auto AGSectionName =
         AGSectionNames[static_cast<unsigned>(AG.getMemProt()) |
-                       static_cast<bool>(AG.getMemLifetimePolicy()) << 3];
+                       static_cast<bool>(AG.getMemLifetime()) << 3];
 
     auto &Sec = G->createSection(AGSectionName, AG.getMemProt());
-    Sec.setMemLifetimePolicy(AG.getMemLifetimePolicy());
+    Sec.setMemLifetime(AG.getMemLifetime());
 
     if (Seg.ContentSize != 0) {
       NextAddr =
@@ -326,22 +326,21 @@ private:
 
 Expected<std::unique_ptr<InProcessMemoryManager>>
 InProcessMemoryManager::Create() {
-  if (auto PageSize = sys::Process::getPageSize())
+  if (auto PageSize = sys::Process::getPageSize()) {
+    // FIXME: Just check this once on startup.
+    if (!isPowerOf2_64((uint64_t)*PageSize))
+      return make_error<StringError>(
+          "Could not create InProcessMemoryManager: Page size " +
+              Twine(*PageSize) + " is not a power of 2",
+          inconvertibleErrorCode());
+
     return std::make_unique<InProcessMemoryManager>(*PageSize);
-  else
+  } else
     return PageSize.takeError();
 }
 
 void InProcessMemoryManager::allocate(const JITLinkDylib *JD, LinkGraph &G,
                                       OnAllocatedFunction OnAllocated) {
-
-  // FIXME: Just check this once on startup.
-  if (!isPowerOf2_64((uint64_t)PageSize)) {
-    OnAllocated(make_error<StringError>("Page size is not a power of 2",
-                                        inconvertibleErrorCode()));
-    return;
-  }
-
   BasicLayout BL(G);
 
   /// Scan the request and calculate the group and total sizes.
@@ -419,10 +418,9 @@ void InProcessMemoryManager::allocate(const JITLinkDylib *JD, LinkGraph &G,
     auto &AG = KV.first;
     auto &Seg = KV.second;
 
-    auto &SegAddr =
-        (AG.getMemLifetimePolicy() == orc::MemLifetimePolicy::Standard)
-            ? NextStandardSegAddr
-            : NextFinalizeSegAddr;
+    auto &SegAddr = (AG.getMemLifetime() == orc::MemLifetime::Standard)
+                        ? NextStandardSegAddr
+                        : NextFinalizeSegAddr;
 
     Seg.WorkingMem = SegAddr.toPtr<char *>();
     Seg.Addr = SegAddr;
@@ -450,8 +448,7 @@ void InProcessMemoryManager::deallocate(std::vector<FinalizedAlloc> Allocs,
     for (auto &Alloc : Allocs) {
       auto *FA = Alloc.release().toPtr<FinalizedAllocInfo *>();
       StandardSegmentsList.push_back(std::move(FA->StandardSegments));
-      if (!FA->DeallocActions.empty())
-        DeallocActionsList.push_back(std::move(FA->DeallocActions));
+      DeallocActionsList.push_back(std::move(FA->DeallocActions));
       FA->~FinalizedAllocInfo();
       FinalizedAllocInfos.Deallocate(FA);
     }

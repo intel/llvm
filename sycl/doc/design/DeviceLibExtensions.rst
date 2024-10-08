@@ -4,7 +4,7 @@ Device library extensions
 Device compiler that indicates support for a particular extension is
 supposed to support *all* the corresponding functions.
 
-cl_intel_devicelib_cassert
+cl_intel_devicelib_assert
 ==========================
 
 .. code:

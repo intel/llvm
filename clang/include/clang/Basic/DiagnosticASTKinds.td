@@ -15,6 +15,10 @@ def note_constexpr_invalid_cast : Note<
   " performs the conversions of a reinterpret_cast}1|cast from %1}0"
   " is not allowed in a constant expression"
   "%select{| in C++ standards before C++20||}0">;
+def note_constexpr_invalid_void_star_cast : Note<
+  "cast from %0 is not allowed in a constant expression "
+  "%select{in C++ standards before C++2c|because the pointed object "
+  "type %2 is not similar to the target type %3}1">;
 def note_constexpr_invalid_downcast : Note<
   "cannot cast object of dynamic type %0 to type %1">;
 def note_constexpr_overflow : Note<
@@ -65,7 +69,9 @@ def note_consteval_address_accessible : Note<
   "%select{pointer|reference}0 to a consteval declaration "
   "is not a constant expression">;
 def note_constexpr_uninitialized : Note<
-  "subobject %0 is not initialized">;
+  "subobject %select{of type |}0%1 is not initialized">;
+def note_constexpr_uninitialized_base : Note<
+  "constructor of base class %0 is not called">;
 def note_constexpr_static_local : Note<
   "control flows through the definition of a %select{static|thread_local}0 variable">;
 def note_constexpr_subobject_declared_here : Note<
@@ -160,15 +166,22 @@ def note_constexpr_heap_alloc_limit_exceeded : Note<
 def note_constexpr_this : Note<
   "%select{|implicit }0use of 'this' pointer is only allowed within the "
   "evaluation of a call to a 'constexpr' member function">;
-def note_constexpr_lifetime_ended : Note<
+def access_kind : TextSubstitution<
   "%select{read of|read of|assignment to|increment of|decrement of|"
   "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 %select{temporary|variable}1 whose "
-  "%plural{8:storage duration|:lifetime}0 has ended">;
-def note_constexpr_access_uninit : Note<
+  "destruction of}0">;
+def access_kind_subobject : TextSubstitution<
   "%select{read of|read of|assignment to|increment of|decrement of|"
   "member call on|dynamic_cast of|typeid applied to|"
-  "construction of subobject of|destruction of}0 "
+  "construction of subobject of|destruction of}0">;
+def access_kind_volatile : TextSubstitution<
+  "%select{read of|read of|assignment to|increment of|decrement of|"
+  "<ERROR>|<ERROR>|<ERROR>|<ERROR>|<ERROR>}0">;
+def note_constexpr_lifetime_ended : Note<
+  "%sub{access_kind}0 %select{temporary|variable}1 whose "
+  "%plural{8:storage duration|:lifetime}0 has ended">;
+def note_constexpr_access_uninit : Note<
+  "%sub{access_kind_subobject}0 "
   "%select{object outside its lifetime|uninitialized object}1 "
   "is not allowed in a constant expression">;
 def note_constexpr_use_uninit_reference : Note<
@@ -178,20 +191,16 @@ def note_constexpr_modify_const_type : Note<
   "modification of object of const-qualified type %0 is not allowed "
   "in a constant expression">;
 def note_constexpr_access_volatile_type : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "<ERROR>|<ERROR>|<ERROR>|<ERROR>}0 "
+  "%sub{access_kind_volatile}0 "
   "volatile-qualified type %1 is not allowed in a constant expression">;
 def note_constexpr_access_volatile_obj : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "<ERROR>|<ERROR>|<ERROR>|<ERROR>}0 "
+  "%sub{access_kind_volatile}0 "
   "volatile %select{temporary|object %2|member %2}1 is not allowed in "
   "a constant expression">;
 def note_constexpr_volatile_here : Note<
   "volatile %select{temporary created|object declared|member declared}0 here">;
 def note_constexpr_access_mutable : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
+  "%sub{access_kind}0 "
   "mutable member %1 is not allowed in a constant expression">;
 def note_constexpr_ltor_non_const_int : Note<
   "read of non-const variable %0 is not allowed in a constant expression">;
@@ -203,47 +212,28 @@ def note_constexpr_ltor_non_constexpr : Note<
 def note_constexpr_ltor_incomplete_type : Note<
   "read of incomplete type %0 is not allowed in a constant expression">;
 def note_constexpr_access_null : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
+  "%sub{access_kind}0 "
   "dereferenced null pointer is not allowed in a constant expression">;
 def note_constexpr_access_past_end : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
-  "dereferenced one-past-the-end pointer is not allowed "
-  "in a constant expression">;
+  "%sub{access_kind}0 dereferenced one-past-the-end pointer "
+  "is not allowed in a constant expression">;
 def note_constexpr_access_unsized_array : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
-  "element of array without known bound "
+  "%sub{access_kind}0 element of array without known bound "
   "is not allowed in a constant expression">;
 def note_constexpr_access_inactive_union_member : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|"
-  "construction of subobject of|destruction of}0 "
+  "%sub{access_kind_subobject}0 "
   "member %1 of union with %select{active member %3|no active member}2 "
   "is not allowed in a constant expression">;
 def note_constexpr_union_member_change_during_init : Note<
   "assignment would change active union member during the initialization of "
   "a different member of the same union">;
 def note_constexpr_access_static_temporary : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|reconstruction of|"
-  "destruction of}0 temporary "
-  "is not allowed in a constant expression outside the expression that "
-  "created the temporary">;
+  "%sub{access_kind}0 temporary is not allowed in a constant expression "
+  "outside the expression that created the temporary">;
 def note_constexpr_access_unreadable_object : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
-  "object '%1' whose value is not known">;
+  "%sub{access_kind}0 object '%1' whose value is not known">;
 def note_constexpr_access_deleted_object : Note<
-  "%select{read of|read of|assignment to|increment of|decrement of|"
-  "member call on|dynamic_cast of|typeid applied to|construction of|"
-  "destruction of}0 "
-  "heap allocated object that has been deleted">;
+  "%sub{access_kind}0 heap allocated object that has been deleted">;
 def note_constexpr_modify_global : Note<
   "a constant expression cannot modify an object that is visible outside "
   "that expression">;
@@ -311,7 +301,7 @@ def note_constexpr_memcpy_unsupported : Note<
   "source is not a contiguous array of at least %4 elements of type %3|"
   "destination is not a contiguous array of at least %4 elements of type %3}2">;
 def note_constexpr_bit_cast_unsupported_type : Note<
-  "constexpr bit_cast involving type %0 is not yet supported">;
+  "constexpr bit cast involving type %0 is not yet supported">;
 def note_constexpr_bit_cast_unsupported_bitfield : Note<
   "constexpr bit_cast involving bit-field is not yet supported">;
 def note_constexpr_bit_cast_invalid_type : Note<
@@ -320,6 +310,9 @@ def note_constexpr_bit_cast_invalid_type : Note<
   "%select{type|member}1 is not allowed in a constant expression">;
 def note_constexpr_bit_cast_invalid_subtype : Note<
   "invalid type %0 is a %select{member|base}1 of %2">;
+def note_constexpr_bit_cast_invalid_vector : Note<
+  "bit_cast involving type %0 is not allowed in a constant expression; "
+  "element size %1 * element count %2 is not a multiple of the byte size %3">;
 def note_constexpr_bit_cast_indet_dest : Note<
   "indeterminate value can only initialize an object of type 'unsigned char'"
   "%select{, 'char',|}1 or 'std::byte'; %0 is invalid">;
@@ -340,13 +333,17 @@ def note_constexpr_new : Note<
 def note_constexpr_new_non_replaceable : Note<
   "call to %select{placement|class-specific}0 %1">;
 def note_constexpr_new_placement : Note<
-  "this placement new expression is not yet supported in constant expressions">;
+  "this placement new expression is not supported in constant expressions "
+  "%select{|before C++2c}0">;
 def note_constexpr_placement_new_wrong_type : Note<
   "placement new would change type of storage from %0 to %1">;
 def note_constexpr_new_negative : Note<
   "cannot allocate array; evaluated array bound %0 is negative">;
 def note_constexpr_new_too_large : Note<
   "cannot allocate array; evaluated array bound %0 is too large">;
+def note_constexpr_new_exceeds_limits : Note<
+  "cannot allocate array; evaluated array bound %0 exceeds the limit (%1); "
+  "use '-fconstexpr-steps' to increase this limit">;
 def note_constexpr_new_too_small : Note<
   "cannot allocate array; evaluated array bound %0 is too small to hold "
   "%1 explicitly initialized elements">;
@@ -385,6 +382,10 @@ def note_constexpr_unsupported_layout : Note<
   "type %0 has unexpected layout">;
 def note_constexpr_unsupported_flexible_array : Note<
   "flexible array initialization is not yet supported">;
+def note_constexpr_non_const_vectorelements : Note<
+  "cannot determine number of elements for sizeless vectors in a constant expression">;
+def note_constexpr_assumption_failed : Note<
+  "assumption evaluated to false">;
 def err_experimental_clang_interp_failed : Error<
   "the experimental clang interpreter failed to evaluate an expression">;
 
@@ -394,9 +395,9 @@ def warn_integer_constant_overflow : Warning<
 def warn_fixedpoint_constant_overflow : Warning<
   "overflow in expression; result is %0 with type %1">,
   InGroup<DiagGroup<"fixed-point-overflow">>;
-def warn_constexpr_unscoped_enum_out_of_range : Warning<
-  "integer value %0 is outside the valid range of values [%1, %2] for this "
-  "enumeration type">, DefaultError, InGroup<DiagGroup<"enum-constexpr-conversion">>;
+def note_constexpr_unscoped_enum_out_of_range : Note<
+  "integer value %0 is outside the valid range of values [%1, %2] for the "
+  "enumeration type %3">;
 
 // This is a temporary diagnostic, and shall be removed once our
 // implementation is complete, and like the preceding constexpr notes belongs
@@ -777,7 +778,7 @@ def err_module_odr_violation_field : Error<
   "%select{non-|}5bitfield %4|"
   "bitfield %4 with one width expression|"
   "%select{non-|}5mutable field %4|"
-  "field %4 with %select{no|an}5 initalizer|"
+  "field %4 with %select{no|an}5 initializer|"
   "field %4 with an initializer"
   "}3">;
 def note_module_odr_violation_field : Note<
@@ -983,6 +984,16 @@ def warn_npot_ms_struct : Warning<
   "data types with sizes that aren't a power of two">,
   DefaultError, InGroup<IncompatibleMSStruct>;
 
+// -Wpadded-bitfield
+def warn_padded_struct_bitfield : Warning<
+  "padding %select{struct|interface|class}0 %1 with %2 "
+  "%select{byte|bit}3%s2 to align %4">,
+  InGroup<PaddedBitField>, DefaultIgnore;
+def warn_padded_struct_anon_bitfield : Warning<
+  "padding %select{struct|interface|class}0 %1 with %2 "
+  "%select{byte|bit}3%s2 to align anonymous bit-field">,
+  InGroup<PaddedBitField>, DefaultIgnore;
+
 // -Wpadded, -Wpacked
 def warn_padded_struct_field : Warning<
   "padding %select{struct|interface|class}0 %1 with %2 "
@@ -990,7 +1001,7 @@ def warn_padded_struct_field : Warning<
   InGroup<Padded>, DefaultIgnore;
 def warn_padded_struct_anon_field : Warning<
   "padding %select{struct|interface|class}0 %1 with %2 "
-  "%select{byte|bit}3%s2 to align anonymous bit-field">,
+  "%select{byte|bit}3%s2 to align anonymous field">,
   InGroup<Padded>, DefaultIgnore;
 def warn_padded_struct_size : Warning<
   "padding size of %0 with %1 %select{byte|bit}2%s1 to alignment boundary">,

@@ -8,19 +8,20 @@
 
 #pragma once
 
-#include <sycl/detail/defines.hpp>
-#include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/detail/stl_type_traits.hpp>
+#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
-#include <cstdint>
-#include <string>
+#include <array>       // for array
+#include <cassert>     // for assert
+#include <cstddef>     // for size_t
+#include <string>      // for allocator, operator+
+#include <type_traits> // for enable_if_t
+#include <utility>     // for index_sequence, make_i...
 
 // Default signature enables the passing of user code location information to
 // public methods as a default argument.
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
 
 // The check for output iterator is commented out as it blocks set_final_data
@@ -139,6 +140,9 @@ public:
   /// @return The code location information saved in the TLS slot. If not TLS
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
 private:
   // The flag that is used to determine if the object is in a local scope or in
@@ -147,22 +151,7 @@ private:
 };
 
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
-} // namespace sycl
-
-namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
-namespace detail {
-
-__SYCL_EXPORT const char *stringifyErrorCode(pi_int32 error);
-
-static inline std::string codeToString(pi_int32 code) {
-  return std::string(std::to_string(code) + " (" + stringifyErrorCode(code) +
-                     ")");
-}
-
-} // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -172,128 +161,17 @@ static inline std::string codeToString(pi_int32 code) {
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_PI_ERROR_REPORT                                                 \
+#define __SYCL_UR_ERROR_REPORT                                                 \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
-#ifndef __SYCL_SUPPRESS_PI_ERROR_REPORT
-#include <sycl/detail/iostream_proxy.hpp>
-// TODO: rename all names with direct use of OCL/OPENCL to be backend agnostic.
-#define __SYCL_REPORT_PI_ERR_TO_STREAM(expr)                                   \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::cerr << __SYCL_PI_ERROR_REPORT << sycl::detail::codeToString(code)  \
-                << std::endl;                                                  \
-    }                                                                          \
-  }
-#endif
-
-#ifndef SYCL_SUPPRESS_EXCEPTIONS
 #include <sycl/exception.hpp>
-// SYCL 1.2.1 exceptions
-#define __SYCL_REPORT_PI_ERR_TO_EXC(expr, exc, str)                            \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      std::string err_str =                                                    \
-          str ? "\n" + std::string(str) + "\n" : std::string{};                \
-      throw exc(__SYCL_PI_ERROR_REPORT + sycl::detail::codeToString(code) +    \
-                    err_str,                                                   \
-                code);                                                         \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_PI_ERR_TO_EXC_THROW(code, exc, str)                      \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, exc, str)
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_EXC(code, sycl::runtime_error, nullptr)
-#else
-#define __SYCL_REPORT_PI_ERR_TO_EXC_BASE(code)                                 \
-  __SYCL_REPORT_PI_ERR_TO_STREAM(code)
-#endif
-// SYCL 2020 exceptions
-#define __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(expr, errc)                          \
-  {                                                                            \
-    auto code = expr;                                                          \
-    if (code != PI_SUCCESS) {                                                  \
-      throw sycl::exception(sycl::make_error_code(errc),                       \
-                            __SYCL_PI_ERROR_REPORT +                           \
-                                sycl::detail::codeToString(code));             \
-    }                                                                          \
-  }
-#define __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(code, errc)                    \
-  __SYCL_REPORT_ERR_TO_EXC_VIA_ERRC(code, errc)
-
-#ifdef __SYCL_SUPPRESS_PI_ERROR_REPORT
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) (void)(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  {                                                                            \
-    (void)(X);                                                                 \
-    (void)(STR);                                                               \
-  }
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) (void)(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC) (void)(X)
-#else
-// SYCL 1.2.1 exceptions
-#define __SYCL_CHECK_OCL_CODE(X) __SYCL_REPORT_PI_ERR_TO_EXC_BASE(X)
-#define __SYCL_CHECK_OCL_CODE_THROW(X, EXC, STR)                               \
-  __SYCL_REPORT_PI_ERR_TO_EXC_THROW(X, EXC, STR)
-#define __SYCL_CHECK_OCL_CODE_NO_EXC(X) __SYCL_REPORT_PI_ERR_TO_STREAM(X)
-// SYCL 2020 exceptions
-#define __SYCL_CHECK_CODE_THROW_VIA_ERRC(X, ERRC)                              \
-  __SYCL_REPORT_ERR_TO_EXC_THROW_VIA_ERRC(X, ERRC)
-#endif
-
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace detail {
-
-// Helper function for extracting implementation from SYCL's interface objects.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-//
-// Note that due to a bug in MSVC compilers (including MSVC2019 v19.20), it
-// may not recognize the usage of this function in friend member declarations
-// if the template parameter name there is not equal to the name used here,
-// i.e. 'Obj'. For example, using 'Obj' here and 'T' in such declaration
-// would trigger that error in MSVC:
-//   template <class T>
-//   friend decltype(T::impl) detail::getSyclObjImpl(const T &SyclObject);
-template <class Obj> decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject) {
-  assert(SyclObject.impl && "every constructor should create an impl");
-  return SyclObject.impl;
-}
-
-// Returns the raw pointer to the impl object of given face object. The caller
-// must make sure the returned pointer is not captured in a field or otherwise
-// stored - i.e. must live only as on-stack value.
-template <class T>
-typename std::add_pointer_t<typename decltype(T::impl)::element_type>
-getRawSyclObjImpl(const T &SyclObject) {
-  return SyclObject.impl.get();
-}
-
-// Helper function for creation SYCL interface objects from implementations.
-// Note! This function relies on the fact that all SYCL interface classes
-// contain "impl" field that points to implementation object. "impl" field
-// should be accessible from this function.
-template <class T> T createSyclObjFromImpl(decltype(T::impl) ImplObj) {
-  return T(ImplObj);
-}
-
 // Produces N-dimensional object of type T whose all components are initialized
 // to given integer value.
 template <int N, template <int> class T> struct InitializedVal {
@@ -412,21 +290,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
   return LinearIndex;
 }
 
-// Kernel set ID, used to group kernels (represented by OSModule & kernel name
-// pairs) into disjoint sets based on the kernel distribution among device
-// images.
-using KernelSetId = size_t;
-// Kernel set ID for kernels contained within the SPIR-V file specified via
-// environment.
-constexpr KernelSetId SpvFileKSId = 0;
-constexpr KernelSetId LastKSId = SpvFileKSId;
-
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
-
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with
 // DefaultValue, truncation just removes extra values.
@@ -493,6 +356,17 @@ static constexpr std::array<T, N> RepeatValue(const T &Arg) {
   return RepeatValueHelper(Arg, std::make_index_sequence<N>());
 }
 
+// to output exceptions caught in ~destructors
+#ifndef NDEBUG
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)                              \
+  {                                                                            \
+    std::cerr << str << " " << e.what() << std::endl;                          \
+    assert(false);                                                             \
+  }
+#else
+#define __SYCL_REPORT_EXCEPTION_TO_STREAM(str, e)
+#endif
+
 } // namespace detail
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

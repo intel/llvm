@@ -4,6 +4,7 @@ set(LLVM_OPTIONAL_SOURCES
 
 get_property(dialect_libs GLOBAL PROPERTY MLIR_DIALECT_LIBS)
 get_property(conversion_libs GLOBAL PROPERTY MLIR_CONVERSION_LIBS)
+get_property(extension_libs GLOBAL PROPERTY MLIR_EXTENSION_LIBS)
 set(LLVM_LINK_COMPONENTS
   Core
   Support
@@ -12,9 +13,12 @@ set(LLVM_LINK_COMPONENTS
 
 if(MLIR_INCLUDE_TESTS)
   set(test_libs
+    ${cuda_test_libs}
     MLIRTestFuncToLLVM
     MLIRAffineTransformsTestPasses
     MLIRArithTestPasses
+    MLIRArmNeonTestPasses
+    MLIRArmSMETestPasses
     MLIRBufferizationTestPasses
     MLIRControlFlowTestPasses
     MLIRDLTITestPasses
@@ -23,34 +27,47 @@ if(MLIR_INCLUDE_TESTS)
     MLIRLinalgTestPasses
     MLIRLoopLikeInterfaceTestPasses
     MLIRMathTestPasses
+    MLIRTestMathToVCIX
     MLIRMemRefTestPasses
+    MLIRMeshTest
     MLIRNVGPUTestPasses
     MLIRSCFTestPasses
     MLIRShapeTestPasses
     MLIRSPIRVTestPasses
     MLIRTensorTestPasses
     MLIRTestAnalysis
+    MLIRTestConvertToSPIRV
     MLIRTestDialect
     MLIRTestDynDialect
     MLIRTestIR
     MLIRTestOneToNTypeConversionPass
     MLIRTestPass
-    MLIRTestPDLL
     MLIRTestReducer
-    MLIRTestRewrite
-    MLIRTestTransformDialect
     MLIRTestTransforms
     MLIRTilingInterfaceTestPasses
     MLIRVectorTestPasses
     MLIRTestVectorToSPIRV
     MLIRLLVMTestPasses
     )
+  set(test_libs ${test_libs}
+    MLIRTestPDLL
+    MLIRTestTransformDialect
+    )
+
+  if (MLIR_ENABLE_PDL_IN_PATTERNMATCH)
+    set(test_libs ${test_libs}
+      MLIRTestPDLL
+      MLIRTestRewrite
+      )
+  endif()
 endif()
 
 set(LIBS
   ${dialect_libs}
   ${conversion_libs}
+  ${extension_libs}
   ${test_libs}
+
   MLIRAffineAnalysis
   MLIRAnalysis
   MLIRCastInterfaces
@@ -62,6 +79,10 @@ set(LIBS
   MLIRTransformUtils
   MLIRSupport
   MLIRIR
+
+  # TODO: Remove when registerAllGPUToLLVMIRTranslations is no longer
+  # registered directly in mlir-opt.cpp.
+  MLIRToLLVMIRTranslationRegistration
   )
 
 # Exclude from libMLIR.so because this has static options intended for

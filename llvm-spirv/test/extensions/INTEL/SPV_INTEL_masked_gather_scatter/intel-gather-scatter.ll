@@ -4,7 +4,7 @@
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
-; RUN: llvm-dis -opaque-pointers=0 < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_masked_gather_scatter -o %t.spv -spirv-allow-unknown-intrinsics
 ; RUN: llvm-spirv %t.spv --to-text -o %t.spt
@@ -40,13 +40,13 @@
 ; CHECK-SPIRV: MaskedGatherINTEL [[#TYPEVECINT]] [[#GATHER:]] [[#VECGATHER]] 4 [[#MASK1]] 23
 ; CHECK-SPIRV: MaskedScatterINTEL [[#GATHER]] [[#VECSCATTER]] 4 [[#MASK2]]
 
-; CHECK-LLVM: %[[#VECGATHER:]] = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>*
-; CHECK-LLVM: %[[#VECSCATTER:]] = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>*
-; CHECK-LLVM: %[[GATHER:[a-z0-9]+]] = call <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*> %[[#VECGATHER]], i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
-; CHECK-LLVM: call void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32> %[[GATHER]], <4 x i32 addrspace(4)*> %[[#VECSCATTER]], i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
+; CHECK-LLVM: %[[#VECGATHER:]] = load <4 x ptr addrspace(4)>, ptr
+; CHECK-LLVM: %[[#VECSCATTER:]] = load <4 x ptr addrspace(4)>, ptr
+; CHECK-LLVM: %[[GATHER:[a-z0-9]+]] = call <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)> %[[#VECGATHER]], i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
+; CHECK-LLVM: call void @llvm.masked.scatter.v4i32.v4p4(<4 x i32> %[[GATHER]], <4 x ptr addrspace(4)> %[[#VECSCATTER]], i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
 
-; CHECK-LLVM-DAG: declare <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*>, i32 immarg, <4 x i1>, <4 x i32>)
-; CHECK-LLVM-DAG: declare void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32>, <4 x i32 addrspace(4)*>, i32 immarg, <4 x i1>)
+; CHECK-LLVM-DAG: declare <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)>, i32 immarg, <4 x i1>, <4 x i32>)
+; CHECK-LLVM-DAG: declare void @llvm.masked.scatter.v4i32.v4p4(<4 x i32>, <4 x ptr addrspace(4)>, i32 immarg, <4 x i1>)
 
 target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir"
@@ -54,18 +54,18 @@ target triple = "spir"
 ; Function Attrs: nounwind readnone
 define spir_kernel void @foo() {
 entry:
-  %arg0 = alloca <4 x i32 addrspace(4)*>
-  %arg1 = alloca <4 x i32 addrspace(4)*>
-  %0 = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>* %arg0
-  %1 = load <4 x i32 addrspace(4)*>, <4 x i32 addrspace(4)*>* %arg1
-  %res = call <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*> %0, i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
-  call void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32> %res, <4 x i32 addrspace(4)*> %1, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
+  %arg0 = alloca <4 x ptr addrspace(4)>
+  %arg1 = alloca <4 x ptr addrspace(4)>
+  %0 = load <4 x ptr addrspace(4)>, ptr %arg0
+  %1 = load <4 x ptr addrspace(4)>, ptr %arg1
+  %res = call <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)> %0, i32 4, <4 x i1> <i1 true, i1 false, i1 true, i1 true>, <4 x i32> <i32 4, i32 0, i32 1, i32 0>)
+  call void @llvm.masked.scatter.v4i32.v4p4(<4 x i32> %res, <4 x ptr addrspace(4)> %1, i32 4, <4 x i1> <i1 true, i1 true, i1 true, i1 true>)
   ret void
 }
 
-declare <4 x i32> @llvm.masked.gather.v4i32.v4p4i32(<4 x i32 addrspace(4)*>, i32, <4 x i1>, <4 x i32>)
+declare <4 x i32> @llvm.masked.gather.v4i32.v4p4(<4 x ptr addrspace(4)>, i32, <4 x i1>, <4 x i32>)
 
-declare void @llvm.masked.scatter.v4i32.v4p4i32(<4 x i32>, <4 x i32 addrspace(4)*>, i32, <4 x i1>)
+declare void @llvm.masked.scatter.v4i32.v4p4(<4 x i32>, <4 x ptr addrspace(4)>, i32, <4 x i1>)
 
 !llvm.module.flags = !{!0}
 !opencl.spir.version = !{!1}

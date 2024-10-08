@@ -26,6 +26,10 @@ constexpr char SLM_ALLOC_PREFIX[] = "_Z17__esimd_slm_alloc";
 constexpr char SLM_FREE_PREFIX[] = "_Z16__esimd_slm_free";
 constexpr char SLM_INIT_PREFIX[] = "_Z16__esimd_slm_init";
 
+constexpr char NBARRIER_INIT_PREFIX[] = "_Z21__esimd_nbarrier_init";
+constexpr char NBARRIER_ALLOCATE_PREFIX[] =
+    "_Z30__esimd_named_barrier_allocate";
+
 constexpr char SLM_ALLOCATOR_CTOR_DTOR_PREFIX[] =
     "_ZN4sycl3_V13ext5intel5esimd13slm_allocatorILi";
 constexpr char SLM_ALLOCATOR_CTOR_SUFFIX[] = "EEC2Ev";
@@ -33,26 +37,39 @@ constexpr char SLM_ALLOCATOR_DTOR_SUFFIX[] = "EED2Ev";
 
 bool isSlmAllocatorConstructor(const Function &F) {
   auto Name = F.getName();
-  return Name.startswith(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_CTOR_SUFFIX);
+  return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
+         Name.ends_with(SLM_ALLOCATOR_CTOR_SUFFIX);
 }
 
 bool isSlmAllocatorDestructor(const Function &F) {
   auto Name = F.getName();
-  return Name.startswith(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
-         Name.endswith(SLM_ALLOCATOR_DTOR_SUFFIX);
+  return Name.starts_with(SLM_ALLOCATOR_CTOR_DTOR_PREFIX) &&
+         Name.ends_with(SLM_ALLOCATOR_DTOR_SUFFIX);
 }
 
 bool isSlmInit(const Function &F) {
-  return F.getName().startswith(SLM_INIT_PREFIX);
+  return F.getName().starts_with(SLM_INIT_PREFIX);
 }
 
 bool isSlmAlloc(const Function &F) {
-  return F.getName().startswith(SLM_ALLOC_PREFIX);
+  return F.getName().starts_with(SLM_ALLOC_PREFIX);
 }
 
 bool isSlmFree(const Function &F) {
-  return F.getName().startswith(SLM_FREE_PREFIX);
+  return F.getName().starts_with(SLM_FREE_PREFIX);
+}
+
+bool isNbarrierInit(const Function &F) {
+  return F.getName().starts_with(NBARRIER_INIT_PREFIX);
+}
+
+bool isNbarrierAllocate(const Function &F) {
+  return F.getName().starts_with(NBARRIER_ALLOCATE_PREFIX);
+}
+
+bool isAssertFail(const Function &F) {
+  return F.getName().starts_with("__assert_fail") ||
+         F.getName().starts_with("__devicelib_assert_fail");
 }
 
 bool isESIMD(const Function &F) {

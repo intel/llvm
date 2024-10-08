@@ -2,8 +2,7 @@
 
 ## Context
 
-To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/tab-dpcpp-onedpl/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
-Currently, only targets able to consume SPIR-V are supported.
+To support the [user driven kernel fusion extension](https://github.com/intel/llvm/pull/7098) (a presentation can be found [here](https://github.com/oneapi-src/oneAPI-tab/blob/main/language/presentations/oneAPI-TAB-20220727-Kernel-Fusion.pdf)).
 
 The basic workflow is shown in the diagram below
 
@@ -75,6 +74,21 @@ Additionally, an event dependency between the `KernelFusionCommand` and the fuse
 The fused kernel and the `KernelFusionCommand` are eventually enqueued to the `GraphProcessor`.
 The `KernelFusionCommand` status is set to `COMPLETED`.
 
+### Internalization Behavior
+
+Users can provide hints to perform local and private promotion of arguments when performing fusion. On local promotion, arguments become _local internal_, meaning memory is shared between work-items of the same work-group. On the other hand, on private promotion, they become _private internal_, meaning memory is private to each work-item.
+
+Local internalization is implemented by replacing the pointer to global memory corresponding to the argument to be promoted with a new argument being a pointer to local memory. The size of the local memory region will be `original_size / num_work_groups`, being `original_size` the number of elements in the accessor argument. Note that an ND-range kernel (parametrized by a `sycl::nd_range`) has to be used to perform local internalization.
+
+Private internalization is implemented by dropping the pointer to global memory corresponding to the argument to be promoted and using a pointer to a private memory allocation instead. The size of the private memory allocation will be `original_size / global_size`. Note that a basic kernel (parametrized by a `sycl::range`) can be used to perform private internalization.
+
+As the promoted address space will be potentially smaller than the original one, each access has to be remapped accordingly. Our current approach is to replace each access `ptr + offset` to `ptr + offset % new_size`. Users should be aware of this transformation and write their code carefully, making sure the resulting memory access pattern is legal and respects the original program semantics.
+
+As kernel fusion supports fusing kernel with different ND-ranges, in some cases, internalization will be affected. For both local and private internalization, internalization when fusing kernels with different ND-ranges is allowed as long as the size of the memory allocations replacing the original argument are the same for all kernels using the argument to be promoted. Meaning:
+
+- For local internalization: all kernels specify a local size and `original_size / num_work_groups` is the same for all kernels;
+- For private internalization: `original_size / global_size` is the same for all kernels.
+
 ### Synchronization Behavior
 
 As described in the [kernel fusion extension proposal](https://github.com/intel/llvm/pull/7098), several scenarios require aborting the fusion early to avoid semantic violations or circular dependencies in the execution graph. Essentially, this affects all commands that do not become part of the fusion process, e.g., kernels on other queues, host tasks, or explicit memory operations, that have a dependency on at least one of the kernels in the current fusion list due to a requirement or event dependency.
@@ -130,7 +144,7 @@ Information about the fusion is registered within the module by attaching metada
 
 The pipeline currently consists of the following passes (in order):
 
-  - `SYCLKernelFusion` performs the actual fusion process by inlining kernels to fuse inside the fused kernel
+  - `SYCLKernelFusion` performs the actual fusion process by inlining kernels to fuse inside the fused kernel. In case not all kernels being fused share the same nd-range, it also handles work-items remapping ([see](#fusing-kernels-with-different-nd-ranges))
   - Generic optimization passes: `IndVarSimplifyPass`, `LoopUnrollPass`, `SROAPass`, `InferAddressSpacesPass` to remove pointers to the generic address-space
     - These optimizations are important to help the internalizer, see note below.
   - `SYCLInternalizer` promotes buffer to local or private memory
@@ -155,14 +169,121 @@ The metadata is attached to a function that will become the fused kernel:
 
 - `sycl.kernel.fused`: declare the kernels to fuse. Contains a list of kernel names to fuse.
 - `sycl.kernel.param`: declare identical parameters. Contains a list of tuples, each tuple represents identical arguments and each element of that tuple contains a pair of indexes referencing the kernel index in `sycl.kernel.fused` and the parameter index of that kernel (0 indexed). For instance ((0,1),(2,3)) means the second argument of the first kernel is identical to the fourth argument of the third kernel.
-- `sycl.kernel.promote`: declare identical parameters to be promoted. Contains a list of index (of the fused kernel, after identical arguments elision) and `private` if the argument is to be promoted to private memory or `local` if it is to local.
-- `sycl.kernel.promote.size`: declare the address space size for the promoted memory. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the number of elements.
+- `sycl.kernel.promote`: declare identical parameters to be promoted. Contains a list of strings specifying promotion hints for each argument: `none` for no promotion and `local`/`private` for local/private promotion.
+- `sycl.kernel.promote.localsize`: declare the address space size for the promoted memory. Contains a list specifying the number of elements in the replacement memory allocation for each argument or `""` when no promotion needs to be performed.
+- `sycl.kernel.promote.elemsize`: declare the element size for the promoted memory. Contains a list specifying the element size for each promoted argument or `""` when no promotion needs to be performed.
 - `sycl.kernel.constants`: declare the value of a scalar or aggregate to be used as constant values. Contains a list of indexes (of the fused kernel, after identical arguments elision) and the value as a string. Note: the string is used to store the value, the string is read as a buffer of char and reinterpreted into the value of the argument's type.
+- `sycl.kernel.nd-range`: declare the nd-range to be used by the fused kernel in case work-item remapping was needed. It is a tuple with 4 elements:
+   - `num_dims`: scalar integer representing the number of dimensions of the nd-range;
+   - `global_size`: triple representing nd-range global size, an element for each dimension, using `0` for unused dimensions;
+   - `local_size`: triple representing nd-range local size, an element for each dimension, using `0` for unused dimensions. If the local size is not specified, all elements will be 0;
+   - `offset`: triple representing nd-range offset, an element for each dimension, using `0` for unused dimensions.
+- `sycl.kernel.nd-ranges`: declare the nd-ranges of each original kernels. This information is used by the `SYCLKernelFuson` pass to perform work-item remapping. It is a list with references to tuples as the one contained in `sycl.kernel.nd-range`. Constraints on the legal combinations of nd-ranges are described in [the corresponding section](#fusing-kernels-with-different-nd-ranges).
 
+### Fusing kernels with different nd-ranges
+
+This section explains actions performed by the kernel fusion JIT compiler when fusing kernels with different nd-ranges. Throughout this section, we refer to "work-item components". A comprehensive list of these components mentioned in this document is:
+
+- `global_size`
+- `local_size`
+- `num_work_groups`
+- `global_id`
+- `local_id`
+- `group_id`
+- `global_offset`
+
+The meaning of each of these is self-explainatory for the SYCL user.
+
+#### Restrictions
+
+Following kernel fusion principles, SYCL constraints and technical decisions, some basic constraints are set for valid combinations of nd-ranges:
+
+1. The fused kernel should perform no more visible work than the union of the unfused kernels;
+2. The fused kernel should perform no less visible work than the union of the unfused kernels;
+3. If two work items belong to the same work-group in one of the unfused grids, they must also belong to the same work-group in the fused grid;
+4. Either none or all of the work-items of a work-group must execute barriers inserted by the kernel fusion process;
+5. The fused kernel must not launch more work-items than the maximum number of work-items launched by the original kernels.
+6. All work-groups will be the same size, [as per the SYCL 2020 rev 7. 3.9.4](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#_work_group_data_parallel_kernels).
+7. `global_id(i) = group_id(i) * local_size(i) + local_id(i)` [as per OpenCL 3.0 3.2.1](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#_mapping_work_items_onto_an_ndrange).
+8. A work-item will have the same global linear id in the fused grid as in the unfused grid;
+9. All the fused nd-ranges must have the same offset.
+
+These restrictions can be simplified to:
+
+- No two local sizes specified by the nd-ranges will be different;
+- No global id remapping is needed ([see](#work-item-remapping)) or all input offsets are 0;
+- All the fused nd-ranges must have the same offset;
+- No global id remapping is needed for kernels specifying a local size.
+
+As we can see, there is no restrictions in the number of dimensions or global sizes of the input nd-ranges.
+
+#### Work-item remapping
+
+Work-item remapping is performed at the input kernel level, i.e., a different remapping is performed for each input kernel, as different input nd-ranges will result in different remappings.
+
+This remapping consists on an inter-procedural pass replacing each built-in querying components of a work-item, e.g., the global id or the local size, with a JIT-generated value.
+
+First of all, work-item remapping will always be performed when the list of input nd-ranges is heterogeneous. Additional remapping conditions are present for the following work-item components. For each input kernel:
+
+- `num_work_groups` and `local_size`: Only performed if the input nd-range has an explicit local size, may result in better performance, as this replaces built-in calls with constants;
+- `global_id`: Only needed if the number of dimensions differ w.r.t. that of the fused kernel or any component of the global size in the range [2, `num_dims`] differs.
+- `local_id` and `group_id`: Never needed as per [kernel fusion restrictions](#restrictions). These are invariant after fusion.
+
+Once this rules are set, also taking into account remapping constraints, the remapping is performed as follows for each input kernel:
+
+- `global_id`:
+  - `global_id(0) = GLID / (global_size(1) * global_size(2))`
+  - `global_id(1) = (GLID / global_size(2)) % global_size(1)`
+  - `global_id(2) = GLID % global_size(2)`
+- `num_work_groups`:
+  - `num_work_groups(x) = global_size(x) / local_size(x)`
+- `global_size`:
+  - `global_size(x) = GS(x)`
+- `local_size`:
+  - `local_size(x) = LS(x)`
+- `global_offset`:
+  - `global_offset(x) = GO(x)`
+
+On the RHS of the expressions, component names refer to the remapped values and upper case `GS`, `LS` and `GO` values refer to each of the components of the original nd-range (global size, local size and global offset), whereas `GLID` refers to the global linear id, which is an invariant during the fusion process.
+
+Special care needs to be taken when handling elements from the original nd-range, as the input index needs to be remapped to take into account different array subscript ordering of the underlying API w.r.t. SYCL. See [SYCL 2020 rev. 7 C.7.7](https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#sec:opencl:kernel-conventions-sycl) for more information on this index remapping.
+
+**Note**: As there is no `global_id` counterpart for PTX, global id is specified as `global_id(i) = group_id(i) * local_size(i) + local_id(i) + global_offset(i)`. This way, when targetting PTX, `local_size`, `local_id` and `group_id` will need special treatment **when no explicit local size is provided**. In this particular case, remapping will take place as follows (also respecting original constraints):
+
+- `num_work_groups`:
+  - `num_work_groups(x) = 1`
+- `group_id`:
+  - `group_id(x) = 0`
+- `local_size`:
+  - `local_size(x) = GS(x)`
+- `local_id`:
+  - `local_id(x) = global_id(x)`
+
+##### Remapped SPIR-V built-ins
+
+Following [OpenCL SPIR-V Environment Specification 3.0 2.9](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_Env.html#_built_in_variables):
+
+- `global_size`: `GlobalSize`
+- `local_size`: `WorkgroupSize` 
+- `num_work_groups`: `NumWorkgroups`
+- `global_id`: `GlobalInvocationId`
+- `local_id`: `LocalInvocationId`
+- `group_id`: `WorkgroupId`
+- `global_offset`: `GlobalOffset`
+
+##### Remapped PTX intrinsics
+
+Following [User Guide for NVPTX](https://llvm.org/docs/NVPTXUsage.html#llvm-nvvm-read-ptx-sreg) and [Compiler and runtime design #global-offset-support](https://github.com/intel/llvm/blob/sycl/sycl/doc/design/CompilerAndRuntimeDesign.md#global-offset-support).
+
+- `local_id`: `llvm.nvvm.read.ptx.sreg.tid.*`
+- `group_id`: `llvm.nvvm.read.ptx.sreg.ctaid.*`
+- `local_size`: `llvm.nvvm.read.ptx.ntid.*`
+- `num_work_groups`: `llvm.nvvm.read.ptx.nctaid.*`
+- `global_offset`: `llvm.nvvm.implicit.offset`
 
 ### Support for non SPIR-V targets
 
-Fusion is currently supported for the NVPTX/CUDA backend. 
+Fusion is currently supported for the NVPTX/CUDA and HIP backend.
 
 As this backend cannot ingest a SPIR-V module, additional changes to the
 compilation flow are necessary. During static compilation the LLVM module for
@@ -170,12 +291,73 @@ this backend is stored in addition to the finalized binary.
 
 This behavior is controlled by the `-fsycl-embed-ir` flag to avoid binary
 inflation in case kernel fusion is not used. If users want to use kernel fusion
-at runtime on the NVPTX/CUDA backend, they need to pass the `-fsycl-embed-ir`
+at runtime on the NVPTX/HIP backend, they need to pass the `-fsycl-embed-ir`
 flag during static compilation. 
 
 During the fusion process at runtime, the JIT will load the LLVM IR and
 finalize the fused kernel to the final target. More information is available
-[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support). 
+[here](./CompilerAndRuntimeDesign.md#kernel-fusion-support).
 
-Support for the AMD GPU/HIP/AMDGCN backend is not yet implemented, but could
-follow an approach similar to the NVPTX/CUDA backend.
+### Interaction with `parallel_for` range rounding
+
+DPCPP's [range rounding](./ParallelForRangeRounding.md) transformation is
+transparent for fusion, meaning the generated wrapper kernel with the rounded up
+range will be used.
+
+[Private internalization](#internalization-behavior) is supported when fusing
+such kernels. We use the original, unrounded global size in dimension 0 when
+computing the private memory size. As range rounding only applies to basic
+kernels (parametrized by a `sycl::range`), local internalization is not affected
+by the range rounding transformation.
+
+### Reductions
+
+Kernel fusion of reductions is partially supported. In order to preserve the
+legality of the fused kernel, i.e., the fact that fused kernel must perform the
+same work as the graph of kernels to be fused, only the fusion of the following
+reduction strategies is supported at the time of writing:
+
+- `group_reduce_and_last_wg_detection`
+- `local_atomic_and_atomic_cross_wg`
+- `range_basic`
+- `group_reduce_and_atomic_cross_wg`
+- `local_mem_tree_and_atomic_cross_wg`
+
+Other strategies require implicit inter-work-group synchronization, not
+supported in kernel fusion.
+
+Users may encounters errors, e.g., fusion being aborted or incorrect results due
+to race conditions or any other cause, when using the `sycl::reduction`
+interface. The SYCL runtime will choose different algorithms depending on the
+reduction operator, data type and hardware capabilities, so strategy selection
+is not possible through the regular interface. In this case, users can instead
+use `sycl::detail::reduction_parallel_for`, forcing a supported fusion
+strategy. Reductions implementation in
+[`sycl/reduction.hpp`](../../include/sycl/reduction.hpp) might give users an
+insight into which kind of reductions to use for their purposes:
+
+```c++
+q.submit([&](sycl::handler &cgh) {
+  sycl::accessor in(dataBuf, cgh, sycl::read_only);
+  sycl::reduction sum(sumBuf, cgh, sycl::plus<>{});
+  // Force supported 'group_reduce_and_last_wg_detection' strategy
+  sycl::detail::reduction_parallel_for<sycl::detail::auto_name,
+      sycl::detail::strategy::group_reduce_and_last_wg_detection>(...);
+});
+```
+### Group Algorithms and Functions
+
+Kernel fusion supports group algorithms and functions. As per [remapping
+rules](#work-item-remapping), group ID and local ID are invariant after fusion
+even when different ND-ranges are involved. This way, group functions and
+algorithms conceptually executed for a given group and using a given local ID
+as, e.g., the `group_broadcast` local ID, will keep semantics after fusion.
+
+### Unsupported SYCL constructs
+
+The following SYCL API constructs are currently not officially supported for
+kernel fusion and should be considered untested/unsupported: 
+
+- `sycl::stream`
+- Specialization constants and `sycl::kernel_handler`
+- Images (`sycl::unsampled_image` and `sycl::sampled_image`)

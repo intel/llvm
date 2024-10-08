@@ -10,10 +10,9 @@
 
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
-#include <sycl/stl.hpp>
 
 namespace sycl {
-__SYCL_INLINE_VER_NAMESPACE(_V1) {
+inline namespace _V1 {
 namespace ext::intel {
 
 template <template <int32_t> class _Type, class _T>
@@ -31,5 +30,5 @@ struct _GetValue<_Type, _T1, _T...> {
 };
 } // namespace ext::intel
 
-} // __SYCL_INLINE_VER_NAMESPACE(_V1)
+} // namespace _V1
 } // namespace sycl

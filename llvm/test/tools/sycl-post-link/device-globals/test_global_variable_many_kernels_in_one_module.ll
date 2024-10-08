@@ -1,4 +1,4 @@
-; RUN: sycl-post-link --device-globals --split=source -S < %s -o %t.files.table
+; RUN: sycl-post-link -properties --device-globals --split=source -S < %s -o %t.files.table
 ; RUN: FileCheck %s -input-file=%t.files_0.ll --check-prefix CHECK-MOD1
 ; RUN: FileCheck %s -input-file=%t.files_1.ll --check-prefix CHECK-MOD0
 

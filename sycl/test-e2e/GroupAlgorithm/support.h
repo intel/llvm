@@ -1,5 +1,6 @@
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/group_algorithm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi;

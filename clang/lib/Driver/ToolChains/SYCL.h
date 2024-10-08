@@ -9,8 +9,9 @@
 #ifndef LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 #define LLVM_CLANG_LIB_DRIVER_TOOLCHAINS_SYCL_H
 
-#include "clang/Driver/ToolChain.h"
+#include "clang/Driver/Options.h"
 #include "clang/Driver/Tool.h"
+#include "clang/Driver/ToolChain.h"
 
 namespace clang {
 namespace driver {
@@ -38,6 +39,18 @@ void constructLLVMForeachCommand(Compilation &C, const JobAction &JA,
                                  const InputInfo &Output, const Tool *T,
                                  StringRef Increment, StringRef Ext = "out",
                                  StringRef ParallelJobs = "");
+
+// Provides a vector of device library names that are associated with the
+// given triple and AOT information.
+SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
+                                               const llvm::Triple &TargetTriple,
+                                               bool IsSpirvAOT);
+
+// Populates the SYCL device traits macros.
+void populateSYCLDeviceTraitsMacrosArgs(Compilation &C,
+    const llvm::opt::ArgList &Args,
+    const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -61,9 +74,6 @@ private:
                              llvm::StringRef SubArchName,
                              llvm::StringRef OutputFilePrefix,
                              const InputInfoList &InputFiles) const;
-  void constructLlcCommand(Compilation &C, const JobAction &JA,
-                           const InputInfo &Output,
-                           const char *InputFile) const;
 };
 
 /// Directly call FPGA Compiler and Linker
@@ -107,6 +117,7 @@ public:
 
 StringRef resolveGenDevice(StringRef DeviceName);
 SmallString<64> getGenDeviceMacro(StringRef DeviceName);
+StringRef getGenGRFFlag(StringRef GRFMode);
 
 // // Prefix for GPU specific targets used for -fsycl-targets
 constexpr char IntelGPU[] = "intel_gpu_";
@@ -116,7 +127,7 @@ constexpr char AmdGPU[] = "amd_gpu_";
 template <auto GPUArh> std::optional<StringRef> isGPUTarget(StringRef Target) {
   // Handle target specifications that resemble '(intel, nvidia, amd)_gpu_*'
   // here.
-  if (Target.startswith(GPUArh)) {
+  if (Target.starts_with(GPUArh)) {
     return resolveGenDevice(Target);
   }
   return  std::nullopt;
@@ -164,22 +175,35 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA) const;
+                            const JobAction &JA, const ToolChain &HostTC,
+                            StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
                                   StringRef Device = "") const;
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
-                                 llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 StringRef Device = "") const;
+  void TranslateTargetOpt(const llvm::Triple &Triple,
+                          const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs,
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
                           StringRef Device) const;
 
   bool useIntegratedAs() const override { return true; }
-  bool isPICDefault() const override { return false; }
+  bool isPICDefault() const override {
+    if (this->IsSYCLNativeCPU)
+      return this->HostTC.isPICDefault();
+    return false;
+  }
+  llvm::codegenoptions::DebugInfoFormat getDefaultDebugFormat() const override {
+    if (this->IsSYCLNativeCPU ||
+        this->HostTC.getTriple().isWindowsMSVCEnvironment())
+      return this->HostTC.getDefaultDebugFormat();
+    return ToolChain::getDefaultDebugFormat();
+  }
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
@@ -196,7 +220,10 @@ public:
       const llvm::opt::ArgList &Args,
       llvm::opt::ArgStringList &CC1Args) const override;
 
+  SanitizerMask getSupportedSanitizers() const override;
+
   const ToolChain &HostTC;
+  const bool IsSYCLNativeCPU;
 
 protected:
   Tool *buildBackendCompiler() const override;
@@ -209,6 +236,23 @@ private:
 };
 
 } // end namespace toolchains
+
+inline bool isSYCLNativeCPU(const llvm::opt::ArgList &Args) {
+  if (auto SYCLTargets = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+    if (SYCLTargets->containsValue("native_cpu"))
+      return true;
+  }
+  return false;
+}
+
+inline bool isSYCLNativeCPU(const llvm::Triple &HostT, const llvm::Triple &DevT) {
+  return HostT == DevT;
+}
+
+inline bool isSYCLNativeCPU(const ToolChain &TC) {
+  const llvm::Triple *const AuxTriple = TC.getAuxTriple();
+  return AuxTriple && isSYCLNativeCPU(TC.getTriple(), *AuxTriple);
+}
 } // end namespace driver
 } // end namespace clang
 

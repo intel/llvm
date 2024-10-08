@@ -15,6 +15,11 @@
 #include "sanitizer_platform.h"
 #include "sanitizer_redefine_builtins.h"
 
+// GCC does not understand __has_feature.
+#if !defined(__has_feature)
+#define __has_feature(x) 0
+#endif
+
 #ifndef SANITIZER_DEBUG
 # define SANITIZER_DEBUG 0
 #endif
@@ -30,13 +35,20 @@
 # define SANITIZER_INTERFACE_ATTRIBUTE __declspec(dllexport)
 #endif
 # define SANITIZER_WEAK_ATTRIBUTE
+#  define SANITIZER_WEAK_IMPORT
 #elif SANITIZER_GO
 # define SANITIZER_INTERFACE_ATTRIBUTE
 # define SANITIZER_WEAK_ATTRIBUTE
+#  define SANITIZER_WEAK_IMPORT
 #else
 # define SANITIZER_INTERFACE_ATTRIBUTE __attribute__((visibility("default")))
 # define SANITIZER_WEAK_ATTRIBUTE  __attribute__((weak))
-#endif
+#  if SANITIZER_APPLE
+#    define SANITIZER_WEAK_IMPORT extern "C" __attribute((weak_import))
+#  else
+#    define SANITIZER_WEAK_IMPORT extern "C" SANITIZER_WEAK_ATTRIBUTE
+#  endif  // SANITIZER_APPLE
+#endif    // SANITIZER_WINDOWS
 
 //--------------------------- WEAK FUNCTIONS ---------------------------------//
 // When working with weak functions, to simplify the code and make it more
@@ -131,7 +143,7 @@ namespace __sanitizer {
 typedef unsigned long long uptr;
 typedef signed long long sptr;
 #else
-#  if (SANITIZER_WORDSIZE == 64) || SANITIZER_APPLE || SANITIZER_WINDOWS
+#  if (SANITIZER_WORDSIZE == 64) || SANITIZER_APPLE
 typedef unsigned long uptr;
 typedef signed long sptr;
 #  else
@@ -179,15 +191,10 @@ typedef uptr OFF_T;
 #endif
 typedef u64  OFF64_T;
 
-#if (SANITIZER_WORDSIZE == 64) || SANITIZER_APPLE
-typedef uptr operator_new_size_type;
+#ifdef __SIZE_TYPE__
+typedef __SIZE_TYPE__ usize;
 #else
-# if defined(__s390__) && !defined(__s390x__)
-// Special case: 31-bit s390 has unsigned long as size_t.
-typedef unsigned long operator_new_size_type;
-# else
-typedef u32 operator_new_size_type;
-# endif
+typedef uptr usize;
 #endif
 
 typedef u64 tid_t;
@@ -216,7 +223,6 @@ typedef u64 tid_t;
 # define UNLIKELY(x) (x)
 # define PREFETCH(x) /* _mm_prefetch(x, _MM_HINT_NTA) */ (void)0
 # define WARN_UNUSED_RESULT
-# define UNINITIALIZED
 #else  // _MSC_VER
 # define ALWAYS_INLINE inline __attribute__((always_inline))
 # define ALIAS(x) __attribute__((alias(SANITIZER_STRINGIFY(x))))
@@ -236,11 +242,6 @@ typedef u64 tid_t;
 #  define PREFETCH(x) __builtin_prefetch(x)
 # endif
 # define WARN_UNUSED_RESULT __attribute__((warn_unused_result))
-# if __has_attribute(uninitialized)
-#  define UNINITIALIZED __attribute__((uninitialized))
-# else  // __has_attribute(uninitialized)
-#  define UNINITIALIZED
-# endif  // __has_attribute(uninitialized)
 #endif  // _MSC_VER
 
 #if !defined(_MSC_VER) || defined(__clang__)
@@ -263,6 +264,12 @@ typedef u64 tid_t;
 #  define FALLTHROUGH [[fallthrough]]
 #else
 #  define FALLTHROUGH
+#endif
+
+#if __has_attribute(uninitialized)
+#  define UNINITIALIZED __attribute__((uninitialized))
+#else
+#  define UNINITIALIZED
 #endif
 
 // Unaligned versions of basic types.
@@ -448,6 +455,9 @@ namespace __lsan {
 using namespace __sanitizer;
 }
 namespace __msan {
+using namespace __sanitizer;
+}
+namespace __nsan {
 using namespace __sanitizer;
 }
 namespace __hwasan {

@@ -13,7 +13,7 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -spirv-text -o - | FileCheck %s --check-prefix CHECK-SPIRV-200
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-200 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
 ; RUN: FileCheck %s --input-file %t.rev.ll --check-prefix CHECK-LLVM-200
 
@@ -21,7 +21,7 @@
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -spirv-text -o %t.spt
 ; RUN: FileCheck %s --input-file %t.spt --check-prefix CHECK-SPIRV-100
 ; RUN: llvm-spirv %t.bc --spirv-debug-info-version=nonsemantic-shader-100 -o %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o %t.rev.bc
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix CHECK-LLVM-100
 
 ; ModuleID = 's.bc'
@@ -33,7 +33,7 @@ target triple = "spir"
 define i32 @main() #0 !dbg !8 {
 entry:
   %retval = alloca i32, align 4
-  store i32 0, i32* %retval, align 4
+  store i32 0, ptr %retval, align 4
   ret i32 0, !dbg !13
 }
 
@@ -56,10 +56,14 @@ attributes #0 = { noinline norecurse nounwind optnone "correctly-rounded-divide-
 ; CHECK-LLVM-100-SAME: flags: "-O2"
 
 ; CHECK-SPIRV-200: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-200: DebugBuildIdentifier [[#]] [[#]]
+; CHECK-SPIRV-200: DebugStoragePath [[#]]
 ; CHECK-SPIRV-200: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]]
 ; CHECK-SPIRV-200: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 
 ; CHECK-SPIRV-100: String [[#ProducerId:]] "clang version 13.0.0 (https://github.com/llvm/llvm-project.git 16a50c9e642fd085e5ceb68c403b71b5b2e0607c)"
+; CHECK-SPIRV-100: DebugBuildIdentifier [[#]] [[#]]
+; CHECK-SPIRV-100: DebugStoragePath [[#]]
 ; CHECK-SPIRV-100-NOT: DebugCompilationUnit [[#]] [[#]] [[#]] [[#]] [[#ProducerId]] {{$}}
 ; CHECK-SPIRV-100: DebugEntryPoint [[#]] [[#]] [[#ProducerId]] [[#]] {{$}}
 

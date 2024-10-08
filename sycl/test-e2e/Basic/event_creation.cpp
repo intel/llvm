@@ -11,13 +11,13 @@
 //
 //===----------------------------------------------------------------------===//
 #include <iostream>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   try {
     std::cout << "Create default event" << std::endl;
     sycl::event e;
-  } catch (sycl::device_error e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Failed to create device for event" << std::endl;
   }
 }

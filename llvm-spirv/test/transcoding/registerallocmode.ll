@@ -2,17 +2,17 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
-; RUN: llvm-spirv -r -emit-opaque-pointers %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC0:]] "main_l3"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC1:]] "main_l6"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC2:]] "main_l9"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC3:]] "main_l13"
-; CHECK-SPIRV: EntryPoint [[#TMP:]] [[#FUNC4:]] "main_l19"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC0:]] "main_l3"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC1:]] "main_l6"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC2:]] "main_l9"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC3:]] "main_l13"
+; CHECK-SPIRV: EntryPoint [[#]] [[#FUNC4:]] "main_l19"
 
 ; CHECK-SPIRV: Decorate [[#FUNC0]] UserSemantic "num-thread-per-eu 4"
 ; CHECK-SPIRV: Decorate [[#FUNC1]] UserSemantic "num-thread-per-eu 8"
-; CHECK-SPIRV:  Decorate [[#FUNC2]] UserSemantic "num-thread-per-eu 0"
+; CHECK-SPIRV: Decorate [[#FUNC2]] UserSemantic "num-thread-per-eu 0"
 ; CHECK-SPIRV-NOT: Decorate [[#FUNC3]] UserSemantic
 ; CHECK-SPIRV-NOT: Decorate [[#FUNC4]] UserSemantic
 
