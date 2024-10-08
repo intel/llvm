@@ -265,14 +265,48 @@ void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << '\n';
 }
 
+static bool is_separator(char value) {
+  if (value == '\\')
+    return true;
+  return false;
+}
+
+static StringRef remove_leading_dotbackslah(StringRef Path) {
+  // Remove leading ".\" (or ".\\" or ".\.\" etc.)
+  while (Path.size() > 2 && Path[0] == '.' && is_separator(Path[1])) {
+    Path = Path.substr(2);
+    while (Path.size() > 0 && is_separator(Path[0]))
+      Path = Path.substr(1);
+  }
+  return Path;
+}
+
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
-  if (CurFilename != PP.getPreprocessorOpts().IncludeFooter &&
-      CurFilename != PP.getPreprocessorOpts().IncludeHeader) {
+  printf("CurFileName: %s\n", CurFilename.c_str());
+  StringRef CurFilenameWithNoLeaningDotSlash =
+      remove_leading_dotbackslah(CurFilename.str());    
+  printf("CurFilenameWithNoLeaningDotSlash: %s\n",
+         CurFilenameWithNoLeaningDotSlash.data());
+  printf("Footer: %s\n", PP.getPreprocessorOpts().IncludeFooter.data());
+  printf("Header: %s\n", PP.getPreprocessorOpts().IncludeHeader.data());
+  if (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
+      PP.getPreprocessorOpts().IncludeFooter.data()) == 0)
+    printf("%s and %s are equal\n", CurFilename.c_str(), PP.getPreprocessorOpts().IncludeFooter.data());    
+  if (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
+             PP.getPreprocessorOpts().IncludeHeader.data()) == 0)
+    printf("%s and %s are equal\n", CurFilename.c_str(),
+           PP.getPreprocessorOpts().IncludeHeader.data());
+  if ((strcmp(CurFilenameWithNoLeaningDotSlash.data(),
+              PP.getPreprocessorOpts().IncludeFooter.data()) == 0) ||
+      (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
+              PP.getPreprocessorOpts().IncludeHeader.data()) == 0)) {
+    CurFilename = StringRef();
+  }
     if (UseLineDirectives) {
       *OS << "#line" << ' ' << LineNo << ' ' << '"';
       OS->write_escaped(CurFilename);
@@ -290,7 +324,7 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
       else if (FileType == SrcMgr::C_ExternCSystem)
         OS->write(" 3 4", 4);
     }
-  }
+
   *OS << '\n';
 }
 
