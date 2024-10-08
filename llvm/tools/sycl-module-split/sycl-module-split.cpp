@@ -75,7 +75,7 @@ void writePropertiesToFile(const PropertySetRegistry &Properties,
   Properties.write(OS);
 }
 
-void dumpModulesAsTable(const std::vector<SplitModule> &SplitModules,
+void dumpModulesAsTable(const std::vector<ProcessedModule> &Modules,
                         StringRef Path) {
   std::vector<StringRef> Columns = {"Code", "Properties", "Symbols"};
   auto TableOrErr = SimpleTable::create(Columns);
@@ -85,7 +85,7 @@ void dumpModulesAsTable(const std::vector<SplitModule> &SplitModules,
   }
 
   std::unique_ptr<SimpleTable> Table = std::move(*TableOrErr);
-  for (const auto &[I, SM] : enumerate(SplitModules)) {
+  for (const auto &[I, SM] : enumerate(Modules)) {
     std::string SymbolsFile = (Twine(Path) + "_" + Twine(I) + ".sym").str();
     std::string PropertiesFile = (Twine(Path) + "_" + Twine(I) + ".prop").str();
     writePropertiesToFile(SM.Properties, PropertiesFile);
@@ -116,11 +116,11 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  ModuleSplitterSettings Settings;
+  ModuleProcessingSettings Settings;
   Settings.Mode = SplitMode;
   Settings.OutputAssembly = OutputAssembly;
   Settings.OutputPrefix = OutputFilenamePrefix;
-  auto SplitModulesOrErr = splitSYCLModule(std::move(M), Settings);
+  auto SplitModulesOrErr = SYCLPostLinkProcess(std::move(M), Settings);
   if (!SplitModulesOrErr) {
     Err.print(argv[0], errs());
     return 1;
