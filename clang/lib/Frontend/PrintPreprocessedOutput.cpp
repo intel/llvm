@@ -287,20 +287,8 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
   startNewLineIfNeeded();
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
-  printf("CurFileName: %s\n", CurFilename.c_str());
   StringRef CurFilenameWithNoLeaningDotSlash =
-      remove_leading_dotbackslah(CurFilename.str());    
-  printf("CurFilenameWithNoLeaningDotSlash: %s\n",
-         CurFilenameWithNoLeaningDotSlash.data());
-  printf("Footer: %s\n", PP.getPreprocessorOpts().IncludeFooter.data());
-  printf("Header: %s\n", PP.getPreprocessorOpts().IncludeHeader.data());
-  if (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
-      PP.getPreprocessorOpts().IncludeFooter.data()) == 0)
-    printf("%s and %s are equal\n", CurFilename.c_str(), PP.getPreprocessorOpts().IncludeFooter.data());    
-  if (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
-             PP.getPreprocessorOpts().IncludeHeader.data()) == 0)
-    printf("%s and %s are equal\n", CurFilename.c_str(),
-           PP.getPreprocessorOpts().IncludeHeader.data());
+      remove_leading_dotbackslah(CurFilename.str());
   if ((strcmp(CurFilenameWithNoLeaningDotSlash.data(),
               PP.getPreprocessorOpts().IncludeFooter.data()) == 0) ||
       (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
