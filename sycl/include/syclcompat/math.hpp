@@ -856,18 +856,19 @@ pow(const ValueT a, const ValueU b) {
 /// Performs relu saturation.
 /// \param [in] a The input value
 /// \returns the relu saturation result
-template <typename ValueT>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>, ValueT>
-relu(const ValueT a) {
-  if (!detail::isnan(a) && a < ValueT(0))
+template <typename ValueT> inline ValueT relu(const ValueT a) {
+  if constexpr (syclcompat::is_floating_point_v<ValueT> ||
+                std::is_same_v<sycl::half, ValueT>)
+    if (!detail::isnan(a) && a < ValueT(0))
+      return ValueT(0);
+  if (a < ValueT(0))
     return ValueT(0);
   return a;
 }
 template <class ValueT, int NumElements>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
-                        sycl::vec<ValueT, NumElements>>
+inline sycl::vec<ValueT, NumElements>
 relu(const sycl::vec<ValueT, NumElements> a) {
-  sycl::vec<T, NumElements> ret;
+  sycl::vec<ValueT, NumElements> ret;
   for (int i = 0; i < NumElements; ++i)
     ret[i] = relu(a[i]);
   return ret;
@@ -993,8 +994,8 @@ struct maximum {
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::max(x, y);
   }
-  template <typename T>
-  auto operator()(const T x, const T y, bool *pred) const {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
     return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
   }
 };
@@ -1005,8 +1006,8 @@ struct minimum {
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::min(x, y);
   }
-  template <typename T>
-  auto operator()(const T x, const T y, bool *pred) const {
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
     return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
   }
 };
@@ -1087,13 +1088,12 @@ inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
   const auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
   const auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
   const auto v3 = sycl::vec<unsigned, 1>(c).as<VecT>();
-  auto temp =
+  auto v4 =
       detail::vectorized_binary<VecT, BinaryOperation1>()(v1, v2, binary_op1);
-  temp =
-      detail::vectorized_binary<VecT, BinaryOperation2>()(temp, v3, binary_op2);
+  v4 = detail::vectorized_binary<VecT, BinaryOperation2>()(v4, v3, binary_op2);
   if (need_relu)
-    temp = relu(temp);
-  return temp.template as<sycl::vec<unsigned, 1>>();
+    v4 = relu(v4);
+  return v4.template as<sycl::vec<unsigned, 1>>();
 }
 
 /// Compute vectorized binary operation value with pred for two values, with
@@ -1107,13 +1107,13 @@ inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
 /// \param [in] pred_hi The pred pointer that pass into high halfword operation
 /// \param [in] pred_lo The pred pointer that pass into low halfword operation
 /// \returns The vectorized binary operation value of the two values
-template <typename T, typename BinaryOperation>
+template <typename ValueT, typename BinaryOperation>
 inline unsigned vectorized_with_pred(unsigned a, unsigned b,
                                      const BinaryOperation binary_op,
                                      bool *pred_hi, bool *pred_lo) {
-  auto v1 = sycl::vec<unsigned, 1>(a).as<sycl::vec<T, 2>>();
-  auto v2 = sycl::vec<unsigned, 1>(b).as<sycl::vec<T, 2>>();
-  sycl::vec<T, 2> ret;
+  auto v1 = sycl::vec<unsigned, 1>(a).as<sycl::vec<ValueT, 2>>();
+  auto v2 = sycl::vec<unsigned, 1>(b).as<sycl::vec<ValueT, 2>>();
+  sycl::vec<ValueT, 2> ret;
   ret[0] = binary_op(v1[0], v2[0], pred_lo);
   ret[1] = binary_op(v1[1], v2[1], pred_hi);
   return ret.template as<sycl::vec<unsigned, 1>>();
