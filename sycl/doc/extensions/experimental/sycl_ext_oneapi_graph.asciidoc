@@ -398,6 +398,38 @@ sycl_ext::command_graph<sycl_ext::graph_state::executable> ExecGraph = Graph.fin
 SyclQueue.ext_oneapi_graph(ExecGraph);
 ----
 
+==== Interoperability Between APIs
+
+The functions `node::get_event_from_node()` and `node::get_node_from_event()`
+allow a user to take either an `event` or `node` object obtained via either API
+and convert it to the other. This allows for mixed usage of both APIs to form a
+single graph. For example, a node added via the explicit API can be used as a
+dependency for a captured queue submission by obtaining the equivalent
+<<event-terminology, graph-limited event>> and using that as a dependency to a
+recorded queue submission:
+
+[source, c++]
+----
+node SomeNode = Graph.add(...);
+
+event SomeEvent = node::get_event_from_node(SomeNode);
+
+Graph.begin_recording(Queue);
+Queue.submit([&](handler& CGH){
+  CGH.depends_on(SomeEvent);
+  ...
+});
+----
+
+Events or nodes obtained via these functions can be used with any other API
+functions that take those objects, and function the same as events or nodes
+obtained directly from recorded queue submissions or calls to
+`command_graph::add()`.
+
+The <<depends-on-property, `depends_on` property>> can also take events in
+addition to nodes to define dependencies, without the need for first calling
+`node::get_node_from_event()`.
+
 ==== Sub-Graph
 
 A node in a graph can take the form of a nested sub-graph. This occurs when
