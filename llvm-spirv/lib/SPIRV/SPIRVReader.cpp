@@ -4878,6 +4878,18 @@ Instruction *SPIRVToLLVM::transOCLBuiltinFromExtInst(SPIRVExtInst *BC,
          "Not OpenCL extended instruction");
 
   std::vector<Type *> ArgTypes = transTypeVector(BC->getArgTypes(), true);
+  for (unsigned I = 0; I < ArgTypes.size(); I++) {
+    // Special handling for "truly" untyped pointers to preserve correct OCL
+    // bultin mangling.
+    if (isa<PointerType>(ArgTypes[I]) &&
+        BC->getArgValue(I)->isUntypedVariable()) {
+      auto *BVar = static_cast<SPIRVUntypedVariableKHR *>(BC->getArgValue(I));
+      ArgTypes[I] = TypedPointerType::get(
+          transType(BVar->getDataType()),
+          SPIRSPIRVAddrSpaceMap::rmap(BVar->getStorageClass()));
+    }
+  }
+
   Type *RetTy = transType(BC->getType());
   std::string MangledName =
       getSPIRVFriendlyIRFunctionName(ExtOp, ArgTypes, RetTy);
