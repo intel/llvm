@@ -127,7 +127,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
+      : multi_ptr(detail::static_address_cast<Space>(
             Accessor.template get_multi_ptr<DecorateAddress>()
                 .get_decorated())) {}
 
@@ -198,7 +198,7 @@ public:
   multi_ptr(accessor<typename std::remove_const_t<RelayElementType>, Dimensions,
                      Mode, target::device, isPlaceholder, PropertyListT>
                 Accessor)
-      : m_Pointer(detail::cast_AS<decorated_type *>(
+      : m_Pointer(detail::static_address_cast<Space>(
             Accessor.template get_multi_ptr<DecorateAddress>()
                 .get_decorated())) {}
 
@@ -272,7 +272,7 @@ public:
                            OtherSpace != access::address_space::constant_space>>
   multi_ptr &
   operator=(const multi_ptr<value_type, OtherSpace, OtherIsDecorated> &Other) {
-    m_Pointer = detail::cast_AS<decorated_type *>(Other.get_decorated());
+    m_Pointer = detail::static_address_cast<Space>(Other.get_decorated());
     return *this;
   }
   template <
@@ -282,7 +282,7 @@ public:
                            OtherSpace != access::address_space::constant_space>>
   multi_ptr &
   operator=(multi_ptr<value_type, OtherSpace, OtherIsDecorated> &&Other) {
-    m_Pointer = detail::cast_AS<decorated_type *>(std::move(Other.m_Pointer));
+    m_Pointer = detail::static_address_cast<Space>(std::move(Other.m_Pointer));
     return *this;
   }
 
@@ -290,7 +290,10 @@ public:
   pointer operator->() const { return get(); }
   reference operator[](difference_type index) const { return m_Pointer[index]; }
 
-  pointer get() const { return detail::cast_AS<pointer>(m_Pointer); }
+  pointer get() const {
+    return detail::static_address_cast<
+        is_decorated ? Space : access::address_space::generic_space>(m_Pointer);
+  }
   decorated_type *get_decorated() const { return m_Pointer; }
   std::add_pointer_t<value_type> get_raw() const {
     return reinterpret_cast<std::add_pointer_t<value_type>>(get());
@@ -312,9 +315,7 @@ public:
   explicit
   operator multi_ptr<value_type, OtherSpace, OtherIsDecorated>() const {
     return multi_ptr<value_type, OtherSpace, OtherIsDecorated>{
-        detail::cast_AS<typename multi_ptr<value_type, OtherSpace,
-                                           access::decorated::yes>::pointer>(
-            get_decorated())};
+        detail::static_address_cast<OtherSpace>(get_decorated())};
   }
 
   template <access::address_space OtherSpace,
@@ -331,9 +332,7 @@ public:
   explicit
   operator multi_ptr<const value_type, OtherSpace, OtherIsDecorated>() const {
     return multi_ptr<const value_type, OtherSpace, OtherIsDecorated>{
-        detail::cast_AS<typename multi_ptr<const value_type, OtherSpace,
-                                           access::decorated::yes>::pointer>(
-            get_decorated())};
+        detail::static_address_cast<OtherSpace>(get_decorated())};
   }
 
   template <access::decorated ConvIsDecorated,
@@ -342,7 +341,7 @@ public:
                 std::is_same_v<RelayElementType, ElementType> &&
                 !std::is_const_v<RelayElementType>>>
   operator multi_ptr<void, Space, ConvIsDecorated>() const {
-    return multi_ptr<void, Space, ConvIsDecorated>{detail::cast_AS<
+    return multi_ptr<void, Space, ConvIsDecorated>{static_cast<
         typename multi_ptr<void, Space, access::decorated::yes>::pointer>(
         get_decorated())};
   }
@@ -353,17 +352,14 @@ public:
                 std::is_same_v<RelayElementType, ElementType> &&
                 std::is_const_v<RelayElementType>>>
   operator multi_ptr<const void, Space, ConvIsDecorated>() const {
-    return multi_ptr<const void, Space, ConvIsDecorated>{detail::cast_AS<
+    return multi_ptr<const void, Space, ConvIsDecorated>{static_cast<
         typename multi_ptr<const void, Space, access::decorated::yes>::pointer>(
         get_decorated())};
   }
 
   template <access::decorated ConvIsDecorated>
   operator multi_ptr<const value_type, Space, ConvIsDecorated>() const {
-    return multi_ptr<const value_type, Space, ConvIsDecorated>{
-        detail::cast_AS<typename multi_ptr<const value_type, Space,
-                                           access::decorated::yes>::pointer>(
-            get_decorated())};
+    return multi_ptr<const value_type, Space, ConvIsDecorated>{get_decorated()};
   }
 
   operator multi_ptr<value_type, Space,
@@ -386,11 +382,8 @@ public:
            Space == access::address_space::ext_intel_global_host_space)>>
   explicit
   operator multi_ptr<ElementType, GlobalSpace, DecorateAddress>() const {
-    using global_pointer_t =
-        typename multi_ptr<ElementType, GlobalSpace,
-                           access::decorated::yes>::pointer;
     return multi_ptr<ElementType, GlobalSpace, DecorateAddress>(
-        detail::cast_AS<global_pointer_t>(get_decorated()));
+        detail::static_address_cast<GlobalSpace>(get_decorated()));
   }
 
   // Only if Space == global_space
@@ -487,7 +480,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
+      : multi_ptr(detail::static_address_cast<Space>(
             Accessor.template get_multi_ptr<DecorateAddress>()
                 .get_decorated())) {}
 
@@ -541,7 +534,10 @@ public:
     return *this;
   }
 
-  pointer get() const { return detail::cast_AS<pointer>(m_Pointer); }
+  pointer get() const {
+    return detail::static_address_cast<
+        is_decorated ? Space : access::address_space::generic_space>(m_Pointer);
+  }
 
   // Conversion to the underlying pointer type
   __SYCL2020_DEPRECATED("Conversion to pointer type is deprecated since SYCL "
@@ -552,10 +548,9 @@ public:
   template <typename ElementType,
             typename = typename std::enable_if_t<std::is_const_v<ElementType>>>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    return multi_ptr<ElementType, Space, DecorateAddress>{
-        detail::cast_AS<typename multi_ptr<ElementType, Space,
+    return {static_cast<typename multi_ptr<ElementType, Space,
                                            access::decorated::yes>::pointer>(
-            m_Pointer)};
+        m_Pointer)};
   }
 
   // Implicit conversion to the negated decoration version of multi_ptr.
@@ -579,11 +574,8 @@ public:
            Space == access::address_space::ext_intel_global_host_space)>>
   explicit
   operator multi_ptr<const void, GlobalSpace, DecorateAddress>() const {
-    using global_pointer_t =
-        typename multi_ptr<const void, GlobalSpace,
-                           access::decorated::yes>::pointer;
-    return multi_ptr<const void, GlobalSpace, DecorateAddress>(
-        detail::cast_AS<global_pointer_t>(m_Pointer));
+    return multi_ptr<const void, GlobalSpace, DecorateAddress>{
+        detail::static_address_cast<GlobalSpace>(m_Pointer)};
   }
 
 private:
@@ -638,7 +630,7 @@ public:
   multi_ptr(accessor<ElementType, Dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<decorated_type *>(
+      : multi_ptr(detail::static_address_cast<Space>(
             Accessor.template get_multi_ptr<DecorateAddress>()
                 .get_decorated())) {}
 
@@ -692,7 +684,10 @@ public:
     return *this;
   }
 
-  pointer get() const { return detail::cast_AS<pointer>(m_Pointer); }
+  pointer get() const {
+    return detail::static_address_cast<
+        is_decorated ? Space : access::address_space::generic_space>(m_Pointer);
+  }
 
   // Conversion to the underlying pointer type
   __SYCL2020_DEPRECATED("Conversion to pointer type is deprecated since SYCL "
@@ -702,18 +697,15 @@ public:
   // Explicit conversion to a multi_ptr<ElementType>
   template <typename ElementType>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    return multi_ptr<ElementType, Space, DecorateAddress>{
-        detail::cast_AS<typename multi_ptr<ElementType, Space,
+    return {static_cast<typename multi_ptr<ElementType, Space,
                                            access::decorated::yes>::pointer>(
-            m_Pointer)};
+        m_Pointer)};
   }
 
   // Implicit conversion to the negated decoration version of multi_ptr.
   operator multi_ptr<value_type, Space,
                      detail::NegateDecorated<DecorateAddress>::value>() const {
-    return multi_ptr<value_type, Space,
-                     detail::NegateDecorated<DecorateAddress>::value>{
-        m_Pointer};
+    return {m_Pointer};
   }
 
   // Explicit conversion to global_space
@@ -728,10 +720,8 @@ public:
           (Space == access::address_space::ext_intel_global_device_space ||
            Space == access::address_space::ext_intel_global_host_space)>>
   explicit operator multi_ptr<void, GlobalSpace, DecorateAddress>() const {
-    using global_pointer_t =
-        typename multi_ptr<void, GlobalSpace, access::decorated::yes>::pointer;
     return multi_ptr<void, GlobalSpace, DecorateAddress>(
-        detail::cast_AS<global_pointer_t>(m_Pointer));
+        detail::static_address_cast<GlobalSpace>(m_Pointer));
   }
 
 private:
@@ -858,7 +848,8 @@ public:
   multi_ptr(accessor<ElementType, dimensions, Mode, target::device,
                      isPlaceholder, PropertyListT>
                 Accessor)
-      : multi_ptr(detail::cast_AS<pointer_t>(Accessor.get_pointer().get())) {}
+      : multi_ptr(
+            detail::static_address_cast<Space>(Accessor.get_pointer().get())) {}
 
   // Only if Space == local_space || generic_space
   template <
