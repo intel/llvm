@@ -13,6 +13,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -369,6 +370,15 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   (void)Args;
   sycl::handler Handler{shared_from_this()};
+
+  // save code location if one was set in TLS.
+  // idealy it would be nice to capture user's call code location
+  // by adding a parameter to the graph.add function, but this will
+  // break the API. At least capture code location from TLS, user
+  // can set it before calling graph.add
+  sycl::detail::tls_code_loc_t Tls;
+  Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
+
   CGF(Handler);
 
   if (Handler.getType() == sycl::detail::CGType::Barrier) {
@@ -673,6 +683,23 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  int32_t StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
+  sycl::detail::CGExecKernel *CGExec =
+      static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+  sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
+                                      CGExec->MFunctionName.c_str(),
+                                      CGExec->MLine, CGExec->MColumn);
+  auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+      StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+      CGExec->MKernelName.c_str(), nullptr, CGExec->MNDRDesc,
+      CGExec->MKernelBundle, CGExec->MArgs);
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+#endif
+
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
@@ -684,6 +711,12 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
     throw sycl::exception(errc::invalid,
                           "Failed to add kernel to UR command-buffer");
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+#endif
 
   return NewSyncPoint;
 }
@@ -718,11 +751,12 @@ void exec_graph_impl::createCommandBuffers(
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-  ur_result_t Res = Plugin->call_nocheck(
-      urCommandBufferCreateExp, ContextImpl->getHandleRef(),
-      DeviceImpl->getHandleRef(), &Desc, &OutCommandBuffer);
+  ur_result_t Res =
+      Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
   }
@@ -762,7 +796,9 @@ void exec_graph_impl::createCommandBuffers(
                       Node->MCommandGroup->getAccStorage().end());
   }
 
-  Res = Plugin->call_nocheck(urCommandBufferFinalizeExp, OutCommandBuffer);
+  Res = Adapter
+            ->call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
+                OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");
@@ -795,8 +831,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 
 exec_graph_impl::~exec_graph_impl() {
   try {
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
+    const sycl::detail::AdapterPtr &Adapter =
+        sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
     // We need to wait on all command buffer executions before we can release
     // them.
@@ -808,8 +844,8 @@ exec_graph_impl::~exec_graph_impl() {
       Partition->MSchedule.clear();
       for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
-          ur_result_t Res =
-              Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
+          ur_result_t Res = Adapter->call_nocheck<
+              sycl::detail::UrApiKind::urCommandBufferReleaseExp>(CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
         }
@@ -818,8 +854,8 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (auto &Iter : MCommandMap) {
       if (auto Command = Iter.second; Command) {
-        ur_result_t Res =
-            Plugin->call_nocheck(urCommandBufferReleaseCommandExp, Command);
+        ur_result_t Res = Adapter->call_nocheck<
+            sycl::detail::UrApiKind::urCommandBufferReleaseCommandExp>(Command);
         (void)Res;
         assert(Res == UR_RESULT_SUCCESS);
       }
@@ -921,9 +957,11 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           NewEvent->setSubmissionTime();
           NewEvent->setHostEnqueueTime();
         }
-        ur_result_t Res = Queue->getPlugin()->call_nocheck(
-            urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
-            nullptr, &UREvent);
+        ur_result_t Res =
+            Queue->getAdapter()
+                ->call_nocheck<
+                    sycl::detail::UrApiKind::urCommandBufferEnqueueExp>(
+                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, &UREvent);
         NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
@@ -1334,7 +1372,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     return;
   }
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
@@ -1394,10 +1432,11 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
-                 UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-                 sizeof(RequiredWGSize), RequiredWGSize,
-                 /* param_value_size_ret = */ nullptr);
+    Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
+        UrKernel, DeviceImpl->getHandleRef(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* param_value_size_ret = */ nullptr);
 
     const bool EnforcedLocalSize =
         (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
@@ -1468,6 +1507,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
+  UpdateDesc.hNewKernel = UrKernel;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
@@ -1494,13 +1534,14 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
 
   ur_exp_command_buffer_command_handle_t Command =
       MCommandMap[ExecNode->second];
-  ur_result_t Res = Plugin->call_nocheck(urCommandBufferUpdateKernelLaunchExp,
-                                         Command, &UpdateDesc);
+  ur_result_t Res = Adapter->call_nocheck<
+      sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+      Command, &UpdateDesc);
 
   if (UrProgram) {
     // We retained these objects by calling getOrCreateKernel()
-    Plugin->call(urKernelRelease, UrKernel);
-    Plugin->call(urProgramRelease, UrProgram);
+    Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
+    Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
   }
 
   if (Res != UR_RESULT_SUCCESS) {

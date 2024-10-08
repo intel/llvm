@@ -168,7 +168,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Link and include UR
   target_link_libraries(${LIB_OBJ_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )
@@ -183,10 +182,18 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   target_link_libraries(${LIB_NAME}
     PRIVATE
-      UnifiedRuntimeLoader
       UnifiedRuntime-Headers
       UnifiedRuntimeCommon
   )
+
+  if (NOT WIN32)
+    target_link_libraries(${LIB_NAME}
+      PRIVATE
+      UnifiedRuntimeLoader
+    )
+  else()
+    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
+  endif()
 
   target_include_directories(${LIB_NAME}
     PRIVATE
