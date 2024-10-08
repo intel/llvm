@@ -21,7 +21,7 @@ void fast_length_test() {
 
     sycl::range<1> ndRng(1);
     float *kernelResult = new float[1];
-    auto testQueue = dpct::get_default_queue();
+    auto testQueue = syclcompat::get_default_queue();
     {
       sycl::buffer<float, 1> buffer(kernelResult, ndRng);
 
@@ -30,7 +30,7 @@ void fast_length_test() {
             buffer.template get_access<sycl::access::mode::write>(h);
 
         h.single_task(
-            [=]() { resultPtr[0] = dpct::fast_length(&inputData_0, 1); });
+            [=]() { resultPtr[0] = syclcompat::fast_length(&inputData_0, 1); });
       });
     }
     testQueue.wait_and_throw();
@@ -46,7 +46,7 @@ void fast_length_test() {
 
     sycl::range<1> ndRng(1);
     float *kernelResult = new float[1];
-    auto testQueue = dpct::get_default_queue();
+    auto testQueue = syclcompat::get_default_queue();
     {
       sycl::buffer<float, 1> buffer(kernelResult, ndRng);
 
@@ -55,7 +55,7 @@ void fast_length_test() {
             buffer.template get_access<sycl::access::mode::write>(h);
 
         h.single_task(
-            [=]() { resultPtr[0] = dpct::fast_length(&inputData_0[0], 2); });
+            [=]() { resultPtr[0] = syclcompat::fast_length(&inputData_0[0], 2); });
       });
     }
     testQueue.wait_and_throw();
@@ -74,7 +74,7 @@ void fast_length_test() {
 
     sycl::range<1> ndRng(1);
     float *kernelResult = new float[1];
-    auto testQueue = dpct::get_default_queue();
+    auto testQueue = syclcompat::get_default_queue();
     {
       sycl::buffer<float, 1> buffer(kernelResult, ndRng);
 
@@ -83,7 +83,7 @@ void fast_length_test() {
             buffer.template get_access<sycl::access::mode::write>(h);
 
         h.single_task(
-            [=]() { resultPtr[0] = dpct::fast_length(&inputData_0[0], 3); });
+            [=]() { resultPtr[0] = syclcompat::fast_length(&inputData_0[0], 3); });
       });
     }
     testQueue.wait_and_throw();
@@ -104,7 +104,7 @@ void fast_length_test() {
 
     sycl::range<1> ndRng(1);
     float *kernelResult = new float[1];
-    auto testQueue = dpct::get_default_queue();
+    auto testQueue = syclcompat::get_default_queue();
     {
       sycl::buffer<float, 1> buffer(kernelResult, ndRng);
 
@@ -113,7 +113,7 @@ void fast_length_test() {
             buffer.template get_access<sycl::access::mode::write>(h);
 
         h.single_task(
-            [=]() { resultPtr[0] = dpct::fast_length(&inputData_0[0], 4); });
+            [=]() { resultPtr[0] = syclcompat::fast_length(&inputData_0[0], 4); });
       });
     }
     testQueue.wait_and_throw();
@@ -134,7 +134,7 @@ void fast_length_test() {
 
     sycl::range<1> ndRng(1);
     float *kernelResult = new float[1];
-    auto testQueue = dpct::get_default_queue();
+    auto testQueue = syclcompat::get_default_queue();
     {
       sycl::buffer<float, 1> buffer(kernelResult, ndRng);
 
@@ -143,7 +143,7 @@ void fast_length_test() {
             buffer.template get_access<sycl::access::mode::write>(h);
 
         h.single_task(
-            [=]() { resultPtr[0] = dpct::fast_length(&inputData_0[0], 5); });
+            [=]() { resultPtr[0] = syclcompat::fast_length(&inputData_0[0], 5); });
       });
     }
     testQueue.wait_and_throw();

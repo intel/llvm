@@ -29,35 +29,35 @@ void atomicKernel(int *atom_arr, sycl::nd_item<3> item_ct1) {
 
   for (int i = 0; i < LOOP_NUM; i++) {
     // Atomic addition
-    dpct::atomic_fetch_add(&atom_arr[0], 10);
+    syclcompat::atomic_fetch_add(&atom_arr[0], 10);
 
     // Atomic exchange
-    dpct::atomic_exchange(&atom_arr[1], (int)tid);
+    syclcompat::atomic_exchange(&atom_arr[1], (int)tid);
 
     // Atomic maximum
-    dpct::atomic_fetch_max(&atom_arr[2], (int)tid);
+    syclcompat::atomic_fetch_max(&atom_arr[2], (int)tid);
 
     // Atomic minimum
-    dpct::atomic_fetch_min(&atom_arr[3], (int)tid);
+    syclcompat::atomic_fetch_min(&atom_arr[3], (int)tid);
 
     // Atomic increment (modulo 17+1)
-    dpct::atomic_fetch_compare_inc((unsigned int *)&atom_arr[4],
+    syclcompat::atomic_fetch_compare_inc((unsigned int *)&atom_arr[4],
                                    (unsigned int)17);
 
     // Atomic compare-and-swap
-    dpct::atomic_compare_exchange_strong(&atom_arr[6], (int)(tid - 1),
+    syclcompat::atomic_compare_exchange_strong(&atom_arr[6], (int)(tid - 1),
                                          (int)tid);
 
     // Bitwise atomic instructions
 
     // Atomic AND
-    dpct::atomic_fetch_and(&atom_arr[7], (int)(2 * tid + 7));
+    syclcompat::atomic_fetch_and(&atom_arr[7], (int)(2 * tid + 7));
 
     // Atomic OR
-    dpct::atomic_fetch_or(&atom_arr[8], 1 << tid);
+    syclcompat::atomic_fetch_or(&atom_arr[8], 1 << tid);
 
     // Atomic XOR
-    dpct::atomic_fetch_xor(&atom_arr[9], (int)tid);
+    syclcompat::atomic_fetch_xor(&atom_arr[9], (int)tid);
   }
 }
 
@@ -258,15 +258,15 @@ int main(int argc, char **argv) {
   atom_arr = (int *)syclcompat::malloc(sizeof(int) * numData);
 
   for (unsigned int i = 0; i < numData; i++) {
-    *dpct::get_host_ptr<unsigned int>(atom_arr + i) = 0;
+    *syclcompat::get_host_ptr<unsigned int>(atom_arr + i) = 0;
   }
 
   // To make the AND and XOR tests generate something other than 0...
-  *dpct::get_host_ptr<unsigned int>(atom_arr + 7) =
-      *dpct::get_host_ptr<unsigned int>(atom_arr + 9) = 0xff;
+  *syclcompat::get_host_ptr<unsigned int>(atom_arr + 7) =
+      *syclcompat::get_host_ptr<unsigned int>(atom_arr + 9) = 0xff;
 
   std::cout << "Selected device: "
-            << dpct::get_default_queue()
+            << syclcompat::get_default_queue()
                    .get_device()
                    .get_info<sycl::info::device::name>()
             << "\n";
@@ -277,10 +277,10 @@ int main(int argc, char **argv) {
   start_ct1 = std::chrono::steady_clock::now();
 
   {
-    std::pair<dpct::buffer_t, size_t> atom_arr_buf_ct0 =
-        dpct::get_buffer_and_offset(atom_arr);
+    std::pair<syclcompat::buffer_t, size_t> atom_arr_buf_ct0 =
+        syclcompat::get_buffer_and_offset(atom_arr);
     size_t atom_arr_offset_ct0 = atom_arr_buf_ct0.second;
-    dpct::get_default_queue().submit([&](sycl::handler &cgh) {
+    syclcompat::get_default_queue().submit([&](sycl::handler &cgh) {
       auto atom_arr_acc_ct0 =
           atom_arr_buf_ct0.first.get_access<sycl::access::mode::read_write>(
               cgh);
@@ -307,13 +307,13 @@ int main(int argc, char **argv) {
          "std::chrono::steady_clock = %.3f ms\n",
          elapsed_time);
 
-  atomicKernel_CPU(dpct::get_host_ptr<int>(atom_arr), numBlocks * numThreads);
+  atomicKernel_CPU(syclcompat::get_host_ptr<int>(atom_arr), numBlocks * numThreads);
 
-  dpct::get_current_device().queues_wait_and_throw();
+  syclcompat::get_current_device().queues_wait_and_throw();
 
   // Compute & verify reference solution
   int testResult =
-      verify(dpct::get_host_ptr<int>(atom_arr), 2 * numThreads * numBlocks);
+      verify(syclcompat::get_host_ptr<int>(atom_arr), 2 * numThreads * numBlocks);
 
   syclcompat::free(atom_arr);
 

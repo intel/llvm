@@ -18,8 +18,8 @@
 #define M 4
 #define N 8
 
-dpct::shared_memory<float, 1> array(N);
-dpct::shared_memory<float, 1> result(M*N);
+syclcompat::shared_memory<float, 1> array(N);
+syclcompat::shared_memory<float, 1> result(M*N);
 
 void my_kernel(float* array, float* result,
                sycl::nd_item<3> item_ct1,
@@ -40,11 +40,11 @@ void my_kernel(float* array, float* result,
 
 int main () {
   {
-    std::pair<dpct::buffer_t, size_t> array_buf_ct0 = dpct::get_buffer_and_offset(array.get_ptr());
+    std::pair<syclcompat::buffer_t, size_t> array_buf_ct0 = syclcompat::get_buffer_and_offset(array.get_ptr());
     size_t array_offset_ct0 = array_buf_ct0.second;
-    std::pair<dpct::buffer_t, size_t> result_buf_ct1 = dpct::get_buffer_and_offset(result.get_ptr());
+    std::pair<syclcompat::buffer_t, size_t> result_buf_ct1 = syclcompat::get_buffer_and_offset(result.get_ptr());
     size_t result_offset_ct1 = result_buf_ct1.second;
-    dpct::get_default_queue().submit(
+    syclcompat::get_default_queue().submit(
       [&](sycl::handler &cgh) {
         sycl::local_accessor<float, 1> resultInGroup_acc_ct1(sycl::range<1>(8), cgh);
         auto array_acc_ct0 = array_buf_ct0.first.get_access<sycl::access::mode::read_write>(cgh);
@@ -60,7 +60,7 @@ int main () {
       });
   }
 
-  dpct::get_current_device().queues_wait_and_throw();
+  syclcompat::get_current_device().queues_wait_and_throw();
   for(int j = 0; j < M; j++) {
     for (int i = 0; i < N; i++) {
       printf("%f ", result[j*N + i]);

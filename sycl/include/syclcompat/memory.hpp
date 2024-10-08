@@ -1494,7 +1494,7 @@ public:
   typename std::enable_if<Dim == 1, T>::type &operator[](size_t index) {
     init();
 #ifdef COMPAT_USM_LEVEL_NONE
-    return dpct::get_buffer<typename std::enable_if<D == 1, T>::type>(ptr)
+    return syclcompat::get_buffer<typename std::enable_if<D == 1, T>::type>(ptr)
         .template get_access<sycl::access_mode::read_write>()[index];
 #else
     return _device_ptr[index];

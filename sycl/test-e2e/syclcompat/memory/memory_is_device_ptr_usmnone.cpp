@@ -18,7 +18,7 @@ int main() {
   float* f = (float*)syclcompat::malloc(sizeof(float));
   bool pass = false;
 
-  if (dpct::is_device_ptr(f)) {
+  if (syclcompat::is_device_ptr(f)) {
     pass = true;
   }
 

@@ -28,33 +28,33 @@ public:
   template<class Ty> void testTemplate() {}
 };
 
-dpct::global_memory<volatile int, 0> d1_a(0);
-dpct::global_memory<int, 1> d2_a(36);
-dpct::global_memory<TemplateStuct<int>, 0> d3_a;
-dpct::global_memory<TestStruct, 0> d4_a;
-dpct::constant_memory<int, 1> c1_a(16);
-dpct::constant_memory<int, 0> c2_a;
-dpct::constant_memory<TemplateStuct<int>, 0> c3_a;
-dpct::constant_memory<TestStruct, 0> c4_a;
+syclcompat::global_memory<volatile int, 0> d1_a(0);
+syclcompat::global_memory<int, 1> d2_a(36);
+syclcompat::global_memory<TemplateStuct<int>, 0> d3_a;
+syclcompat::global_memory<TestStruct, 0> d4_a;
+syclcompat::constant_memory<int, 1> c1_a(16);
+syclcompat::constant_memory<int, 0> c2_a;
+syclcompat::constant_memory<TemplateStuct<int>, 0> c3_a;
+syclcompat::constant_memory<TestStruct, 0> c4_a;
 
-dpct::constant_memory<int, 2> c_2d_a(sycl::range<2>(5, 3),
+syclcompat::constant_memory<int, 2> c_2d_a(sycl::range<2>(5, 3),
 {{0, 10, 20},
 {30, 40, 50},
 {60, 70, 80},
 {90, 100, 110},
 {120, 130, 140}});
-dpct::constant_memory<int, 2> c_2d_b(sycl::range<2>(3, 5),
+syclcompat::constant_memory<int, 2> c_2d_b(sycl::range<2>(3, 5),
 {{0, 10, 20, 30, 40},
 {50, 60, 70, 80, 90},
 {100, 110, 120, 130, 140}});
-dpct::constant_memory<int, 2> c_2d_c(sycl::range<2>(3, 5),
+syclcompat::constant_memory<int, 2> c_2d_c(sycl::range<2>(3, 5),
                                      {0, 10, 20, 30, 40,
                                       50, 60, 70, 80, 90,
                                       100, 110, 120, 130, 140});
-dpct::constant_memory<int, 3> c_3d(sycl::range<3>(2, 2, 4),
+syclcompat::constant_memory<int, 3> c_3d(sycl::range<3>(2, 2, 4),
                                    {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
                                     110, 120, 130, 140});
-dpct::constant_memory<int, 1> c_1d(sycl::range<1>(15),
+syclcompat::constant_memory<int, 1> c_1d(sycl::range<1>(15),
                                    {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
                                     110, 120, 130, 140});
 
@@ -119,7 +119,7 @@ void test1(volatile int *acc_d1, int *acc_d2, int const *c1, int c2) {
 }
 
 int main() try {
-  dpct::get_default_queue().submit(
+  syclcompat::get_default_queue().submit(
     [&](sycl::handler &cgh) {
       d1_a.init();
       d2_a.init();
@@ -135,7 +135,7 @@ int main() try {
           test1(d1_acc.get_pointer(), d2_acc.get_pointer(), c1_acc.get_pointer(), c2_acc);
         });
     });
-  dpct::get_default_queue().submit(
+  syclcompat::get_default_queue().submit(
     [&](sycl::handler &cgh) {
       c3_a.init();
       c4_a.init();
@@ -148,7 +148,7 @@ int main() try {
         });
     });
 
-  sycl::queue *q = dpct::get_current_device().create_queue();
+  sycl::queue *q = syclcompat::get_current_device().create_queue();
   q->submit(
     [&](sycl::handler &cgh) {
       d3_a.init(*q);
