@@ -134,6 +134,8 @@ protected:
   ValueT *op1_;
   ValueU *op2_;
   ResultT res_h_, *res_;
+  bool *res_hi_;
+  bool *res_lo_;
 
 public:
   BinaryOpTestLauncher(const syclcompat::dim3 &grid,
@@ -147,6 +149,8 @@ public:
     op1_ = syclcompat::malloc<ValueT>(data_size);
     op2_ = syclcompat::malloc<ValueU>(data_size);
     res_ = syclcompat::malloc<ResultT>(data_size);
+    res_hi_ = syclcompat::malloc<bool>(1);
+    res_lo_ = syclcompat::malloc<bool>(1);
   };
 
   virtual ~BinaryOpTestLauncher() {
@@ -155,6 +159,8 @@ public:
     syclcompat::free(op1_);
     syclcompat::free(op2_);
     syclcompat::free(res_);
+    syclcompat::free(res_hi_);
+    syclcompat::free(res_lo_);
   }
 
   template <auto Kernel>
@@ -168,6 +174,37 @@ public:
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
     CHECK(ResultT, res_h_, expected);
+  };
+  template <auto Kernel>
+  void launch_test(ValueT op1, ValueU op2, ResultT expected, bool need_relu) {
+    if (skip_)
+      return;
+    syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
+    syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
+    syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_, need_relu);
+    syclcompat::wait();
+    syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
+
+    CHECK(ResultT, res_h_, expected);
+  };
+  template <auto Kernel>
+  void launch_test(ValueT op1, ValueU op2, ResultT expected, bool expected_hi,
+                   bool expected_lo) {
+    if (skip_)
+      return;
+    syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
+    syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
+    syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, res_, res_hi_,
+                               res_lo_);
+    syclcompat::wait();
+    syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
+    bool res_hi_h_, res_lo_h_;
+    syclcompat::memcpy<bool>(&res_hi_h_, res_hi_, 1);
+    syclcompat::memcpy<bool>(&res_lo_h_, res_lo_, 1);
+
+    CHECK(ResultT, res_h_, expected);
+    assert(res_hi_h_ == expected_hi);
+    assert(res_lo_h_ == expected_lo);
   };
 };
 
@@ -216,7 +253,7 @@ class TernaryOpTestLauncher : OpTestLauncher {
 protected:
   ValueT *op1_;
   ValueU *op2_;
-  ValueV *op2_;
+  ValueV *op3_;
   ResultT res_h_, *res_;
 
 public:
@@ -244,13 +281,15 @@ public:
   }
 
   template <auto Kernel>
-  void launch_test(ValueT op1, ValueU op2, ValueU op3, ResultT expected) {
+  void launch_test(ValueT op1, ValueU op2, ValueU op3, ResultT expected,
+                   bool need_relu = false) {
     if (skip_)
       return;
     syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
     syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
     syclcompat::memcpy<ValueU>(op3_, &op3, data_size_);
-    syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, op3_, res_);
+    syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, op3_, res_,
+                               need_relu);
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
