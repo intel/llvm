@@ -41,19 +41,12 @@ static void verifyAccessorProps(const property_list &Props) {
       return false;
     }
   };
-  auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
-  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
-    return true;
-    switch (PropertyKind) {
-#include <sycl/properties/runtime_accessor_properties.def>
-    default:
-      return false;
-    }
-  };
+  // When new properties with data are added - please implement the second
+  // function with props include.
+  // Absence of any properties causes warning (+error) now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
-                                                CheckPropertiesWithData);
+                                                NoAllowedPropertiesCheck);
 }
 
 AccessorBaseHost::AccessorBaseHost(id<3> Offset, range<3> AccessRange,
