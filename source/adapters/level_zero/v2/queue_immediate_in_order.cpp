@@ -13,11 +13,11 @@
 #include "memory.hpp"
 #include "ur.hpp"
 
+#include "../common/latency_tracker.hpp"
 #include "../helpers/kernel_helpers.hpp"
 #include "../helpers/memory_helpers.hpp"
 #include "../program.hpp"
-
-#include "../common/latency_tracker.hpp"
+#include "../ur_interface_loader.hpp"
 
 namespace v2 {
 
@@ -26,7 +26,7 @@ ur_queue_immediate_in_order_t::getWaitListView(
     const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
     ur_command_list_handler_t *pHandler) {
   auto extraWaitEvent = (lastHandler && pHandler != lastHandler)
-                            ? lastHandler->lastEvent
+                            ? lastHandler->lastEvent->getZeEvent()
                             : nullptr;
 
   auto totalEvents = numWaitEvents + (extraWaitEvent != nullptr);
@@ -80,13 +80,23 @@ ur_command_list_handler_t::ur_command_list_handler_t(
           ZE_COMMAND_QUEUE_MODE_ASYNCHRONOUS,
           getZePriority(pProps ? pProps->flags : ur_queue_flags_t{}),
           getZeIndex(pProps))),
-      internalEvent(std::move(eventPool->getProvider()->allocate().borrow)) {}
+      internalEvent(eventPool->allocate(), [=](ur_event_handle_t event) {
+        ur::level_zero::urEventRelease(event);
+      }) {}
+
+static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
+  event_flags_t eventFlags = EVENT_FLAGS_COUNTER;
+  if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
+    eventFlags |= EVENT_FLAGS_PROFILING_ENABLED;
+  return eventFlags;
+}
 
 ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProps)
     : hContext(hContext), hDevice(hDevice), flags(pProps ? pProps->flags : 0),
-      eventPool(hContext->eventPoolCache.borrow(hDevice->Id.value())),
+      eventPool(hContext->eventPoolCache.borrow(
+          hDevice->Id.value(), eventFlagsFromQueueFlags(flags))),
       copyHandler(hContext, hDevice, pProps, queue_group_type::MainCopy,
                   eventPool.get()),
       computeHandler(hContext, hDevice, pProps, queue_group_type::Compute,
@@ -113,13 +123,13 @@ ur_queue_immediate_in_order_t::getCommandListHandlerForFill(
     return &computeHandler;
 }
 
-ze_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
+ur_event_handle_t ur_queue_immediate_in_order_t::getSignalEvent(
     ur_command_list_handler_t *handler, ur_event_handle_t *hUserEvent) {
   if (!hUserEvent) {
     handler->lastEvent = handler->internalEvent.get();
   } else {
     *hUserEvent = eventPool->allocate();
-    handler->lastEvent = (*hUserEvent)->getZeEvent();
+    handler->lastEvent = *hUserEvent;
   }
 
   return handler->lastEvent;
@@ -246,7 +256,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
       "ur_queue_immediate_in_order_t::zeCommandListAppendLaunchKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (handler->commandList.get(), hZeKernel, &zeThreadGroupDimensions,
-              signalEvent, numWaitEvents, pWaitEvents));
+              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
 
   lastHandler = handler;
 
@@ -268,7 +278,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
   ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
              (handler->commandList.get(), numWaitEvents, pWaitEvents));
   ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (handler->commandList.get(), signalEvent));
+             (handler->commandList.get(), signalEvent->getZeEvent()));
 
   lastHandler = handler;
 
@@ -332,7 +342,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueRegionCopy(
              (handler->commandList.get(), dstPtr, &zeParams.dstRegion,
               zeParams.dstPitch, zeParams.dstSlicePitch, srcPtr,
               &zeParams.srcRegion, zeParams.srcPitch, zeParams.srcSlicePitch,
-              signalEvent, numWaitEvents, pWaitEvents));
+              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
@@ -529,7 +539,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill(
   // When it's not, the fill is emulated with zeCommandListAppendMemoryCopy.
   ZE2UR_CALL(zeCommandListAppendMemoryFill,
              (handler->commandList.get(), pMem, pPattern, patternSize, size,
-              signalEvent, numWaitEvents, pWaitEvents));
+              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
 
   lastHandler = handler;
 
@@ -552,8 +562,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
       getWaitListView(phEventWaitList, numEventsInWaitList, handler);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
-             (handler->commandList.get(), pDst, pSrc, size, signalEvent,
-              numWaitEvents, pWaitEvents));
+             (handler->commandList.get(), pDst, pSrc, size,
+              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
@@ -588,7 +598,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
   ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
              (handler->commandList.get(), pMem, size));
   ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (handler->commandList.get(), signalEvent));
+             (handler->commandList.get(), signalEvent->getZeEvent()));
 
   lastHandler = handler;
 
@@ -620,7 +630,7 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
              (handler->commandList.get(), this->hDevice->ZeDevice, pMem, size,
               zeAdvice));
   ZE2UR_CALL(zeCommandListAppendSignalEvent,
-             (handler->commandList.get(), signalEvent));
+             (handler->commandList.get(), signalEvent->getZeEvent()));
 
   lastHandler = handler;
 
@@ -820,11 +830,34 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
 ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
     bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = blocking;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  auto handler = getCommandListHandlerForCompute();
+  auto signalEvent = getSignalEvent(handler, phEvent);
+
+  if (!signalEvent) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList, handler);
+
+  signalEvent->recordStartTimestamp();
+
+  ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
+             (handler->commandList.get(),
+              signalEvent->getEventEndTimestampPtr(), signalEvent->getZeEvent(),
+              numWaitEvents, pWaitEvents));
+
+  if (blocking) {
+    ZE2UR_CALL(zeCommandListHostSynchronize,
+               (handler->commandList.get(), UINT64_MAX));
+    lastHandler = nullptr;
+  } else {
+    lastHandler = handler;
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunchCustomExp(

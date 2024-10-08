@@ -30,12 +30,13 @@ struct ur_command_list_handler_t {
                             queue_group_type type, event_pool *eventPool);
 
   raii::cache_borrowed_command_list_t commandList;
-  raii::cache_borrowed_event internalEvent;
+  std::unique_ptr<ur_event_handle_t_, std::function<void(ur_event_handle_t)>>
+      internalEvent;
 
   // TODO: do we need to keep ref count of this for user events?
   // For counter based events, we can reuse them safely and l0 event pool
   // cannot be destroyed before the queue is released.
-  ze_event_handle_t lastEvent = nullptr;
+  ur_event_handle_t lastEvent = nullptr;
 };
 
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
@@ -60,7 +61,7 @@ private:
   ur_command_list_handler_t *getCommandListHandlerForCopy();
   ur_command_list_handler_t *getCommandListHandlerForFill(size_t patternSize);
 
-  ze_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
+  ur_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
                                    ur_event_handle_t *hUserEvent);
 
   ur_result_t enqueueRegionCopy(
