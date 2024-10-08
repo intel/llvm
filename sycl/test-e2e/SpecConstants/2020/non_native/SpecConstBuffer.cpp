@@ -20,5 +20,5 @@ int main() {
   });
   Q.wait();
   return 0;
-  // CHECK: urMemRelease
+  // CHECK: <--- urMemRelease
 }

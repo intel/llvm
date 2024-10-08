@@ -1172,7 +1172,7 @@ template <class FunctorTy> void withAuxHandler(handler &CGH, FunctorTy Func) {
   handler AuxHandler(CGH.MQueue, CGH.eventNeeded());
   if (!createSyclObjFromImpl<queue>(CGH.MQueue).is_in_order())
     AuxHandler.depends_on(E);
-  AuxHandler.saveCodeLoc(CGH.MCodeLoc);
+  AuxHandler.copyCodeLoc(CGH);
   Func(AuxHandler);
   CGH.MLastEvent = AuxHandler.finalize();
   return;

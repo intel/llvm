@@ -34,6 +34,7 @@
 #include <detail/adapter.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
@@ -200,12 +201,25 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(true);
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    if (*params->ppPropValue)
+      *static_cast<ur_device_command_buffer_update_capability_flags_t *>(
+          *params->ppPropValue) =
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet =
+          sizeof(ur_device_command_buffer_update_capability_flags_t);
     return UR_RESULT_SUCCESS;
   }
   // This mock GPU device has no sub-devices
