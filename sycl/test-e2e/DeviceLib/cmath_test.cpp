@@ -7,7 +7,7 @@
 // RUN: %if !gpu %{ %{run} %t2.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
-// RUN: %if cuda %{ %{build} -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if any-device-is-cuda %{ %{build} -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
 // RUN: %if cuda %{ %{run} %t3.out %}
 
 #include "math_utils.hpp"

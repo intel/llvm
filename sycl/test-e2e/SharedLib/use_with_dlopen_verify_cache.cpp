@@ -2,7 +2,7 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// DEFINE: %{compile} = %{build} -DFNAME=%basename_t-ldl -Wl,-rpath=%T
+// DEFINE: %{compile} = %{build} -DFNAME=%basename_t -ldl -Wl,-rpath=%T
 
 // RUN: %{compile} -o %t1.out -DRUN_FIRST
 // RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
@@ -15,8 +15,8 @@
 
 // clang-format off
 // This causes SEG. FAULT.
-// RUNx: %{compile} -o %t4.out -DRUN_LAST
-// RUNx: env SYCL_UR_TRACE=2 %{run} %t4.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
+// RUNx: %{compile} -DRUN_LAST
+// RUNx: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 // clang-format on
 
 #include <sycl/detail/core.hpp>
