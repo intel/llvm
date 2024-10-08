@@ -93,7 +93,7 @@ __syclcompat_inline__
                      T>
     ptr_to_int(void *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-if constexpr (std::is_same_v<T, uint32_t>) {
+  if constexpr (std::is_same_v<T, uint32_t>) {
     return (intptr_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
   } else {
     return (size_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;

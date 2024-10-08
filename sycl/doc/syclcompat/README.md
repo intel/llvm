@@ -855,6 +855,42 @@ public:
 } // syclcompat
 ```
 
+### ptr_to_int
+
+The following cuda backend specific function is introduced in order to
+translate from local memory pointers to `uint32_t` or `size_t` variables that
+contain a byte address to the local (local refers to`.shared` in nvptx) memory
+state space.
+
+``` c++
+namespace syclcompat {
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr)
+} // syclcompat
+```
+
+These variables can be used in inline PTX instructions that take address
+operands. Such inline PTX instructions are commonly used in optimized
+libraries. A simplified example usage of the above functions is as follows:
+
+``` c++
+  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
+  // ...
+  // ...
+  T addr =
+              syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
+
+uint32_t fragment;
+#if defined(__NVPTX__)
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
+                : "=r"(fragment)
+                : "r"(addr));
+#endif
+```
+
 ### Device Information
 
 `sycl::device` properties are encapsulated using the `device_info` helper class.
@@ -945,42 +981,6 @@ public:
                        size_t image_max_height_buffer_size,
                        size_t image_max_depth_buffer_size);
 };
-```
-
-### ptr_to_int
-
-The following cuda backend specific function is introduced in order to
-translate from local memory pointers to `uint32_t` or `size_t` variables that
-contain a byte address to the local (local refers to`.shared` in nvptx) memory
-state space.
-
-``` c++
-namespace syclcompat {
-template <typename T>
-__syclcompat_inline__
-    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
-                     T>
-    ptr_to_int(void *ptr)
-} // syclcompat
-```
-
-These variables can be used in inline PTX instructions that take address
-operands. Such inline PTX instructions are commonly used in optimized
-libraries. A simplified example usage of the above functions is as follows:
-
-``` c++
-  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
-  // ...
-  // ...
-  T addr =
-              syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
-
-uint32_t fragment;
-#if defined(__NVPTX__)
-  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
-                : "=r"(fragment)
-                : "r"(addr));
-#endif
 ```
 
 ### Device Management
