@@ -6786,13 +6786,10 @@ public:
     // Do not use unbundler if the Host does not depend on device action.
     // Now that we have unbundled the object, when doing -fsycl-link we
     // want to continue the host link with the input object.
-    // For unbundling of an FPGA AOCX binary, we want to link with the original
-    // FPGA device archive.
     if ((OffloadKind == Action::OFK_None && CanUseBundler) ||
         (Args.hasArg(options::OPT_fsycl_link_EQ) && !HasFPGATarget) ||
         (HasFPGATarget && ((Args.hasArg(options::OPT_fsycl_link_EQ) &&
-                            HostAction->getType() == types::TY_Object) ||
-                           HostAction->getType() == types::TY_FPGA_AOCX)))
+                            HostAction->getType() == types::TY_Object))))
       if (auto *UA = dyn_cast<OffloadUnbundlingJobAction>(HostAction))
         HostAction = UA->getInputs().back();
 
@@ -7443,14 +7440,12 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   // For an FPGA archive, we add the unbundling step above to take care of
   // the device side, but also unbundle here to extract the host side
-  bool EarlyLink = false;
-  if (const Arg *A = Args.getLastArg(options::OPT_fsycl_link_EQ))
-    EarlyLink = A->getValue() == StringRef("early");
   for (auto &LI : LinkerInputs) {
     Action *UnbundlerInput = nullptr;
     auto wrapObject = [&] {
-      if (EarlyLink && Args.hasArg(options::OPT_fintelfpga)) {
-        // Only wrap the object with -fsycl-link=early
+      if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
+          Args.hasArg(options::OPT_fintelfpga)) {
+        // Wrap the object when creating an FPGA AOCX or AOCR binary.
         auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
         auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
         auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
