@@ -660,36 +660,65 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+static void *getGlobalPointerFromModule(ze_module_handle_t hModule,
+                                        size_t offset, size_t count,
+                                        const char *name) {
+  // Find global variable pointer
+  size_t globalVarSize = 0;
+  void *globalVarPtr = nullptr;
+  ZE2UR_CALL_THROWS(zeModuleGetGlobalPointer,
+                    (hModule, name, &globalVarSize, &globalVarPtr));
+  if (globalVarSize < offset + count) {
+    setErrorMessage("Write device global variable is out of range.",
+                    UR_RESULT_ERROR_INVALID_VALUE,
+                    static_cast<int32_t>(ZE_RESULT_ERROR_INVALID_ARGUMENT));
+    throw UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+  }
+  return globalVarPtr;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableWrite(
     ur_program_handle_t hProgram, const char *name, bool blockingWrite,
     size_t count, size_t offset, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingWrite;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pSrc;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // TODO: implement program->getZeModuleMap() to be sure that
+  // it's thread-safe
+  ze_module_handle_t zeModule{};
+  auto It = hProgram->ZeModuleMap.find(this->hDevice->ZeDevice);
+  if (It != hProgram->ZeModuleMap.end()) {
+    zeModule = It->second;
+  } else {
+    zeModule = hProgram->ZeModule;
+  }
+
+  // Find global variable pointer
+  auto globalVarPtr = getGlobalPointerFromModule(zeModule, offset, count, name);
+
+  return enqueueUSMMemcpy(blockingWrite, ur_cast<char *>(globalVarPtr) + offset,
+                          pSrc, count, numEventsInWaitList, phEventWaitList,
+                          phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableRead(
     ur_program_handle_t hProgram, const char *name, bool blockingRead,
     size_t count, size_t offset, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = name;
-  std::ignore = blockingRead;
-  std::ignore = count;
-  std::ignore = offset;
-  std::ignore = pDst;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // TODO: implement program->getZeModule() to be sure that
+  // it's thread-safe
+  ze_module_handle_t zeModule{};
+  auto It = hProgram->ZeModuleMap.find(this->hDevice->ZeDevice);
+  if (It != hProgram->ZeModuleMap.end()) {
+    zeModule = It->second;
+  } else {
+    zeModule = hProgram->ZeModule;
+  }
+
+  // Find global variable pointer
+  auto globalVarPtr = getGlobalPointerFromModule(zeModule, offset, count, name);
+
+  return enqueueUSMMemcpy(blockingRead, pDst,
+                          ur_cast<char *>(globalVarPtr) + offset, count,
+                          numEventsInWaitList, phEventWaitList, phEvent);
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueReadHostPipe(
