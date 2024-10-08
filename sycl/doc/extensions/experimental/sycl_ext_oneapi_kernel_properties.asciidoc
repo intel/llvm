@@ -21,7 +21,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2021 Intel Corporation.  All rights reserved.
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 specification, Revision 4 and
+This extension is written against the SYCL 2020 specification, Revision 9 and
 the following extensions:
 
 - link:sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
@@ -387,12 +387,6 @@ class handler {
 }
 ```
 
-Passing a property list as an argument in this way allows properties to be
-associated with a kernel function without modifying its type. This enables
-the same kernel function (e.g. a lambda) to be submitted multiple times with
-different properties, or for libraries building on SYCL to add properties
-(e.g. for performance reasons) to user-provided kernel functions.
-
 All the properties defined in this extension have compile-time values. However,
 an implementation may support additional properties which could have run-time
 values. When this occurs, the `properties` parameter may be a property list
@@ -412,18 +406,10 @@ q.parallel_for(range<2>{16, 16}, properties, [=](id<2> i) {
 }).wait();
 ```
 
-NOTE: It is currently not possible to use the same kernel function in two
-commands with different properties. For example, the following will result in an
-error at compile-time:
+A kernel function can only be associated with one set of kernel properties.
+If a kernel function is associated with more than one set of kernel properties,
+the implementation must issue a diagnostic.
 
-```c++
-  auto kernelFunc = [=](){};
-  q.single_task(kernelFunc);
-  q.single_task(
-      sycl::ext::oneapi::experimental::properties{
-          sycl::ext::oneapi::experimental::sub_group_size<8>},
-      kernelFunc);
-```
 
 == Embedding Properties into a Kernel
 
