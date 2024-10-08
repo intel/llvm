@@ -59,6 +59,10 @@ If available, the following extensions extend SYCLcompat functionality:
   https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
   \[Optional\]
 
+### Hardware Requirements
+
+Some of the functionality provided by SYCLcompat relies on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer_support) below.
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -854,6 +858,13 @@ public:
 
 } // syclcompat
 ```
+#### Buffer Support
+
+Although SYCLcompat is primarily designed around the Unified Shared Memory model, there is (limited) support for the buffer/accessor model. This can be enabled by setting the compiler define `COMPAT_USM_LEVEL_NONE`. This macro instructs SYCLcompat to effectively provide emulated USM pointers via a Memory Manager singleton.
+
+ The following APIs are *not* supported under `COMPAT_USM_LEVEL_NONE`:
+
+  - TODO(joe) fill this in
 
 ### Device Information
 
