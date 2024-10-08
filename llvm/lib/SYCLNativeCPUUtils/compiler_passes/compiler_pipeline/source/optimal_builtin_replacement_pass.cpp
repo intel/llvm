@@ -232,7 +232,7 @@ PreservedAnalyses OptimalBuiltinReplacementPass::run(LazyCallGraph::SCC &C,
         [BI](CallBase &CB, StringRef, const SmallVectorImpl<Type *> &,
              const SmallVectorImpl<TypeQualifiers> &) -> Value * {
           Function *Callee = CB.getCalledFunction();
-          auto const Props = BI->analyzeBuiltin(*Callee).properties;
+          const auto Props = BI->analyzeBuiltin(*Callee).properties;
           if (Props & eBuiltinPropertyCanEmitInline) {
             IRBuilder<> B(&CB);
             const SmallVector<Value *, 4> Args(CB.args());

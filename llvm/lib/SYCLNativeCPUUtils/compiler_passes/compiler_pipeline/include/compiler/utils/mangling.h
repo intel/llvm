@@ -132,16 +132,16 @@ class TypeQualifiers final {
   StorageT storage_;
 
   /// @brief Number of bits used to encode the size of the list.
-  const static unsigned NumCountBits = 4;
+  static const unsigned NumCountBits = 4;
 
   /// @brief Number of bits used to encode one qualifier in the list.
-  const static unsigned NumQualBits = 10;
+  static const unsigned NumQualBits = 10;
 
   /// @brief Number of bits that can be used to store the list.
-  const static unsigned NumStorageBits = sizeof(StorageT) * 8;
+  static const unsigned NumStorageBits = sizeof(StorageT) * 8;
 
   /// @brief Maximum size of the list.
-  const static unsigned MaxSize = (NumStorageBits - NumCountBits) / NumQualBits;
+  static const unsigned MaxSize = (NumStorageBits - NumCountBits) / NumQualBits;
 
   static_assert(MaxSize < (1 << NumCountBits) - 1, "MaxSize cannot be encoded");
 };

@@ -295,7 +295,7 @@ bool Heuristics::shouldVectorize() {
       } else if (CallInst *CI = dyn_cast<CallInst>(&I)) {
         const compiler::utils::BuiltinInfo &BI = Ctx.builtins();
         if (Function *Callee = CI->getCalledFunction()) {
-          auto const builtin = BI.analyzeBuiltin(*Callee);
+          const auto builtin = BI.analyzeBuiltin(*Callee);
           if (!(builtin.properties &
                 compiler::utils::eBuiltinPropertyWorkItem)) {
             weight++;

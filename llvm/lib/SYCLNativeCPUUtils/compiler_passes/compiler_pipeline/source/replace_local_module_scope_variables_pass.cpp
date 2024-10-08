@@ -29,6 +29,7 @@
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <multi_llvm/vector_type_helper.h>
 
+#include <algorithm>
 #include <cassert>
 #include <functional>
 
@@ -311,9 +312,7 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
     assert(alignment > 0 && "'0' is an impossible alignment");
 
     // check if this is the largest alignment seen so far
-    if (alignment > maxAlignment) {
-      maxAlignment = alignment;
-    }
+    maxAlignment = std::max(alignment, maxAlignment);
 
     // check if member is not already aligned
     const unsigned int remainder = offset % alignment;

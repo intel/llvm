@@ -275,9 +275,11 @@ PreservedAnalyses InterleavedGroupCombinePass::run(
       InterleavedOpInfo Info;
 
       const bool OpIsLoad = Op->isLoad();
-      Info.Kind = OpIsLoad
-                      ? (Mask ? eMaskedInterleavedLoad : eInterleavedLoad)
-                      : (Mask ? eMaskedInterleavedStore : eInterleavedStore);
+      if (OpIsLoad) {
+        Info.Kind = Mask ? eMaskedInterleavedLoad : eInterleavedLoad;
+      } else {
+        Info.Kind = Mask ? eMaskedInterleavedStore : eInterleavedStore;
+      }
       Info.Op = CI;
       Info.Stride = Stride;
       Info.Removed = false;

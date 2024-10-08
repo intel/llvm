@@ -74,7 +74,7 @@ class BuiltinInliningPass : public llvm::PassInfoMixin<BuiltinInliningPass> {
 /// however much simpler than LLVM's.
 class BasicMem2RegPass : public llvm::PassInfoMixin<BasicMem2RegPass> {
  public:
-  BasicMem2RegPass(){};
+  BasicMem2RegPass() {};
 
   /// @brief The entry point to the pass.
   /// @param[in,out] F Function to optimize.

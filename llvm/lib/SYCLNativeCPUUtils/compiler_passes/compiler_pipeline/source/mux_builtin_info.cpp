@@ -39,7 +39,7 @@ namespace SchedParamIndices {
 enum {
   WI = 0,
   WG = 1,
-  TOTAL,
+  TOTAL = 2,
 };
 }
 
