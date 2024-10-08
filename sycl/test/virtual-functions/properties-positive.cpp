@@ -52,17 +52,14 @@ int main() {
   oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
   oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};
   oneapi::properties props_base{oneapi::assume_indirect_calls_to<Base>};
-  // assume_indirect_calls_to is currently limited to a single set, so this test
-  // is disabled.
-  // FIXME: re-enable once the restriction is lifted.
-  // oneapi::properties props_multiple{
-  //    oneapi::assume_indirect_calls_to<int, Base>};
+  oneapi::properties props_multiple{
+     oneapi::assume_indirect_calls_to<int, Base>};
 
   q.single_task(props_empty, [=]() {});
   q.single_task(props_void, [=]() {});
   q.single_task(props_int, [=]() {});
   q.single_task(props_base, [=]() {});
-  // q.single_task(props_multiple, [=]() {});
+  q.single_task(props_multiple, [=]() {});
 
   return 0;
 }

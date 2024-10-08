@@ -61,7 +61,7 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format

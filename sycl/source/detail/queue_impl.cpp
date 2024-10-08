@@ -354,9 +354,10 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               const std::shared_ptr<queue_impl> &SecondaryQueue,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
+                              bool IsTopCodeLoc,
                               const SubmitPostProcessF *PostProcess) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
-  Handler.saveCodeLoc(Loc);
+  Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
   {
     NestedCallsTracker tracker;
@@ -397,7 +398,8 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
     // finishes execution.
     event FlushEvent = submit_impl(
         [&](handler &ServiceCGH) { Stream->generateFlushCommand(ServiceCGH); },
-        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc, {});
+        Self, PrimaryQueue, SecondaryQueue, /*CallerNeedsEvent*/ true, Loc,
+        IsTopCodeLoc, {});
     EventImpl->attachEventToCompleteWeak(detail::getSyclObjImpl(FlushEvent));
     registerStreamServiceEvent(detail::getSyclObjImpl(FlushEvent));
   }
@@ -414,7 +416,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, {});
+      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
