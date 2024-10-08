@@ -898,6 +898,15 @@ ur_result_t urPrintExpDevice_2dBlockArrayCapabilityFlags(
 }
 
 ur_result_t
+urPrintUsmPoolNativeDesc(const struct ur_usm_pool_native_desc_t params,
+                         char *buffer, const size_t buff_size,
+                         size_t *out_size) {
+  std::stringstream ss;
+  ss << params;
+  return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t
 urPrintExpEnqueueUsmAllocFlags(enum ur_exp_enqueue_usm_alloc_flag_t value,
                                char *buffer, const size_t buff_size,
                                size_t *out_size) {

@@ -496,6 +496,7 @@ EXPORTS
 	urPrintUsmPoolGetInfoParams
 	urPrintUsmPoolInfo
 	urPrintUsmPoolLimitsDesc
+	urPrintUsmPoolNativeDesc
 	urPrintUsmPoolReleaseParams
 	urPrintUsmPoolRetainParams
 	urPrintUsmReleaseExpParams

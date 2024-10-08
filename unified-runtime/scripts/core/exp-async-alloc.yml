@@ -24,6 +24,29 @@ etors:
       desc: "[$x_bool_t] returns true if the device supports USM allocation enqueueing"
 
 --- #--------------------------------------------------------------------------
+type: struct
+desc: "USM native pool descriptor type"
+details:
+  - Specify these properties in $xUSMPoolCreate via $x_usm_pool_desc_t
+    as part of a `pNext` chain.
+class: $xUSM
+name: $x_usm_pool_native_desc_t
+base: $x_base_desc_t
+members:
+    - type: "void*"
+      name:  pMem
+      desc: "[in] USM memory object"
+    - type: "size_t"
+      name:  size
+      desc: "[in] size of USM memory object"
+    - type: "$x_usm_type_t"
+      name:  memType
+      desc: "[in] type of USM memory object"
+    - type: "$x_device_handle_t"
+      name:  device
+      desc: "[in] device associated with the USM memory object"
+
+--- #--------------------------------------------------------------------------
 type: enum
 extend: true
 desc: "Command Type experimental enumerations."
