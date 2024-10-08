@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // Must not be guarded. C++ standard says the macro assert is redefined
-// according to the current state of NDEBUG each time that <cassert> is
+// according to the current state of NDEBUG each time that <assert.h> is
 // included.
 
 #if defined(__has_include_next)
@@ -16,6 +16,7 @@
 #include <../ucrt/assert.h>
 #endif
 
+extern "C++" {
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_vars.hpp>
 
@@ -42,3 +43,4 @@ __devicelib_assert_fail(const char *, const char *, int32_t, const char *,
 #endif
 #endif
 #endif
+}

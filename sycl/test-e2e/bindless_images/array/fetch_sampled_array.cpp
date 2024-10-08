@@ -197,177 +197,275 @@ int main() {
 
   unsigned int seed = 0;
   bool failed = false;
+  int sizeIndex = 0;
 
+  printTestName("Running 1D int\n");
   failed |= run_test<2, int32_t, 1, sycl::image_channel_type::signed_int32,
-                     class int_1d>({2816, 32}, {32, 32}, seed);
+                     class int_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D int\n");
   failed |= run_test<3, int32_t, 1, sycl::image_channel_type::signed_int32,
-                     class int_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class int_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D int2\n");
   failed |= run_test<2, int32_t, 2, sycl::image_channel_type::signed_int32,
-                     class int2_1d>({2816, 32}, {32, 32}, seed);
+                     class int2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D int2\n");
   failed |= run_test<3, int32_t, 2, sycl::image_channel_type::signed_int32,
-                     class int2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class int2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D int4\n");
   failed |= run_test<2, int32_t, 4, sycl::image_channel_type::signed_int32,
-                     class int4_1d>({2816, 32}, {32, 32}, seed);
+                     class int4_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D int4\n");
   failed |= run_test<3, int32_t, 4, sycl::image_channel_type::signed_int32,
-                     class int4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+                     class int4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned int\n");
   failed |= run_test<2, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                     class uint_1d>({2816, 32}, {32, 32}, seed);
+                     class uint_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned int\n");
   failed |= run_test<3, uint32_t, 1, sycl::image_channel_type::unsigned_int32,
-                     class uint_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class uint_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned int2\n");
   failed |= run_test<2, uint32_t, 2, sycl::image_channel_type::unsigned_int32,
-                     class uint2_1d>({2816, 32}, {32, 32}, seed);
+                     class uint2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned int2\n");
   failed |= run_test<3, uint32_t, 2, sycl::image_channel_type::unsigned_int32,
-                     class uint2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class uint2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned int4\n");
-  failed |= run_test<2, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
-                     class uint4_1d>({2816, 32}, {32, 32}, seed);
+  failed |=
+      run_test<2, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
+               class uint4_1d>(bindless_helpers::getGlobalSize<2>(5),
+                               bindless_helpers::getLocalSize<2>(5), seed);
   printTestName("Running 2D unsigned int4\n");
   failed |= run_test<3, uint32_t, 4, sycl::image_channel_type::unsigned_int32,
-                     class uint4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+                     class uint4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D short\n");
   failed |= run_test<2, short, 1, sycl::image_channel_type::signed_int16,
-                     class short_1d>({2816, 32}, {32, 32}, seed);
+                     class short_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D short\n");
   failed |= run_test<3, short, 1, sycl::image_channel_type::signed_int16,
-                     class short_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class short_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D short2\n");
   failed |= run_test<2, short, 2, sycl::image_channel_type::signed_int16,
-                     class short2_1d>({2816, 32}, {32, 32}, seed);
+                     class short2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D short2\n");
   failed |= run_test<3, short, 2, sycl::image_channel_type::signed_int16,
-                     class short2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class short2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D short4\n");
   failed |= run_test<2, short, 4, sycl::image_channel_type::signed_int16,
-                     class short4_1d>({2816, 32}, {32, 32}, seed);
+                     class short4_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D short4\n");
   failed |= run_test<3, short, 4, sycl::image_channel_type::signed_int16,
-                     class short4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+                     class short4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned short\n");
-  failed |=
-      run_test<2, unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-               class ushort_1d>({2816, 32}, {32, 32}, seed);
+  failed |= run_test<2, unsigned short, 1,
+                     sycl::image_channel_type::unsigned_int16, class ushort_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned short\n");
-  failed |=
-      run_test<3, unsigned short, 1, sycl::image_channel_type::unsigned_int16,
-               class ushort_2d>({48, 128, 32}, {16, 16, 4}, seed);
+  failed |= run_test<3, unsigned short, 1,
+                     sycl::image_channel_type::unsigned_int16, class ushort_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned short2\n");
   failed |=
       run_test<2, unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-               class ushort2_1d>({2816, 32}, {32, 32}, seed);
+               class ushort2_1d>(bindless_helpers::getGlobalSize<2>(sizeIndex),
+                                 bindless_helpers::getLocalSize<2>(sizeIndex),
+                                 seed);
   printTestName("Running 2D unsigned short2\n");
   failed |=
       run_test<3, unsigned short, 2, sycl::image_channel_type::unsigned_int16,
-               class ushort2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+               class ushort2_2d>(bindless_helpers::getGlobalSize<3>(sizeIndex),
+                                 bindless_helpers::getLocalSize<3>(sizeIndex),
+                                 seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned short4\n");
   failed |=
       run_test<2, unsigned short, 4, sycl::image_channel_type::unsigned_int16,
-               class ushort4_1d>({2816, 32}, {32, 32}, seed);
+               class ushort4_1d>(bindless_helpers::getGlobalSize<2>(sizeIndex),
+                                 bindless_helpers::getLocalSize<2>(sizeIndex),
+                                 seed);
   printTestName("Running 2D unsigned short4\n");
   failed |=
       run_test<3, unsigned short, 4, sycl::image_channel_type::unsigned_int16,
-               class ushort4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+               class ushort4_2d>(bindless_helpers::getGlobalSize<3>(sizeIndex),
+                                 bindless_helpers::getLocalSize<3>(sizeIndex),
+                                 seed);
+  sizeIndex += 1;
   printTestName("Running 1D char\n");
   failed |= run_test<2, signed char, 1, sycl::image_channel_type::signed_int8,
-                     class char_1d>({2816, 32}, {32, 32}, seed);
+                     class char_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D char\n");
   failed |= run_test<3, signed char, 1, sycl::image_channel_type::signed_int8,
-                     class char_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class char_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D char2\n");
   failed |= run_test<2, signed char, 2, sycl::image_channel_type::signed_int8,
-                     class char2_1d>({2816, 32}, {32, 32}, seed);
+                     class char2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D char2\n");
   failed |= run_test<3, signed char, 2, sycl::image_channel_type::signed_int8,
-                     class char2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class char2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D char4\n");
   failed |= run_test<2, signed char, 4, sycl::image_channel_type::signed_int8,
-                     class char4_1d>({2816, 32}, {32, 32}, seed);
+                     class char4_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D char4\n");
   failed |= run_test<3, signed char, 4, sycl::image_channel_type::signed_int8,
-                     class char4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+                     class char4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned char\n");
-  failed |=
-      run_test<2, unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-               class uchar_1d>({2816, 32}, {32, 32}, seed);
+  failed |= run_test<2, unsigned char, 1,
+                     sycl::image_channel_type::unsigned_int8, class uchar_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned char\n");
-  failed |=
-      run_test<3, unsigned char, 1, sycl::image_channel_type::unsigned_int8,
-               class uchar_2d>({48, 128, 32}, {16, 16, 4}, seed);
+  failed |= run_test<3, unsigned char, 1,
+                     sycl::image_channel_type::unsigned_int8, class uchar_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned char2\n");
-  failed |=
-      run_test<2, unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-               class uchar2_1d>({2816, 32}, {32, 32}, seed);
+  failed |= run_test<2, unsigned char, 2,
+                     sycl::image_channel_type::unsigned_int8, class uchar2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned char2\n");
-  failed |=
-      run_test<3, unsigned char, 2, sycl::image_channel_type::unsigned_int8,
-               class uchar2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+  failed |= run_test<3, unsigned char, 2,
+                     sycl::image_channel_type::unsigned_int8, class uchar2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D unsigned char4\n");
-  failed |=
-      run_test<2, unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-               class uchar4_1d>({2816, 32}, {32, 32}, seed);
+  failed |= run_test<2, unsigned char, 4,
+                     sycl::image_channel_type::unsigned_int8, class uchar4_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D unsigned char4\n");
-  failed |=
-      run_test<3, unsigned char, 4, sycl::image_channel_type::unsigned_int8,
-               class uchar4_2d>({48, 128, 32}, {16, 16, 4}, seed);
-
+  failed |= run_test<3, unsigned char, 4,
+                     sycl::image_channel_type::unsigned_int8, class uchar4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D float\n");
   failed |=
       run_test<2, float, 1, sycl::image_channel_type::fp32, class float_1d>(
-          {2816, 32}, {32, 32}, seed);
+          bindless_helpers::getGlobalSize<2>(sizeIndex),
+          bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D float\n");
   failed |=
       run_test<3, float, 1, sycl::image_channel_type::fp32, class float_2d>(
-          {1024, 832, 32}, {16, 16, 4}, seed);
+          bindless_helpers::getGlobalSize<3>(sizeIndex),
+          bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D float2\n");
   failed |=
       run_test<2, float, 2, sycl::image_channel_type::fp32, class float2_1d>(
-          {2816, 32}, {32, 32}, seed);
+          bindless_helpers::getGlobalSize<2>(sizeIndex),
+          bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D float2\n");
   failed |=
       run_test<3, float, 2, sycl::image_channel_type::fp32, class float2_2d>(
-          {832, 1024, 32}, {16, 16, 4}, seed);
+          bindless_helpers::getGlobalSize<3>(sizeIndex),
+          bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D float4\n");
   failed |=
       run_test<2, float, 4, sycl::image_channel_type::fp32, class float4_1d>(
-          {2816, 32}, {32, 32}, seed);
+          bindless_helpers::getGlobalSize<2>(sizeIndex),
+          bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D float4\n");
   failed |=
       run_test<3, float, 4, sycl::image_channel_type::fp32, class float4_2d>(
-          {1024, 1024, 16}, {16, 16, 4}, seed);
-
+          bindless_helpers::getGlobalSize<3>(sizeIndex),
+          bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D half\n");
   failed |=
       run_test<2, sycl::half, 1, sycl::image_channel_type::fp16, class half_1d>(
-          {2816, 32}, {32, 32}, seed);
+          bindless_helpers::getGlobalSize<2>(sizeIndex),
+          bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D half\n");
   failed |=
       run_test<3, sycl::half, 1, sycl::image_channel_type::fp16, class half_2d>(
-          {48, 128, 32}, {16, 16, 4}, seed);
+          bindless_helpers::getGlobalSize<3>(sizeIndex),
+          bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D half2\n");
   failed |= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
-                     class half2_1d>({2816, 32}, {32, 32}, seed);
+                     class half2_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D half2\n");
   failed |= run_test<3, sycl::half, 2, sycl::image_channel_type::fp16,
-                     class half2_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class half2_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
+  sizeIndex += 1;
   printTestName("Running 1D half4\n");
   failed |= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
-                     class half4_1d>({2816, 32}, {32, 32}, seed);
+                     class half4_1d>(
+      bindless_helpers::getGlobalSize<2>(sizeIndex),
+      bindless_helpers::getLocalSize<2>(sizeIndex), seed);
   printTestName("Running 2D half4\n");
   failed |= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
-                     class half4_2d>({48, 128, 32}, {16, 16, 4}, seed);
+                     class half4_2d>(
+      bindless_helpers::getGlobalSize<3>(sizeIndex),
+      bindless_helpers::getLocalSize<3>(sizeIndex), seed);
 
   if (failed) {
     std::cerr << "An error has occured!\n";

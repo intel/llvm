@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-fp16
 
 // RUN: %{build} -o %t.out
