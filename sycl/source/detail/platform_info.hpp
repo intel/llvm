@@ -8,6 +8,7 @@
 
 #pragma once
 #include <detail/adapter.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/ur.hpp>

@@ -150,6 +150,24 @@ struct ExtractProperties<PropertyArgsT,
   }
 };
 
+// Get the value of a property from a property list
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename PropertiesT>
+struct GetPropertyValueFromPropList {};
+
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename... PropertiesT>
+struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                    std::tuple<PropertiesT...>> {
+  using prop_val_t = std::conditional_t<
+      ContainsProperty<PropKey, std::tuple<PropertiesT...>>::value,
+      typename FindCompileTimePropertyValueType<
+          PropKey, std::tuple<PropertiesT...>>::type,
+      DefaultPropVal>;
+  static constexpr ConstType value =
+      PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
+};
+
 } // namespace detail
 
 template <typename PropertiesT> class properties {
