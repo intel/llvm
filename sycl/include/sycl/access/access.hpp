@@ -399,6 +399,8 @@ address_space_cast_is_possible(access::address_space Src,
   // No more compatible combinations.
   return false;
 }
+
+// TODO: Should generic <-> constant be allowed?
 template <access::address_space Space, typename ElementType>
 auto static_address_cast(ElementType *Ptr) {
   constexpr auto generic_space = access::address_space::generic_space;
