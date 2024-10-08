@@ -14,7 +14,7 @@
 #include <sycl/sycl.hpp>
 #include <cstdio>
 #include <ctime>
-#include <dpct/dpct.hpp>
+#include <syclcompat/syclcompat.hpp>
 #include <math.h>
 #include <stdint.h>
 

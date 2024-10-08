@@ -12,7 +12,7 @@
 
 #define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
-#include <dpct/dpct.hpp>
+#include <syclcompat/syclcompat.hpp>
 
 int main() {
   float* f = (float*)syclcompat::malloc(sizeof(float));

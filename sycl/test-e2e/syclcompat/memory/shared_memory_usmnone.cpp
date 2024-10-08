@@ -11,7 +11,7 @@
 
 #define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
-#include <dpct/dpct.hpp>
+#include <syclcompat/syclcompat.hpp>
 #include <stdio.h>
 #include <string.h>
 
