@@ -4054,7 +4054,6 @@
 ?get_successors@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_type@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4image_type@23456@XZ
 ?get_type@node@experimental@oneapi@ext@_V1@sycl@@QEBA?AW4node_type@23456@XZ
-?get_unsupported_platforms@platform@_V1@sycl@@SA?AV?$vector@Vplatform@_V1@sycl@@V?$allocator@Vplatform@_V1@sycl@@@std@@@std@@XZ
 ?get_wait_list@event@_V1@sycl@@QEAA?AV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@XZ
 ?get_width@stream@_V1@sycl@@QEBA_KXZ
 ?get_work_item_buffer_size@stream@_V1@sycl@@QEBA_KXZ
