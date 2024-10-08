@@ -289,11 +289,11 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
   // Emit #line directives or GNU line markers depending on what mode we're in.
   StringRef CurFilenameWithNoLeaningDotSlash =
       remove_leading_dotbackslah(CurFilename.str());
-  if ((strcmp(CurFilenameWithNoLeaningDotSlash.data(),
-              PP.getPreprocessorOpts().IncludeFooter.data()) == 0) ||
-      (strcmp(CurFilenameWithNoLeaningDotSlash.data(),
-              PP.getPreprocessorOpts().IncludeHeader.data()) == 0)) {
-    CurFilename = StringRef();
+  if ((CurFilenameWithNoLeaningDotSlash ==
+              PP.getPreprocessorOpts().IncludeFooter) ||
+      CurFilenameWithNoLeaningDotSlash ==
+              PP.getPreprocessorOpts().IncludeHeader) {
+    CurFilename = "<uninit>";
   }
     if (UseLineDirectives) {
       *OS << "#line" << ' ' << LineNo << ' ' << '"';
