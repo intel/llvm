@@ -21,7 +21,7 @@
 // RUN:     --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
 // RUN: grep -Pv "XFAIL-TRACKER:\s+.*intel/llvm.*\d+" | \
-// RUN: wc -l | FileCheck %s
+// RUN: wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 //
 // The number below is a number of tests which are *impropertly* XFAIL-ed, i.e.
 // we either don't have a tracker associated with a failure listed in those
@@ -41,4 +41,4 @@
 // tests to match the requried format and in that case you should just update
 // (i.e. reduce) the number below.
 //
-// CHECK: 176
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 176
