@@ -14,7 +14,8 @@
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #include <sycl/device.hpp>                 // for device
-#include <sycl/nd_range.hpp>               // for range, nd_range
+#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.hpp> // for graph properties classes
+#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -144,74 +145,6 @@ private:
 
   std::shared_ptr<detail::node_impl> impl;
 };
-
-namespace property {
-namespace graph {
-
-/// Property passed to command_graph constructor to disable checking for cycles.
-///
-class no_cycle_check : public ::sycl::detail::DataLessProperty<
-                           ::sycl::detail::GraphNoCycleCheck> {
-public:
-  no_cycle_check() = default;
-};
-
-/// Property passed to command_graph constructor to allow buffers to be used
-/// with graphs. Passing this property represents a promise from the user that
-/// the buffer will outlive any graph that it is used in.
-///
-class assume_buffer_outlives_graph
-    : public ::sycl::detail::DataLessProperty<
-          ::sycl::detail::GraphAssumeBufferOutlivesGraph> {
-public:
-  assume_buffer_outlives_graph() = default;
-};
-
-/// Property passed to command_graph<graph_state::modifiable>::finalize() to
-/// mark the resulting executable command_graph as able to be updated.
-class updatable
-    : public ::sycl::detail::DataLessProperty<::sycl::detail::GraphUpdatable> {
-public:
-  updatable() = default;
-};
-
-/// Property used to enable executable graph profiling. Enables profiling on
-/// events returned by submissions of the executable graph
-class enable_profiling : public ::sycl::detail::DataLessProperty<
-                             ::sycl::detail::GraphEnableProfiling> {
-public:
-  enable_profiling() = default;
-};
-} // namespace graph
-
-namespace node {
-
-/// Property used to define dependent nodes when creating a new node with
-/// command_graph::add().
-class depends_on : public ::sycl::detail::PropertyWithData<
-                       ::sycl::detail::GraphNodeDependencies> {
-public:
-  template <typename... NodeTN> depends_on(NodeTN... nodes) : MDeps{nodes...} {}
-
-  const std::vector<::sycl::ext::oneapi::experimental::node> &
-  get_dependencies() const {
-    return MDeps;
-  }
-
-private:
-  const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
-};
-
-/// Property used to to add all previous graph leaves as dependencies when
-/// creating a new node with command_graph::add().
-class depends_on_all_leaves : public ::sycl::detail::DataLessProperty<
-                                  ::sycl::detail::GraphDependOnAllLeaves> {
-public:
-  depends_on_all_leaves() = default;
-};
-
-} // namespace node
-} // namespace property
 
 namespace detail {
 // Templateless modifiable command-graph base class.
@@ -496,25 +429,6 @@ command_graph(const context &SyclContext, const device &SyclDevice,
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
-
-template <>
-struct is_property<ext::oneapi::experimental::property::graph::no_cycle_check>
-    : std::true_type {};
-
-template <>
-struct is_property<ext::oneapi::experimental::property::node::depends_on>
-    : std::true_type {};
-
-template <>
-struct is_property_of<
-    ext::oneapi::experimental::property::graph::no_cycle_check,
-    ext::oneapi::experimental::command_graph<
-        ext::oneapi::experimental::graph_state::modifiable>> : std::true_type {
-};
-
-template <>
-struct is_property_of<ext::oneapi::experimental::property::node::depends_on,
-                      ext::oneapi::experimental::node> : std::true_type {};
 
 } // namespace _V1
 } // namespace sycl
