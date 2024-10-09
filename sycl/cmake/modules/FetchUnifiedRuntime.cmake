@@ -116,15 +116,19 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
-  # Merge: 7b4bc761 fbb6e862
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 4 16:39:59 2024 +0100
-  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
-  #     [L0] Fix device query of bindless image support
-  set(UNIFIED_RUNTIME_TAG b79ebe4e98789144bcdf3832088eb6e6b5ae6967)
-
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit aa53a35d4da225732e006c8c495f278ddb00ba97
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Fri Sep 13 15:38:40 2024 +0100
+  #     Hardening flags
+  #
+  #     UR_DEVELOPER_MODE has also been changed to only set Werror. The
+  #     previous other flags set by this variable either have no effect
+  #     (-fno-omit-frame-pointer) or are now always enabled
+  #     (-fstack-protector-strong).
+  #
+  #     Some smaller warnings have also been fixed.
+  set(UNIFIED_RUNTIME_TAG aa53a35d4da225732e006c8c495f278ddb00ba97)
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
   # to link statically on windows
