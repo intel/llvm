@@ -160,18 +160,6 @@ endif()
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
   "Generate remangled variants of enabled libclc targets." OFF )
 
-if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
-  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
-endif()
-
-option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
-
-if( LIBCLC_NATIVECPU_HOST_TARGET )
-  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
-endif()
-
-list( SORT LIBCLC_TARGETS_TO_BUILD )
-
 # Verify that the user hasn't requested mesa3d targets without an available
 # llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
@@ -182,6 +170,28 @@ endif()
 
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 add_custom_target(libclc-builtins COMMENT "Build libclc builtins")
+
+if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
+  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
+else()
+  foreach(TARGET_TO_BUILD ${LIBCLC_TARGETS_TO_BUILD})
+    if (NOT ${TARGET_TO_BUILD} IN_LIST LIBCLC_TARGETS_ALL)
+      message ( FATAL_ERROR "Unknown target in LIBCLC_TARGETS_TO_BUILD: \"${TARGET_TO_BUILD}\"\n"
+                            "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
+    endif()
+  endforeach()
+endif()
+
+option( LIBCLC_NATIVECPU_HOST_TARGET "Build libclc for Native CPU using the host triple." Off)
+
+if( LIBCLC_NATIVECPU_HOST_TARGET )
+  list(APPEND LIBCLC_TARGETS_TO_BUILD ${LLVM_TARGET_TRIPLE})
+endif()
+
+list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+# Construct LLVM version define
+set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
 
 set(LIBCLC_TARGET_TO_TEST)
 
