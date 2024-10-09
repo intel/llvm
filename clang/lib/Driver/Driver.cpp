@@ -1281,10 +1281,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
           if (!Arch.empty())
             DerivedArchs[DeviceTriple.getTriple()].insert(Arch);
         }
-
         if (!SYCLTriples.empty()) {
           for (const auto &SYCLTriple : SYCLTriples) {
-            llvm::Triple Triple(MakeSYCLDeviceTriple(SYCLTriple.getKey()));
+            llvm::Triple Triple(SYCLTriple.getKey());
             UniqueSYCLTriplesVec.push_back(Triple);
           }
         }
