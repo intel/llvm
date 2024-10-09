@@ -13,6 +13,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_util.hpp>
 #include <detail/program_manager/program_manager.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
@@ -23,6 +24,7 @@
 #include <sycl/info/info_desc.hpp>
 #include <sycl/memory_enums.hpp>
 #include <sycl/platform.hpp>
+#include <ur_api.h> // for ur_memory_order_capability_flags_t
 
 #include <chrono>
 #include <sstream>
@@ -33,6 +35,38 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+inline std::vector<memory_order>
+readMemoryOrderBitfield(ur_memory_order_capability_flags_t bits) {
+  std::vector<memory_order> result;
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED)
+    result.push_back(memory_order::relaxed);
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE)
+    result.push_back(memory_order::acquire);
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE)
+    result.push_back(memory_order::release);
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL)
+    result.push_back(memory_order::acq_rel);
+  if (bits & UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST)
+    result.push_back(memory_order::seq_cst);
+  return result;
+}
+
+inline std::vector<memory_scope>
+readMemoryScopeBitfield(ur_memory_scope_capability_flags_t bits) {
+  std::vector<memory_scope> result;
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_ITEM)
+    result.push_back(memory_scope::work_item);
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_SUB_GROUP)
+    result.push_back(memory_scope::sub_group);
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_WORK_GROUP)
+    result.push_back(memory_scope::work_group);
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE)
+    result.push_back(memory_scope::device);
+  if (bits & UR_MEMORY_SCOPE_CAPABILITY_FLAG_SYSTEM)
+    result.push_back(memory_scope::system);
+  return result;
+}
 
 inline std::vector<info::fp_config>
 read_fp_bitfield(ur_device_fp_capability_flags_t bits) {

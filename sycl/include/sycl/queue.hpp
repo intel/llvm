@@ -342,21 +342,25 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &CodeLoc](bool IsKernel, bool KernelUsesAssert,
-                                        event &E) {
+    auto PostProcess = [this, &TlsCodeLocCapture](
+                           bool IsKernel, bool KernelUsesAssert, event &E) {
       if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert && !device_has(aspect::accelerator)) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
         // Linking against fallback impl of __devicelib_assert_fail is
         // performed by program manager class
         // Fallback assert isn't supported for FPGA
-        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr, CodeLoc);
+        submitAssertCapture(*this, E, /* SecondaryQueue = */ nullptr,
+                            TlsCodeLocCapture.query());
       }
     };
 
-    return submit_impl_and_postprocess(CGF, CodeLoc, PostProcess);
+    return submit_impl_and_postprocess(CGF, TlsCodeLocCapture.query(),
+                                       PostProcess,
+                                       TlsCodeLocCapture.isToplevel());
 #else
-    return submit_impl(CGF, CodeLoc);
+    return submit_impl(CGF, TlsCodeLocCapture.query(),
+                       TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -377,7 +381,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueue, &CodeLoc](
+    auto PostProcess = [this, &SecondaryQueue, &TlsCodeLocCapture](
                            bool IsKernel, bool KernelUsesAssert, event &E) {
       if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert && !device_has(aspect::accelerator)) {
@@ -387,14 +391,17 @@ public:
         // Linking against fallback impl of __devicelib_assert_fail is
         // performed by program manager class
         // Fallback assert isn't supported for FPGA
-        submitAssertCapture(*this, E, &SecondaryQueue, CodeLoc);
+        submitAssertCapture(*this, E, &SecondaryQueue,
+                            TlsCodeLocCapture.query());
       }
     };
 
-    return submit_impl_and_postprocess(CGF, SecondaryQueue, CodeLoc,
-                                       PostProcess);
+    return submit_impl_and_postprocess(CGF, SecondaryQueue,
+                                       TlsCodeLocCapture.query(), PostProcess,
+                                       TlsCodeLocCapture.isToplevel());
 #else
-    return submit_impl(CGF, SecondaryQueue, CodeLoc);
+    return submit_impl(CGF, SecondaryQueue, TlsCodeLocCapture.query(),
+                       TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -429,7 +436,7 @@ public:
   void wait(
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    wait_proxy(CodeLoc);
+    wait_proxy(TlsCodeLocCapture.query());
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -443,7 +450,7 @@ public:
   void wait_and_throw(
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    wait_and_throw_proxy(CodeLoc);
+    wait_and_throw_proxy(TlsCodeLocCapture.query());
   }
 
   /// Proxy method for wait to forward the code location information to the
@@ -486,7 +493,7 @@ public:
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit([&](handler &CGH) { CGH.fill<T>(Ptr, Pattern, Count); },
-                  CodeLoc);
+                  TlsCodeLocCapture.query());
   }
 
   /// Fills the specified memory with the specified pattern.
@@ -507,7 +514,7 @@ public:
           CGH.depends_on(DepEvent);
           CGH.fill<T>(Ptr, Pattern, Count);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Fills the specified memory with the specified pattern.
@@ -530,7 +537,7 @@ public:
           CGH.depends_on(DepEvents);
           CGH.fill<T>(Ptr, Pattern, Count);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Fills the memory pointed by a USM pointer with the value specified.
@@ -734,7 +741,8 @@ public:
       const void *Ptr, size_t Count,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); }, CodeLoc);
+    return submit([=](handler &CGH) { CGH.prefetch(Ptr, Count); },
+                  TlsCodeLocCapture.query());
   }
 
   /// Provides hints to the runtime library that data should be made available
@@ -754,7 +762,7 @@ public:
           CGH.depends_on(DepEvent);
           CGH.prefetch(Ptr, Count);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Provides hints to the runtime library that data should be made available
@@ -775,7 +783,7 @@ public:
           CGH.depends_on(DepEvents);
           CGH.prefetch(Ptr, Count);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Copies data from one 2D memory region to another, both pointed by
@@ -1091,7 +1099,7 @@ public:
             CGH.depends_on(DepEvents);
             return CGH.memcpy(Dest, Src, NumBytes, Offset);
           },
-          CodeLoc);
+          TlsCodeLocCapture.query());
     }
 
     constexpr bool IsDeviceImageScoped = PropertyListT::template has_property<
@@ -1853,7 +1861,7 @@ public:
         [&](handler &CGH) {
           CGH.ext_oneapi_wait_external_semaphore(extSemaphore);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Instruct the queue with a non-blocking wait on an external semaphore.
@@ -2032,7 +2040,7 @@ public:
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2075,7 +2083,7 @@ public:
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2122,7 +2130,7 @@ public:
           CGH.template single_task<KernelName, KernelType, PropertiesT>(
               Properties, KernelFunc);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// single_task version with a kernel represented as a lambda.
@@ -2363,7 +2371,7 @@ public:
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2397,7 +2405,7 @@ public:
           CGH.depends_on(DepEvent);
           CGH.template parallel_for<KernelName>(Range, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for version with a kernel represented as a lambda + nd_range that
@@ -2419,7 +2427,7 @@ public:
           CGH.depends_on(DepEvents);
           CGH.template parallel_for<KernelName>(Range, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// Copies data from a memory region pointed to by a placeholder accessor to
@@ -2678,13 +2686,20 @@ private:
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
+  event submit_impl(std::function<void(handler &)> CGH,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
   /// A template-free version of submit.
   event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
                     const detail::code_location &CodeLoc);
+  event submit_impl(std::function<void(handler &)> CGH, queue secondQueue,
+                    const detail::code_location &CodeLoc, bool IsTopCodeLoc);
 
   /// A template-free version of submit_without_event.
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc);
+  void submit_without_event_impl(std::function<void(handler &)> CGH,
+                                 const detail::code_location &CodeLoc,
+                                 bool IsTopCodeLoc);
 
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
@@ -2698,9 +2713,10 @@ private:
 #if __SYCL_USE_FALLBACK_ASSERT
     // If post-processing is needed, fall back to the regular submit.
     // TODO: Revisit whether we can avoid this.
-    submit(CGF, CodeLoc);
+    submit(CGF, TlsCodeLocCapture.query());
 #else
-    submit_without_event_impl(CGF, CodeLoc);
+    submit_without_event_impl(CGF, TlsCodeLocCapture.query(),
+                              TlsCodeLocCapture.isToplevel());
 #endif // __SYCL_USE_FALLBACK_ASSERT
   }
 
@@ -2720,6 +2736,10 @@ private:
   event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess,
+                                    bool IsTopCodeLoc);
   /// A template-free version of submit.
   /// \param CGH command group function/handler
   /// \param secondQueue fallback queue
@@ -2730,6 +2750,11 @@ private:
                                     queue secondQueue,
                                     const detail::code_location &CodeLoc,
                                     const SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                    queue secondQueue,
+                                    const detail::code_location &CodeLoc,
+                                    const SubmitPostProcessF &PostProcess,
+                                    bool IsTopCodeLoc);
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
   /// specifies global size only.
@@ -2751,7 +2776,7 @@ private:
         [&](handler &CGH) {
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -2786,7 +2811,7 @@ private:
           CGH.depends_on(DepEvent);
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for_impl with a kernel represented as a lambda + range that
@@ -2823,7 +2848,7 @@ private:
           CGH.depends_on(DepEvents);
           CGH.template parallel_for<KernelName>(Range, Properties, Rest...);
         },
-        CodeLoc);
+        TlsCodeLocCapture.query());
   }
 
   /// parallel_for_impl version with a kernel represented as a lambda + range

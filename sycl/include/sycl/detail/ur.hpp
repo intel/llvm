@@ -19,7 +19,6 @@
 #include <sycl/detail/os_util.hpp>
 #include <ur_api.h>
 
-#include <memory>
 #include <type_traits>
 #include <vector>
 
@@ -103,23 +102,11 @@ __SYCL_EXPORT void contextSetExtendedDeleter(const sycl::context &constext,
                                              void *user_data);
 }
 
-class Adapter;
-using AdapterPtr = std::shared_ptr<Adapter>;
-
 // TODO: To be removed as this was only introduced for esimd which was removed.
 template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace ur {
-void *getURLoaderLibrary();
-
-// Performs UR one-time initialization.
-std::vector<AdapterPtr> &
-initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
-
-// Get the adapter serving given backend.
-template <backend BE> const AdapterPtr &getAdapter();
-
 // The SYCL_UR_TRACE sets what we will trace.
 // This is a bit-mask of various things we'd want to trace.
 enum TraceLevel { TRACE_BASIC = 0x1, TRACE_CALLS = 0x2, TRACE_ALL = -1 };

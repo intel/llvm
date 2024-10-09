@@ -39,7 +39,7 @@ Release notes for commit range
   when compiling NVPTX. intel/llvm#14621
 - Added support for `::rand` and `::srand` in device code on Intel devices. intel/llvm#13506
 - Added support for `sm90a` CUDA target architecture. intel/llvm#14075
-- Added support for detecting misaligned data accesses via address sanitizer. intell/llvm#14148
+- Added support for detecting misaligned data accesses via address sanitizer. intel/llvm#14148
 - Added support for emitting multiple error reports via address sanitizer
   through `-fsanitize-recover=address`. intel/llvm#13948
 - Added initial support for
@@ -175,7 +175,7 @@ Release notes for commit range
   Please note that this functionality relies on the compile knowing which
   targets support which optional kernel features and that database is not yet
   fully complete. In particular, data for Lunar Lake and Battlemage Intel GPUs
-  is still missing. intel/llvm#14590 intel/llvm#14188 intel/lvm#12727
+  is still missing. intel/llvm#14590 intel/llvm#14188 intel/llvm#12727
   intel/llvm#14757 intel/llvm#13486 intel/llvm#13974 intel/llvm#13617
 - Enhanced compiler to annotate SYCL kernel arguments passed by value with
   `__grid_constant__` for CUDA backend. intel/llvm#14322
@@ -273,7 +273,7 @@ Release notes for commit range
 - Relaxed diagnostic about using virtual functions in SYCL kernels: now it is
   only emitted if a call is perfomed using virtual call mechanism, but it is not
   emitted for non-virtual calls of virtual functions. See also
-  KhronosGroup/SYCL-Docs#565. intel/llvm#114051 intel/llvm#14141
+  KhronosGroup/SYCL-Docs#565. intel/llvm#14051 intel/llvm#14141
 - ESIMD API `inv` was extended to support `double` arguments. intel/llvm#13838
 - Enhanced validation (via `static_assert` mechanism) of template arguments of
   ESIMD `rdregion` and `wrregion` APIs. intel/llvm#13158
@@ -484,7 +484,7 @@ Release notes for commit range
   extension. intel/llvm#14522
 - Fixed a bug where defining kernel as a named functor whilst using
   `-fno-sycl-unnamed-lambda` would lead to a compilation error about unnamed
-  lambdas being unsupported. intel/lvm#14614
+  lambdas being unsupported. intel/llvm#14614
 - Fixed an issue on CUDA & AMDGPU backends where `multi_ptr` relational
   operators taking `std::nullptr_t` would produce different results to their
   corresponding standard C++ helpers like `std::less`. intel/llvm#13201

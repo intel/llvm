@@ -15,7 +15,6 @@
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: CL/__spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
@@ -61,11 +60,6 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
@@ -83,6 +77,7 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: range.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
@@ -143,6 +138,11 @@
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
+// CHECK-NEXT: detail/cl.h
+// CHECK-NEXT: CL/cl.h
+// CHECK-NEXT: CL/cl_version.h
+// CHECK-NEXT: CL/cl_platform.h
+// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/reduction_forward.hpp
 // CHECK-NEXT: detail/ur.hpp
 // CHECK-NEXT: ur_api_funcs.def

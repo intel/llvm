@@ -9,6 +9,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 
@@ -704,17 +705,26 @@ bool device_impl::has(aspect Aspect) const {
     return CallSuccessful && Result != nullptr;
   }
   case aspect::ext_oneapi_graph: {
-    bool SupportsCommandBufferUpdate = false;
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
     bool CallSuccessful =
         getAdapter()->call_nocheck<UrApiKind::urDeviceGetInfo>(
-            MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP,
-            sizeof(SupportsCommandBufferUpdate), &SupportsCommandBufferUpdate,
+            MDevice, UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP,
+            sizeof(UpdateCapabilities), &UpdateCapabilities,
             nullptr) == UR_RESULT_SUCCESS;
     if (!CallSuccessful) {
       return false;
     }
 
-    return has(aspect::ext_oneapi_limited_graph) && SupportsCommandBufferUpdate;
+    /* The kernel handle update capability is not yet required for the
+     * ext_oneapi_graph aspect */
+    ur_device_command_buffer_update_capability_flags_t RequiredCapabilities =
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
+
+    return has(aspect::ext_oneapi_limited_graph) &&
+           (UpdateCapabilities & RequiredCapabilities) == RequiredCapabilities;
   }
   case aspect::ext_oneapi_limited_graph: {
     bool SupportsCommandBuffers = false;
