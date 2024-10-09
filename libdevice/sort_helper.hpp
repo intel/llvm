@@ -296,34 +296,38 @@ void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
                                         uint8_t *scratch, Compare comp) {
   const size_t local_idx = __get_wg_local_linear_id();
   const size_t wg_size = __get_wg_local_range();
-  KeyT *temp_key_beg = reinterpret_cast<KeyT *>(scratch);
-  uint64_t temp_val_unaligned =
-      reinterpret_cast<uint64_t>(scratch + 2 * wg_size * n * sizeof(KeyT));
-  ValT *temp_val_beg = nullptr;
-  uint64_t temp1 = temp_val_unaligned % alignof(ValT);
-  if (temp1)
-    temp_val_beg =
-        reinterpret_cast<ValT *>(temp_val_unaligned + alignof(ValT) - temp1);
-  else
-    temp_val_beg = reinterpret_cast<ValT *>(temp_val_unaligned);
+  uint64_t temp_val_beg = 0, temp_key_beg = 0, internal_scratch = 0;
+  KeyT *keys_ptr = nullptr;
+  ValT *vals_ptr = nullptr;
+  uint8_t *scratch_ptr = nullptr;
 
-  uint8_t *internal_scratch =
-      reinterpret_cast<uint8_t *>(&temp_key_beg[n * wg_size]);
-  temp_val_beg = &temp_val_beg[n * wg_size];
+  if (local_idx == 0) {
+    uint64_t temp_val_unaligned =
+        reinterpret_cast<uint64_t>(scratch + 2 * wg_size * n * sizeof(KeyT));
+    uint64_t temp1 = temp_val_unaligned % alignof(ValT);
+    temp_val_beg = (temp1 != 0) ? (temp_val_unaligned + alignof(ValT) - temp1)
+                                : temp_val_unaligned;
+    temp_val_beg += sizeof(ValT) * n * wg_size;
+    temp_key_beg = reinterpret_cast<uint64_t>(scratch);
+    internal_scratch = temp_key_beg + sizeof(KeyT) * n * wg_size;
+  }
+
+  keys_ptr = reinterpret_cast<KeyT *>(group_broadcast(temp_key_beg));
+  vals_ptr = reinterpret_cast<ValT *>(group_broadcast(temp_val_beg));
+  scratch_ptr = reinterpret_cast<uint8_t *>(group_broadcast(internal_scratch));
 
   for (size_t i = 0; i < n; ++i) {
-    temp_key_beg[local_idx * n + i] = keys[i];
-    temp_val_beg[local_idx * n + i] = vals[i];
+    keys_ptr[local_idx * n + i] = keys[i];
+    vals_ptr[local_idx * n + i] = vals[i];
   }
 
   group_barrier();
 
-  merge_sort_key_value(temp_key_beg, temp_val_beg, n * wg_size,
-                       internal_scratch, comp);
+  merge_sort_key_value(keys_ptr, vals_ptr, n * wg_size, scratch_ptr, comp);
 
   for (size_t i = 0; i < n; ++i) {
-    keys[i] = temp_key_beg[local_idx * n + i];
-    vals[i] = temp_val_beg[local_idx * n + i];
+    keys[i] = keys_ptr[local_idx * n + i];
+    vals[i] = vals_ptr[local_idx * n + i];
   }
 }
 

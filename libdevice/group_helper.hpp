@@ -30,4 +30,8 @@ static inline void group_barrier() {
                              __spv::MemorySemanticsMask::WorkgroupMemory |
                              __spv::MemorySemanticsMask::CrossWorkgroupMemory);
 }
+
+static inline uint64_t group_broadcast(uint64_t x) {
+  return __spirv_GroupBroadcast(__spv::Scope::Flag::Workgroup, x, 0);
+}
 #endif // __SPIR__ || __SPIRV__

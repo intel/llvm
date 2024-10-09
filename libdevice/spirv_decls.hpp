@@ -83,4 +83,6 @@ extern DEVICE_EXTERNAL void
 __spirv_AtomicStore(int *, __spv::Scope::Flag, __spv::MemorySemanticsMask::Flag,
                     int);
 
+extern DEVICE_EXTERNAL uint64_t __spirv_GroupBroadcast(__spv::Scope::Flag,
+                                                       uint64_t, uint64_t);
 #endif // __SPIR__ || __SPIRV__
