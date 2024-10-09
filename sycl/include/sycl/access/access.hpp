@@ -325,58 +325,6 @@ template <typename T>
 using remove_decoration_t = typename remove_decoration<T>::type;
 
 namespace detail {
-
-// Helper function for selecting appropriate casts between address spaces.
-template <typename ToT, typename FromT> inline ToT cast_AS(FromT from) {
-#ifdef __SYCL_DEVICE_ONLY__
-  constexpr access::address_space ToAS = deduce_AS<ToT>::value;
-  constexpr access::address_space FromAS = deduce_AS<FromT>::value;
-  if constexpr (FromAS == access::address_space::generic_space) {
-#if defined(__NVPTX__) || defined(__AMDGCN__) || defined(__SYCL_NATIVE_CPU__)
-    // TODO: NVPTX and AMDGCN backends do not currently support the
-    //       __spirv_GenericCastToPtrExplicit_* builtins, so to work around this
-    //       we do C-style casting. This may produce warnings when targetting
-    //       these backends.
-    return (ToT)from;
-#else
-    using ToElemT = std::remove_pointer_t<remove_decoration_t<ToT>>;
-    if constexpr (ToAS == access::address_space::global_space)
-      return __SYCL_GenericCastToPtrExplicit_ToGlobal<ToElemT>(from);
-    else if constexpr (ToAS == access::address_space::local_space)
-      return __SYCL_GenericCastToPtrExplicit_ToLocal<ToElemT>(from);
-    else if constexpr (ToAS == access::address_space::private_space)
-      return __SYCL_GenericCastToPtrExplicit_ToPrivate<ToElemT>(from);
-#ifdef __ENABLE_USM_ADDR_SPACE__
-    else if constexpr (ToAS == access::address_space::
-                                   ext_intel_global_device_space ||
-                       ToAS ==
-                           access::address_space::ext_intel_global_host_space)
-      // For extended address spaces we do not currently have a SPIR-V
-      // conversion function, so we do a C-style cast. This may produce
-      // warnings.
-      return (ToT)from;
-#endif // __ENABLE_USM_ADDR_SPACE__
-    else
-      return reinterpret_cast<ToT>(from);
-#endif // defined(__NVPTX__) || defined(__AMDGCN__)
-  } else
-#ifdef __ENABLE_USM_ADDR_SPACE__
-      if constexpr (FromAS == access::address_space::global_space &&
-                    (ToAS ==
-                         access::address_space::ext_intel_global_device_space ||
-                     ToAS ==
-                         access::address_space::ext_intel_global_host_space)) {
-    // Casting from global address space to the global device and host address
-    // spaces is allowed.
-    return (ToT)from;
-  } else
-#endif // __ENABLE_USM_ADDR_SPACE__
-#endif // __SYCL_DEVICE_ONLY__
-  {
-    return reinterpret_cast<ToT>(from);
-  }
-}
-
 #ifdef __SYCL_DEVICE_ONLY__
 inline constexpr bool
 address_space_cast_is_possible(access::address_space Src,
@@ -446,7 +394,13 @@ auto static_address_cast(ElementType *Ptr) {
   }
 #endif
 }
-template <access::address_space Space, typename ElementType>
+// Previous implementation (`castAS`, used in `multi_ptr` ctors among other
+// places), used C-style cast instead of a proper dynamic check for some
+// backends/spaces. `SupressNotImplementedAssert = true` parameter is emulating
+// that previous behavior until the proper support is added for compatibility
+// reasons.
+template <access::address_space Space, bool SupressNotImplementedAssert = false,
+          typename ElementType>
 auto dynamic_address_cast(ElementType *Ptr) {
   constexpr auto generic_space = access::address_space::generic_space;
   constexpr auto global_space = access::address_space::global_space;
@@ -471,7 +425,9 @@ auto dynamic_address_cast(ElementType *Ptr) {
   } else if constexpr (SrcAS == global_space &&
                        (Space == global_device || Space == global_host)) {
 #if defined(__ENABLE_USM_ADDR_SPACE__)
-    static_assert(Space != Space, "Not supported yet!");
+    static_assert(SupressNotImplementedAssert || Space != Space,
+                  "Not supported yet!");
+    return static_address_cast<Space>(Ptr);
 #else
     // If __ENABLE_USM_ADDR_SPACE__ isn't defined then both
     // global_device/global_host are just aliases for global_space.
@@ -496,8 +452,9 @@ auto dynamic_address_cast(ElementType *Ptr) {
 #endif
 #endif
   } else {
-    static_assert(Space != Space, "Not supported yet!");
-    return (dst_type) nullptr;
+    static_assert(SupressNotImplementedAssert || Space != Space,
+                  "Not supported yet!");
+    return static_address_cast<Space>(Ptr);
   }
 }
 #else  // __SYCL_DEVICE_ONLY__
@@ -505,7 +462,8 @@ template <access::address_space Space, typename ElementType>
 auto static_address_cast(ElementType *Ptr) {
   return Ptr;
 }
-template <access::address_space Space, typename ElementType>
+template <access::address_space Space, bool SupressNotImplementedAssert = false,
+          typename ElementType>
 auto dynamic_address_cast(ElementType *Ptr) {
   return Ptr;
 }

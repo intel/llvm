@@ -697,15 +697,18 @@ public:
   // Explicit conversion to a multi_ptr<ElementType>
   template <typename ElementType>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    return {static_cast<typename multi_ptr<ElementType, Space,
-                                           access::decorated::yes>::pointer>(
-        m_Pointer)};
+    return multi_ptr<ElementType, Space, DecorateAddress>{
+        static_cast<typename multi_ptr<ElementType, Space,
+                                       access::decorated::yes>::pointer>(
+            m_Pointer)};
   }
 
   // Implicit conversion to the negated decoration version of multi_ptr.
   operator multi_ptr<value_type, Space,
                      detail::NegateDecorated<DecorateAddress>::value>() const {
-    return {m_Pointer};
+    return multi_ptr<value_type, Space,
+                     detail::NegateDecorated<DecorateAddress>::value>{
+        m_Pointer};
   }
 
   // Explicit conversion to global_space
@@ -772,14 +775,17 @@ public:
 #endif
 
   multi_ptr(ElementType *pointer)
-      : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {
+      : m_Pointer(detail::dynamic_address_cast<
+                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
+  // TODO: This isn't SFINAE, is it? How does this work?
   template <typename = typename detail::const_if_const_AS<Space, ElementType>>
   multi_ptr(const ElementType *pointer)
-      : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {}
+      : m_Pointer(detail::dynamic_address_cast<
+                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {}
 #endif
 
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -806,7 +812,8 @@ public:
   multi_ptr &operator=(ElementType *pointer) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
-    m_Pointer = detail::cast_AS<pointer_t>(pointer);
+    m_Pointer = detail::dynamic_address_cast<
+        Space, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 
@@ -1103,14 +1110,19 @@ public:
       typename RelayPointerT = pointer_t,
       typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
                                   !std::is_same_v<RelayPointerT, void *>>>
-  multi_ptr(void *pointer) : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {
+  multi_ptr(void *pointer)
+      : m_Pointer(detail::dynamic_address_cast<
+                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer)
-      : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {}
+      : m_Pointer(
+            detail::dynamic_address_cast<
+                pointer_t, /* SupressNotImplementedAssert = */ true>(pointer)) {
+  }
 #endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -1140,7 +1152,8 @@ public:
   multi_ptr &operator=(void *pointer) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
-    m_Pointer = detail::cast_AS<pointer_t>(pointer);
+    m_Pointer = detail::dynamic_address_cast<
+        Space, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 #endif
@@ -1260,14 +1273,16 @@ public:
       typename = std::enable_if_t<std::is_same_v<RelayPointerT, pointer_t> &&
                                   !std::is_same_v<RelayPointerT, const void *>>>
   multi_ptr(const void *pointer)
-      : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {
+      : m_Pointer(detail::dynamic_address_cast<
+                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
   }
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
   template <typename = typename detail::const_if_const_AS<Space, void>>
   multi_ptr(const void *pointer)
-      : m_Pointer(detail::cast_AS<pointer_t>(pointer)) {}
+      : m_Pointer(detail::dynamic_address_cast<
+                  Space, /* SupressNotImplementedAssert = */ true>(pointer)) {}
 #endif
 #endif
   multi_ptr(std::nullptr_t) : m_Pointer(nullptr) {}
@@ -1297,7 +1312,8 @@ public:
   multi_ptr &operator=(const void *pointer) {
     // TODO An implementation should reject an argument if the deduced
     // address space is not compatible with Space.
-    m_Pointer = detail::cast_AS<pointer_t>(pointer);
+    m_Pointer = detail::dynamic_address_cast<
+        pointer_t, /* SupressNotImplementedAssert = */ true>(pointer);
     return *this;
   }
 #endif
@@ -1425,8 +1441,8 @@ address_space_cast(ElementType *pointer) {
   // space is not compatible with Space.
   // Use LegacyPointerTypes here to also allow constant_space
   return multi_ptr<ElementType, Space, DecorateAddress>(
-      detail::cast_AS<
-          typename detail::LegacyPointerTypes<ElementType, Space>::pointer_t>(
+      detail::dynamic_address_cast<Space,
+                                   /* SupressNotImplementedAssert = */ true>(
           pointer));
 }
 
