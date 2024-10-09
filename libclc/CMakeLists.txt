@@ -157,6 +157,7 @@ if( llvm-spirv_exe )
   list( APPEND LIBCLC_TARGETS_ALL  spirv-mesa3d- spirv64-mesa3d- )
 endif()
 
+<<<<<<< HEAD
 option( LIBCLC_GENERATE_REMANGLED_VARIANTS
   "Generate remangled variants of enabled libclc targets." OFF )
 
@@ -172,6 +173,8 @@ endif()
 
 list( SORT LIBCLC_TARGETS_TO_BUILD )
 
+=======
+>>>>>>> a4de127086ba4e39effb28642973edbb758e9656
 # Verify that the user hasn't requested mesa3d targets without an available
 # llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
@@ -180,8 +183,26 @@ if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST
   endif()
 endif()
 
+<<<<<<< HEAD
 add_custom_target(libspirv-builtins COMMENT "Build libspirv builtins")
 add_custom_target(libclc-builtins COMMENT "Build libclc builtins")
+=======
+if( LIBCLC_TARGETS_TO_BUILD STREQUAL "all" )
+  set( LIBCLC_TARGETS_TO_BUILD ${LIBCLC_TARGETS_ALL} )
+else()
+  foreach(TARGET_TO_BUILD ${LIBCLC_TARGETS_TO_BUILD})
+    if (NOT ${TARGET_TO_BUILD} IN_LIST LIBCLC_TARGETS_ALL)
+      message ( FATAL_ERROR "Unknown target in LIBCLC_TARGETS_TO_BUILD: \"${TARGET_TO_BUILD}\"\n"
+                            "Valid targets are: ${LIBCLC_TARGETS_ALL}\n")
+    endif()
+  endforeach()
+endif()
+
+list( SORT LIBCLC_TARGETS_TO_BUILD )
+
+# Construct LLVM version define
+set( LLVM_VERSION_DEFINE "-DHAVE_LLVM=0x${LLVM_VERSION_MAJOR}0${LLVM_VERSION_MINOR}" )
+>>>>>>> a4de127086ba4e39effb28642973edbb758e9656
 
 set(LIBCLC_TARGET_TO_TEST)
 

@@ -1072,8 +1072,9 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         } else
           TC = &getToolChain(C.getInputArgs(), TT);
         C.addOffloadDeviceToolChain(TC, Action::OFK_OpenMP);
-        if (DerivedArchs.contains(TT.getTriple()))
-          KnownArchs[TC] = DerivedArchs[TT.getTriple()];
+        auto It = DerivedArchs.find(TT.getTriple());
+        if (It != DerivedArchs.end())
+          KnownArchs[TC] = It->second;
       }
     }
   } else if (C.getInputArgs().hasArg(options::OPT_fopenmp_targets_EQ)) {
@@ -2816,7 +2817,7 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
 
   if (C.getArgs().hasArg(options::OPT_print_multi_lib)) {
     for (const Multilib &Multilib : TC.getMultilibs())
-      if (!Multilib.isFatalError())
+      if (!Multilib.isError())
         llvm::outs() << Multilib << "\n";
     return false;
   }
@@ -6611,11 +6612,10 @@ public:
   void recordHostAction(Action *HostAction, const Arg *InputArg) {
     assert(HostAction && "Invalid host action");
     assert(InputArg && "Invalid input argument");
-    auto Loc = HostActionToInputArgMap.find(HostAction);
-    if (Loc == HostActionToInputArgMap.end())
-      HostActionToInputArgMap[HostAction] = InputArg;
-    assert(HostActionToInputArgMap[HostAction] == InputArg &&
+    auto Loc = HostActionToInputArgMap.try_emplace(HostAction, InputArg).first;
+    assert(Loc->second == InputArg &&
            "host action mapped to multiple input arguments");
+    (void)Loc;
   }
 
   /// Generate an action that adds device dependences (if any) to a host action.
@@ -8931,8 +8931,9 @@ InputInfoList Driver::BuildJobsForActionNoCache(
     std::pair<const Action *, std::string> ActionTC = {
         OA->getHostDependence(),
         GetTriplePlusArchString(TC, BoundArch, TargetDeviceOffloadKind)};
-    if (CachedResults.find(ActionTC) != CachedResults.end()) {
-      InputInfoList Inputs = CachedResults[ActionTC];
+    auto It = CachedResults.find(ActionTC);
+    if (It != CachedResults.end()) {
+      InputInfoList Inputs = It->second;
       Inputs.append(OffloadDependencesInputInfo);
       return Inputs;
     }

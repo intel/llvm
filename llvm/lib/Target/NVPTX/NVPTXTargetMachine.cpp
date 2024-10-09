@@ -325,7 +325,6 @@ void NVPTXPassConfig::addIRPasses() {
   disablePass(&MachineCopyPropagationID);
   disablePass(&TailDuplicateID);
   disablePass(&StackMapLivenessID);
-  disablePass(&LiveDebugValuesID);
   disablePass(&PostRAMachineSinkingID);
   disablePass(&PostRASchedulerID);
   disablePass(&FuncletLayoutID);
