@@ -248,6 +248,10 @@ bool isSpecConstantOpAllowedOp(Op OC) {
       OpInBoundsAccessChain,
       OpPtrAccessChain,
       OpInBoundsPtrAccessChain,
+      OpUntypedAccessChainKHR,
+      OpUntypedInBoundsAccessChainKHR,
+      OpUntypedPtrAccessChainKHR,
+      OpUntypedInBoundsPtrAccessChainKHR,
   };
   static std::unordered_set<SPIRVWord> Allow(std::begin(Table),
                                              std::end(Table));

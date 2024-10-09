@@ -323,8 +323,7 @@ public:
                                      SPIRVWord Capacity) override;
 
   // Instruction creation functions
-  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
-                                          std::vector<SPIRVValue *>,
+  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, std::vector<SPIRVWord>,
                                           SPIRVBasicBlock *, bool) override;
   SPIRVInstruction *addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest,
                                       SPIRVValue *Src, SPIRVValue *NumElems,
@@ -1725,13 +1724,19 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
 }
 
 SPIRVInstruction *
-SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
-                                       std::vector<SPIRVValue *> Indices,
+SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type,
+                                       std::vector<SPIRVWord> TheOps,
                                        SPIRVBasicBlock *BB, bool IsInBounds) {
+  if (Type->isTypeUntypedPointerKHR())
+    return addInstruction(SPIRVInstTemplateBase::create(
+                              IsInBounds ? OpUntypedInBoundsPtrAccessChainKHR
+                                         : OpUntypedPtrAccessChainKHR,
+                              Type, getId(), TheOps, BB, this),
+                          BB);
   return addInstruction(
-      SPIRVInstTemplateBase::create(
-          IsInBounds ? OpInBoundsPtrAccessChain : OpPtrAccessChain, Type,
-          getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
+      SPIRVInstTemplateBase::create(IsInBounds ? OpInBoundsPtrAccessChain
+                                               : OpPtrAccessChain,
+                                    Type, getId(), TheOps, BB, this),
       BB);
 }
 

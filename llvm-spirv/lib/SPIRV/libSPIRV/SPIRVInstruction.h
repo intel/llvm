@@ -1695,17 +1695,38 @@ _SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
 
 class SPIRVAccessChainBase : public SPIRVInstTemplateBase {
 public:
-  SPIRVValue *getBase() { return this->getValue(this->Ops[0]); }
+  SPIRVValue *getBase() {
+    if (this->isUntyped())
+      return this->getValue(this->Ops[1]);
+    return this->getValue(this->Ops[0]);
+  }
+  SPIRVType *getBaseType() {
+    if (this->isUntyped())
+      return get<SPIRVType>(this->Ops[0]);
+    return this->getValue(this->Ops[0])->getType();
+  }
   std::vector<SPIRVValue *> getIndices() const {
-    std::vector<SPIRVWord> IndexWords(this->Ops.begin() + 1, this->Ops.end());
+    unsigned IdxShift = this->isUntyped() ? 2 : 1;
+    std::vector<SPIRVWord> IndexWords(this->Ops.begin() + IdxShift,
+                                      this->Ops.end());
     return this->getValues(IndexWords);
   }
   bool isInBounds() {
     return OpCode == OpInBoundsAccessChain ||
-           OpCode == OpInBoundsPtrAccessChain;
+           OpCode == OpInBoundsPtrAccessChain ||
+           OpCode == OpUntypedInBoundsAccessChainKHR ||
+           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
   }
   bool hasPtrIndex() {
-    return OpCode == OpPtrAccessChain || OpCode == OpInBoundsPtrAccessChain;
+    return OpCode == OpPtrAccessChain || OpCode == OpInBoundsPtrAccessChain ||
+           OpCode == OpUntypedPtrAccessChainKHR ||
+           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+  }
+  bool isUntyped() const {
+    return OpCode == OpUntypedAccessChainKHR ||
+           OpCode == OpUntypedInBoundsAccessChainKHR ||
+           OpCode == OpUntypedPtrAccessChainKHR ||
+           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
   }
 };
 
@@ -1720,6 +1741,15 @@ typedef SPIRVAccessChainGeneric<OpInBoundsAccessChain, 4>
 typedef SPIRVAccessChainGeneric<OpPtrAccessChain, 5> SPIRVPtrAccessChain;
 typedef SPIRVAccessChainGeneric<OpInBoundsPtrAccessChain, 5>
     SPIRVInBoundsPtrAccessChain;
+
+typedef SPIRVAccessChainGeneric<OpUntypedAccessChainKHR, 5>
+    SPIRVUntypedAccessChainKHR;
+typedef SPIRVAccessChainGeneric<OpUntypedInBoundsAccessChainKHR, 5>
+    SPIRVUntypedInBoundsAccessChainKHR;
+typedef SPIRVAccessChainGeneric<OpUntypedPtrAccessChainKHR, 6>
+    SPIRVUntypedPtrAccessChainKHR;
+typedef SPIRVAccessChainGeneric<OpUntypedInBoundsPtrAccessChainKHR, 6>
+    SPIRVUntypedInBoundsPtrAccessChainKHR;
 
 class SPIRVLoopControlINTEL : public SPIRVInstruction {
 public:

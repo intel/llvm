@@ -313,8 +313,8 @@ public:
                                              SPIRVWord Capacity) = 0;
 
   // Instruction creation functions
-  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
-                                                  std::vector<SPIRVValue *>,
+  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *,
+                                                  std::vector<SPIRVWord>,
                                                   SPIRVBasicBlock *, bool) = 0;
   virtual SPIRVInstruction *
   addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest, SPIRVValue *Src,
