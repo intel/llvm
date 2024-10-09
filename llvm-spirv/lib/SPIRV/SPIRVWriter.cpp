@@ -3713,6 +3713,7 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
         E->addDecorate(new SPIRVDecorateCacheControlLoadINTEL(
             E, CacheLevel, static_cast<LoadCacheControl>(CacheControl)));
       }
+      break;
     }
 
     default:
