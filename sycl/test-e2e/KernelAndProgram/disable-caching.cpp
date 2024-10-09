@@ -5,10 +5,7 @@
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 SYCL_CACHE_IN_MEM=0 %{run} %t.out \
 // RUN: | FileCheck %s
 // RUN: env ZE_DEBUG=-6 SYCL_UR_TRACE=2 %{run} %t.out \
-// RUN: | FileCheck %s --check-prefixes=CHECK-CACHE
-
-// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
-// XFAIL: windows
+// RUN: | FileCheck %s --check-prefixes=CHECK-CACHE%if !windows %{,CHECK-RELEASE%}
 
 #include <sycl/detail/core.hpp>
 
@@ -93,10 +90,16 @@ int main() {
   free(p, q);
 }
 
+// On Windows, dlls unloading is inconsistent and if we try to release these UR
+// objects manually, inconsistent hangs happen due to a race between unloading
+// the UR adapters dlls (in addition to their dependency dlls) and the releasing
+// of these UR objects. So, we currently shutdown without releasing them and
+// windows should handle the memory cleanup.
+
 // (Program cache releases)
-// CHECK-CACHE: <--- urKernelRelease
-// CHECK-CACHE: <--- urKernelRelease
-// CHECK-CACHE: <--- urKernelRelease
-// CHECK-CACHE: <--- urProgramRelease
-// CHECK-CACHE: <--- urProgramRelease
-// CHECK-CACHE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urProgramRelease
+// CHECK-RELEASE: <--- urProgramRelease
