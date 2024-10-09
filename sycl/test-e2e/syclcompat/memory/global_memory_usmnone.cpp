@@ -130,10 +130,13 @@ int main() try {
       auto c1_acc = c1_a.get_access(cgh);
       auto c2_acc = c2_a.get_access(cgh);
       cgh.parallel_for<syclcompat_kernel_name<class kernel_test1>>(
-        sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-        [=] (sycl::nd_item<3> item) {
-          test1(d1_acc.get_pointer(), d2_acc.get_pointer(), c1_acc.get_pointer(), c2_acc);
-        });
+          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+          [=](sycl::nd_item<3> item) {
+            test1(d1_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                  d2_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                  c1_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                  c2_acc);
+          });
     });
   syclcompat::get_default_queue().submit(
     [&](sycl::handler &cgh) {
@@ -156,10 +159,11 @@ int main() try {
       auto d3_acc = d3_a.get_access(cgh);
       auto d4_acc = d4_a.get_access(cgh);
       cgh.parallel_for<syclcompat_kernel_name<class kernel_test3>>(
-        sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
-        [=] (sycl::nd_item<3> item) {
-          test4(d3_acc.get_pointer(), d4_acc.get_pointer());
-        });
+          sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
+          [=](sycl::nd_item<3> item) {
+            test4(d3_acc.get_multi_ptr<sycl::access::decorated::no>().get(),
+                  d4_acc.get_multi_ptr<sycl::access::decorated::no>().get());
+          });
     });
 
 

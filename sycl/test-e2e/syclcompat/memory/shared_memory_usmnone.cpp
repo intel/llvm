@@ -55,7 +55,10 @@ int main () {
           [=](sycl::nd_item<3> item_ct1) {
             float *array_ct0 = (float *)(&array_acc_ct0[0] + array_offset_ct0);
             float *result_ct1 = (float *)(&result_acc_ct1[0] + result_offset_ct1);
-            my_kernel(array_ct0, result_ct1, item_ct1, resultInGroup_acc_ct1.get_pointer());
+            my_kernel(array_ct0, result_ct1, item_ct1,
+                      resultInGroup_acc_ct1
+                          .get_multi_ptr<sycl::access::decorated::no>()
+                          .get());
           });
       });
   }
