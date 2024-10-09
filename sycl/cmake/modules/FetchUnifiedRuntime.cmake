@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
-  # Merge: 1f13d2ce cf5994a1
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Oct 3 10:47:01 2024 +0200
-  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
-  #     Fix mixed output of adapter and regular traces
-  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
+  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
+  # Merge: 7b4bc761 fbb6e862
+  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
+  # Date:   Fri Oct 4 16:39:59 2024 +0100
+  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
+  #     [L0] Fix device query of bindless image support
+  set(UNIFIED_RUNTIME_TAG b79ebe4e98789144bcdf3832088eb6e6b5ae6967)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
