@@ -116,14 +116,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit c742ca49efb12380a35b8b0b467e6577ab8174ce
-  # Merge: 3a8bf2c5 504d3b63
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Mon Oct 21 11:55:23 2024 +0100
-  #     Merge pull request #2131 from Bensuo/ben/command-handle-fix
-  #     [EXP][CMDBUF] Make command handle behaviour consistent
-  set(UNIFIED_RUNTIME_TAG c742ca49efb12380a35b8b0b467e6577ab8174ce)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
+  # Author: Artur Gainullin <artur.gainullin@intel.com>
+  # Date:   Tue Oct 22 03:30:08 2024 -0700
+  #
+  #     Support UR program creation from multiple device binaries (#2147)
+  set(UNIFIED_RUNTIME_TAG 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
