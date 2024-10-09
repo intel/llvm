@@ -127,7 +127,7 @@ TEST_P(OutOfResourcesTestSuite, urProgramLink) {
   nProgramLink = 0;
   sycl::unittest::UrMock<> Mock;
   ErrorCode = GetParam();
-  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+  mock::getCallbacks().set_before_callback("urProgramLink",
                                            &redefinedProgramLink);
 
   sycl::platform Plt{sycl::platform()};

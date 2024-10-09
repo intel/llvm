@@ -21,10 +21,10 @@
 
 // CHECK-BUILD-NOT: <--- urProgramCreateWithBinary(
 // CHECK-BUILD: <--- urProgramCreateWithIL(
-// CHECK-BUILD: <--- urProgramBuild{{(Exp)?}}(
+// CHECK-BUILD: <--- urProgramBuild(
 
 // CHECK-CACHE-NOT: <--- urProgramCreateWithIL(
 // CHECK-CACHE: <--- urProgramCreateWithBinary(
-// CHECK-CACHE: <--- urProgramBuild{{(Exp)?}}(
+// CHECK-CACHE: <--- urProgramBuild(
 
 #include "cache_env_vars.hpp"
