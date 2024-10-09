@@ -78,4 +78,12 @@ endif()
 FetchContent_MakeAvailable(ocl-icd)
 add_library(OpenCL-ICD ALIAS OpenCL)
 
+# Deploy OpenCL loader into package, this is required for OCL CPU test.
+if (NOT INTEL_OPENCL_STANDALONE_PRODUCT)
+  install(TARGETS OpenCL
+          ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT OpenCL-ICD
+          LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT OpenCL-ICD
+          RUNTIME DESTINATION "bin" COMPONENT OpenCL-ICD)
+endif()
+
 add_subdirectory(opencl-aot)
