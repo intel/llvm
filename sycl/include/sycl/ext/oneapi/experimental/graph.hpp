@@ -167,6 +167,7 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed empty node which has been added to the graph.
   node add(const property_list &PropList = {}) {
+    checkNodePropertiesAndThrow(PropList);
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
       node Node = addImpl(Deps.get_dependencies());
@@ -187,6 +188,7 @@ public:
   /// @param PropList Property list used to pass [0..n] predecessor nodes.
   /// @return Constructed node which has been added to the graph.
   template <typename T> node add(T CGF, const property_list &PropList = {}) {
+    checkNodePropertiesAndThrow(PropList);
     if (PropList.has_property<property::node::depends_on>()) {
       auto Deps = PropList.get_property<property::node::depends_on>();
       node Node = addImpl(CGF, Deps.get_dependencies());
@@ -285,6 +287,8 @@ protected:
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 
   std::shared_ptr<detail::graph_impl> impl;
+
+  void checkNodePropertiesAndThrow(const property_list &Properties);
 };
 
 // Templateless executable command-graph base class.
