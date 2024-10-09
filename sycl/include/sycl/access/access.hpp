@@ -329,6 +329,11 @@ namespace detail {
 inline constexpr bool
 address_space_cast_is_possible(access::address_space Src,
                                access::address_space Dst) {
+  // constant_space is unique and is not interchangeable with any other.
+  auto constant_space = access::address_space::constant_space;
+  if (Src == constant_space || Dst == constant_space)
+    return Src == Dst;
+
   auto generic_space = access::address_space::generic_space;
   if (Src == Dst || Src == generic_space || Dst == generic_space)
     return true;
@@ -348,7 +353,6 @@ address_space_cast_is_possible(access::address_space Src,
   return false;
 }
 
-// TODO: Should generic <-> constant be allowed?
 template <access::address_space Space, typename ElementType>
 auto static_address_cast(ElementType *Ptr) {
   constexpr auto generic_space = access::address_space::generic_space;
@@ -394,6 +398,7 @@ auto static_address_cast(ElementType *Ptr) {
   }
 #endif
 }
+
 // Previous implementation (`castAS`, used in `multi_ptr` ctors among other
 // places), used C-style cast instead of a proper dynamic check for some
 // backends/spaces. `SupressNotImplementedAssert = true` parameter is emulating
