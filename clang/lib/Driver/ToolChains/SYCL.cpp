@@ -276,10 +276,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
   if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
 
   if (IgnoreSingleLibs)
     return LibraryList;
