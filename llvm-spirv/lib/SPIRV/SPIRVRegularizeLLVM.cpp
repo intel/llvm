@@ -574,13 +574,14 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
     if (!DecoMD) {
-      assert(!"Decoration does not name metadata");
+      assert(false && "Decoration does not name metadata");
       return;
     }
 
     constexpr size_t CacheControlsNumOps = 4;
     if (DecoMD->getNumOperands() != CacheControlsNumOps) {
-      assert(!"Cache controls metadata on instruction must have 4 operands");
+      assert(false &&
+             "Cache controls metadata on instruction must have 4 operands");
       return;
     }
 
@@ -593,7 +594,7 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
             ->getZExtValue();
     Value *PtrInstOp = Inst->getOperand(TargetArgNo);
     if (!PtrInstOp->getType()->isPointerTy()) {
-      assert(!"Cache controls must decorate a pointer");
+      assert(false && "Cache controls must decorate a pointer");
       return;
     }
 

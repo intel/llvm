@@ -5458,7 +5458,7 @@ void LLVMToSPIRVBase::transGlobalAnnotation(GlobalVariable *V) {
 
     StringRef AnnotationString;
     if (!getConstantStringInfo(GV, AnnotationString)) {
-      assert(!"Annotation string missing");
+      assert(false && "Annotation string missing");
       return;
     }
     DecorationsInfoVec Decorations =
