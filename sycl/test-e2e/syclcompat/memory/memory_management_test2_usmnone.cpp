@@ -314,9 +314,9 @@ void test5() {
         cgh.parallel_for(
           sycl::range<2>(DataW, DataH),
           [=](sycl::id<2> id) {
-            syclcompat::accessor<float, syclcompat::constant, 2> A(c_A_acc);
-            syclcompat::accessor<float, syclcompat::constant, 2> B(c_B_acc);
-            syclcompat::accessor<float, syclcompat::constant, 2> C(c_C_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::constant, 2> A(c_A_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::constant, 2> B(c_B_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::constant, 2> C(c_C_acc);
             int i = id[0], j = id[1];
             C[i][j] = A[i][j] + B[i][j];
           });
@@ -370,9 +370,9 @@ void test6() {
         cgh.parallel_for(
           sycl::range<2>(DataW, DataH),
           [=](sycl::id<2> id) {
-            syclcompat::accessor<float, syclcompat::global, 2> A(g_A_acc);
-            syclcompat::accessor<float, syclcompat::global, 2> B(g_B_acc);
-            syclcompat::accessor<float, syclcompat::global, 2> C(g_C_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::global, 2> A(g_A_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::global, 2> B(g_B_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::global, 2> C(g_C_acc);
             int i = id[0], j = id[1];
             C[i][j] = A[i][j] + B[i][j];
           });
@@ -467,7 +467,7 @@ void test9() {
         cgh.parallel_for(
           sycl::nd_range<2>(sycl::range<2>(Num, Num), sycl::range<2>(Num, Num)),
           [=](sycl::nd_item<2> id) {
-            syclcompat::accessor<float, syclcompat::local, 2> C_local(C_local_acc, acc_range);
+            syclcompat::accessor<float, syclcompat::memory_region::local, 2> C_local(C_local_acc, acc_range);
             int i = id.get_local_id(0), j = id.get_local_id(1);
             C_local[i][j] = 1;
             A[i * Num + j] = C_local[i][j] * 2;
