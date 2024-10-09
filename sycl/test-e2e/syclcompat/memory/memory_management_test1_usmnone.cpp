@@ -33,9 +33,9 @@ void test1() {
   // hostB[0..3999] -> deviceA[1000..4999]
   // deviceA[0..4999] -> hostC[0..4999]
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float));
+  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float));
+  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float));
   syclcompat::free((void*)d_A);
 
   // verify
@@ -80,9 +80,9 @@ void test2() {
   // hostB[0..3999] -> deviceA[1000..4999]
   // deviceA[0..4999] -> hostC[0..4999]
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), syclcompat::automatic);
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::automatic);
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), syclcompat::automatic);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float));
+  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float));
+  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float));
   syclcompat::free((void*)d_A);
 
   syclcompat::free(0);
@@ -141,8 +141,8 @@ void test3() {
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
   d_B = (float *)syclcompat::malloc(Num * sizeof(float));
   d_C = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float));
+  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float));
 
   d_A += Offset;
   d_B += Offset;
@@ -175,7 +175,7 @@ void test3() {
       });
   }
 
-  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float));
   syclcompat::free((void*)d_A);
   syclcompat::free((void*)d_B);
   syclcompat::free((void*)d_C);
@@ -210,13 +210,13 @@ void test4() {
 
   d_A = (int *)syclcompat::malloc(Num * sizeof(int));
   // hostA -> deviceA
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(int), syclcompat::host_to_device);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(int));
 
   // set d_A[0,..., 6] = 0
   syclcompat::memset((void*) d_A, 0, (Num - 3) * sizeof(int));
 
   // deviceA -> hostA
-  syclcompat::memcpy((void*) h_A, (void*) d_A, Num * sizeof(int), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) h_A, (void*) d_A, Num * sizeof(int));
 
   syclcompat::free((void*)d_A);
 
@@ -270,13 +270,13 @@ void test5() {
   // deviceA[0..4999] -> hostC[0..4999]
   // deviceB[0..4999] -> hostD[0..4999]
 
-  syclcompat::memcpy((void *)d_A.get_ptr(), (void *)&h_A[0], N1 * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((char *)d_A.get_ptr() + N1 * sizeof(float), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::automatic);
-  syclcompat::memcpy((void *)h_C, (void *)d_A.get_ptr(), Num * sizeof(float),   syclcompat::device_to_host);
+  syclcompat::memcpy((void *)d_A.get_ptr(), (void *)&h_A[0], N1 * sizeof(float));
+  syclcompat::memcpy((char *)d_A.get_ptr() + N1 * sizeof(float), (void*) h_B, (Num-N1) * sizeof(float));
+  syclcompat::memcpy((void *)h_C, (void *)d_A.get_ptr(), Num * sizeof(float));
 
-  syclcompat::memcpy((void *)d_B.get_ptr(), (void *)d_A.get_ptr(), N1 * sizeof(float), syclcompat::device_to_device);
-  syclcompat::memcpy((char *)d_B.get_ptr() + N1 * sizeof(float), (void *)((size_t)d_A.get_ptr() + N1* sizeof(float)), (Num - N1) * sizeof(float), syclcompat::automatic);
-  syclcompat::memcpy((void *)h_D, (void *)d_B.get_ptr(), Num * sizeof(float),   syclcompat::device_to_host);
+  syclcompat::memcpy((void *)d_B.get_ptr(), (void *)d_A.get_ptr(), N1 * sizeof(float));
+  syclcompat::memcpy((char *)d_B.get_ptr() + N1 * sizeof(float), (void *)((size_t)d_A.get_ptr() + N1* sizeof(float)), (Num - N1) * sizeof(float));
+  syclcompat::memcpy((void *)h_D, (void *)d_B.get_ptr(), Num * sizeof(float));
 
   // verify hostD
   for (int i = 0; i < N1; i++) {
@@ -316,9 +316,9 @@ void test1(sycl::queue &q) {
   // hostB[0..3999] -> deviceA[1000..4999]
   // deviceA[0..4999] -> hostC[0..4999]
   d_A = (float *)syclcompat::malloc(Num * sizeof(float), q);
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), syclcompat::host_to_device, q);
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::host_to_device), q;
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), syclcompat::device_to_host, q);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), q);
+  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), q);
+  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), q);
   syclcompat::free((void*)d_A, q);
 
   // verify
@@ -363,9 +363,9 @@ void test2(sycl::queue &q) {
   // hostB[0..3999] -> deviceA[1000..4999]
   // deviceA[0..4999] -> hostC[0..4999]
   d_A = (float *)syclcompat::malloc(Num * sizeof(float), q);
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), syclcompat::automatic, q);
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::automatic, q);
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), syclcompat::automatic, q);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), q);
+  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), q);
+  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), q);
   syclcompat::free((void*)d_A, q);
 
   syclcompat::free(0, q);
@@ -423,8 +423,8 @@ void test3(sycl::queue &q) {
   d_A = (float *)syclcompat::malloc(Num * sizeof(float), q);
   d_B = (float *)syclcompat::malloc(Num * sizeof(float), q);
   d_C = (float *)syclcompat::malloc(Num * sizeof(float), q);
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), syclcompat::host_to_device, q);
-  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device, q);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), q);
+  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), q);
 
   d_A += Offset;
   d_B += Offset;
@@ -457,7 +457,7 @@ void test3(sycl::queue &q) {
       });
   }
 
-  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float), syclcompat::device_to_host, q);
+  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float), q);
   syclcompat::free((void*)d_A, q);
   syclcompat::free((void*)d_B, q);
   syclcompat::free((void*)d_C, q);
@@ -492,13 +492,13 @@ void test4(sycl::queue &q) {
 
   d_A = (int *)syclcompat::malloc(Num * sizeof(int), q);
   // hostA -> deviceA
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(int), syclcompat::host_to_device, q);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(int), q);
 
   // set d_A[0,..., 6] = 0
   syclcompat::memset((void*) d_A, 0, (Num - 3) * sizeof(int), q);
 
   // deviceA -> hostA
-  syclcompat::memcpy((void*) h_A, (void*) d_A, Num * sizeof(int), syclcompat::device_to_host, q);
+  syclcompat::memcpy((void*) h_A, (void*) d_A, Num * sizeof(int), q);
 
   syclcompat::free((void*)d_A, q);
 
@@ -552,13 +552,13 @@ void test5(sycl::queue &q) {
   // deviceA[0..4999] -> hostC[0..4999]
   // deviceB[0..4999] -> hostD[0..4999]
 
-  syclcompat::memcpy((void *)d_A.get_ptr(), (void *)&h_A[0], N1 * sizeof(float), syclcompat::host_to_device, q);
-  syclcompat::memcpy((char *)d_A.get_ptr() + N1 * sizeof(float), (void*) h_B, (Num-N1) * sizeof(float), syclcompat::automatic, q);
-  syclcompat::memcpy((void *)h_C, (void *)d_A.get_ptr(), Num * sizeof(float),   syclcompat::device_to_host, q);
+  syclcompat::memcpy((void *)d_A.get_ptr(), (void *)&h_A[0], N1 * sizeof(float), q);
+  syclcompat::memcpy((char *)d_A.get_ptr() + N1 * sizeof(float), (void*) h_B, (Num-N1) * sizeof(float), q);
+  syclcompat::memcpy((void *)h_C, (void *)d_A.get_ptr(), Num * sizeof(float), q);
 
-  syclcompat::memcpy((void *)d_B.get_ptr(), (void *)d_A.get_ptr(), N1 * sizeof(float), syclcompat::device_to_device, q);
-  syclcompat::memcpy((char *)d_B.get_ptr() + N1 * sizeof(float), (void *)((size_t)d_A.get_ptr() + N1* sizeof(float)), (Num - N1) * sizeof(float), syclcompat::automatic, q);
-  syclcompat::memcpy((void *)h_D, (void *)d_B.get_ptr(), Num * sizeof(float),   syclcompat::device_to_host, q);
+  syclcompat::memcpy((void *)d_B.get_ptr(), (void *)d_A.get_ptr(), N1 * sizeof(float), q);
+  syclcompat::memcpy((char *)d_B.get_ptr() + N1 * sizeof(float), (void *)((size_t)d_A.get_ptr() + N1* sizeof(float)), (Num - N1) * sizeof(float), q);
+  syclcompat::memcpy((void *)h_D, (void *)d_B.get_ptr(), Num * sizeof(float), q);
 
   // verify hostD
   for (int i = 0; i < N1; i++) {

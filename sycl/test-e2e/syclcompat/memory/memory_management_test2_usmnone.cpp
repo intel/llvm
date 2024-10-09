@@ -48,12 +48,10 @@ void test1() {
   d_data = (float *)syclcompat::malloc(d_pitch, sizeof(float) * width, height);
 
   // copy to Device.
-  syclcompat::memcpy_direction cpyDir = syclcompat::host_to_device;
-  syclcompat::memcpy(d_data, d_pitch, h_data, h_pitch, sizeof(float) * width, height, cpyDir);
+  syclcompat::memcpy(d_data, d_pitch, h_data, h_pitch, sizeof(float) * width, height);
 
   // copy back to host.
-  cpyDir = syclcompat::device_to_host;
-  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, cpyDir);
+  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height);
 
   check(h_data, h_ref, width, height, 1);
 
@@ -61,8 +59,7 @@ void test1() {
   syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height);
 
   // copy back to host
-  cpyDir = syclcompat::device_to_host;
-  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, cpyDir);
+  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height);
 
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
@@ -96,8 +93,8 @@ void test2() {
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
   d_B = (float *)syclcompat::malloc(Num * sizeof(float));
   d_C = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float));
+  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float));
 
   {
     syclcompat::buffer_t buffer_A = syclcompat::get_buffer(d_A);
@@ -121,7 +118,7 @@ void test2() {
       syclcompat::get_default_queue().wait_and_throw();
   }
 
-  syclcompat::memcpy((void*) (h_C), (void*) d_C, (Num) * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) (h_C), (void*) d_C, (Num) * sizeof(float));
   syclcompat::free((void*)d_A);
   syclcompat::free((void*)d_B);
   syclcompat::free((void*)d_C);
@@ -163,8 +160,8 @@ void test3() {
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
   d_B = (float *)syclcompat::malloc(Num * sizeof(float));
   d_C = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float));
+  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float));
 
   {
     auto buffer_A = syclcompat::get_buffer<float>(d_A);
@@ -188,7 +185,7 @@ void test3() {
       syclcompat::get_default_queue().wait_and_throw();
   }
 
-  syclcompat::memcpy((void*) (h_C), (void*) d_C, Num * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) (h_C), (void*) d_C, Num * sizeof(float));
   syclcompat::free((void*)d_A);
   syclcompat::free((void*)d_B);
   syclcompat::free((void*)d_C);
@@ -234,8 +231,8 @@ void test4() {
   d_A = (float *)syclcompat::malloc(Num * sizeof(float));
   d_B = (float *)syclcompat::malloc(Num * sizeof(float));
   d_C = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float), syclcompat::host_to_device);
+  syclcompat::memcpy((void*) d_A, (void*) h_A, Num * sizeof(float));
+  syclcompat::memcpy((void*) d_B, (void*) h_B, Num * sizeof(float));
 
   d_A += Offset;
   d_B += Offset;
@@ -262,7 +259,7 @@ void test4() {
       syclcompat::get_default_queue().wait_and_throw();
   }
 
-  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) (h_C+Offset), (void*) d_C, (Num-Offset) * sizeof(float));
   syclcompat::free((void*)d_A);
   syclcompat::free((void*)d_B);
   syclcompat::free((void*)d_C);
@@ -361,8 +358,8 @@ void test6() {
   g_B.init();
   g_C.init();
 
-  syclcompat::memcpy((void *)g_A.get_ptr(), (void *)&h_A[0][0], DataW * DataH * sizeof(float), syclcompat::host_to_device);
-  syclcompat::memcpy((void *)g_B.get_ptr(), (void *)&h_B[0][0], DataW * DataH * sizeof(float), syclcompat::host_to_device);
+  syclcompat::memcpy((void *)g_A.get_ptr(), (void *)&h_A[0][0], DataW * DataH * sizeof(float));
+  syclcompat::memcpy((void *)g_B.get_ptr(), (void *)&h_B[0][0], DataW * DataH * sizeof(float));
 
   {
     syclcompat::get_default_queue().submit(
@@ -479,7 +476,7 @@ void test9() {
       syclcompat::get_default_queue().wait_and_throw();
   }
 
-  syclcompat::memcpy((void*) (h_B), (void*) d_A, Num * Num * sizeof(float), syclcompat::device_to_host);
+  syclcompat::memcpy((void*) (h_B), (void*) d_A, Num * Num * sizeof(float));
   syclcompat::free((void*)d_A);
 
   // verify
@@ -517,12 +514,10 @@ void test1(sycl::queue &q) {
   d_data = (float *)syclcompat::malloc(d_pitch, sizeof(float) * width, height, q);
 
   // copy to Device.
-  syclcompat::memcpy_direction cpyDir = syclcompat::host_to_device;
-  syclcompat::memcpy(d_data, d_pitch, h_data, h_pitch, sizeof(float) * width, height, cpyDir, q);
+  syclcompat::memcpy(d_data, d_pitch, h_data, h_pitch, sizeof(float) * width, height, q);
 
   // copy back to host.
-  cpyDir = syclcompat::device_to_host;
-  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, cpyDir, q);
+  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, q);
 
   check(h_data, h_ref, width, height, 1);
 
@@ -530,8 +525,7 @@ void test1(sycl::queue &q) {
   syclcompat::memset(d_data, d_pitch, 0x1, sizeof(float) * width, height, q);
 
   // copy back to host
-  cpyDir = syclcompat::device_to_host;
-  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, cpyDir, q);
+  syclcompat::memcpy(h_data, h_pitch, d_data, d_pitch, sizeof(float) * width, height, q);
 
   // memset reference data.
   memset(h_ref, 0x1, width * height * sizeof(float));
