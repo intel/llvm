@@ -14,6 +14,7 @@
 #define COMPAT_USM_LEVEL_NONE
 #include <sycl/sycl.hpp>
 #include <syclcompat/memory.hpp>
+#include "memory_common.hpp"
 
 void check(float *h_data, float *h_ref, size_t width, size_t height,
            size_t depth) {
