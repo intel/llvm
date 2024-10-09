@@ -64,12 +64,26 @@ private:
   ur_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
                                    ur_event_handle_t *hUserEvent);
 
-  ur_result_t enqueueRegionCopy(
-      void *srcPtr, void *dstPtr, bool blocking, ur_rect_offset_t srcOrigin,
-      ur_rect_offset_t dstOrigin, ur_rect_region_t region, size_t srcRowPitch,
-      size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
-      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
-      ur_event_handle_t *phEvent);
+  ur_result_t finalizeHandler(ur_command_list_handler_t *handler);
+  ur_result_t finalizeHandler(ur_command_list_handler_t *handler,
+                              bool blocking);
+
+  ur_result_t enqueueRegionCopyUnlocked(
+      ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking,
+      ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
+      ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
+      size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
+  ur_result_t enqueueGenericCopyUnlocked(
+      ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
+      size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+
+  ur_result_t enqueueGenericFillUnlocked(
+      ur_mem_handle_t hBuffer, size_t offset, size_t patternSize,
+      const void *pPattern, size_t size, uint32_t numEventsInWaitList,
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
