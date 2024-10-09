@@ -129,7 +129,7 @@ int main() try {
       auto d2_acc = d2_a.get_access(cgh);
       auto c1_acc = c1_a.get_access(cgh);
       auto c2_acc = c2_a.get_access(cgh);
-      cgh.parallel_for<dpct_kernel_name<class kernel_test1>>(
+      cgh.parallel_for<syclcompat_kernel_name<class kernel_test1>>(
         sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
         [=] (sycl::nd_item<3> item) {
           test1(d1_acc.get_pointer(), d2_acc.get_pointer(), c1_acc.get_pointer(), c2_acc);
@@ -141,7 +141,7 @@ int main() try {
       c4_a.init();
       auto c3_acc = c3_a.get_access(cgh);
       auto c4_acc = c4_a.get_access(cgh);
-      cgh.parallel_for<dpct_kernel_name<class kernel_test2>>(
+      cgh.parallel_for<syclcompat_kernel_name<class kernel_test2>>(
         sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
         [=] (sycl::nd_item<3> item) {
           test3(c3_acc, c4_acc);
@@ -155,7 +155,7 @@ int main() try {
       d4_a.init(*q);
       auto d3_acc = d3_a.get_access(cgh);
       auto d4_acc = d4_a.get_access(cgh);
-      cgh.parallel_for<dpct_kernel_name<class kernel_test3>>(
+      cgh.parallel_for<syclcompat_kernel_name<class kernel_test3>>(
         sycl::nd_range<3>(sycl::range<3>(1, 1, 1), sycl::range<3>(1, 1, 1)),
         [=] (sycl::nd_item<3> item) {
           test4(d3_acc.get_pointer(), d4_acc.get_pointer());
