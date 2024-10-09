@@ -1,0 +1,150 @@
+:DeviceBarrierINTEL: DeviceBarrierINTEL
+:DeviceBarrierINTEL_token: AAAA
+:DeviceBarrierValidINTEL: DeviceBarrierValidINTEL
+:DeviceBarrierValidINTEL_token: BBBB
+
+= SPV_INTEL_device_barrier
+
+== Name Strings
+
+SPV_INTEL_device_barrier
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/KhronosGroup/SPIRV-Registry
+
+== Contributors
+
+// spell-checker: disable
+* Ben Ashbaugh, Intel
+* Michael Aziz, Intel
+* John Pennycook, Intel
+* Alexey Sachkov, Intel
+// spell-checker: enable
+
+== Notice
+
+Copyright (c) 2023 Intel Corporation.  All rights reserved.
+
+== Status
+
+* Working Draft
+
+This is a preview extension specification, intended to provide early access to a
+feature for review and community feedback.
+When the feature matures, this specification may be released as a formal
+extension.
+
+Because the interfaces defined by this specification are not final and are
+subject to change they are not intended to be used by shipping software
+products.
+If you are interested in using this feature in your software product, please let
+us know!
+
+== Version
+
+[width="40%",cols="25,25"]
+|========================================
+| Last Modified Date | {docdate}
+| Revision           | B
+|========================================
+
+== Dependencies
+
+This extension is written against the SPIR-V Specification, Version 1.6 Revision 2.
+
+This extension requires SPIR-V 1.0.
+
+== Overview
+
+This extension adds a new SPIR-V capability that indicates that this SPIR-V
+module uses *Device* as the _Scope_ for _Execution_ for *OpControlBarrier*.
+Specifying *Device* as the _Scope_ for _Execution_ for *OpControlBarrier* waits
+for all invocations of the module from all workgroups in a kernel dispatch to
+reach the current point of execution before any are allowed to continue.
+
+== Extension Name
+
+To use this extension within a SPIR-V module, the following *OpExtension* must
+be present in the module:
+
+----
+OpExtension "SPV_INTEL_device_barrier"
+----
+
+== Modifications to the SPIR-V Specification, Version 1.6
+
+=== BuiltIn
+
+Modify Section 3.21, "BuiltIn", adding these rows to the BuiltIn table:
+
+--
+[cols="^.^2,16,15",options="header"]
+|====
+2+^.^| BuiltIn | Enabling Capabilities
+| {DeviceBarrierValidINTEL_token} | *{DeviceBarrierValidINTEL}* +
+Indicates whether it is valid to execute an *OpControlBarrier* instruction with
+*Device* as the _Scope_ for _Execution_.
+| *{DeviceBarrierINTEL}*
+|====
+--
+
+=== Capabilities
+
+Modify Section 3.31, "Capability", adding these rows to the Capability table:
+
+--
+[cols="^.^2,16,15",options="header"]
+|====
+2+^.^| Capability | Implicitly Declares
+| {DeviceBarrierINTEL_token} | *{DeviceBarrierINTEL}* +
+Allows *Device* as a _Scope_ for _Execution_ for an *OpControlBarrier*
+instruction.
+|
+|====
+--
+
+== Issues
+
+. Do we really need this SPIR-V extension?
++
+--
+*RESOLVED*: Yes, see this Khronos GitLab issue:
+https://gitlab.khronos.org/spirv/SPIR-V/-/issues/746
+
+Note, since this issue was filed we have also added the
+*{DeviceBarrierValidINTEL}* *BuiltIn* to this extension.
+--
+
+. Is it correct to describe this functionality as a "device barrier"?
++
+--
+*RESOLVED*: Although strictly speaking a "device barrier" is only synchronizing
+the work-items in the current dispatch or ND-range, and not all work-items that
+may be executing on a device from other dispatches, using "device" does seem to
+be consistent with other uses of "device" in the SPIR-V spec.
+--
+
+. How does this extension interact with the split barrier extension
+`SPV_INTEL_split_barrier`?
++
+--
+*UNRESOLVED*: I don't see any reason why this extension shouldn't also allow the
+device scope to be used with the split barrier arrive and wait functions.
+Worst-case, it would be a correct implementation to ignore the device split
+barrier arrive function, and then to treat the device split barrier wait
+function as a synonym for a non-split device barrier.
+--
+
+== Revision History
+
+[cols="5,15,15,70"]
+[grid="rows"]
+[options="header"]
+|========================================
+|Rev|Date|Author|Changes
+|A|2023-07-11|Ben Ashbaugh|*Initial internal revision*
+|B|2023-08-11|Ben Ashbauhg|Added *{DeviceBarrierValidINTEL}* *BuiltIn*.
+|========================================
