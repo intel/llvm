@@ -30,6 +30,7 @@ void check(float *h_data, float *h_ref, size_t width, size_t height,
 }
 
 void test1() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
   int N1 = 1000;
@@ -80,6 +81,7 @@ void test1() {
 }
 
 void test2() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
   int N1 = 1000;
@@ -135,6 +137,7 @@ void test2() {
 
 class vectorAdd3;
 void test3() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
   int Offset = 0; // Current dpcpp version in ics environment has bugs with Offset > 0,
@@ -222,6 +225,7 @@ void test3() {
 
 
 void test4() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
   int *h_A = (int*)malloc(Num*sizeof(int));
@@ -275,6 +279,7 @@ syclcompat::constant_memory<float, 1> d_A(Num * sizeof(float));
 syclcompat::constant_memory<float, 1> d_B(Num * sizeof(float));
 
 void test5() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[Num];
   float h_B[Num];
@@ -324,6 +329,7 @@ void test5() {
 }
 
 void test6() {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
   float *h_data;
@@ -369,6 +375,7 @@ void test6() {
 }
 
 void test1(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
   int N1 = 1000;
@@ -417,6 +424,7 @@ void test1(sycl::queue &q) {
 }
 
 void test2(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
   int N1 = 1000;
@@ -469,6 +477,7 @@ void test2(sycl::queue &q) {
 }
 
 void test3(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
   class vectorAdd3;
   int Num = 5000;
   int Offset = 0; // Current dpcpp version in ics environment has bugs with Offset > 0,
@@ -552,6 +561,7 @@ void test3(sycl::queue &q) {
 
 
 void test4(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
   int *h_A = (int*)malloc(Num*sizeof(int));
@@ -598,6 +608,7 @@ void test4(sycl::queue &q) {
 }
 
 void test5(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const unsigned int Num = 5000;
   const unsigned int N1 = 1000;
@@ -651,6 +662,7 @@ void test5(sycl::queue &q) {
 }
 
 void test6(sycl::queue &q) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
   float *h_data;
