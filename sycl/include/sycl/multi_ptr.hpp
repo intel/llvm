@@ -548,9 +548,10 @@ public:
   template <typename ElementType,
             typename = typename std::enable_if_t<std::is_const_v<ElementType>>>
   explicit operator multi_ptr<ElementType, Space, DecorateAddress>() const {
-    return {static_cast<typename multi_ptr<ElementType, Space,
-                                           access::decorated::yes>::pointer>(
-        m_Pointer)};
+    return multi_ptr<ElementType, Space, DecorateAddress>{
+        static_cast<typename multi_ptr<ElementType, Space,
+                                       access::decorated::yes>::pointer>(
+            m_Pointer)};
   }
 
   // Implicit conversion to the negated decoration version of multi_ptr.
