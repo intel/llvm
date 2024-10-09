@@ -323,11 +323,11 @@ must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
 
 ## Marking tests as expected to fail
 
-Every test should be written in a way that it is either passes, or it is skipped
+Every test should be written in a way that it is either passed, or it is skipped
 (in case it is not compatible with an environment it was launched in).
 
 If for any reason you find yourself in need to temporary mark test as expected
-to fail under certain conditions, you need to submin issue to the repo to
+to fail under certain conditions, you need to submit an issue to the repo to
 analyze that failure and make test passed or skipped.
 
 Once the issue is created, you can update the test by adding `XFAIL` and
