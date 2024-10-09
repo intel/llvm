@@ -450,10 +450,15 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list(APPEND flags -D__unix__)
     endif()
 
+    set(spirv_flags ${flags})
+    if( ARCH STREQUAL nvptx OR ARCH STREQUAL nvptx64 )
+      list(APPEND spirv_flags -Xclang -fcuda-short-ptr -mllvm -nvptx-short-ptr)
+    endif()
+
     add_libclc_builtin_set(libspirv-${arch_suffix}
       TRIPLE ${clang_triple}
       TARGET_ENV libspirv
-      COMPILE_OPT ${flags}
+      COMPILE_OPT ${spirv_flags}
       OPT_FLAGS ${opt_flags}
       FILES ${libspirv_files}
       GEN_FILES ${libspirv_gen_files}
