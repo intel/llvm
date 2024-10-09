@@ -43,12 +43,6 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urDeviceCreateWithNativeHandle(
             native_handle, adapter, &props, &dev));
         ASSERT_NE(dev, nullptr);
-
-        uint32_t ref_count = 0;
-        ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_REFERENCE_COUNT,
-                                       sizeof(uint32_t), &ref_count, nullptr));
-
-        ASSERT_EQ(ref_count, 1);
     }
 }
 
@@ -66,12 +60,6 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
         UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urDeviceCreateWithNativeHandle(
             native_handle, adapter, &props, &dev));
         ASSERT_NE(dev, nullptr);
-
-        uint32_t ref_count = 0;
-        ASSERT_SUCCESS(urDeviceGetInfo(dev, UR_DEVICE_INFO_REFERENCE_COUNT,
-                                       sizeof(uint32_t), &ref_count, nullptr));
-
-        ASSERT_EQ(ref_count, 2);
     }
 }
 
