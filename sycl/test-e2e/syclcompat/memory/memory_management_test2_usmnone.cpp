@@ -1,4 +1,4 @@
-// ====------ memory_management_test2.cpp---------- -*- C++ -* ----===////
+// ====------ memory_management_test_mempcy_2_usmnone.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -28,7 +28,7 @@ void check(float *h_data, float *h_ref, size_t width, size_t height,
 }
 
 
-void test1() {
+void test_mempcy_pitched() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
@@ -69,11 +69,9 @@ void test1() {
   free(h_data);
   free(h_ref);
   syclcompat::free((void *)d_data);
-
-  printf("Test1 Passed\n");
 }
 
-void test2() {
+void test_memcpy_reinterp_kernel() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -134,14 +132,12 @@ void test2() {
       }
   }
 
-  printf("Test2 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-void test3() {
+void test_memcpy_kernel() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -202,14 +198,12 @@ void test3() {
       }
   }
 
-  printf("Test3 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-void test4() {
+void test_access_wrapper() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -277,8 +271,6 @@ void test4() {
       }
   }
 
-  printf("Test4 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
@@ -290,7 +282,7 @@ syclcompat::constant_memory<float, 2> c_A(DataW, DataH);
 syclcompat::constant_memory<float, 2> c_B(DataW, DataH);
 syclcompat::global_memory<float, 2> c_C(DataW, DataH);
 
-void test5() {
+void test_constant_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[DataW][DataH];
@@ -339,14 +331,13 @@ void test5() {
       }
     }
   }
-  printf("Test5 Passed\n");
 }
 
 syclcompat::global_memory<float, 2> g_A(DataW, DataH);
 syclcompat::global_memory<float, 2> g_B(DataW, DataH);
 syclcompat::global_memory<float, 2> g_C(DataW, DataH);
 
-void test6() {
+void test_global_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[DataW][DataH];
@@ -396,14 +387,13 @@ void test6() {
       }
     }
   }
-  printf("Test6 Passed\n");
 }
 
 syclcompat::shared_memory<float, 1> s_A(DataW);
 syclcompat::shared_memory<float, 1> s_B(DataW);
 syclcompat::shared_memory<float, 1> s_C(DataW);
 
-void test7() {
+void test_shared_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   s_A.init();
@@ -443,10 +433,9 @@ void test7() {
       }
     }
   }
-  printf("Test7 Passed\n");
 }
 
-void test9() {
+void test_local_memory() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 16;
@@ -496,13 +485,11 @@ void test9() {
       }
   }
 
-  printf("Test9 Passed\n");
-
   free(h_A);
   free(h_B);
 }
 
-void test1(sycl::queue &q) {
+void test_mempcy_pitched(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
@@ -544,21 +531,21 @@ void test1(sycl::queue &q) {
   free(h_ref);
   syclcompat::free((void *)d_data, q);
 
-  printf("Test1 passed!\n");
+  printf("test_mempcy_pitched passed!\n");
 }
 
 int main() {
-  test1();
-  test2();
-  test3();
-  test4();
-  test5();
-  test6();
-  test7();
-  test9();
+  test_mempcy_pitched();
+  test_memcpy_reinterp_kernel();
+  test_memcpy_kernel();
+  test_access_wrapper();
+  test_constant_memory();
+  test_global_memory();
+  test_shared_memory();
+  test_local_memory();
 
   sycl::queue q;
-  test1(q);
+  test_mempcy_pitched(q);
 
   return 0;
 }

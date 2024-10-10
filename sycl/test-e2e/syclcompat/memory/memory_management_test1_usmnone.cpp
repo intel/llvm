@@ -1,4 +1,4 @@
-// ====------ memory_management_test1.cpp---------- -*- C++ -* ----===////
+// ====------ memory_management_test1_usmnone.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -15,8 +15,7 @@
 #include <syclcompat/memory.hpp>
 #include "memory_common.hpp"
 
-
-void test2() {
+void test_memcpy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -61,14 +60,13 @@ void test2() {
       }
   }
 
-  printf("Test2 Passed\n");
 
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-void test3() {
+void test_vecadd() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -144,7 +142,6 @@ void test3() {
       }
   }
 
-  printf("Test3 Passed\n");
 
   free(h_A);
   free(h_B);
@@ -152,7 +149,7 @@ void test3() {
 }
 
 
-void test4() {
+void test_memset() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
@@ -194,7 +191,6 @@ void test4() {
     }
   }
 
-  printf("Test4 Passed\n");
 
   free(h_A);
 }
@@ -204,7 +200,7 @@ const unsigned int N1 = 1000;
 syclcompat::constant_memory<float, 1> d_A(Num * sizeof(float));
 syclcompat::constant_memory<float, 1> d_B(Num * sizeof(float));
 
-void test5() {
+void test_constant_memcpy() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[Num];
@@ -252,11 +248,9 @@ void test5() {
     }
   }
 
-  printf("Test5 Passed\n");
 }
 
-
-void test2(sycl::queue &q) {
+void test_memcpy(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -301,14 +295,13 @@ void test2(sycl::queue &q) {
       }
   }
 
-  printf("Test2 Passed\n");
 
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-void test3(sycl::queue &q) {
+void test_vecadd(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   int Num = 5000;
   int Offset = 0; // Current dpcpp version in ics environment has bugs with Offset > 0,
@@ -383,7 +376,6 @@ void test3(sycl::queue &q) {
       }
   }
 
-  printf("Test3 Passed\n");
 
   free(h_A);
   free(h_B);
@@ -391,7 +383,7 @@ void test3(sycl::queue &q) {
 }
 
 
-void test4(sycl::queue &q) {
+void test_memset(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
@@ -433,12 +425,11 @@ void test4(sycl::queue &q) {
     }
   }
 
-  printf("Test4 Passed\n");
 
   free(h_A);
 }
 
-void test5(sycl::queue &q) {
+void test_constant_memcpy(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const unsigned int Num = 5000;
@@ -491,22 +482,19 @@ void test5(sycl::queue &q) {
     }
   }
 
-  printf("Test5 Passed\n");
 }
 
 int main() {
-  test1();
-  test2();
-  test3();
-  test4();
-  test5();
+  test_memcpy();
+  test_vecadd();
+  test_memset();
+  test_constant_memcpy();
 
   sycl::queue q;
-  test1(q);
-  test2(q);
-  test3(q);
-  test4(q);
-  test5(q);
+  test_memcpy(q);
+  test_vecadd(q);
+  test_memset(q);
+  test_constant_memcpy(q);
 
   return 0;
 }

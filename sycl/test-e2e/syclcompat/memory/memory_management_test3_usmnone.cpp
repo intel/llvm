@@ -1,4 +1,4 @@
-// ====------ memory_management_test3.cpp---------- -*- C++ -* ----===////
+// ====------ memory_management_test3_usmnone.cpp---------- -*- C++ -* ----===////
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -29,58 +29,7 @@ void check(float *h_data, float *h_ref, size_t width, size_t height,
   }
 }
 
-void test1() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  int Num = 5000;
-  int N1 = 1000;
-  float *h_A = (float*)malloc(Num*sizeof(float));
-  float *h_B = (float*)malloc(Num*sizeof(float));
-  float *h_C = (float*)malloc(Num*sizeof(float));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = 1.0f;
-    h_B[i] = 2.0f;
-  }
-
-  float *d_A;
-  // hostA[0..999] -> deviceA[0..999]
-  // hostB[0..3999] -> deviceA[1000..4999]
-  // deviceA[0..4999] -> hostC[0..4999]
-  d_A = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy_async((void*) d_A, (void*) h_A, N1 * sizeof(float));
-  syclcompat::memcpy_async((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float));
-  syclcompat::memcpy_async((void*) h_C, (void*) d_A, Num * sizeof(float));
-
-  syclcompat::get_default_queue().wait_and_throw();
-
-  syclcompat::free((void*)d_A);
-
-  // verify
-  for(int i = 0; i < N1; i++){
-      if (fabs(h_A[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  for(int i = N1; i < Num; i++){
-      if (fabs(h_B[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  printf("Test1 Passed\n");
-
-  free(h_A);
-  free(h_B);
-  free(h_C);
-}
-
-void test2() {
+void test_mempcy_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -128,15 +77,12 @@ void test2() {
       }
   }
 
-  printf("Test2 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-class vectorAdd3;
-void test3() {
+void test_buffer_and_offset_kernel() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -216,15 +162,13 @@ void test3() {
       }
   }
 
-  printf("Test3 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
 
-void test4() {
+void test_memset_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
@@ -268,8 +212,6 @@ void test4() {
     }
   }
 
-  printf("Test4 Passed\n");
-
   free(h_A);
 }
 
@@ -278,7 +220,7 @@ const unsigned int N1 = 1000;
 syclcompat::constant_memory<float, 1> d_A(Num * sizeof(float));
 syclcompat::constant_memory<float, 1> d_B(Num * sizeof(float));
 
-void test5() {
+void test_memcpy_async_getptr() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   float h_A[Num];
@@ -324,11 +266,9 @@ void test5() {
       exit(EXIT_FAILURE);
     }
   }
-
-  printf("Test5 Passed\n");
 }
 
-void test6() {
+void test_memcpy_pitched_async() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
@@ -370,60 +310,9 @@ void test6() {
   free(h_data);
   free(h_ref);
   syclcompat::free((void *)d_data);
-
-  printf("Test6 passed!\n");
 }
 
-void test1(sycl::queue &q) {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  int Num = 5000;
-  int N1 = 1000;
-  float *h_A = (float*)malloc(Num*sizeof(float));
-  float *h_B = (float*)malloc(Num*sizeof(float));
-  float *h_C = (float*)malloc(Num*sizeof(float));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = 1.0f;
-    h_B[i] = 2.0f;
-  }
-
-  float *d_A;
-  // hostA[0..999] -> deviceA[0..999]
-  // hostB[0..3999] -> deviceA[1000..4999]
-  // deviceA[0..4999] -> hostC[0..4999]
-  d_A = (float *)syclcompat::malloc(Num * sizeof(float), q);
-  syclcompat::memcpy_async((void*) d_A, (void*) h_A, N1 * sizeof(float), q);
-  syclcompat::memcpy_async((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), q);
-  syclcompat::memcpy_async((void*) h_C, (void*) d_A, Num * sizeof(float), q);
-  q.wait_and_throw();
-  syclcompat::free((void*)d_A, q);
-
-  // verify
-  for(int i = 0; i < N1; i++){
-      if (fabs(h_A[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  for(int i = N1; i < Num; i++){
-      if (fabs(h_B[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  printf("Test1 Passed\n");
-
-  free(h_A);
-  free(h_B);
-  free(h_C);
-}
-
-void test2(sycl::queue &q) {
+void test_mempcy_async(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 5000;
@@ -469,16 +358,13 @@ void test2(sycl::queue &q) {
       }
   }
 
-  printf("Test2 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
-void test3(sycl::queue &q) {
+void test_buffer_and_offset_kernel(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  class vectorAdd3;
   int Num = 5000;
   int Offset = 0; // Current dpcpp version in ics environment has bugs with Offset > 0,
                   // CORC-6222 has fixed this issue, but the version of dpcpp used in ics
@@ -552,15 +438,13 @@ void test3(sycl::queue &q) {
       }
   }
 
-  printf("Test3 Passed\n");
-
   free(h_A);
   free(h_B);
   free(h_C);
 }
 
 
-void test4(sycl::queue &q) {
+void test_memset_async(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   int Num = 10;
@@ -601,13 +485,10 @@ void test4(sycl::queue &q) {
       exit(EXIT_FAILURE);
     }
   }
-
-  printf("Test4 Passed\n");
-
   free(h_A);
 }
 
-void test5(sycl::queue &q) {
+void test_memcpy_async_getptr(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   const unsigned int Num = 5000;
@@ -657,11 +538,9 @@ void test5(sycl::queue &q) {
       exit(EXIT_FAILURE);
     }
   }
-
-  printf("Test5 Passed\n");
 }
 
-void test6(sycl::queue &q) {
+void test_memcpy_pitched_async(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   size_t width = 6;
   size_t height = 8;
@@ -702,25 +581,21 @@ void test6(sycl::queue &q) {
   free(h_data);
   free(h_ref);
   syclcompat::free((void *)d_data, q);
-
-  printf("Test6 passed!\n");
 }
 
 int main() {
-  test1();
-  test2();
-  test3();
-  test4();
-  test5();
-  test6();
+  test_mempcy_async();
+  test_buffer_and_offset_kernel();
+  test_memset_async();
+  test_memcpy_async_getptr();
+  test_memcpy_pitched_async();
 
   sycl::queue q;
-  test1(q);
-  test2(q);
-  test3(q);
-  test4(q);
-  test5(q);
-  test6(q);
+  test_mempcy_async(q);
+  test_buffer_and_offset_kernel(q);
+  test_memset_async(q);
+  test_memcpy_async_getptr(q);
+  test_memcpy_pitched_async(q);
 
   return 0;
 }
