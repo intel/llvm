@@ -288,7 +288,7 @@ void test4() {
 #define DataH 100
 syclcompat::constant_memory<float, 2> c_A(DataW, DataH);
 syclcompat::constant_memory<float, 2> c_B(DataW, DataH);
-syclcompat::constant_memory<float, 2> c_C(DataW, DataH);
+syclcompat::global_memory<float, 2> c_C(DataW, DataH);
 
 void test5() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -321,7 +321,7 @@ void test5() {
           [=](sycl::id<2> id) {
             syclcompat::accessor<float, syclcompat::memory_region::constant, 2> A(c_A_acc);
             syclcompat::accessor<float, syclcompat::memory_region::constant, 2> B(c_B_acc);
-            syclcompat::accessor<float, syclcompat::memory_region::constant, 2> C(c_C_acc);
+            syclcompat::accessor<float, syclcompat::memory_region::global, 2> C(c_C_acc);
             int i = id[0], j = id[1];
             C[i][j] = A[i][j] + B[i][j];
           });
