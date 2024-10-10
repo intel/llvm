@@ -116,14 +116,12 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/AllanZyne/unified-runtime.git")
-  # commit 7384e2d7b908de0b2bca9f3c57827ea84698864e
-  # Merge: ed85c3e2 a32549b4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Fri Sep 20 14:56:40 2024 +0100
-  #   Merge pull request #2108 from pbalcer/fix-perf-tracing-logs
-  #   fix perf regression in tracing layer
-  set(UNIFIED_RUNTIME_TAG review/yang/fix_invalid-argument)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 5e95d3334b872e6ae639d627c00dcbb7d206b702
+  # Author: Maosu Zhao <maosu.zhao@intel.com>
+  # Date:   Thu Oct 10 20:48:09 2024 +0800
+  #   [DeviceSanitizer] Only try to get backtrace symbols when needed (#2128)
+  set(UNIFIED_RUNTIME_TAG 5e95d3334b872e6ae639d627c00dcbb7d206b702)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
