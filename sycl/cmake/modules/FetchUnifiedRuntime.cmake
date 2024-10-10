@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40
-  # Merge: 1f13d2ce cf5994a1
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Thu Oct 3 10:47:01 2024 +0200
-  #     Merge pull request #2101 from lslusarczyk/fix-interleaved-urtraces
-  #     Fix mixed output of adapter and regular traces
-  set(UNIFIED_RUNTIME_TAG 7aba70bc5c6bf82a6e5f7cdd3623eb8f46fcff40)
+  # commit df6da35d6e67f2383db28dd49ab08c5c0ef541d2
+  # Merge: 67590533 55bd5636
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Oct 7 12:28:07 2024 +0100
+  #     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
+  #     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
+  #     instead of returning misleading default value
+  set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
