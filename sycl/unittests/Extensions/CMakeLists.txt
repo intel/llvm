@@ -15,6 +15,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   ProfilingTag.cpp
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
+  GetLastEvent.cpp
 )
 
 add_subdirectory(CommandGraph)
