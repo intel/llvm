@@ -1377,30 +1377,6 @@ __SYCL_GROUP_COLLECTIVE_OVERLOAD(BitwiseAnd, KHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalAnd, KHR)
 __SYCL_GROUP_COLLECTIVE_OVERLOAD(LogicalOr, KHR)
 
-template <access::address_space Space, typename T>
-auto GenericCastToPtr(T *Ptr) ->
-    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
-  if constexpr (Space == access::address_space::global_space) {
-    return __SYCL_GenericCastToPtr_ToGlobal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::local_space) {
-    return __SYCL_GenericCastToPtr_ToLocal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::private_space) {
-    return __SYCL_GenericCastToPtr_ToPrivate<T>(Ptr);
-  }
-}
-
-template <access::address_space Space, typename T>
-auto GenericCastToPtrExplicit(T *Ptr) ->
-    typename multi_ptr<T, Space, access::decorated::yes>::pointer {
-  if constexpr (Space == access::address_space::global_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToGlobal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::local_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToLocal<T>(Ptr);
-  } else if constexpr (Space == access::address_space::private_space) {
-    return __SYCL_GenericCastToPtrExplicit_ToPrivate<T>(Ptr);
-  }
-}
-
 } // namespace spirv
 } // namespace detail
 } // namespace _V1

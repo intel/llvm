@@ -217,11 +217,10 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     if constexpr (AS == access::address_space::global_space) {
       return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
     } else if constexpr (AS == access::address_space::generic_space) {
-      return is_aligned
-                 ? reinterpret_cast<block_pointer_type>(
-                       __SYCL_GenericCastToPtrExplicit_ToGlobal<value_type>(
-                           iter))
-                 : nullptr;
+      return is_aligned ? reinterpret_cast<block_pointer_type>(
+                              detail::dynamic_address_cast<
+                                  access::address_space::global_space>(iter))
+                        : nullptr;
     } else {
       return nullptr;
     }
