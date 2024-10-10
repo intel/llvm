@@ -12,6 +12,7 @@
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -396,6 +397,41 @@ public:
     return SS.str();
   }
 
+  bool
+  extKernelCompilerFetchFromCache(const std::vector<device> Devices,
+                                  const std::vector<std::string> &BuildOptions,
+                                  const std::string &SourceStr,
+                                  ur_program_handle_t &UrProgram) {
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+
+    std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
+    auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+        Devices[0], UserArgs, SourceStr);
+    if (!BinProg.empty()) {
+      ur_device_handle_t UrDevice = getSyclObjImpl(Devices[0])->getHandleRef();
+      ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
+      ur_program_properties_t Properties = {};
+      Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+      Properties.pNext = nullptr;
+      Properties.count = 0;
+      Properties.pMetadatas = nullptr;
+      BinaryStatus = Adapter->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
+          ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
+          (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
+
+      if (BinaryStatus == UR_RESULT_SUCCESS) {
+        ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+            UrProgram,
+            /*num devices =*/1, &UrDevice, UserArgs.c_str());
+
+        return (Error == UR_RESULT_SUCCESS);
+      }
+    }
+    return false;
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -415,46 +451,55 @@ public:
       DeviceVec.push_back(Dev);
     }
 
-    const auto spirv = [&]() -> std::vector<uint8_t> {
-      if (Language == syclex::source_language::opencl) {
-        // if successful, the log is empty. if failed, throws an error with the
-        // compilation log.
-        const auto &SourceStr = std::get<std::string>(this->Source);
-        std::vector<uint32_t> IPVersionVec(Devices.size());
-        std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
-                       [&](ur_device_handle_t d) {
-                         uint32_t ipVersion = 0;
-                         Adapter->call<UrApiKind::urDeviceGetInfo>(
-                             d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
-                             &ipVersion, nullptr);
-                         return ipVersion;
-                       });
-        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
-                                                BuildOptions, LogPtr);
-      }
-      if (Language == syclex::source_language::spirv) {
-        const auto &SourceBytes =
-            std::get<std::vector<std::byte>>(this->Source);
-        std::vector<uint8_t> Result(SourceBytes.size());
-        std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
-                       [](std::byte B) { return static_cast<uint8_t>(B); });
-        return Result;
-      }
-      if (Language == syclex::source_language::sycl) {
-        const auto &SourceStr = std::get<std::string>(this->Source);
-        return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
-                                             BuildOptions, LogPtr,
-                                             RegisteredKernelNames);
-      }
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "OpenCL C and SPIR-V are the only supported languages at this time");
-    }();
-
     ur_program_handle_t UrProgram = nullptr;
+    // SourceStrPtr will be null when source is Spir-V bytes.
+    const std::string *SourceStrPtr = std::get_if<std::string>(&this->Source);
+    bool FetchedFromCache = false;
+    if (PersistentDeviceCodeCache::isEnabled() && SourceStrPtr) {
+      FetchedFromCache = extKernelCompilerFetchFromCache(
+          Devices, BuildOptions, *SourceStrPtr, UrProgram);
+    }
+
+    if (!FetchedFromCache) {
+      const auto spirv = [&]() -> std::vector<uint8_t> {
+        if (Language == syclex::source_language::opencl) {
+          // if successful, the log is empty. if failed, throws an error with
+          // the compilation log.
+          std::vector<uint32_t> IPVersionVec(Devices.size());
+          std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
+           [&](ur_device_handle_t d) {
+                           uint32_t ipVersion = 0;
+                           Adapter->call<UrApiKind::urDeviceGetInfo>(
+                               d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+                               &ipVersion, nullptr);
+                           return ipVersion;
+                         });
+          return syclex::detail::OpenCLC_to_SPIRV(*SourceStrPtr, IPVersionVec,
+                                                  BuildOptions, LogPtr);
+        }
+        if (Language == syclex::source_language::spirv) {
+          const auto &SourceBytes =
+              std::get<std::vector<std::byte>>(this->Source);
+          std::vector<uint8_t> Result(SourceBytes.size());
+          std::transform(SourceBytes.cbegin(), SourceBytes.cend(),
+                         Result.begin(),
+                         [](std::byte B) { return static_cast<uint8_t>(B); });
+          return Result;
+        }
+        if (Language == syclex::source_language::sycl) {
+          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, IncludePairs,
+                                               BuildOptions, LogPtr,
+                                               RegisteredKernelNames);
+        }
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "SYCL C++, OpenCL C and SPIR-V are the only supported "
+            "languages at this time");
+      }();
+
     Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
-                                                    spirv.data(), spirv.size(),
-                                                    nullptr, &UrProgram);
+                                                   spirv.data(), spirv.size(),
+                                                   nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
     if (UrProgram == nullptr)
       throw sycl::exception(
@@ -469,6 +514,8 @@ public:
           ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
     }
     Adapter->checkUrResult<errc::build>(Res);
+
+    } // if(!FetchedFromCache)
 
     // Get the number of kernels in the program.
     size_t NumKernels;
@@ -495,6 +542,15 @@ public:
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
         UrProgram);
     device_image_plain DevImg{DevImgImpl};
+
+    // If caching enabled and kernel not fetched from cache, cache.
+    if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
+        SourceStrPtr) {
+      PersistentDeviceCodeCache::putCompiledKernelToDisc(
+          Devices[0], syclex::detail::userArgsAsString(BuildOptions),
+          *SourceStrPtr, UrProgram);
+    }
+
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
   }
