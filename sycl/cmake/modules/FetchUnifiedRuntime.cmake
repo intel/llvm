@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
-  # Merge: 7b4bc761 fbb6e862
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 4 16:39:59 2024 +0100
-  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
-  #     [L0] Fix device query of bindless image support
-  set(UNIFIED_RUNTIME_TAG b79ebe4e98789144bcdf3832088eb6e6b5ae6967)
+  # commit df6da35d6e67f2383db28dd49ab08c5c0ef541d2
+  # Merge: 67590533 55bd5636
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Oct 7 12:28:07 2024 +0100
+  #     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
+  #     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
+  #     instead of returning misleading default value
+  set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
