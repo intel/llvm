@@ -946,6 +946,15 @@ void CudaToolChain::addClangTargetOptions(
 
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
+
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    if (FastRelaxedMath || UnsafeMathOpt)
+      CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
+                      "--nvptx-prec-sqrtf32=0"});
   } else {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
