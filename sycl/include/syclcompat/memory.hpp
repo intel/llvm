@@ -350,7 +350,24 @@ static inline void *malloc(size_t &pitch, size_t x, size_t y, size_t z,
 template <class T>
 static inline sycl::event fill(sycl::queue q, void *dev_ptr, const T &pattern,
                                size_t count) {
+#ifdef COMPAT_USM_LEVEL_NONE
+  auto &mm = mem_mgr::instance();
+  assert(mm.is_device_ptr(dev_ptr));
+  auto alloc = mm.translate_ptr(dev_ptr);
+  size_t offset = (T *)dev_ptr - (T *)alloc.alloc_ptr;
+
+  return q.submit([&](sycl::handler &cgh) {
+    auto r = sycl::range<1>(count);
+    auto o = sycl::id<1>(offset);
+    auto new_buffer =
+        alloc.buffer.reinterpret<T>(sycl::range<1>(alloc.size / sizeof(T)));
+    sycl::accessor<T, 1, sycl::access_mode::write, sycl::access::target::device>
+        acc(new_buffer, cgh, r, o);
+    cgh.fill(acc, pattern);
+  });
+#else
   return q.fill(dev_ptr, pattern, count);
+#endif
 }
 
 /// Set \p value to the first \p size bytes starting from \p dev_ptr in \p q.
@@ -366,17 +383,17 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
   auto &mm = mem_mgr::instance();
   assert(mm.is_device_ptr(dev_ptr));
   auto alloc = mm.translate_ptr(dev_ptr);
-  size_t offset = (valueT *)dev_ptr - (valueT *)alloc.alloc_ptr;
+  size_t offset = (byte_t *)dev_ptr - (byte_t *)alloc.alloc_ptr;
 
   return q.submit([&](sycl::handler &cgh) {
     auto r = sycl::range<1>(size);
     auto o = sycl::id<1>(offset);
-    auto new_buffer = alloc.buffer.reinterpret<valueT>(
-        sycl::range<1>(alloc.size / sizeof(valueT)));
-    sycl::accessor<valueT, 1, sycl::access_mode::write,
+    auto new_buffer = alloc.buffer.reinterpret<byte_t>(
+        sycl::range<1>(alloc.size / sizeof(byte_t)));
+    sycl::accessor<byte_t, 1, sycl::access_mode::write,
                    sycl::access::target::device>
         acc(new_buffer, cgh, r, o);
-    cgh.fill(acc, value);
+    cgh.fill(acc, static_cast<unsigned char>(value));
   });
 #else
   return q.memset(dev_ptr, value, size);
