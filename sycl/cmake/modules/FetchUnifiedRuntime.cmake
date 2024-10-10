@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Fri Oct 4 16:39:59 2024 +0100
   #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
   #     [L0] Fix device query of bindless image support
-  set(UNIFIED_RUNTIME_TAG c6663f425b23059dcfccce62f588d2e6fe28cce7)
+  set(UNIFIED_RUNTIME_TAG af6e1868434af74631fd8d736e5b2d0d8a9d6263)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -137,7 +137,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
 
   fetch_adapter_source(level_zero
    https://github.com/winstonzhang-intel/unified-runtime.git
-   c6663f425b23059dcfccce62f588d2e6fe28cce7
+   af6e1868434af74631fd8d736e5b2d0d8a9d6263
   )
 
   fetch_adapter_source(opencl
