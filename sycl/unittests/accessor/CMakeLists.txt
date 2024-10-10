@@ -7,4 +7,5 @@ add_sycl_unittest(AccessorTests OBJECT
   HostAccessorIterator.cpp
   HostAccessorReverseIterator.cpp
   LocalAccessorDefaultCtor.cpp
+  RuntimeProperties.cpp
 )

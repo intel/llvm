@@ -2330,7 +2330,12 @@ std::vector<device_image_plain> ProgramManager::getSYCLDeviceImages(
 device_image_plain
 ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
-                        const property_list &) {
+                        const property_list &PropList) {
+  {
+    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   // TODO: Extract compile options from property list once the Spec clarifies
   // how they can be passed.
@@ -2396,7 +2401,11 @@ std::vector<device_image_plain>
 ProgramManager::link(const device_image_plain &DeviceImage,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   std::vector<ur_program_handle_t> URPrograms;
   URPrograms.push_back(getSyclObjImpl(DeviceImage)->get_ur_program_ref());
@@ -2513,7 +2522,11 @@ ProgramManager::link(const device_image_plain &DeviceImage,
 device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const std::vector<device> &Devs,
                                          const property_list &PropList) {
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   const std::shared_ptr<device_image_impl> &InputImpl =
       getSyclObjImpl(DeviceImage);
@@ -2674,7 +2687,11 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                   const property_list &PropList,
                                   ur_program_handle_t Program) {
 
-  (void)PropList;
+  {
+    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    detail::PropertyValidator::checkPropsAndThrow(
+        PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
+  }
 
   const ContextImplPtr Ctx = getSyclObjImpl(Context);
 

@@ -126,6 +126,25 @@ protected:
     }
   }
 
+  void checkPropsAndThrow(std::function<bool(int)> FunctionForDataless,
+                          std::function<bool(int)> FunctionForData) const {
+    static const auto ErrorCode = sycl::make_error_code(errc::invalid);
+    static const auto ErrorMessage = "The property list contains property "
+                                     "unsupported for the current object";
+
+    for (int PropertyKind = 0;
+         PropertyKind < static_cast<int>(MDataLessProps.size());
+         PropertyKind++) {
+      if (MDataLessProps[PropertyKind] && !FunctionForDataless(PropertyKind))
+        throw sycl::exception(ErrorCode, ErrorMessage);
+    }
+
+    for (const auto &PropertyItem : MPropsWithData) {
+      if (!FunctionForData(PropertyItem->getKind()))
+        throw sycl::exception(ErrorCode, ErrorMessage);
+    }
+  }
+
   // Stores enabled/disabled for simple properties
   std::bitset<DataLessPropKind::DataLessPropKindSize> MDataLessProps;
   // Stores shared_ptrs to complex properties

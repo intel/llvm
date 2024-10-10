@@ -503,6 +503,8 @@ public:
 private:
   value_type MValue;
 };
+
+__SYCL_EXPORT void verifyReductionProps(const property_list &Props);
 } // namespace detail
 
 // We explicitly claim std::optional as device-copyable in sycl/types.hpp.
@@ -2842,6 +2844,7 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, false>(
@@ -2856,6 +2859,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH,
 template <typename T, typename BinaryOperation>
 auto reduction(T *Var, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, false>(
@@ -2869,6 +2873,7 @@ template <typename T, typename AllocatorT, typename BinaryOperation>
 auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
   std::ignore = CGH;
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, true>(
@@ -2881,6 +2886,7 @@ auto reduction(buffer<T, 1, AllocatorT> Var, handler &CGH, const T &Identity,
 template <typename T, typename BinaryOperation>
 auto reduction(T *Var, const T &Identity, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 0, 1, true>(
@@ -2896,6 +2902,7 @@ template <typename T, size_t Extent, typename BinaryOperation,
           typename = std::enable_if_t<Extent != dynamic_extent>>
 auto reduction(span<T, Extent> Span, BinaryOperation Combiner,
                const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 1, Extent, false>(
@@ -2909,6 +2916,7 @@ template <typename T, size_t Extent, typename BinaryOperation,
           typename = std::enable_if_t<Extent != dynamic_extent>>
 auto reduction(span<T, Extent> Span, const T &Identity,
                BinaryOperation Combiner, const property_list &PropList = {}) {
+  detail::verifyReductionProps(PropList);
   bool InitializeToIdentity =
       PropList.has_property<property::reduction::initialize_to_identity>();
   return detail::make_reduction<BinaryOperation, 1, Extent, true>(

@@ -83,6 +83,7 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
@@ -111,4 +112,5 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: buffer_properties.def
 // CHECK-EMPTY:

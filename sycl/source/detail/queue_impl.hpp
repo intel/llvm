@@ -113,6 +113,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
       if (has_property<ext::oneapi::property::queue::discard_events>())
         throw sycl::exception(make_error_code(errc::invalid),
@@ -242,6 +243,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     queue_impl_interop(UrQueue);
   }
 
@@ -962,6 +964,8 @@ protected:
   std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

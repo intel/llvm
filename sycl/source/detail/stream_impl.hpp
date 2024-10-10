@@ -67,6 +67,8 @@ private:
   // Additinonal memory is allocated in the beginning of the stream buffer for
   // 2 variables: offset in the stream buffer and offset in the flush buffer.
   static const size_t OffsetSize = 2 * sizeof(unsigned);
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

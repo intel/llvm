@@ -77,6 +77,19 @@ int main() {
   // Reduction is_property
   CHECK_IS_PROPERTY(property::reduction::initialize_to_identity);
 
+  // Graph is_property
+  CHECK_IS_PROPERTY(ext::oneapi::experimental::property::graph::no_cycle_check);
+  CHECK_IS_PROPERTY(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph);
+  CHECK_IS_PROPERTY(ext::oneapi::experimental::property::graph::updatable);
+  CHECK_IS_PROPERTY(
+      ext::oneapi::experimental::property::graph::enable_profiling);
+
+  // Node is_property
+  CHECK_IS_PROPERTY(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves);
+  CHECK_IS_PROPERTY(ext::oneapi::experimental::property::node::depends_on);
+
   //----------------------------------------------------------------------------
   // is_property negative tests
   //----------------------------------------------------------------------------
@@ -127,8 +140,32 @@ int main() {
   CHECK_IS_PROPERTY_OF(ext::oneapi::cuda::property::queue::use_default_stream,
                        queue);
 
+  // Graph is_property_of
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::no_cycle_check,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF(ext::oneapi::experimental::property::graph::updatable,
+                       ext::oneapi::experimental::command_graph<
+                           ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::enable_profiling,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+
+  // Node is_property_of
+  CHECK_IS_PROPERTY_OF(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves,
+      ext::oneapi::experimental::node);
+  CHECK_IS_PROPERTY_OF(ext::oneapi::experimental::property::node::depends_on,
+                       ext::oneapi::experimental::node);
+
   //----------------------------------------------------------------------------
-  // is_property_of positive tests
+  // is_property_of negative tests
   //----------------------------------------------------------------------------
 
   // Valid properties with invalid object type
@@ -155,6 +192,24 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF(
       ext::oneapi::cuda::property::queue::use_default_stream, NotASYCLObject);
 
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::no_cycle_check,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::updatable, NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::graph::enable_profiling,
+      NotASYCLObject);
+
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF(
+      ext::oneapi::experimental::property::node::depends_on, NotASYCLObject);
+
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, accessor<int, 1>);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, host_accessor<char, 2>);
@@ -162,6 +217,10 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, context);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, image<1>);
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, queue);
+  CHECK_IS_NOT_PROPERTY_OF(NotAProperty, ext::oneapi::experimental::node);
+  CHECK_IS_NOT_PROPERTY_OF(
+      NotAProperty, ext::oneapi::experimental::command_graph<
+                        ext::oneapi::experimental::graph_state::modifiable>);
 
   // Invalid properties with invalid object type
   CHECK_IS_NOT_PROPERTY_OF(NotAProperty, NotASYCLObject);
@@ -193,6 +252,23 @@ int main() {
   CHECK_IS_PROPERTY_V(property::queue::enable_profiling);
   CHECK_IS_PROPERTY_V(property::queue::cuda::use_default_stream);
   CHECK_IS_PROPERTY_V(ext::oneapi::cuda::property::queue::use_default_stream);
+
+  // Reduction is_property_v
+  CHECK_IS_PROPERTY_V(property::reduction::initialize_to_identity);
+
+  // Graph is_property_v
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::experimental::property::graph::no_cycle_check);
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph);
+  CHECK_IS_PROPERTY_V(ext::oneapi::experimental::property::graph::updatable);
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::experimental::property::graph::enable_profiling);
+
+  // Node is_property_v
+  CHECK_IS_PROPERTY_V(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves);
+  CHECK_IS_PROPERTY_V(ext::oneapi::experimental::property::node::depends_on);
 
   //----------------------------------------------------------------------------
   // is_property_v negative tests
@@ -264,8 +340,30 @@ int main() {
   CHECK_IS_PROPERTY_OF_V(ext::oneapi::cuda::property::queue::use_default_stream,
                          queue);
 
-  // Reduction is_property_v
-  CHECK_IS_PROPERTY_V(property::reduction::initialize_to_identity);
+  // Graph is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::no_cycle_check,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::updatable,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::enable_profiling,
+      ext::oneapi::experimental::command_graph<
+          ext::oneapi::experimental::graph_state::modifiable>);
+
+  // Node is_property_of_v
+  CHECK_IS_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves,
+      ext::oneapi::experimental::node);
+  CHECK_IS_PROPERTY_OF_V(ext::oneapi::experimental::property::node::depends_on,
+                         ext::oneapi::experimental::node);
 
   //----------------------------------------------------------------------------
   // is_property_of positive tests
@@ -295,6 +393,24 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF_V(
       ext::oneapi::cuda::property::queue::use_default_stream, NotASYCLObject);
 
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::no_cycle_check,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::assume_buffer_outlives_graph,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::updatable, NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::graph::enable_profiling,
+      NotASYCLObject);
+
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::node::depends_on_all_leaves,
+      NotASYCLObject);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      ext::oneapi::experimental::property::node::depends_on, NotASYCLObject);
+
   // Invalid properties with valid object type
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, accessor<int, 1>);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, host_accessor<char, 2>);
@@ -302,6 +418,10 @@ int main() {
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, context);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, image<1>);
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, queue);
+  CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, ext::oneapi::experimental::node);
+  CHECK_IS_NOT_PROPERTY_OF_V(
+      NotAProperty, ext::oneapi::experimental::command_graph<
+                        ext::oneapi::experimental::graph_state::modifiable>);
 
   // Invalid properties with invalid object type
   CHECK_IS_NOT_PROPERTY_OF_V(NotAProperty, NotASYCLObject);

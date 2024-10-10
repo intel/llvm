@@ -84,6 +84,7 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
@@ -112,6 +113,7 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
@@ -137,6 +139,9 @@
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.hpp
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/graph_properties.def
+// CHECK-NEXT: ext/oneapi/experimental/detail/properties/node_properties.def
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h
 // CHECK-NEXT: CL/cl.h
