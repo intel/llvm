@@ -10,13 +10,13 @@
 // RUN: -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-NO-DEVLIB %s
 
-// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-NO-DEVLIB: [[LIB1:[0-9]+]]: input, "{{.*}}libsycl-itt-user-wrappers.bc", ir, (device-sycl, gfx906)
-// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-NO-DEVLIB: [[LIB2:[0-9]+]]: input, "{{.*}}libsycl-itt-compiler-wrappers.bc", ir, (device-sycl, gfx906)
-// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-NO-DEVLIB: [[LIB3:[0-9]+]]: input, "{{.*}}libsycl-itt-stubs.bc", ir, (device-sycl, gfx906)
-// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-NO-DEVLIB-NOT: {{[0-9]+}}: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-NO-DEVLIB: {{[0-9]+}}: linker, {{{.*}}[[LIB1]], [[LIB2]], [[LIB3]]{{.*}}}, ir, (device-sycl, gfx906)
 
 // Check that the -fsycl-device-lib flag has no effect when "all" is specified.
@@ -39,7 +39,7 @@
 // RUN: | FileCheck -check-prefixes=CHK-UNUSED-WARN,CHK-ALL %s
 
 // CHK-UNUSED-WARN: warning: argument unused during compilation: '-fno-sycl-device-lib='
-// CHK-ALL: [[DEVLIB:[0-9]+]]: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-ALL: [[DEVLIB:[0-9]+]]: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-ALL: {{[0-9]+}}: linker, {{{.*}}[[DEVLIB]]{{.*}}}, ir, (device-sycl, gfx906)
 
 // Check that llvm-link uses the "-only-needed" flag.
@@ -48,4 +48,4 @@
 // RUN: -fsycl -fsycl-targets=amdgcn-amd-amdhsa -Xsycl-target-backend --offload-arch=gfx906 %s 2>&1 \
 // RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
 
-// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib--amd.bc"{{.*}}
+// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib-amdgcn-amd-amdhsa.bc"{{.*}}

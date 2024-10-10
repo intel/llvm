@@ -71,16 +71,16 @@ endforeach()
 # Additional compilation options are needed for compiling each device library.
 set(devicelib_arch)
 if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND devicelib_arch cuda)
-  set(compile_opts_cuda "-fsycl-targets=nvptx64-nvidia-cuda"
+  list(APPEND devicelib_arch nvptx64-nvidia-cuda)
+  set(compile_opts_nvptx64-nvidia-cuda "-fsycl-targets=nvptx64-nvidia-cuda"
   "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
-  set(opt_flags_cuda "-O3" "--nvvm-reflect-enable=false")
+  set(opt_flags_nvptx64-nvidia-cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
 if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
-  list(APPEND devicelib_arch amd)
-  set(compile_opts_amd "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
+  list(APPEND devicelib_arch amdgcn-amd-amdhsa)
+  set(compile_opts_amdgcn-amd-amdhsa "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
   "-Xsycl-target-backend" "--offload-arch=gfx940")
-  set(opt_flags_amd "-O3" "--amdgpu-oclc-reflect-enable=false")
+  set(opt_flags_amdgcn-amd-amdhsa "-O3" "--amdgpu-oclc-reflect-enable=false")
 endif()
 
 
@@ -181,14 +181,14 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
-    compile_lib(${filename}--${arch}
+    compile_lib(${filename}-${arch}
       FILETYPE bc
       SRC ${ARG_SRC}
       DEPENDENCIES ${ARG_DEPENDENCIES}
       EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
                  ${compile_opts_${arch}})
 
-    append_to_property(${bc_binary_dir}/${filename}--${arch}.bc
+    append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
       PROPERTY_NAME BC_DEVICE_LIBS_${arch})
   endforeach()
 endfunction()
@@ -471,7 +471,7 @@ foreach(arch IN LISTS devicelib_arch)
   endforeach()
 endforeach()
 
-# Create one large bitcode file for the CUDA and AMD targets.
+# Create one large bitcode file for the NVPTX and AMD targets.
 # Use all the files collected in the respective global properties.
 foreach(arch IN LISTS devicelib_arch)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})
@@ -486,15 +486,15 @@ foreach(arch IN LISTS devicelib_arch)
 
   # Run the optimizer on the resulting bitcode file and call prepare_builtins
   # on it, which strips away debug and arch information.
-  process_bc(devicelib--${arch}.bc
+  process_bc(devicelib-${arch}.bc
     LIB_TGT builtins_${arch}.opt
     IN_FILE ${builtins_link_lib_${arch}}
     OUT_DIR ${bc_binary_dir}
     OPT_FLAGS ${opt_flags_${arch}}
     DEPENDENCIES device_lib_device_${arch})
-  add_dependencies(libsycldevice-bc prepare-devicelib--${arch}.bc)
+  add_dependencies(libsycldevice-bc prepare-devicelib-${arch}.bc)
   set(complete_${arch}_libdev
-    $<TARGET_PROPERTY:prepare-devicelib--${arch}.bc,TARGET_FILE>)
+    $<TARGET_PROPERTY:prepare-devicelib-${arch}.bc,TARGET_FILE>)
   install( FILES ${complete_${arch}_libdev}
            DESTINATION ${install_dest_bc}
            COMPONENT libsycldevice)

@@ -37,7 +37,7 @@
 // CHK-PHASES-NO-CC: 7: backend, {6}, assembler, (host-sycl)
 // CHK-PHASES-NO-CC: 8: assembler, {7}, object, (host-sycl)
 // CHK-PHASES-NO-CC: 9: linker, {4}, ir, (device-sycl, gfx906)
-// CHK-PHASES-NO-CC: 10: input, "{{.*}}devicelib--amd.bc", ir, (device-sycl, gfx906)
+// CHK-PHASES-NO-CC: 10: input, "{{.*}}devicelib-amdgcn-amd-amdhsa.bc", ir, (device-sycl, gfx906)
 // CHK-PHASES-NO-CC: 11: linker, {9, 10}, ir, (device-sycl, gfx906)
 // CHK-PHASES-NO-CC: 12: sycl-post-link, {11}, ir, (device-sycl, gfx906)
 // CHK-PHASES-NO-CC: 13: file-table-tform, {12}, ir, (device-sycl, gfx906)
