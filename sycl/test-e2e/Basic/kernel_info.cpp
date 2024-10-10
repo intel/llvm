@@ -16,13 +16,31 @@
 using namespace sycl;
 namespace syclex = sycl::ext::oneapi;
 
+auto checkExceptionIsThrown = [](auto &getInfoFunc,
+                                 const std::string &refErrMsg,
+                                 std::error_code refErrc) {
+  std::string errMsg = "";
+  std::error_code errc;
+  bool exceptionWasThrown = false;
+  try {
+    std::ignore = getInfoFunc();
+  } catch (exception &e) {
+    errMsg = e.what();
+    errc = e.code();
+    exceptionWasThrown = true;
+  }
+  assert(exceptionWasThrown);
+  assert(errMsg == refErrMsg);
+  assert(errc == refErrc);
+};
+
 int main() {
   queue q;
   auto ctx = q.get_context();
   buffer<int, 1> buf(range<1>(1));
-  auto KernelID = sycl::get_kernel_id<class SingleTask>();
-  auto KB = get_kernel_bundle<bundle_state::executable>(ctx, {KernelID});
-  kernel krn = KB.get_kernel(KernelID);
+  auto kernelID = sycl::get_kernel_id<class SingleTask>();
+  auto kb = get_kernel_bundle<bundle_state::executable>(ctx, {kernelID});
+  kernel krn = kb.get_kernel(kernelID);
 
   q.submit([&](handler &cgh) {
     auto acc = buf.get_access<access::mode::read_write>(cgh);
@@ -32,27 +50,19 @@ int main() {
   const std::string krnName = krn.get_info<info::kernel::function_name>();
   assert(!krnName.empty());
 
-  std::string ErrMsg = "";
-  std::error_code Errc;
-  bool ExceptionWasThrown = false;
-  try {
-    const cl_uint krnArgCount = krn.get_info<info::kernel::num_args>();
-    // Use ext_oneapi_get_kernel_info extension and check that answers match.
-    const cl_uint krnArgCountExt =
-        syclex::get_kernel_info<SingleTask, info::kernel::num_args>(ctx);
-    assert(krnArgCountExt == krnArgCount);
-  } catch (exception &e) {
-    ErrMsg = e.what();
-    Errc = e.code();
-    ExceptionWasThrown = true;
-  }
-  assert(ExceptionWasThrown && "Invalid using of \"info::kernel::num_args\" "
-                               "query should throw an exception.");
-  assert(ErrMsg ==
-         "info::kernel::num_args descriptor may only be used to query a kernel "
-         "that resides in a kernel bundle constructed using a backend specific"
-         "interoperability function or to query a device built-in kernel");
-  assert(Errc == errc::invalid);
+  auto refErrMsg =
+      "info::kernel::num_args descriptor may only be used to query a kernel "
+      "that resides in a kernel bundle constructed using a backend specific"
+      "interoperability function or to query a device built-in kernel";
+  auto refErrc = errc::invalid;
+  auto getInfoNumArgsFunc = [&]() -> cl_uint {
+    return krn.get_info<info::kernel::num_args>();
+  };
+  checkExceptionIsThrown(getInfoNumArgsFunc, refErrMsg, refErrc);
+  auto getInfoNumArgsFuncExt = [&]() {
+    return syclex::get_kernel_info<SingleTask, info::kernel::num_args>(ctx);
+  };
+  checkExceptionIsThrown(getInfoNumArgsFuncExt, refErrMsg, refErrc);
 
   const context krnCtx = krn.get_info<info::kernel::context>();
   assert(krnCtx == q.get_context());
@@ -136,45 +146,23 @@ int main() {
       SingleTask, info::kernel_device_specific::compile_num_sub_groups>(q);
   assert(compileNumSgExtQ == compileNumSg);
 
-  {
-    std::error_code Errc;
-    std::string ErrMsg = "";
-    bool IsExceptionThrown = false;
-    try {
-      auto globalWorkSize =
-          krn.get_info<sycl::info::kernel_device_specific::global_work_size>(
-              dev);
-      // Use ext_oneapi_get_kernel_info extension and check that answers match.
-      auto globalWorkSizeExt = syclex::get_kernel_info<
-          SingleTask, info::kernel_device_specific::global_work_size>(ctx, dev);
-      assert(globalWorkSize == globalWorkSizeExt);
-      // Use ext_oneapi_get_kernel_info extension with queue parameter and check
-      // the result.
-      auto globalWorkSizeExtQ = syclex::get_kernel_info<
-          SingleTask, info::kernel_device_specific::global_work_size>(q);
-      assert(globalWorkSize == globalWorkSizeExtQ);
-      auto BuiltInIds = dev.get_info<info::device::built_in_kernel_ids>();
-      bool isBuiltInKernel = std::find(BuiltInIds.begin(), BuiltInIds.end(),
-                                       KernelID) != BuiltInIds.end();
-      bool isCustomDevice = dev.get_info<sycl::info::device::device_type>() ==
-                            sycl::info::device_type::custom;
-      assert((isCustomDevice || isBuiltInKernel) &&
-             "info::kernel_device_specific::global_work_size descriptor can "
-             "only be used with custom device "
-             "or built-in kernel.");
-
-    } catch (sycl::exception &e) {
-      IsExceptionThrown = true;
-      Errc = e.code();
-      ErrMsg = e.what();
-    }
-    assert(IsExceptionThrown &&
-           "Invalid using of info::kernel_device_specific::global_work_size "
-           "query should throw an exception.");
-    assert(Errc == errc::invalid);
-    assert(ErrMsg ==
-           "info::kernel_device_specific::global_work_size descriptor may only "
-           "be used if the device type is device_type::custom or if the "
-           "kernel is a built-in kernel.");
-  }
+  refErrMsg =
+      "info::kernel_device_specific::global_work_size descriptor may only "
+      "be used if the device type is device_type::custom or if the "
+      "kernel is a built-in kernel.";
+  auto getInfoGWSFunc = [&]() {
+    return krn.get_info<sycl::info::kernel_device_specific::global_work_size>(
+        dev);
+  };
+  checkExceptionIsThrown(getInfoGWSFunc, refErrMsg, refErrc);
+  auto getInfoGWSFuncExt = [&]() {
+    return syclex::get_kernel_info<
+        SingleTask, info::kernel_device_specific::global_work_size>(ctx, dev);
+  };
+  checkExceptionIsThrown(getInfoGWSFuncExt, refErrMsg, refErrc);
+  auto getInfoGWSFuncExtQ = [&]() {
+    return syclex::get_kernel_info<
+        SingleTask, info::kernel_device_specific::global_work_size>(q);
+  };
+  checkExceptionIsThrown(getInfoGWSFuncExtQ, refErrMsg, refErrc);
 }
