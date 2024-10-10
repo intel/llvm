@@ -49,6 +49,8 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal>
     prefetch_hint_L4_nt;
 
 namespace detail {
+using namespace sycl::detail;
+
 template <> struct IsCompileTimeProperty<prefetch_hint_key> : std::true_type {};
 
 template <cache_level Level, typename Hint>
