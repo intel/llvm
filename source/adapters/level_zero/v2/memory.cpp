@@ -28,10 +28,8 @@ ur_host_mem_handle_t::ur_host_mem_handle_t(ur_context_handle_t hContext,
   }
 
   if (!hostPtrImported) {
-    // TODO: use UMF
-    ZeStruct<ze_host_mem_alloc_desc_t> hostDesc;
-    ZE2UR_CALL_THROWS(zeMemAllocHost, (hContext->getZeHandle(), &hostDesc, size,
-                                       0, &this->ptr));
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, nullptr, nullptr, UR_USM_TYPE_HOST, size, &this->ptr));
 
     if (hostPtr) {
       std::memcpy(this->ptr, hostPtr, size);
@@ -40,9 +38,11 @@ ur_host_mem_handle_t::ur_host_mem_handle_t(ur_context_handle_t hContext,
 }
 
 ur_host_mem_handle_t::~ur_host_mem_handle_t() {
-  // TODO: use UMF API here
   if (ptr) {
-    ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+    auto ret = hContext->getDefaultUSMPool()->free(ptr);
+    if (ret != UR_RESULT_SUCCESS) {
+      logger::error("Failed to free host memory: {}", ret);
+    }
   }
 }
 
@@ -51,27 +51,51 @@ void *ur_host_mem_handle_t::getPtr(ur_device_handle_t hDevice) {
   return ptr;
 }
 
+ur_result_t ur_device_mem_handle_t::migrateBufferTo(ur_device_handle_t hDevice,
+                                                    void *src, size_t size) {
+  auto Id = hDevice->Id.value();
+
+  if (!deviceAllocations[Id]) {
+    UR_CALL(hContext->getDefaultUSMPool()->allocate(hContext, hDevice, nullptr,
+                                                    UR_USM_TYPE_DEVICE, size,
+                                                    &deviceAllocations[Id]));
+  }
+
+  auto commandList = hContext->commandListCache.getImmediateCommandList(
+      hDevice->ZeDevice, true,
+      hDevice
+          ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
+          .ZeOrdinal,
+      ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+      std::nullopt);
+
+  ZE2UR_CALL(zeCommandListAppendMemoryCopy,
+             (commandList.get(), deviceAllocations[Id], src, size, nullptr, 0,
+              nullptr));
+
+  activeAllocationDevice = hDevice;
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_device_mem_handle_t::ur_device_mem_handle_t(ur_context_handle_t hContext,
                                                void *hostPtr, size_t size)
     : ur_mem_handle_t_(hContext, size),
-      deviceAllocations(hContext->getPlatform()->getNumDevices()) {
-  // Legacy adapter allocated the memory directly on a device (first on the
-  // contxt) and if the buffer is used on another device, memory is migrated
-  // (depending on an env var setting).
-  //
-  // TODO: port this behavior or figure out if it makes sense to keep the memory
-  // in a host buffer (e.g. for smaller sizes).
+      deviceAllocations(hContext->getPlatform()->getNumDevices()),
+      activeAllocationDevice(nullptr) {
   if (hostPtr) {
-    buffer.assign(reinterpret_cast<char *>(hostPtr),
-                  reinterpret_cast<char *>(hostPtr) + size);
+    auto initialDevice = hContext->getDevices()[0];
+    UR_CALL_THROWS(migrateBufferTo(initialDevice, hostPtr, size));
   }
 }
 
 ur_device_mem_handle_t::~ur_device_mem_handle_t() {
-  // TODO: use UMF API here
   for (auto &ptr : deviceAllocations) {
     if (ptr) {
-      ZE_CALL_NOCHECK(zeMemFree, (hContext->getZeHandle(), ptr));
+      auto ret = hContext->getDefaultUSMPool()->free(ptr);
+      if (ret != UR_RESULT_SUCCESS) {
+        logger::error("Failed to free device memory: {}", ret);
+      }
     }
   }
 }
@@ -79,27 +103,28 @@ ur_device_mem_handle_t::~ur_device_mem_handle_t() {
 void *ur_device_mem_handle_t::getPtr(ur_device_handle_t hDevice) {
   std::lock_guard lock(this->Mutex);
 
-  auto &ptr = deviceAllocations[hDevice->Id.value()];
-  if (!ptr) {
-    ZeStruct<ze_device_mem_alloc_desc_t> deviceDesc;
-    ZE2UR_CALL_THROWS(zeMemAllocDevice, (hContext->getZeHandle(), &deviceDesc,
-                                         size, 0, hDevice->ZeDevice, &ptr));
-
-    if (!buffer.empty()) {
-      auto commandList = hContext->commandListCache.getImmediateCommandList(
-          hDevice->ZeDevice, true,
-          hDevice
-              ->QueueGroup
-                  [ur_device_handle_t_::queue_group_info_t::type::Compute]
-              .ZeOrdinal,
-          ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
-          std::nullopt);
-      ZE2UR_CALL_THROWS(
-          zeCommandListAppendMemoryCopy,
-          (commandList.get(), ptr, buffer.data(), size, nullptr, 0, nullptr));
-    }
+  if (!activeAllocationDevice) {
+    UR_CALL_THROWS(hContext->getDefaultUSMPool()->allocate(
+        hContext, hDevice, nullptr, UR_USM_TYPE_DEVICE, getSize(),
+        &deviceAllocations[hDevice->Id.value()]));
+    activeAllocationDevice = hDevice;
   }
-  return ptr;
+
+  if (activeAllocationDevice == hDevice) {
+    return deviceAllocations[hDevice->Id.value()];
+  }
+
+  auto &p2pDevices = hContext->getP2PDevices(hDevice);
+  auto p2pAccessible = std::find(p2pDevices.begin(), p2pDevices.end(),
+                                 activeAllocationDevice) != p2pDevices.end();
+
+  if (!p2pAccessible) {
+    // TODO: migrate buffer through the host
+    throw UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
+  // TODO: see if it's better to migrate the memory to the specified device
+  return deviceAllocations[activeAllocationDevice->Id.value()];
 }
 
 namespace ur::level_zero {
@@ -164,6 +189,28 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   std::ignore = phMem;
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
+                         size_t propSize, void *pPropValue,
+                         size_t *pPropSizeRet) {
+  std::shared_lock<ur_shared_mutex> Lock(hMemory->Mutex);
+  UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
+
+  switch (propName) {
+  case UR_MEM_INFO_CONTEXT: {
+    return returnValue(hMemory->getContext());
+  }
+  case UR_MEM_INFO_SIZE: {
+    // Get size of the allocation
+    return returnValue(size_t{hMemory->getSize()});
+  }
+  default: {
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+  }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) {

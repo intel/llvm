@@ -12,6 +12,13 @@
 
 #include "common.hpp"
 
+namespace umf {
+ur_result_t getProviderNativeError(const char *, int32_t) {
+  // TODO: implement when UMF supports OpenCL
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
+
 inline cl_mem_alloc_flags_intel
 hostDescToClFlags(const ur_usm_host_desc_t &desc) {
   cl_mem_alloc_flags_intel allocFlags = 0;
