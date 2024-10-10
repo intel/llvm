@@ -202,12 +202,14 @@ set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC)
   set(sanitizer_obj_deps
-    device.h atomic.hpp spirv_vars.h
+    device.h atomic.hpp
+    spirv_decls.hpp spirv_vars.h
     include/asan_libdevice.hpp
     include/sanitizer_utils.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 endif()
+set(gsort_obj_deps device.h spirv_decls.hpp spirv_vars.h group_helper.hpp sort_helper.hpp sycl-compiler)
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   if (NOT DEFINED NATIVE_CPU_DIR)
@@ -299,6 +301,10 @@ add_devicelibs(libsycl-fallback-bfloat16
 add_devicelibs(libsycl-native-bfloat16
   SRC bfloat16_wrapper.cpp
   DEPENDENCIES ${bfloat16_obj_deps})
+add_devicelibs(libsycl-fallback-gsort
+  SRC fallback-gsort.cpp
+  DEPENDENCIES ${gsort_obj_deps}
+  EXTRA_OPTS -fno-sycl-instrument-device-code)
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
