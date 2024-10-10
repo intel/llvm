@@ -281,6 +281,18 @@ sp = subprocess.getstatusoutput(
 if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
+# Check if clang is built with ZSTD and compression support.
+fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+ps = subprocess.Popen(
+    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+)
+op = ps.communicate(input=b"")
+if ps.wait() == 0:
+    config.available_features.add("zstd")
+
 # Check for CUDA SDK
 check_cuda_file = "cuda_include.cpp"
 with open_check_file(check_cuda_file) as fp:

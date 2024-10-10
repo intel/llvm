@@ -10,6 +10,7 @@ add_clang_tool(clang-offload-wrapper
 
 set(CLANG_OFFLOAD_WRAPPER_LIB_DEPS
   clangBasic
+  LLVMSupport
   )
 
 add_dependencies(clang clang-offload-wrapper)
