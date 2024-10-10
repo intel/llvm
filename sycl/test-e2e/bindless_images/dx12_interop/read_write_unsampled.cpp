@@ -1,7 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
 
-// RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
+// RUN: %{build} %dx12_options -o %t.out
 // RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #pragma clang diagnostic ignored "-Waddress-of-temporary"
