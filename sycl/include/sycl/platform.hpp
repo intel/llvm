@@ -230,6 +230,11 @@ public:
 
   std::vector<device> ext_oneapi_get_composite_devices() const;
 
+  /// Returns a copy of the default context object for this platform.
+  ///
+  /// \return the default context
+  context khr_get_default_context() const;
+
 private:
   ur_native_handle_t getNative() const;
 

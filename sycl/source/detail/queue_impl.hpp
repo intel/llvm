@@ -77,7 +77,7 @@ public:
           context{createSyclObjFromImpl<device>(Device), {}, {}});
 
     ContextImplPtr DefaultContext = detail::getSyclObjImpl(
-        Device->get_platform().ext_oneapi_get_default_context());
+        Device->get_platform().khr_get_default_context());
     if (DefaultContext->isDeviceValid(Device))
       return DefaultContext;
     return detail::getSyclObjImpl(
