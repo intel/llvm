@@ -305,7 +305,9 @@ public:
       typename std::conditional_t<target == target::local,
                                   sycl::local_accessor<T, Dimension>,
                                   sycl::accessor<T, Dimension, mode>>;
-  using pointer_t = T *;
+  using pointer_t =
+      typename std::conditional_t<Memory == memory_region::constant, const T *,
+                                  T *>;
 };
 
 static inline void *malloc(size_t size, sycl::queue q) {
