@@ -180,26 +180,27 @@ void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
         break;
     case ValidateUSMResult::RELEASED_POINTER:
         getContext()->logger.always(
-            "The {}th argument {} is a released USM pointer", ArgIndex,
+            "The {}th argument {} is a released USM pointer", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::BAD_CONTEXT:
         getContext()->logger.always(
-            "The {}th argument {} is allocated in other context", ArgIndex,
+            "The {}th argument {} is allocated in other context", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::BAD_DEVICE:
         getContext()->logger.always(
-            "The {}th argument {} is allocated in other device", ArgIndex,
+            "The {}th argument {} is allocated in other device", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::OUT_OF_BOUNDS:
         getContext()->logger.always(
             "The {}th argument {} is located outside of its region [{}, {})",
-            ArgIndex, (void *)Addr, (void *)AI->UserBegin, (void *)AI->UserEnd);
+            ArgIndex + 1, (void *)Addr, (void *)AI->UserBegin,
+            (void *)AI->UserEnd);
         getContext()->logger.always("allocated here:");
         AI->AllocStack.print();
         break;
