@@ -1524,6 +1524,9 @@ public:
                   "device memory region should be global, constant or shared");
     // Make sure that singleton class dev_mgr will destruct later than this.
     detail::dev_mgr::instance();
+#ifdef COMPAT_USM_LEVEL_NONE
+    detail::mem_mgr::instance();
+#endif
   }
 
   /// Constructor with range
