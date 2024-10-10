@@ -113,6 +113,29 @@ int main() {
                                                                         dev);
   assert(compileNumSgExt == compileNumSg);
 
+  // Use ext_oneapi_get_kernel_info extension with queue parameter and check the
+  // result.
+  const size_t wgSizeExtQ =
+      syclex::get_kernel_info<SingleTask,
+                              info::kernel_device_specific::work_group_size>(q);
+  assert(wgSizeExtQ == wgSize);
+  const size_t prefWGSizeMultExtQ = syclex::get_kernel_info<
+      SingleTask,
+      info::kernel_device_specific::preferred_work_group_size_multiple>(q);
+  assert(prefWGSizeMultExtQ == prefWGSizeMult);
+  const cl_uint maxSgSizeExtQ = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::max_sub_group_size>(q);
+  assert(maxSgSizeExtQ == maxSgSize);
+  const cl_uint compileSgSizeExtQ = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::compile_sub_group_size>(q);
+  assert(compileSgSizeExtQ == compileSgSize);
+  const cl_uint maxNumSgExtQ = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::max_num_sub_groups>(q);
+  assert(maxNumSgExtQ == maxNumSg);
+  const cl_uint compileNumSgExtQ = syclex::get_kernel_info<
+      SingleTask, info::kernel_device_specific::compile_num_sub_groups>(q);
+  assert(compileNumSgExtQ == compileNumSg);
+
   {
     std::error_code Errc;
     std::string ErrMsg = "";
@@ -125,6 +148,11 @@ int main() {
       auto globalWorkSizeExt = syclex::get_kernel_info<
           SingleTask, info::kernel_device_specific::global_work_size>(ctx, dev);
       assert(globalWorkSize == globalWorkSizeExt);
+      // Use ext_oneapi_get_kernel_info extension with queue parameter and check
+      // the result.
+      auto globalWorkSizeExtQ = syclex::get_kernel_info<
+          SingleTask, info::kernel_device_specific::global_work_size>(q);
+      assert(globalWorkSize == globalWorkSizeExtQ);
       auto BuiltInIds = dev.get_info<info::device::built_in_kernel_ids>();
       bool isBuiltInKernel = std::find(BuiltInIds.begin(), BuiltInIds.end(),
                                        KernelID) != BuiltInIds.end();

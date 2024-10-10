@@ -15,7 +15,7 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi::experimental {
+namespace ext::oneapi {
 
 template <typename KernelName, typename Param>
 typename sycl::detail::is_kernel_info_desc<Param>::return_type
@@ -43,6 +43,6 @@ get_kernel_info(const queue &Q) {
       Q.get_device());
 }
 
-} // namespace ext::oneapi::experimental
+} // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
