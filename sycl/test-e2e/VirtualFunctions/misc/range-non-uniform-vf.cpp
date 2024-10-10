@@ -70,7 +70,7 @@ int main() try {
     q.submit([&](sycl::handler &CGH) {
       sycl::accessor DataAcc(DataStorage, CGH, sycl::read_write);
       CGH.parallel_for(R, props, [=](auto it) {
-        // Select VF that corresponds to this work-item
+        // Select an object that corresponds to this work-item
         auto Ind = it % 3;
         auto *Ptr = DeviceStorage[Ind].template getAs<BaseOp>();
         DataAcc[it] = Ptr->apply(DataAcc[it]);

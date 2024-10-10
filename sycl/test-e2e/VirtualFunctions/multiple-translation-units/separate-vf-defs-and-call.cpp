@@ -1,6 +1,3 @@
-// FIXME: replace unsupported with an aspect check once we have it
-// UNSUPPORTED: cuda, hip, acc
-//
 // REQUIRES: aspect-usm_shared_allocations
 //
 // We attach calls-indirectly attribute (and therefore device image property)

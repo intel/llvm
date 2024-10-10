@@ -1,6 +1,3 @@
-// FIXME: replace unsupported with an aspect check once we have it
-// UNSUPPORTED: cuda, hip, acc
-//
 // REQUIRES: aspect-usm_shared_allocations
 //
 // VTables are global variables with possibly external linkage and that causes
