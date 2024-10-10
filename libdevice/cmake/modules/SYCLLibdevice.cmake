@@ -65,7 +65,7 @@ foreach(filetype IN LISTS filetypes)
   add_dependencies(libsycldevice libsycldevice-${filetype})
 endforeach()
 
-# For NVPTX each device libary is compiled into a single bitcode
+# For NVPTX and AMDGCN each device libary is compiled into a single bitcode
 # file and all files created this way are linked into one large bitcode
 # library.
 # Additional compilation options are needed for compiling each device library.
@@ -76,6 +76,13 @@ if ("NVPTX" IN_LIST LLVM_TARGETS_TO_BUILD)
   "-Xsycl-target-backend" "--cuda-gpu-arch=sm_50" "-nocudalib")
   set(opt_flags_cuda "-O3" "--nvvm-reflect-enable=false")
 endif()
+if("AMDGPU" IN_LIST LLVM_TARGETS_TO_BUILD)
+  list(APPEND devicelib_arch amd)
+  set(compile_opts_amd "-nogpulib" "-fsycl-targets=amdgcn-amd-amdhsa"
+  "-Xsycl-target-backend" "--offload-arch=gfx940")
+  set(opt_flags_amd "-O3" "--amdgpu-oclc-reflect-enable=false")
+endif()
+
 
 set(spv_device_compile_opts -fsycl-device-only -fsycl-device-obj=spirv)
 set(bc_device_compile_opts -fsycl-device-only -fsycl-device-obj=llvmir)
@@ -444,7 +451,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
   endforeach()
 endforeach()
 
-# Add device fallback imf libraries for the CUDA target.
+# Add device fallback imf libraries for the NVPTX and AMD targets.
 # The output files are bitcode.
 foreach(arch IN LISTS devicelib_arch)
   foreach(dtype IN ITEMS bf16 fp32 fp64)
@@ -464,7 +471,7 @@ foreach(arch IN LISTS devicelib_arch)
   endforeach()
 endforeach()
 
-# Create one large bitcode file for the CUDA targets.
+# Create one large bitcode file for the CUDA and AMD targets.
 # Use all the files collected in the respective global properties.
 foreach(arch IN LISTS devicelib_arch)
   get_property(BC_DEVICE_LIBS_${arch} GLOBAL PROPERTY BC_DEVICE_LIBS_${arch})

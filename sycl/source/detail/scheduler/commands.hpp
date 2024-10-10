@@ -684,8 +684,9 @@ private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
@@ -741,7 +742,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
 // extension.
 void SetArgBasedOnType(
-    const detail::PluginPtr &Plugin, ur_kernel_handle_t Kernel,
+    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);

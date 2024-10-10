@@ -13,8 +13,10 @@ function deps() {
 
     clang++ -fsycl -fsycl-device-only -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
         | sed 's@: /dev/null@: /dev/null\n@' \
-        | grep 'include/sycl\|/dev/null\|:' \
+        | grep 'include/sycl\|/dev/null\|CL/\|ur_\|:' \
         | sed 's@.*/include/sycl/@@' \
+        | sed 's@.*/include/CL/@CL/@' \
+        | sed 's@.*/include/ur_@ur_@' \
         | sed 's/ \\//'
 }
 
