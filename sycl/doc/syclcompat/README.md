@@ -1579,10 +1579,10 @@ SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
 expressions that might throw `sycl::exception` and `std::runtime_error`. If no
-exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
-`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+exceptions are thrown, it returns `syclcompat::error_code::success`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::backend_error`.
 If a `std::runtime_error` exception is caught,
-`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+`syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
 
 ``` c++
@@ -1615,7 +1615,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+enum error_code { success = 0, backend_error = 1, default_error = 999 };
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
