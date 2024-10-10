@@ -65,13 +65,13 @@ __spirv_MemoryBarrier(uint32_t Memory, uint32_t Semantics) {
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL Type                                     \
   __spirv_SubgroupBlockReadINTEL<Type>(const OCL_GLOBAL PType *Ptr) noexcept { \
-    return *Ptr;                                                               \
+    return Ptr[__spirv_SubgroupLocalInvocationId()];                           \
   }                                                                            \
   template <>                                                                  \
   __SYCL_CONVERGENT__ DEVICE_EXTERNAL void                                     \
   __spirv_SubgroupBlockWriteINTEL<Type>(PType OCL_GLOBAL * ptr,                \
                                         Type v) noexcept {                     \
-    *(Type *)ptr = v;                                                          \
+    ((Type*)ptr)[__spirv_SubgroupLocalInvocationId()]  = v;                    \
   }
 
 #define DefSubgroupBlockINTEL_vt(Type, VT_name)                                \
