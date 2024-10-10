@@ -1587,7 +1587,8 @@ public:
   typename std::enable_if<Dim == 1, T>::type &operator[](size_t index) {
     init();
 #ifdef COMPAT_USM_LEVEL_NONE
-    return syclcompat::get_buffer<typename std::enable_if<D == 1, T>::type>(ptr)
+    return syclcompat::get_buffer<typename std::enable_if<Dim == 1, T>::type>(
+               _device_ptr)
         .template get_access<sycl::access_mode::read_write>()[index];
 #else
     return _device_ptr[index];
@@ -1597,7 +1598,7 @@ public:
 #ifdef COMPAT_USM_LEVEL_NONE
   /// Get sycl::accessor for the device memory object when usm is not used.
   accessor_t get_access(sycl::handler &cgh) {
-    return get_buffer(_device_ptrs.front())
+    return get_buffer(_device_ptr)
         .template reinterpret<T, Dimension>(_range)
         .template get_access<detail::memory_traits<Memory, T>::mode,
                              detail::memory_traits<Memory, T>::target>(cgh);
