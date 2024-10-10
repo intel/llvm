@@ -58,7 +58,7 @@
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -67,7 +67,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -76,7 +76,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -85,7 +85,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidSizeZero/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -94,7 +94,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidSizeSmall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -103,7 +103,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
@@ -112,7 +112,7 @@
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_CONTEXT
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_DEVICES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_DEVICES
-{{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_SOURCE
+{{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_IL
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARY_SIZES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_BINARIES
 {{OPT}}urProgramGetInfoTest.InvalidNullPointerPropValueRet/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_PROGRAM_INFO_NUM_KERNELS
