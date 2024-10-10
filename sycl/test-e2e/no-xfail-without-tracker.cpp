@@ -3,7 +3,13 @@
 //
 // The format we check is:
 // XFAIL: lit,features
-// XFAIL-TRACKER: intel/llvm issue URL|intel/llvm#NNNNN shortcut
+// XFAIL-TRACKER: [GitHub issue URL|Internal tracker ID]
+//
+// GitHub issue URL format:
+//     https://github.com/owner/repo/issues/12345
+//
+// Internal tracker ID format:
+//     PROJECT-123456
 //
 // REQUIRES: linux
 //
@@ -20,7 +26,7 @@
 // RUN: grep -rI "XFAIL:" %S -A 1 --include=*.c --include=*.cpp \
 // RUN:     --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
-// RUN: grep -Pv "XFAIL-TRACKER:\s+.*intel/llvm.*\d+" | \
+// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" | \
 // RUN: wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 //
 // The number below is a number of tests which are *impropertly* XFAIL-ed, i.e.

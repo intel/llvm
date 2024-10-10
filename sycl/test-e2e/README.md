@@ -335,7 +335,11 @@ Once the issue is created, you can update the test by adding `XFAIL` and
 ```
 // GPU driver update caused failure
 // XFAIL: level_zero
-// XFAIL-TRACKER: intel/llvm#DDDDD
+// XFAIL-TRACKER: PRJ-5324
+
+// Sporadically fails on CPU:
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/DDDDD
 ```
 
 If you add `XFAIL` without `XFAIL-TRACKER` directive,
