@@ -22,6 +22,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
+#include <detail/ur_info_code.hpp>
 #include <detail/usm/usm_impl.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/helpers.hpp>
@@ -267,8 +268,8 @@ event handler::finalize() {
       // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
       int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
       auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, MKernelName.c_str(), MQueue,
-          impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
+          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.c_str(),
+          MQueue, impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
       auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
                             InstanceID = InstanceID]() {
 #else
@@ -515,6 +516,10 @@ event handler::finalize() {
   if (!CommandGroup)
     throw exception(make_error_code(errc::runtime),
                     "Internal Error. Command group cannot be constructed.");
+
+  // Propagate MIsTopCodeLoc state to CommandGroup.
+  // Will be used for XPTI payload generation for CG's related events.
+  CommandGroup->MIsTopCodeLoc = impl->MIsTopCodeLoc;
 
   // If there is a graph associated with the handler we are in the explicit
   // graph mode, so we store the CG instead of submitting it to the scheduler,
@@ -1980,6 +1985,19 @@ void handler::setNDRangeDescriptorPadded(sycl::range<3> NumWorkItems,
                                          sycl::range<3> LocalSize,
                                          sycl::id<3> Offset, int Dims) {
   impl->MNDRDesc = NDRDescT{NumWorkItems, LocalSize, Offset, Dims};
+}
+
+void handler::saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc) {
+  MCodeLoc = CodeLoc;
+  impl->MIsTopCodeLoc = IsTopCodeLoc;
+}
+void handler::saveCodeLoc(detail::code_location CodeLoc) {
+  MCodeLoc = CodeLoc;
+  impl->MIsTopCodeLoc = true;
+}
+void handler::copyCodeLoc(const handler &other) {
+  MCodeLoc = other.MCodeLoc;
+  impl->MIsTopCodeLoc = other.impl->MIsTopCodeLoc;
 }
 
 } // namespace _V1

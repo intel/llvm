@@ -11,7 +11,6 @@
 #include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/exception.hpp>                 // for feature_not_supported
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_OPERATION
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <CL/__spirv/spirv_ops.hpp>
