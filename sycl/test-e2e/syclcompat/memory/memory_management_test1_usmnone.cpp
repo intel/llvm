@@ -15,53 +15,6 @@
 #include <syclcompat/memory.hpp>
 #include "memory_common.hpp"
 
-void test1() {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  int Num = 5000;
-  int N1 = 1000;
-  float *h_A = (float*)malloc(Num*sizeof(float));
-  float *h_B = (float*)malloc(Num*sizeof(float));
-  float *h_C = (float*)malloc(Num*sizeof(float));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = 1.0f;
-    h_B[i] = 2.0f;
-  }
-
-  float *d_A;
-  // hostA[0..999] -> deviceA[0..999]
-  // hostB[0..3999] -> deviceA[1000..4999]
-  // deviceA[0..4999] -> hostC[0..4999]
-  d_A = (float *)syclcompat::malloc(Num * sizeof(float));
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float));
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float));
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float));
-  syclcompat::free((void*)d_A);
-
-  // verify
-  for(int i = 0; i < N1; i++){
-      if (fabs(h_A[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  for(int i = N1; i < Num; i++){
-      if (fabs(h_B[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  printf("Test1 Passed\n");
-
-  free(h_A);
-  free(h_B);
-  free(h_C);
-}
 
 void test2() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -115,7 +68,6 @@ void test2() {
   free(h_C);
 }
 
-class vectorAdd3;
 void test3() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
@@ -303,53 +255,6 @@ void test5() {
   printf("Test5 Passed\n");
 }
 
-void test1(sycl::queue &q) {
-  std::cout << __PRETTY_FUNCTION__ << std::endl;
-
-  int Num = 5000;
-  int N1 = 1000;
-  float *h_A = (float*)malloc(Num*sizeof(float));
-  float *h_B = (float*)malloc(Num*sizeof(float));
-  float *h_C = (float*)malloc(Num*sizeof(float));
-
-  for (int i = 0; i < Num; i++) {
-    h_A[i] = 1.0f;
-    h_B[i] = 2.0f;
-  }
-
-  float *d_A;
-  // hostA[0..999] -> deviceA[0..999]
-  // hostB[0..3999] -> deviceA[1000..4999]
-  // deviceA[0..4999] -> hostC[0..4999]
-  d_A = (float *)syclcompat::malloc(Num * sizeof(float), q);
-  syclcompat::memcpy((void*) d_A, (void*) h_A, N1 * sizeof(float), q);
-  syclcompat::memcpy((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float), q);
-  syclcompat::memcpy((void*) h_C, (void*) d_A, Num * sizeof(float), q);
-  syclcompat::free((void*)d_A, q);
-
-  // verify
-  for(int i = 0; i < N1; i++){
-      if (fabs(h_A[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  for(int i = N1; i < Num; i++){
-      if (fabs(h_B[i] - h_C[i]) > 1e-5) {
-          fprintf(stderr,"Check: Elements are A = %f, B = %f, C = %f:\n", h_A[i],  h_B[i],  h_C[i]);
-          fprintf(stderr,"Result verification failed at element %d:\n", i);
-          exit(EXIT_FAILURE);
-      }
-  }
-
-  printf("Test1 Passed\n");
-
-  free(h_A);
-  free(h_B);
-  free(h_C);
-}
 
 void test2(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
@@ -405,7 +310,6 @@ void test2(sycl::queue &q) {
 
 void test3(sycl::queue &q) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  class vectorAdd3;
   int Num = 5000;
   int Offset = 0; // Current dpcpp version in ics environment has bugs with Offset > 0,
                   // CORC-6222 has fixed this issue, but the version of dpcpp used in ics
