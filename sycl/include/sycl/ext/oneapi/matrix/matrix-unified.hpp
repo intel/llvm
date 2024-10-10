@@ -530,36 +530,10 @@ joint_matrix_mad(
   else
     D.spvm = __spirv_JointMatrixMadINTEL(A.spvm, B.spvm, C.spvm);
 #else
-  if constexpr (std::is_same<Ta, uint16_t>::value &&
-                std::is_same<Tb, uint16_t>::value &&
-                std::is_same<Tc, float>::value) {
-    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
-        __spv::MatrixOperands::MatrixAAndBBFloat16ComponentsINTEL);
-    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
-                                                MatrixOperand);
-  } else if constexpr (std::is_signed<Ta>::value &&
-                       std::is_unsigned<Tb>::value) {
-    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
-        __spv::MatrixOperands::MatrixASignedComponentsKHR);
-    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
-                                                MatrixOperand);
-  } else if constexpr (std::is_unsigned<Ta>::value &&
-                       std::is_signed<Tb>::value) {
-    constexpr uint32_t MatrixOperand = static_cast<uint32_t>(
-        __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
-                                                MatrixOperand);
-  } else if constexpr (std::is_signed<Ta>::value && std::is_signed<Tb>::value) {
-    constexpr uint32_t MatrixOperand =
-        static_cast<uint32_t>(
-            __spv::MatrixOperands::MatrixASignedComponentsKHR) +
-        static_cast<uint32_t>(
-            __spv::MatrixOperands::MatrixBSignedComponentsKHR);
-    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
-                                                MatrixOperand);
-  } else {
-    D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm);
-  }
+  constexpr uint32_t MatrixOperand =
+      sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
+  D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
+                                              MatrixOperand);
 #endif // __SPIRV_USE_COOPERATIVE_MATRIX
 #endif // defined(__NVPTX__)
 #else
