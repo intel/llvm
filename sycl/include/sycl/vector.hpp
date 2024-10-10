@@ -131,6 +131,8 @@ class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
                                                    DataT, NumElements> {
+  static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
+                "DataT must be cv-unqualified");
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
