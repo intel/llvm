@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>            // for __spirv_MemoryBarrier
-#include <CL/__spirv/spirv_types.hpp>          // for Scope, __ocl_event_t
+#include <sycl/__spirv/spirv_ops.hpp>          // for __spirv_MemoryBarrier
+#include <sycl/__spirv/spirv_types.hpp>        // for Scope, __ocl_event_t
 #include <sycl/access/access.hpp>              // for decorated, mode, addr...
 #include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE

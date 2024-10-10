@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/ur.hpp>

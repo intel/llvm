@@ -7,8 +7,8 @@
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: CL/__spirv/spirv_ops.hpp
-// CHECK-NEXT: CL/__spirv/spirv_types.hpp
+// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: backend_types.hpp
@@ -18,7 +18,7 @@
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: stl_wrappers/cassert
 // CHECK-NEXT: stl_wrappers/assert.h
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
+// CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp

@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <CL/__spirv/spirv_ops.hpp>
 #include <detail/platform_util.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/exception.hpp>
 

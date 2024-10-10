@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>         // for Scope, __ocl_event_t
+#include <sycl/__spirv/spirv_types.hpp>       // for Scope, __ocl_event_t
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -1159,7 +1159,7 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL float
-    __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+__spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint16_t
 __spirv_ConvertFToBF16INTEL(float) noexcept;
 template <int N>
