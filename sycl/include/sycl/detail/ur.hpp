@@ -107,18 +107,6 @@ template <sycl::backend BE>
 __SYCL_EXPORT void *getPluginOpaqueData(void *opaquedata_arg);
 
 namespace ur {
-// Function to load a shared library
-// Implementation is OS dependent
-void *loadOsLibrary(const std::string &Library);
-
-// Function to unload a shared library
-// Implementation is OS dependent (see posix-ur.cpp and windows-ur.cpp)
-int unloadOsLibrary(void *Library);
-
-// Function to get Address of a symbol defined in the shared
-// library, implementation is OS dependent.
-void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName);
-
 // The SYCL_UR_TRACE sets what we will trace.
 // This is a bit-mask of various things we'd want to trace.
 enum TraceLevel { TRACE_BASIC = 0x1, TRACE_CALLS = 0x2, TRACE_ALL = -1 };
