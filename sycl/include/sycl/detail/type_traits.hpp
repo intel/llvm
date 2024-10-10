@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/detail/type_traits/vec_marray_traits.hpp>
+
 #include <sycl/access/access.hpp>             // for decorated, address_space
 #include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
@@ -124,15 +126,6 @@ template <typename T, typename R> struct copy_cv_qualifiers;
 template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
-// vector_size
-// scalars are interpreted as a vector of 1 length.
-template <typename T> struct vector_size_impl : std::integral_constant<int, 1> {};
-template <typename T, int N>
-struct vector_size_impl<vec<T, N>> : std::integral_constant<int, N> {};
-template <typename T>
-struct vector_size
-    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
-
 // vector_element
 template <typename T> struct vector_element_impl;
 template <typename T>
@@ -179,18 +172,6 @@ struct get_elem_type_unqual<multi_ptr<ElementType, Space, DecorateAddress>> {
 template <typename ElementType> struct get_elem_type_unqual<ElementType *> {
   using type = ElementType;
 };
-
-template <typename T, typename = void>
-struct is_ext_vector : std::false_type {};
-
-// FIXME: unguarded use of non-standard built-in
-template <typename T>
-struct is_ext_vector<
-    T, std::void_t<decltype(__builtin_reduce_max(std::declval<T>()))>>
-    : std::true_type {};
-
-template <typename T>
-inline constexpr bool is_ext_vector_v = is_ext_vector<T>::value;
 
 // FIXME: unguarded use of non-standard built-in
 template <typename T>
@@ -264,11 +245,6 @@ template <typename T, int N, template <typename> class S>
 inline constexpr bool is_gen_based_on_type_sizeof_v =
     S<T>::value && (sizeof(vector_element_t<T>) == N);
 
-template <typename> struct is_vec : std::false_type {};
-template <typename T, int N> struct is_vec<sycl::vec<T, N>> : std::true_type {};
-
-template <typename T> constexpr bool is_vec_v = is_vec<T>::value;
-
 template <typename> struct get_vec_size {
   static constexpr int size = 1;
 };
@@ -276,27 +252,6 @@ template <typename> struct get_vec_size {
 template <typename T, int N> struct get_vec_size<sycl::vec<T, N>> {
   static constexpr int size = N;
 };
-
-// is_swizzle
-template <typename> struct is_swizzle : std::false_type {};
-template <typename VecT, typename OperationLeftT, typename OperationRightT,
-          template <typename> class OperationCurrentT, int... Indexes>
-struct is_swizzle<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                            OperationCurrentT, Indexes...>> : std::true_type {};
-
-template <typename T> constexpr bool is_swizzle_v = is_swizzle<T>::value;
-
-// is_swizzle_or_vec_v
-
-template <typename T>
-constexpr bool is_vec_or_swizzle_v = is_vec_v<T> || is_swizzle_v<T>;
-
-// is_marray
-template <typename> struct is_marray : std::false_type {};
-template <typename T, size_t N>
-struct is_marray<sycl::marray<T, N>> : std::true_type {};
-
-template <typename T> constexpr bool is_marray_v = is_marray<T>::value;
 
 // is_integral
 template <typename T>
