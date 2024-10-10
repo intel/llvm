@@ -180,9 +180,9 @@ unintentionally capture non-uniform variables and violate the requirements
 from the previous paragraph. This form of `invoke_simd` should be used with
 caution.
 
-Each formal parameter of the invoked `Callable` must be a scalar type, a SIMD type,
-or a `std::tuple` of these types. The length of each SIMD type must match the
-sub-group size of the kernel; calling a SIMD function with mismatched lengths
+Each formal parameter of the invoked `Callable` must be a scalar type, or a SIMD type.
+The length of each SIMD type must match the sub-group size of the kernel (or be a
+multiple for `flatten`); calling a SIMD function with mismatched lengths
 is an error, and an implementation must issue a diagnostic.
 
 To enable overloading in cases where the `Callable` accepts either a scalar
@@ -191,7 +191,7 @@ type from the `sycl_ext_oneapi_uniform` extension.
 
 Each argument in the `args` parameter pack must be an arithmetic type, a
 trivially copyable type wrapped in a `sycl::ext::oneapi::experimental::uniform`, or a
-`std::tuple` of these types.  Arguments may not be pointers or references,
+`sycl::ext::oneapi::experimental::flatten`.  Arguments may not be pointers or references,
 but pointers (like any other non-arithmetic type) may be passed if wrapped in a
 `sycl::ext::oneapi::experimental::uniform`.  Any such pointer value must point to memory
 that is accessible by all work-items in the sub-group (i.e. the pointer must
@@ -227,9 +227,10 @@ in the `args` parameter pack according to the following rules:
   `operator T()` would be undefined, the value of the scalar variable passed
   to the SIMD function is undefined.
 
-- Arguments of type `std::tuple` are mapped as if each member of the tuple
-  was mapped individually (e.g. a `std::tuple<float, int>` becomes a
-  `std::tuple<sycl::ext::oneapi::experimental::simd<float, N>, sycl::ext::oneapi::experimental::simd<int, N>>`.
+- Arguments of type `sycl::ext::oneapi::experimental::flatten<std::array<T, M>>`
+  are converted to type `sycl::ext::oneapi::experimental::simd<T, N*M>`,
+  where `N` is the sub-group size of the calling kernel. The m-th element from each
+  work-item is stored consecutive.  
 
 After this mapping has taken place, an appropriate variant of `Callable` is
 selected based on standard overload resolution.
@@ -261,9 +262,9 @@ rules in reverse:
   and broadcast to each work-item; every work-item in the sub-group receives
   the same value.
 
-- Return values of type `std::tuple` are mapped as if each member of the tuple
-  was mapped individually (e.g. a `std::tuple<sycl::ext::oneapi::experimental::simd<float, N>, sycl::ext::oneapi::experimental::simd<int, N>>`
-  becomes a `std::tuple<float, int>`).
+- Return value of type `sycl::ext::oneapi::experimental::simd<T, N*M>` is converted
+  to `sycl::ext::oneapi::experimental::flatten<array<T, M>>`.
+
 
 Note that these conversion rules do not permit special types (e.g. `sycl::nd_item`)
 being passed between SPMD and SIMD contexts, because they cannot be declared uniform.
@@ -285,7 +286,8 @@ by this specification. Otherwise, the implementation must issue a proper diagnos
 The following algorithm to determine the sub-group size may be employed:
 - If any of the actual SPMD arguments is non-uniform, the specification requires
 that the corresponding SIMD argument must have `simd<T, N>` or `simd_mask<T, N>`
-type, and `N` must be equal to the the sub-group size. The implementation may
+type, and `N` must be equal to the the sub-group size (or multiple for `flatten`).
+The implementation may
 iterate through the supported sub-group sizes at compile time and check whether the
 function object is invocable with given sub-group size. There must be
 exactly one such sub-group size and it must match `N` or the user program is not
@@ -393,6 +395,23 @@ q.parallel_for(..., sycl::nd_item<1> it) [[sycl::reqd_sub_group_size(8)]]
 });
 ----
 
+=== `flatten` wrapper type
+
+`flatten` is template in `sycl::ext::oneapi::experimental` namespace and can only be instantiated for `std::array`.
+It can be implicitly converted to and from `std::array`. Synapsis:
+
+[source, c++]
+----
+template<class T> //only well-formed if T is std::array<>
+struct flatten
+{
+  flatten(T);         // conversion constructor
+  operator T() const; // conversion operator
+;}
+----
+
+
+
 ==== Execution Model
 
 Execution of a SIMD function must produce the same result as-if it had been
@@ -451,8 +470,7 @@ undefined behavior and issues that are difficult to debug.
 . How should returning multiple values and passing user-defined structs be handled?
 +
 --
-*UNRESOLVED*: `std::tuple` addresses both issues from a user interface perspective,
-but this aspect of the design may need to be revisited as we gain implementation experience.
+*UNRESOLVED*
 --
 
 . Should arguments require trivially copyable or device copyable?
