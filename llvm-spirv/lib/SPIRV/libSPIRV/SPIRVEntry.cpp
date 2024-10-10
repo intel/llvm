@@ -559,7 +559,8 @@ SPIRVEntry::getDecorationIds(Decoration Kind) const {
 }
 
 bool SPIRVEntry::hasLinkageType() const {
-  return OpCode == OpFunction || OpCode == OpVariable;
+  return OpCode == OpFunction || OpCode == OpVariable ||
+         OpCode == OpUntypedVariableKHR;
 }
 
 bool SPIRVEntry::isExtInst(const SPIRVExtInstSetKind InstSet) const {

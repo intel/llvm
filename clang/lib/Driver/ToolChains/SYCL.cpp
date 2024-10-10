@@ -579,6 +579,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
@@ -597,6 +598,9 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
       StringRef InputFilename = llvm::sys::path::filename(FileName);
       // NativeCPU links against libclc (libspirv)
       if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
+        return true;
+      // AMDGCN links against our libdevice (devicelib)
+      if (IsAMDGCN && InputFilename.starts_with("devicelib-"))
         return true;
       // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
       // and the CUDA libdevice

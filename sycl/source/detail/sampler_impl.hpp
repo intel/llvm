@@ -55,6 +55,8 @@ private:
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
   property_list MPropList;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

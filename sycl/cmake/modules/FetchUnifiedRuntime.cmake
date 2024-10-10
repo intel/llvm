@@ -117,13 +117,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 532a4ecb72da4876cef61a4ae4d638e27ad609d5
-  # Merge: 22962057 d944ff33
+  # commit df6da35d6e67f2383db28dd49ab08c5c0ef541d2
+  # Merge: 67590533 55bd5636
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Sep 30 10:43:10 2024 +0100
-  #     Merge pull request #1924 from Bensuo/fabio/cmd_buffer_kernel_update
-  #     Add support for command-buffer kernel updates
-  set(UNIFIED_RUNTIME_TAG 532a4ecb72da4876cef61a4ae4d638e27ad609d5)
+  # Date:   Mon Oct 7 12:28:07 2024 +0100
+  #     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
+  #     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
+  #     instead of returning misleading default value
+  set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
