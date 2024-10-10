@@ -126,6 +126,9 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   #     instead of returning misleading default value
   set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
 
+  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG "yc-0829-move-tracing-before-sanitizer")
+
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
   # to link statically on windows
