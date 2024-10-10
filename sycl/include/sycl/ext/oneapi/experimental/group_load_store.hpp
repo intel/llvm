@@ -156,7 +156,7 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
   using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>;
   static_assert(BlockInfoTy::has_builtin);
 
-  using block_type = detail::cl_unsigned<BlockInfoTy::block_size>;
+  using block_type = detail::fixed_width_unsigned<BlockInfoTy::block_size>;
 
   using block_pointer_elem_type = std::conditional_t<
       std::is_const_v<std::remove_reference_t<

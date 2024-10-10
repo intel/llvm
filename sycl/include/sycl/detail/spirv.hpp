@@ -255,7 +255,7 @@ using EnableIfBitcastBroadcast = std::enable_if_t<
     is_bitcast_broadcast<T>::value && std::is_integral<IdT>::value, T>;
 
 template <typename T>
-using ConvertToNativeBroadcastType_t = select_cl_scalar_integral_unsigned_t<T>;
+using ConvertToNativeBroadcastType_t = fixed_width_unsigned<sizeof(T)>;
 
 // Generic broadcasts may require multiple calls to SPIR-V GroupBroadcast
 // intrinsics, and should use the fewest broadcasts possible
@@ -524,7 +524,7 @@ inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicCompareExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr,
                       memory_scope Scope, memory_order Success,
                       memory_order Failure, T Desired, T Expected) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto SPIRVSuccess = getMemorySemanticsMask(Success);
   auto SPIRVFailure = getMemorySemanticsMask(Failure);
   auto SPIRVScope = getScope(Scope);
@@ -552,7 +552,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicLoad(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
            memory_order Order) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -587,7 +587,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value>
 AtomicStore(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
             memory_order Order, T Value) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -622,7 +622,7 @@ template <typename T, access::address_space AddressSpace,
 inline typename std::enable_if_t<std::is_floating_point<T>::value, T>
 AtomicExchange(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
                memory_order Order, T Value) {
-  using I = detail::make_unsinged_integer_t<T>;
+  using I = detail::fixed_width_unsigned<sizeof(T)>;
   auto *PtrInt = GetMultiPtrDecoratedAs<I>(MPtr);
   auto SPIRVOrder = getMemorySemanticsMask(Order);
   auto SPIRVScope = getScope(Scope);
@@ -1129,7 +1129,7 @@ EnableIfNonScalarShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
 }
 
 template <typename T>
-using ConvertToNativeShuffleType_t = select_cl_scalar_integral_unsigned_t<T>;
+using ConvertToNativeShuffleType_t = fixed_width_unsigned<sizeof(T)>;
 
 template <typename GroupT, typename T>
 EnableIfBitcastShuffle<T> Shuffle(GroupT g, T x, id<1> local_id) {
