@@ -67,16 +67,17 @@ ur_result_t getSuggestedLocalWorkSize(ur_device_handle_t hDevice,
 }
 
 ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
-                                  ze_kernel_handle_t Kernel,
+                                  ze_kernel_handle_t Kernel, uint32_t WorkDim,
                                   const size_t *GlobalWorkOffset) {
   if (!Context->getPlatform()->ZeDriverGlobalOffsetExtensionFound) {
     logger::debug("No global offset extension found on this driver");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
-  ZE2UR_CALL(
-      zeKernelSetGlobalOffsetExp,
-      (Kernel, GlobalWorkOffset[0], GlobalWorkOffset[1], GlobalWorkOffset[2]));
+  auto OffsetX = GlobalWorkOffset[0];
+  auto OffsetY = WorkDim > 1 ? GlobalWorkOffset[1] : 0;
+  auto OffsetZ = WorkDim > 2 ? GlobalWorkOffset[2] : 0;
+  ZE2UR_CALL(zeKernelSetGlobalOffsetExp, (Kernel, OffsetX, OffsetY, OffsetZ));
 
   return UR_RESULT_SUCCESS;
 }
