@@ -3720,6 +3720,7 @@
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?cancel_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
+?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXAEBVproperty_list@67@@Z
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
@@ -4267,10 +4268,12 @@
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@@Z
 ?update@executable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEAAXAEBVnode@34567@@Z
 ?updateAccessor@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVAccessorBaseHost@267@@Z
-?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
 ?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBVraw_kernel_arg@34567@_K@Z
+?updateValue@dynamic_parameter_base@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXPEBX_K@Z
 ?use_kernel_bundle@handler@_V1@sycl@@QEAAXAEBV?$kernel_bundle@$01@23@@Z
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
+?verifyReductionProps@detail@_V1@sycl@@YAXAEBVproperty_list@23@@Z
+?verifyUSMAllocatorProperties@_V1@sycl@@YAXAEBVproperty_list@12@@Z
 ?verifyUsedKernelBundleInternal@handler@_V1@sycl@@AEAAXVstring_view@detail@23@@Z
 ?wait@event@_V1@sycl@@QEAAXXZ
 ?wait@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
