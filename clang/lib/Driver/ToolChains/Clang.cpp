@@ -10283,6 +10283,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
 
+    if (Inputs[0].getType() == types::TY_Tempfiletable ||
+        Inputs[0].getType() == types::TY_Tempfilelist)
+      // wrapper actual input files are passed via the batch job file table:
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
+
     // Add input.
     assert(Inputs[0].isFilename() && "Invalid input.");
     CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));

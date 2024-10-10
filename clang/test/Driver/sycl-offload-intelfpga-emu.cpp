@@ -64,8 +64,10 @@
 // RUN:  | FileCheck -check-prefixes=CHK-FPGA-LINK-LIB,CHK-FPGA-LINK-LIB-EARLY %s
 
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=ao" "-targets=sycl-fpga_aocr_emu-intel-unknown" "-input={{.*}}" "-check-section"
-// CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-input=[[INPUT:.+\.a]]" "-output=[[OUTPUT1:.+\.txt]]" "-unbundle"
-// CHK-FPGA-LINK-LIB: clang-offload-wrapper{{.*}} "-host" "x86_64-unknown-linux-gnu" "-o" "[[WRAPPED_AOCR_LIST_BC:.+\.bc]]" "-kind=host" "-target=x86_64-unknown-linux-gnu" "[[OUTPUT1]]"
+// CHK-FPGA-LINK-LIB-EARLY: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-input=[[INPUT:.+\.a]]" "-output=[[OUTPUT1:.+\.txt]]" "-unbundle"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-x86_64-unknown-linux-gnu" "-input=[[INPUT:.+\.a]]" "-output=[[BOUTPUT:.+\.txt]]" "-unbundle"
+// CHK-FPGA-LINK-LIB-IMAGE: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[OUTPUT1:.+\.txt]]" "[[BOUTPUT]]"
+// CHK-FPGA-LINK-LIB: clang-offload-wrapper{{.*}} "-host" "x86_64-unknown-linux-gnu" "-o" "[[WRAPPED_AOCR_LIST_BC:.+\.bc]]" "-kind=host" "-target=x86_64-unknown-linux-gnu" "-batch" "[[OUTPUT1]]"
 // CHK-FPGA-LINK-LIB: clang{{.*}} "-o" "[[OUTPUT_O:.+\.o]]" "-x" "ir" "[[WRAPPED_AOCR_LIST_BC]]"
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aocr" "-targets=sycl-fpga_aocr_emu-intel-unknown" "-input=[[INPUT]]" "-output=[[OUTPUT2:.+\.aocr]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: llvm-foreach{{.*}} "--out-ext=aocx" "--in-file-list=[[OUTPUT2]]" "--in-replace=[[OUTPUT2]]" "--out-file-list=[[OUTPUT3:.+\.aocx]]" "--out-replace=[[OUTPUT3]]" "--" "{{.*}}opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT2]]" "-ir=[[OUTPUT3]]" "--bo=-g"
