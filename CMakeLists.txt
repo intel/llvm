@@ -68,6 +68,7 @@ set(UR_CONFORMANCE_TARGET_TRIPLES "" CACHE STRING
     "List of sycl targets to build CTS device binaries for")
 set(UR_CONFORMANCE_AMD_ARCH "" CACHE STRING "AMD device target ID to build CTS binaries for")
 option(UR_CONFORMANCE_ENABLE_MATCH_FILES "Enable CTS match files" ON)
+option(UR_CONFORMANCE_TEST_LOADER "Also test the loader in the conformance tests" ON)
 set(UR_ADAPTER_LEVEL_ZERO_SOURCE_DIR "" CACHE PATH
     "Path to external 'level_zero' adapter source dir")
 set(UR_ADAPTER_OPENCL_SOURCE_DIR "" CACHE PATH
