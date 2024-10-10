@@ -260,6 +260,8 @@ public:
   Tool *SelectTool(const JobAction &JA) const override;
   const ToolChain &HostTC;
 
+  SYCLInstallationDetector SYCLInstallation;
+
 protected:
   Tool *buildAssembler() const override; // ptxas
   Tool *buildLinker() const override;    // fatbinary (ok, not really a linker)
