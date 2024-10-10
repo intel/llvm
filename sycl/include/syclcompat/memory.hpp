@@ -93,8 +93,6 @@ enum class memory_region {
   usm_shared, // memory which can be accessed by host and device
 };
 
-enum class target { device, local };
-
 using byte_t = uint8_t;
 
 /// Buffer type to be used in Memory Management runtime.
@@ -290,8 +288,9 @@ public:
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr target target =
-      (Memory == memory_region::local) ? target::local : target::device;
+  static constexpr sycl::target target = (Memory == memory_region::local)
+                                             ? sycl::target::local
+                                             : sycl::target::device;
   static constexpr sycl::access_mode mode = (Memory == memory_region::constant)
                                                 ? sycl::access_mode::read
                                                 : sycl::access_mode::read_write;
@@ -302,7 +301,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t =
-      typename std::conditional_t<target == target::local,
+      typename std::conditional_t<target == sycl::target::local,
                                   sycl::local_accessor<T, Dimension>,
                                   sycl::accessor<T, Dimension, mode>>;
   using pointer_t =
