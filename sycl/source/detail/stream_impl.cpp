@@ -99,7 +99,7 @@ void stream_impl::generateFlushCommand(handler &cgh) {
 }
 
 void stream_impl::verifyProps(const property_list &Props) const {
-  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
                                                 NoAllowedPropertiesCheck);
 }

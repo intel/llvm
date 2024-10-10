@@ -650,7 +650,7 @@ void release_from_device_copy(const void *Ptr, const queue &Queue) {
 } // namespace ext::oneapi::experimental
 
 __SYCL_EXPORT void verifyUSMAllocatorProperties(const property_list &PropList) {
-  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(
       PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
 }
