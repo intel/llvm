@@ -14,9 +14,9 @@
 // REQUIRES: linux
 //
 // Explanation of the command:
-// - search for all "XFAIL" occurences, display line with match and the next one
+// - search for all "XFAIL" occurrences, display line with match and the next one
 //   -I, --include to drop binary files and other unrelated files
-// - in the result, serach for "XFAIL" again, but invert the result - this
+// - in the result, search for "XFAIL" again, but invert the result - this
 //   allows us to get the line *after* XFAIL
 // - in those lines, check that XFAIL-TRACKER is present and correct. Once
 //   again, invert the search to get all "bad" lines
@@ -29,14 +29,14 @@
 // RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" | \
 // RUN: wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 //
-// The number below is a number of tests which are *impropertly* XFAIL-ed, i.e.
+// The number below is a number of tests which are *improperly* XFAIL-ed, i.e.
 // we either don't have a tracker associated with a failure listed in those
 // tests, or it is listed in a wrong format.
 // Note: strictly speaking, that is not amount of files, but amount of XFAIL
 // directives. If a test contains several XFAIL directives, some of them may be
 // valid and other may not.
 //
-// That number *must not* increase. Any PR which causes this number to group
+// That number *must not* increase. Any PR which causes this number to grow
 // should be rejected and it should be updated to either keep the number as-is
 // or have it reduced (preferrably, down to zero).
 //
@@ -44,7 +44,7 @@
 // introduced XFAIL directive to a test improperly, or broke the format of an
 // existing XFAIL-ed tests.
 // Another possibility (and that is a good option) is that you updated some
-// tests to match the requried format and in that case you should just update
+// tests to match the required format and in that case you should just update
 // (i.e. reduce) the number below.
 //
 // NUMBER-OF-XFAIL-WITHOUT-TRACKER: 176
