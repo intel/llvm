@@ -1,8 +1,8 @@
 // REQUIRES: aspect-usm_shared_allocations
 //
 // On CPU it segfaults within the kernel that performs virtual function call.
-// https://github.com/intel/llvm/issues/15080
 // XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15080
 // UNSUPPORTED: gpu
 // On GPU this test (its older version which used nd_item instead of group)
 // used to fail with UR_RESULT_ERROR_PROGRAM_LINK_FAILURE.
@@ -42,14 +42,16 @@ public:
   virtual int apply(int *LocalData, sycl::group<1> WG) {
     LocalData[WG.get_local_id()] += WG.get_local_id();
     sycl::group_barrier(WG);
-    int Res = 0;
     if (WG.leader()) {
+      int Res = 0;
       for (size_t I = 0; I < WG.get_local_range().size(); ++I) {
         Res += LocalData[I];
       }
+      LocalData[0] = Res;
     }
+    sycl::group_barrier(WG);
 
-    return sycl::group_broadcast(WG, Res);
+    return LocalData[0];
   }
 };
 
@@ -59,14 +61,16 @@ public:
   virtual int apply(int *LocalData, sycl::group<1> WG) {
     LocalData[WG.get_local_id()] += WG.get_local_id();
     sycl::group_barrier(WG);
-    int Res = 1;
     if (WG.leader()) {
+      int Res = 1;
       for (size_t I = 0; I < WG.get_local_range().size(); ++I) {
         Res *= LocalData[I];
       }
+      LocalData[0] = Res;
     }
+    sycl::group_barrier(WG);
 
-    return sycl::group_broadcast(WG, Res);
+    return LocalData[0];
   }
 };
 
