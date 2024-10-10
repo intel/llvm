@@ -183,7 +183,7 @@ SampledImageAccessorBaseHost::SampledImageAccessorBaseHost(
     image_channel_order ChannelOrder, image_sampler Sampler,
     const property_list &PropertyList) {
   {
-    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropertyList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
