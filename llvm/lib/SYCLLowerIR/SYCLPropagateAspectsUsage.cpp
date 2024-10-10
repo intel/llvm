@@ -349,7 +349,12 @@ AspectsSetTy getAspectsUsedByInstruction(const Instruction &I,
 }
 
 using FunctionToAspectsMapTy = DenseMap<Function *, AspectsSetTy>;
-using CallGraphTy = DenseMap<Function *, SmallPtrSet<Function *, 8>>;
+using ConditionsSetTy = SmallSet<int, 4>;
+using FunctionToConditionExpressionsMapTy = DenseMap<Function *, ConditionsSetTy>;
+using ConditionExpressionsAndConditionalAspectsTy = SmallVector<std::pair<ConditionsSetTy, AspectsSetTy>>;
+using FunctionToConditionExpressionsAndConditionalAspectsTy = DenseMap<Function *, ConditionExpressionsAndConditionalAspectsTy>;
+using FunctionSetTy = SmallPtrSet<Function *, 8>;
+using CallGraphTy = DenseMap<Function *, FunctionSetTy>;
 
 // Finds the first function in a list that uses a given aspect. Returns nullptr
 // if none of the functions satisfy the criteria.
@@ -441,6 +446,94 @@ void createUsedAspectsMetadataForFunctions(
   }
 }
 
+void createConditionallyUsedAspectsMetadataForFunctions(
+    FunctionToConditionExpressionsAndConditionalAspectsTy
+        &FunctionToConditionExpressionsAndConditionalAspects,
+    const AspectsSetTy &ExcludeAspectVals) {
+  for (auto &[F, ConditionsAndAspectsVec] :
+       FunctionToConditionExpressionsAndConditionalAspects) {
+    LLVMContext &C = F->getContext();
+
+    // Create a set of unique conditions and aspects. First we add the ones from
+    // the found aspects that have not been excluded.
+    ConditionExpressionsAndConditionalAspectsTy UniqueConditionsAndAspects;
+    for (const auto &ConditionsAndAspectsPair : ConditionsAndAspectsVec) {
+      AspectsSetTy FilteredAspects;
+      for (const auto &A : ConditionsAndAspectsPair.second)
+        if (!ExcludeAspectVals.contains(A)) {
+          FilteredAspects.insert(A);
+        }
+
+      if (FilteredAspects.empty())
+        continue;
+
+      UniqueConditionsAndAspects.push_back(
+          std::make_pair(ConditionsAndAspectsPair.first, FilteredAspects));
+    }
+
+    // If there is new metadata, merge it with the old aspects. We preserve
+    // the excluded ones.
+
+    if (const MDNode *ExistingAspects =
+            F->getMetadata("sycl_conditionally_used_aspects")) {
+      for (const MDOperand &MDOp : ExistingAspects->operands()) {
+        if (MDNode *PairNode = dyn_cast<MDNode>(MDOp)) {
+          if (PairNode->getNumOperands() != 2)
+            continue;
+
+          MDNode *ConditionNode = dyn_cast<MDNode>(PairNode->getOperand(0));
+          ConditionsSetTy ConditionsSet;
+          if (ConditionNode) {
+            for (const MDOperand &CondOp : ConditionNode->operands()) {
+              const Constant *C = cast<ConstantAsMetadata>(CondOp)->getValue();
+              ConditionsSet.insert(cast<ConstantInt>(C)->getSExtValue());
+            }
+          }
+
+          MDNode *AspectsNode = dyn_cast<MDNode>(PairNode->getOperand(1));
+          AspectsSetTy AspectsSet;
+          if (AspectsNode) {
+            for (const MDOperand &AspOp : AspectsNode->operands()) {
+              const Constant *C = cast<ConstantAsMetadata>(AspOp)->getValue();
+              AspectsSet.insert(cast<ConstantInt>(C)->getSExtValue());
+            }
+          }
+          UniqueConditionsAndAspects.push_back(
+              std::make_pair(ConditionsSet, AspectsSet));
+        }
+      }
+    }
+
+    // Create new metadata.
+    SmallVector<Metadata *, 16> AspectsMetadata;
+
+    for (const auto &Pair : ConditionsAndAspectsVec) {
+      // Metadata node for conditions
+      SmallVector<Metadata *, 4> ConditionsMD;
+      for (int Condition : Pair.first) {
+        ConditionsMD.push_back(ConstantAsMetadata::get(
+            ConstantInt::getSigned(Type::getInt32Ty(C), Condition)));
+      }
+      MDNode *ConditionNode = MDNode::get(C, ConditionsMD);
+
+      // Metadata node for aspects
+      SmallVector<Metadata *, 4> AspectsMD;
+      for (int Aspect : Pair.second) {
+        AspectsMD.push_back(ConstantAsMetadata::get(
+            ConstantInt::getSigned(Type::getInt32Ty(C), Aspect)));
+      }
+      MDNode *AspectsNode = MDNode::get(C, AspectsMD);
+
+      // Create the pair metadata node that holds the condition and aspects
+      // nodes
+      AspectsMetadata.push_back(MDNode::get(C, {ConditionNode, AspectsNode}));
+    }
+
+    MDNode *MDN = MDNode::get(C, AspectsMetadata);
+    F->setMetadata("sycl_conditionally_used_aspects", MDN);
+  }
+}
+
 /// Checks that all aspects determined to be used by a given function are in
 /// that function's sycl_declared_aspects metadata if present. A warning
 /// diagnostic is produced for each aspect this check fails for.
@@ -511,12 +604,40 @@ void validateUsedAspectsForFunctions(const FunctionToAspectsMapTy &Map,
   }
 }
 
+struct FunctionsClassifiedByTheirFunctionCall {
+  FunctionSetTy CalledUnconditionally;
+  FunctionSetTy CalledConditionally;
+};
+
+void addAllCalledFunctionsRecursivelyToFunctionsClassifiedByTheirFunctionCallStruct(
+    Function *F, const CallGraphTy &CG,
+    FunctionsClassifiedByTheirFunctionCall &Funcs,
+    SmallPtrSet<const Function *, 16> &Visited) {
+  const auto It = CG.find(F);
+  if (It == CG.end())
+    return;
+  for (Function *Callee : It->second) {
+    if (!Callee->hasFnAttribute("sycl-call-if-on-device-conditionally") &&
+        Funcs.CalledUnconditionally.contains(F)) {
+      Funcs.CalledUnconditionally.insert(Callee);
+    }
+    if (Callee->hasFnAttribute("sycl-call-if-on-device-conditionally") ||
+        Funcs.CalledConditionally.contains(F)) {
+      Funcs.CalledConditionally.insert(Callee);
+    }
+    if (Visited.insert(Callee).second)
+      addAllCalledFunctionsRecursivelyToFunctionsClassifiedByTheirFunctionCallStruct(
+          Callee, CG, Funcs, Visited);
+  }
+}
+
 /// Propagates aspects from leaves up to the top of call graph.
 /// NB! Call graph corresponds to call graph of SYCL code which
 /// can't contain recursive calls. So there can't be loops in
 /// a call graph. But there can be path's intersections.
-void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
+void propagateAspectsThroughCG(Function *F, const CallGraphTy &CG,
                                FunctionToAspectsMapTy &AspectsMap,
+                               FunctionSetTy FunctionsCalledUnconditionally,
                                SmallPtrSet<const Function *, 16> &Visited) {
   const auto It = CG.find(F);
   if (It == CG.end())
@@ -525,26 +646,144 @@ void propagateAspectsThroughCG(Function *F, CallGraphTy &CG,
   AspectsSetTy LocalAspects;
   for (Function *Callee : It->second) {
     if (Visited.insert(Callee).second)
-      propagateAspectsThroughCG(Callee, CG, AspectsMap, Visited);
+      propagateAspectsThroughCG(Callee, CG, AspectsMap,
+                                FunctionsCalledUnconditionally, Visited);
 
     const auto &CalleeAspects = AspectsMap[Callee];
     LocalAspects.insert(CalleeAspects.begin(), CalleeAspects.end());
   }
+  if (FunctionsCalledUnconditionally.contains(F))
+    AspectsMap[F].insert(LocalAspects.begin(), LocalAspects.end());
+}
 
-  AspectsMap[F].insert(LocalAspects.begin(), LocalAspects.end());
+using PathsContainingConditionalCallersTy =
+    std::vector<std::vector<Function *>>;
+
+void identifyPathsContainingConditionalCallers(
+    Function *F, const CallGraphTy &CG, std::vector<Function *> &CurrentPath,
+    PathsContainingConditionalCallersTy &Paths) {
+  const auto It = CG.find(F);
+  if (It == CG.end()) {
+    CurrentPath.push_back(F);
+    for (auto Func : CurrentPath)
+      if (Func->hasFnAttribute("sycl-call-if-on-device-conditionally")) {
+        Paths.push_back(CurrentPath);
+        break;
+      }
+    CurrentPath.pop_back();
+    return;
+  }
+
+  CurrentPath.push_back(F);
+
+  for (Function *Callee : It->second) {
+    identifyPathsContainingConditionalCallers(Callee, CG, CurrentPath, Paths);
+  }
+
+  CurrentPath.pop_back();
+}
+
+void propagateConditionExpressionsAndConditionalAspectsThroughCG(
+    const PathsContainingConditionalCallersTy &Paths,
+    FunctionToConditionExpressionsAndConditionalAspectsTy
+        &ConditionsAndAspectsMap,
+    FunctionToConditionExpressionsMapTy &ConditionsMap,
+    FunctionToAspectsMapTy &AspectsMap) {
+  auto Contains =
+      [](ConditionExpressionsAndConditionalAspectsTy ConditionsAndAspectsVec,
+         std::pair<ConditionsSetTy, AspectsSetTy> Search) {
+        for (const auto &ConditionAndAspectsPair : ConditionsAndAspectsVec)
+          if ((ConditionAndAspectsPair.first == Search.first) &&
+              (ConditionAndAspectsPair.second == Search.second))
+            return true;
+        return false;
+      };
+
+  // TODO: need to optimize finding duplicates and combining pairs with the same
+  // Condition Expressions or Aspects
+  for (const auto &Path : Paths)
+    for (int I = Path.size() - 1; I >= 0; --I) {
+      if (I != Path.size() - 1) {
+        const auto &CalleeAspects = AspectsMap[Path[I + 1]];
+        AspectsMap[Path[I]].insert(CalleeAspects.begin(), CalleeAspects.end());
+        if (ConditionsMap[Path[I]].empty())
+          ConditionsMap[Path[I]] = ConditionsMap[Path[I + 1]];
+      }
+      auto NewPair =
+          std::make_pair(ConditionsMap[Path[I]], AspectsMap[Path[I]]);
+      if ((!NewPair.first.empty()) && (!NewPair.second.empty())) {
+        if (ConditionsAndAspectsMap[Path[I]].empty())
+          ConditionsAndAspectsMap[Path[I]].push_back(NewPair);
+        else
+          if (!Contains(ConditionsAndAspectsMap[Path[I]], NewPair))
+              ConditionsAndAspectsMap[Path[I]].push_back(NewPair);
+      }
+      if (I != Path.size() - 1)
+        for (const auto &ConditionAndAspectsPair : ConditionsAndAspectsMap[Path[I + 1]])
+          if (!Contains(ConditionsAndAspectsMap[Path[I]], ConditionAndAspectsPair))
+              ConditionsAndAspectsMap[Path[I]].push_back(ConditionAndAspectsPair);
+      }
+}
+
+void propagateConditionExpressionsThroughCG(
+    Function *F, const CallGraphTy &CG,
+    FunctionToConditionExpressionsMapTy &ConditionsMap) {
+  // TODO: re-write using Paths from identifyPathsContainingConditionalCallers func
+  const auto It = CG.find(F);
+  if (It == CG.end())
+    return;
+
+  FunctionToConditionExpressionsMapTy LocalConditions;
+  for (Instruction &I : instructions(F)) {
+    if (const auto *CI = dyn_cast<CallInst>(&I)) {
+      if (Function *CalledFunction = CI->getCalledFunction();
+          !CI->isIndirectCall() && CalledFunction) {
+        if (CalledFunction->hasFnAttribute(
+                "sycl-call-if-on-device-conditionally")) {
+          // Start the loop with the 2nd argument (counting from 0) as 0 arg by
+          // design doc is Conditional Action, 1st arg is "this" pointer for the
+          // application's callable object, and all Condition Expressions start
+          // with 2nd argument
+          for (unsigned J = 2; J < CI->arg_size(); ++J) {
+            Value *Arg = CI->getArgOperand(J);
+            if (auto *ConstInt = dyn_cast<ConstantInt>(Arg)) {
+              // Get the integer value and add it to the set
+              LocalConditions[CalledFunction].insert(
+                  static_cast<int>(ConstInt->getSExtValue()));
+            }
+          }
+        }
+      }
+    }
+  }
+
+  for (Function *Callee : It->second) {
+    auto NewConditions = ConditionsMap[F];
+    if (Callee->hasFnAttribute("sycl-call-if-on-device-conditionally")) {
+      NewConditions.insert(LocalConditions[Callee].begin(),
+                           LocalConditions[Callee].end());
+    }
+    ConditionsMap[Callee] = NewConditions;
+    propagateConditionExpressionsThroughCG(Callee, CG, ConditionsMap);
+  }
 }
 
 /// Processes a function:
 ///  - checks if return and argument types are using any aspects
 ///  - checks if instructions are using any aspects
 ///  - updates call graph information
-///  - checks if function has "!sycl_used_aspects" and "!sycl_declared_aspects"
-/// metadata and if so collects aspects from this metadata
+///  - checks if function has "!sycl_used_aspects",
+///    "!sycl_conditionally_used_aspects" and "!sycl_declared_aspects"
+///    metadata and if so collects aspects from this metadata
 void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
+                     FunctionToAspectsMapTy &FunctionToConditionallyUsedAspects,
                      FunctionToAspectsMapTy &FunctionToDeclaredAspects,
-                     TypeToAspectsMapTy &TypesWithAspects, CallGraphTy &CG,
+                     const FunctionsClassifiedByTheirFunctionCall &Funcs,
+                     TypeToAspectsMapTy &TypesWithAspects,
                      const AspectValueToNameMapTy &AspectValues,
                      bool FP64ConvEmu) {
+  bool FunctionIsUnconditional = Funcs.CalledUnconditionally.contains(&F);
+  bool FunctionIsConditional = Funcs.CalledConditionally.contains(&F);
   auto FP64AspectIt = AspectValues.find("fp64");
   assert(FP64AspectIt != AspectValues.end() &&
          "fp64 aspect was not found in the aspect values.");
@@ -553,15 +792,23 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
       getAspectsFromType(F.getReturnType(), TypesWithAspects);
   for (const auto &Aspect : RetTyAspects)
     if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
-        !hasDoubleType(F.getReturnType()))
-      FunctionToUsedAspects[&F].insert(Aspect);
+        !hasDoubleType(F.getReturnType())) {
+      if (FunctionIsUnconditional)
+        FunctionToUsedAspects[&F].insert(Aspect);
+      if (FunctionIsConditional)
+        FunctionToConditionallyUsedAspects[&F].insert(Aspect);
+    }
   for (Argument &Arg : F.args()) {
     const AspectsSetTy ArgAspects =
         getAspectsFromType(Arg.getType(), TypesWithAspects);
     for (const auto &Aspect : ArgAspects)
       if (!FP64ConvEmu || (Aspect != FP64Aspect) ||
-          !hasDoubleType(Arg.getType()))
-        FunctionToUsedAspects[&F].insert(Aspect);
+          !hasDoubleType(Arg.getType())) {
+        if (FunctionIsUnconditional)
+          FunctionToUsedAspects[&F].insert(Aspect);
+        if (FunctionIsConditional)
+          FunctionToConditionallyUsedAspects[&F].insert(Aspect);
+      }
   }
 
   for (Instruction &I : instructions(F)) {
@@ -569,12 +816,12 @@ void processFunction(Function &F, FunctionToAspectsMapTy &FunctionToUsedAspects,
         getAspectsUsedByInstruction(I, TypesWithAspects);
     for (const auto &Aspect : Aspects)
       if (!FP64ConvEmu || (Aspect != FP64Aspect) || !hasDoubleType(I) ||
-          !isFP64ConversionInstruction(I))
-        FunctionToUsedAspects[&F].insert(Aspect);
-    if (const auto *CI = dyn_cast<CallInst>(&I)) {
-      if (!CI->isIndirectCall() && CI->getCalledFunction())
-        CG[&F].insert(CI->getCalledFunction());
-    }
+          !isFP64ConversionInstruction(I)) {
+        if (FunctionIsUnconditional)
+          FunctionToUsedAspects[&F].insert(Aspect);
+        if (FunctionIsConditional)
+          FunctionToConditionallyUsedAspects[&F].insert(Aspect);
+      }
   }
 
   auto CollectAspectsFromMD = [&F](const char* MDName, FunctionToAspectsMapTy &Map) {
@@ -647,25 +894,92 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
     F->setMetadata("sycl_fixed_targets", MDN);
 }
 
+CallGraphTy getCallGraph(Module &M) {
+  CallGraphTy CG;
+  for (Function &F : M.functions()) {
+    for (Instruction &I : instructions(F)) {
+      if (const auto *CI = dyn_cast<CallInst>(&I)) {
+        if (Function *CalledFunction = CI->getCalledFunction();
+            !CI->isIndirectCall() && CalledFunction) {
+          if (CalledFunction->hasFnAttribute(
+                  "sycl-call-if-on-device-conditionally")) {
+            if (Function *CallableObj =
+                    dyn_cast<Function>(CI->getArgOperand(0))) {
+              CG[&F].insert(CalledFunction);
+              CG[CalledFunction].insert(CallableObj);
+            }
+          } else
+            CG[&F].insert(CalledFunction);
+        }
+      }
+    }
+  }
+  return CG;
+}
+
 /// Returns a map of functions with corresponding used aspects.
-std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
+std::tuple<FunctionToAspectsMapTy,
+           FunctionToConditionExpressionsAndConditionalAspectsTy,
+           FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            const AspectValueToNameMapTy &AspectValues,
                            const std::vector<Function *> &EntryPoints,
                            bool ValidateAspects, bool FP64ConvEmu) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
+  FunctionToAspectsMapTy FunctionToConditionallyUsedAspects;
   FunctionToAspectsMapTy FunctionToDeclaredAspects;
-  CallGraphTy CG;
 
-  for (Function &F : M.functions()) {
-    processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
-                    TypesWithAspects, CG, AspectValues, FP64ConvEmu);
-  }
+  // Create call graph which includes conditional actions
+  CallGraphTy CG = getCallGraph(M);
+
+  // Separate functions which called conditionally and unconditionally
+  FunctionsClassifiedByTheirFunctionCall FuncsClassifiedByTheirFunctionCall;
+  auto addFunctionToFunctionsClassifiedByTheirFunctionCallStruct =
+      [&FuncsClassifiedByTheirFunctionCall](Function *F) {
+        if (!F->hasFnAttribute("sycl-call-if-on-device-conditionally"))
+          FuncsClassifiedByTheirFunctionCall.CalledUnconditionally.insert(F);
+        else
+          FuncsClassifiedByTheirFunctionCall.CalledConditionally.insert(F);
+      };
 
   SmallPtrSet<const Function *, 16> Visited;
-  for (Function *F : EntryPoints)
-    propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
+  for (Function *F : EntryPoints) {
+    addFunctionToFunctionsClassifiedByTheirFunctionCallStruct(F);
+    addAllCalledFunctionsRecursivelyToFunctionsClassifiedByTheirFunctionCallStruct(
+        F, CG, FuncsClassifiedByTheirFunctionCall, Visited);
+  }
+  for (Function &F : M.functions())
+    if (!Visited.contains(&F))
+      addFunctionToFunctionsClassifiedByTheirFunctionCallStruct(&F);
 
+  for (Function &F : M.functions()) {
+    processFunction(
+        F, FunctionToUsedAspects, FunctionToConditionallyUsedAspects,
+        FunctionToDeclaredAspects, FuncsClassifiedByTheirFunctionCall,
+        TypesWithAspects, AspectValues, FP64ConvEmu);
+  }
+
+  Visited.clear();
+  for (Function *F : EntryPoints)
+    propagateAspectsThroughCG(
+        F, CG, FunctionToUsedAspects,
+        FuncsClassifiedByTheirFunctionCall.CalledUnconditionally, Visited);
+
+  Visited.clear();
+
+  FunctionToConditionExpressionsMapTy FunctionToConditionExpressions;
+  std::vector<std::vector<Function *>> Paths;
+  for (Function *F : EntryPoints) {
+    propagateConditionExpressionsThroughCG(F, CG, FunctionToConditionExpressions);
+    std::vector<Function *> CurrentPath;
+    identifyPathsContainingConditionalCallers(F, CG, CurrentPath, Paths);
+  }
+
+  FunctionToConditionExpressionsAndConditionalAspectsTy
+      FunctionToCondExpsAndCondAspects;
+  propagateConditionExpressionsAndConditionalAspectsThroughCG(
+      Paths, FunctionToCondExpsAndCondAspects, FunctionToConditionExpressions,
+      FunctionToConditionallyUsedAspects);
   if (ValidateAspects)
     validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
                                     EntryPoints, CG);
@@ -675,9 +989,12 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
   // avoid errors during validation.
   Visited.clear();
   for (Function *F : EntryPoints)
-    propagateAspectsThroughCG(F, CG, FunctionToDeclaredAspects, Visited);
+    propagateAspectsThroughCG(
+        F, CG, FunctionToDeclaredAspects,
+        FuncsClassifiedByTheirFunctionCall.CalledUnconditionally, Visited);
 
   return {std::move(FunctionToUsedAspects),
+          std::move(FunctionToCondExpsAndCondAspects),
           std::move(FunctionToDeclaredAspects)};
 }
 
@@ -717,7 +1034,9 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   propagateAspectsToOtherTypesInModule(M, TypesWithAspects, AspectValues);
 
-  auto [FunctionToUsedAspects, FunctionToDeclaredAspects] =
+  auto [FunctionToUsedAspects,
+        FunctionToConditionExpressionsAndConditionalAspects,
+        FunctionToDeclaredAspects] =
       buildFunctionsToAspectsMap(M, TypesWithAspects, AspectValues, EntryPoints,
                                  ValidateAspectUsage, FP64ConvEmu);
 
@@ -732,6 +1051,8 @@ SYCLPropagateAspectsUsagePass::run(Module &M, ModuleAnalysisManager &MAM) {
 
   createUsedAspectsMetadataForFunctions(
       FunctionToUsedAspects, FunctionToDeclaredAspects, ExcludedAspectVals);
+  createConditionallyUsedAspectsMetadataForFunctions(
+      FunctionToConditionExpressionsAndConditionalAspects, ExcludedAspectVals);
 
   setSyclFixedTargetsMD(EntryPoints, TargetFixedAspects, AspectValues);
   return PreservedAnalyses::all();
