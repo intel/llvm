@@ -22,6 +22,10 @@
 
 #pragma once
 
+#include <sycl/feature_test.hpp>
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+#include "sycl/ext/oneapi/bfloat16.hpp"
+#endif
 #include <cstddef>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
@@ -249,5 +253,18 @@ using are_all_props = std::conjunction<
     sycl::ext::oneapi::experimental::is_property_value<Args>...>;
 
 } // namespace experimental::detail
+
+// Trait for extended floating point definition
+template <typename T>
+struct is_floating_point : std::is_floating_point<T>{};
+
+template <> struct is_floating_point<sycl::half> : std::true_type {};
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <> struct is_floating_point<sycl::ext::oneapi::bfloat16> : std::true_type {};
+#endif
+
+template <typename T>
+inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
 
 } // namespace syclcompat
