@@ -316,11 +316,16 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     auto zePtr = hArgValue->getPtr(kernelDevices.front());
     return hKernel->setArgPointer(argIndex, nullptr, zePtr);
   } else {
-    // TODO: Implement this for multi-device kernels.
-    // Do this the same way as in legacy (keep a pending Args vector and
-    // do actual allocation on kernel submission) or allocate the memory
-    // immediately (only for small allocations?)
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    // TODO: if devices do not have p2p capabilities, we need to have allocation
+    // on each device. Do this the same way as in legacy (keep a pending Args
+    // vector and do actual allocation on kernel submission) or allocate the
+    // memory immediately (only for small allocations?).
+
+    // Get memory that is accessible by the first device.
+    // If kernel is submitted to a different device the memory
+    // will be accessed trough the link or migrated in enqueueKernelLaunch.
+    auto zePtr = hArgValue->getPtr(kernelDevices.front());
+    return hKernel->setArgPointer(argIndex, nullptr, zePtr);
   }
 }
 

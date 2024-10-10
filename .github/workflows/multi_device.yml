@@ -17,7 +17,8 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: L0}
+          {name: L0},
+          {name: L0_V2}
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}] # TODO: investigate why memory-adapter-level_zero hangs with clang
