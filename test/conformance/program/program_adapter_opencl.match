@@ -1,3 +1,2 @@
 {{NONDETERMINISTIC}}
 urProgramCreateWithILTest.BuildInvalidProgram/Intel_R__OpenCL___{{.*}}_
-urProgramGetInfoTest.Success/Intel_R__OpenCL___{{.*}}___UR_PROGRAM_INFO_SOURCE

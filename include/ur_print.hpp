@@ -7505,8 +7505,8 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_program_info_t value) 
     case UR_PROGRAM_INFO_DEVICES:
         os << "UR_PROGRAM_INFO_DEVICES";
         break;
-    case UR_PROGRAM_INFO_SOURCE:
-        os << "UR_PROGRAM_INFO_SOURCE";
+    case UR_PROGRAM_INFO_IL:
+        os << "UR_PROGRAM_INFO_IL";
         break;
     case UR_PROGRAM_INFO_BINARY_SIZES:
         os << "UR_PROGRAM_INFO_BINARY_SIZES";
@@ -7588,7 +7588,7 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_program_inf
         }
         os << "}";
     } break;
-    case UR_PROGRAM_INFO_SOURCE: {
+    case UR_PROGRAM_INFO_IL: {
 
         const char *tptr = (const char *)ptr;
         printPtr(os, tptr);

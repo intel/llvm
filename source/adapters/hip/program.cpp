@@ -403,14 +403,14 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
     return ReturnValue(&hProgram->getContext()->getDevices()[0], 1);
-  case UR_PROGRAM_INFO_SOURCE:
-    return ReturnValue(hProgram->Binary);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return ReturnValue(&hProgram->BinarySizeInBytes, 1);
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
     return getKernelNames(hProgram);
+  case UR_PROGRAM_INFO_IL:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

@@ -215,8 +215,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return returnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
     return returnValue(hProgram->_ctx->_device);
-  case UR_PROGRAM_INFO_SOURCE:
-    return returnValue(nullptr);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return returnValue("foo");
   case UR_PROGRAM_INFO_BINARIES:
@@ -224,6 +222,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_KERNEL_NAMES: {
     return returnValue("foo");
   }
+  case UR_PROGRAM_INFO_IL:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

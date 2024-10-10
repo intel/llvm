@@ -4491,7 +4491,9 @@ typedef enum ur_program_info_t {
     UR_PROGRAM_INFO_DEVICES = 3,         ///< [::ur_device_handle_t[]] Return list of devices associated with a program.
                                          ///< This is either the list of devices associated with the context or a
                                          ///< subset of those devices when the program is created using ::urProgramCreateWithBinary.
-    UR_PROGRAM_INFO_SOURCE = 4,          ///< [char[]] Return program source associated with Program.
+    UR_PROGRAM_INFO_IL = 4,              ///< [char[]] Return program IL if the program was created with
+                                         ///< ::urProgramCreateWithIL, otherwise return size will be set to 0 and
+                                         ///< nothing will be returned.
     UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t[]] Return program binary sizes for each device.
     UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char[]] Return program binaries for all devices for this
                                          ///< Program.
