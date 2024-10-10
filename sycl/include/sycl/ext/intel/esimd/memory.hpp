@@ -14258,7 +14258,9 @@ mask_expand_load(const T *p, simd_mask<N> mask, PropertyListT props = {}) {
   simd<uint32_t, N> offset =
       cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
   simd<T, N> pass_thru = 0;
-  return gather(p, offset * sizeof(T), mask, pass_thru, props);
+  simd<T, N> res = gather(p, offset * sizeof(T), mask, props);
+  res.merge(pass_thru, !mask);
+  return res;
 }
 
 /// template <typename T, int N, typename AccessorTy,
@@ -14307,8 +14309,10 @@ mask_expand_load(AccessorTy acc, uint32_t global_offset, simd_mask<N> mask,
   simd<uint32_t, N> offset =
       cbit(simd<uint32_t, N>(offsets::value) & pack_mask(mask));
   simd<T, N> pass_thru = 0;
-  return gather<T>(acc, offset * sizeof(T) + global_offset, mask, pass_thru,
-                   props);
+  simd<T, N> res =
+      gather<T>(acc, offset * sizeof(T) + global_offset, mask, props);
+  res.merge(pass_thru, !mask);
+  return res;
 }
 
 /// template <typename T, int N,
