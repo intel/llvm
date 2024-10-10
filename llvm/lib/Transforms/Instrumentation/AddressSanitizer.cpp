@@ -1506,10 +1506,40 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+static bool containsTargetExtType(const Type *Ty) {
+  if (isa<TargetExtType>(Ty))
+    return true;
+
+  if (Ty->isVectorTy())
+    return containsTargetExtType(Ty->getScalarType());
+
+  if (Ty->isArrayTy())
+    return containsTargetExtType(Ty->getArrayElementType());
+
+  if (auto *STy = dyn_cast<StructType>(Ty)) {
+    for (unsigned int i = 0; i < STy->getNumElements(); i++)
+      if (containsTargetExtType(STy->getElementType(i)))
+        return true;
+    return false;
+  }
+
+  return false;
+}
+
+static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (isa<StoreInst>(Inst) &&
+      containsTargetExtType(
+          cast<StoreInst>(Inst)->getValueOperand()->getType()))
+    return true;
+
+  if (isa<LoadInst>(Inst) && containsTargetExtType(Inst->getType()))
     return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1518,7 +1548,7 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
     if (!ClSpirOffloadPrivates)
       return true;
     // Skip kernel arguments
-    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
   case kSpirOffloadGlobalAS: {
@@ -1756,7 +1786,10 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // swifterror allocas are register promoted by ISel
        !AI.isSwiftError() &&
        // safe allocas are not interesting
-       !(SSGI && SSGI->isSafe(AI)));
+       !(SSGI && SSGI->isSafe(AI)) &&
+       // ignore alloc contains target ext type since we can't know exactly what
+       // size it is.
+       !containsTargetExtType(AI.getAllocatedType()));
 
   ProcessedAllocas[&AI] = IsInteresting;
   return IsInteresting;
@@ -1765,7 +1798,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
+    if (isUnsupportedSPIRAccess(Ptr, Inst))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
