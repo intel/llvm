@@ -19,6 +19,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <detail/split_string.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -26,7 +27,6 @@
 #include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>

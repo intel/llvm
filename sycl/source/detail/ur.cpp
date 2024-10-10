@@ -12,9 +12,10 @@
 ///
 /// \ingroup sycl_ur
 
-#include "context_impl.hpp"
+#include "ur.hpp"
 #include <detail/adapter.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/context.hpp>

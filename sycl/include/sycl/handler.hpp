@@ -12,6 +12,7 @@
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/cg_types.hpp>
+#include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
@@ -590,7 +591,11 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  void saveCodeLoc(detail::code_location CodeLoc) { MCodeLoc = CodeLoc; }
+  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  ///   at the next ABI breaking window since removing it breaks ABI on windows.
+  void saveCodeLoc(detail::code_location CodeLoc);
+  void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
+  void copyCodeLoc(const handler &other);
 
   /// Constructs CG object of specific type, passes it to Scheduler and
   /// returns sycl::event object representing the command group.
