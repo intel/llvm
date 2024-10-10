@@ -735,6 +735,91 @@ template <class T> static inline bool is_device_ptr(T ptr) {
 }
 #endif
 
+/// Get the buffer and the offset of a piece of memory pointed to by \p ptr.
+///
+/// \param ptr Pointer to a piece of memory.
+/// If NULL is passed as an argument, an exception will be thrown.
+/// \returns a pair containing both the buffer and the offset.
+static std::pair<buffer_t, size_t> get_buffer_and_offset(const void *ptr) {
+  if (ptr) {
+    auto alloc = detail::mem_mgr::instance().translate_ptr(ptr);
+    size_t offset = (byte_t *)ptr - alloc.alloc_ptr;
+    return std::make_pair(alloc.buffer, offset);
+  } else {
+    throw std::runtime_error(
+        "NULL pointer argument in get_buffer_and_offset function is invalid");
+  }
+}
+
+/// Get the data pointed from \p ptr as a 1D buffer reinterpreted as type T.
+template <typename T> static sycl::buffer<T> get_buffer(const void *ptr) {
+  if (!ptr)
+    return sycl::buffer<T>(sycl::range<1>(0));
+  auto alloc = detail::mem_mgr::instance().translate_ptr(ptr);
+  return alloc.buffer.reinterpret<T>(sycl::range<1>(alloc.size / sizeof(T)));
+}
+
+/// Get the buffer of a piece of memory pointed to by \p ptr.
+///
+/// \param ptr Pointer to a piece of memory.
+/// \returns the buffer.
+static buffer_t get_buffer(const void *ptr) {
+  return detail::mem_mgr::instance().translate_ptr(ptr).buffer;
+}
+
+/// Get the host pointer from a buffer that is mapped to virtual pointer ptr.
+/// \param ptr Virtual Pointer mapped to device buffer
+/// \returns A host pointer
+template <typename T> static inline T *get_host_ptr(const void *ptr) {
+  auto BufferOffset = get_buffer_and_offset(ptr);
+  auto host_ptr =
+      BufferOffset.first.get_host_access()
+          .get_multi_ptr<sycl::access::decorated::no>();
+  return (T *)(host_ptr + BufferOffset.second);
+}
+
+/// A wrapper class contains an accessor and an offset.
+template <typename dataT,
+          sycl::access_mode accessMode = sycl::access_mode::read_write>
+class access_wrapper {
+  sycl::accessor<byte_t, 1, accessMode> accessor;
+  size_t offset;
+
+public:
+  /// Construct the accessor wrapper for memory pointed by \p ptr.
+  ///
+  /// \param ptr Pointer to memory.
+  /// \param cgh The command group handler.
+  access_wrapper(const void *ptr, sycl::handler &cgh)
+      : accessor(get_buffer(ptr).get_access<accessMode>(cgh)), offset(0) {
+    auto alloc = detail::mem_mgr::instance().translate_ptr(ptr);
+    offset = (byte_t *)ptr - alloc.alloc_ptr;
+  }
+
+  /// Get the device pointer.
+  ///
+  /// \returns a device pointer with offset.
+  dataT get_raw_pointer() const { return (dataT)(&accessor[0] + offset); }
+};
+
+/// Get the accessor for memory pointed by \p ptr.
+///
+/// \param ptr Pointer to memory.
+/// If NULL is passed as an argument, an exception will be thrown.
+/// \param cgh The command group handler.
+/// \returns an accessor.
+template <sycl::access_mode accessMode = sycl::access_mode::read_write>
+static sycl::accessor<byte_t, 1, accessMode> get_access(const void *ptr,
+                                                        sycl::handler &cgh) {
+  if (ptr) {
+    auto alloc = detail::mem_mgr::instance().translate_ptr(ptr);
+    return alloc.buffer.get_access<accessMode>(cgh);
+  } else {
+    throw std::runtime_error(
+        "NULL pointer argument in get_access function is invalid");
+  }
+}
+
 namespace experimental {
 namespace detail {
 static inline std::vector<sycl::event>
