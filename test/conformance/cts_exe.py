@@ -10,6 +10,8 @@
 # Printing conformance test output from gtest and checking failed tests with match files.
 # The match files contain tests that are expected to fail.
 
+import os
+import shlex
 import sys
 from argparse import ArgumentParser
 import subprocess  # nosec B404
@@ -17,18 +19,34 @@ import signal
 import re
 from collections import OrderedDict
 
-if __name__ == '__main__':
+
+def _print_cmdline(cmd_args, env, cwd, file=sys.stderr):
+    cwd = shlex.quote(cwd)
+    env_args = " ".join(
+        "%s=%s" % (shlex.quote(k), shlex.quote(v)) for k, v in env.items()
+    )
+    cmd_str = " ".join(map(shlex.quote, cmd_args))
+    print(f"### env -C {cwd} -i {env_args} {cmd_str}", file=file)
+
+
+if __name__ == "__main__":
 
     parser = ArgumentParser()
     parser.add_argument("--test_command", help="Ctest test case")
     parser.add_argument("--devices_count", type=str, help="Number of devices on which tests will be run")
     parser.add_argument("--platforms_count", type=str, help="Number of platforms on which tests will be run")
     args = parser.parse_args()
+    invocation = [
+        args.test_command,
+        "--gtest_brief=1",
+        f"--devices_count={args.devices_count}",
+        f"--platforms_count={args.platforms_count}",
+    ]
+    _print_cmdline(invocation, os.environ, os.getcwd())
 
-    result = subprocess.Popen([args.test_command, '--gtest_brief=1',        # nosec B603
-                               f'--devices_count={args.devices_count}',
-                               f'--platforms_count={args.platforms_count}'],
-                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, universal_newlines=True)
+    result = subprocess.Popen(  # nosec B603
+        invocation, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True
+    )
 
     pat = re.compile(r'\[( )*FAILED( )*\]')
     output_list = []
