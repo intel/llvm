@@ -10,4 +10,5 @@ add_sycl_unittest(CommandGraphExtensionTests OBJECT
   Regressions.cpp
   Subgraph.cpp
   Update.cpp
+  Properties.cpp
 )
