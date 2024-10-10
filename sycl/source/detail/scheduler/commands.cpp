@@ -2297,6 +2297,8 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_work_group_memory:
+    break;
   case kernel_param_kind_t::kind_stream:
     break;
   case kernel_param_kind_t::kind_accessor: {

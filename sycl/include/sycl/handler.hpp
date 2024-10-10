@@ -162,6 +162,8 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
+template <typename, typename> class work_group_memory;
+
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -536,8 +538,10 @@ private:
   /// According to section 4.7.6.11. of the SYCL specification, a local accessor
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
+  /// The same restriction is in place for work group memory objects. Refer to
+  /// its spec for more details.
   template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() const {
+  void throwOnKernelParameterMisuse() const {
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
@@ -552,6 +556,13 @@ private:
             make_error_code(errc::kernel_argument),
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
+            "parallel_for that takes a range parameter.");
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A work group memory object must not be used in a SYCL kernel "
+            "function that is invoked via single_task or via the simple form "
+            "of "
             "parallel_for that takes a range parameter.");
     }
   }
@@ -704,6 +715,15 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
+  }
+
+  template <typename DataT, typename PropertyListT>
+  void setArgHelper(
+      int ArgIndex,
+      const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
+          &Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, 0,
+           ArgIndex);
   }
 
   // setArgHelper for non local accessor argument.
@@ -1198,7 +1218,7 @@ private:
   void parallel_for_lambda_impl(range<Dims> UserRange, PropertiesT Props,
                                 KernelType KernelFunc) {
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1729,7 +1749,7 @@ private:
                                _KERNELFUNCPARAM(KernelFunc)) {
     (void)Props;
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     // TODO: Properties may change the kernel function, so in order to avoid
     //       conflicts they should be included in the name.
     using NameT =
@@ -1933,6 +1953,13 @@ public:
   template <typename DataT, int Dims>
   void set_arg(int ArgIndex, local_accessor<DataT, Dims> Arg) {
     setArgHelper(ArgIndex, std::move(Arg));
+  }
+
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(int ArgIndex, const ext::oneapi::experimental::work_group_memory<
+                                 DataT, PropertyListT> &Arg) {
+    setArgHelper(ArgIndex, Arg);
   }
 
   // set_arg for graph dynamic_parameters

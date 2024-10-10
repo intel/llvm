@@ -34,6 +34,7 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -793,6 +794,12 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
       break;
     }
     }
+    break;
+  }
+  case kernel_param_kind_t::kind_work_group_memory: {
+    addArg(kernel_param_kind_t::kind_std_layout, nullptr,
+           static_cast<detail::work_group_memory_impl *>(Ptr)->buffer_size,
+           Index + IndexShift);
     break;
   }
   case kernel_param_kind_t::kind_sampler: {

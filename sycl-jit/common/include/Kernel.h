@@ -58,6 +58,7 @@ enum class ParameterKind : uint32_t {
   Pointer = 3,
   SpecConstBuffer = 4,
   Stream = 5,
+  WorkGroupMemory = 6,
   Invalid = 0xF,
 };
 

@@ -1520,12 +1520,12 @@ def SYCLType: InheritableAttr {
   let Subjects = SubjectList<[CXXRecord, Enum], ErrorDiag>;
   let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
   let Args = [EnumArgument<"Type", "SYCLType", /*is_string=*/true,
-                           ["accessor", "local_accessor",
+                           ["accessor", "local_accessor", "work_group_memory",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
                             "stream", "sampler", "host_pipe", "multi_ptr"],
-                           ["accessor", "local_accessor",
+                           ["accessor", "local_accessor", "work_group_memory",
                             "specialization_id", "kernel_handler", "buffer_location",
                             "no_alias", "accessor_property_list", "group",
                             "private_memory", "aspect", "annotated_ptr", "annotated_arg",
