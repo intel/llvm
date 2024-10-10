@@ -124,15 +124,6 @@ template <typename T, typename R> struct copy_cv_qualifiers;
 template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
-// vector_size
-// scalars are interpreted as a vector of 1 length.
-template <typename T> struct vector_size_impl : std::integral_constant<int, 1> {};
-template <typename T, int N>
-struct vector_size_impl<vec<T, N>> : std::integral_constant<int, N> {};
-template <typename T>
-struct vector_size
-    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
-
 // vector_element
 template <typename T> struct vector_element_impl;
 template <typename T>
