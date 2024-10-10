@@ -456,20 +456,24 @@ __ESIMD_UNARY_INTRINSIC_DEF(__ESIMD_EMATH_SPIRV_COND, cos, cos)
 template <class T, int N, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, simd<double, N>>
 rsqrt(simd<T, N> src, Sat sat = {}) {
+  __ESIMD_DNS::vector_type_t<__ESIMD_DNS::__raw_t<double>, N> res =
+      __spirv_ocl_rsqrt<__ESIMD_DNS::__raw_t<double>, N>(src.data());
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return inv(sqrt(src));
+    return res;
   else
-    return esimd::saturate<double>(inv(sqrt(src)));
+    return esimd::saturate<double>(simd<double, N>(res));
 }
 
 /** Scalar version.                                                       */
 template <class T, class Sat = saturation_off_tag>
 __ESIMD_API std::enable_if_t<std::is_same_v<T, double>, double>
 rsqrt(T src, Sat sat = {}) {
+  __ESIMD_DNS::__raw_t<double> res =
+      __spirv_ocl_rsqrt<__ESIMD_DNS::__raw_t<double>>(src);
   if constexpr (std::is_same_v<Sat, saturation_off_tag>)
-    return inv(sqrt(src));
+    return res;
   else
-    return esimd::saturate<double>(inv(sqrt(src)));
+    return esimd::saturate<double>(simd<double, 1>(res))[0];
 }
 
 #undef __ESIMD_UNARY_INTRINSIC_DEF

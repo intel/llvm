@@ -90,6 +90,9 @@ int main() {
     if (plt.has(aspect::ext_oneapi_atomic16)) {
       std::cout << "  ext_oneapi_atomic16" << std::endl;
     }
+    if (plt.has(aspect::ext_oneapi_virtual_functions)) {
+      std::cout << "  ext_oneapi_virtual_functions" << std::endl;
+    }
   }
   std::cout << "Passed." << std::endl;
   return 0;

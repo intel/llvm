@@ -274,7 +274,8 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         auto EventImpl = detail::getSyclObjImpl(Event);
-        return EventImpl->isDefaultConstructed() || EventImpl->isNOP();
+        return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
+               !EventImpl->getCommandGraph();
       });
   if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {

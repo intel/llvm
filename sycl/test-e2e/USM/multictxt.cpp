@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t1.out
-// RUN: %t1.out
+// RUN: %{run-unfiltered-devices} %t1.out
 
 // REQUIRES: cpu, gpu
 

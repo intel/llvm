@@ -37,6 +37,7 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
   assert(MDOp && "Unexpected metadata operand");
   const auto &MDConst = MDOp->getOperand(0);
   auto *MDVal = mdconst::dyn_extract_or_null<ConstantInt>(MDConst);
+  assert(MDVal && "Unexpected metadata operand type");
   uint8_t Val = MDVal->getZExtValue();
   assert(Val < 3 && "Unexpected value for split metadata");
   auto AsEnum = static_cast<module_split::SyclEsimdSplitStatus>(Val);

@@ -234,8 +234,8 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     return true;
   }
 
-  size_t returnSize;
-  int value;
+  size_t returnSize = 0;
+  int value = 0;
 
   ur_exp_peer_info_t UrAttr = [&]() {
     switch (attr) {
