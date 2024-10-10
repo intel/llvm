@@ -127,6 +127,7 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
             return Result;                                                     \
     }
 
+using BacktraceFrame = void *;
 using BacktraceInfo = std::string;
 
 struct SourceInfo {
