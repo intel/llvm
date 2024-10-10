@@ -860,11 +860,20 @@ public:
 ```
 #### Buffer Support
 
-Although SYCLcompat is primarily designed around the Unified Shared Memory model, there is (limited) support for the buffer/accessor model. This can be enabled by setting the compiler define `COMPAT_USM_LEVEL_NONE`. This macro instructs SYCLcompat to effectively provide emulated USM pointers via a Memory Manager singleton.
+Although SYCLcompat is primarily designed around the Unified Shared Memory
+model, there is (limited) support for the buffer/accessor model. This can be
+enabled by setting the compiler define `COMPAT_USM_LEVEL_NONE`. This macro
+instructs SYCLcompat to effectively provide emulated USM pointers via a Memory
+Manager singleton.
 
- The following APIs are *not* supported under `COMPAT_USM_LEVEL_NONE`:
+Note that in `COMPAT_USM_LEVEL_NONE` mode, the pointers returned by e.g.
+`syclcompat::malloc`, and passed to `syclcompat::memcpy` can *only* interact
+with `syclcompat` APIs. It is legal to perform pointer arithmetic on these
+virtual pointers, but attempting to dereference them, passing them to `sycl`
+APIs, or passing them into kernels will result in an error.
 
-  - TODO(joe) fill this in
+The SYCLcompat tests with the suffix `_usmnone.cpp` provide examples of how to
+use `COMPAT_USM_LEVEL_NONE`.
 
 ### Device Information
 
