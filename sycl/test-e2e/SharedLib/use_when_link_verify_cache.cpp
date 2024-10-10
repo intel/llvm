@@ -2,11 +2,11 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// RUN: %{build} -DFOO_FIRST -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
+// RUN: %{build} -DFOO_FIRST -L%T -o %t1.out -l%basename_t -Wl,-rpath=%T
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK-FIRST,CHECK --implicit-check-not=piProgramBuild
 
-// RUN: %{build} -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
+// RUN: %{build} -L%T -o %t2.out -l%basename_t -Wl,-rpath=%T
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
 
 #include <sycl/detail/core.hpp>
 
