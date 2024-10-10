@@ -360,7 +360,6 @@ static inline sycl::event fill(sycl::queue q, void *dev_ptr, const T &pattern,
 /// \param value Value to be set.
 /// \param size Number of bytes to be set to the value.
 /// \returns An event representing the memset operation.
-// TODO(joe): equivalent API in dpct is templated?
 static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
                                  size_t size) {
 #ifdef COMPAT_USM_LEVEL_NONE
@@ -380,7 +379,7 @@ static inline sycl::event memset(sycl::queue q, void *dev_ptr, int value,
     cgh.fill(acc, value);
   });
 #else
-  return q.memset(dev_ptr, value, size); // TODO(joe): this is q.fill in dpct
+  return q.memset(dev_ptr, value, size);
 #endif // COMPAT_USM_LEVEL_NONE
 }
 
