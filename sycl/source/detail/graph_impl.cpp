@@ -309,19 +309,10 @@ static void checkGraphPropertiesAndThrow(const property_list &Properties) {
       return false;
     }
   };
-  auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
-  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
-    return true;
-    switch (PropertyKind) {
-#include <sycl/ext/oneapi/experimental/detail/properties/graph_properties.def>
-    default:
-      return false;
-    }
-  };
+  // No properties with data for graph now.
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   sycl::detail::PropertyValidator::checkPropsAndThrow(
-      Properties, CheckDataLessProperties, CheckPropertiesWithData);
+      Properties, CheckDataLessProperties, NoAllowedPropertiesCheck);
 }
 
 graph_impl::graph_impl(const sycl::context &SyclContext,

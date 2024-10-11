@@ -2335,7 +2335,7 @@ ProgramManager::compile(const device_image_plain &DeviceImage,
                         const std::vector<device> &Devs,
                         const property_list &PropList) {
   {
-    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
@@ -2405,7 +2405,7 @@ ProgramManager::link(const device_image_plain &DeviceImage,
                      const std::vector<device> &Devs,
                      const property_list &PropList) {
   {
-    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
@@ -2526,7 +2526,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
                                          const std::vector<device> &Devs,
                                          const property_list &PropList) {
   {
-    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
@@ -2691,7 +2691,7 @@ ProgramManager::getOrCreateKernel(const context &Context,
                                   ur_program_handle_t Program) {
 
   {
-    auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+    auto NoAllowedPropertiesCheck = [](int) { return false; };
     detail::PropertyValidator::checkPropsAndThrow(
         PropList, NoAllowedPropertiesCheck, NoAllowedPropertiesCheck);
   }
