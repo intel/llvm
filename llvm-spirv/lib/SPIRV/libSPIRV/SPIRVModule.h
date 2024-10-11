@@ -71,6 +71,7 @@ class SPIRVTypeFunction;
 class SPIRVTypeInt;
 class SPIRVTypeOpaque;
 class SPIRVTypePointer;
+class SPIRVTypeUntypedPointerKHR;
 class SPIRVTypeImage;
 class SPIRVTypeSampler;
 class SPIRVTypeSampledImage;
@@ -83,7 +84,7 @@ class SPIRVTypeQueue;
 class SPIRVTypePipe;
 class SPIRVTypeVmeImageINTEL;
 class SPIRVValue;
-class SPIRVVariable;
+class SPIRVVariableBase;
 class SPIRVDecorateGeneric;
 class SPIRVDecorationGroup;
 class SPIRVGroupDecorate;
@@ -137,7 +138,7 @@ public:
   virtual SPIRVExtInstSetKind getBuiltinSet(SPIRVId) const = 0;
   virtual std::set<std::string> &getExtension() = 0;
   virtual SPIRVFunction *getFunction(unsigned) const = 0;
-  virtual SPIRVVariable *getVariable(unsigned) const = 0;
+  virtual SPIRVVariableBase *getVariable(unsigned) const = 0;
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
   virtual unsigned getNumVariables() const = 0;
@@ -257,6 +258,8 @@ public:
   virtual SPIRVTypeOpaque *addOpaqueType(const std::string &) = 0;
   virtual SPIRVTypePointer *addPointerType(SPIRVStorageClassKind,
                                            SPIRVType *) = 0;
+  virtual SPIRVTypeUntypedPointerKHR *
+      addUntypedPointerKHRType(SPIRVStorageClassKind) = 0;
   virtual SPIRVTypeStruct *openStructType(unsigned, const std::string &) = 0;
   virtual SPIRVEntry *addTypeStructContinuedINTEL(unsigned NumMembers) = 0;
   virtual void closeStructType(SPIRVTypeStruct *, bool) = 0;
@@ -396,7 +399,8 @@ public:
                                SPIRVBasicBlock *BB, SPIRVType *Ty) = 0;
   virtual SPIRVInstruction *addLoadInst(SPIRVValue *,
                                         const std::vector<SPIRVWord> &,
-                                        SPIRVBasicBlock *) = 0;
+                                        SPIRVBasicBlock *,
+                                        SPIRVType *TheType = nullptr) = 0;
   virtual SPIRVInstruction *addLifetimeInst(Op OC, SPIRVValue *Object,
                                             SPIRVWord Size,
                                             SPIRVBasicBlock *BB) = 0;
@@ -460,8 +464,9 @@ public:
                                              SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addUnaryInst(Op, SPIRVType *, SPIRVValue *,
                                          SPIRVBasicBlock *) = 0;
-  virtual SPIRVInstruction *addVariable(SPIRVType *, bool, SPIRVLinkageTypeKind,
-                                        SPIRVValue *, const std::string &,
+  virtual SPIRVInstruction *addVariable(SPIRVType *, SPIRVType *, bool,
+                                        SPIRVLinkageTypeKind, SPIRVValue *,
+                                        const std::string &,
                                         SPIRVStorageClassKind,
                                         SPIRVBasicBlock *) = 0;
   virtual SPIRVValue *

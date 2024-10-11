@@ -951,8 +951,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             updatePaddingInLastMDNode(Ctx, SCMetadata, Padding);
           }
 
+          auto *DefValTy = DefaultValue->getType();
           SCMetadata[SymID] = generateSpecConstantMetadata(
-              M, SymID, SCTy, NextID, /* is native spec constant */ false);
+              M, SymID, DefValTy, NextID, /* is native spec constant */ false);
 
           ++NextID.ID;
           NextOffset += Size;

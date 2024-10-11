@@ -10,7 +10,5 @@
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=1 %{run} %t.out
 
-// XFAIL: gpu
-
 #include "../common.hpp"
 #include "../element_wise_all_ops_impl.hpp"

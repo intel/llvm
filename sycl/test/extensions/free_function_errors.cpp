@@ -25,7 +25,6 @@ union U {
 
 using accType = accessor<int, 1, access::mode::read_write>;
 
-// expected-error@+3 {{'struct S' cannot be used as the type of a kernel parameter}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(struct S s) {}
@@ -40,7 +39,6 @@ SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(accType acc) {}
 
-// expected-error@+3 {{'std::array<int, 10>' cannot be used as the type of a kernel parameter}}
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::single_task_kernel))
 void ff(std::array<int, 10> a) {}

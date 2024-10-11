@@ -9,7 +9,8 @@
 
 #include "device_math.h"
 
-#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__)
+#if defined(__SPIR__) || defined(__SPIRV__) || defined(__NVPTX__) ||           \
+    defined(__AMDGCN__)
 
 // To support fallback device libraries on-demand loading, please update the
 // DeviceLibFuncMap in llvm/tools/sycl-post-link/sycl-post-link.cpp if you add
@@ -28,6 +29,11 @@ double __devicelib_copysign(double x, double y) {
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_cospi(double x) { return __spirv_ocl_cospi(x); }
+
+DEVICE_EXTERN_C_INLINE
+double __devicelib_scalbln(double x, long int y) {
+  return __spirv_ocl_ldexp(x, (int)y);
+}
 
 DEVICE_EXTERN_C_INLINE
 double __devicelib_fmax(double x, double y) { return __spirv_ocl_fmax(x, y); }
@@ -188,4 +194,4 @@ DEVICE_EXTERN_C_INLINE
 double __devicelib_scalbn(double x, int exp) {
   return __spirv_ocl_ldexp(x, exp);
 }
-#endif // __SPIR__ || __SPIRV__ || __NVPTX__
+#endif // __SPIR__ || __SPIRV__ || __NVPTX__ || __AMDGCN__

@@ -2,6 +2,7 @@
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC_NEEDS_UNDEF
 #define __SYCL_PARAM_TRAITS_TEMPLATE_SPEC __SYCL_PARAM_TRAITS_SPEC
 #endif
+// TODO(#15184): Remove the fusion aspect in the next ABI-breaking window.
 __SYCL_PARAM_TRAITS_SPEC(ext::codeplay::experimental,device, supports_fusion, bool, __SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(
     ext::codeplay::experimental, device, max_registers_per_work_group, uint32_t,

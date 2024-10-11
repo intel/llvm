@@ -154,16 +154,16 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-NOT: ---> urProgramBuild{{.*}}-vc-codegen
-// CHECK-WITH-VAR: ---> urProgramBuild{{.*}}-g
-// CHECK: ---> urKernelCreate({{.*}}{{.*}}SyclKernel
+// CHECK-NOT: <--- urProgramBuild{{.*}}-vc-codegen
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g
+// CHECK: <--- urKernelCreate({{.*}}{{.*}}SyclKernel
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
 // CHECK-NO-VAR-LABEL: -vc-codegen -disable-finalizer-msg
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg
-// CHECK-LABEL: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-LABEL: <--- urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // Kernels requesting GRF are grouped into separate module and compiled
 // with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
@@ -172,6 +172,6 @@ int main(void) {
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
-// CHECK-LABEL: ---> urKernelCreate(
+// CHECK-LABEL: <--- urKernelCreate(
 // CHECK-SAME: EsimdKernelSpecifiedGRF
 // CHECK-SAME: -> UR_RESULT_SUCCESS

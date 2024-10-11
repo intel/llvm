@@ -1,4 +1,6 @@
-// RUN: %{build} -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
 #include "helpers.hpp"

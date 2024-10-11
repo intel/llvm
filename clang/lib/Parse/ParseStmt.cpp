@@ -299,6 +299,15 @@ Retry:
     goto Retry;
   }
 
+  case tok::kw_template: {
+    SourceLocation DeclEnd;
+    ParsedAttributes Attrs(AttrFactory);
+    ParseTemplateDeclarationOrSpecialization(DeclaratorContext::Block, DeclEnd,
+                                             Attrs,
+                                             getAccessSpecifierIfPresent());
+    return StmtError();
+  }
+
   case tok::kw_case:                // C99 6.8.1: labeled-statement
     return ParseCaseStatement(StmtCtx);
   case tok::kw_default:             // C99 6.8.1: labeled-statement
@@ -1554,6 +1563,12 @@ StmtResult Parser::ParseIfStatement(SourceLocation *TrailingElseLoc) {
   std::optional<bool> ConstexprCondition;
   if (!IsConsteval) {
 
+    EnterExpressionEvaluationContext ConstantEvaluated(
+        Actions,
+        IsConstexpr ? Sema::ExpressionEvaluationContext::ConstantEvaluated
+                    : Sema::ExpressionEvaluationContext::PotentiallyEvaluated,
+        nullptr, Sema::ExpressionEvaluationContextRecord::EK_Other,
+        IsConstexpr);
     if (ParseParenExprOrCondition(&InitStmt, Cond, IfLoc,
                                   IsConstexpr ? Sema::ConditionKind::ConstexprIf
                                               : Sema::ConditionKind::Boolean,

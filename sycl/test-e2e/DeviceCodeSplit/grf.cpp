@@ -14,13 +14,14 @@
 //   compiler option
 
 // REQUIRES: arch-intel_gpu_pvc
-// RUN: %{build} -o %t.out
+
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO_GRF=1 -o %t.out
+// RUN: %{build} -DUSE_AUTO_GRF=1 -Wno-error=deprecated-declarations -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
 // RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 // RUN: %{build} -DUSE_NEW_API=1 -DUSE_AUTO_GRF=1 -o %t.out
@@ -134,16 +135,16 @@ int main(void) {
   return 0;
 }
 
-// CHECK-LABEL: ---> urProgramBuild
+// CHECK-LABEL: <--- urProgramBuild
 // CHECK-WITH-VAR-SAME: -g
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SingleGRF{{.*}}-> UR_RESULT_SUCCESS
 
-// CHECK-NO-VAR: urProgramBuild{{.*}}-ze-opt-large-register-file
-// CHECK-WITH-VAR: urProgramBuild{{.*}}-g -ze-opt-large-register-file
-// CHECK-AUTO-NO-VAR: urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
-// CHECK-AUTO-WITH-VAR: urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
+// CHECK-NO-VAR: <--- urProgramBuild{{.*}}-ze-opt-large-register-file
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-opt-large-register-file
+// CHECK-AUTO-NO-VAR: <--- urProgramBuild{{.*}}-ze-intel-enable-auto-large-GRF-mode
+// CHECK-AUTO-WITH-VAR: <--- urProgramBuild{{.*}}-g -ze-intel-enable-auto-large-GRF-mode
 // CHECK-SAME: -> UR_RESULT_SUCCESS
 
-// CHECK: ---> urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS
+// CHECK: <--- urKernelCreate({{.*}}SpecifiedGRF{{.*}}-> UR_RESULT_SUCCESS

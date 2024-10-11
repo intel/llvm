@@ -9,7 +9,7 @@
 // SG size. This corner case only applies to AMX. Also, it tests bf16 type.
 // only run this on AMX
 // REQUIRES: cpu
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

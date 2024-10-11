@@ -52,11 +52,6 @@ void test_vector_element_t() {
 }
 
 template <typename T, typename CheckedT, bool Expected = true>
-void test_make_signed_t() {
-  static_assert(is_same<d::make_signed_t<T>, CheckedT>::value == Expected, "");
-}
-
-template <typename T, typename CheckedT, bool Expected = true>
 void test_make_unsigned_t() {
   static_assert(is_same<d::make_unsigned_t<T>, CheckedT>::value == Expected,
                 "");
@@ -70,17 +65,6 @@ template <typename T, typename CheckedT, bool Expected = true>
 void test_remove_pointer_t() {
   static_assert(is_same<d::remove_pointer_t<T>, CheckedT>::value == Expected,
                 "");
-}
-
-template <typename T, typename SpaceList, bool Expected = true>
-void test_is_address_space_compliant() {
-  static_assert(d::is_address_space_compliant<T, SpaceList>::value == Expected,
-                "");
-}
-
-template <typename T, int Checked, bool Expected = true>
-void test_vector_size() {
-  static_assert((d::vector_size<T>::value == Checked) == Expected, "");
 }
 
 int main() {
@@ -101,22 +85,6 @@ int main() {
   test_remove_pointer_t<s::float2 *, s::float2>();
   test_remove_pointer_t<s::constant_ptr<s::int2>, s::int2>();
   test_remove_pointer_t<s::constant_ptr<s::float2>, s::float2>();
-
-  test_is_address_space_compliant<int *, d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<float *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::constant_ptr<int>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::constant_ptr<float>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::int2 *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::float2 *,
-                                  d::gvl::nonconst_address_space_list>();
-  test_is_address_space_compliant<s::constant_ptr<s::int2>,
-                                  d::gvl::nonconst_address_space_list, false>();
-  test_is_address_space_compliant<s::constant_ptr<s::float2>,
-                                  d::gvl::nonconst_address_space_list, false>();
 
   test_is_integral<int>();
   test_is_integral<s::int2>();
@@ -173,15 +141,6 @@ int main() {
   test_vector_element_t<volatile s::int2, volatile int>();
   test_vector_element_t<const volatile s::int2, const volatile int>();
 
-  test_make_signed_t<int, int>();
-  test_make_signed_t<const int, const int>();
-  test_make_signed_t<unsigned int, int>();
-  test_make_signed_t<const unsigned int, const int>();
-  test_make_signed_t<s::int2, s::int2>();
-  test_make_signed_t<const s::int2, const s::int2>();
-  test_make_signed_t<s::uint2, s::int2>();
-  test_make_signed_t<const s::uint2, const s::int2>();
-
   test_make_unsigned_t<int, unsigned int>();
   test_make_unsigned_t<const int, const unsigned int>();
   test_make_unsigned_t<unsigned int, unsigned int>();
@@ -190,14 +149,6 @@ int main() {
   test_make_unsigned_t<const s::int2, const s::uint2>();
   test_make_unsigned_t<s::uint2, s::uint2>();
   test_make_unsigned_t<const s::uint2, const s::uint2>();
-
-  test_vector_size<int, 1>();
-  test_vector_size<float, 1>();
-  test_vector_size<double, 1>();
-  test_vector_size<s::int2, 2>();
-  test_vector_size<s::float3, 3>();
-  test_vector_size<s::double4, 4>();
-  test_vector_size<s::vec<int, 1>, 1>();
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(

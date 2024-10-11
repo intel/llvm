@@ -171,7 +171,7 @@ class SYCLAccessor(SYCLValue):
     def access_mode(self):
         return self.type().access_mode()
 
-    def subscript_int(self, subscript):
+    def subscript_sizet(self, subscript):
         return self.data()[subscript]
 
     def subscript_id(self, subscript):
@@ -184,25 +184,6 @@ class SYCLAccessor(SYCLValue):
 
     def subscript_item(self, subscript):
         return self.subscript_id(SYCLItem(subscript).index())
-
-    def __getitem__(self, subscript):
-        code = subscript.type.unqualified().code
-        if code == gdb.TYPE_CODE_INT:
-            return self.subscript_int(subscript)
-        elif (
-            code == gdb.TYPE_CODE_STRUCT
-            and subscript.type.name.startswith("sycl::_V1::item<")
-            and subscript.type.name.endswith(">")
-        ):
-            return self.subscript_item(subscript)
-        elif (
-            code == gdb.TYPE_CODE_STRUCT
-            and subscript.type.name.startswith("sycl::_V1::id<")
-            and subscript.type.name.endswith(">")
-        ):
-            return self.subscript_id(subscript)
-        else:
-            raise AttributeError("Unsupported sycl::accessor subscript type.")
 
     def impl(self):
         return self.gdb_value()["impl"]
@@ -511,7 +492,9 @@ class SYCLTypePrinter:
         self.name = name
 
     def matches(self, type):
-        return type.name == self.name or type.name.startswith(self.name + "<")
+        return type.name != None and (
+            type.name == self.name or type.name.startswith(self.name + "<")
+        )
 
     def instantiate(self):
         return SYCLTypePrinter.Recognizer(self)
@@ -682,7 +665,7 @@ class SYCLPrinter:
     @staticmethod
     def data_vector_type(base_type, dimensions, ranges_array):
         vector_type = base_type
-        for index in range(dimensions):
+        for index in reversed(range(dimensions)):
             upperbound = ranges_array[index]
             inclusive_upperbound = upperbound - 1
             vector_type = vector_type.vector(inclusive_upperbound)
@@ -1202,8 +1185,8 @@ class SYCLAccessorSubscriptSizeT(SYCLAccessorSubscript):
     def size_type(self):
         return SYCLType.size_type()
 
-    def __call__(self, accessor_ptr, subscript):
-        return SYCLAccessor(accessor_ptr.dereference())[subscript]
+    def __call__(self, ptr, subscript):
+        return SYCLAccessor(ptr.dereference()).subscript_sizet(subscript)
 
 
 class SYCLAccessorSubscriptID(SYCLAccessorSubscript):
@@ -1217,8 +1200,8 @@ class SYCLAccessorSubscriptID(SYCLAccessorSubscript):
         dimensions = SYCLAccessorType(self.class_type()).dimensions()
         return gdb.lookup_type(f"sycl::_V1::id<{dimensions}>")
 
-    def __call__(self, accessor_ptr, subscript):
-        return SYCLAccessor(accessor_ptr.dereference())[subscript]
+    def __call__(self, ptr, subscript):
+        return SYCLAccessor(ptr.dereference()).subscript_id(subscript)
 
 
 class SYCLAccessorSubscriptItem(SYCLAccessorSubscript):
@@ -1240,8 +1223,8 @@ class SYCLAccessorSubscriptItem(SYCLAccessorSubscript):
         except:
             return None
 
-    def __call__(self, accessor_ptr, subscript):
-        return SYCLAccessor(accessor_ptr.dereference())[subscript]
+    def __call__(self, ptr, subscript):
+        return SYCLAccessor(ptr.dereference()).subscript_item(subscript)
 
 
 class SYCLAccessorSubscriptItemOffset(SYCLAccessorSubscriptItem):

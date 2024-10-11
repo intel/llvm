@@ -1,4 +1,6 @@
-// RUN: %{build} -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %if preview-breaking-changes-supported %{ %{build} -fpreview-breaking-changes -o %t_preview.out %}
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t_preview.out%}
@@ -37,8 +39,8 @@ int main() {
   test(F(clamp), marray<float, 2>{1.0f, 2.0f}, ma1, 1.0f, 3.0f);
   test(has_fp64, F(clamp), marray<double, 2>{1.0, 2.0}, ma4, 1.0, 3.0);
   // degrees
-  test(F(degrees), marray<float, 3>{180, 180, 180}, ma5);
-  test(has_fp64, F(degrees), marray<double, 3>{180, 180, 180}, ma6);
+  test(0.2, F(degrees), marray<float, 3>{180, 180, 180}, ma5);
+  test(has_fp64, 0.2, F(degrees), marray<double, 3>{180, 180, 180}, ma6);
   test(has_fp16, 0.2, F(degrees), marray<half, 3>{180, 180, 180}, ma7);
   // max
   test(F(max), marray<float, 2>{3.0f, 2.0f}, ma1, ma3);
@@ -53,8 +55,8 @@ int main() {
   test(F(mix), marray<float, 2>{1.4f, 2.0f}, ma1, ma3, 0.2f);
   test(has_fp64, F(mix), marray<double, 2>{3.0, 5.0}, ma4, ma9, 0.5);
   // radians
-  test(F(radians), marray<float, 3>{M_PI, M_PI, M_PI}, ma10);
-  test(has_fp64, F(radians), marray<double, 3>{M_PI, M_PI, M_PI}, ma11);
+  test(0.002, F(radians), marray<float, 3>{M_PI, M_PI, M_PI}, ma10);
+  test(has_fp64, 0.002, F(radians), marray<double, 3>{M_PI, M_PI, M_PI}, ma11);
   test(has_fp16, 0.002, F(radians), marray<half, 3>{M_PI, M_PI, M_PI}, ma12);
   // step
   test(F(step), marray<float, 2>{1.0f, 1.0f}, ma1, ma3);

@@ -357,6 +357,11 @@ Type *SPIRVToLLVM::transType(SPIRVType *T, bool UseTPT) {
       return TypedPointerType::get(ElementTy, AS);
     return mapType(T, PointerType::get(ElementTy, AS));
   }
+  case OpTypeUntypedPointerKHR: {
+    const unsigned AS =
+        SPIRSPIRVAddrSpaceMap::rmap(T->getPointerStorageClass());
+    return mapType(T, PointerType::get(*Context, AS));
+  }
   case OpTypeVector:
     return mapType(T,
                    FixedVectorType::get(transType(T->getVectorComponentType()),
@@ -560,6 +565,8 @@ std::string SPIRVToLLVM::transTypeToOCLTypeName(SPIRVType *T, bool IsSigned) {
     }
     return transTypeToOCLTypeName(ET) + "*";
   }
+  case OpTypeUntypedPointerKHR:
+    return "int*";
   case OpTypeVector:
     return transTypeToOCLTypeName(T->getVectorComponentType()) +
            T->getVectorComponentCount();
@@ -1522,9 +1529,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
-  case OpVariable: {
-    auto *BVar = static_cast<SPIRVVariable *>(BV);
-    auto *PreTransTy = BVar->getType()->getPointerElementType();
+  case OpVariable:
+  case OpUntypedVariableKHR: {
+    auto *BVar = static_cast<SPIRVVariableBase *>(BV);
+    SPIRVType *PreTransTy = BVar->getType()->getPointerElementType();
+    if (BVar->getType()->isTypeUntypedPointerKHR()) {
+      auto *UntypedVar = static_cast<SPIRVUntypedVariableKHR *>(BVar);
+      if (SPIRVType *DT = UntypedVar->getDataType())
+        PreTransTy = DT;
+    }
     auto *Ty = transType(PreTransTy);
     bool IsConst = BVar->isConstant();
     llvm::GlobalValue::LinkageTypes LinkageTy = transLinkageType(BVar);
@@ -2188,7 +2201,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *BC = static_cast<SPIRVBinary *>(BV);
     auto Ops = transValue(BC->getOperands(), F, BB);
     IRBuilder<> Builder(BB);
-    Value *V = Builder.CreatePtrDiff(transType(BC->getType()), Ops[0], Ops[1]);
+    Type *ElemTy =
+        transType(BC->getOperands()[0]->getType()->getPointerElementType());
+    Value *V = Builder.CreatePtrDiff(ElemTy, Ops[0], Ops[1]);
     return mapValue(BV, V);
   }
 
@@ -3042,12 +3057,15 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
     auto BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
+    AttributeMask IllegalAttrs = AttributeFuncs::typeIncompatible(I->getType());
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       // Skip this function parameter attribute as it will translated among
       // OpenCL metadata
       if (Kind == FunctionParameterAttributeRuntimeAlignedINTEL)
         return;
       Attribute::AttrKind LLVMKind = SPIRSPIRVFuncParamAttrMap::rmap(Kind);
+      if (IllegalAttrs.contains(LLVMKind))
+        return;
       Type *AttrTy = nullptr;
       switch (LLVMKind) {
       case Attribute::AttrKind::ByVal:
@@ -3268,8 +3286,16 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
         OC == OpControlBarrier)
       Func->addFnAttr(Attribute::Convergent);
   }
-  auto *Call =
-      CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
+  CallInst *Call;
+  if (BI->getOpCode() == OpCooperativeMatrixLengthKHR &&
+      Ops[0]->getOpCode() == OpTypeCooperativeMatrixKHR) {
+    // OpCooperativeMatrixLengthKHR needs special handling as its operand is
+    // a Type instead of a Value.
+    llvm::Type *MatTy = transType(reinterpret_cast<SPIRVType *>(Ops[0]));
+    Call = CallInst::Create(Func, Constant::getNullValue(MatTy), "", BB);
+  } else {
+    Call = CallInst::Create(Func, transValue(Ops, BB->getParent(), BB), "", BB);
+  }
   setName(Call, BI);
   setAttrByCalledFunc(Call);
   SPIRVDBG(spvdbgs() << "[transInstToBuiltinCall] " << *BI << " -> ";
@@ -3815,8 +3841,8 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
       GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
       GS->setSection("llvm.metadata");
 
-      Type *ResType = PointerType::get(GV->getContext(),
-                                       GV->getType()->getPointerAddressSpace());
+      Type *ResType = PointerType::get(
+          GV->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
       Constant *C = ConstantExpr::getPointerBitCastOrAddrSpaceCast(GV, ResType);
 
       Type *Int8PtrTyPrivate = PointerType::get(*Context, SPIRAS_Private);
@@ -3875,8 +3901,8 @@ void SPIRVToLLVM::transUserSemantic(SPIRV::SPIRVFunction *Fun) {
     GS->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
     GS->setSection("llvm.metadata");
 
-    Type *ResType = PointerType::get(V->getContext(),
-                                     V->getType()->getPointerAddressSpace());
+    Type *ResType = PointerType::get(
+        V->getContext(), M->getDataLayout().getDefaultGlobalsAddressSpace());
     Constant *C =
         ConstantExpr::getPointerBitCastOrAddrSpaceCast(TransFun, ResType);
 
@@ -4042,7 +4068,7 @@ bool SPIRVToLLVM::transDecoration(SPIRVValue *BV, Value *V) {
   return true;
 }
 
-void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariable *BV) {
+void SPIRVToLLVM::transGlobalCtorDtors(SPIRVVariableBase *BV) {
   if (BV->getName() != "llvm.global_ctors" &&
       BV->getName() != "llvm.global_dtors")
     return;
@@ -4887,15 +4913,17 @@ SPIRVToLLVM::transLinkageType(const SPIRVValue *V) {
         return GlobalValue::ExternalLinkage;
     }
     // Variable declaration
-    if (V->getOpCode() == OpVariable) {
-      if (static_cast<const SPIRVVariable *>(V)->getInitializer() == 0)
+    if (V->getOpCode() == OpVariable ||
+        V->getOpCode() == OpUntypedVariableKHR) {
+      if (static_cast<const SPIRVVariableBase *>(V)->getInitializer() == 0)
         return GlobalValue::ExternalLinkage;
     }
     // Definition
     return GlobalValue::AvailableExternallyLinkage;
   case LinkageTypeExport:
-    if (V->getOpCode() == OpVariable) {
-      if (static_cast<const SPIRVVariable *>(V)->getInitializer() == 0)
+    if (V->getOpCode() == OpVariable ||
+        V->getOpCode() == OpUntypedVariableKHR) {
+      if (static_cast<const SPIRVVariableBase *>(V)->getInitializer() == 0)
         // Tentative definition
         return GlobalValue::CommonLinkage;
     }

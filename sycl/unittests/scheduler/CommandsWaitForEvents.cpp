@@ -109,7 +109,7 @@ static sycl::unittest::UrImage generateDefaultImage() {
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
@@ -190,7 +190,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
-    EventImpl->getHandleRef() = UREvent;
+    EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
 

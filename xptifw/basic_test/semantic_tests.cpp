@@ -416,8 +416,8 @@ void TestCorrectness::runNotificationTestThreads(
       if (Ev && Ev->unique_id == UIds[Index]) {
         uint8_t TP = (Index % 10) + 1;
         uint16_t TPType = (uint16_t)(TP << 1);
-        xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
-                                          MInstanceID, nullptr);
+        test::utils::ScopedNotify ev("xpti", TPType, nullptr, Ev, MInstanceID,
+                                     nullptr);
         NotifyCount++;
       }
     }
@@ -483,8 +483,8 @@ void TestCorrectness::runNotificationTestThreads(
         if (Ev && Ev->unique_id == UIds[Index]) {
           uint8_t TP = (Index % 10) + 1;
           uint16_t TPType = (uint16_t)(TP << 1);
-          xpti::framework::scoped_notify ev("xpti", TPType, nullptr, Ev,
-                                            MInstanceID, nullptr);
+          test::utils::ScopedNotify ev("xpti", TPType, nullptr, Ev, MInstanceID,
+                                       nullptr);
           NotifyCount++;
         }
       }

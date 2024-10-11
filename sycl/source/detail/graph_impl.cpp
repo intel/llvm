@@ -13,6 +13,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/common.hpp>
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -308,7 +309,6 @@ graph_impl::~graph_impl() {
 }
 
 std::shared_ptr<node_impl> graph_impl::addNodesToExits(
-    const std::shared_ptr<graph_impl> &Impl,
     const std::list<std::shared_ptr<node_impl>> &NodeList) {
   // Find all input and output nodes from the node list
   std::vector<std::shared_ptr<node_impl>> Inputs;
@@ -327,7 +327,7 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   for (auto &NodeImpl : MNodeStorage) {
     if (NodeImpl->MSuccessors.size() == 0) {
       for (auto &Input : Inputs) {
-        NodeImpl->registerSuccessor(Input, NodeImpl);
+        NodeImpl->registerSuccessor(Input);
       }
     }
   }
@@ -335,10 +335,10 @@ std::shared_ptr<node_impl> graph_impl::addNodesToExits(
   // Add all the new nodes to the node storage
   for (auto &Node : NodeList) {
     MNodeStorage.push_back(Node);
-    addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), Node);
+    addEventForNode(std::make_shared<sycl::detail::event_impl>(), Node);
   }
 
-  return this->add(Impl, Outputs);
+  return this->add(Outputs);
 }
 
 void graph_impl::addRoot(const std::shared_ptr<node_impl> &Root) {
@@ -350,8 +350,7 @@ void graph_impl::removeRoot(const std::shared_ptr<node_impl> &Root) {
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                const std::vector<std::shared_ptr<node_impl>> &Dep) {
+graph_impl::add(const std::vector<std::shared_ptr<node_impl>> &Dep) {
   // Copy deps so we can modify them
   auto Deps = Dep;
 
@@ -361,17 +360,25 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 
   addDepsToNode(NodeImpl, Deps);
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
   return NodeImpl;
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                std::function<void(handler &)> CGF,
+graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<sycl::detail::ArgDesc> &Args,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   (void)Args;
-  sycl::handler Handler{Impl};
+  sycl::handler Handler{shared_from_this()};
+
+  // save code location if one was set in TLS.
+  // idealy it would be nice to capture user's call code location
+  // by adding a parameter to the graph.add function, but this will
+  // break the API. At least capture code location from TLS, user
+  // can set it before calling graph.add
+  sycl::detail::tls_code_loc_t Tls;
+  Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
+
   CGF(Handler);
 
   if (Handler.getType() == sycl::detail::CGType::Barrier) {
@@ -394,7 +401,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
       this->add(NodeType, std::move(Handler.impl->MGraphNodeCG), Dep);
   NodeImpl->MNDRangeUsed = Handler.impl->MNDRangeUsed;
   // Add an event associated with this explicit node for mixed usage
-  addEventForNode(Impl, std::make_shared<sycl::detail::event_impl>(), NodeImpl);
+  addEventForNode(std::make_shared<sycl::detail::event_impl>(), NodeImpl);
 
   // Retrieve any dynamic parameters which have been registered in the CGF and
   // register the actual nodes with them.
@@ -414,8 +421,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
 }
 
 std::shared_ptr<node_impl>
-graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
-                const std::vector<sycl::detail::EventImplPtr> Events) {
+graph_impl::add(const std::vector<sycl::detail::EventImplPtr> Events) {
 
   std::vector<std::shared_ptr<node_impl>> Deps;
 
@@ -430,7 +436,7 @@ graph_impl::add(const std::shared_ptr<graph_impl> &Impl,
     }
   }
 
-  return this->add(Impl, Deps);
+  return this->add(Deps);
 }
 
 std::shared_ptr<node_impl>
@@ -448,6 +454,16 @@ graph_impl::add(node_type NodeType,
                           "Cannot use buffers in a graph without passing the "
                           "assume_buffer_outlives_graph property on "
                           "Graph construction.");
+  }
+
+  if (CommandGroup->getType() == sycl::detail::CGType::Kernel) {
+    auto CGKernel =
+        static_cast<sycl::detail::CGExecKernel *>(CommandGroup.get());
+    if (CGKernel->hasStreams()) {
+      throw sycl::exception(
+          make_error_code(errc::invalid),
+          "Using sycl streams in a graph node is unsupported.");
+    }
   }
 
   for (auto &Req : Requirements) {
@@ -584,7 +600,7 @@ void graph_impl::makeEdge(std::shared_ptr<node_impl> Src,
   }
 
   // We need to add the edges first before checking for cycles
-  Src->registerSuccessor(Dest, Src);
+  Src->registerSuccessor(Dest);
 
   // We can skip cycle checks if either Dest has no successors (cycle not
   // possible) or cycle checks have been disabled with the no_cycle_check
@@ -667,6 +683,23 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  int32_t StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
+  sycl::detail::CGExecKernel *CGExec =
+      static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+  sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
+                                      CGExec->MFunctionName.c_str(),
+                                      CGExec->MLine, CGExec->MColumn);
+  auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+      StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+      CGExec->MKernelName.c_str(), nullptr, CGExec->MNDRDesc,
+      CGExec->MKernelBundle, CGExec->MArgs);
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+#endif
+
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
@@ -678,6 +711,12 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
     throw sycl::exception(errc::invalid,
                           "Failed to add kernel to UR command-buffer");
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+#endif
 
   return NewSyncPoint;
 }
@@ -712,11 +751,12 @@ void exec_graph_impl::createCommandBuffers(
       UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC, nullptr, MIsUpdatable,
       Partition->MIsInOrderGraph && !MEnableProfiling, MEnableProfiling};
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(Device);
-  ur_result_t Res = Plugin->call_nocheck(
-      urCommandBufferCreateExp, ContextImpl->getHandleRef(),
-      DeviceImpl->getHandleRef(), &Desc, &OutCommandBuffer);
+  ur_result_t Res =
+      Adapter->call_nocheck<sycl::detail::UrApiKind::urCommandBufferCreateExp>(
+          ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), &Desc,
+          &OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid, "Failed to create UR command-buffer");
   }
@@ -756,7 +796,9 @@ void exec_graph_impl::createCommandBuffers(
                       Node->MCommandGroup->getAccStorage().end());
   }
 
-  Res = Plugin->call_nocheck(urCommandBufferFinalizeExp, OutCommandBuffer);
+  Res = Adapter
+            ->call_nocheck<sycl::detail::UrApiKind::urCommandBufferFinalizeExp>(
+                OutCommandBuffer);
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to finalize UR command-buffer");
@@ -789,8 +831,8 @@ exec_graph_impl::exec_graph_impl(sycl::context Context,
 
 exec_graph_impl::~exec_graph_impl() {
   try {
-    const sycl::detail::PluginPtr &Plugin =
-        sycl::detail::getSyclObjImpl(MContext)->getPlugin();
+    const sycl::detail::AdapterPtr &Adapter =
+        sycl::detail::getSyclObjImpl(MContext)->getAdapter();
     MSchedule.clear();
     // We need to wait on all command buffer executions before we can release
     // them.
@@ -802,8 +844,8 @@ exec_graph_impl::~exec_graph_impl() {
       Partition->MSchedule.clear();
       for (const auto &Iter : Partition->MCommandBuffers) {
         if (auto CmdBuf = Iter.second; CmdBuf) {
-          ur_result_t Res =
-              Plugin->call_nocheck(urCommandBufferReleaseExp, CmdBuf);
+          ur_result_t Res = Adapter->call_nocheck<
+              sycl::detail::UrApiKind::urCommandBufferReleaseExp>(CmdBuf);
           (void)Res;
           assert(Res == UR_RESULT_SUCCESS);
         }
@@ -812,8 +854,8 @@ exec_graph_impl::~exec_graph_impl() {
 
     for (auto &Iter : MCommandMap) {
       if (auto Command = Iter.second; Command) {
-        ur_result_t Res =
-            Plugin->call_nocheck(urCommandBufferReleaseCommandExp, Command);
+        ur_result_t Res = Adapter->call_nocheck<
+            sycl::detail::UrApiKind::urCommandBufferReleaseCommandExp>(Command);
         (void)Res;
         assert(Res == UR_RESULT_SUCCESS);
       }
@@ -900,7 +942,7 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
       }
 
       NewEvent = CreateNewEvent();
-      ur_event_handle_t *OutEvent = &NewEvent->getHandleRef();
+      ur_event_handle_t UREvent = nullptr;
       // Merge requirements from the nodes into requirements (if any) from the
       // handler.
       CGData.MRequirements.insert(CGData.MRequirements.end(),
@@ -915,9 +957,12 @@ exec_graph_impl::enqueue(const std::shared_ptr<sycl::detail::queue_impl> &Queue,
           NewEvent->setSubmissionTime();
           NewEvent->setHostEnqueueTime();
         }
-        ur_result_t Res = Queue->getPlugin()->call_nocheck(
-            urCommandBufferEnqueueExp, CommandBuffer, Queue->getHandleRef(), 0,
-            nullptr, OutEvent);
+        ur_result_t Res =
+            Queue->getAdapter()
+                ->call_nocheck<
+                    sycl::detail::UrApiKind::urCommandBufferEnqueueExp>(
+                    CommandBuffer, Queue->getHandleRef(), 0, nullptr, &UREvent);
+        NewEvent->setHandle(UREvent);
         if (Res == UR_RESULT_ERROR_INVALID_QUEUE_PROPERTIES) {
           throw sycl::exception(
               make_error_code(errc::invalid),
@@ -1050,7 +1095,7 @@ void exec_graph_impl::duplicateNodes() {
     // register those as successors with the current copied node
     for (auto &NextNode : OriginalNode->MSuccessors) {
       auto Successor = NodesMap.at(NextNode.lock());
-      NodeCopy->registerSuccessor(Successor, NodeCopy);
+      NodeCopy->registerSuccessor(Successor);
     }
   }
 
@@ -1092,7 +1137,7 @@ void exec_graph_impl::duplicateNodes() {
 
       for (auto &NextNode : SubgraphNode->MSuccessors) {
         auto Successor = SubgraphNodesMap.at(NextNode.lock());
-        NodeCopy->registerSuccessor(Successor, NodeCopy);
+        NodeCopy->registerSuccessor(Successor);
       }
     }
 
@@ -1126,7 +1171,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all input nodes from the subgraph as successors for this node
       // instead
       for (auto &Input : Inputs) {
-        PredNode->registerSuccessor(Input, PredNode);
+        PredNode->registerSuccessor(Input);
       }
     }
 
@@ -1146,7 +1191,7 @@ void exec_graph_impl::duplicateNodes() {
       // Add all Output nodes from the subgraph as predecessors for this node
       // instead
       for (auto &Output : Outputs) {
-        Output->registerSuccessor(SuccNode, Output);
+        Output->registerSuccessor(SuccNode);
       }
     }
 
@@ -1327,7 +1372,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     return;
   }
   auto ContextImpl = sycl::detail::getSyclObjImpl(MContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   auto DeviceImpl = sycl::detail::getSyclObjImpl(MGraphImpl->getDevice());
 
   // Gather arg information from Node
@@ -1387,10 +1432,11 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
   if (NDRDesc.LocalSize[0] != 0)
     LocalSize = &NDRDesc.LocalSize[0];
   else {
-    Plugin->call(urKernelGetGroupInfo, UrKernel, DeviceImpl->getHandleRef(),
-                 UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
-                 sizeof(RequiredWGSize), RequiredWGSize,
-                 /* param_value_size_ret = */ nullptr);
+    Adapter->call<sycl::detail::UrApiKind::urKernelGetGroupInfo>(
+        UrKernel, DeviceImpl->getHandleRef(),
+        UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE, sizeof(RequiredWGSize),
+        RequiredWGSize,
+        /* param_value_size_ret = */ nullptr);
 
     const bool EnforcedLocalSize =
         (RequiredWGSize[0] != 0 || RequiredWGSize[1] != 0 ||
@@ -1461,6 +1507,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
+  UpdateDesc.hNewKernel = UrKernel;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
@@ -1487,13 +1534,14 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
 
   ur_exp_command_buffer_command_handle_t Command =
       MCommandMap[ExecNode->second];
-  ur_result_t Res = Plugin->call_nocheck(urCommandBufferUpdateKernelLaunchExp,
-                                         Command, &UpdateDesc);
+  ur_result_t Res = Adapter->call_nocheck<
+      sycl::detail::UrApiKind::urCommandBufferUpdateKernelLaunchExp>(
+      Command, &UpdateDesc);
 
   if (UrProgram) {
     // We retained these objects by calling getOrCreateKernel()
-    Plugin->call(urKernelRelease, UrKernel);
-    Plugin->call(urProgramRelease, UrProgram);
+    Adapter->call<sycl::detail::UrApiKind::urKernelRelease>(UrKernel);
+    Adapter->call<sycl::detail::UrApiKind::urProgramRelease>(UrProgram);
   }
 
   if (Res != UR_RESULT_SUCCESS) {
@@ -1520,7 +1568,7 @@ node modifiable_command_graph::addImpl(const std::vector<node> &Deps) {
   }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(impl, DepImpls);
+  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1533,8 +1581,7 @@ node modifiable_command_graph::addImpl(std::function<void(handler &)> CGF,
   }
 
   graph_impl::WriteLock Lock(impl->MMutex);
-  std::shared_ptr<detail::node_impl> NodeImpl =
-      impl->add(impl, CGF, {}, DepImpls);
+  std::shared_ptr<detail::node_impl> NodeImpl = impl->add(CGF, {}, DepImpls);
   return sycl::detail::createSyclObjFromImpl<node>(NodeImpl);
 }
 
@@ -1576,6 +1623,14 @@ void modifiable_command_graph::begin_recording(
 
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
   assert(QueueImpl);
+
+  auto QueueGraph = QueueImpl->getCommandGraph();
+  if (QueueGraph != nullptr) {
+    throw sycl::exception(sycl::make_error_code(errc::invalid),
+                          "begin_recording cannot be called for a queue which "
+                          "is already in the recording state.");
+  }
+
   if (QueueImpl->get_context() != impl->getContext()) {
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose context "
@@ -1585,19 +1640,6 @@ void modifiable_command_graph::begin_recording(
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "begin_recording called for a queue whose device "
                           "differs from the graph device.");
-  }
-
-  if (QueueImpl->is_in_fusion_mode()) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "SYCL queue in kernel in fusion mode "
-                          "can NOT be recorded.");
-  }
-
-  auto QueueGraph = QueueImpl->getCommandGraph();
-  if (QueueGraph != nullptr && QueueGraph != impl) {
-    throw sycl::exception(sycl::make_error_code(errc::invalid),
-                          "begin_recording called for a queue which is already "
-                          "recording to a different graph.");
   }
 
   impl->beginRecording(QueueImpl);
@@ -1618,16 +1660,17 @@ void modifiable_command_graph::end_recording() {
 
 void modifiable_command_graph::end_recording(queue &RecordingQueue) {
   auto QueueImpl = sycl::detail::getSyclObjImpl(RecordingQueue);
-  if (QueueImpl && QueueImpl->getCommandGraph() == impl) {
+  if (!QueueImpl)
+    return;
+  if (QueueImpl->getCommandGraph() == impl) {
     QueueImpl->setCommandGraph(nullptr);
     graph_impl::WriteLock Lock(impl->MMutex);
     impl->removeQueue(QueueImpl);
   }
-  if (QueueImpl->getCommandGraph() != nullptr) {
+  if (QueueImpl->getCommandGraph() != nullptr)
     throw sycl::exception(sycl::make_error_code(errc::invalid),
                           "end_recording called for a queue which is recording "
                           "to a different graph.");
-  }
 }
 
 void modifiable_command_graph::end_recording(
@@ -1705,6 +1748,11 @@ dynamic_parameter_base::dynamic_parameter_base(
 
 void dynamic_parameter_base::updateValue(const void *NewValue, size_t Size) {
   impl->updateValue(NewValue, Size);
+}
+
+void dynamic_parameter_base::updateValue(const raw_kernel_arg *NewRawValue,
+                                         size_t Size) {
+  impl->updateValue(NewRawValue, Size);
 }
 
 void dynamic_parameter_base::updateAccessor(

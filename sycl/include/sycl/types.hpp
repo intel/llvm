@@ -21,6 +21,9 @@
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
 #include <sycl/marray.hpp>                     // for __SYCL_BINOP, __SYCL_...
 #include <sycl/multi_ptr.hpp>                  // for multi_ptr
-#include <sycl/vector.hpp>                     // for sycl::vec and swizzles
+
+#include <sycl/vector.hpp>
+
+#include <sycl/detail/vector_convert.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16

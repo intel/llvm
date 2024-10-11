@@ -8,12 +8,12 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/compiler.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_id_impl.hpp>
 #include <detail/mem_alloc_helper.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -95,10 +95,14 @@ public:
 
     // Otherwise, if the device candidate is a sub-device it is also valid if
     // its parent is valid.
-    if (!getSyclObjImpl(DeviceCand)->isRootDevice())
-      return has_kernel(KernelIDCand,
-                        DeviceCand.get_info<info::device::parent_device>());
-
+    if (!getSyclObjImpl(DeviceCand)->isRootDevice()) {
+      try {
+        return has_kernel(KernelIDCand,
+                          DeviceCand.get_info<info::device::parent_device>());
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in has_kernel", e);
+      }
+    }
     return false;
   }
 
@@ -262,7 +266,7 @@ public:
   ur_mem_handle_t &get_spec_const_buffer_ref() noexcept {
     std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
     if (nullptr == MSpecConstsBuffer && !MSpecConstsBlob.empty()) {
-      const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
+      const AdapterPtr &Adapter = getSyclObjImpl(MContext)->getAdapter();
       //  Uses UR_MEM_FLAGS_HOST_PTR_COPY instead of UR_MEM_FLAGS_HOST_PTR_USE
       //  since post-enqueue cleanup might trigger destruction of
       //  device_image_impl and, as a result, destruction of MSpecConstsBlob
@@ -270,10 +274,15 @@ public:
       //  TODO consider changing the lifetime of device_image_impl instead
       ur_buffer_properties_t Properties = {UR_STRUCTURE_TYPE_BUFFER_PROPERTIES,
                                            nullptr, MSpecConstsBlob.data()};
-      memBufferCreateHelper(
-          Plugin, detail::getSyclObjImpl(MContext)->getHandleRef(),
-          UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
-          MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
+      try {
+        memBufferCreateHelper(
+            Adapter, detail::getSyclObjImpl(MContext)->getHandleRef(),
+            UR_MEM_FLAG_READ_WRITE | UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER,
+            MSpecConstsBlob.size(), &MSpecConstsBuffer, &Properties);
+      } catch (std::exception &e) {
+        __SYCL_REPORT_EXCEPTION_TO_STREAM(
+            "exception in get_spec_const_buffer_ref", e);
+      }
     }
     return MSpecConstsBuffer;
   }
@@ -289,12 +298,13 @@ public:
   ur_native_handle_t getNative() const {
     assert(MProgram);
     const auto &ContextImplPtr = detail::getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImplPtr->getPlugin();
+    const AdapterPtr &Adapter = ContextImplPtr->getAdapter();
 
     if (ContextImplPtr->getBackend() == backend::opencl)
-      Plugin->call(urProgramRetain, MProgram);
+      Adapter->call<UrApiKind::urProgramRetain>(MProgram);
     ur_native_handle_t NativeProgram = 0;
-    Plugin->call(urProgramGetNativeHandle, MProgram, &NativeProgram);
+    Adapter->call<UrApiKind::urProgramGetNativeHandle>(MProgram,
+                                                       &NativeProgram);
 
     return NativeProgram;
   }
@@ -302,13 +312,13 @@ public:
   ~device_image_impl() {
     try {
       if (MProgram) {
-        const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-        Plugin->call(urProgramRelease, MProgram);
+        const AdapterPtr &Adapter = getSyclObjImpl(MContext)->getAdapter();
+        Adapter->call<UrApiKind::urProgramRelease>(MProgram);
       }
       if (MSpecConstsBuffer) {
         std::lock_guard<std::mutex> Lock{MSpecConstAccessMtx};
-        const PluginPtr &Plugin = getSyclObjImpl(MContext)->getPlugin();
-        memReleaseHelper(Plugin, MSpecConstsBuffer);
+        const AdapterPtr &Adapter = getSyclObjImpl(MContext)->getAdapter();
+        memReleaseHelper(Adapter, MSpecConstsBuffer);
       }
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~device_image_impl", e);

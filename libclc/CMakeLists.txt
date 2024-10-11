@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.20.0)
 if(CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
   project(libclc VERSION 0.2.0 LANGUAGES CXX C)
 endif()
+set(LLVM_SUBPROJECT_TITLE "libclc")
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -233,6 +234,7 @@ if( ENABLE_RUNTIME_SUBNORMAL )
   foreach( file subnormal_use_default subnormal_disable )
     link_bc(
        TARGET ${file}
+       RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
        INPUTS ${CMAKE_CURRENT_SOURCE_DIR}/generic/lib/${file}.ll
     )
     install( FILES $<TARGET_PROPERTY:${file},TARGET_FILE> ARCHIVE
@@ -250,6 +252,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${script_loc} > convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "generate_convert.cl" DEPENDS convert.cl )
+set_target_properties( "generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 add_custom_command(
   OUTPUT convert-core.cl
@@ -274,6 +277,7 @@ add_custom_command(
   COMMAND ${Python3_EXECUTABLE} ${script_loc} --clspv > clspv-convert.cl
   DEPENDS ${script_loc} )
 add_custom_target( "clspv-generate_convert.cl" DEPENDS clspv-convert.cl )
+set_target_properties( "clspv-generate_convert.cl" PROPERTIES FOLDER "libclc/Sourcegenning" )
 
 enable_testing()
 
@@ -405,7 +409,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     # Enable SPIR-V builtin function declarations, so they don't
     # have to be explicity declared in the soruce.
     list( APPEND flags -Xclang -fdeclare-spirv-builtins)
-
     set( LIBCLC_ARCH_OBJFILE_DIR "${LIBCLC_OBJFILE_DIR}/${arch_suffix}" )
     file( MAKE_DIRECTORY ${LIBCLC_ARCH_OBJFILE_DIR} )
 
