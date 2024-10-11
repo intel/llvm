@@ -124,15 +124,6 @@ template <typename T, typename R> struct copy_cv_qualifiers;
 template <typename T, typename R>
 using copy_cv_qualifiers_t = typename copy_cv_qualifiers<T, R>::type;
 
-// vector_size
-// scalars are interpreted as a vector of 1 length.
-template <typename T> struct vector_size_impl : std::integral_constant<int, 1> {};
-template <typename T, int N>
-struct vector_size_impl<vec<T, N>> : std::integral_constant<int, N> {};
-template <typename T>
-struct vector_size
-    : vector_size_impl<std::remove_cv_t<std::remove_reference_t<T>>> {};
-
 // vector_element
 template <typename T> struct vector_element_impl;
 template <typename T>
@@ -513,19 +504,9 @@ struct map_type<T, From, To, Rest...> {
   using type = std::conditional_t<std::is_same_v<From, T>, To,
                                   typename map_type<T, Rest...>::type>;
 };
-template <typename T, typename... Ts> constexpr bool CheckTypeIn() {
-  constexpr bool SameType[] = {
-      std::is_same_v<std::remove_cv_t<T>, std::remove_cv_t<Ts>>...};
-  // Replace with std::any_of with C++20.
-  for (size_t I = 0; I < sizeof...(Ts); ++I)
-    if (SameType[I])
-      return true;
-  return false;
-}
 
-// NOTE: We need a constexpr variable definition for the constexpr functions
-//       as MSVC thinks function definitions are the same otherwise.
-template <typename... Ts> constexpr bool check_type_in_v = CheckTypeIn<Ts...>();
+template <typename T, typename... Ts>
+constexpr bool check_type_in_v = ((std::is_same_v<T, Ts> || ...));
 
 } // namespace detail
 } // namespace _V1
