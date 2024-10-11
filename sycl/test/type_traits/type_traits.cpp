@@ -67,11 +67,6 @@ void test_remove_pointer_t() {
                 "");
 }
 
-template <typename T, int Checked, bool Expected = true>
-void test_vector_size() {
-  static_assert((d::vector_size<T>::value == Checked) == Expected, "");
-}
-
 int main() {
   test_is_pointer<int *>();
   test_is_pointer<float *>();
@@ -154,14 +149,6 @@ int main() {
   test_make_unsigned_t<const s::int2, const s::uint2>();
   test_make_unsigned_t<s::uint2, s::uint2>();
   test_make_unsigned_t<const s::uint2, const s::uint2>();
-
-  test_vector_size<int, 1>();
-  test_vector_size<float, 1>();
-  test_vector_size<double, 1>();
-  test_vector_size<s::int2, 2>();
-  test_vector_size<s::float3, 3>();
-  test_vector_size<s::double4, 4>();
-  test_vector_size<s::vec<int, 1>, 1>();
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(
