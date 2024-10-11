@@ -2,6 +2,7 @@
 // in SYCL kernels.
 //
 // REQUIRES: aspect-fp64
+// UNSUPPORTED: hip || cuda
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
