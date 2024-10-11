@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp> // __spv namespace
-#include <optional>                   // std::optional
-#include <string_view>                // std::string_view
-#include <utility>                    // std::pair
+#include <optional>                     // std::optional
+#include <string_view>                  // std::string_view
+#include <sycl/__spirv/spirv_types.hpp> // __spv namespace
+#include <utility>                      // std::pair
 
 namespace sycl {
 inline namespace _V1 {

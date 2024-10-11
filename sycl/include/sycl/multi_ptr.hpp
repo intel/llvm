@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ocl_prefetch
+#include <sycl/__spirv/spirv_ops.hpp>         // for __spirv_ocl_prefetch
 #include <sycl/access/access.hpp>             // for address_space, decorated
 #include <sycl/aliases.hpp>                   // for half
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
