@@ -13,13 +13,34 @@ TEST_P(urQueueCreateWithNativeHandleTest, Success) {
 
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urQueueGetNativeHandle(queue, nullptr, &native_handle));
-
   // We cannot assume anything about a native_handle, not even if it's
   // `nullptr` since this could be a valid representation within a backend.
   // We can however convert the native_handle back into a unified-runtime handle
   // and perform some query on it to verify that it works.
   ur_queue_handle_t q = nullptr;
-  ur_queue_native_properties_t properties{};
+  ASSERT_SUCCESS(urQueueCreateWithNativeHandle(native_handle, context, device,
+                                               nullptr, &q));
+  ASSERT_NE(q, nullptr);
+
+  ur_context_handle_t q_context = nullptr;
+  ASSERT_SUCCESS(urQueueGetInfo(q, UR_QUEUE_INFO_CONTEXT, sizeof(q_context),
+                                &q_context, nullptr));
+  ASSERT_EQ(q_context, context);
+  ASSERT_SUCCESS(urQueueRelease(q));
+}
+
+TEST_P(urQueueCreateWithNativeHandleTest, SuccessWithProperties) {
+  ur_native_handle_t native_handle = 0;
+
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+      urQueueGetNativeHandle(queue, nullptr, &native_handle));
+  // We cannot assume anything about a native_handle, not even if it's
+  // `nullptr` since this could be a valid representation within a backend.
+  // We can however convert the native_handle back into a unified-runtime handle
+  // and perform some query on it to verify that it works.
+  ur_queue_handle_t q = nullptr;
+  ur_queue_native_properties_t properties = {
+      UR_STRUCTURE_TYPE_QUEUE_NATIVE_PROPERTIES, nullptr, false};
   ASSERT_SUCCESS(urQueueCreateWithNativeHandle(native_handle, context, device,
                                                &properties, &q));
   ASSERT_NE(q, nullptr);
