@@ -7473,8 +7473,30 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
           Args.hasArg(options::OPT_fintelfpga)) {
         // Wrap the object when creating an FPGA AOCX or AOCR binary.
-        auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
-        auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
+        // When the input file is an AOCR (early) archive, the unbundled host
+        // binary consists of a list of objects. We cannot directly wrap that
+        // binary to be consumed later - this has to go through each listed
+        // object.
+        bool FPGAEarly = true;
+        if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
+          FPGAEarly = A->getValue() == StringRef("early");
+
+        Action *WrapperAction;
+        if ((LI->getType() == types::TY_FPGA_AOCR ||
+             LI->getType() == types::TY_FPGA_AOCR_EMU) &&
+            !FPGAEarly) {
+          auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+              LI, types::TY_Tempfilelist, types::TY_Tempfilelist);
+          RenameAction->addRenameColumnTform(FileTableTformJobAction::COL_ZERO,
+                                             FileTableTformJobAction::COL_CODE);
+          ActionList WrapperItems({RenameAction});
+          WrapperAction = C.MakeAction<OffloadWrapperJobAction>(
+              WrapperItems, types::TY_LLVM_BC);
+        } else
+          WrapperAction =
+              C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
+        auto *ASM =
+            C.MakeAction<BackendJobAction>(WrapperAction, types::TY_PP_Asm);
         auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
         OffloadAction::HostDependence HDep(
             *OBJ, *C.getSingleOffloadToolChain<Action::OFK_Host>(),

@@ -2,11 +2,11 @@
 //
 // RUN: %{build} -DBUILD_LIB -fPIC -shared -o %T/lib%basename_t.so
 
-// RUN: %{build} -DFOO_FIRST -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
-// RUN: %{run} %t.out
+// RUN: %{build} -DFOO_FIRST -L%T -o %t1.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -L%T -o %t.out -l%basename_t -Wl,-rpath=%T
-// RUN: %{run} %t.out
+// RUN: %{build} -L%T -o %t2.out -l%basename_t -Wl,-rpath=%T
+// RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
 
