@@ -10216,7 +10216,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (I.getType() == types::TY_Tempfiletable ||
         I.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
-      // wrapper actual input files are passed via the batch job file table:
+      // Input files are passed via the batch job file table.
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
 
@@ -10285,7 +10285,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (Inputs[0].getType() == types::TY_Tempfiletable ||
         Inputs[0].getType() == types::TY_Tempfilelist)
-      // wrapper actual input files are passed via the batch job file table:
+      // Input files are passed via the batch job file table.
       CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
