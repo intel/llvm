@@ -4,112 +4,29 @@
 // RUN: %{build}  -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 
+
+// RUN: %{build} -DDES -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build}  -DDES -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
+
+
+// RUN: %{build} -DSPREAD -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build}  -DSPREAD -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -DDES -DSPREAD -o %t.out
+// RUN: %{run} %t.out
+
+// RUN: %{build} -DDES -DSPREAD -fsycl-device-lib-jit-link -o %t.out
+// RUN: %{run} %t.out
+
 // UNSUPPORTED: cuda || hip || cpu
 
 #include "group_private_KV_sort_p1p1_p1.hpp"
-#include <algorithm>
-#include <cassert>
-#include <cmath>
-#include <cstddef>
-#include <iostream>
-#include <sycl.hpp>
-#include <tuple>
-#include <vector>
-
-using namespace sycl;
-
-template <typename KeyT, typename ValT, size_t WG_SZ, size_t NUM,
-          typename SortHelper>
-void test_work_group_KV_private_sort(sycl::queue &q, const KeyT keys[NUM],
-                                     const ValT vals[NUM], SortHelper gsh) {
-  static_assert((NUM % WG_SZ == 0),
-                "Input number must be divisible by work group size!");
-
-  KeyT input_keys[NUM];
-  ValT input_vals[NUM];
-  memcpy(&input_keys[0], &keys[0], NUM * sizeof(KeyT));
-  memcpy(&input_vals[0], &vals[0], NUM * sizeof(ValT));
-  size_t scratch_size = 2 * NUM * (sizeof(KeyT) + sizeof(ValT)) +
-                        std::max(alignof(KeyT), alignof(ValT));
-  uint8_t *scratch_ptr =
-      (uint8_t *)aligned_alloc_device(alignof(KeyT), scratch_size, q);
-  const static size_t wg_size = WG_SZ;
-  constexpr size_t num_per_work_item = NUM / WG_SZ;
-  KeyT output_keys[NUM];
-  ValT output_vals[NUM];
-  std::vector<std::tuple<KeyT, ValT>> sorted_vec;
-  for (size_t idx = 0; idx < NUM; ++idx)
-    sorted_vec.push_back(std::make_tuple(input_keys[idx], input_vals[idx]));
-#ifdef DES
-  auto kv_tuple_comp = [](const std::tuple<KeyT, ValT> &t1,
-                          const std::tuple<KeyT, ValT> &t2) {
-    return std::get<0>(t1) > std::get<0>(t2);
-  };
-#else
-  auto kv_tuple_comp = [](const std::tuple<KeyT, ValT> &t1,
-                          const std::tuple<KeyT, ValT> &t2) {
-    return std::get<0>(t1) < std::get<0>(t2);
-  };
-#endif
-  std::stable_sort(sorted_vec.begin(), sorted_vec.end(), kv_tuple_comp);
-
-  /*for (size_t idx = 0; idx < NUM; ++idx) {
-    std::cout << "key: " << (int)std::get<0>(sorted_vec[idx]) << " val: " <<
-  (int)std::get<1>(sorted_vec[idx]) << std::endl;
-  }*/
-
-  nd_range<1> num_items((range<1>(wg_size)), (range<1>(wg_size)));
-  {
-    buffer<KeyT, 1> ikeys_buf(input_keys, NUM);
-    buffer<ValT, 1> ivals_buf(input_vals, NUM);
-    buffer<KeyT, 1> okeys_buf(output_keys, NUM);
-    buffer<ValT, 1> ovals_buf(output_vals, NUM);
-    q.submit([&](auto &h) {
-       accessor ikeys_acc{ikeys_buf, h};
-       accessor ivals_acc{ivals_buf, h};
-       accessor okeys_acc{okeys_buf, h};
-       accessor ovals_acc{ovals_buf, h};
-       sycl::stream os(1024, 128, h);
-       h.parallel_for(num_items, [=](nd_item<1> i) {
-         KeyT pkeys[num_per_work_item];
-         ValT pvals[num_per_work_item];
-         // copy from global input to fix-size private array.
-         for (size_t idx = 0; idx < num_per_work_item; ++idx) {
-           pkeys[idx] =
-               ikeys_acc[i.get_local_linear_id() * num_per_work_item + idx];
-           pvals[idx] =
-               ivals_acc[i.get_local_linear_id() * num_per_work_item + idx];
-         }
-
-         gsh(pkeys, pvals, num_per_work_item, scratch_ptr);
-
-         for (size_t idx = 0; idx < num_per_work_item; ++idx) {
-           okeys_acc[i.get_local_linear_id() * num_per_work_item + idx] =
-               pkeys[idx];
-           ovals_acc[i.get_local_linear_id() * num_per_work_item + idx] =
-               pvals[idx];
-         }
-       });
-     }).wait();
-  }
-
-  /* for (size_t idx = 0; idx < NUM; ++idx) {
-    std::cout << "key: " << (int)(input_keys[idx]) << " val: " <<
-  (int)(input_vals[idx]) << std::endl;
-  }*/
-
-  sycl::free(scratch_ptr, q);
-  bool fails = false;
-  for (size_t idx = 0; idx < NUM; ++idx) {
-    if ((output_keys[idx] != std::get<0>(sorted_vec[idx])) ||
-        (output_vals[idx] != std::get<1>(sorted_vec[idx]))) {
-      std::cout << "idx: " << idx << std::endl;
-      fails = true;
-      break;
-    }
-  }
-  assert(!fails);
-}
 
 int main() {
   queue q;
@@ -247,11 +164,21 @@ int main() {
                                 uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -260,11 +187,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1u8_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1u8_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u8_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -273,11 +210,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1i8_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1i8_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1i8_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1i8_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -286,11 +233,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1u16_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1u16_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1u16_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u16_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -299,11 +256,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1i16_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1i16_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1i16_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1i16_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -312,11 +279,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1u32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u32_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -325,11 +302,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1i32_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1i32_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1i32_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1i32_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -338,11 +325,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1u64_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1u64_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1u64_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };
@@ -351,11 +348,21 @@ int main() {
                                  uint8_t *scratch) {
 #if __DEVICE_CODE
 #ifdef DES
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_descending_p1u32_p1i64_u32_p1i8(
+          keys, vals, n, scratch);
+#else
       __devicelib_default_work_group_private_sort_close_descending_p1u32_p1i64_u32_p1i8(
+          keys, vals, n, scratch);
+#endif
+#else
+#ifdef SPREAD
+      __devicelib_default_work_group_private_sort_spread_ascending_p1u32_p1i64_u32_p1i8(
           keys, vals, n, scratch);
 #else
       __devicelib_default_work_group_private_sort_close_ascending_p1u32_p1i64_u32_p1i8(
           keys, vals, n, scratch);
+#endif
 #endif
 #endif
     };

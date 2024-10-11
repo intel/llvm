@@ -292,8 +292,10 @@ void merge_sort_key_value(KeyT *keys, ValT *vals, size_t n, uint8_t *scratch,
 // max(alignof(KeyT), alignof(ValT))
 // The scrach memory alignment is max(alignof(KeyT), alignof(ValT))
 template <typename KeyT, typename ValT, typename Compare>
-void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
-                                        uint8_t *scratch, Compare comp) {
+static void private_merge_sort_key_value_helper(KeyT *keys, ValT *vals,
+                                                size_t n, uint8_t *scratch,
+                                                Compare comp, KeyT **keys_back,
+                                                ValT **vals_back) {
   const size_t local_idx = __get_wg_local_linear_id();
   const size_t wg_size = __get_wg_local_range();
   uint64_t temp_val_beg = 0, temp_key_beg = 0, internal_scratch = 0;
@@ -315,6 +317,8 @@ void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
   keys_ptr = reinterpret_cast<KeyT *>(group_broadcast(temp_key_beg));
   vals_ptr = reinterpret_cast<ValT *>(group_broadcast(temp_val_beg));
   scratch_ptr = reinterpret_cast<uint8_t *>(group_broadcast(internal_scratch));
+  *keys_back = keys_ptr;
+  *vals_back = vals_ptr;
 
   for (size_t i = 0; i < n; ++i) {
     keys_ptr[local_idx * n + i] = keys[i];
@@ -324,10 +328,41 @@ void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
   group_barrier();
 
   merge_sort_key_value(keys_ptr, vals_ptr, n * wg_size, scratch_ptr, comp);
+}
+
+template <typename KeyT, typename ValT, typename Compare>
+void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
+                                        uint8_t *scratch, Compare comp) {
+
+  KeyT *keys_back = nullptr;
+  ValT *vals_back = nullptr;
+  private_merge_sort_key_value_helper(keys, vals, n, scratch, comp, &keys_back,
+                                      &vals_back);
+
+
+  const size_t local_idx = __get_wg_local_linear_id();
+  for (size_t i = 0; i < n; ++i) {
+    keys[i] = keys_back[local_idx * n + i];
+    vals[i] = vals_back[local_idx * n + i];
+  }
+}
+
+template <typename KeyT, typename ValT, typename Compare>
+void private_merge_sort_key_value_spread(KeyT *keys, ValT *vals, size_t n,
+                                        uint8_t *scratch, Compare comp) {
+
+  KeyT *keys_back = nullptr;
+  ValT *vals_back = nullptr;
+  private_merge_sort_key_value_helper(keys, vals, n, scratch, comp, &keys_back,
+                                      &vals_back);
+
+
+  const size_t local_idx = __get_wg_local_linear_id();
+  const size_t wg_size = __get_wg_local_range();
 
   for (size_t i = 0; i < n; ++i) {
-    keys[i] = keys_ptr[local_idx * n + i];
-    vals[i] = vals_ptr[local_idx * n + i];
+    keys[i] = keys_back[wg_size * i + local_idx];
+    vals[i] = vals_back[wg_size * i + local_idx];
   }
 }
 
