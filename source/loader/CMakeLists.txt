@@ -19,6 +19,7 @@ add_ur_library(ur_loader
     ""
     ${CMAKE_CURRENT_BINARY_DIR}/UrLoaderVersion.rc
 )
+install_ur_library(ur_loader)
 
 if (MSVC)
     set(TARGET_LIBNAME ur_loader)
@@ -47,6 +48,7 @@ add_library(${PROJECT_NAME}::loader ALIAS ur_loader)
 
 target_include_directories(ur_loader PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/..
     ${CMAKE_CURRENT_SOURCE_DIR}/layers
 )
 
@@ -59,6 +61,13 @@ target_link_libraries(ur_loader PRIVATE
     ${PROJECT_NAME}::common
     ${PROJECT_NAME}::headers
 )
+
+if(UR_STATIC_ADAPTER_L0)
+    target_link_libraries(ur_loader PRIVATE
+        ur_adapter_level_zero
+    )
+    target_compile_definitions(ur_loader PRIVATE UR_STATIC_ADAPTER_LEVEL_ZERO)
+endif()
 
 if(UR_ENABLE_TRACING)
     target_link_libraries(ur_loader PRIVATE ${TARGET_XPTI})
@@ -92,13 +101,6 @@ if(UNIX)
         @ONLY)
     install(FILES "${CMAKE_CURRENT_BINARY_DIR}/libur_loader.pc" DESTINATION "${CMAKE_INSTALL_FULL_LIBDIR}/pkgconfig" COMPONENT unified-runtime)
 endif()
-
-install(TARGETS ur_loader
-    EXPORT ${PROJECT_NAME}-targets
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
-)
 
 target_sources(ur_loader
     PRIVATE
@@ -136,12 +138,16 @@ if(UR_ENABLE_SANITIZER)
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_interceptor.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_libdevice.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_options.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_options.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_quarantine.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_report.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_shadow_setup.hpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_statistics.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_statistics.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.cpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/asan_validator.hpp
         ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/common.hpp

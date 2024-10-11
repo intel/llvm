@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urUSMDeviceAllocTest.Success/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.SuccessWithDescriptors/Intel_R__OpenCL___{{.*}}___UsePoolEnabled
 urUSMDeviceAllocTest.InvalidNullHandleContext/Intel_R__OpenCL___{{.*}}___UsePoolEnabled

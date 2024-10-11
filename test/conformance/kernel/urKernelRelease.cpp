@@ -13,6 +13,13 @@ TEST_P(urKernelReleaseTest, Success) {
     ASSERT_SUCCESS(urKernelRelease(kernel));
 }
 
+TEST_P(urKernelReleaseTest, KernelReleaseAfterProgramRelease) {
+    ASSERT_SUCCESS(urKernelRetain(kernel));
+    ASSERT_SUCCESS(urProgramRelease(program));
+    program = nullptr;
+    ASSERT_SUCCESS(urKernelRelease(kernel));
+}
+
 TEST_P(urKernelReleaseTest, InvalidNullHandleKernel) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urKernelRelease(nullptr));

@@ -27,3 +27,17 @@ TEST(PrintPtr, nested_void_ptrs) {
     ur::details::printPtr(out, pppreal);
     EXPECT_THAT(out.str(), MatchesRegex(".+ \\(.+ \\(.+ \\(.+\\)\\)\\)"));
 }
+
+TEST(PrintBool, False) {
+    ur_bool_t value = false;
+    std::ostringstream out;
+    out << value;
+    EXPECT_STREQ(out.str().data(), "false");
+}
+
+TEST(PrintBool, True) {
+    ur_bool_t value = 1;
+    std::ostringstream out;
+    out << value;
+    EXPECT_STREQ(out.str().data(), "true");
+}

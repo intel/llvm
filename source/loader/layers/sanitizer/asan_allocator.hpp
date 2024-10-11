@@ -45,6 +45,7 @@ struct AllocInfo {
     StackTrace ReleaseStack;
 
     void print();
+    size_t getRedzoneSize() { return AllocSize - (UserEnd - UserBegin); }
 };
 
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;

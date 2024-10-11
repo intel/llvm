@@ -183,8 +183,8 @@ size_t MemBuffer::getAlignment() {
     // usually choose a very large size (more than 1k). Then sanitizer will
     // allocate extra unnessary memory. Not sure if this will impact
     // performance.
-    size_t MsbIdx = 63 - __builtin_clz(Size);
-    size_t Alignment = (1 << (MsbIdx + 1));
+    size_t MsbIdx = 63 - __builtin_clzl(Size);
+    size_t Alignment = (1ULL << (MsbIdx + 1));
     if (Alignment > 128) {
         Alignment = 128;
     }

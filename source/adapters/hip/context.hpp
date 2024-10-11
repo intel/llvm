@@ -57,6 +57,15 @@ typedef void (*ur_context_extended_deleter_t)(void *UserData);
 ///  See proposal for details.
 ///  https://github.com/codeplaysoftware/standards-proposals/blob/master/extended-context-destruction/index.md
 ///
+///
+///  <b> Destructor callback </b>
+///
+///  Required to implement CP023, SYCL Extended Context Destruction,
+///  the UR Context can store a number of callback functions that will be
+///  called upon destruction of the UR Context.
+///  See proposal for details.
+///  https://github.com/codeplaysoftware/standards-proposals/blob/master/extended-context-destruction/index.md
+///
 ///  <b> Memory Management for Devices in a Context <\b>
 ///
 ///  A \c ur_mem_handle_t is associated with a \c ur_context_handle_t_, which
@@ -76,8 +85,6 @@ struct ur_context_handle_t_ {
     void operator()() { Function(UserData); }
   };
 
-  using native_type = hipCtx_t;
-
   std::vector<ur_device_handle_t> Devices;
 
   std::atomic_uint32_t RefCount;
@@ -89,11 +96,7 @@ struct ur_context_handle_t_ {
     }
   };
 
-  ~ur_context_handle_t_() {
-    for (auto &Dev : Devices) {
-      urDeviceRelease(Dev);
-    }
-  }
+  ~ur_context_handle_t_() {}
 
   void invokeExtendedDeleters() {
     std::lock_guard<std::mutex> Guard(Mutex);
@@ -136,28 +139,3 @@ private:
   std::vector<deleter_data> ExtendedDeleters;
   std::set<ur_usm_pool_handle_t> PoolHandles;
 };
-
-namespace {
-/// Scoped context is used across all UR HIP plugin implementation to activate
-/// the native Context on the current thread. The ScopedContext does not
-/// reinstate the previous context as all operations in the hip adapter that
-/// require an active context, set the active context and don't rely on context
-/// reinstation
-class ScopedContext {
-public:
-  ScopedContext(ur_device_handle_t hDevice) {
-    hipCtx_t Original{};
-
-    if (!hDevice) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
-    }
-
-    hipCtx_t Desired = hDevice->getNativeContext();
-    UR_CHECK_ERROR(hipCtxGetCurrent(&Original));
-    if (Original != Desired) {
-      // Sets the desired context as the active one for the thread
-      UR_CHECK_ERROR(hipCtxSetCurrent(Desired));
-    }
-  }
-};
-} // namespace

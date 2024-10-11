@@ -35,13 +35,14 @@ params:
       name: phAdapters
       desc: |
             [out][optional][range(0, NumEntries)] array of handle of adapters.
-            If NumEntries is less than the number of adapters available, then $xAdapterGet shall only retrieve that number of platforms.
+            If NumEntries is less than the number of adapters available, then $xAdapterGet shall only retrieve that number of adapters.
     - type: "uint32_t*"
       name: "pNumAdapters"
       desc: |
             [out][optional] returns the total number of adapters available. 
 returns:
-    - $X_RESULT_ERROR_INVALID_SIZE
+    - $X_RESULT_ERROR_INVALID_SIZE:
+        - "`NumEntries == 0 && phAdapters != NULL`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Releases the adapter handle reference indicating end of its usage"

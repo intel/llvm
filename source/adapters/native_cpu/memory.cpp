@@ -46,7 +46,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_BUFFER_SIZE);
 
   const bool useHostPtr = flags & UR_MEM_FLAG_USE_HOST_POINTER;
-  const bool copyHostPtr = flags & UR_MEM_FLAG_USE_HOST_POINTER;
+  const bool copyHostPtr = flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER;
 
   ur_mem_handle_t_ *retMem;
 

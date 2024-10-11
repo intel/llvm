@@ -31,13 +31,24 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   ur_kernel_handle_t_ *kernel;
 
   // Set reqd_work_group_size for kernel if needed
+  std::optional<native_cpu::WGSize_t> ReqdWG;
   const auto &ReqdMap = hProgram->KernelReqdWorkGroupSizeMD;
-  auto ReqdIt = ReqdMap.find(pKernelName);
-  if (ReqdIt != ReqdMap.end()) {
-    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdIt->second);
-  } else {
-    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f);
+  if (auto ReqdIt = ReqdMap.find(pKernelName); ReqdIt != ReqdMap.end()) {
+    ReqdWG = ReqdIt->second;
   }
+
+  std::optional<native_cpu::WGSize_t> MaxWG;
+  const auto &MaxMap = hProgram->KernelMaxWorkGroupSizeMD;
+  if (auto MaxIt = MaxMap.find(pKernelName); MaxIt != MaxMap.end()) {
+    MaxWG = MaxIt->second;
+  }
+  std::optional<uint64_t> MaxLinearWG;
+  const auto &MaxLinMap = hProgram->KernelMaxLinearWorkGroupSizeMD;
+  if (auto MaxLIt = MaxLinMap.find(pKernelName); MaxLIt != MaxLinMap.end()) {
+    MaxLinearWG = MaxLIt->second;
+  }
+  kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdWG, MaxWG,
+                                   MaxLinearWG);
 
   *phKernel = kernel;
 
@@ -148,6 +159,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     int bytes = 0;
     return returnValue(static_cast<uint64_t>(bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+    // FIXME: could be added
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;

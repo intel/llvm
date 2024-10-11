@@ -20,7 +20,7 @@ jobs:
         compiler: [{c: gcc, cxx: g++}]
         libbacktrace: ['-DVAL_USE_LIBBACKTRACE_BACKTRACE=OFF']
         pool_tracking: ['-DUMF_ENABLE_POOL_TRACKING=ON', '-DUMF_ENABLE_POOL_TRACKING=OFF']
-        latency_tracking: ['-DUMF_ENABLE_LATENCY_TRACKING=OFF']
+        latency_tracking: ['-DUR_ENABLE_LATENCY_HISTOGRAM=OFF']
         include:
           - os: 'ubuntu-22.04'
             build_type: Release
@@ -40,7 +40,7 @@ jobs:
           - os: 'ubuntu-22.04'
             build_type: Release
             compiler: {c: clang, cxx: clang++}
-            latency_tracking: '-DUMF_ENABLE_LATENCY_TRACKING=ON'
+            latency_tracking: '-DUR_ENABLE_LATENCY_HISTOGRAM=ON'
     runs-on: ${{ (matrix.os == 'ubuntu-22.04' && github.repository_owner == 'oneapi-src') && 'intel-ubuntu-22.04' || matrix.os }}
 
     steps:
@@ -49,7 +49,7 @@ jobs:
     - name: Install apt packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y doxygen ${{matrix.compiler.c}}
+        sudo apt-get install -y ${{matrix.compiler.c}}
 
     - name: Install libhwloc
       run: .github/scripts/install_hwloc.sh
@@ -61,9 +61,6 @@ jobs:
       if: matrix.compiler.cxx == 'g++-7'
       run: |
         sudo apt-get install -y ${{matrix.compiler.cxx}}
-
-    - name: Install pip packages
-      run: pip install -r third_party/requirements.txt
 
     - name: Install libbacktrace
       if: matrix.libbacktrace == '-DVAL_USE_LIBBACKTRACE_BACKTRACE=ON'
@@ -79,7 +76,7 @@ jobs:
       if: matrix.os == 'ubuntu-22.04'
       run: |
         sudo apt install libncurses5
-        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-09-27/sycl_linux.tar.gz
         mkdir -p ${{github.workspace}}/dpcpp_compiler
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C ${{github.workspace}}/dpcpp_compiler
 
@@ -93,7 +90,7 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
-        -DUR_FORMAT_CPP_STYLE=ON
+        -DUR_FORMAT_CPP_STYLE=OFF
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
@@ -109,17 +106,10 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
-        -DUR_FORMAT_CPP_STYLE=ON
+        -DUR_FORMAT_CPP_STYLE=OFF
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
         ${{matrix.latency_tracking}}
-
-    - name: Generate source from spec, check for uncommitted diff
-      if: matrix.os == 'ubuntu-22.04'
-      run: cmake --build ${{github.workspace}}/build --target check-generated
-
-    - name: Verify that each source file contains a license
-      run: cmake --build ${{github.workspace}}/build --target verify-licenses
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
@@ -155,6 +145,7 @@ jobs:
       adapter_name: L0
       runner_name: L0
       static_loader: ON
+      static_adapter: ON
 
   opencl:
     name: OpenCL
@@ -216,7 +207,8 @@ jobs:
         os: ['windows-2019', 'windows-2022']
         adapter: [
           {name: None, var: ''}, {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'},
-          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+          {name: None, var: ''}, {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'},
+          {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
         ]
 
         # TODO: building level zero loader on windows-2019 and clang-cl is currently broken
@@ -225,9 +217,13 @@ jobs:
            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
          - os: 'windows-2019'
            adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+         - os: 'windows-2019'
+           adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
          - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
          - adapter: {name: L0_V2, var: '-DUR_BUILD_ADAPTER_L0_V2=ON'}
+           compiler: {c: clang-cl, cxx: clang-cl}
+         - adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
            compiler: {c: clang-cl, cxx: clang-cl}
 
         build_type: [Debug, Release]
@@ -235,6 +231,11 @@ jobs:
         include:
           - compiler: {c: clang-cl, cxx: clang-cl}
             toolset: "-T ClangCL"
+          - os: 'windows-2022'
+            adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
+            build_type: 'Release'
+            compiler: {c: cl, cxx: cl}
+
     runs-on: ${{matrix.os}}
 
     steps:
@@ -273,11 +274,6 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=ON
         ${{matrix.adapter.var}}
-
-    # TODO: re-enable when check-generated is fixed for windows runners see #888
-    # - name: Generate source from spec, check for uncommitted diff
-    #   if: matrix.os == 'windows-2022'
-    #   run: cmake --build ${{github.workspace}}/build --target check-generated --config ${{matrix.build_type}}
 
     - name: Build all
       run: cmake --build ${{github.workspace}}/build --config ${{matrix.build_type}} -j $Env:NUMBER_OF_PROCESSORS

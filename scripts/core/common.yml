@@ -39,6 +39,12 @@ desc: "Microsoft-specific dllexport storage-class attribute"
 condition: "defined(_WIN32)"
 name: $X_APIEXPORT
 value: __declspec(dllexport)
+--- #--------------------------------------------------------------------------
+type: macro
+desc: "GCC-specific dllexport storage-class attribute"
+condition: "__GNUC__ >= 4"
+name: $X_APIEXPORT
+value: __attribute__ ((visibility ("default")))
 altvalue: ""
 --- #--------------------------------------------------------------------------
 type: macro
@@ -269,7 +275,7 @@ etors:
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
-             via the urPlatformGetLastError entry point."
+             via the urAdapterGetLastError entry point."
     - name: ERROR_LAYER_NOT_PRESENT
       desc: "A requested layer was not found by the loader."
     - name: ERROR_IN_EVENT_LIST_EXEC_STATUS

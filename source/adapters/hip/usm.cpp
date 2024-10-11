@@ -108,7 +108,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMalloc(ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -124,7 +124,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, hipMemAttachGlobal));
   } catch (ur_result_t Err) {
     return Err;
@@ -218,7 +218,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
           void *Base = nullptr;
           UR_CHECK_ERROR(hipPointerGetAttribute(
               &Base, HIP_POINTER_ATTRIBUTE_RANGE_START_ADDR,
-              (hipDeviceptr_t)pMem));
+              reinterpret_cast<hipDeviceptr_t>(const_cast<void *>(pMem))));
           return ReturnValue(Base);
         }
       }

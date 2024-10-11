@@ -15,14 +15,12 @@ class ComputeBench:
     def __init__(self, directory):
         self.directory = directory
         self.built = False
-        self.adapter_short_name = {'level_zero' : 'L0', "level_zero_v2" : 'L0_V2'}
-        return
 
     def setup(self):
         if self.built:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "08c41bb8bc1762ad53c6194df6d36bfcceff4aa2")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "f6882552215736f90295244046fcb6e17fe53e83")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -34,12 +32,7 @@ class ComputeBench:
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
             f"-DBUILD_UR=ON",
-            f"-DUR_BUILD_TESTS=OFF",
-            f"-DUR_BUILD_ADAPTER_L0=ON",
-            f"-DUR_BUILD_TESTS=OFF",
-            f"-DUMF_DISABLE_HWLOC=ON",
-            f"-DBENCHMARK_UR_SOURCE_DIR={options.ur_dir}",
-            f"-DUR_BUILD_ADAPTER_{self.adapter_short_name[options.ur_adapter_name]}=ON"
+            f"-Dunified-runtime_DIR={options.ur_dir}/lib/cmake/unified-runtime",
         ]
         run(configure_command, add_sycl=True)
 
@@ -47,7 +40,6 @@ class ComputeBench:
 
         self.built = True
         self.bins = os.path.join(build_path, 'bin')
-        self.libs = os.path.join(build_path, 'lib')
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -69,7 +61,7 @@ class ComputeBenchmark(Benchmark):
         self.bench.setup()
         self.benchmark_bin = os.path.join(self.bench.bins, self.bench_name)
 
-    def run(self, env_vars) -> Result:
+    def run(self, env_vars) -> list[Result]:
         command = [
             f"{self.benchmark_bin}",
             f"--test={self.test}",
@@ -82,7 +74,7 @@ class ComputeBenchmark(Benchmark):
 
         result = self.run_bench(command, env_vars)
         (label, mean) = self.parse_output(result)
-        return Result(label=label, value=mean, command=command, env=env_vars, stdout=result)
+        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better()) ]
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)
@@ -129,9 +121,6 @@ class SubmitKernelUR(ComputeBenchmark):
     def name(self):
         order = "in order" if self.ioq else "out of order"
         return f"api_overhead_benchmark_ur SubmitKernel {order}"
-
-    def extra_env_vars(self) -> dict:
-        return {"UR_ADAPTERS_FORCE_LOAD" : os.path.join(self.bench.libs, f"libur_adapter_{options.ur_adapter_name}.so")}
 
     def bin_args(self) -> list[str]:
         return [

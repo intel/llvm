@@ -32,7 +32,10 @@ void ReportBadContext(uptr Addr, const StackTrace &stack,
 void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
                       const std::shared_ptr<AllocInfo> &AllocInfo);
 
-// This type of error is usually unexpected mistake and doesn't have enough debug information
+void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI);
+
+// This type of error is usually unexpected mistake and doesn't have enough
+// debug information
 void ReportFatalError(const DeviceSanitizerReport &Report);
 
 void ReportGenericError(const DeviceSanitizerReport &Report,

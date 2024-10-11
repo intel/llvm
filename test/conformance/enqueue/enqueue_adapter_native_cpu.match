@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleQueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
@@ -45,6 +46,7 @@
 {{OPT}}urEnqueueKernelLaunchTestWithParam.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__3D_1_53_19
 {{OPT}}urEnqueueKernelLaunchTestWithParam.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__3D_256_79_8
 {{OPT}}urEnqueueKernelLaunchWithVirtualMemory.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}urEnqueueKernelLaunchWithUSM.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UsePoolEnabled
 {{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UsePoolDisabled

@@ -15,9 +15,9 @@ target_link_libraries(test_collector PRIVATE ${TARGET_XPTI})
 target_include_directories(test_collector PRIVATE ${xpti_SOURCE_DIR}/include)
 
 if(MSVC)
-    target_compile_definitions(test_collector PRIVATE
-        XPTI_STATIC_LIBRARY XPTI_CALLBACK_API_EXPORTS)
+    target_compile_definitions(test_collector PRIVATE XPTI_STATIC_LIBRARY)
 endif()
+target_compile_definitions(test_collector PRIVATE XPTI_CALLBACK_API_EXPORTS)
 
 function(set_tracing_test_props target_name collector_name)
     set_tests_properties(${target_name} PROPERTIES

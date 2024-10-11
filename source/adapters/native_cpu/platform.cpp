@@ -92,7 +92,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
   std::ignore = pFrontendOption;
   std::ignore = ppPlatformOption;
 
-  CONTINUE_NO_IMPLEMENTATION;
+  std::ignore = hPlatform;
+  using namespace std::literals;
+  if (pFrontendOption == nullptr)
+    return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+  if (pFrontendOption == "-O0"sv || pFrontendOption == "-O1"sv ||
+      pFrontendOption == "-O2"sv || pFrontendOption == "-O3"sv ||
+      pFrontendOption == ""sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(

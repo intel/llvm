@@ -76,7 +76,7 @@ TEST_P(urUsmPoolManagerTest, poolManagerPopulate) {
         // Populate the pool manager
         auto poolUnique = createMockPoolHandle();
         ASSERT_NE(poolUnique, nullptr);
-        ret = manager.addPool(desc, poolUnique);
+        ret = manager.addPool(desc, std::move(poolUnique));
         ASSERT_EQ(ret, UR_RESULT_SUCCESS);
     }
 
@@ -97,11 +97,11 @@ TEST_P(urUsmPoolManagerTest, poolManagerInsertExisting) {
     auto poolUnique = createMockPoolHandle();
     ASSERT_NE(poolUnique, nullptr);
 
-    ret = manager.addPool(desc, poolUnique);
+    ret = manager.addPool(desc, std::move(poolUnique));
     ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
     // Inserting an existing key should return an error
-    ret = manager.addPool(desc, poolUnique);
+    ret = manager.addPool(desc, createMockPoolHandle());
     ASSERT_EQ(ret, UR_RESULT_ERROR_INVALID_ARGUMENT);
 }
 

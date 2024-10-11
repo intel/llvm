@@ -313,7 +313,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t,
   ur_result_t Result = UR_RESULT_SUCCESS;
 
   try {
-    ScopedContext Active(hProgram->getDevice());
+    ScopedDevice Active(hProgram->getDevice());
 
     hProgram->buildProgram(pOptions);
     hProgram->BinaryType = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
@@ -442,7 +442,7 @@ urProgramRelease(ur_program_handle_t hProgram) {
     ur_result_t Result = UR_RESULT_ERROR_INVALID_PROGRAM;
 
     try {
-      ScopedContext Active(hProgram->getDevice());
+      ScopedDevice Active(hProgram->getDevice());
       auto HIPModule = hProgram->get();
       if (HIPModule) {
         UR_CHECK_ERROR(hipModuleUnload(HIPModule));

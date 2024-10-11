@@ -14,7 +14,7 @@
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     UR_CHECK_ERROR(hipDeviceEnablePeerAccess(peerDevice->get(), 0));
   } catch (ur_result_t err) {
     return err;
@@ -25,7 +25,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PEnablePeerAccessExp(
 UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PDisablePeerAccessExp(
     ur_device_handle_t commandDevice, ur_device_handle_t peerDevice) {
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     UR_CHECK_ERROR(hipDeviceDisablePeerAccess(peerDevice->get()));
   } catch (ur_result_t err) {
     return err;
@@ -42,7 +42,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
   int value;
   hipDeviceP2PAttr hipAttr;
   try {
-    ScopedContext active(commandDevice);
+    ScopedDevice active(commandDevice);
     switch (propName) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
       hipAttr = hipDevP2PAttrAccessSupported;
