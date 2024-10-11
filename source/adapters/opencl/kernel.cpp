@@ -130,6 +130,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
+  if (propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE ||
+      propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
       cl_adapter::cast<cl_kernel>(hKernel),
       cl_adapter::cast<cl_device_id>(hDevice),
@@ -302,7 +306,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetExecInfo(
 
   switch (propName) {
   case UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS: {
-    if (*(static_cast<const ur_bool_t *>(pPropValue)) == true) {
+    if (*(static_cast<const ur_bool_t *>(pPropValue))) {
       UR_RETURN_ON_FAILURE(usmSetIndirectAccess(hKernel));
     }
     return UR_RESULT_SUCCESS;
@@ -356,13 +360,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
-  return UR_RESULT_SUCCESS;
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] size_t localWorkSize,
+    [[maybe_unused]] size_t dynamicSharedMemorySize,
+    [[maybe_unused]] uint32_t *pGroupCountRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(

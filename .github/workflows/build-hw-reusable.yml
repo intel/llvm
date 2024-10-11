@@ -18,6 +18,10 @@ on:
         required: false
         type: string
         default: OFF
+      static_adapter:
+        required: false
+        type: string
+        default: OFF
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}"},
+          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}", static_adapter: "${{inputs.static_loader}}"},
         ]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
@@ -48,6 +52,10 @@ jobs:
          - adapter: {static_Loader: ON}
            build_type: Release
          - adapter: {static_Loader: ON}
+           compiler: {c: clang, cxx: clang++}
+         - adapter: {static_adapter: ON}
+           build_type: Release
+         - adapter: {static_adapter: ON}
            compiler: {c: clang, cxx: clang++}
 
     runs-on: ${{inputs.runner_name}}
@@ -74,16 +82,23 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
+        -DUR_CONFORMANCE_TEST_LOADER=OFF
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
+        -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
+        -DCMAKE_INSTALL_PREFIX=${{github.workspace}}/install
         ${{ matrix.adapter.name == 'HIP' && '-DUR_CONFORMANCE_AMD_ARCH=gfx1030' || '' }}
         ${{ matrix.adapter.name == 'HIP' && '-DUR_HIP_PLATFORM=AMD' || '' }}
 
     - name: Build
       # This is so that device binaries can find the sycl runtime library
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    - name: Install
+      # This is to check that install command does not fail
+      run: cmake --install ${{github.workspace}}/build
 
     - name: Test adapter specific
       working-directory: ${{github.workspace}}/build

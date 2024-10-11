@@ -424,6 +424,77 @@ ur_result_t MakeUSMAllocationByType(ur_usm_type_t type,
                                     ur_usm_pool_handle_t hPool, size_t size,
                                     void **ppMem);
 
+inline std::tuple<size_t, size_t, size_t>
+decodeSemVersion(std::string version) {
+    auto posMajor = version.find('.');
+    auto posMinor = version.find('.', posMajor + 1);
+    auto major = std::stoi(version.substr(0, posMajor));
+    auto minor =
+        std::stoi(version.substr(posMajor + 1, posMinor - posMajor - 1));
+    auto patch = std::stoi(version.substr(posMinor + 1));
+    return std::make_tuple(major, minor, patch);
+}
+
+inline bool isGivenAdapter(ur_platform_handle_t hPlatform,
+                           std::string adapterName) {
+    size_t psize;
+    EXPECT_EQ(
+        urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, 0, nullptr, &psize),
+        UR_RESULT_SUCCESS);
+    std::string platform(psize, '\0');
+    EXPECT_EQ(urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_NAME, psize,
+                                platform.data(), nullptr),
+              UR_RESULT_SUCCESS);
+
+    return platform.find(adapterName) != std::string::npos;
+}
+
+inline std::tuple<size_t, size_t, size_t>
+getDriverVersion(ur_device_handle_t hDevice) {
+    size_t driverVersionSize = 0;
+    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION, 0,
+                              nullptr, &driverVersionSize),
+              UR_RESULT_SUCCESS);
+    std::string driver(driverVersionSize, '\0');
+    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DRIVER_VERSION,
+                              driverVersionSize, driver.data(),
+                              &driverVersionSize),
+              UR_RESULT_SUCCESS);
+
+    return decodeSemVersion(driver);
+}
+
+#define SKIP_IF_DRIVER_TOO_OLD(adapterName, minDriverVersion, hPlatform,       \
+                               hDevice)                                        \
+    do {                                                                       \
+        if (uur::isGivenAdapter(hPlatform, adapterName)) {                     \
+            auto [major, minor, patch] = uur::getDriverVersion(hDevice);       \
+            auto [minMajor, minMinor, minPatch] = minL0DriverVersion;          \
+            if (major < minMajor || (major == minMajor && minor < minMinor) || \
+                (major == minMajor && minor == minMinor &&                     \
+                 patch < minPatch)) {                                          \
+                GTEST_SKIP()                                                   \
+                    << "Skipping test because driver version is too old for "  \
+                    << adapterName << ". "                                     \
+                    << "Driver version: " << major << "." << minor << "."      \
+                    << patch << " Minimum required version: " << minMajor      \
+                    << "." << minMinor << "." << minPatch;                     \
+            }                                                                  \
+        }                                                                      \
+    } while (0)
+
+// Is this a Data Center GPU Max series (aka PVC)?
+// TODO: change to use
+// https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
+// when that is stable.
+static inline bool isPVC(ur_device_handle_t hDevice) {
+    uint32_t deviceId;
+    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID,
+                              sizeof(uint32_t), &deviceId, nullptr),
+              UR_RESULT_SUCCESS);
+    return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
+}
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED

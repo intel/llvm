@@ -18,7 +18,7 @@
 #include <vector>
 
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
@@ -99,6 +99,9 @@ struct ur_context_handle_t_ : _ur_object {
                      std::list<std::pair<ze_command_list_handle_t,
                                          l0_command_list_cache_info>>>
       ZeCopyCommandListCache;
+
+  std::unordered_map<ur_device_handle_t, std::list<ur_device_handle_t>>
+      P2PDeviceCache;
 
   // Store USM pool for USM shared and device allocations. There is 1 memory
   // pool per each pair of (context, device) per each memory type.
@@ -297,7 +300,7 @@ struct ur_context_handle_t_ : _ur_object {
   // for executing on this device. Immediate commandlists are created only
   // once for each SYCL Queue and after that they are reused.
   ur_result_t getAvailableCommandList(
-      ur_queue_handle_legacy_t Queue, ur_command_list_ptr_t &CommandList,
+      ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
       bool UseCopyEngine, uint32_t NumEventsInWaitList,
       const ur_event_handle_t *EventWaitList, bool AllowBatching = false,
       ze_command_queue_handle_t *ForcedCmdQueue = nullptr);

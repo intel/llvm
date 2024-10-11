@@ -272,8 +272,8 @@ cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer);
 
 using clCommandNDRangeKernelKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
-    const cl_ndrange_kernel_command_properties_khr *properties,
-    cl_kernel kernel, cl_uint work_dim, const size_t *global_work_offset,
+    const cl_command_properties_khr *properties, cl_kernel kernel,
+    cl_uint work_dim, const size_t *global_work_offset,
     const size_t *global_work_size, const size_t *local_work_size,
     cl_uint num_sync_points_in_wait_list,
     const cl_sync_point_khr *sync_point_wait_list,
@@ -281,24 +281,27 @@ using clCommandNDRangeKernelKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
 
 using clCommandCopyBufferKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
-    cl_mem src_buffer, cl_mem dst_buffer, size_t src_offset, size_t dst_offset,
-    size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_command_properties_khr *properties, cl_mem src_buffer,
+    cl_mem dst_buffer, size_t src_offset, size_t dst_offset, size_t size,
+    cl_uint num_sync_points_in_wait_list,
     const cl_sync_point_khr *sync_point_wait_list,
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
 using clCommandCopyBufferRectKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
-    cl_mem src_buffer, cl_mem dst_buffer, const size_t *src_origin,
-    const size_t *dst_origin, const size_t *region, size_t src_row_pitch,
-    size_t src_slice_pitch, size_t dst_row_pitch, size_t dst_slice_pitch,
+    const cl_command_properties_khr *properties, cl_mem src_buffer,
+    cl_mem dst_buffer, const size_t *src_origin, const size_t *dst_origin,
+    const size_t *region, size_t src_row_pitch, size_t src_slice_pitch,
+    size_t dst_row_pitch, size_t dst_slice_pitch,
     cl_uint num_sync_points_in_wait_list,
     const cl_sync_point_khr *sync_point_wait_list,
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
 using clCommandFillBufferKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     cl_command_buffer_khr command_buffer, cl_command_queue command_queue,
-    cl_mem buffer, const void *pattern, size_t pattern_size, size_t offset,
-    size_t size, cl_uint num_sync_points_in_wait_list,
+    const cl_command_properties_khr *properties, cl_mem buffer,
+    const void *pattern, size_t pattern_size, size_t offset, size_t size,
+    cl_uint num_sync_points_in_wait_list,
     const cl_sync_point_khr *sync_point_wait_list,
     cl_sync_point_khr *sync_point, cl_mutable_command_khr *mutable_handle);
 
@@ -313,8 +316,9 @@ using clGetCommandBufferInfoKHR_fn = CL_API_ENTRY cl_int(CL_API_CALL *)(
     size_t param_value_size, void *param_value, size_t *param_value_size_ret);
 
 using clUpdateMutableCommandsKHR_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer,
-                      const cl_mutable_base_config_khr *mutable_config);
+cl_int(CL_API_CALL *)(cl_command_buffer_khr command_buffer, cl_uint num_configs,
+                      const cl_command_buffer_update_type_khr *config_types,
+                      const void **configs);
 
 template <typename T> struct FuncPtrCache {
   std::map<cl_context, T> Map;
@@ -417,5 +421,6 @@ ur_result_t mapCLErrorToUR(cl_int Result);
 
 ur_result_t getNativeHandle(void *URObj, ur_native_handle_t *NativeHandle);
 
-cl_int deviceSupportsURCommandBufferKernelUpdate(cl_device_id Dev,
-                                                 bool &Result);
+cl_int getDeviceCommandBufferUpdateCapabilities(
+    cl_device_id Dev,
+    ur_device_command_buffer_update_capability_flags_t &UpdateCapabilities);

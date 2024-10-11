@@ -19,8 +19,13 @@ struct urEnqueueMemBufferFillTest
         pattern_size = std::get<1>(GetParam()).pattern_size;
         pattern = std::vector<uint8_t>(pattern_size);
         uur::generateMemFillPattern(pattern);
-        ASSERT_SUCCESS(urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                         size, nullptr, &buffer));
+        auto ret = urMemBufferCreate(this->context, UR_MEM_FLAG_READ_WRITE,
+                                     size, nullptr, &buffer);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+            GTEST_SKIP() << "Buffer creation is not supported";
+        } else {
+            EXPECT_EQ(UR_RESULT_SUCCESS, ret);
+        }
     }
 
     void TearDown() override {

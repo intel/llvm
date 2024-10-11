@@ -20,5 +20,5 @@ jobs:
       prefix: ""
       config: ""
       unit: "cpu"
-      xfail: "AOT/double.cpp;AOT/half.cpp;AOT/reqd-sg-size.cpp;Basic/built-ins/marray_geometric.cpp;KernelCompiler/kernel_compiler_spirv.cpp;KernelCompiler/opencl_queries.cpp"
+      xfail: "AOT/double.cpp;AOT/half.cpp;AOT/reqd-sg-size.cpp;Basic/built-ins/marray_geometric.cpp;KernelCompiler/kernel_compiler_spirv.cpp;KernelCompiler/opencl_queries.cpp;NonUniformGroups/ballot_group.cpp;NonUniformGroups/ballot_group_algorithms.cpp;NonUniformGroups/fixed_size_group_algorithms.cpp;NonUniformGroups/opportunistic_group.cpp;NonUniformGroups/opportunistic_group_algorithms.cpp;NonUniformGroups/tangle_group.cpp;NonUniformGroups/tangle_group_algorithms.cpp"
       extra_lit_flags: "-sv --max-time=3600"

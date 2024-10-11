@@ -46,6 +46,8 @@ struct ur_kernel_handle_t_ {
 
   static constexpr uint32_t ReqdThreadsPerBlockDimensions = 3u;
   size_t ReqdThreadsPerBlock[ReqdThreadsPerBlockDimensions];
+  size_t MaxThreadsPerBlock[ReqdThreadsPerBlockDimensions];
+  size_t MaxLinearThreadsPerBlock{0};
   int RegsPerThread{0};
 
   /// Structure that holds the arguments to the kernel.
@@ -168,6 +170,18 @@ struct ur_kernel_handle_t_ {
         UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE,
         sizeof(ReqdThreadsPerBlock), ReqdThreadsPerBlock, nullptr);
     (void)RetError;
+    assert(RetError == UR_RESULT_SUCCESS);
+    /// Note: this code assumes that there is only one device per context
+    RetError = urKernelGetGroupInfo(
+        this, Program->getDevice(),
+        UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE,
+        sizeof(MaxThreadsPerBlock), MaxThreadsPerBlock, nullptr);
+    assert(RetError == UR_RESULT_SUCCESS);
+    /// Note: this code assumes that there is only one device per context
+    RetError = urKernelGetGroupInfo(
+        this, Program->getDevice(),
+        UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE,
+        sizeof(MaxLinearThreadsPerBlock), &MaxLinearThreadsPerBlock, nullptr);
     assert(RetError == UR_RESULT_SUCCESS);
     UR_CHECK_ERROR(
         cuFuncGetAttribute(&RegsPerThread, CU_FUNC_ATTRIBUTE_NUM_REGS, Func));

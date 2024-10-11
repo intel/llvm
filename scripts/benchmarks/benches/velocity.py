@@ -7,6 +7,7 @@ from utils.utils import git_clone
 from .base import Benchmark
 from .result import Result
 from utils.utils import run, create_build_path
+from .options import options
 import os
 import re
 
@@ -51,7 +52,7 @@ class VelocityBase(Benchmark):
     def parse_output(self, stdout: str) -> float:
         raise NotImplementedError()
 
-    def run(self, env_vars) -> Result:
+    def run(self, env_vars) -> list[Result]:
         env_vars.update(self.extra_env_vars())
 
         command = [
@@ -61,7 +62,7 @@ class VelocityBase(Benchmark):
 
         result = self.run_bench(command, env_vars)
 
-        return Result(label=self.bench_name, value=self.parse_output(result), command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better())
+        return [ Result(label=self.name(), value=self.parse_output(result), command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better()) ]
 
     def teardown(self):
         return

@@ -15,6 +15,8 @@
 #include "asan_allocator.hpp"
 #include "asan_buffer.hpp"
 #include "asan_libdevice.hpp"
+#include "asan_options.hpp"
+#include "asan_statistics.hpp"
 #include "common.hpp"
 #include "ur_sanitizer_layer.hpp"
 
@@ -45,6 +47,7 @@ struct DeviceInfo {
     // Device features
     bool IsSupportSharedSystemUSM = false;
 
+    // lock this mutex if following fields are accessed
     ur_mutex Mutex;
     std::queue<std::shared_ptr<AllocInfo>> Quarantine;
     size_t QuarantineSize = 0;
@@ -59,6 +62,7 @@ struct DeviceInfo {
 struct QueueInfo {
     ur_queue_handle_t Handle;
 
+    // lock this mutex if following fields are accessed
     ur_shared_mutex Mutex;
     ur_event_handle_t LastEvent;
 
@@ -78,8 +82,10 @@ struct QueueInfo {
 
 struct KernelInfo {
     ur_kernel_handle_t Handle;
-    ur_shared_mutex Mutex;
     std::atomic<int32_t> RefCount = 1;
+
+    // lock this mutex if following fields are accessed
+    ur_shared_mutex Mutex;
     std::unordered_map<uint32_t, std::shared_ptr<MemBuffer>> BufferArgs;
     std::unordered_map<uint32_t, std::pair<const void *, StackTrace>>
         PointerArgs;
@@ -102,9 +108,12 @@ struct KernelInfo {
 
 struct ContextInfo {
     ur_context_handle_t Handle;
+    std::atomic<int32_t> RefCount = 1;
 
     std::vector<ur_device_handle_t> DeviceList;
     std::unordered_map<ur_device_handle_t, AllocInfoList> AllocInfosMap;
+
+    AsanStatsWrapper Stats;
 
     explicit ContextInfo(ur_context_handle_t Context) : Handle(Context) {
         [[maybe_unused]] auto Result =
@@ -112,11 +121,7 @@ struct ContextInfo {
         assert(Result == UR_RESULT_SUCCESS);
     }
 
-    ~ContextInfo() {
-        [[maybe_unused]] auto Result =
-            getContext()->urDdiTable.Context.pfnRelease(Handle);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
+    ~ContextInfo();
 
     void insertAllocInfo(const std::vector<ur_device_handle_t> &Devices,
                          std::shared_ptr<AllocInfo> &AI) {
@@ -162,7 +167,7 @@ struct DeviceGlobalInfo {
 
 class SanitizerInterceptor {
   public:
-    explicit SanitizerInterceptor(logger::Logger &logger);
+    explicit SanitizerInterceptor();
 
     ~SanitizerInterceptor();
 
@@ -211,6 +216,9 @@ class SanitizerInterceptor {
 
     std::optional<AllocationIterator> findAllocInfoByAddress(uptr Address);
 
+    std::vector<AllocationIterator>
+    findAllocInfoByContext(ur_context_handle_t Context);
+
     std::shared_ptr<ContextInfo> getContextInfo(ur_context_handle_t Context) {
         std::shared_lock<ur_shared_mutex> Guard(m_ContextMapMutex);
         assert(m_ContextMap.find(Context) != m_ContextMap.end());
@@ -229,17 +237,19 @@ class SanitizerInterceptor {
         return m_KernelMap[Kernel];
     }
 
+    const AsanOptions &getOptions() { return m_Options; }
+
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
                                    ur_queue_handle_t Queue);
-    ur_result_t enqueueAllocInfo(ur_context_handle_t Context,
+    ur_result_t enqueueAllocInfo(std::shared_ptr<ContextInfo> &ContextInfo,
                                  std::shared_ptr<DeviceInfo> &DeviceInfo,
                                  ur_queue_handle_t Queue,
                                  std::shared_ptr<AllocInfo> &AI);
 
     /// Initialize Global Variables & Kernel Name at first Launch
-    ur_result_t prepareLaunch(ur_context_handle_t Context,
+    ur_result_t prepareLaunch(std::shared_ptr<ContextInfo> &ContextInfo,
                               std::shared_ptr<DeviceInfo> &DeviceInfo,
                               ur_queue_handle_t Queue,
                               ur_kernel_handle_t Kernel,
@@ -269,7 +279,8 @@ class SanitizerInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-    logger::Logger &logger;
+
+    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

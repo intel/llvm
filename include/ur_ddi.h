@@ -1932,6 +1932,8 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     const size_t *,
     const size_t *,
     uint32_t,
+    ur_kernel_handle_t *,
+    uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_command_handle_t *);

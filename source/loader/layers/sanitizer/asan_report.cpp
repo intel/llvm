@@ -79,6 +79,16 @@ void ReportDoubleFree(uptr Addr, const StackTrace &Stack,
     AI->AllocStack.print();
 }
 
+void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI) {
+    getContext()->logger.always(
+        "\n====ERROR: DeviceSanitizer: detected memory leaks of {}",
+        ToString(AI->Type));
+    getContext()->logger.always(
+        "Direct leak of {} byte(s) at {} allocated from:",
+        AI->UserEnd - AI->UserBegin, (void *)AI->UserBegin);
+    AI->AllocStack.print();
+}
+
 void ReportFatalError(const DeviceSanitizerReport &Report) {
     getContext()->logger.always("\n====ERROR: DeviceSanitizer: {}",
                                 ToString(Report.ErrorType));
@@ -127,7 +137,7 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     getContext()->logger.always("  #0 {} {}:{}", Func, File, Report.Line);
     getContext()->logger.always("");
 
-    if (Options(getContext()->logger).MaxQuarantineSizeMB > 0) {
+    if (getContext()->interceptor->getOptions().MaxQuarantineSizeMB > 0) {
         auto AllocInfoItOp =
             getContext()->interceptor->findAllocInfoByAddress(Report.Address);
 
@@ -162,33 +172,35 @@ void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
                                 DemangleName(GetKernelName(Kernel)));
     Stack.print();
     auto &AI = VR.AI;
+    ArgIndex = ArgIndex + 1;
     switch (VR.Type) {
     case ValidateUSMResult::MAYBE_HOST_POINTER:
         getContext()->logger.always("The {}th argument {} is not a USM pointer",
-                                    ArgIndex + 1, (void *)Addr);
+                                    ArgIndex, (void *)Addr);
         break;
     case ValidateUSMResult::RELEASED_POINTER:
         getContext()->logger.always(
-            "The {}th argument {} is a released USM pointer", ArgIndex,
+            "The {}th argument {} is a released USM pointer", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::BAD_CONTEXT:
         getContext()->logger.always(
-            "The {}th argument {} is allocated in other context", ArgIndex,
+            "The {}th argument {} is allocated in other context", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::BAD_DEVICE:
         getContext()->logger.always(
-            "The {}th argument {} is allocated in other device", ArgIndex,
+            "The {}th argument {} is allocated in other device", ArgIndex + 1,
             (void *)Addr);
         PrintAllocateInfo(Addr, AI.get());
         break;
     case ValidateUSMResult::OUT_OF_BOUNDS:
         getContext()->logger.always(
             "The {}th argument {} is located outside of its region [{}, {})",
-            ArgIndex, (void *)Addr, (void *)AI->UserBegin, (void *)AI->UserEnd);
+            ArgIndex + 1, (void *)Addr, (void *)AI->UserBegin,
+            (void *)AI->UserEnd);
         getContext()->logger.always("allocated here:");
         AI->AllocStack.print();
         break;

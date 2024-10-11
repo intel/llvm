@@ -108,6 +108,12 @@ using Program = Wrapper<ur_program_handle_t, urProgramRetain, urProgramRelease>;
 using Kernel = Wrapper<ur_kernel_handle_t, urKernelRetain, urKernelRelease>;
 using Queue = Wrapper<ur_queue_handle_t, urQueueRetain, urQueueRelease>;
 using Event = Wrapper<ur_event_handle_t, urEventRetain, urEventRelease>;
+using CommandBuffer =
+    Wrapper<ur_exp_command_buffer_handle_t, urCommandBufferRetainExp,
+            urCommandBufferReleaseExp>;
+using CommandBufferCommand =
+    Wrapper<ur_exp_command_buffer_command_handle_t,
+            urCommandBufferRetainCommandExp, urCommandBufferReleaseCommandExp>;
 } // namespace raii
 } // namespace uur
 

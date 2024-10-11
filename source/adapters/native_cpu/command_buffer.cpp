@@ -49,7 +49,7 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint32_t,
     const size_t *, const size_t *, const size_t *, uint32_t,
-    const ur_exp_command_buffer_sync_point_t *,
+    ur_kernel_handle_t *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_sync_point_t *,
     ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "

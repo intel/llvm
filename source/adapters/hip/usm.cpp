@@ -18,6 +18,13 @@
 #include "ur_util.hpp"
 #include "usm.hpp"
 
+namespace umf {
+ur_result_t getProviderNativeError(const char *, int32_t) {
+  // TODO: implement when UMF supports HIP
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
+
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
@@ -108,7 +115,7 @@ ur_result_t USMDeviceAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMalloc(ResultPtr, Size));
   } catch (ur_result_t Err) {
     return Err;
@@ -124,7 +131,7 @@ ur_result_t USMSharedAllocImpl(void **ResultPtr, ur_context_handle_t,
                                ur_usm_device_mem_flags_t, size_t Size,
                                [[maybe_unused]] uint32_t Alignment) {
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     UR_CHECK_ERROR(hipMallocManaged(ResultPtr, Size, hipMemAttachGlobal));
   } catch (ur_result_t Err) {
     return Err;
@@ -218,7 +225,7 @@ urUSMGetMemAllocInfo(ur_context_handle_t hContext, const void *pMem,
           void *Base = nullptr;
           UR_CHECK_ERROR(hipPointerGetAttribute(
               &Base, HIP_POINTER_ATTRIBUTE_RANGE_START_ADDR,
-              (hipDeviceptr_t)pMem));
+              reinterpret_cast<hipDeviceptr_t>(const_cast<void *>(pMem))));
           return ReturnValue(Base);
         }
       }
