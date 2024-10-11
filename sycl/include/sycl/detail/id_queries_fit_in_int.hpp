@@ -45,9 +45,7 @@ template <int Dims> struct NotIntMsg<id<Dims>> {
       "Provided offset is out of integer limits. Pass "
       "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
 };
-#endif
 
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
 template <typename T, typename ValT>
 typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
                           std::is_same<ValT, unsigned long long>::value>
