@@ -1,5 +1,5 @@
-// RUN: %if any-device-is-cuda %{ %{build} -DUSE_CUDA_SM80=1 -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 -o %t.out %}
-// RUN: %if cuda %{ %{run} %t.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -DUSE_CUDA_SM80=1 -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 -o %t.cuda.out %}
+// RUN: %if cuda %{ %{run} %t.cuda.out %}
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

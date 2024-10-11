@@ -21,6 +21,8 @@ public:
   SYCLInstallationDetector(const Driver &D);
   void getSYCLDeviceLibPath(
       llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
+  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const;
   void print(llvm::raw_ostream &OS) const;
 
 private:
@@ -211,9 +213,8 @@ public:
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
-  static void AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
-                                 const llvm::opt::ArgList &DriverArgs,
-                                 llvm::opt::ArgStringList &CC1Args);
+  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangCXXStdlibIncludeArgs(
@@ -224,6 +225,8 @@ public:
 
   const ToolChain &HostTC;
   const bool IsSYCLNativeCPU;
+
+  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;
