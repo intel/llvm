@@ -271,16 +271,6 @@ static bool is_separator(char value) {
   return false;
 }
 
-static StringRef remove_leading_dotbackslah(StringRef Path) {
-  // Remove leading ".\" (or ".\\" or ".\.\" etc.)
-  while (Path.size() > 2 && Path[0] == '.' && is_separator(Path[1])) {
-    Path = Path.substr(2);
-    while (Path.size() > 0 && is_separator(Path[0]))
-      Path = Path.substr(1);
-  }
-  return Path;
-}
-
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
@@ -288,7 +278,7 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
 
   // Emit #line directives or GNU line markers depending on what mode we're in.
   StringRef CurFilenameWithNoLeaningDotSlash =
-      remove_leading_dotbackslah(CurFilename.str());
+      llvm::sys::path::remove_leading_dotbackslah(CurFilename.str());
   if ((CurFilenameWithNoLeaningDotSlash ==
               PP.getPreprocessorOpts().IncludeFooter) ||
       CurFilenameWithNoLeaningDotSlash ==

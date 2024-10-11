@@ -5734,7 +5734,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Header.empty()) {
-        // Add the -include-header option to add the integration header
+        // Add the -include-internal-header option to add the integration header
         CmdArgs.push_back("-include-internal-header");
         CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
