@@ -34,7 +34,7 @@ option(UR_BUILD_EXAMPLES "Build example applications." ON)
 option(UR_BUILD_TESTS "Build unit tests." ON)
 option(UR_BUILD_TOOLS "build ur tools" ON)
 option(UR_FORMAT_CPP_STYLE "format code style of C++ sources" OFF)
-option(UR_DEVELOPER_MODE "enable developer checks, treats warnings as errors" OFF)
+option(UR_DEVELOPER_MODE "treats warnings as errors" OFF)
 option(UR_ENABLE_FAST_SPEC_MODE "enable fast specification generation mode" OFF)
 option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
@@ -162,6 +162,12 @@ if(UR_ENABLE_TRACING)
             LIBRARY_OUTPUT_DIRECTORY ${CMAKE_LIBRARY_OUTPUT_DIRECTORY}
         )
 
+        if (NOT MSVC)
+            # Hardening flags cause issues on Windows
+            add_ur_target_compile_options(xptifw)
+            add_ur_target_link_options(xptifw)
+        endif()
+
         if (UR_STATIC_LOADER)
             install(TARGETS xpti xptifw
                 EXPORT ${PROJECT_NAME}-targets
@@ -268,6 +274,13 @@ add_custom_target(verify-licenses
         "${PROJECT_SOURCE_DIR}/scripts/verify_license.py"
         "--files" ${format_src} ${license_src}
     COMMENT "Verify all files contain a license."
+)
+
+# Add hardening check
+add_custom_target(verify-hardening
+    COMMAND "${PROJECT_SOURCE_DIR}/scripts/check-hardening.sh"
+        ${CMAKE_BINARY_DIR}
+    COMMENT "Check hardening settings on built binaries and libraries"
 )
 
 # Add code formatter target

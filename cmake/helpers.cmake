@@ -60,25 +60,39 @@ endmacro()
 
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
+        target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
         target_compile_options(${name} PRIVATE
-            -fPIC
+            # Warning options
             -Wall
             -Wpedantic
             -Wempty-body
+            -Wformat
+            -Wformat-security
             -Wunused-parameter
+
+            # Hardening options
+            -fPIC
+            -fstack-protector-strong
+            -fvisibility=hidden # Required for -fsanitize=cfi
+            # -fsanitize=cfi requires -flto, which breaks a lot of things
+            # See: https://github.com/oneapi-src/unified-runtime/issues/2120
+            # -flto
+            # $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fsanitize=cfi>
+            # -fcf-protection not supported in GCC < 8
+            $<$<OR:$<NOT:$<CXX_COMPILER_ID:GNU>>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,8>>:-fcf-protection=full>
+            # -fstack-clash-protection is not supported in apple clang or GCC < 8
+            $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,8>>:-fstack-clash-protection>
+            $<$<CXX_COMPILER_ID:Clang>:-fstack-clash-protection>
+
+            # Colored output
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
-        if (CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
-            target_compile_options(${name} PRIVATE -fvisibility=hidden)
+        if (UR_DEVELOPER_MODE)
+            target_compile_options(${name} PRIVATE -Werror)
         endif()
-        if(UR_DEVELOPER_MODE)
-            target_compile_options(${name} PRIVATE
-                -Werror
-                -fno-omit-frame-pointer
-                -fstack-protector-strong
-            )
+        if (CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
@@ -103,7 +117,15 @@ endfunction()
 function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
-            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now")
+            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now,-z,noexecstack")
+            if (UR_DEVELOPER_MODE)
+                target_link_options(${name} PRIVATE -Werror)
+            endif()
+            if (CMAKE_BUILD_TYPE STREQUAL "Release")
+                target_link_options(${name} PRIVATE
+                    $<$<CXX_COMPILER_ID:GNU>:-pie>
+                )
+            endif()
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
