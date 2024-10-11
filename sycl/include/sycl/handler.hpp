@@ -163,7 +163,6 @@ class pipe;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
-template<typename DataT> size_t getWorkGroupMemorySize();
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -1950,8 +1949,8 @@ public:
                                 ext::oneapi::experimental::empty_properties_t>
   void set_arg(
       int ArgIndex,
-      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, nullptr, ext::oneapi::experimental::getWorkGroupMemorySize<DataT>(),
+      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, std::make_shared<std::remove_reference_t<decltype(Arg)>>(Arg).get(), 0,
            ArgIndex);
   }
 
