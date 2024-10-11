@@ -54,7 +54,7 @@ jobs:
           - name: All Dependencies Docker image
             file: ubuntu2204_intel_drivers
             tag: build
-            build-args: |
+            build_args: |
               base_image=ghcr.io/intel/llvm/ubuntu2204_build
               base_tag=latest
               use_latest=false
