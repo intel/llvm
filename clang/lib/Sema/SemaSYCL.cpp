@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // This implements Semantic Analysis for SYCL constructs.
 //===----------------------------------------------------------------------===//
-
+#include <iostream>
 #include "clang/Sema/SemaSYCL.h"
 #include "TreeTransform.h"
 #include "clang/AST/AST.h"
@@ -1521,8 +1521,9 @@ class KernelObjVisitor {
   template <typename... HandlerTys>
   void visitParam(ParmVarDecl *Param, QualType ParamTy,
                   HandlerTys &...Handlers) {
-    if (isSyclSpecialType(ParamTy, SemaSYCLRef))
-      KP_FOR_EACH(handleOtherType, Param, ParamTy);
+    if (isSyclSpecialType(ParamTy, SemaSYCLRef)){
+      KP_FOR_EACH(handleSyclSpecialType, Param, ParamTy);
+}
     else if (ParamTy->isStructureOrClassType()) {
       if (KP_FOR_EACH(handleStructType, Param, ParamTy)) {
         CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
@@ -2070,8 +2071,28 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
-    IsInvalid = true;
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+      CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
+    // For free functions all struct/class kernel arguments are forward declared
+    // in integration header, that adds additional restrictions for kernel
+    // arguments.
+    NotForwardDeclarableReason NFDR =
+        isForwardDeclarable(RD, SemaSYCLRef, /*DiagForFreeFunction=*/true);
+    if (NFDR != NotForwardDeclarableReason::None) {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      Diag.Report(PD->getLocation(),
+                  diag::note_free_function_kernel_param_type_not_fwd_declarable)
+          << ParamTy;
+      IsInvalid = true;
+    } else
+    IsInvalid = false;
+}
+    else {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
     return isValid();
   }
 
@@ -2224,6 +2245,7 @@ public:
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) return true;
     unsupportedFreeFunctionParamType();
     return true;
   }
@@ -2262,7 +2284,7 @@ public:
     return true;
   }
 
-  bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
+  bool handleSyclSpecialType(ParmVarDecl *, QualType Ty) final {
     // TODO We don't support special types in free function kernel parameters,
     // but track them to diagnose the case properly.
     CollectionStack.back() = true;
@@ -3008,10 +3030,29 @@ public:
     return handleSpecialType(FD, FieldTy);
   }
 
-  bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
+  bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+      assert(RecordDecl && "The type must be a RecordDecl");
+      CXXMethodDecl *InitMethod = getMethodByName(RecordDecl, InitMethodName);
+      assert(InitMethod && "The type must have the __init method");
+
+      // Don't do -1 here because we count on this to be the first parameter
+      // added (if any).
+      size_t ParamIndex = Params.size();
+      for (const ParmVarDecl *Param : InitMethod->parameters()) {
+        QualType ParamTy = Param->getType();
+        addParam(Param, ParamTy.getCanonicalType());
+        // Propagate add_ir_attributes_kernel_parameter attribute.
+        if (const auto *AddIRAttr =
+                Param->getAttr<SYCLAddIRAttributesKernelParameterAttr>())
+          Params.back()->addAttr(AddIRAttr->clone(SemaSYCLRef.getASTContext()));
+      }
+      LastParamIndex = ParamIndex;
+    } else
+      unsupportedFreeFunctionParamType();
+   return true;
   }
 
   RecordDecl *wrapField(FieldDecl *Field, QualType FieldTy) {
@@ -3286,9 +3327,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    // TODO
-    unsupportedFreeFunctionParamType();
-    return true;
+    return handleSpecialType(ParamTy);
   }
 
   bool handleSyclSpecialType(const CXXRecordDecl *, const CXXBaseSpecifier &BS,
@@ -3601,6 +3640,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
+    //CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
+                         //       FPOptionsOverride(), {}, {})->dumpPretty(SemaSYCLRef.getASTContext());
 
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
                                 FPOptionsOverride(), {}, {});
@@ -4118,6 +4159,7 @@ public:
     annotateHierarchicalParallelismAPICalls();
     CompoundStmt *KernelBody = createKernelBody();
     DeclCreator.setBody(KernelBody);
+    DeclCreator.getKernelDecl()->dump();
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
@@ -4308,15 +4350,11 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
   SourceLocation FreeFunctionSrcLoc; // Free function source location.
   llvm::SmallVector<Expr *, 8> ArgExprs;
 
-  // Creates a DeclRefExpr to the ParmVar that represents the current free
-  // function parameter.
-  Expr *createParamReferenceExpr() {
-    ParmVarDecl *FreeFunctionParameter =
-        DeclCreator.getParamVarDeclsForCurrentField()[0];
-
-    QualType FreeFunctionParamType = FreeFunctionParameter->getOriginalType();
+  // Creates a DeclRefExpr to the ParmVar given be PD
+  Expr *createParamReferenceExpr(ParmVarDecl *PD = nullptr) {
+    ParmVarDecl *FreeFunctionParameter = PD ? PD : DeclCreator.getParamVarDeclsForCurrentField()[0];
     Expr *DRE = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
-        FreeFunctionParameter, FreeFunctionParamType, VK_LValue,
+        FreeFunctionParameter, FreeFunctionParameter->getType(), VK_LValue,
         FreeFunctionSrcLoc);
     DRE = SemaSYCLRef.SemaRef.DefaultLvalueConversion(DRE).get();
     return DRE;
@@ -4412,8 +4450,52 @@ class FreeFunctionKernelBodyCreator : public SyclKernelFieldHandler {
     auto CallExpr = CallExpr::Create(Context, Fn, ArgExprs, ResultTy, VK,
                                      FreeFunctionSrcLoc, FPOptionsOverride());
     BodyStmts.push_back(CallExpr);
-    return CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
-                                {});
+  //  CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
+    //                            {})->dumpPretty(SemaSYCLRef.getASTContext());
+return CompoundStmt::Create(Context, BodyStmts, FPOptionsOverride(), {},
+                                {}); 
+ }
+
+  MemberExpr *buildMemberExpr(Expr *Base, ValueDecl *Member) {
+    DeclAccessPair MemberDAP = DeclAccessPair::make(Member, AS_none);
+    MemberExpr *Result = SemaSYCLRef.SemaRef.BuildMemberExpr(
+        Base, /*IsArrow */ false, FreeFunctionSrcLoc, NestedNameSpecifierLoc(),
+        FreeFunctionSrcLoc, Member, MemberDAP,
+        /*HadMultipleCandidates*/ false,
+        DeclarationNameInfo(Member->getDeclName(), FreeFunctionSrcLoc),
+        Member->getType(), VK_LValue, OK_Ordinary);
+    return Result;
+  }
+
+  void createSpecialMethodCall(const CXXRecordDecl *RD, StringRef MethodName,
+                               Expr *MemberBaseExpr,
+                               SmallVectorImpl<Stmt *> &AddTo) {
+    CXXMethodDecl *Method = getMethodByName(RD, MethodName);
+    if (!Method)
+      return;
+
+    unsigned NumParams = Method->getNumParams();
+    llvm::SmallVector<Expr *, 4> ParamDREs(NumParams);
+    llvm::ArrayRef<ParmVarDecl *> KernelParameters =
+        DeclCreator.getParamVarDeclsForCurrentField();
+    for (size_t I = 0; I < NumParams; ++I) {
+      QualType ParamType = KernelParameters[I]->getOriginalType();
+      ParamDREs[I] = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+          KernelParameters[I], ParamType, VK_LValue, FreeFunctionSrcLoc);
+    }
+
+    MemberExpr *MethodME = buildMemberExpr(MemberBaseExpr, Method);
+
+    QualType ResultTy = Method->getReturnType();
+    ExprValueKind VK = Expr::getValueKindForType(ResultTy);
+    ResultTy = ResultTy.getNonLValueExprType(SemaSYCLRef.getASTContext());
+    llvm::SmallVector<Expr *, 4> ParamStmts;
+    const auto *Proto = cast<FunctionProtoType>(Method->getType());
+    SemaSYCLRef.SemaRef.GatherArgumentsForCall(FreeFunctionSrcLoc, Method,
+                                               Proto, 0, ParamDREs, ParamStmts);
+    AddTo.push_back(CXXMemberCallExpr::Create(
+        SemaSYCLRef.getASTContext(), MethodME, ParamStmts, ResultTy, VK,
+        FreeFunctionSrcLoc, FPOptionsOverride()));
   }
 
 public:
@@ -4427,6 +4509,7 @@ public:
   ~FreeFunctionKernelBodyCreator() {
     CompoundStmt *KernelBody = createFreeFunctionKernelBody();
     DeclCreator.setBody(KernelBody);
+    DeclCreator.getKernelDecl()->dump();
   }
 
   bool handleSyclSpecialType(FieldDecl *FD, QualType Ty) final {
@@ -4435,9 +4518,41 @@ public:
     return true;
   }
 
-  bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
+  bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
-    unsupportedFreeFunctionParamType();
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
+      const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
+      QualType Ty = PD->getOriginalType();
+     ASTContext &Ctx = SemaSYCLRef.SemaRef.getASTContext();
+      VarDecl *WorkGroupMemoryClone = VarDecl::Create(
+          Ctx, DeclCreator.getKernelDecl(), FreeFunctionSrcLoc, FreeFunctionSrcLoc, PD->getIdentifier(),
+          PD->getType(),
+          Ctx.getTrivialTypeSourceInfo(Ty), SC_None);
+      InitializedEntity VarEntity =
+          InitializedEntity::InitializeVariable(WorkGroupMemoryClone);
+      InitializationKind InitKind =
+          InitializationKind::CreateDefault(FreeFunctionSrcLoc);
+      InitializationSequence InitSeq(SemaSYCLRef.SemaRef, VarEntity, InitKind,
+                                     std::nullopt);
+      ExprResult Init = InitSeq.Perform(SemaSYCLRef.SemaRef, VarEntity,
+                                        InitKind, std::nullopt);
+      WorkGroupMemoryClone->setInit(
+          SemaSYCLRef.SemaRef.MaybeCreateExprWithCleanups(Init.get()));
+      WorkGroupMemoryClone->setInitStyle(VarDecl::CallInit);
+    Stmt *DS = new (SemaSYCLRef.getASTContext())
+        DeclStmt(DeclGroupRef(WorkGroupMemoryClone), FreeFunctionSrcLoc,
+                 FreeFunctionSrcLoc);
+    BodyStmts.push_back(DS);
+      Expr *MemberBaseExpr = SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+          WorkGroupMemoryClone, Ty, VK_LValue, FreeFunctionSrcLoc);
+      //createSpecialMethodCall(RecordDecl, InitMethodName, MemberBaseExpr,
+                              //BodyStmts);
+      Expr *RvalueMemberBaseExpr =  SemaSYCLRef.SemaRef.BuildDeclRefExpr(
+          WorkGroupMemoryClone, Ty, VK_PRValue, FreeFunctionSrcLoc);
+
+      ArgExprs.push_back(RvalueMemberBaseExpr);
+    } else
+      unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4717,9 +4832,11 @@ public:
     return true;
   }
 
-  bool handleSyclSpecialType(ParmVarDecl *, QualType) final {
+  bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     // TODO
-    unsupportedFreeFunctionParamType();
+    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
+      addParam(PD, ParamTy, SYCLIntegrationHeader::kind_work_group_memory);
+    else unsupportedFreeFunctionParamType();
     return true;
   }
 
@@ -4907,7 +5024,6 @@ public:
   void Visit(QualType T) {
     if (T.isNull())
       return;
-
     const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
     // If KernelNameType has template args visit each template arg via
     // ConstTemplateArgumentVisitor
@@ -5566,11 +5682,9 @@ void SemaSYCL::ProcessFreeFunction(FunctionDecl *FD) {
     KernelObjVisitor Visitor{*this};
 
     DiagnosingSYCLKernel = true;
-
     // Check parameters of free function.
     Visitor.VisitFunctionParameters(FD, DecompMarker, FieldChecker,
                                     UnionChecker);
-
     DiagnosingSYCLKernel = false;
 
     // Ignore the free function if any of the checkers fail validation.
@@ -5911,7 +6025,7 @@ public:
   void Visit(QualType T) {
     if (T.isNull())
       return;
-    InnerTypeVisitor::Visit(T.getTypePtr());
+InnerTypeVisitor::Visit(T.getTypePtr());
   }
 
   void VisitReferenceType(const ReferenceType *RT) {
@@ -5935,7 +6049,7 @@ public:
   }
 
   void VisitTagType(const TagType *T) {
-    TagDecl *TD = T->getDecl();
+TagDecl *TD = T->getDecl();
     if (const auto *TSD = dyn_cast<ClassTemplateSpecializationDecl>(TD)) {
       // - first, recurse into template parameters and emit needed forward
       //   declarations
@@ -6015,13 +6129,13 @@ public:
     VisitTemplateArgs(TA.getPackAsArray());
   }
 
-  void VisitFunctionProtoType(const FunctionProtoType *T) {
-    for (const auto Ty : T->getParamTypes())
+  void VisitFunctionProtoType(const FunctionProtoType *T) {    
+for (const auto Ty : T->getParamTypes()) 
       Visit(Ty.getCanonicalType());
     // So far this visitor method is only used for free function kernels whose
     // return type is void anyway, so it is not visited. Otherwise, add if
     // required.
-  }
+}
 };
 
 class SYCLKernelNameTypePrinter
@@ -6196,6 +6310,16 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
+  O << "#include <sycl/ext/oneapi/properties/properties.hpp>\n";
+  O << "namespace sycl { inline namespace _V1 { namespace ext { namespace "
+       "oneapi { namespace experimental {\n"
+       "    template<typename DataT, typename PropertiesT = "
+       "properties<std::tuple<>>> class work_group_memory;\n"
+       "}\n"
+       "}\n"
+       "}\n"
+       "}\n"
+       "}\n";
 
   O << "\n";
 
@@ -6465,8 +6589,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
-    O << "\n";
-
+O << "\n";
     if (K.SyclKernel->getLanguageLinkage() == CLanguageLinkage)
       O << "extern \"C\" ";
     std::string ParmList;

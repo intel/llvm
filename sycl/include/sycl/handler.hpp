@@ -163,7 +163,7 @@ class pipe;
 
 namespace ext ::oneapi ::experimental {
 template <typename, typename> class work_group_memory;
-
+template<typename DataT> size_t getWorkGroupMemorySize();
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -678,8 +678,8 @@ private:
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
   void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
-    set_arg(ArgIndex, std::move(Arg));
-    setArgsHelper(++ArgIndex, std::move(Args)...);
+    set_arg(ArgIndex, std::forward<T>(Arg));
+    setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
   }
 
   void setArgsHelper(int) {}
@@ -715,15 +715,6 @@ private:
 #ifndef __SYCL_DEVICE_ONLY__
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
-  }
-
-  template <typename DataT, typename PropertyListT>
-  void setArgHelper(
-      int ArgIndex,
-      const ext::oneapi::experimental::work_group_memory<DataT, PropertyListT>
-          &Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, &Arg, 0,
-           ArgIndex);
   }
 
   // setArgHelper for non local accessor argument.
@@ -1957,9 +1948,11 @@ public:
 
   template <typename DataT, typename PropertyListT =
                                 ext::oneapi::experimental::empty_properties_t>
-  void set_arg(int ArgIndex, const ext::oneapi::experimental::work_group_memory<
-                                 DataT, PropertyListT> &Arg) {
-    setArgHelper(ArgIndex, Arg);
+  void set_arg(
+      int ArgIndex,
+      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> Arg) {
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory, nullptr, ext::oneapi::experimental::getWorkGroupMemorySize<DataT>(),
+           ArgIndex);
   }
 
   // set_arg for graph dynamic_parameters
@@ -1980,9 +1973,8 @@ public:
   ///
   /// \param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&...Args) {
-    setArgsHelper(0, std::move(Args)...);
+    setArgsHelper(0, std::forward<Ts>(Args)...);
   }
-
   /// Defines and invokes a SYCL kernel function as a function object type.
   ///
   /// If it is a named function object and the function object type is

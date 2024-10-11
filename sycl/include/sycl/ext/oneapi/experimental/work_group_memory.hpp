@@ -33,10 +33,14 @@ public:
   friend class sycl::handler;
 };
 
-} // namespace detail
 
+} // namespace detail
 namespace ext::oneapi::experimental {
+#ifdef __SYCL_DEVICE_ONLY__
 template <typename DataT, typename PropertyListT = empty_properties_t>
+#else
+template <typename DataT, typename PropertyListT>
+#endif
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
 public:
@@ -79,7 +83,15 @@ public:
 #endif
 private:
   decoratedPtr ptr;
+  size_t bufferSize;
+  template <typename DataType>
+  friend size_t getWorkGroupMemorySize();
 };
+
+template <typename DataType>
+size_t getWorkGroupMemorySize() {
+    return work_group_memory<DataType, empty_properties_t>::bufferSize;
+}
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
