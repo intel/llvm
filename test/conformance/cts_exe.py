@@ -74,6 +74,5 @@ if __name__ == "__main__":
         print(signal.strsignal(abs(rc)))
 
     print("#### GTEST_OUTPUT ####", file=sys.stderr)
-    for output in output_list:
-        print(output, file=sys.stderr)
+    print(''.join(output_list), file=sys.stderr)
     print("#### GTEST_OUTPUT_END ####", file=sys.stderr)
