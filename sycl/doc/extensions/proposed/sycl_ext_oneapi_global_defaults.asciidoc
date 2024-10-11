@@ -166,9 +166,9 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::malloc_device(numBytes, 
-                    get_current_device(), 
-                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::malloc_device(numBytes,
+                    get_current_device(),
+                    get_current_device().get_platform().ext_oneapi_get_default_context(),
                     propList)
 ----
 
@@ -176,9 +176,9 @@ _Returns (2):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::malloc_device<T>(count, 
-                       get_current_device(), 
-                       get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::malloc_device<T>(count,
+                       get_current_device(),
+                       get_current_device().get_platform().ext_oneapi_get_default_context(),
                        propList)
 ----
 
@@ -196,7 +196,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void* sycl::aligned_alloc_device(size_t alignment, size_t numBytes,   (1)
                                  const property_list& propList = {});
-    
+
 template <typename T>
 T* sycl::aligned_alloc_device(size_t alignment, size_t count,         (2)
                               const property_list& propList = {});
@@ -211,9 +211,9 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::aligned_alloc_device(alignment, numBytes, 
-                           get_current_device(), 
-                           get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::aligned_alloc_device(alignment, numBytes,
+                           get_current_device(),
+                           get_current_device().get_platform().ext_oneapi_get_default_context(),
                            propList)
 ----
 
@@ -221,9 +221,9 @@ _Returns (2):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::aligned_alloc_device<T>(alignment, count, 
-                              get_current_device(), 
-                              get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::aligned_alloc_device<T>(alignment, count,
+                              get_current_device(),
+                              get_current_device().get_platform().ext_oneapi_get_default_context(),
                               propList)
 ----
 
@@ -257,8 +257,8 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::malloc_host(numBytes, 
-                  get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::malloc_host(numBytes,
+                  get_current_device().get_platform().ext_oneapi_get_default_context(),
                   propList)
 ----
 
@@ -266,8 +266,8 @@ _Returns (2):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::malloc_host<T>(count, 
-                     get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::malloc_host<T>(count,
+                     get_current_device().get_platform().ext_oneapi_get_default_context(),
                      propList)
 ----
 
@@ -301,8 +301,8 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::aligned_alloc_host(alignment, numBytes, 
-                  get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::aligned_alloc_host(alignment, numBytes,
+                  get_current_device().get_platform().ext_oneapi_get_default_context(),
                   propList)
 ----
 
@@ -310,8 +310,8 @@ _Returns (2):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::aligned_alloc_host<T>(alignment, count, 
-                     get_current_device().get_platform().ext_oneapi_get_default_context(), 
+sycl::aligned_alloc_host<T>(alignment, count,
+                     get_current_device().get_platform().ext_oneapi_get_default_context(),
                      propList)
 ----
 
@@ -345,9 +345,9 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::malloc_shared(numBytes, 
+sycl::malloc_shared(numBytes,
                     get_current_device(),
-                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                    get_current_device().get_platform().ext_oneapi_get_default_context(),
                     propList)
 ----
 
@@ -357,7 +357,7 @@ _Returns (2):_ The same result as computed by:
 ----
 sycl::malloc_shared<T>(count,
                        get_current_device(),
-                       get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                       get_current_device().get_platform().ext_oneapi_get_default_context(),
                        propList)
 ----
 
@@ -379,7 +379,7 @@ void* sycl::aligned_alloc_shared(size_t numBytes,                     (1)
 template <typename T>
 T* sycl::aligned_alloc_shared(size_t count,                           (2)
                               const property_list& propList = {});
- 
+
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -390,9 +390,9 @@ _Returns (1):_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::aligned_alloc_shared(numBytes, 
+sycl::aligned_alloc_shared(numBytes,
                     get_current_device(),
-                    get_current_device().get_platform().ext_oneapi_get_default_context(), 
+                    get_current_device().get_platform().ext_oneapi_get_default_context(),
                     propList)
 ----
 
@@ -420,7 +420,7 @@ a@
 namespace sycl::ext::oneapi::experimental {
 
 void* sycl::free(void* ptr);
-                              
+            
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -431,11 +431,11 @@ _Returns:_ The same result as computed by:
 
 [source, c++]
 ----
-sycl::free(ptr, 
+sycl::free(ptr,
            get_current_device().get_platform().ext_oneapi_get_default_context())
 ----
 
-_Effects:_ The context is provided by the default context of the platform of the 
+_Effects:_ The context is provided by the default context of the platform of the
 current device.
 
 '''
@@ -450,7 +450,7 @@ a@
 namespace sycl {
 class usm_allocator {
     usm_allocator(property_list propList = {});
-}                             
+}                
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -476,7 +476,7 @@ a@
 namespace sycl {
 class device {
     ext_oneapi_get_default_queue();
-}                             
+}             
 } // namespace sycl
 ----
 !====
