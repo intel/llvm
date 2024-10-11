@@ -158,7 +158,7 @@ sampler_impl::get_coordinate_normalization_mode() const {
 }
 
 void sampler_impl::verifyProps(const property_list &Props) const {
-  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
                                                 NoAllowedPropertiesCheck);
 }

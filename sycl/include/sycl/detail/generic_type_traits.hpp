@@ -253,29 +253,6 @@ template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
 
-// Try to get vector element count or 1 otherwise
-template <typename T> struct GetNumElements {
-  static constexpr int value = 1;
-};
-template <typename Type, int NumElements>
-struct GetNumElements<typename sycl::vec<Type, NumElements>> {
-  static constexpr int value = NumElements;
-};
-
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A, typename = std::enable_if_t<!std::is_same_v<
-                            typename A::element_type, typename A::value_type>>>
-  static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
-
 template <typename T> static constexpr T max_v() {
   return (std::numeric_limits<T>::max)();
 }
