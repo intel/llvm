@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // Needs AMX.
 // REQUIRES: cpu
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

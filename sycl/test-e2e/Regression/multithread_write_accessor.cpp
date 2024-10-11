@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out %threads_lib
 // RUN: %{run} %t.out
 #include <sycl/detail/core.hpp>
 

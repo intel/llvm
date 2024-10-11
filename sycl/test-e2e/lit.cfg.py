@@ -122,7 +122,7 @@ if config.extra_environment:
     for env_pair in config.extra_environment.split(","):
         [var, val] = env_pair.split("=", 1)
         if val:
-            llvm_config.with_environment(var, val, append_path=True)
+            llvm_config.with_environment(var, val)
             lit_config.note("\t" + var + "=" + val)
         else:
             lit_config.note("\tUnset " + var)
@@ -140,8 +140,6 @@ elif platform.system() == "Linux":
 config.substitutions.append(("%sycl_include", config.sycl_include))
 
 # Intel GPU FAMILY availability
-if lit_config.params.get("gpu-intel-gen9", False):
-    config.available_features.add("gpu-intel-gen9")
 if lit_config.params.get("gpu-intel-gen11", False):
     config.available_features.add("gpu-intel-gen11")
 if lit_config.params.get("gpu-intel-gen12", False):
@@ -152,36 +150,11 @@ if lit_config.params.get("gpu-intel-dg1", False):
     config.available_features.add("gpu-intel-dg1")
 if lit_config.params.get("gpu-intel-dg2", False):
     config.available_features.add("gpu-intel-dg2")
-if lit_config.params.get("gpu-intel-pvc", False):
-    config.available_features.add(
-        "matrix-fp16"
-    )  # PVC implies the support of FP16 matrix
-    config.available_features.add(
-        "matrix-tf32"
-    )  # PVC implies the support of TF32 matrix
 if lit_config.params.get("gpu-intel-pvc-vg", False):
     config.available_features.add("gpu-intel-pvc-vg")
-    config.available_features.add(
-        "matrix-fp16"
-    )  # PVC-VG implies the support of FP16 matrix
-    config.available_features.add(
-        "matrix-tf32"
-    )  # PVC-VG implies the support of TF32 matrix
-if lit_config.params.get("matrix", False):
-    config.available_features.add("matrix")
 
-if lit_config.params.get("matrix-tf32", False):
-    config.available_features.add("matrix-tf32")
-
-if lit_config.params.get("matrix-xmx8", False):
-    config.available_features.add("matrix-xmx8")
-    config.available_features.add(
-        "matrix-fp16"
-    )  # XMX implies the support of FP16 matrix
-
-if lit_config.params.get("matrix-fp16", False):
-    config.available_features.add("matrix-fp16")
-
+if lit_config.params.get("igc-dev", False):
+    config.available_features.add("igc-dev")
 
 def check_igc_tag_and_add_feature():
     if os.path.isfile(config.igc_tag_file):
@@ -382,6 +355,8 @@ if cl_options:
     config.substitutions.append(("%cxx_std_option", "/std:"))
     config.substitutions.append(("%fPIC", ""))
     config.substitutions.append(("%shared_lib", "/LD"))
+    config.substitutions.append(("%O0", "/Od"))
+    config.substitutions.append(("%fp-model-", "/fp:"))
 else:
     config.substitutions.append(
         (
@@ -406,6 +381,8 @@ else:
         ("%fPIC", ("" if platform.system() == "Windows" else "-fPIC"))
     )
     config.substitutions.append(("%shared_lib", "-shared"))
+    config.substitutions.append(("%O0", "-O0"))
+    config.substitutions.append(("%fp-model-", "-ffp-model="))
 
 # Check if user passed verbose-print parameter, if yes, add VERBOSE_PRINT macro
 if "verbose-print" in lit_config.params:

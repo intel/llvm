@@ -27,7 +27,7 @@
 // RUN: %{run} %t.out
 
 // https://github.com/intel/llvm/issues/15275
-// XFAIL: linux && (gpu-intel-gen12 || gpu-intel-dg2)
+// UNSUPPORTED: linux && opencl && (gpu-intel-gen12 || gpu-intel-dg2)
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

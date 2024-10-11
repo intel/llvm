@@ -86,7 +86,7 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -109,7 +109,7 @@ static sycl::unittest::UrImage generateCopierKernelImage() {
 
   std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
   UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
               __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -470,9 +470,9 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 #endif // _WIN32
 
 TEST(Assert, TestPositive) {
-  // Ensure that the mock plugin is initialized before spawning work. Since the
+  // Ensure that the mock adapter is initialized before spawning work. Since the
   // test needs no redefinitions we do not need to create a UrMock<> instance,
-  // but the mock plugin is still needed to have a valid platform available.
+  // but the mock adapter is still needed to have a valid platform available.
   // sycl::unittest::UrMock::InitUr();
 
 #ifndef _WIN32
@@ -526,8 +526,9 @@ TEST(Assert, TestInteropKernelNegative) {
 
   auto URKernel = mock::createDummyHandle<ur_kernel_handle_t>();
 
-  // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
-  // from context instead of free getPlugin to alllow for mocking of its methods
+  // TODO use make_kernel. This requires a fix in backend.cpp to get adapter
+  // from context instead of free getAdapter to allow for mocking of its
+  // methods
   sycl::kernel KInterop((cl_kernel)URKernel, Ctx);
 
   Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });

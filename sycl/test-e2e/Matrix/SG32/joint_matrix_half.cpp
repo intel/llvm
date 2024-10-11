@@ -9,7 +9,6 @@
 // UNSUPPORTED: gpu-intel-dg2
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: matrix-fp16
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out

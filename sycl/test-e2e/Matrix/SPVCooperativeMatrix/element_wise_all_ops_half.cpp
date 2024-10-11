@@ -7,7 +7,9 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-fp16
 // REQUIRES: aspect-ext_intel_matrix
-// REQUIRES: matrix-fp16
+
+// SYCL Joint Matrix fp16 operations are not supported on SPR
+// UNSUPPORTED: arch-intel_cpu_spr
 
 // RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
