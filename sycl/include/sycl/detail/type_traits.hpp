@@ -399,53 +399,6 @@ template <typename T, int N, typename TL> struct make_type_impl<vec<T, N>, TL> {
 template <typename T, typename TL>
 using make_type_t = typename make_type_impl<T, TL>::type;
 
-// make_larger_t
-template <typename T, typename Enable = void> struct make_larger_impl;
-template <typename T>
-struct make_larger_impl<
-    T, std::enable_if_t<is_contained<T, gtl::scalar_floating_list>::value, T>> {
-  using type = find_twice_as_large_type_t<gtl::scalar_floating_list, T>;
-};
-
-template <typename T>
-struct make_larger_impl<
-    T, std::enable_if_t<is_contained<T, gtl::scalar_signed_integer_list>::value,
-                        T>> {
-  using type = find_twice_as_large_type_t<gtl::scalar_signed_integer_list, T>;
-};
-
-template <typename T>
-struct make_larger_impl<
-    T, std::enable_if_t<
-           is_contained<T, gtl::scalar_unsigned_integer_list>::value, T>> {
-  using type = find_twice_as_large_type_t<gtl::scalar_unsigned_integer_list, T>;
-};
-
-template <typename T, int N> struct make_larger_impl<vec<T, N>, vec<T, N>> {
-  using base_type = vector_element_t<vec<T, N>>;
-  using upper_type = typename make_larger_impl<base_type, base_type>::type;
-  using new_type = vec<upper_type, N>;
-  static constexpr bool found = !std::is_same_v<upper_type, void>;
-  using type = std::conditional_t<found, new_type, void>;
-};
-
-template <typename T, size_t N>
-struct make_larger_impl<marray<T, N>, marray<T, N>> {
-  using base_type = marray_element_t<marray<T, N>>;
-  using upper_type = typename make_larger_impl<base_type, base_type>::type;
-  using new_type = marray<upper_type, N>;
-  static constexpr bool found = !std::is_same_v<upper_type, void>;
-  using type = std::conditional_t<found, new_type, void>;
-};
-
-// TODO: this type trait is not used anyweher in SYCL headers and it should
-// be moved to the library code
-template <typename T> struct make_larger {
-  using type = typename make_larger_impl<T, T>::type;
-};
-
-template <typename T> using make_larger_t = typename make_larger<T>::type;
-
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
 template <access::address_space AS, class DataT>
 using const_if_const_AS =
