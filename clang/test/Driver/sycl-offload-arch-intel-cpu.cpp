@@ -58,3 +58,13 @@
 // TARGET-TRIPLE-CPU: "-D__SYCL_TARGET_INTEL_X86_64__"
 // CLANG-OFFLOAD-PACKAGER-CPU: clang-offload-packager{{.*}} "--image={{.*}}triple=spir64_x86_64-unknown-unknown,arch=[[DEV_STR]],kind=sycl"
 
+// Tests for handling a missing architecture.
+//
+// RUN: not %clangxx --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=MISSING %s
+// RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch= %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=MISSING %s
+
+// MISSING: error: must pass in an explicit cpu or gpu architecture to '--offload-arch'
+
+

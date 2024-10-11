@@ -1296,19 +1296,20 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   // If the user specified --offload-arch, deduce the offloading
   // target triple(s) from the set of architecture(s).
   // Create a toolchain for each valid triple.
+  // We do not support SYCL offloading if any of the inputs is a
+  // .cu (for CUDA type) or .hip (for HIP type) file.
   else if (HasValidSYCLRuntime &&
            C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
            !IsCuda) {
-      // SYCL offloading to AOT Targets with ``--offload-arch``
-      // is currently enabled only with ``--offload-new-driver`` option.
-      // Emit a diagnostic if ``--offload-arch`` is invoked without
-      // ``--offload-new driver`` option.
-      if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
-                                    options::OPT_no_offload_new_driver,
-                                    false)) {
-        Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
-        return;
-      }
+    // SYCL offloading to AOT Targets with ``--offload-arch``
+    // is currently enabled only with ``--offload-new-driver`` option.
+    // Emit a diagnostic if ``--offload-arch`` is invoked without
+    // ``--offload-new driver`` option.
+    if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false)) {
+      Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+      return;
+    }
     const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
     auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
     auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
@@ -1350,6 +1351,12 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             Arch);
       } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch))) {
         StringRef IntelGPUArch;
+        // For Intel Graphics AOT target, valid values for ``--offload-arch``
+        // are mapped to valid device names accepted by OCLOC (the Intel GPU AOT
+        // compiler) via the ``-device`` option. The mapIntelGPUArchName
+        // function maps the accepted values for `--offload-arch` to enable SYCL
+        // offloading to Intel GPUs and the corresponding `-device` value passed
+        // to OCLOC.
         IntelGPUArch = mapIntelGPUArchName(Arch).data();
         DerivedArchs[MakeSYCLDeviceTriple("spir64_gen").getTriple()].insert(
             IntelGPUArch);
@@ -1358,9 +1365,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         return;
       }
     }
-    // If the set is empty then we failed to find a native architecture.
+    // Emit an error if architecture value is not provided
+    // to --offload-arch.
     if (Archs.empty()) {
-      Diag(clang::diag::err_drv_invalid_sycl_target) << "native";
+      Diag(clang::diag::err_drv_sycl_offload_arch_missing_value);
       return;
     }
 
