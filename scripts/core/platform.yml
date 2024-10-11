@@ -33,7 +33,7 @@ params:
     - type: "uint32_t"
       name: NumEntries
       desc: |
-            [in] the number of platforms to be added to phPlatforms. 
+            [in] the number of platforms to be added to phPlatforms.
             If phPlatforms is not NULL, then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
             will be returned.
     - type: "$x_platform_handle_t*"
@@ -44,7 +44,7 @@ params:
     - type: "uint32_t*"
       name: "pNumPlatforms"
       desc: |
-            [out][optional] returns the total number of platforms available. 
+            [out][optional] returns the total number of platforms available.
 returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NumEntries == 0 && phPlatforms != NULL`"

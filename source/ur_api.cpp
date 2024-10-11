@@ -1307,8 +1307,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///
 /// @details
 ///     - The primary ::ur_image_format_t that must be supported by all the
-///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
-///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
@@ -4185,14 +4184,12 @@ ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
     ///< specify the number of local work-items forming a work-group that will
     ///< execute the kernel function.
-    ///< If nullptr, the runtime implementation will choose the work-group
-    ///< size.
+    ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -5296,8 +5293,7 @@ ur_result_t UR_APICALL urEnqueueUSMFill2D(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -5355,8 +5351,7 @@ ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -5401,8 +5396,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -5447,8 +5441,7 @@ ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -5498,8 +5491,7 @@ ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ///< events that must be complete before the host pipe read.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out][optional] returns an event object that identifies this read
-                ///< command
+        phEvent ///< [out][optional] returns an event object that identifies this read command
     ///< and can be used to query or queue a wait for this command to complete.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
@@ -7175,14 +7167,12 @@ ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
     ///< specify the number of local work-items forming a work-group that will
     ///< execute the kernel function.
-    ///< If nullptr, the runtime implementation will choose the work-group
-    ///< size.
+    ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
                 ///< kernel execution instance.
@@ -7243,8 +7233,7 @@ ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [in,out] return an event object that identifies this particular kernel
                 ///< execution instance. Profiling information can be queried
