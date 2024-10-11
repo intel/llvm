@@ -26,13 +26,12 @@ public:
   work_group_memory_impl(const work_group_memory_impl &rhs) = default;
   work_group_memory_impl &
   operator=(const work_group_memory_impl &rhs) = default;
-  work_group_memory_impl(size_t buffer_size)
-      : buffer_size{buffer_size} {}
-  private:
+  work_group_memory_impl(size_t buffer_size) : buffer_size{buffer_size} {}
+
+private:
   size_t buffer_size;
   friend class sycl::handler;
 };
-
 
 } // namespace detail
 namespace ext::oneapi::experimental {
@@ -57,8 +56,7 @@ public:
   template <typename T = DataT,
             typename = std::enable_if_t<!sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(handler &)
-      : sycl::detail::work_group_memory_impl(
-                                             sizeof(DataT)) {}
+      : sycl::detail::work_group_memory_impl(sizeof(DataT)) {}
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(size_t num, handler &)
@@ -71,7 +69,7 @@ public:
                                     IsDecorated, value_type>(ptr);
   }
   DataT *operator&() const { return reinterpret_cast<DataT *>(ptr); }
-  operator DataT &() const { return *(this->operator&()); }
+  operator DataT &() const { return *reinterpret_cast<DataT *>(ptr); }
   template <typename T = DataT,
             typename = std::enable_if_t<!std::is_array_v<T>>>
   const work_group_memory &operator=(const DataT &value) const {
@@ -83,15 +81,7 @@ public:
 #endif
 private:
   decoratedPtr ptr;
-  size_t bufferSize;
-  template <typename DataType>
-  friend size_t getWorkGroupMemorySize();
 };
-
-template <typename DataType>
-size_t getWorkGroupMemorySize() {
-    return work_group_memory<DataType, empty_properties_t>::bufferSize;
-}
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl

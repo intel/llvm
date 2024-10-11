@@ -561,8 +561,7 @@ private:
             make_error_code(errc::kernel_argument),
             "A work group memory object must not be used in a SYCL kernel "
             "function that is invoked via single_task or via the simple form "
-            "of "
-            "parallel_for that takes a range parameter.");
+            "of parallel_for that takes a range parameter.");
     }
   }
 
@@ -1950,8 +1949,9 @@ public:
   void set_arg(
       int ArgIndex,
       ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory, std::make_shared<std::remove_reference_t<decltype(Arg)>>(Arg).get(), 0,
-           ArgIndex);
+    addArg(detail::kernel_param_kind_t::kind_work_group_memory,
+           std::make_shared<std::remove_reference_t<decltype(Arg)>>(Arg).get(),
+           0, ArgIndex);
   }
 
   // set_arg for graph dynamic_parameters
