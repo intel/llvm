@@ -49,7 +49,7 @@ jobs:
     - name: Install apt packages
       run: |
         sudo apt-get update
-        sudo apt-get install -y ${{matrix.compiler.c}}
+        sudo apt-get install -y ${{matrix.compiler.c}} devscripts
 
     - name: Install libhwloc
       run: .github/scripts/install_hwloc.sh
@@ -82,6 +82,7 @@ jobs:
 
     - name: Configure CMake
       if: matrix.os == 'ubuntu-22.04'
+      # WEXTRA: https://github.com/oneapi-src/unified-runtime/issues/2109
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -91,6 +92,7 @@ jobs:
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=OFF
+        -DUR_DEVELOPER_MODE=ON
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
         -DUR_CONFORMANCE_TEST_LOADER=OFF
         ${{matrix.libbacktrace}}
@@ -99,6 +101,8 @@ jobs:
 
     - name: Configure CMake
       if: matrix.os == 'ubuntu-20.04'
+      # WEXTRA: https://github.com/oneapi-src/unified-runtime/issues/2109
+      # Note: Disable Werror, since 20.04 raises different ones than 22.04
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -108,12 +112,18 @@ jobs:
         -DCMAKE_BUILD_TYPE=${{matrix.build_type}}
         -DUR_BUILD_TESTS=ON
         -DUR_FORMAT_CPP_STYLE=OFF
+        -DUR_DEVELOPER_MODE=OFF
         ${{matrix.libbacktrace}}
         ${{matrix.pool_tracking}}
         ${{matrix.latency_tracking}}
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
+
+    - name: Verify hardening flags have been set
+      run: cmake --build ${{github.workspace}}/build --target verify-hardening
+      # https://github.com/oneapi-src/unified-runtime/issues/2120
+      if: ${{ matrix.compiler.cxx != 'clang++' && matrix.os != 'ubuntu-20.04' }}
 
     - name: Test
       working-directory: ${{github.workspace}}/build

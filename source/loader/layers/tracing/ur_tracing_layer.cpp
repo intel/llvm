@@ -37,7 +37,7 @@ struct XptiContextManager {
 static std::shared_ptr<XptiContextManager> xptiContextManagerGet() {
     static auto contextManager = std::make_shared<XptiContextManager>();
     return contextManager;
-};
+}
 static thread_local xpti_td *activeEvent;
 
 ///////////////////////////////////////////////////////////////////////////////
