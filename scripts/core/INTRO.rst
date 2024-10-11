@@ -286,7 +286,7 @@ for these parameter structs can be found in the main API header.
 Layers
 ---------------------
 UR comes with a mechanism that allows various API intercept layers to be enabled, either through the API or with an environment variable (see `Environment Variables`_).
-Layers currently included with the runtime are as follows:
+By default, no layers are enabled. Layers currently included with the runtime are as follows:
 
 .. list-table::
    :header-rows: 1
@@ -395,6 +395,14 @@ Specific environment variables can be set to control the behavior of unified run
     .. note::
 
     See the Layers_ section for details of the layers currently included in the runtime.
+
+.. envvar:: UR_LOADER_PRELOAD_FILTER
+
+    If set, the loader will read `ONEAPI_DEVICE_SELECTOR` before loading the UR Adapters to determine which backends should be loaded.
+
+    .. note::
+
+    This environment variable is default enabled on Linux, but default disabled on Windows.
 
 Service identifiers
 ---------------------

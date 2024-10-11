@@ -128,7 +128,7 @@ struct valAllDevicesTest : valPlatformTest {
 
 // We use this to avoid segfaults in the mock adapter when we're doing stuff
 // like double releases in the leak detection tests.
-inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; };
+inline ur_result_t genericSuccessCallback(void *) { return UR_RESULT_SUCCESS; }
 
 // This returns valid (non-null) handles that we can safely leak.
 inline ur_result_t fakeContext_urContextCreate(void *pParams) {

@@ -28,27 +28,23 @@ ur_result_t enqueueEventsWait(ur_queue_handle_t Queue, hipStream_t Stream,
     return UR_RESULT_SUCCESS;
   }
   try {
-    auto Result = forLatestEvents(
+    UR_CHECK_ERROR(forLatestEvents(
         EventWaitList, NumEventsInWaitList,
         [Stream, Queue](ur_event_handle_t Event) -> ur_result_t {
-          ScopedContext Active(Queue->getDevice());
+          ScopedDevice Active(Queue->getDevice());
           if (Event->isCompleted() || Event->getStream() == Stream) {
             return UR_RESULT_SUCCESS;
           } else {
             UR_CHECK_ERROR(hipStreamWaitEvent(Stream, Event->get(), 0));
             return UR_RESULT_SUCCESS;
           }
-        });
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
-    return UR_RESULT_SUCCESS;
+        }));
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  return UR_RESULT_SUCCESS;
 }
 
 // Determine local work sizes that result in uniform work groups.
@@ -164,7 +160,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   hBuffer->setLastQueueWritingToMemObj(hQueue);
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
@@ -220,7 +216,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
     }
 
     auto Device = hQueue->getDevice();
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     // Use the default stream if copying from another device
@@ -290,7 +286,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                                    pGlobalWorkSize, pLocalWorkSize, hKernel,
                                    HIPFunc, ThreadsPerBlock, BlocksPerGrid));
 
-    ScopedContext Active(Dev);
+    ScopedDevice Active(Dev);
 
     uint32_t StreamToken;
     ur_stream_guard Guard;
@@ -378,7 +374,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
             UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST)
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     uint32_t StreamToken;
     ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
@@ -533,7 +529,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     }
 
     auto Device = hQueue->getDevice();
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
@@ -582,7 +578,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
   hBuffer->setLastQueueWritingToMemObj(hQueue);
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
     UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
                                      phEventWaitList));
@@ -629,13 +625,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
-    ur_result_t Result = UR_RESULT_SUCCESS;
+    ScopedDevice Active(hQueue->getDevice());
     auto Stream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
-      Result = enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
-                                 phEventWaitList);
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, Stream, numEventsInWaitList,
+                                       phEventWaitList));
     }
 
     if (phEvent) {
@@ -657,12 +652,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
       *phEvent = RetImplEvent.release();
     }
 
-    return Result;
   } catch (ur_result_t Err) {
     return Err;
   } catch (...) {
     return UR_RESULT_ERROR_UNKNOWN;
   }
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -672,7 +667,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     size_t srcSlicePitch, size_t dstRowPitch, size_t dstSlicePitch,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   void *SrcPtr =
       std::get<BufferMem>(hBufferSrc->Mem).getVoid(hQueue->getDevice());
   void *DstPtr =
@@ -680,10 +674,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     if (phEvent) {
       RetImplEvent =
@@ -692,10 +686,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemBufferCopyRect(
+    UR_CHECK_ERROR(commonEnqueueMemBufferCopyRect(
         HIPStream, region, &SrcPtr, hipMemoryTypeDevice, srcOrigin, srcRowPitch,
         srcSlicePitch, &DstPtr, hipMemoryTypeDevice, dstOrigin, dstRowPitch,
-        dstSlicePitch);
+        dstSlicePitch));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -703,9 +697,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     }
 
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 static inline void memsetRemainPattern(hipStream_t Stream, uint32_t PatternSize,
@@ -794,7 +788,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
   hBuffer->setLastQueueWritingToMemObj(hQueue);
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     auto Stream = hQueue->getNextTransferStream();
     if (phEventWaitList) {
@@ -941,7 +935,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     }
 
     auto Device = hQueue->getDevice();
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
@@ -1001,7 +995,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
   UR_ASSERT(hImage->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
 
     if (phEventWaitList) {
@@ -1063,14 +1057,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
                 std::get<SurfaceMem>(hImageDst->Mem).getImageType(),
             UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
     if (phEventWaitList) {
-      Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                                 phEventWaitList);
+      UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                       phEventWaitList));
     }
 
     hipArray *SrcArray =
@@ -1110,13 +1102,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
       UR_CHECK_ERROR(RetImplEvent->start());
     }
 
-    Result = commonEnqueueMemImageNDCopy(
+    UR_CHECK_ERROR(commonEnqueueMemImageNDCopy(
         HIPStream, ImgType, AdjustedRegion, SrcArray, hipMemoryTypeArray,
-        SrcOffset, DstArray, hipMemoryTypeArray, DstOffset);
-
-    if (Result != UR_RESULT_SUCCESS) {
-      return Result;
-    }
+        SrcOffset, DstArray, hipMemoryTypeArray, DstOffset));
 
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
@@ -1161,7 +1149,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
           hQueue, hBuffer, blockingMap, offset, size, MapPtr,
           numEventsInWaitList, phEventWaitList, phEvent));
     } else {
-      ScopedContext Active(hQueue->getDevice());
+      ScopedDevice Active(hQueue->getDevice());
 
       if (IsPinned) {
         UR_CHECK_ERROR(urEnqueueEventsWait(hQueue, numEventsInWaitList,
@@ -1211,7 +1199,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
           hQueue, hMem, true, Map->getMapOffset(), Map->getMapSize(),
           pMappedPtr, numEventsInWaitList, phEventWaitList, phEvent));
     } else {
-      ScopedContext Active(hQueue->getDevice());
+      ScopedDevice Active(hQueue->getDevice());
 
       if (IsPinned) {
         UR_CHECK_ERROR(urEnqueueEventsWait(hQueue, numEventsInWaitList,
@@ -1237,17 +1225,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     uint32_t StreamToken;
     ur_stream_guard Guard;
     hipStream_t HIPStream = hQueue->getNextComputeStream(
         numEventsInWaitList, phEventWaitList, Guard, &StreamToken);
-    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
@@ -1274,8 +1261,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       break;
 
     default:
-      Result = commonMemSetLargePattern(HIPStream, patternSize, size, pPattern,
-                                        reinterpret_cast<hipDeviceptr_t>(ptr));
+      UR_CHECK_ERROR(
+          commonMemSetLargePattern(HIPStream, patternSize, size, pPattern,
+                                   reinterpret_cast<hipDeviceptr_t>(ptr)));
       break;
     }
 
@@ -1284,25 +1272,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
     if (phEvent) {
       EventPtr =
           std::unique_ptr<ur_event_handle_t_>(ur_event_handle_t_::makeNative(
@@ -1321,9 +1307,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
       *phEvent = EventPtr.release();
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
@@ -1345,13 +1331,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
   UR_ASSERT(size <= PointerRangeSize, UR_RESULT_ERROR_INVALID_SIZE);
 #endif
 
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
@@ -1399,10 +1383,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
         hipMemPrefetchAsync(pMem, size, hQueue->getDevice()->get(), HIPStream));
     releaseEvent();
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 /// USM: memadvise API to govern behavior of automatic migration mechanisms
@@ -1425,7 +1409,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
 #endif
 
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     std::unique_ptr<ur_event_handle_t_> EventPtr{nullptr};
 
     if (phEvent) {
@@ -1521,6 +1505,7 @@ urEnqueueUSMAdvise(ur_queue_handle_t hQueue, const void *pMem, size_t size,
                         UR_RESULT_SUCCESS);
         return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
       }
+      UR_CHECK_ERROR(Result);
     }
 
     releaseEvent();
@@ -1558,13 +1543,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const void *pSrc, size_t srcPitch, size_t width, size_t height,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_result_t Result = UR_RESULT_SUCCESS;
-
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
     hipStream_t HIPStream = hQueue->getNextTransferStream();
-    Result = enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
-                               phEventWaitList);
+    UR_CHECK_ERROR(enqueueEventsWait(hQueue, HIPStream, numEventsInWaitList,
+                                     phEventWaitList));
 
     std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
     if (phEvent) {
@@ -1668,10 +1651,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
       UR_CHECK_ERROR(hipStreamSynchronize(HIPStream));
     }
   } catch (ur_result_t Err) {
-    Result = Err;
+    return Err;
   }
 
-  return Result;
+  return UR_RESULT_SUCCESS;
 }
 
 namespace {
@@ -1762,7 +1745,7 @@ setKernelParams(const ur_device_handle_t Device, const uint32_t WorkDim,
   size_t MaxWorkGroupSize = 0;
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
-    ScopedContext Active(Device);
+    ScopedDevice Active(Device);
     {
       size_t MaxThreadsPerBlock[3] = {
           static_cast<size_t>(Device->getMaxBlockDimX()),
@@ -1906,7 +1889,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   std::unique_ptr<ur_event_handle_t_> RetImplEvent{nullptr};
   try {
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     uint32_t StreamToken;
     ur_stream_guard Guard;

@@ -32,7 +32,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   desc.flags = ZE_EVENT_POOL_FLAG_HOST_VISIBLE;
 
   ze_event_pool_counter_based_exp_desc_t counterBasedExt = {
-      ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr};
+      ZE_STRUCTURE_TYPE_COUNTER_BASED_EVENT_POOL_EXP_DESC, nullptr, 0};
 
   if (events == event_type::EVENT_COUNTER) {
     counterBasedExt.flags =
@@ -43,7 +43,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   }
 
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->hContext, &desc, 1,
+                    (context->getZeHandle(), &desc, 1,
                      const_cast<ze_device_handle_t *>(&device->ZeDevice),
                      pool.ptr()));
 
@@ -51,7 +51,7 @@ provider_pool::provider_pool(ur_context_handle_t context,
   for (int i = 0; i < EVENTS_BURST; ++i) {
     ZeStruct<ze_event_desc_t> desc;
     desc.index = i;
-    desc.signal = 0;
+    desc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
     desc.wait = 0;
     ZE2UR_CALL_THROWS(zeEventCreate, (pool.get(), &desc, freelist[i].ptr()));
   }

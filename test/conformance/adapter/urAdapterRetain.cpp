@@ -15,8 +15,19 @@ struct urAdapterRetainTest : uur::runtime::urAdapterTest {
 };
 
 TEST_F(urAdapterRetainTest, Success) {
-    ASSERT_SUCCESS(urAdapterRetain(adapter));
-    EXPECT_SUCCESS(urAdapterRelease(adapter));
+    uint32_t referenceCountBefore = 0;
+
+    ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
+                                    sizeof(referenceCountBefore),
+                                    &referenceCountBefore, nullptr));
+
+    uint32_t referenceCountAfter = 0;
+    EXPECT_SUCCESS(urAdapterRetain(adapter));
+    ASSERT_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_REFERENCE_COUNT,
+                                    sizeof(referenceCountAfter),
+                                    &referenceCountAfter, nullptr));
+
+    ASSERT_GT(referenceCountAfter, referenceCountBefore);
 }
 
 TEST_F(urAdapterRetainTest, InvalidNullHandleAdapter) {

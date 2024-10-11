@@ -1,6 +1,2 @@
+{{NONDETERMINISTIC}}
 urPlatformCreateWithNativeHandleTest.InvalidNullPointerPlatform
-urPlatfromGetBackendOptionTest.InvalidValueFrontendOption
-urPlatfromGetBackendOptionTestWithParam.Success/_O0
-urPlatfromGetBackendOptionTestWithParam.Success/_O1
-urPlatfromGetBackendOptionTestWithParam.Success/_O2
-urPlatfromGetBackendOptionTestWithParam.Success/_O3

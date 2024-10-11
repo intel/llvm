@@ -235,6 +235,7 @@ EXPORTS
 	urPrintContextSetExtendedDeleterParams
 	urPrintDeviceAffinityDomainFlags
 	urPrintDeviceBinary
+	urPrintDeviceCommandBufferUpdateCapabilityFlags
 	urPrintDeviceCreateWithNativeHandleParams
 	urPrintDeviceExecCapabilityFlags
 	urPrintDeviceFpCapabilityFlags

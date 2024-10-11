@@ -11,6 +11,7 @@
 #include "program.hpp"
 #include "device.hpp"
 #include "logger/ur_logger.hpp"
+#include "ur_interface_loader.hpp"
 
 #ifdef UR_ADAPTER_LEVEL_ZERO_V2
 #include "v2/context.hpp"
@@ -54,7 +55,9 @@ checkUnresolvedSymbols(ze_module_handle_t ZeModule,
 }
 } // extern "C"
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
+namespace ur::level_zero {
+
+ur_result_t urProgramCreateWithIL(
     ur_context_handle_t Context, ///< [in] handle of the context instance
     const void *IL,              ///< [in] pointer to IL binary.
     size_t Length,               ///< [in] length of `pIL` in bytes.
@@ -79,7 +82,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
+ur_result_t urProgramCreateWithBinary(
     ur_context_handle_t Context, ///< [in] handle of the context instance
     ur_device_handle_t
         Device,            ///< [in] handle to device associated with binary.
@@ -115,17 +118,18 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(
+ur_result_t urProgramBuild(
     ur_context_handle_t Context, ///< [in] handle of the context instance.
     ur_program_handle_t Program, ///< [in] Handle of the program to build.
     const char *Options          ///< [in][optional] pointer to build options
                                  ///< null-terminated string.
 ) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return urProgramBuildExp(Program, Devices.size(), Devices.data(), Options);
+  return ur::level_zero::urProgramBuildExp(Program, Devices.size(),
+                                           Devices.data(), Options);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
+ur_result_t urProgramBuildExp(
     ur_program_handle_t hProgram,  ///< [in] Handle of the program to build.
     uint32_t numDevices,           ///< [in] number of devices
     ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to
@@ -228,7 +232,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(
   return Result;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(
+ur_result_t urProgramCompileExp(
     ur_program_handle_t
         hProgram,        ///< [in][out] handle of the program to compile.
     uint32_t numDevices, ///< [in] number of devices
@@ -239,10 +243,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(
 ) {
   std::ignore = numDevices;
   std::ignore = phDevices;
-  return urProgramCompile(hProgram->Context, hProgram, pOptions);
+  return ur::level_zero::urProgramCompile(hProgram->Context, hProgram,
+                                          pOptions);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
+ur_result_t urProgramCompile(
     ur_context_handle_t Context, ///< [in] handle of the context instance.
     ur_program_handle_t
         Program,        ///< [in][out] handle of the program to compile.
@@ -281,7 +286,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCompile(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
+ur_result_t urProgramLink(
     ur_context_handle_t Context, ///< [in] handle of the context instance.
     uint32_t Count, ///< [in] number of program handles in `phPrograms`.
     const ur_program_handle_t *Programs, ///< [in][range(0, count)] pointer to
@@ -292,11 +297,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLink(
         *Program ///< [out] pointer to handle of program object created.
 ) {
   std::vector<ur_device_handle_t> Devices = Context->getDevices();
-  return urProgramLinkExp(Context, Devices.size(), Devices.data(), Count,
-                          Programs, Options, Program);
+  return ur::level_zero::urProgramLinkExp(Context, Devices.size(),
+                                          Devices.data(), Count, Programs,
+                                          Options, Program);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
+ur_result_t urProgramLinkExp(
     ur_context_handle_t hContext,  ///< [in] handle of the context instance.
     uint32_t numDevices,           ///< [in] number of devices
     ur_device_handle_t *phDevices, ///< [in][range(0, numDevices)] pointer to
@@ -482,14 +488,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
   return UrResult;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramRetain(
+ur_result_t urProgramRetain(
     ur_program_handle_t Program ///< [in] handle for the Program to retain
 ) {
   Program->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramRelease(
+ur_result_t urProgramRelease(
     ur_program_handle_t Program ///< [in] handle for the Program to release
 ) {
   if (!Program->RefCount.decrementAndTest())
@@ -526,7 +532,7 @@ static bool is_in_separated_string(const std::string &str, char delimiter,
   return false;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
+ur_result_t urProgramGetFunctionPointer(
     ur_device_handle_t
         Device, ///< [in] handle of the device to retrieve pointer for.
     ur_program_handle_t
@@ -566,12 +572,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   if (ZeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
     size_t Size;
     *FunctionPointerRet = 0;
-    UR_CALL(urProgramGetInfo(Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr,
-                             &Size));
+    UR_CALL(ur::level_zero::urProgramGetInfo(
+        Program, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &Size));
 
     std::string ClResult(Size, ' ');
-    UR_CALL(urProgramGetInfo(Program, UR_PROGRAM_INFO_KERNEL_NAMES,
-                             ClResult.size(), &ClResult[0], nullptr));
+    UR_CALL(ur::level_zero::urProgramGetInfo(
+        Program, UR_PROGRAM_INFO_KERNEL_NAMES, ClResult.size(), &ClResult[0],
+        nullptr));
 
     // Get rid of the null terminator and search for kernel_name
     // If function can be found return error code to indicate it
@@ -591,7 +598,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetFunctionPointer(
   return ze2urResult(ZeResult);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
+ur_result_t urProgramGetGlobalVariablePointer(
     ur_device_handle_t
         Device, ///< [in] handle of the device to retrieve the pointer for.
     ur_program_handle_t
@@ -626,7 +633,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetGlobalVariablePointer(
   return ze2urResult(ZeResult);
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
+ur_result_t urProgramGetInfo(
     ur_program_handle_t Program, ///< [in] handle of the Program object
     ur_program_info_t PropName,  ///< [in] name of the Program property to query
     size_t PropSize,             ///< [in] the size of the Program property.
@@ -818,7 +825,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
+ur_result_t urProgramGetBuildInfo(
     ur_program_handle_t Program, ///< [in] handle of the Program object
     ur_device_handle_t Device,   ///< [in] handle of the Device object
     ur_program_build_info_t
@@ -898,7 +905,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetBuildInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstant(
+ur_result_t urProgramSetSpecializationConstant(
     ur_program_handle_t Program, ///< [in] handle of the Program object
     uint32_t SpecId,             ///< [in] specification constant Id
     size_t SpecSize,      ///< [in] size of the specialization constant value
@@ -913,7 +920,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstant(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
+ur_result_t urProgramGetNativeHandle(
     ur_program_handle_t Program,      ///< [in] handle of the program.
     ur_native_handle_t *NativeProgram ///< [out] a pointer to the native
                                       ///< handle of the program.
@@ -934,7 +941,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
+ur_result_t urProgramCreateWithNativeHandle(
     ur_native_handle_t
         NativeProgram,           ///< [in] the native handle of the program.
     ur_context_handle_t Context, ///< [in] handle of the context instance
@@ -965,6 +972,30 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
   }
   return UR_RESULT_SUCCESS;
 }
+
+ur_result_t urProgramSetSpecializationConstants(
+    ur_program_handle_t Program, ///< [in] handle of the Program object
+    uint32_t Count, ///< [in] the number of elements in the pSpecConstants array
+    const ur_specialization_constant_info_t
+        *SpecConstants ///< [in][range(0, count)] array of specialization
+                       ///< constant value descriptions
+) {
+  std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
+
+  // Remember the value of this specialization constant until the program is
+  // built.  Note that we only save the pointer to the buffer that contains the
+  // value.  The caller is responsible for maintaining storage for this buffer.
+  //
+  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
+  // SpecID.
+  for (uint32_t SpecIt = 0; SpecIt < Count; SpecIt++) {
+    uint32_t SpecId = SpecConstants[SpecIt].id;
+    Program->SpecConstants[SpecId] = SpecConstants[SpecIt].pValue;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+} // namespace ur::level_zero
 
 ur_program_handle_t_::~ur_program_handle_t_() {
   if (!resourcesReleased) {
@@ -999,26 +1030,4 @@ void ur_program_handle_t_::ur_release_program_resources(bool deletion) {
     }
     resourcesReleased = true;
   }
-}
-
-UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
-    ur_program_handle_t Program, ///< [in] handle of the Program object
-    uint32_t Count, ///< [in] the number of elements in the pSpecConstants array
-    const ur_specialization_constant_info_t
-        *SpecConstants ///< [in][range(0, count)] array of specialization
-                       ///< constant value descriptions
-) {
-  std::scoped_lock<ur_shared_mutex> Guard(Program->Mutex);
-
-  // Remember the value of this specialization constant until the program is
-  // built.  Note that we only save the pointer to the buffer that contains the
-  // value.  The caller is responsible for maintaining storage for this buffer.
-  //
-  // NOTE: SpecSize is unused in Level Zero, the size is known from SPIR-V by
-  // SpecID.
-  for (uint32_t SpecIt = 0; SpecIt < Count; SpecIt++) {
-    uint32_t SpecId = SpecConstants[SpecIt].id;
-    Program->SpecConstants[SpecId] = SpecConstants[SpecIt].pValue;
-  }
-  return UR_RESULT_SUCCESS;
 }

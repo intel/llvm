@@ -23,7 +23,7 @@ struct CommandListCacheTest : public uur::urContextTest {};
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(CommandListCacheTest);
 
 TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
-    v2::command_list_cache_t cache(context->hContext);
+    v2::command_list_cache_t cache(context->getZeHandle());
 
     bool IsInOrder = false;
     uint32_t Ordinal = 0;
@@ -75,7 +75,7 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
 }
 
 TEST_P(CommandListCacheTest, ImmediateCommandListsHaveProperAttributes) {
-    v2::command_list_cache_t cache(context->hContext);
+    v2::command_list_cache_t cache(context->getZeHandle());
 
     uint32_t numQueueGroups = 0;
     ASSERT_EQ(zeDeviceGetCommandQueueGroupProperties(device->ZeDevice,

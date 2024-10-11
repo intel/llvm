@@ -24,7 +24,6 @@ private:
   native_type HIPDevice;
   std::atomic_uint32_t RefCount;
   ur_platform_handle_t Platform;
-  hipCtx_t HIPContext;
   hipEvent_t EvBase; // HIP event used as base counter
   uint32_t DeviceIndex;
 
@@ -37,11 +36,10 @@ private:
   int ConcurrentManagedAccess{0};
 
 public:
-  ur_device_handle_t_(native_type HipDevice, hipCtx_t Context,
-                      hipEvent_t EvBase, ur_platform_handle_t Platform,
-                      uint32_t DeviceIndex)
-      : HIPDevice(HipDevice), RefCount{1}, Platform(Platform),
-        HIPContext(Context), EvBase(EvBase), DeviceIndex(DeviceIndex) {
+  ur_device_handle_t_(native_type HipDevice, hipEvent_t EvBase,
+                      ur_platform_handle_t Platform, uint32_t DeviceIndex)
+      : HIPDevice(HipDevice), RefCount{1}, Platform(Platform), EvBase(EvBase),
+        DeviceIndex(DeviceIndex) {
 
     UR_CHECK_ERROR(hipDeviceGetAttribute(
         &MaxWorkGroupSize, hipDeviceAttributeMaxThreadsPerBlock, HIPDevice));
@@ -61,9 +59,7 @@ public:
         HIPDevice));
   }
 
-  ~ur_device_handle_t_() noexcept(false) {
-    UR_CHECK_ERROR(hipDevicePrimaryCtxRelease(HIPDevice));
-  }
+  ~ur_device_handle_t_() noexcept(false) {}
 
   native_type get() const noexcept { return HIPDevice; };
 
@@ -72,8 +68,6 @@ public:
   ur_platform_handle_t getPlatform() const noexcept { return Platform; };
 
   uint64_t getElapsedTime(hipEvent_t) const;
-
-  hipCtx_t getNativeContext() const noexcept { return HIPContext; };
 
   // Returns the index of the device relative to the other devices in the same
   // platform
@@ -97,3 +91,20 @@ public:
 };
 
 int getAttribute(ur_device_handle_t Device, hipDeviceAttribute_t Attribute);
+
+namespace {
+/// Scoped Device is used across all UR HIP plugin implementation to activate
+/// the native Device on the current thread. The ScopedDevice does not
+/// reinstate the previous device as all operations in the HIP adapter that
+/// require an active device, set the active device and don't rely on device
+/// reinstation
+class ScopedDevice {
+public:
+  ScopedDevice(ur_device_handle_t hDevice) {
+    if (!hDevice) {
+      throw UR_RESULT_ERROR_INVALID_DEVICE;
+    }
+    UR_CHECK_ERROR(hipSetDevice(hDevice->getIndex()));
+  }
+};
+} // namespace

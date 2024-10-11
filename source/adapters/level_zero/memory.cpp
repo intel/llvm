@@ -15,9 +15,11 @@
 
 #include "context.hpp"
 #include "event.hpp"
+#include "helpers/memory_helpers.hpp"
 #include "image.hpp"
 #include "logger/ur_logger.hpp"
 #include "queue.hpp"
+#include "ur_interface_loader.hpp"
 #include "ur_level_zero.hpp"
 
 // Default to using compute engine for fill operation, but allow to
@@ -59,7 +61,7 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
-                                 ur_queue_handle_legacy_t Queue, void *Dst,
+                                 ur_queue_handle_t Queue, void *Dst,
                                  ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
@@ -112,13 +114,12 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyRectHelper(
-    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
-    const void *SrcBuffer, void *DstBuffer, ur_rect_offset_t SrcOrigin,
-    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
-    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
-    ur_bool_t Blocking, uint32_t NumEventsInWaitList,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
-    bool PreferCopyEngine) {
+    ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
+    void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
+    ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
+    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent, bool PreferCopyEngine) {
   bool UseCopyEngine = Queue->useCopyEngine(PreferCopyEngine);
 
   _ur_ze_event_list_t TmpWaitList;
@@ -198,9 +199,9 @@ ur_result_t enqueueMemCopyRectHelper(
 
 // PI interfaces must have queue's and buffer's mutexes locked on entry.
 static ur_result_t enqueueMemFillHelper(ur_command_t CommandType,
-                                        ur_queue_handle_legacy_t Queue,
-                                        void *Ptr, const void *Pattern,
-                                        size_t PatternSize, size_t Size,
+                                        ur_queue_handle_t Queue, void *Ptr,
+                                        const void *Pattern, size_t PatternSize,
+                                        size_t Size,
                                         uint32_t NumEventsInWaitList,
                                         const ur_event_handle_t *EventWaitList,
                                         ur_event_handle_t *OutEvent) {
@@ -315,7 +316,7 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
     // indirect access, that is why explicitly retain context to be sure
     // that it is released after all memory allocations in this context are
     // released.
-    UR_CALL(urContextRetain(UrContext));
+    UR_CALL(ur::level_zero::urContextRetain(UrContext));
   }
 
   ZeStruct<ze_host_mem_alloc_desc_t> ZeDesc;
@@ -337,7 +338,7 @@ static ur_result_t ZeHostMemAllocHelper(void **ResultPtr,
 // PI interfaces must have queue's and destination image's mutexes locked for
 // exclusive use and source image's mutex locked for shared use on entry.
 static ur_result_t enqueueMemImageCommandHelper(
-    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
+    ur_command_t CommandType, ur_queue_handle_t Queue,
     const void *Src, // image or ptr
     void *Dst,       // image or ptr
     ur_bool_t IsBlocking, ur_rect_offset_t *SrcOrigin,
@@ -406,7 +407,8 @@ static ur_result_t enqueueMemImageCommandHelper(
 
     char *ZeHandleSrc = nullptr;
     UR_CALL(SrcMem->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                Queue->Device));
+                                Queue->Device, EventWaitList,
+                                NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyToMemory,
                (ZeCommandList, Dst, ur_cast<ze_image_handle_t>(ZeHandleSrc),
                 &ZeSrcRegion, ZeEvent, WaitList.Length, WaitList.ZeEventList));
@@ -439,7 +441,8 @@ static ur_result_t enqueueMemImageCommandHelper(
 
     char *ZeHandleDst = nullptr;
     UR_CALL(DstMem->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device));
+                                Queue->Device, EventWaitList,
+                                NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyFromMemory,
                (ZeCommandList, ur_cast<ze_image_handle_t>(ZeHandleDst), Src,
                 &ZeDstRegion, ZeEvent, WaitList.Length, WaitList.ZeEventList));
@@ -457,9 +460,11 @@ static ur_result_t enqueueMemImageCommandHelper(
     char *ZeHandleSrc = nullptr;
     char *ZeHandleDst = nullptr;
     UR_CALL(SrcImage->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                  Queue->Device));
+                                  Queue->Device, EventWaitList,
+                                  NumEventsInWaitList));
     UR_CALL(DstImage->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                  Queue->Device));
+                                  Queue->Device, EventWaitList,
+                                  NumEventsInWaitList));
     ZE2UR_CALL(zeCommandListAppendImageCopyRegion,
                (ZeCommandList, ur_cast<ze_image_handle_t>(ZeHandleDst),
                 ur_cast<ze_image_handle_t>(ZeHandleSrc), &ZeDstRegion,
@@ -474,7 +479,10 @@ static ur_result_t enqueueMemImageCommandHelper(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferRead(
+namespace ur::level_zero {
+
+ur_result_t urEnqueueMemBufferRead(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     size_t offset,     ///< [in] offset in bytes in the buffer object
@@ -492,7 +500,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferRead(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
-  auto Queue = this;
   ur_mem_handle_t_ *Src = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Src->Mutex, std::defer_lock);
@@ -501,14 +508,16 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferRead(
 
   char *ZeHandleSrc = nullptr;
   UR_CALL(Src->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                           Queue->Device));
+                           Queue->Device, phEventWaitList,
+                           numEventsInWaitList));
   return enqueueMemCopyHelper(UR_COMMAND_MEM_BUFFER_READ, Queue, pDst,
                               blockingRead, size, ZeHandleSrc + offset,
                               numEventsInWaitList, phEventWaitList, phEvent,
                               true /* PreferCopyEngine */);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWrite(
+ur_result_t urEnqueueMemBufferWrite(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
         blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
@@ -528,7 +537,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWrite(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
-  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -536,7 +544,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWrite(
 
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device));
+                              Queue->Device, phEventWaitList,
+                              numEventsInWaitList));
   return enqueueMemCopyHelper(UR_COMMAND_MEM_BUFFER_WRITE, Queue,
                               ZeHandleDst + offset, // dst
                               blockingWrite, size,
@@ -545,7 +554,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWrite(
                               true /* PreferCopyEngine */);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferReadRect(
+ur_result_t urEnqueueMemBufferReadRect(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool blockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t bufferOffset, ///< [in] 3D offset in the buffer
@@ -573,7 +583,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferReadRect(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
-  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::shared_lock<ur_shared_mutex> SrcLock(Buffer->Mutex, std::defer_lock);
@@ -582,7 +591,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferReadRect(
 
   char *ZeHandleSrc;
   UR_CALL(Buffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                              Queue->Device));
+                              Queue->Device, phEventWaitList,
+                              numEventsInWaitList));
   return enqueueMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_READ_RECT, Queue, ZeHandleSrc, pDst, bufferOffset,
       hostOffset, region, bufferRowPitch, hostRowPitch, bufferSlicePitch,
@@ -590,7 +600,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferReadRect(
       phEvent);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWriteRect(
+ur_result_t urEnqueueMemBufferWriteRect(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t hBuffer, ///< [in] handle of the buffer object
     bool
         blockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
@@ -620,7 +631,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWriteRect(
         *phEvent ///< [in,out][optional] return an event object that identifies
                  ///< this particular command instance.
 ) {
-  auto Queue = this;
   ur_mem_handle_t_ *Buffer = ur_cast<ur_mem_handle_t_ *>(hBuffer);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
@@ -628,7 +638,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWriteRect(
 
   char *ZeHandleDst = nullptr;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device));
+                              Queue->Device, phEventWaitList,
+                              numEventsInWaitList));
   return enqueueMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_WRITE_RECT, Queue,
       const_cast<char *>(static_cast<const char *>(pSrc)), ZeHandleDst,
@@ -637,7 +648,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferWriteRect(
       phEventWaitList, phEvent);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferCopy(
+ur_result_t urEnqueueMemBufferCopy(
+    ur_queue_handle_t Queue,   ///< [in] handle of the queue object
     ur_mem_handle_t BufferSrc, ///< [in] handle of the src buffer object
     ur_mem_handle_t BufferDst, ///< [in] handle of the dest buffer object
     size_t SrcOffset, ///< [in] offset into hBufferSrc to begin copying from
@@ -655,7 +667,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferCopy(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -676,10 +687,12 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferCopy(
 
   char *ZeHandleSrc = nullptr;
   UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 Queue->Device));
+                                 Queue->Device, EventWaitList,
+                                 NumEventsInWaitList));
   char *ZeHandleDst = nullptr;
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 Queue->Device));
+                                 Queue->Device, EventWaitList,
+                                 NumEventsInWaitList));
 
   return enqueueMemCopyHelper(
       UR_COMMAND_MEM_BUFFER_COPY, Queue, ZeHandleDst + DstOffset,
@@ -688,9 +701,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferCopy(
       OutEvent, PreferCopyEngine);
 }
 
-ur_result_t
-ur_queue_handle_legacy_t_::enqueueMemBufferCopyRect( ///< [in] handle of the
-                                                     ///< queue object
+ur_result_t urEnqueueMemBufferCopyRect(
+    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
     ur_mem_handle_t BufferSrc,  ///< [in] handle of the source buffer object
     ur_mem_handle_t BufferDst,  ///< [in] handle of the dest buffer object
     ur_rect_offset_t SrcOrigin, ///< [in] 3D offset in the source buffer
@@ -717,7 +729,6 @@ ur_queue_handle_legacy_t_::enqueueMemBufferCopyRect( ///< [in] handle of the
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   _ur_buffer *SrcBuffer = ur_cast<_ur_buffer *>(BufferSrc);
   _ur_buffer *DstBuffer = ur_cast<_ur_buffer *>(BufferDst);
 
@@ -735,10 +746,12 @@ ur_queue_handle_legacy_t_::enqueueMemBufferCopyRect( ///< [in] handle of the
 
   char *ZeHandleSrc = nullptr;
   UR_CALL(SrcBuffer->getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                                 Queue->Device));
+                                 Queue->Device, EventWaitList,
+                                 NumEventsInWaitList));
   char *ZeHandleDst = nullptr;
   UR_CALL(DstBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                 Queue->Device));
+                                 Queue->Device, EventWaitList,
+                                 NumEventsInWaitList));
 
   return enqueueMemCopyRectHelper(
       UR_COMMAND_MEM_BUFFER_COPY_RECT, Queue, ZeHandleSrc, ZeHandleDst,
@@ -748,11 +761,12 @@ ur_queue_handle_legacy_t_::enqueueMemBufferCopyRect( ///< [in] handle of the
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferFill(
-    ur_mem_handle_t Buffer, ///< [in] handle of the buffer object
-    const void *Pattern,    ///< [in] pointer to the fill pattern
-    size_t PatternSize,     ///< [in] size in bytes of the pattern
-    size_t Offset,          ///< [in] offset into the buffer
+ur_result_t urEnqueueMemBufferFill(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    ur_mem_handle_t Buffer,  ///< [in] handle of the buffer object
+    const void *Pattern,     ///< [in] pointer to the fill pattern
+    size_t PatternSize,      ///< [in] size in bytes of the pattern
+    size_t Offset,           ///< [in] offset into the buffer
     size_t Size, ///< [in] fill size in bytes, must be a multiple of patternSize
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
@@ -766,14 +780,14 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferFill(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Buffer->Mutex);
 
   char *ZeHandleDst = nullptr;
   _ur_buffer *UrBuffer = reinterpret_cast<_ur_buffer *>(Buffer);
   UR_CALL(UrBuffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device));
+                                Queue->Device, EventWaitList,
+                                NumEventsInWaitList));
   return enqueueMemFillHelper(
       UR_COMMAND_MEM_BUFFER_FILL, Queue, ZeHandleDst + Offset,
       Pattern,     // It will be interpreted as an 8-bit value,
@@ -781,8 +795,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferFill(
       Size, NumEventsInWaitList, EventWaitList, OutEvent);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageRead(
-    ur_mem_handle_t Image, ///< [in] handle of the image object
+ur_result_t urEnqueueMemImageRead(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    ur_mem_handle_t Image,   ///< [in] handle of the image object
     bool BlockingRead, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
                              ///< the 1D, 2D, or 3D image
@@ -803,7 +818,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageRead(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -812,8 +826,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageRead(
       EventWaitList, OutEvent);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageWrite(
-    ur_mem_handle_t Image, ///< [in] handle of the image object
+ur_result_t urEnqueueMemImageWrite(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    ur_mem_handle_t Image,   ///< [in] handle of the image object
     bool
         BlockingWrite, ///< [in] indicates blocking (true), non-blocking (false)
     ur_rect_offset_t Origin, ///< [in] defines the (x,y,z) offset in pixels in
@@ -835,7 +850,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageWrite(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(Queue->Mutex,
                                                           Image->Mutex);
   return enqueueMemImageCommandHelper(
@@ -844,9 +858,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemImageWrite(
       EventWaitList, OutEvent);
 }
 
-ur_result_t
-ur_queue_handle_legacy_t_::enqueueMemImageCopy( ///< [in] handle of
-                                                ///< the queue object
+ur_result_t urEnqueueMemImageCopy(
+    ur_queue_handle_t Queue,    ///< [in] handle of the queue object
     ur_mem_handle_t ImageSrc,   ///< [in] handle of the src image object
     ur_mem_handle_t ImageDst,   ///< [in] handle of the dest image object
     ur_rect_offset_t SrcOrigin, ///< [in] defines the (x,y,z) offset in pixels
@@ -867,7 +880,6 @@ ur_queue_handle_legacy_t_::enqueueMemImageCopy( ///< [in] handle of
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::shared_lock<ur_shared_mutex> SrcLock(ImageSrc->Mutex, std::defer_lock);
   std::scoped_lock<std::shared_lock<ur_shared_mutex>, ur_shared_mutex,
                    ur_shared_mutex>
@@ -885,8 +897,9 @@ ur_queue_handle_legacy_t_::enqueueMemImageCopy( ///< [in] handle of
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
-    ur_mem_handle_t Buf, ///< [in] handle of the buffer object
+ur_result_t urEnqueueMemBufferMap(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    ur_mem_handle_t Buf,     ///< [in] handle of the buffer object
     bool BlockingMap, ///< [in] indicates blocking (true), non-blocking (false)
     ur_map_flags_t MapFlags, ///< [in] flags for read, write, readwrite mapping
     size_t Offset, ///< [in] offset in bytes of the buffer region being mapped
@@ -905,7 +918,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
     void **RetMap  ///< [in,out] return mapped pointer.  TODO: move it before
                    ///< numEventsInWaitList?
 ) {
-  auto Queue = this;
   auto Buffer = ur_cast<_ur_buffer *>(Buf);
 
   UR_ASSERT(!Buffer->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -964,16 +976,17 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     if (NumEventsInWaitList > 0)
-      UR_CALL(urEventWait(NumEventsInWaitList, EventWaitList));
+      UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
     if (Queue->isInOrderQueue())
-      UR_CALL(urQueueFinish(Queue));
+      UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     // Lock automatically releases when this goes out of scope.
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
 
     char *ZeHandleSrc;
-    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device));
+    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device,
+                                EventWaitList, NumEventsInWaitList));
 
     if (Buffer->MapHostPtr) {
       *RetMap = Buffer->MapHostPtr + Offset;
@@ -1030,7 +1043,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
     const auto &WaitList = (*Event)->WaitList;
 
     char *ZeHandleSrc;
-    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device));
+    UR_CALL(Buffer->getZeHandle(ZeHandleSrc, AccessMode, Queue->Device,
+                                EventWaitList, NumEventsInWaitList));
 
     UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                            NumEventsInWaitList, EventWaitList,
@@ -1053,7 +1067,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemBufferMap(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
+ur_result_t urEnqueueMemUnmap(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
     ur_mem_handle_t Mem, ///< [in] handle of the memory (buffer or image) object
     void *MappedPtr,     ///< [in] mapped host address
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
@@ -1068,7 +1083,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   UR_ASSERT(!Mem->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
   auto Buffer = ur_cast<_ur_buffer *>(Mem);
@@ -1120,14 +1134,15 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
   if (Buffer->OnHost) {
     // Wait on incoming events before doing the copy
     if (NumEventsInWaitList > 0)
-      UR_CALL(urEventWait(NumEventsInWaitList, EventWaitList));
+      UR_CALL(ur::level_zero::urEventWait(NumEventsInWaitList, EventWaitList));
 
     if (Queue->isInOrderQueue())
-      UR_CALL(urQueueFinish(Queue));
+      UR_CALL(ur::level_zero::urQueueFinish(Queue));
 
     char *ZeHandleDst;
     UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                Queue->Device));
+                                Queue->Device, EventWaitList,
+                                NumEventsInWaitList));
 
     std::scoped_lock<ur_shared_mutex> Guard(Buffer->Mutex);
     if (Buffer->MapHostPtr)
@@ -1146,8 +1161,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
 
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
-      reinterpret_cast<ur_queue_handle_legacy_t>(Queue), CommandList,
-      UseCopyEngine, NumEventsInWaitList, EventWaitList));
+      reinterpret_cast<ur_queue_handle_t>(Queue), CommandList, UseCopyEngine,
+      NumEventsInWaitList, EventWaitList));
 
   CommandList->second.append(reinterpret_cast<ur_event_handle_t>(*Event));
   (*Event)->RefCount.increment();
@@ -1162,7 +1177,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
 
   char *ZeHandleDst;
   UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                              Queue->Device));
+                              Queue->Device, EventWaitList,
+                              NumEventsInWaitList));
 
   UR_CALL(setSignalEvent(Queue, UseCopyEngine, &ZeEvent, Event,
                          NumEventsInWaitList, EventWaitList,
@@ -1180,8 +1196,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueMemUnmap(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy(
-    bool Blocking,   ///< [in] blocking or non-blocking copy
+ur_result_t urEnqueueUSMMemcpy(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    bool Blocking,           ///< [in] blocking or non-blocking copy
     void *Dst,       ///< [in] pointer to the destination USM memory object
     const void *Src, ///< [in] pointer to the source USM memory object
     size_t Size,     ///< [in] size in bytes to be copied
@@ -1197,7 +1214,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
   // Device to Device copies are found to execute slower on copy engine
@@ -1219,7 +1235,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy(
       NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMPrefetch(
+ur_result_t urEnqueueUSMPrefetch(
+    ur_queue_handle_t Queue,        ///< [in] handle of the queue object
     const void *Mem,                ///< [in] pointer to the USM memory object
     size_t Size,                    ///< [in] size in bytes to be fetched
     ur_usm_migration_flags_t Flags, ///< [in] USM prefetch flags
@@ -1235,7 +1252,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMPrefetch(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   std::ignore = Flags;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
@@ -1287,7 +1303,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMPrefetch(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMAdvise(
+ur_result_t urEnqueueUSMAdvise(
+    ur_queue_handle_t Queue,      ///< [in] handle of the queue object
     const void *Mem,              ///< [in] pointer to the USM memory object
     size_t Size,                  ///< [in] size in bytes to be advised
     ur_usm_advice_flags_t Advice, ///< [in] USM memory advice
@@ -1295,7 +1312,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMAdvise(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular command instance.
 ) {
-  auto Queue = this;
   // Lock automatically releases when this goes out of scope.
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
@@ -1345,8 +1361,9 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMAdvise(
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill2D(
-    void *Mem,    ///< [in] pointer to memory to be filled.
+ur_result_t urEnqueueUSMFill2D(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
+    void *Mem,               ///< [in] pointer to memory to be filled.
     size_t Pitch, ///< [in] the total width of the destination memory including
                   ///< padding.
     size_t PatternSize,  ///< [in] the size in bytes of the pattern.
@@ -1364,6 +1381,7 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill2D(
         *OutEvent ///< [in,out][optional] return an event object that identifies
                   ///< this particular kernel execution instance.
 ) {
+  std::ignore = Queue;
   std::ignore = Mem;
   std::ignore = Pitch;
   std::ignore = PatternSize;
@@ -1378,7 +1396,8 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill2D(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy2D(
+ur_result_t urEnqueueUSMMemcpy2D(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue to submit to.
     bool Blocking, ///< [in] indicates if this operation should block the host.
     void *Dst,     ///< [in] pointer to memory where data will be copied.
     size_t DstPitch, ///< [in] the total width of the source memory including
@@ -1399,7 +1418,6 @@ ur_result_t ur_queue_handle_legacy_t_::enqueueUSMMemcpy2D(
         *Event ///< [in,out][optional] return an event object that identifies
                ///< this particular kernel execution instance.
 ) {
-  auto Queue = this;
   ur_rect_offset_t ZeroOffset{0, 0, 0};
   ur_rect_region_t Region{Width, Height, 0};
 
@@ -1500,7 +1518,7 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
+ur_result_t urMemImageCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     const ur_image_format_t
@@ -1549,7 +1567,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
+ur_result_t urMemImageCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t Context,  ///< [in] handle of the context object.
     [[maybe_unused]] const ur_image_format_t
@@ -1577,7 +1595,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
+ur_result_t urMemBufferCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
     size_t Size, ///< [in] size in bytes of the memory object to be allocated
@@ -1599,30 +1617,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     Host = Properties->pHost;
   }
 
-  // If USM Import feature is enabled and hostptr is supplied,
-  // import the hostptr if not already imported into USM.
-  // Data transfer rate is maximized when both source and destination
-  // are USM pointers. Promotion of the host pointer to USM thus
-  // optimizes data transfer performance.
   bool HostPtrImported = false;
-  if (ZeUSMImport.Enabled && Host != nullptr &&
-      (Flags & UR_MEM_FLAG_USE_HOST_POINTER) != 0) {
-    // Query memory type of the host pointer
-    ze_device_handle_t ZeDeviceHandle;
-    ZeStruct<ze_memory_allocation_properties_t> ZeMemoryAllocationProperties;
-    ZE2UR_CALL(zeMemGetAllocProperties,
-               (Context->ZeContext, Host, &ZeMemoryAllocationProperties,
-                &ZeDeviceHandle));
-
-    // If not shared of any type, we can import the ptr
-    if (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_UNKNOWN) {
-      // Promote the host ptr to USM host memory
-      ze_driver_handle_t driverHandle =
-          Context->getPlatform()->ZeDriverHandleExpTranslated;
-      ZeUSMImport.doZeUSMImport(driverHandle, Host, Size);
-      HostPtrImported = true;
-    }
-  }
+  if (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
+    HostPtrImported =
+        maybeImportUSM(Context->getPlatform()->ZeDriverHandleExpTranslated,
+                       Context->ZeContext, Host, Size);
 
   _ur_buffer *Buffer = nullptr;
   auto HostPtrOrNull = (Flags & UR_MEM_FLAG_USE_HOST_POINTER)
@@ -1646,7 +1645,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
       // allocation.
       char *ZeHandleDst;
       UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
-                                  Context->Devices[0]));
+                                  Context->Devices[0], nullptr, 0u));
       if (Buffer->OnHost) {
         // Do a host to host copy.
         // For an imported HostPtr the copy is unneeded.
@@ -1671,14 +1670,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(
+ur_result_t urMemRetain(
     ur_mem_handle_t Mem ///< [in] handle of the memory object to get access
 ) {
   Mem->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
+ur_result_t urMemRelease(
     ur_mem_handle_t Mem ///< [in] handle of the memory object to release
 ) {
   if (!Mem->RefCount.decrementAndTest())
@@ -1688,7 +1687,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
     char *ZeHandleImage;
     auto Image = static_cast<_ur_image *>(Mem);
     if (Image->OwnNativeHandle) {
-      UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only));
+      UR_CALL(Mem->getZeHandle(ZeHandleImage, ur_mem_handle_t_::write_only,
+                               nullptr, nullptr, 0u));
       auto ZeResult = ZE_CALL_NOCHECK(
           zeImageDestroy, (ur_cast<ze_image_handle_t>(ZeHandleImage)));
       // Gracefully handle the case that L0 was already unloaded.
@@ -1704,7 +1704,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
+ur_result_t urMemBufferPartition(
     ur_mem_handle_t
         Buffer,           ///< [in] handle of the buffer object to allocate from
     ur_mem_flags_t Flags, ///< [in] allocation and usage information flags
@@ -1740,7 +1740,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferPartition(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
+ur_result_t urMemGetNativeHandle(
     ur_mem_handle_t Mem, ///< [in] handle of the mem.
     ur_device_handle_t,  ///< [in] handle of the device.
     ur_native_handle_t
@@ -1748,13 +1748,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetNativeHandle(
 ) {
   std::shared_lock<ur_shared_mutex> Guard(Mem->Mutex);
   char *ZeHandle = nullptr;
-  UR_CALL(Mem->getZeHandle(ZeHandle, ur_mem_handle_t_::read_write));
+  UR_CALL(Mem->getZeHandle(ZeHandle, ur_mem_handle_t_::read_write, nullptr,
+                           nullptr, 0u));
   *NativeMem = ur_cast<ur_native_handle_t>(ZeHandle);
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
+ur_result_t urMemBufferCreateWithNativeHandle(
     ur_native_handle_t NativeMem, ///< [in] the native handle to the memory.
     ur_context_handle_t Context,  ///< [in] handle of the context object.
     const ur_mem_native_properties_t
@@ -1821,7 +1822,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     ContextsLock.lock();
     // Retain context to be sure that it is released after all memory
     // allocations in this context are released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
 
     Context->MemAllocs.emplace(std::piecewise_construct,
                                std::forward_as_tuple(Ptr),
@@ -1839,8 +1840,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
     // represent the buffer in this context) copy the data to a newly
     // created device allocation.
     char *ZeHandleDst;
-    UR_CALL(
-        Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only, Device));
+    UR_CALL(Buffer->getZeHandle(ZeHandleDst, ur_mem_handle_t_::write_only,
+                                Device, nullptr, 0u));
 
     // Indicate that this buffer has the device buffer mapped to a native buffer
     // and track the native pointer such that the memory is synced later at
@@ -1857,7 +1858,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreateWithNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
+ur_result_t urMemGetInfo(
     ur_mem_handle_t Memory, ///< [in] handle to the memory object being queried.
     ur_mem_info_t MemInfoType, ///< [in] type of the info to retrieve.
     size_t PropSize, ///< [in] the number of bytes of memory pointed to by
@@ -1893,7 +1894,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
+ur_result_t urMemImageGetInfo(
     ur_mem_handle_t Memory, ///< [in] handle to the image object being queried.
     ur_image_info_t ImgInfoType, ///< [in] type of image info to retrieve.
     size_t PropSize, ///< [in] the number of bytes of memory pointer to by
@@ -1916,6 +1917,79 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
+ur_result_t urEnqueueUSMFill(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    void *Ptr,               ///< [in] pointer to USM memory object
+    size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
+                         ///< power of 2 and less than or equal to width.
+    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
+    size_t Size, ///< [in] size in bytes to be set. Must be a multiple of
+                 ///< patternSize.
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                       ///< pointer to a list of events that must be complete
+                       ///< before this command can be executed. If nullptr, the
+                       ///< numEventsInWaitList must be 0, indicating that this
+                       ///< command does not wait on any event to complete.
+    ur_event_handle_t *Event ///< [out][optional] return an event object that
+                             ///< identifies this particular command instance.
+) {
+  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
+
+  return enqueueMemFillHelper(
+      // TODO: do we need a new command type for USM memset?
+      UR_COMMAND_MEM_BUFFER_FILL, Queue, Ptr,
+      Pattern,     // It will be interpreted as an 8-bit value,
+      PatternSize, // which is indicated with this pattern_size==1
+      Size, NumEventsInWaitList, EventWaitList, Event);
+}
+
+/// Host Pipes
+ur_result_t urEnqueueReadHostPipe(ur_queue_handle_t hQueue,
+                                  ur_program_handle_t hProgram,
+                                  const char *pipe_symbol, bool blocking,
+                                  void *pDst, size_t size,
+                                  uint32_t numEventsInWaitList,
+                                  const ur_event_handle_t *phEventWaitList,
+                                  ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pDst;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+ur_result_t urEnqueueWriteHostPipe(ur_queue_handle_t hQueue,
+                                   ur_program_handle_t hProgram,
+                                   const char *pipe_symbol, bool blocking,
+                                   void *pSrc, size_t size,
+                                   uint32_t numEventsInWaitList,
+                                   const ur_event_handle_t *phEventWaitList,
+                                   ur_event_handle_t *phEvent) {
+  std::ignore = hQueue;
+  std::ignore = hProgram;
+  std::ignore = pipe_symbol;
+  std::ignore = blocking;
+  std::ignore = pSrc;
+  std::ignore = size;
+  std::ignore = numEventsInWaitList;
+  std::ignore = phEventWaitList;
+  std::ignore = phEvent;
+  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
+                "{} function not implemented!", __FUNCTION__);
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+} // namespace ur::level_zero
+
 // If indirect access tracking is enabled then performs reference counting,
 // otherwise just calls zeMemAllocDevice.
 static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
@@ -1935,7 +2009,7 @@ static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
     // indirect access, that is why explicitly retain context to be sure
     // that it is released after all memory allocations in this context are
     // released.
-    UR_CALL(urContextRetain(Context));
+    UR_CALL(ur::level_zero::urContextRetain(Context));
   }
 
   ze_device_mem_alloc_desc_t ZeDesc = {};
@@ -1954,7 +2028,9 @@ static ur_result_t ZeDeviceMemAllocHelper(void **ResultPtr,
 }
 
 ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
-                                    ur_device_handle_t Device) {
+                                    ur_device_handle_t Device,
+                                    const ur_event_handle_t *phWaitEvents,
+                                    uint32_t numWaitEvents) {
 
   // NOTE: There might be no valid allocation at all yet and we get
   // here from piEnqueueKernelLaunch that would be doing the buffer
@@ -1969,18 +2045,30 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
 
   auto &Allocation = Allocations[Device];
 
+  if (this->isFreed) {
+    die("getZeHandle() buffer already released, no valid handles.");
+  }
+
   // Sub-buffers don't maintain own allocations but rely on parent buffer.
   if (SubBuffer) {
-    UR_CALL(SubBuffer->Parent->getZeHandle(ZeHandle, AccessMode, Device));
-    ZeHandle += SubBuffer->Origin;
-    // Still store the allocation info in the PI sub-buffer for
-    // getZeHandlePtr to work. At least zeKernelSetArgumentValue needs to
-    // be given a pointer to the allocation handle rather than its value.
-    //
-    Allocation.ZeHandle = ZeHandle;
-    Allocation.ReleaseAction = allocation_t::keep;
-    LastDeviceWithValidAllocation = Device;
-    return UR_RESULT_SUCCESS;
+    // Verify that the Parent Buffer is still valid or if it has been freed.
+    if (SubBuffer->Parent && !SubBuffer->Parent->isFreed) {
+      UR_CALL(SubBuffer->Parent->getZeHandle(ZeHandle, AccessMode, Device,
+                                             phWaitEvents, numWaitEvents));
+      ZeHandle += SubBuffer->Origin;
+      // Still store the allocation info in the PI sub-buffer for
+      // getZeHandlePtr to work. At least zeKernelSetArgumentValue needs to
+      // be given a pointer to the allocation handle rather than its value.
+      //
+      Allocation.ZeHandle = ZeHandle;
+      Allocation.ReleaseAction = allocation_t::keep;
+      LastDeviceWithValidAllocation = Device;
+      return UR_RESULT_SUCCESS;
+    } else {
+      // Return an error if the parent buffer is already gone.
+      die("getZeHandle() SubBuffer's parent already released, no valid "
+          "handles.");
+    }
   }
 
   // First handle case where the buffer is represented by only
@@ -1995,8 +2083,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        UR_CALL(urUSMHostAlloc(UrContext, &USMDesc, Pool, Size,
-                               reinterpret_cast<void **>(&ZeHandle)));
+        UR_CALL(ur::level_zero::urUSMHostAlloc(
+            UrContext, &USMDesc, Pool, Size,
+            reinterpret_cast<void **>(&ZeHandle)));
       } else {
         HostAllocation.ReleaseAction = allocation_t::free_native;
         UR_CALL(ZeHostMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
@@ -2043,7 +2132,8 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
       // TODO: we can probably generalize this and share root-device
       //       allocations by its own sub-devices even if not all other
       //       devices in the context have the same root.
-      UR_CALL(getZeHandle(ZeHandle, AccessMode, UrContext->SingleRootDevice));
+      UR_CALL(getZeHandle(ZeHandle, AccessMode, UrContext->SingleRootDevice,
+                          phWaitEvents, numWaitEvents));
       Allocation.ReleaseAction = allocation_t::keep;
       Allocation.ZeHandle = ZeHandle;
       Allocation.Valid = true;
@@ -2054,8 +2144,9 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         ur_usm_desc_t USMDesc{};
         USMDesc.align = getAlignment();
         ur_usm_pool_handle_t Pool{};
-        UR_CALL(urUSMDeviceAlloc(UrContext, Device, &USMDesc, Pool, Size,
-                                 reinterpret_cast<void **>(&ZeHandle)));
+        UR_CALL(ur::level_zero::urUSMDeviceAlloc(
+            UrContext, Device, &USMDesc, Pool, Size,
+            reinterpret_cast<void **>(&ZeHandle)));
       } else {
         Allocation.ReleaseAction = allocation_t::free_native;
         UR_CALL(ZeDeviceMemAllocHelper(reinterpret_cast<void **>(&ZeHandle),
@@ -2085,7 +2176,8 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     char *ZeHandleSrc = nullptr;
     if (NeedCopy) {
       UR_CALL(getZeHandle(ZeHandleSrc, ur_mem_handle_t_::read_only,
-                          LastDeviceWithValidAllocation));
+                          LastDeviceWithValidAllocation, phWaitEvents,
+                          numWaitEvents));
       // It's possible with the single root-device contexts that
       // the buffer is represented by the single root-device
       // allocation and then skip the copy to itself.
@@ -2094,6 +2186,33 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
     }
 
     if (NeedCopy) {
+      // Wait on all dependency events passed in to ensure that the memory which
+      // is being init is updated correctly.
+      _ur_ze_event_list_t waitlist;
+      waitlist.ZeEventList = nullptr;
+      waitlist.Length = 0;
+      uint32_t EventListIndex = 0;
+      for (unsigned i = 0; i < numWaitEvents; ++i) {
+        if (phWaitEvents[i]->HostVisibleEvent) {
+          ZE2UR_CALL(zeEventHostSynchronize,
+                     (phWaitEvents[i]->ZeEvent, UINT64_MAX));
+        } else {
+          // Generate the waitlist for the Copy calls based on the passed in
+          // dependencies, if they exist for device only.
+          if (waitlist.ZeEventList == nullptr) {
+            waitlist.ZeEventList = new ze_event_handle_t[numWaitEvents];
+          }
+          waitlist.ZeEventList[EventListIndex] = phWaitEvents[i]->ZeEvent;
+          waitlist.Length++;
+          EventListIndex++;
+        }
+      }
+      if (waitlist.Length > 0) {
+        ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+                   (UrContext->ZeCommandListInit, waitlist.Length,
+                    waitlist.ZeEventList));
+      }
+
       // Copy valid buffer data to this allocation.
       // TODO: see if we should better use peer's device allocation used
       // directly, if that capability is reported with zeDeviceCanAccessPeer,
@@ -2118,8 +2237,8 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
             ur_usm_desc_t USMDesc{};
             USMDesc.align = getAlignment();
             ur_usm_pool_handle_t Pool{};
-            UR_CALL(
-                urUSMHostAlloc(UrContext, &USMDesc, Pool, Size, &ZeHandleHost));
+            UR_CALL(ur::level_zero::urUSMHostAlloc(UrContext, &USMDesc, Pool,
+                                                   Size, &ZeHandleHost));
           } else {
             HostAllocation.ReleaseAction = allocation_t::free_native;
             UR_CALL(ZeHostMemAllocHelper(&ZeHandleHost, UrContext, Size));
@@ -2131,7 +2250,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         if (!HostAllocation.Valid) {
           ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                      (UrContext->ZeCommandListInit, HostAllocation.ZeHandle,
-                      ZeHandleSrc, Size, nullptr, 0, nullptr));
+                      ZeHandleSrc, Size, nullptr, 0u, nullptr));
           // Mark the host allocation data  as valid so it can be reused.
           // It will be invalidated below if the current access is not
           // read-only.
@@ -2139,13 +2258,16 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
         }
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, ZeHandle,
-                    HostAllocation.ZeHandle, Size, nullptr, 0, nullptr));
+                    HostAllocation.ZeHandle, Size, nullptr, 0u, nullptr));
       } else {
         // Perform P2P copy.
         std::scoped_lock<ur_mutex> Lock(UrContext->ImmediateCommandListMutex);
         ZE2UR_CALL(zeCommandListAppendMemoryCopy,
                    (UrContext->ZeCommandListInit, ZeHandle, ZeHandleSrc, Size,
-                    nullptr, 0, nullptr));
+                    nullptr, 0u, nullptr));
+      }
+      if (waitlist.ZeEventList) {
+        delete waitlist.ZeEventList;
       }
     }
     Allocation.Valid = true;
@@ -2209,6 +2331,7 @@ ur_result_t _ur_buffer::free() {
       die("_ur_buffer::free(): Unhandled release action");
     }
     ZeHandle = nullptr; // don't leave hanging pointers
+    this->isFreed = true;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -2274,9 +2397,12 @@ _ur_buffer::_ur_buffer(ur_context_handle_t Context, size_t Size,
 
 ur_result_t _ur_buffer::getZeHandlePtr(char **&ZeHandlePtr,
                                        access_mode_t AccessMode,
-                                       ur_device_handle_t Device) {
+                                       ur_device_handle_t Device,
+                                       const ur_event_handle_t *phWaitEvents,
+                                       uint32_t numWaitEvents) {
   char *ZeHandle;
-  UR_CALL(getZeHandle(ZeHandle, AccessMode, Device));
+  UR_CALL(
+      getZeHandle(ZeHandle, AccessMode, Device, phWaitEvents, numWaitEvents));
   ZeHandlePtr = &Allocations[Device].ZeHandle;
   return UR_RESULT_SUCCESS;
 }
@@ -2300,67 +2426,4 @@ size_t _ur_buffer::getAlignment() const {
   else
     Alignment = 1UL;
   return Alignment;
-}
-
-ur_result_t ur_queue_handle_legacy_t_::enqueueUSMFill(
-    void *Ptr,           ///< [in] pointer to USM memory object
-    size_t PatternSize,  ///< [in] the size in bytes of the pattern. Must be a
-                         ///< power of 2 and less than or equal to width.
-    const void *Pattern, ///< [in] pointer with the bytes of the pattern to set.
-    size_t Size, ///< [in] size in bytes to be set. Must be a multiple of
-                 ///< patternSize.
-    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
-    const ur_event_handle_t *
-        EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
-                       ///< pointer to a list of events that must be complete
-                       ///< before this command can be executed. If nullptr, the
-                       ///< numEventsInWaitList must be 0, indicating that this
-                       ///< command does not wait on any event to complete.
-    ur_event_handle_t *Event ///< [out][optional] return an event object that
-                             ///< identifies this particular command instance.
-) {
-  auto Queue = this;
-  std::scoped_lock<ur_shared_mutex> Lock(Queue->Mutex);
-
-  return enqueueMemFillHelper(
-      // TODO: do we need a new command type for USM memset?
-      UR_COMMAND_MEM_BUFFER_FILL, Queue, Ptr,
-      Pattern,     // It will be interpreted as an 8-bit value,
-      PatternSize, // which is indicated with this pattern_size==1
-      Size, NumEventsInWaitList, EventWaitList, Event);
-}
-
-/// Host Pipes
-ur_result_t ur_queue_handle_legacy_t_::enqueueReadHostPipe(
-    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
-    void *pDst, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pDst;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t ur_queue_handle_legacy_t_::enqueueWriteHostPipe(
-    ur_program_handle_t hProgram, const char *pipe_symbol, bool blocking,
-    void *pSrc, size_t size, uint32_t numEventsInWaitList,
-    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hProgram;
-  std::ignore = pipe_symbol;
-  std::ignore = blocking;
-  std::ignore = pSrc;
-  std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  logger::error(logger::LegacyMessage("[UR][L0] {} function not implemented!"),
-                "{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

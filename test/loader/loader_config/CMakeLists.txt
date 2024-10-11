@@ -9,6 +9,7 @@ add_ur_executable(test-loader-config
     urLoaderConfigEnableLayer.cpp
     urLoaderConfigRelease.cpp
     urLoaderConfigRetain.cpp
+    urLoaderConfigSetCodeLocationCallback.cpp
 )
 
 target_link_libraries(test-loader-config

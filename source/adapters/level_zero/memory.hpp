@@ -20,14 +20,11 @@
 #include <vector>
 
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 #include <zes_api.h>
 
 #include "ur_level_zero.hpp"
-
-struct ur_queue_handle_legacy_t_;
-using ur_queue_handle_legacy_t = ur_queue_handle_legacy_t_ *;
 
 struct ur_device_handle_t_;
 
@@ -48,7 +45,7 @@ const bool UseCopyEngineForD2DCopy = [] {
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
 ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
-                                 ur_queue_handle_legacy_t Queue, void *Dst,
+                                 ur_queue_handle_t Queue, void *Dst,
                                  ur_bool_t BlockingWrite, size_t Size,
                                  const void *Src, uint32_t NumEventsInWaitList,
                                  const ur_event_handle_t *EventWaitList,
@@ -56,13 +53,12 @@ ur_result_t enqueueMemCopyHelper(ur_command_t CommandType,
                                  bool PreferCopyEngine);
 
 ur_result_t enqueueMemCopyRectHelper(
-    ur_command_t CommandType, ur_queue_handle_legacy_t Queue,
-    const void *SrcBuffer, void *DstBuffer, ur_rect_offset_t SrcOrigin,
-    ur_rect_offset_t DstOrigin, ur_rect_region_t Region, size_t SrcRowPitch,
-    size_t DstRowPitch, size_t SrcSlicePitch, size_t DstSlicePitch,
-    ur_bool_t Blocking, uint32_t NumEventsInWaitList,
-    const ur_event_handle_t *EventWaitList, ur_event_handle_t *OutEvent,
-    bool PreferCopyEngine = false);
+    ur_command_t CommandType, ur_queue_handle_t Queue, const void *SrcBuffer,
+    void *DstBuffer, ur_rect_offset_t SrcOrigin, ur_rect_offset_t DstOrigin,
+    ur_rect_region_t Region, size_t SrcRowPitch, size_t DstRowPitch,
+    size_t SrcSlicePitch, size_t DstSlicePitch, ur_bool_t Blocking,
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *EventWaitList,
+    ur_event_handle_t *OutEvent, bool PreferCopyEngine = false);
 
 struct ur_mem_handle_t_ : _ur_object {
   // Keeps the PI context of this memory handle.
@@ -78,11 +74,15 @@ struct ur_mem_handle_t_ : _ur_object {
 
   // Get the Level Zero handle of the current memory object
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device = nullptr) = 0;
+                                  ur_device_handle_t Device,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) = 0;
 
   // Get a pointer to the Level Zero handle of the current memory object
   virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t Device = nullptr) = 0;
+                                     ur_device_handle_t Device,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) = 0;
 
   // Method to get type of the derived object (image or buffer)
   virtual bool isImage() const = 0;
@@ -108,7 +108,10 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // Sub-buffer constructor
   _ur_buffer(_ur_buffer *Parent, size_t Origin, size_t Size)
       : ur_mem_handle_t_(Parent->UrContext),
-        Size(Size), SubBuffer{{Parent, Origin}} {}
+        Size(Size), SubBuffer{{Parent, Origin}} {
+    // Retain the Parent Buffer due to the Creation of the SubBuffer.
+    Parent->RefCount.increment();
+  }
 
   // Interop-buffer constructor
   _ur_buffer(ur_context_handle_t Context, size_t Size,
@@ -122,16 +125,22 @@ struct _ur_buffer final : ur_mem_handle_t_ {
   // the hood.
   //
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t Device = nullptr) override;
-  virtual ur_result_t
-  getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                 ur_device_handle_t Device = nullptr) override;
+                                  ur_device_handle_t Device,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) override;
+  virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
+                                     ur_device_handle_t Device,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) override;
 
   bool isImage() const override { return false; }
   bool isSubBuffer() const { return SubBuffer != std::nullopt; }
 
   // Frees all allocations made for the buffer.
   ur_result_t free();
+
+  // Tracks if this buffer is freed already or should be considered valid.
+  bool isFreed{false};
 
   // Information about a single allocation representing this buffer.
   struct allocation_t {
@@ -203,12 +212,20 @@ struct _ur_image final : ur_mem_handle_t_ {
   }
 
   virtual ur_result_t getZeHandle(char *&ZeHandle, access_mode_t,
-                                  ur_device_handle_t = nullptr) override {
+                                  ur_device_handle_t,
+                                  const ur_event_handle_t *phWaitEvents,
+                                  uint32_t numWaitEvents) override {
+    std::ignore = phWaitEvents;
+    std::ignore = numWaitEvents;
     ZeHandle = reinterpret_cast<char *>(ZeImage);
     return UR_RESULT_SUCCESS;
   }
   virtual ur_result_t getZeHandlePtr(char **&ZeHandlePtr, access_mode_t,
-                                     ur_device_handle_t = nullptr) override {
+                                     ur_device_handle_t,
+                                     const ur_event_handle_t *phWaitEvents,
+                                     uint32_t numWaitEvents) override {
+    std::ignore = phWaitEvents;
+    std::ignore = numWaitEvents;
     ZeHandlePtr = reinterpret_cast<char **>(&ZeImage);
     return UR_RESULT_SUCCESS;
   }

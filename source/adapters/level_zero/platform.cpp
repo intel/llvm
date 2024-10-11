@@ -12,7 +12,9 @@
 #include "adapter.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
+namespace ur::level_zero {
+
+ur_result_t urPlatformGet(
     ur_adapter_handle_t *, uint32_t,
     uint32_t NumEntries, ///< [in] the number of platforms to be added to
                          ///< phPlatforms. If phPlatforms is not NULL, then
@@ -47,7 +49,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGet(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
+ur_result_t urPlatformGetInfo(
     ur_platform_handle_t Platform, ///< [in] handle of the platform
     ur_platform_info_t ParamName,  ///< [in] type of the info to retrieve
     size_t Size,      ///< [in] the number of bytes pointed to by pPlatformInfo.
@@ -101,7 +103,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
+ur_result_t urPlatformGetApiVersion(
     ur_platform_handle_t Driver, ///< [in] handle of the platform
     ur_api_version_t *Version    ///< [out] api version
 ) {
@@ -110,7 +112,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetApiVersion(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
+ur_result_t urPlatformGetNativeHandle(
     ur_platform_handle_t Platform,     ///< [in] handle of the platform.
     ur_native_handle_t *NativePlatform ///< [out] a pointer to the native
                                        ///< handle of the platform.
@@ -120,7 +122,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetNativeHandle(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
+ur_result_t urPlatformCreateWithNativeHandle(
     ur_native_handle_t
         NativePlatform, ///< [in] the native handle of the platform.
     ur_adapter_handle_t,
@@ -135,12 +137,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 
   uint32_t NumPlatforms = 0;
   ur_adapter_handle_t AdapterHandle = GlobalAdapter;
-  UR_CALL(urPlatformGet(&AdapterHandle, 1, 0, nullptr, &NumPlatforms));
+  UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, 0, nullptr,
+                                        &NumPlatforms));
 
   if (NumPlatforms) {
     std::vector<ur_platform_handle_t> Platforms(NumPlatforms);
-    UR_CALL(urPlatformGet(&AdapterHandle, 1, NumPlatforms, Platforms.data(),
-                          nullptr));
+    UR_CALL(ur::level_zero::urPlatformGet(&AdapterHandle, 1, NumPlatforms,
+                                          Platforms.data(), nullptr));
 
     // The SYCL spec requires that the set of platforms must remain fixed for
     // the duration of the application's execution. We assume that we found all
@@ -157,6 +160,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformCreateWithNativeHandle(
 
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
+
+// Returns plugin specific backend option.
+// Current support is only for optimization options.
+// Return '-ze-opt-disable' for frontend_option = -O0.
+// Return '-ze-opt-level=2' for frontend_option = -O1, -O2 or -O3.
+// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
+// frontend_option=-ftarget-compile-fast.
+ur_result_t urPlatformGetBackendOption(
+    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
+    const char *FrontendOption, ///< [in] string containing the frontend option.
+    const char *
+        *PlatformOption ///< [out] returns the correct platform specific
+                        ///< compiler option based on the frontend option.
+) {
+  std::ignore = Platform;
+  using namespace std::literals;
+  if (FrontendOption == nullptr) {
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == ""sv) {
+    *PlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O0"sv) {
+    *PlatformOption = "-ze-opt-disable";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv ||
+      FrontendOption == "-O3"sv) {
+    *PlatformOption = "-ze-opt-level=2";
+    return UR_RESULT_SUCCESS;
+  }
+  if (FrontendOption == "-ftarget-compile-fast"sv) {
+    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_ERROR_INVALID_VALUE;
+}
+
+} // namespace ur::level_zero
 
 ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetApiVersion, (ZeDriver, &ZeApiVersion));
@@ -512,42 +555,4 @@ ur_device_handle_t ur_platform_handle_t_::getDeviceById(DeviceId id) {
     }
   }
   return nullptr;
-}
-
-// Returns plugin specific backend option.
-// Current support is only for optimization options.
-// Return '-ze-opt-disable' for frontend_option = -O0.
-// Return '-ze-opt-level=2' for frontend_option = -O1, -O2 or -O3.
-// Return '-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'' for
-// frontend_option=-ftarget-compile-fast.
-UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
-    ur_platform_handle_t Platform, ///< [in] handle of the platform instance.
-    const char *FrontendOption, ///< [in] string containing the frontend option.
-    const char *
-        *PlatformOption ///< [out] returns the correct platform specific
-                        ///< compiler option based on the frontend option.
-) {
-  std::ignore = Platform;
-  using namespace std::literals;
-  if (FrontendOption == nullptr) {
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == ""sv) {
-    *PlatformOption = "";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-O0"sv) {
-    *PlatformOption = "-ze-opt-disable";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-O1"sv || FrontendOption == "-O2"sv ||
-      FrontendOption == "-O3"sv) {
-    *PlatformOption = "-ze-opt-level=2";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-ftarget-compile-fast"sv) {
-    *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
-    return UR_RESULT_SUCCESS;
-  }
-  return UR_RESULT_ERROR_INVALID_VALUE;
 }

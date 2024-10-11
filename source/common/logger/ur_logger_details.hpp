@@ -30,6 +30,8 @@ class Logger {
 
     void setLevel(logger::Level level) { this->level = level; }
 
+    logger::Level getLevel() { return this->level; }
+
     void setFlushLevel(logger::Level level) {
         if (sink) {
             this->sink->setFlushLevel(level);

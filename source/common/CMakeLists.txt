@@ -3,6 +3,12 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
+    include(FetchLevelZero)
+    set(UMF_BUILD_LEVEL_ZERO_PROVIDER ON CACHE INTERNAL "Build Level Zero Provider")
+    set(UMF_LEVEL_ZERO_INCLUDE_DIR "${LEVEL_ZERO_INCLUDE_DIR}" CACHE INTERNAL "Level Zero headers")
+endif()
+
 add_ur_library(ur_common STATIC
     ur_util.cpp
     ur_util.hpp
@@ -24,8 +30,8 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # v0.9.x 23.08.2024: Merge pull request #696 ...
-    set(UMF_TAG 3c340e61c197f4f9e29abd947f90ce27c571433e)
+    # main 03.10.2024: Add umfIsFreeOpDefault(hProvider)
+    set(UMF_TAG fa006eea503a58e79fa197891f1391c9dcda73e1)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")
@@ -36,10 +42,15 @@ FetchContent_Declare(unified-memory-framework
     GIT_TAG           ${UMF_TAG}
 )
 
+if (UR_STATIC_ADAPTER_L0)
+    if (UMF_BUILD_SHARED_LIBRARY)
+        message(STATUS "Static adapter is not compatible with shared UMF, switching to fully statically linked UMF")
+        set(UMF_BUILD_SHARED_LIBRARY OFF)
+    endif()
+endif()
+
 set(UMF_BUILD_TESTS OFF CACHE INTERNAL "Build UMF tests")
 set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "Build UMF examples")
-# TODO: L0 provider not ready yet
-set(UMF_BUILD_LEVEL_ZERO_PROVIDER OFF CACHE INTERNAL "Build Level Zero Provider")
 set(UMF_BUILD_SHARED_LIBRARY ${UMF_BUILD_SHARED_LIBRARY} CACHE INTERNAL "Build UMF shared library")
 set(UMF_BUILD_LIBUMF_POOL_DISJOINT ON CACHE INTERNAL "Build Disjoint Pool")
 
@@ -85,9 +96,9 @@ install(TARGETS ur_common
 
 add_library(ur_umf INTERFACE)
 target_sources(ur_umf INTERFACE
-    umf_helpers.hpp
-    umf_pools/disjoint_pool_config_parser.cpp
-    ur_pool_manager.hpp
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_helpers.hpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/umf_pools/disjoint_pool_config_parser.cpp>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/ur_pool_manager.hpp>
 )
 
 add_library(${PROJECT_NAME}::umf ALIAS ur_umf)

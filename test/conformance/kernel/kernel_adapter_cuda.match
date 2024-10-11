@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urKernelSetArgLocalTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_

@@ -169,10 +169,6 @@ jobs:
         -DCMAKE_CXX_COMPILER="$(which clang++)"
         -DLLVM_LIT="${{github.workspace}}/sycl-repo/llvm/utils/lit/lit.py"
 
-    - name: Set LIT_XFAIL_NOT
-      if: inputs.xfail_not != ''
-      run: echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
-
     - name: Set LIT_XFAIL
       if: inputs.xfail != ''
       run: echo "LIT_XFAIL=${{inputs.xfail}}" >> $GITHUB_ENV
@@ -180,6 +176,10 @@ jobs:
     - name: Set LIT_FILTER_OUT
       if: inputs.filter_out != ''
       run: echo "LIT_FILTER_OUT=${{inputs.filter_out}}" >> $GITHUB_ENV
+
+    - name: Set LIT_XFAIL_NOT
+      if: inputs.xfail_not != ''
+      run: echo "LIT_XFAIL_NOT=${{inputs.xfail_not}}" >> $GITHUB_ENV
 
     # TODO: remove once intel/llvm lit tests can properly recognize the GPU
     - name: Configure hardware platform feature for L0

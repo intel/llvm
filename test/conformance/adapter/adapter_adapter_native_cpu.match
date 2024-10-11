@@ -1,3 +1,4 @@
+{{NONDETERMINISTIC}}
 urAdapterGetLastErrorTest.Success
 urAdapterGetLastErrorTest.InvalidHandle
 urAdapterGetLastErrorTest.InvalidMessagePtr

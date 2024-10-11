@@ -17,6 +17,8 @@ struct ur_exp_command_buffer_command_handle_t_ {
   ur_exp_command_buffer_handle_t hCommandBuffer;
   /// OpenCL command-handle.
   cl_mutable_command_khr CLMutableCommand;
+  /// Kernel associated with this command handle
+  ur_kernel_handle_t Kernel;
   /// Work-dimension the command was originally created with.
   cl_uint WorkDim;
   /// Set to true if the user set the local work size on command creation.
@@ -31,11 +33,12 @@ struct ur_exp_command_buffer_command_handle_t_ {
 
   ur_exp_command_buffer_command_handle_t_(
       ur_exp_command_buffer_handle_t hCommandBuffer,
-      cl_mutable_command_khr CLMutableCommand, cl_uint WorkDim,
-      bool UserDefinedLocalSize)
+      cl_mutable_command_khr CLMutableCommand, ur_kernel_handle_t Kernel,
+      cl_uint WorkDim, bool UserDefinedLocalSize)
       : hCommandBuffer(hCommandBuffer), CLMutableCommand(CLMutableCommand),
-        WorkDim(WorkDim), UserDefinedLocalSize(UserDefinedLocalSize),
-        RefCountInternal(0), RefCountExternal(0) {}
+        Kernel(Kernel), WorkDim(WorkDim),
+        UserDefinedLocalSize(UserDefinedLocalSize), RefCountInternal(0),
+        RefCountExternal(0) {}
 
   uint32_t incrementInternalReferenceCount() noexcept {
     return ++RefCountInternal;

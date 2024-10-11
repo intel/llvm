@@ -35,6 +35,10 @@ add_unittest(level_zero_command_list_cache
 
 add_unittest(level_zero_event_pool
         event_pool_test.cpp
+        ${PROJECT_SOURCE_DIR}/source/ur/ur.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/adapter.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/device.cpp
+        ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/platform.cpp
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool.cpp
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_pool_cache.cpp
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_normal.cpp

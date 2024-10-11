@@ -3,6 +3,9 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+// Offsets are deprecated, but we should still test that they work
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
 #include <sycl/sycl.hpp>
 
 int main() {

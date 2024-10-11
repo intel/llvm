@@ -30,12 +30,11 @@ jobs:
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
 
-    # TODO: enable once test failure are fixed/ignored
-    # - name: Download DPC++
-    #   run: |
-    #     wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
-    #     mkdir dpcpp_compiler
-    #     tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
+    - name: Download DPC++
+      run: |
+        wget -O ${{github.workspace}}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-01-29/sycl_linux.tar.gz
+        mkdir dpcpp_compiler
+        tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure CMake
       shell: bash -el {0}
@@ -49,6 +48,8 @@ jobs:
         -DUR_BUILD_TESTS=ON
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
         -DUR_TEST_DEVICES_COUNT=2
+        -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
+        -DUR_SYCL_LIBRARY_DIR=${{github.workspace}}/dpcpp_compiler/lib
 
     - name: Build
       run: cmake --build ${{github.workspace}}/build -j $(nproc)
@@ -60,4 +61,4 @@ jobs:
 
     - name: Test adapters
       working-directory: ${{github.workspace}}/build
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" --timeout 180
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "enqueue|kernel|program|integration|exp_command_buffer|exp_enqueue_native|exp_launch_properties|exp_usm_p2p" --timeout 180

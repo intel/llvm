@@ -70,6 +70,7 @@ function(add_ur_target_compile_options name)
         )
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+            target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
         if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE
@@ -136,6 +137,15 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
+endfunction()
+
+function(install_ur_library name)
+    install(TARGETS ${name}
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+    )
 endfunction()
 
 include(FetchContent)

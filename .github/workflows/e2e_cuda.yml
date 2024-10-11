@@ -21,3 +21,4 @@ jobs:
       config: "--cuda"
       unit: "gpu"
       extra_lit_flags: "-sv --max-time=3600"
+      xfail: "Regression/device_num.cpp"

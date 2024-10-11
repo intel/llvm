@@ -37,7 +37,8 @@ TEST_P(urProgramCreateWithILTest, Success) {
 }
 
 TEST_P(urProgramCreateWithILTest, SuccessWithProperties) {
-    ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES};
+    ur_program_properties_t properties{UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES,
+                                       nullptr, 0, nullptr};
     ur_program_handle_t program = nullptr;
     ASSERT_SUCCESS(urProgramCreateWithIL(
         context, il_binary->data(), il_binary->size(), &properties, &program));
