@@ -3600,10 +3600,10 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
-    SourceLocation LL =
-        CallOperator ? CallOperator->getBeginLoc() : SourceLocation();
-    SourceLocation LR =
-        CallOperator ? CallOperator->getEndLoc() : SourceLocation();
+
+    const auto *LDcl = NewBody;
+    SourceLocation LL = LDcl ? LDcl->getBeginLoc() : SourceLocation();
+    SourceLocation LR = LDcl ? LDcl->getEndLoc() : SourceLocation();
 
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
                                 FPOptionsOverride(), LL, LR);
