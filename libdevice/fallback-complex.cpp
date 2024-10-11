@@ -150,8 +150,14 @@ float __complex__ __devicelib_cexpf(float __complex__ z) {
         z_imag = NAN;
       return CMPLXF(z_real, z_imag);
     }
-  } else if (__spirv_IsNan(z_real) && (z_imag == 0.0f)) {
-    return z;
+  } else if (__spirv_IsNan(z_real)) {
+    if (z_imag == 0.0f)
+      return z;
+    else /* z_imag != 0.0 */
+      return CMPLXF(NAN, NAN);
+  } else if (__spirv_IsFinite(z_real)) {
+    if (__spirv_IsNan(z_imag) || __spirv_IsInf(z_imag))
+      return CMPLXF(NAN, NAN);
   }
   float __e = __spirv_ocl_exp(z_real);
   float ret_real = __e * __spirv_ocl_cos(z_imag);
