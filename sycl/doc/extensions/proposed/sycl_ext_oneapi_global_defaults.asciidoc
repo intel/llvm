@@ -114,7 +114,7 @@ sycl::device get_current_device();
 ----
 !====
 
-_Returns:_ The current default device. The initial device returned is the device
+_Returns:_ The current default device. If `set_current_device()` has not been called, returns the device
 returned by the default device selector.
 '''
 
@@ -135,7 +135,7 @@ void set_current_device(sycl::device dev);
 
 _Returns:_ Nothing
 
-_Remarks:_ Sets the current default device to `dev`.
+_Effects:_ Sets the current default device to `dev`.
 
 '''
 
@@ -151,10 +151,10 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::malloc_device(size_t numBytes, const property_list& propList = {});
+void* sycl::malloc_device(size_t numBytes, const property_list& propList = {}); (1)
 
 template <typename T>
-(2) T* sycl::malloc_device(size_t count, const property_list& propList = {});
+T* sycl::malloc_device(size_t count, const property_list& propList = {});       (2)
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -182,7 +182,7 @@ sycl::malloc_device<T>(count,
                        propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -194,12 +194,12 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::aligned_alloc_device(size_t alignment, size_t numBytes, 
-                                     const property_list& propList = {});
+void* sycl::aligned_alloc_device(size_t alignment, size_t numBytes,   (1)
+                                 const property_list& propList = {});
     
 template <typename T>
-(2) T* sycl::aligned_alloc_device(size_t alignment, size_t count,
-                                  const property_list& propList = {});
+T* sycl::aligned_alloc_device(size_t alignment, size_t count,         (2)
+                              const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -227,7 +227,7 @@ sycl::aligned_alloc_device<T>(alignment, count,
                               propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -240,12 +240,12 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::malloc_host(size_t numBytes, 
-                            const property_list& propList = {});
+void* sycl::malloc_host(size_t numBytes,                     (1)
+                        const property_list& propList = {});
 
 template <typename T>
-(2) T* sycl::malloc_host(size_t count, 
-                         const property_list& propList = {});
+T* sycl::malloc_host(size_t count,                           (2)
+                     const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -271,7 +271,7 @@ sycl::malloc_host<T>(count,
                      propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -284,12 +284,12 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::aligned_alloc_host(size_t alignment, size_t numBytes, 
-                                   const property_list& propList = {});
+void* sycl::aligned_alloc_host(size_t alignment, size_t numBytes,   (1)
+                               const property_list& propList = {});
 
 template <typename T>
-(2) T* sycl::aligned_alloc_host(size_t alignment, size_t count, 
-                                const property_list& propList = {});
+T* sycl::aligned_alloc_host(size_t alignment, size_t count,         (2)
+                            const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -315,7 +315,7 @@ sycl::aligned_alloc_host<T>(alignment, count,
                      propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -328,12 +328,12 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::malloc_shared(size_t numBytes, 
-                              const property_list& propList = {});
+void* sycl::malloc_shared(size_t numBytes,                     (1)
+                          const property_list& propList = {});
 
 template <typename T>
-(2) T* sycl::malloc_shared(size_t count, 
-                           const property_list& propList = {});
+T* sycl::malloc_shared(size_t count,                           (2)
+                       const property_list& propList = {});
 
 } // namespace sycl::ext::oneapi::experimental
 ----
@@ -361,7 +361,7 @@ sycl::malloc_shared<T>(count,
                        propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -373,13 +373,13 @@ a@
 ----
 namespace sycl::ext::oneapi::experimental {
 
-(1) void* sycl::aligned_alloc_shared(size_t numBytes, 
-                              const property_list& propList = {});
+void* sycl::aligned_alloc_shared(size_t numBytes,                     (1)
+                                 const property_list& propList = {});
 
 template <typename T>
-(2) T* sycl::aligned_alloc_shared(size_t count, 
-                           const property_list& propList = {});
-
+T* sycl::aligned_alloc_shared(size_t count,                           (2)
+                              const property_list& propList = {});
+ 
 } // namespace sycl::ext::oneapi::experimental
 ----
 !====
@@ -406,7 +406,7 @@ sycl::aligned_alloc_shared<T>(count,
                        propList)
 ----
 
-_Remarks:_ The device parameter is queried from the current device. The context is provided
+_Effects:_ The device parameter is queried from the current device. The context is provided
 by the default context of the platform of the current device.
 
 '''
@@ -435,7 +435,7 @@ sycl::free(ptr,
            get_current_device().get_platform().ext_oneapi_get_default_context())
 ----
 
-_Remarks:_ The context is provided by the default context of the platform of the 
+_Effects:_ The context is provided by the default context of the platform of the 
 current device.
 
 '''
@@ -474,16 +474,18 @@ a@
 [source,c++]
 ----
 namespace sycl {
-class queue {
+class device {
     ext_oneapi_get_default_queue();
 }                             
 } // namespace sycl
 ----
 !====
 
-_Returns:_ The default queue for the device.
+_Returns:_ The default queue for the device. This queue must be associated with the default
+context for the device.
 
 '''
+
 === Command-group submission
 
 When specifying event dependencies or requesting the creation of events,
@@ -508,7 +510,7 @@ _Effects_: The same result as computed by:
 
 [source, c++]
 ----
-submit_with_event(get_current_device().ext_oneapi_get_default_queue(), cgf)
+submit(get_current_device().ext_oneapi_get_default_queue(), cgf)
 ----
 
 a|
