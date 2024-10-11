@@ -1760,8 +1760,8 @@ public:
   /// Copies data from device to device memory, where \p Src and \p Dest
   /// are opaque image memory handles. Allows for a sub-region copy, where
   /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  /// sub-region. Pixel size is determined by \p SrcImgDesc
+  /// An exception is thrown if either \p Src or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
@@ -1788,8 +1788,8 @@ public:
   /// Copies data from device to device memory, where \p Src and \p Dest
   /// are opaque image memory handles. Allows for a sub-region copy, where
   /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  /// sub-region. Pixel size is determined by \p SrcImgDesc
+  /// An exception is thrown if either \p Src or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
@@ -1817,8 +1817,8 @@ public:
   /// Copies data from device to device memory, where \p Src and \p Dest
   /// are opaque image memory handles. Allows for a sub-region copy, where
   /// \p SrcOffset, \p DestOffset and \p CopyExtent are used to determine the
-  /// sub-region.
-  /// An exception is thrown if either \p Src or \p Dest is incomplete
+  /// sub-region. Pixel size is determined by \p SrcImgDesc
+  /// An exception is thrown if either \p Src or \p Dest is incomplete.
   ///
   /// \param Src is an opaque image memory handle to the source memory.
   /// \param SrcOffset is an offset from the origin of source measured in pixels
