@@ -117,14 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5e95d3334b872e6ae639d627c00dcbb7d206b702
-  # Author: Maosu Zhao <maosu.zhao@intel.com>
-  # Date:   Thu Oct 10 20:48:09 2024 +0800
-  #   [DeviceSanitizer] Only try to get backtrace symbols when needed (#2128)
-  set(UNIFIED_RUNTIME_TAG 5e95d3334b872e6ae639d627c00dcbb7d206b702)
-
-  set(UNIFIED_RUNTIME_REPO "https://github.com/yingcong-wu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG "yc-0829-move-tracing-before-sanitizer")
+  # commit 53c461b257e7bbf5827147c3b5ca0b8ea45b434d
+  # Merge: 2c4bf63b d93b262b
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 11 11:01:37 2024 +0100
+  #     Merge pull request #2174 from ProGTX/peter/winfix
+  #     [NFC][CUDA] Include STL headers in program.cpp
+  set(UNIFIED_RUNTIME_TAG 53c461b257e7bbf5827147c3b5ca0b8ea45b434d)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
