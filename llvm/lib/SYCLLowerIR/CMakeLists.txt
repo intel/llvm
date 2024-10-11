@@ -6,7 +6,7 @@ if (NOT TARGET LLVMGenXIntrinsics)
 
     # Date: Jul 25, 2024
     # Support MMX removal in LLVM upstream
-    set(LLVMGenXIntrinsics_GIT_TAG e1e2f81165ae75576a0201f342e7f1ea2ca40273)
+    set(LLVMGenXIntrinsics_GIT_TAG dpcpp_staging)
 
     message(STATUS "vc-intrinsics repo is missing. Will try to download it from ${LLVMGenXIntrinsics_GIT_REPO}")
     include(FetchContent)

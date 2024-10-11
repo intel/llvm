@@ -1071,9 +1071,7 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
       setOperationAction({ISD::VP_MERGE, ISD::VP_SELECT, ISD::SELECT}, VT,
                          Custom);
       setOperationAction(ISD::SELECT_CC, VT, Expand);
-      setOperationAction({ISD::SINT_TO_FP, ISD::UINT_TO_FP, ISD::VP_SINT_TO_FP,
-                          ISD::VP_UINT_TO_FP},
-                         VT, Custom);
+      setOperationAction({ISD::VP_SINT_TO_FP, ISD::VP_UINT_TO_FP}, VT, Custom);
       setOperationAction({ISD::INSERT_VECTOR_ELT, ISD::CONCAT_VECTORS,
                           ISD::INSERT_SUBVECTOR, ISD::EXTRACT_SUBVECTOR,
                           ISD::VECTOR_DEINTERLEAVE, ISD::VECTOR_INTERLEAVE,
@@ -1343,9 +1341,8 @@ RISCVTargetLowering::RISCVTargetLowering(const TargetMachine &TM,
           setOperationAction(
               {ISD::VP_MERGE, ISD::VP_SELECT, ISD::VSELECT, ISD::SELECT}, VT,
               Custom);
-          setOperationAction({ISD::SINT_TO_FP, ISD::UINT_TO_FP,
-                              ISD::VP_SINT_TO_FP, ISD::VP_UINT_TO_FP},
-                             VT, Custom);
+          setOperationAction({ISD::VP_SINT_TO_FP, ISD::VP_UINT_TO_FP}, VT,
+                             Custom);
           setOperationAction(ISD::VECTOR_SHUFFLE, VT, Custom);
           if (Subtarget.hasStdExtZfhmin()) {
             setOperationAction(ISD::BUILD_VECTOR, VT, Custom);
@@ -2066,145 +2063,6 @@ bool RISCVTargetLowering::
   // So only do the transform if X is not a constant. This matches the default
   // implementation of this function.
   return !XC;
-}
-
-bool RISCVTargetLowering::canSplatOperand(unsigned Opcode, int Operand) const {
-  switch (Opcode) {
-  case Instruction::Add:
-  case Instruction::Sub:
-  case Instruction::Mul:
-  case Instruction::And:
-  case Instruction::Or:
-  case Instruction::Xor:
-  case Instruction::FAdd:
-  case Instruction::FSub:
-  case Instruction::FMul:
-  case Instruction::FDiv:
-  case Instruction::ICmp:
-  case Instruction::FCmp:
-    return true;
-  case Instruction::Shl:
-  case Instruction::LShr:
-  case Instruction::AShr:
-  case Instruction::UDiv:
-  case Instruction::SDiv:
-  case Instruction::URem:
-  case Instruction::SRem:
-  case Instruction::Select:
-    return Operand == 1;
-  default:
-    return false;
-  }
-}
-
-
-bool RISCVTargetLowering::canSplatOperand(Instruction *I, int Operand) const {
-  if (!I->getType()->isVectorTy() || !Subtarget.hasVInstructions())
-    return false;
-
-  if (canSplatOperand(I->getOpcode(), Operand))
-    return true;
-
-  auto *II = dyn_cast<IntrinsicInst>(I);
-  if (!II)
-    return false;
-
-  switch (II->getIntrinsicID()) {
-  case Intrinsic::fma:
-  case Intrinsic::vp_fma:
-    return Operand == 0 || Operand == 1;
-  case Intrinsic::vp_shl:
-  case Intrinsic::vp_lshr:
-  case Intrinsic::vp_ashr:
-  case Intrinsic::vp_udiv:
-  case Intrinsic::vp_sdiv:
-  case Intrinsic::vp_urem:
-  case Intrinsic::vp_srem:
-  case Intrinsic::ssub_sat:
-  case Intrinsic::vp_ssub_sat:
-  case Intrinsic::usub_sat:
-  case Intrinsic::vp_usub_sat:
-    return Operand == 1;
-    // These intrinsics are commutative.
-  case Intrinsic::vp_add:
-  case Intrinsic::vp_mul:
-  case Intrinsic::vp_and:
-  case Intrinsic::vp_or:
-  case Intrinsic::vp_xor:
-  case Intrinsic::vp_fadd:
-  case Intrinsic::vp_fmul:
-  case Intrinsic::vp_icmp:
-  case Intrinsic::vp_fcmp:
-  case Intrinsic::smin:
-  case Intrinsic::vp_smin:
-  case Intrinsic::umin:
-  case Intrinsic::vp_umin:
-  case Intrinsic::smax:
-  case Intrinsic::vp_smax:
-  case Intrinsic::umax:
-  case Intrinsic::vp_umax:
-  case Intrinsic::sadd_sat:
-  case Intrinsic::vp_sadd_sat:
-  case Intrinsic::uadd_sat:
-  case Intrinsic::vp_uadd_sat:
-    // These intrinsics have 'vr' versions.
-  case Intrinsic::vp_sub:
-  case Intrinsic::vp_fsub:
-  case Intrinsic::vp_fdiv:
-    return Operand == 0 || Operand == 1;
-  default:
-    return false;
-  }
-}
-
-/// Check if sinking \p I's operands to I's basic block is profitable, because
-/// the operands can be folded into a target instruction, e.g.
-/// splats of scalars can fold into vector instructions.
-bool RISCVTargetLowering::shouldSinkOperands(
-    Instruction *I, SmallVectorImpl<Use *> &Ops) const {
-  using namespace llvm::PatternMatch;
-
-  if (!I->getType()->isVectorTy() || !Subtarget.hasVInstructions())
-    return false;
-
-  // Don't sink splat operands if the target prefers it. Some targets requires
-  // S2V transfer buffers and we can run out of them copying the same value
-  // repeatedly.
-  // FIXME: It could still be worth doing if it would improve vector register
-  // pressure and prevent a vector spill.
-  if (!Subtarget.sinkSplatOperands())
-    return false;
-
-  for (auto OpIdx : enumerate(I->operands())) {
-    if (!canSplatOperand(I, OpIdx.index()))
-      continue;
-
-    Instruction *Op = dyn_cast<Instruction>(OpIdx.value().get());
-    // Make sure we are not already sinking this operand
-    if (!Op || any_of(Ops, [&](Use *U) { return U->get() == Op; }))
-      continue;
-
-    // We are looking for a splat that can be sunk.
-    if (!match(Op, m_Shuffle(m_InsertElt(m_Undef(), m_Value(), m_ZeroInt()),
-                             m_Undef(), m_ZeroMask())))
-      continue;
-
-    // Don't sink i1 splats.
-    if (cast<VectorType>(Op->getType())->getElementType()->isIntegerTy(1))
-      continue;
-
-    // All uses of the shuffle should be sunk to avoid duplicating it across gpr
-    // and vector registers
-    for (Use &U : Op->uses()) {
-      Instruction *Insn = cast<Instruction>(U.getUser());
-      if (!canSplatOperand(Insn, U.getOperandNo()))
-        return false;
-    }
-
-    Ops.push_back(&Op->getOperandUse(0));
-    Ops.push_back(&OpIdx.value());
-  }
-  return true;
 }
 
 bool RISCVTargetLowering::shouldScalarizeBinop(SDValue VecOp) const {
@@ -20750,7 +20608,7 @@ Value *RISCVTargetLowering::emitMaskedAtomicRMWIntrinsic(
   Value *Ordering =
       Builder.getIntN(XLen, static_cast<uint64_t>(AI->getOrdering()));
   Type *Tys[] = {AlignedAddr->getType()};
-  Function *LrwOpScwLoop = Intrinsic::getDeclaration(
+  Function *LrwOpScwLoop = Intrinsic::getOrInsertDeclaration(
       AI->getModule(),
       getIntrinsicForMaskedAtomicRMWBinOp(XLen, AI->getOperation()), Tys);
 
@@ -20814,7 +20672,7 @@ Value *RISCVTargetLowering::emitMaskedAtomicCmpXchgIntrinsic(
   }
   Type *Tys[] = {AlignedAddr->getType()};
   Function *MaskedCmpXchg =
-      Intrinsic::getDeclaration(CI->getModule(), CmpXchgIntrID, Tys);
+      Intrinsic::getOrInsertDeclaration(CI->getModule(), CmpXchgIntrID, Tys);
   Value *Result = Builder.CreateCall(
       MaskedCmpXchg, {AlignedAddr, CmpVal, NewVal, Mask, Ordering});
   if (XLen == 64)
@@ -21312,7 +21170,7 @@ bool RISCVTargetLowering::preferScalarizeSplat(SDNode *N) const {
 static Value *useTpOffset(IRBuilderBase &IRB, unsigned Offset) {
   Module *M = IRB.GetInsertBlock()->getModule();
   Function *ThreadPointerFunc =
-      Intrinsic::getDeclaration(M, Intrinsic::thread_pointer);
+      Intrinsic::getOrInsertDeclaration(M, Intrinsic::thread_pointer);
   return IRB.CreateConstGEP1_32(IRB.getInt8Ty(),
                                 IRB.CreateCall(ThreadPointerFunc), Offset);
 }
@@ -21429,9 +21287,9 @@ bool RISCVTargetLowering::lowerInterleavedLoad(
 
   auto *XLenTy = Type::getIntNTy(LI->getContext(), Subtarget.getXLen());
 
-  Function *VlsegNFunc =
-      Intrinsic::getDeclaration(LI->getModule(), FixedVlsegIntrIds[Factor - 2],
-                                {VTy, LI->getPointerOperandType(), XLenTy});
+  Function *VlsegNFunc = Intrinsic::getOrInsertDeclaration(
+      LI->getModule(), FixedVlsegIntrIds[Factor - 2],
+      {VTy, LI->getPointerOperandType(), XLenTy});
 
   Value *VL = ConstantInt::get(XLenTy, VTy->getNumElements());
 
@@ -21483,9 +21341,9 @@ bool RISCVTargetLowering::lowerInterleavedStore(StoreInst *SI,
 
   auto *XLenTy = Type::getIntNTy(SI->getContext(), Subtarget.getXLen());
 
-  Function *VssegNFunc =
-      Intrinsic::getDeclaration(SI->getModule(), FixedVssegIntrIds[Factor - 2],
-                                {VTy, SI->getPointerOperandType(), XLenTy});
+  Function *VssegNFunc = Intrinsic::getOrInsertDeclaration(
+      SI->getModule(), FixedVssegIntrIds[Factor - 2],
+      {VTy, SI->getPointerOperandType(), XLenTy});
 
   auto Mask = SVI->getShuffleMask();
   SmallVector<Value *, 10> Ops;
@@ -21530,7 +21388,7 @@ bool RISCVTargetLowering::lowerDeinterleaveIntrinsicToLoad(
   Type *XLenTy = Type::getIntNTy(LI->getContext(), Subtarget.getXLen());
 
   if (auto *FVTy = dyn_cast<FixedVectorType>(ResVTy)) {
-    Function *VlsegNFunc = Intrinsic::getDeclaration(
+    Function *VlsegNFunc = Intrinsic::getOrInsertDeclaration(
         LI->getModule(), FixedVlsegIntrIds[Factor - 2],
         {ResVTy, LI->getPointerOperandType(), XLenTy});
     Value *VL = ConstantInt::get(XLenTy, FVTy->getNumElements());
@@ -21550,7 +21408,7 @@ bool RISCVTargetLowering::lowerDeinterleaveIntrinsicToLoad(
                                 NumElts * SEW / 8),
         Factor);
 
-    Function *VlsegNFunc = Intrinsic::getDeclaration(
+    Function *VlsegNFunc = Intrinsic::getOrInsertDeclaration(
         LI->getModule(), IntrIds[Factor - 2], {VecTupTy, XLenTy});
     Value *VL = Constant::getAllOnesValue(XLenTy);
 
@@ -21560,7 +21418,7 @@ bool RISCVTargetLowering::lowerDeinterleaveIntrinsicToLoad(
 
     SmallVector<Type *, 2> AggrTypes{Factor, ResVTy};
     Return = PoisonValue::get(StructType::get(LI->getContext(), AggrTypes));
-    Function *VecExtractFunc = Intrinsic::getDeclaration(
+    Function *VecExtractFunc = Intrinsic::getOrInsertDeclaration(
         LI->getModule(), Intrinsic::riscv_tuple_extract, {ResVTy, VecTupTy});
     for (unsigned i = 0; i < Factor; ++i) {
       Value *VecExtract =
@@ -21596,7 +21454,7 @@ bool RISCVTargetLowering::lowerInterleaveIntrinsicToStore(
   Type *XLenTy = Type::getIntNTy(SI->getContext(), Subtarget.getXLen());
 
   if (auto *FVTy = dyn_cast<FixedVectorType>(InVTy)) {
-    Function *VssegNFunc = Intrinsic::getDeclaration(
+    Function *VssegNFunc = Intrinsic::getOrInsertDeclaration(
         SI->getModule(), FixedVssegIntrIds[Factor - 2],
         {InVTy, SI->getPointerOperandType(), XLenTy});
     Value *VL = ConstantInt::get(XLenTy, FVTy->getNumElements());
@@ -21617,12 +21475,12 @@ bool RISCVTargetLowering::lowerInterleaveIntrinsicToStore(
                                 NumElts * SEW / 8),
         Factor);
 
-    Function *VssegNFunc = Intrinsic::getDeclaration(
+    Function *VssegNFunc = Intrinsic::getOrInsertDeclaration(
         SI->getModule(), IntrIds[Factor - 2], {VecTupTy, XLenTy});
 
     Value *VL = Constant::getAllOnesValue(XLenTy);
 
-    Function *VecInsertFunc = Intrinsic::getDeclaration(
+    Function *VecInsertFunc = Intrinsic::getOrInsertDeclaration(
         SI->getModule(), Intrinsic::riscv_tuple_insert, {VecTupTy, InVTy});
     Value *StoredVal = PoisonValue::get(VecTupTy);
     for (unsigned i = 0; i < Factor; ++i)
