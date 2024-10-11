@@ -12,7 +12,6 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception_list.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/queue.hpp>
 
@@ -123,14 +122,14 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {}, /*CallerNeedsEvent=*/true,
-                      CodeLoc);
+                      TlsCodeLocCapture.query());
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count, event DepEvent,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, {DepEvent},
-                      /*CallerNeedsEvent=*/true, CodeLoc);
+                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
 }
 
 event queue::memcpy(void *Dest, const void *Src, size_t Count,
@@ -138,7 +137,7 @@ event queue::memcpy(void *Dest, const void *Src, size_t Count,
                     const detail::code_location &CodeLoc) {
   detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
   return impl->memcpy(impl, Dest, Src, Count, DepEvents,
-                      /*CallerNeedsEvent=*/true, CodeLoc);
+                      /*CallerNeedsEvent=*/true, TlsCodeLocCapture.query());
 }
 
 event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
@@ -167,30 +166,59 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
 
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, CodeLoc);
+  return impl->submit(CGH, impl, CodeLoc, true);
+}
+event queue::submit_impl(std::function<void(handler &)> CGH,
+                         const detail::code_location &CodeLoc,
+                         bool IsTopCodeLoc) {
+  return impl->submit(CGH, impl, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
                          const detail::code_location &CodeLoc) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc);
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, true);
+}
+event queue::submit_impl(std::function<void(handler &)> CGH, queue SecondQueue,
+                         const detail::code_location &CodeLoc,
+                         bool IsTopCodeLoc) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, IsTopCodeLoc);
 }
 
 void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
                                       const detail::code_location &CodeLoc) {
-  return impl->submit_without_event(CGH, impl, CodeLoc);
+  return impl->submit_without_event(CGH, impl, CodeLoc, true);
+}
+void queue::submit_without_event_impl(std::function<void(handler &)> CGH,
+                                      const detail::code_location &CodeLoc,
+                                      bool IsTopCodeLoc) {
+  return impl->submit_without_event(CGH, impl, CodeLoc, IsTopCodeLoc);
 }
 
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
-  return impl->submit(CGH, impl, CodeLoc, &PostProcess);
+  return impl->submit(CGH, impl, CodeLoc, true, &PostProcess);
+}
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         const detail::code_location &CodeLoc,
+                                         const SubmitPostProcessF &PostProcess,
+                                         bool IsTopCodeLoc) {
+  return impl->submit(CGH, impl, CodeLoc, IsTopCodeLoc, &PostProcess);
 }
 
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, queue SecondQueue,
     const detail::code_location &CodeLoc,
     const SubmitPostProcessF &PostProcess) {
-  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, &PostProcess);
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, true, &PostProcess);
+}
+event queue::submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                                         queue SecondQueue,
+                                         const detail::code_location &CodeLoc,
+                                         const SubmitPostProcessF &PostProcess,
+                                         bool IsTopCodeLoc) {
+  return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, IsTopCodeLoc,
+                      &PostProcess);
 }
 
 void queue::wait_proxy(const detail::code_location &CodeLoc) {
@@ -246,7 +274,8 @@ event queue::ext_oneapi_submit_barrier(const std::vector<event> &WaitList,
   bool AllEventsEmptyOrNop = std::all_of(
       begin(WaitList), end(WaitList), [&](const event &Event) -> bool {
         auto EventImpl = detail::getSyclObjImpl(Event);
-        return EventImpl->isDefaultConstructed() || EventImpl->isNOP();
+        return (EventImpl->isDefaultConstructed() || EventImpl->isNOP()) &&
+               !EventImpl->getCommandGraph();
       });
   if (is_in_order() && !impl->getCommandGraph() && !impl->MDiscardEvents &&
       !impl->MIsProfilingEnabled && AllEventsEmptyOrNop) {
@@ -324,10 +353,8 @@ bool queue::device_has(aspect Aspect) const {
   return impl->getDeviceImplPtr()->has(Aspect);
 }
 
-bool queue::ext_codeplay_supports_fusion() const {
-  return has_property<
-      ext::codeplay::experimental::property::queue::enable_fusion>();
-}
+// TODO(#15184) Remove this function in the next ABI-breaking window.
+bool queue::ext_codeplay_supports_fusion() const { return false; }
 
 event queue::ext_oneapi_get_last_event() const {
   if (!is_in_order())

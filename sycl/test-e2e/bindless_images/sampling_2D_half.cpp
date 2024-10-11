@@ -1,8 +1,8 @@
-// REQUIRES: cuda
+// REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: aspect-fp16
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

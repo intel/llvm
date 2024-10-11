@@ -20,6 +20,7 @@
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Operator.h"
+#include "llvm/IR/PatternMatch.h"
 #include "llvm/TargetParser/Triple.h"
 
 #include <vector>
@@ -101,12 +102,16 @@ StringRef getStringLiteralArg(const CallInst *CI, unsigned ArgNo,
     // so that %1 is trivially known to be the address of the @.str literal.
 
     Value *TmpPtr = L->getPointerOperand();
-    AssertRelease((isa<AddrSpaceCastInst>(TmpPtr) &&
-                   isa<AllocaInst>(cast<AddrSpaceCastInst>(TmpPtr)
-                                       ->getPointerOperand()
-                                       ->stripPointerCasts())) ||
-                      isa<AllocaInst>(TmpPtr),
-                  "unexpected instruction type");
+    auto ValueIsAlloca = [](Value *V) {
+      if (auto *ASC = dyn_cast<AddrSpaceCastInst>(V))
+        V = ASC->getPointerOperand()->stripPointerCasts();
+      using namespace PatternMatch;
+      Value *X;
+      if (match(V, m_IntToPtr(m_Add(m_PtrToInt(m_Value(X)), m_ConstantInt()))))
+        V = X;
+      return isa<AllocaInst>(V);
+    };
+    AssertRelease(ValueIsAlloca(TmpPtr), "unexpected instruction type");
 
     // find the store of the literal address into TmpPtr
     StoreInst *Store = nullptr;
@@ -946,8 +951,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             updatePaddingInLastMDNode(Ctx, SCMetadata, Padding);
           }
 
+          auto *DefValTy = DefaultValue->getType();
           SCMetadata[SymID] = generateSpecConstantMetadata(
-              M, SymID, SCTy, NextID, /* is native spec constant */ false);
+              M, SymID, DefValTy, NextID, /* is native spec constant */ false);
 
           ++NextID.ID;
           NextOffset += Size;

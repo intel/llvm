@@ -272,52 +272,6 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.end_recording();
 }
 
-TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  device D;
-  if (!D.get_info<
-          ext::codeplay::experimental::info::device::supports_fusion>()) {
-    // Skip this test if the device does not support fusion. Otherwise, the
-    // queue construction in the next step would fail.
-    GTEST_SKIP();
-  }
-
-  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph{
-      Q.get_context(), Q.get_device()};
-
-  ext::codeplay::experimental::fusion_wrapper fw{Q};
-
-  // Test: Start fusion on a queue that is in recording mode
-  Graph.begin_recording(Q);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    fw.start_fusion();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Q);
-
-  // Test: begin recording a queue in fusion mode
-
-  fw.start_fusion();
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.begin_recording(Q);
-  } catch (exception &Exception) {
-    // Ensure fusion wrapper references are released now, otherwise we can end
-    // up trying to release backend objects after the mock backend has been
-    // unloaded.
-    fw.cancel_fusion();
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
   constexpr size_t RECT_WIDTH = 30;
   constexpr size_t RECT_HEIGHT = 21;
@@ -359,6 +313,26 @@ TEST_F(CommandGraphTest, Reductions) {
             CGH.parallel_for<class CustomTestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus<>()),
                 [=](item<1> idx, auto &Sum) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Test that using sycl streams in a graph node will throw
+TEST_F(CommandGraphTest, Streams) {
+  ASSERT_THROW(
+      {
+        size_t WorkItems = 16;
+        try {
+          Graph.add([&](handler &CGH) {
+            sycl::stream Out(WorkItems * 16, 16, CGH);
+            CGH.parallel_for<class CustomTestKernel>(
+                range<1>(WorkItems),
+                [=](item<1> id) { Out << id.get_linear_id() << sycl::endl; });
           });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
@@ -644,4 +618,85 @@ TEST_F(CommandGraphTest, ClusterLaunchException) {
     ExceptionCode = Exception.code();
   }
   ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
+}
+
+// Submits a command to a queue that has a dependency to a graph event
+// associated with a different context.
+TEST_F(CommandGraphTest, TransitiveRecordingWrongContext) {
+
+  device Dev;
+  context Ctx{Dev};
+  context Ctx2{Dev};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx2, Dev};
+
+  ext::oneapi::experimental::command_graph Graph{Q1.get_context(),
+                                                 Q1.get_device()};
+  Graph.begin_recording(Q1);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<class Kernel2>([=] {});
+  }),
+               sycl::exception);
+}
+
+// Submits a command to a queue that has a dependency to a graph event
+// associated with a different device.
+TEST_F(CommandGraphTest, TransitiveRecordingWrongDevice) {
+
+  auto devices = device::get_devices();
+
+  // Test needs at least 2 devices available.
+  if (devices.size() < 2) {
+    GTEST_SKIP();
+  }
+
+  device &Dev1 = devices[0];
+  device &Dev2 = devices[1];
+  context Ctx{{Dev1, Dev2}};
+  queue Q1{Ctx, Dev1};
+  queue Q2{Ctx, Dev2};
+
+  ext::oneapi::experimental::command_graph Graph{Q1.get_context(),
+                                                 Q1.get_device()};
+  Graph.begin_recording(Q1);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<class Kernel2>([=] {});
+  }),
+               sycl::exception);
+}
+
+// Submits a command to a queue that has a dependency to a different graph.
+TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
+  device Dev;
+  context Ctx{{Dev}};
+  queue Q1{Ctx, Dev};
+  queue Q2{Ctx, Dev};
+
+  ext::oneapi::experimental::command_graph Graph1{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  ext::oneapi::experimental::command_graph Graph2{Q1.get_context(),
+                                                  Q1.get_device()};
+
+  Graph1.begin_recording(Q1);
+  Graph2.begin_recording(Q2);
+
+  auto GraphEvent1 =
+      Q1.submit([&](handler &CGH) { CGH.single_task<class Kernel1>([=] {}); });
+
+  ASSERT_THROW(Q2.submit([&](handler &CGH) {
+    CGH.depends_on(GraphEvent1);
+    CGH.single_task<class Kernel2>([=] {});
+  }),
+               sycl::exception);
 }

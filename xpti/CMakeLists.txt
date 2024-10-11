@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.20.0)
 
-set(XPTI_VERSION 0.4.1)
+set(XPTI_VERSION 1.0.0)
 project (xpti VERSION "${XPTI_VERSION}" LANGUAGES CXX)
-set(CMAKE_CXX_STANDARD 14)
 
 set(XPTI_DIR ${CMAKE_CURRENT_LIST_DIR})
 # Setting the same version as SYCL

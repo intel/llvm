@@ -190,8 +190,6 @@ using StreamImplPtr = std::shared_ptr<detail::stream_impl>;
 
 using QueueIdT = std::hash<std::shared_ptr<detail::queue_impl>>::result_type;
 using CommandPtr = std::unique_ptr<Command>;
-using FusionList = std::unique_ptr<KernelFusionCommand>;
-using FusionMap = std::unordered_map<QueueIdT, FusionList>;
 
 /// Memory Object Record
 ///
@@ -454,18 +452,9 @@ public:
 
   void deferMemObjRelease(const std::shared_ptr<detail::SYCLMemObjI> &MemObj);
 
-  void startFusion(QueueImplPtr Queue);
-
-  void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
-
-  void cancelFusion(QueueImplPtr Queue);
-
-  EventImplPtr completeFusion(QueueImplPtr Queue, const property_list &);
   ur_kernel_handle_t completeSpecConstMaterialization(
       QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
       const std::string &KernelName, std::vector<unsigned char> &SpecConstBlob);
-
-  bool isInFusionMode(QueueIdT Queue);
 
   void releaseResources(BlockingT Blocking = BlockingT::BLOCKING);
   bool isDeferredMemObjectsEmpty();
@@ -518,33 +507,9 @@ protected:
 #endif // _WIN32
     return Lock;
   }
-
-  /// Provides exclusive access to std::shared_timed_mutex object with deadlock
-  /// avoidance to the Fusion map
-  WriteLockT acquireFusionWriteLock() {
-#ifdef _WIN32
-    WriteLockT Lock(MFusionMapLock, std::defer_lock);
-    while (!Lock.try_lock_for(std::chrono::milliseconds(10))) {
-      // Without yield while loop acts like endless while loop and occupies the
-      // whole CPU when multiple command groups are created in multiple host
-      // threads
-      std::this_thread::yield();
-    }
-#else
-    WriteLockT Lock(MFusionMapLock);
-    // It is a deadlock on UNIX in implementation of lock and lock_shared, if
-    // try_lock in the loop above will be executed, so using a single lock here
-#endif // _WIN32
-    return Lock;
-  }
-
   /// Provides shared access to std::shared_timed_mutex object with deadlock
   /// avoidance
   ReadLockT acquireReadLock() { return ReadLockT{MGraphLock}; }
-
-  /// Provides shared access to std::shared_timed_mutex object with deadlock
-  /// avoidance to the Fusion map
-  ReadLockT acquireFusionReadLock() { return ReadLockT{MFusionMapLock}; }
 
   void cleanupCommands(const std::vector<Command *> &Cmds);
 
@@ -561,14 +526,6 @@ protected:
 
   // May lock graph with read and write modes during execution.
   void cleanupDeferredMemObjects(BlockingT Blocking);
-
-  // POD struct to convey some additional information from GraphBuilder::addCG
-  // to the Scheduler to support kernel fusion.
-  struct GraphBuildResult {
-    Command *NewCmd;
-    EventImplPtr NewEvent;
-    bool ShouldEnqueue;
-  };
 
   /// Assign \p Src's auxiliary resources to \p Dst.
   void takeAuxiliaryResources(const EventImplPtr &Dst, const EventImplPtr &Src);
@@ -597,12 +554,12 @@ protected:
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    GraphBuildResult
-    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
-          std::vector<Command *> &ToEnqueue, bool EventNeeded,
-          ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-          const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies =
-              {});
+    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
+                   const QueueImplPtr &Queue, std::vector<Command *> &ToEnqueue,
+                   bool EventNeeded,
+                   ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+                   const std::vector<ur_exp_command_buffer_sync_point_t>
+                       &Dependencies = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
@@ -680,20 +637,6 @@ protected:
                              const DepDesc &Dep,
                              std::vector<Command *> &ToCleanUp);
 
-    void startFusion(QueueImplPtr Queue);
-
-    /// Clean up the internal fusion commands held for the given queue.
-    /// @param Queue the queue for which to remove the fusion commands.
-    void cleanUpCmdFusion(sycl::detail::queue_impl *Queue);
-
-    void cancelFusion(QueueImplPtr Queue, std::vector<Command *> &ToEnqueue);
-
-    EventImplPtr completeFusion(QueueImplPtr Queue,
-                                std::vector<Command *> &ToEnqueue,
-                                const property_list &);
-
-    bool isInFusionMode(QueueIdT queue);
-
     /// Adds a command buffer update operation to the execution graph. This is
     /// required when buffers/accessors are updated to ensure that the memory
     /// has been allocated when updating.
@@ -748,12 +691,6 @@ protected:
                               Command::BlockReason Reason,
                               std::vector<Command *> &ToEnqueue);
 
-    void createGraphForCommand(Command *NewCmd, CG &CG, bool isInteropTask,
-                               std::vector<Requirement *> &Reqs,
-                               const std::vector<detail::EventImplPtr> &Events,
-                               QueueImplPtr Queue,
-                               std::vector<Command *> &ToEnqueue);
-
   protected:
     /// Finds a command dependency corresponding to the record.
     DepDesc findDepForRecord(Command *Cmd, MemObjRecord *Record);
@@ -779,21 +716,11 @@ protected:
 
     void markModifiedIfWrite(MemObjRecord *Record, Requirement *Req);
 
-    FusionMap::iterator findFusionList(QueueIdT Id) {
-      return MFusionMap.find(Id);
-    }
-
-    void removeNodeFromGraph(Command *Node, std::vector<Command *> &ToEnqueue);
-
     /// Used to track commands that need to be visited during graph
     /// traversal.
     std::queue<Command *> MCmdsToVisit;
     /// Used to track commands that have been visited during graph traversal.
     std::vector<Command *> MVisitedCmds;
-
-    /// Used to track queues that are in fusion mode and the
-    /// command-groups/kernels submitted for fusion.
-    FusionMap MFusionMap;
 
     /// Prints contents of graph to text file in DOT format
     ///
@@ -807,8 +734,6 @@ protected:
       AfterAddCopyBack,
       BeforeAddHostAcc,
       AfterAddHostAcc,
-      AfterFusionComplete,
-      AfterFusionCancel,
       Size
     };
     std::array<bool, PrintOptions::Size> MPrintOptionsArray{false};
@@ -948,7 +873,6 @@ protected:
 
   GraphBuilder MGraphBuilder;
   RWLockT MGraphLock;
-  RWLockT MFusionMapLock;
 
   std::vector<Command *> MDeferredCleanupCommands;
   std::mutex MDeferredCleanupMutex;
@@ -965,11 +889,6 @@ protected:
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
-
-private:
-  static void printFusionWarning(const std::string &Message);
-
-  static KernelFusionCommand *isPartOfActiveFusion(Command *Cmd);
 };
 
 } // namespace detail

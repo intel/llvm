@@ -86,6 +86,9 @@ std::string Linux::getMultiarchTriple(const Driver &D,
   case llvm::Triple::aarch64:
     if (IsAndroid)
       return "aarch64-linux-android";
+    if (hasEffectiveTriple() &&
+        getEffectiveTriple().getEnvironment() == llvm::Triple::PAuthTest)
+      return "aarch64-linux-pauthtest";
     return "aarch64-linux-gnu";
   case llvm::Triple::aarch64_be:
     return "aarch64_be-linux-gnu";
@@ -581,16 +584,12 @@ std::string Linux::getDynamicLinker(const ArgList &Args) const {
     Loader =
         (tools::ppc::hasPPCAbiArg(Args, "elfv1")) ? "ld64.so.1" : "ld64.so.2";
     break;
-  case llvm::Triple::riscv32: {
-    StringRef ABIName = tools::riscv::getRISCVABI(Args, Triple);
-    LibDir = "lib";
-    Loader = ("ld-linux-riscv32-" + ABIName + ".so.1").str();
-    break;
-  }
+  case llvm::Triple::riscv32:
   case llvm::Triple::riscv64: {
+    StringRef ArchName = llvm::Triple::getArchTypeName(Arch);
     StringRef ABIName = tools::riscv::getRISCVABI(Args, Triple);
     LibDir = "lib";
-    Loader = ("ld-linux-riscv64-" + ABIName + ".so.1").str();
+    Loader = ("ld-linux-" + ArchName + "-" + ABIName + ".so.1").str();
     break;
   }
   case llvm::Triple::sparc:
@@ -769,6 +768,11 @@ void Linux::AddIAMCUIncludeArgs(const ArgList &DriverArgs,
   }
 }
 
+void Linux::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                               ArgStringList &CC1Args) const {
+  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+}
+
 bool Linux::isPIEDefault(const llvm::opt::ArgList &Args) const {
   return CLANG_DEFAULT_PIE_ON_LINUX || getTriple().isAndroid() ||
          getTriple().isMusl() || getSanitizerArgs(Args).requiresPIE();
@@ -814,6 +818,7 @@ SanitizerMask Linux::getSupportedSanitizers() const {
   Res |= SanitizerKind::Address;
   Res |= SanitizerKind::PointerCompare;
   Res |= SanitizerKind::PointerSubtract;
+  Res |= SanitizerKind::Realtime;
   Res |= SanitizerKind::Fuzzer;
   Res |= SanitizerKind::FuzzerNoLink;
   Res |= SanitizerKind::KernelAddress;

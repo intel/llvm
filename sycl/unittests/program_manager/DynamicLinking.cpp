@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrArray<sycl::unittest::UrProperty>
+std::vector<sycl::unittest::UrProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
   sycl::unittest::UrPropertySet PropSet;
-  sycl::unittest::UrArray<sycl::unittest::UrProperty> Props;
+  std::vector<sycl::unittest::UrProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -55,13 +55,12 @@ createPropertySet(const std::vector<std::string> &Symbols) {
   return Props;
 }
 
-sycl::unittest::UrImage
-generateImage(std::initializer_list<std::string> KernelNames,
-              const std::vector<std::string> &ExportedSymbols,
-              const std::vector<std::string> &ImportedSymbols,
-              unsigned char Magic,
-              sycl::detail::ur::DeviceBinaryType BinType =
-                  SYCL_DEVICE_BINARY_TYPE_SPIRV) {
+sycl::unittest::UrImage generateImage(
+    std::initializer_list<std::string> KernelNames,
+    const std::vector<std::string> &ExportedSymbols,
+    const std::vector<std::string> &ImportedSymbols, unsigned char Magic,
+    sycl::detail::ur::DeviceBinaryType BinType = SYCL_DEVICE_BINARY_TYPE_SPIRV,
+    const char *DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64) {
   sycl::unittest::UrPropertySet PropSet;
   if (!ExportedSymbols.empty())
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
@@ -71,17 +70,16 @@ generateImage(std::initializer_list<std::string> KernelNames,
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
+  std::vector<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::UrImage Img{
-      BinType,
-      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-      "",                                  // Compile options
-      "",                                  // Link options
-      std::move(Bin),
-      std::move(Entries),
-      std::move(PropSet)};
+  sycl::unittest::UrImage Img{BinType,
+                              DeviceTargetSpec,
+                              "", // Compile options
+                              "", // Link options
+                              std::move(Bin),
+                              std::move(Entries),
+                              std::move(PropSet)};
 
   return Img;
 }
@@ -103,7 +101,8 @@ static sycl::unittest::UrImage Imgs[] = {
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
                   {"BasicCaseKernelDepDep"}, BASIC_CASE_PRG_DEP_NATIVE,
-                  SYCL_DEVICE_BINARY_TYPE_NATIVE),
+                  SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"BasicCaseKernelDepDep"}, {"BasicCaseKernelDepDep"}, {},
                   BASIC_CASE_PRG_DEP_DEP),
     generateImage({"UnresolvedDepKernel"}, {},
@@ -115,9 +114,11 @@ static sycl::unittest::UrImage Imgs[] = {
                   {"MutualDepKernelADep"}, {"MutualDepKernelBDep"},
                   MUTUAL_DEP_PRG_B),
     generateImage({"AOTCaseKernel"}, {}, {"AOTCaseKernelDep"},
-                  AOT_CASE_PRG_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE),
+                  AOT_CASE_PRG_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN),
     generateImage({"AOTCaseKernelDep"}, {"AOTCaseKernelDep"}, {},
-                  AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE)};
+                  AOT_CASE_PRG_DEP_NATIVE, SYCL_DEVICE_BINARY_TYPE_NATIVE,
+                  __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::UrImageArray<9> ImgArray{Imgs};
@@ -184,17 +185,63 @@ TEST(DynamicLinking, MutualDependency) {
 }
 
 TEST(DynamicLinking, AheadOfTime) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls, 2u);
+  // Both programs should be linked together.
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {AOT_CASE_PRG_NATIVE, AOT_CASE_PRG_DEP_NATIVE}));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            AOT_CASE_PRG_NATIVE * AOT_CASE_PRG_DEP_NATIVE);
+}
+
+TEST(DynamicLinking, AheadOfTimeUnsupported) {
   try {
-    sycl::unittest::UrMock<> Mock;
+    sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
     sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     Q.single_task<DynamicLinkingTest::AOTCaseKernel>([=]() {});
     FAIL();
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(),
-                 "Dynamic linking is not supported for AOT compilation yet");
+    EXPECT_STREQ(e.what(), "Cannot resolve external symbols, linking is "
+                           "unsupported for the backend");
   }
+}
+
+static ur_result_t redefined_urProgramCompileExp(void *pParams) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+TEST(DynamicLinking, UnsupportedCompileExp) {
+  sycl::unittest::UrMock<> Mock;
+  setupRuntimeLinkingMock();
+  mock::getCallbacks().set_replace_callback("urProgramCompileExp",
+                                            redefined_urProgramCompileExp);
+
+  sycl::platform Plt = sycl::platform();
+  sycl::queue Q(Plt.get_devices()[0]);
+
+  CapturedLinkingData.clear();
+
+  Q.single_task<DynamicLinkingTest::BasicCaseKernel>([=]() {});
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramCreateCalls, 3u);
+  // Both programs should be linked together.
+  ASSERT_EQ(CapturedLinkingData.NumOfUrProgramLinkCalls, 1u);
+  ASSERT_TRUE(CapturedLinkingData.LinkedProgramsContains(
+      {BASIC_CASE_PRG, BASIC_CASE_PRG_DEP, BASIC_CASE_PRG_DEP_DEP}));
+  // And the linked program should be used to create a kernel.
+  ASSERT_EQ(CapturedLinkingData.ProgramUsedToCreateKernel,
+            BASIC_CASE_PRG * BASIC_CASE_PRG_DEP * BASIC_CASE_PRG_DEP_DEP);
 }
 
 } // anonymous namespace

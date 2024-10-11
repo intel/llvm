@@ -10,7 +10,7 @@ link_llvm_libs(sycl-trace
   LLVMSupport
 )
 
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   add_library(ze_trace_collector SHARED
     ze_trace_collector.cpp
   )
@@ -20,7 +20,7 @@ if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
   add_dependencies(sycl-trace ze_trace_collector)
 endif()
 
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   add_library(cuda_trace_collector SHARED
     cuda_trace_collector.cpp
   )
@@ -41,7 +41,7 @@ add_library(sycl_ur_trace_collector SHARED
 find_package(Python3 REQUIRED)
 
 # To get L0 loader
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   target_link_libraries(ze_trace_collector PRIVATE LevelZeroLoader-Headers)
   target_compile_definitions(ze_trace_collector PRIVATE SYCL_HAS_LEVEL_ZERO)
   target_link_libraries(ze_trace_collector PRIVATE xptifw)

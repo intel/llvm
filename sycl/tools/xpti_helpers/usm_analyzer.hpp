@@ -61,7 +61,7 @@ private:
       const void *End =
           static_cast<const char *>(Alloc.first) + Alloc.second.Length;
 
-      if (PtrToValidate >= Begin && PtrToValidate <= End) {
+      if (PtrToValidate >= Begin && PtrToValidate < End) {
         PointerFound = true;
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + size;
@@ -138,7 +138,7 @@ private:
       const void *Begin = Alloc.first;
       const void *End =
           static_cast<const char *>(Alloc.first) + Alloc.second.Length;
-      if (PtrToValidate >= Begin && PtrToValidate <= End) {
+      if (PtrToValidate >= Begin && PtrToValidate < End) {
         PointerFound = true;
         const void *CopyRegionEnd =
             static_cast<const char *>(PtrToValidate) + pitch * length;
@@ -338,7 +338,7 @@ public:
       const void *End =
           static_cast<const char *>(Alloc.first) + Alloc.second.Length;
       // Host pointer was allocated with USM APIs
-      if (HostPtr >= Begin && HostPtr <= End) {
+      if (HostPtr >= Begin && HostPtr < End) {
         bool NeedsTerminate = false;
         if (Alloc.second.Kind != AllocKind::host) {
           OutStream << PrintPrefix

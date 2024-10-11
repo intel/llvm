@@ -1,15 +1,14 @@
 // REQUIRES: gpu, level_zero
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14721
-// UNSUPPORTED: ze_debug, windows, linux
+// UNSUPPORTED: ze_debug
 
 // RUN: %{build} -o %t.ooo.out
 // RUN: %{build} -DUSING_INORDER -o %t.ino.out
 // RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 
 // Check that dynamic batching raises/lowers batch size
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKDYN %s
 
 // level_zero_dynamic_batch_test.cpp
 //

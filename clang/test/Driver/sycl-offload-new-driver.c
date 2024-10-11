@@ -27,7 +27,7 @@
 // RUN: %clangxx -### --target=x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64 --offload-new-driver %s 2>&1 | FileCheck -check-prefix=CHK-FLOW %s
 // CHK-FLOW: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown" "-aux-triple" "x86_64-unknown-linux-gnu" "-fsycl-is-device" {{.*}} "-fsycl-int-header=[[HEADER:.*]].h" "-fsycl-int-footer=[[FOOTER:.*]].h" {{.*}} "--offload-new-driver" {{.*}} "-o" "[[CC1DEVOUT:.*]]" "-x" "c++" "[[INPUT:.*]]"
 // CHK-FLOW-NEXT: clang-offload-packager{{.*}} "-o" "[[PACKOUT:.*]]" "--image=file=[[CC1DEVOUT]],triple=spir64-unknown-unknown,arch=,kind=sycl{{.*}}"
-// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "-full-main-file-name" "[[INPUT]]" {{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
+// CHK-FLOW-NEXT: clang{{.*}} "-cc1" "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[HEADER]].h" "-dependency-filter" "[[HEADER]].h" {{.*}} "-fsycl-is-host"{{.*}} "--offload-new-driver" {{.*}} "-fembed-offload-object=[[PACKOUT]]" {{.*}} "-o" "[[CC1FINALOUT:.*]]" "-x" "c++" "[[INPUT]]"
 // CHK-FLOW-NEXT: clang-linker-wrapper{{.*}} "--host-triple=x86_64-unknown-linux-gnu"{{.*}} "--linker-path={{.*}}/ld" {{.*}} "[[CC1FINALOUT]]"
 
 /// Verify options passed to clang-linker-wrapper
@@ -114,8 +114,8 @@
 // RUN:          --offload-new-driver %s 2>&1 \
 // RUN:  | FileCheck -check-prefix=CHK_PACKAGER_OPTS %s
 // CHK_PACKAGER_OPTS: clang-offload-packager{{.*}} "-o"
-// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
 // CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64_gen-unknown-unknown,arch=pvc,kind=sycl,compile-opts={{.*}}-spir64_gen-opt,link-opts=-spir64_gen-link-opt
+// CHK_PACKAGER_OPTS-SAME: {{.*}}triple=spir64-unknown-unknown,arch=,kind=sycl,compile-opts={{.*}}-spir64-opt,link-opts=-spir64-link-opt
 
 /// Check phases with multiple intel_gpu settings
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl \
@@ -188,3 +188,10 @@
 // RUN:   -Xsycl-target-backend=spir64_gen "-device pvc,bdw" %s 2>&1 \
 // RUN:   | FileCheck -check-prefix COMMA_FILE %s
 // COMMA_FILE: clang-offload-packager{{.*}} "--image=file={{.*}}pvc@bdw{{.*}},triple=spir64_gen-unknown-unknown,arch=pvc,bdw,kind=sycl"
+
+/// Verify that --cuda-path is passed to clang-linker-wrapper for SYCL offload
+// RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN:          --cuda-gpu-arch=sm_20 --cuda-path=%S/Inputs/CUDA_80/usr/local/cuda %s \
+// RUN:          --offload-new-driver 2>&1 \
+// RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
+// NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}} "--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"

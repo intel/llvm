@@ -78,9 +78,13 @@ macro(add_sycl_unittest test_dirname link_variant)
 
   add_dependencies(${test_dirname} ur_adapter_mock)
 
-  if(SYCL_ENABLE_KERNEL_FUSION)
-    target_link_libraries(${test_dirname} PRIVATE sycl-fusion)
-  endif(SYCL_ENABLE_KERNEL_FUSION)
+  if(SYCL_ENABLE_EXTENSION_JIT)
+    target_link_libraries(${test_dirname} PRIVATE sycl-jit)
+  endif(SYCL_ENABLE_EXTENSION_JIT)
+
+  if(WIN32)
+    target_link_libraries(${test_dirname} PRIVATE UnifiedRuntimeLoader ur_win_proxy_loader)
+  endif()
 
   target_include_directories(${test_dirname}
     PRIVATE SYSTEM

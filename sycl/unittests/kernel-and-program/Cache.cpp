@@ -59,7 +59,7 @@ static sycl::unittest::UrImage generateDefaultImage() {
   UrPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
   UrImage Img(std::move(Entries), std::move(PropSet));

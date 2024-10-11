@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
 // RUN: %{run} %t.out
 
 //==--------------- multi_ptr.cpp - SYCL multi_ptr test --------------------==//

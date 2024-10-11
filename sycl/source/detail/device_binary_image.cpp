@@ -178,6 +178,11 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   KernelParamOptInfo.init(Bin, __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO);
   AssertUsed.init(Bin, __SYCL_PROPERTY_SET_SYCL_ASSERT_USED);
   ProgramMetadata.init(Bin, __SYCL_PROPERTY_SET_PROGRAM_METADATA);
+  // Convert ProgramMetadata into the UR format
+  for (const auto &Prop : ProgramMetadata) {
+    ProgramMetadataUR.push_back(
+        ur::mapDeviceBinaryPropertyToProgramMetadata(Prop));
+  }
   ExportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS);
   ImportedSymbols.init(Bin, __SYCL_PROPERTY_SET_SYCL_IMPORTED_SYMBOLS);
   DeviceGlobals.init(Bin, __SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS);

@@ -1,9 +1,6 @@
-// RUN: %{build} -o %t.out %cuda_options
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out %cuda_options
 // RUN: %{run} %t.out
 // REQUIRES: cuda, cuda_dev_kit
-
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14598
-// UNSUPPORTED: windows, linux
 
 #include <cuda.h>
 

@@ -129,16 +129,16 @@ namespace sycl::ext::oneapi::experimental {
   public:
     using arrival_token = __unspecified__;
 
-    static constexpr ptrdiff_t max() noexcept;
+    static constexpr std::ptrdiff_t max() noexcept;
 
-    constexpr explicit barrier(ptrdiff_t expected,
+    constexpr explicit barrier(std::ptrdiff_t expected,
                                CompletionFunction f = CompletionFunction());
     ~barrier();
 
     barrier(const barrier&) = delete;
     barrier& operator=(const barrier&) = delete;
 
-    [[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+    [[nodiscard]] arrival_token arrive(std::ptrdiff_t update = 1);
     void wait(arrival_token&& arrival) const;
 
     void arrive_and_wait();
@@ -150,14 +150,14 @@ namespace sycl::ext::oneapi::experimental {
 
 [source,c++]
 ----
-static constexpr ptrdiff_t max() noexcept;
+static constexpr std::ptrdiff_t max() noexcept;
 ----
 _Returns_: The maximum number of threads of execution that can be synchronized
 by any `barrier` with the specified `Scope` and `CompletionFunction`.
 
 [source,c++]
 ----
-constexpr explicit barrier(ptrdiff_t expected, CompletionFunction f = CompletionFunction());
+constexpr explicit barrier(std::ptrdiff_t expected, CompletionFunction f = CompletionFunction());
 ----
 _Preconditions_: If `Scope` is `memory_scope::work_group`, the calling thread
 of execution must be a work-item belonging to the work-group that will use the
@@ -184,7 +184,7 @@ concurrently introduces a data race.
 
 [source,c++]
 ----
-[[nodiscard]] arrival_token arrive(ptrdiff_t update = 1);
+[[nodiscard]] arrival_token arrive(std::ptrdiff_t update = 1);
 ----
 _Effects_: The calling thread of execution arrives at the barrier and decreases
 the expected count by `update`.
@@ -240,6 +240,7 @@ extension.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
 using work_group_barrier = syclex::barrier<sycl::memory_scope::work_group>;
 
 q.parallel_for(..., [=](sycl::nd_item it) {
@@ -264,6 +265,7 @@ initialized on the device that will use the barrier.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
 using device_barrier = syclex::barrier<sycl::memory_scope::device>;
 
 // Allocate memory for the barrier
@@ -306,6 +308,7 @@ accessible by the host.
 
 [source,c++]
 ----
+namespace syclex = sycl::ext::oneapi::experimental;
 using system_barrier = syclex::barrier<sycl::memory_scope::system>;
 
 // Allocate memory for the barrier

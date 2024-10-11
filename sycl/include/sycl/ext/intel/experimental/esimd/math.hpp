@@ -721,6 +721,18 @@ srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
   return __esimd_srnd<N>(src0.data(), src1.data());
 }
 
+/// frem - compute the remainder from floating point division.
+/// \param src0 the first operand to be used for division.
+/// \param src1 the second operand to be used for division.
+/// \return the remainder from the division.
+template <typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<T, N> frem(__ESIMD_NS::simd<T, N> src0,
+                                         __ESIMD_NS::simd<T, N> src1) {
+  static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
+                "Element type must be float or double");
+  return __spirv_FRem<T, N>(src0.data(), src1.data());
+}
+
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_logical

@@ -65,9 +65,9 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 UrArray<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<UrProperty>{std::move(DevGlobInfo)});
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
   UrImage Img(std::move(Entries), std::move(PropSet));
@@ -88,9 +88,9 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
   UrProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 UrArray<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<UrProperty>{std::move(DevGlobInfo)});
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
   UrImage Img(std::move(Entries), std::move(PropSet));

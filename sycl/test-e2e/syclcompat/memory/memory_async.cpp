@@ -32,9 +32,11 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-
 // Tests for the sycl::events returned from syclcompat::*Async API calls
 
+// TODO: Re-enable, see https://github.com/intel/llvm/issues/13636
+// and possibly related: https://github.com/intel/llvm/issues/14623
+// UNSUPPORTED: true
 #include <stdio.h>
 
 #include <sycl/detail/core.hpp>

@@ -2,8 +2,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: gpu
-
 // This e2e test checks the alignment of the annotated shared USM allocation in
 // various cases
 

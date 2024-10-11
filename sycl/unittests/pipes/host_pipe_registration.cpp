@@ -39,9 +39,9 @@ static sycl::unittest::UrImage generateDefaultImage() {
   UrProperty HostPipeInfo =
       makeHostPipeInfo("test_host_pipe_unique_id", sizeof(int));
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_HOST_PIPES,
-                 UrArray<UrProperty>{std::move(HostPipeInfo)});
+                 std::vector<UrProperty>{std::move(HostPipeInfo)});
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({"TestKernel"});
 
   UrImage Img(std::move(Entries), std::move(PropSet));
 

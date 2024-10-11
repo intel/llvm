@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env ONEAPI_DEVICE_SELECTOR=level_zero:gpu %{run-unfiltered-devices} %t.out
 //
 // Checks if only specified device types can be acquired from select_device
@@ -8,6 +8,7 @@
 //
 // REQUIRES: level_zero,gpu
 
+#include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
@@ -15,9 +16,9 @@ using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
 

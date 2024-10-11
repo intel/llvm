@@ -47,7 +47,7 @@ static sycl::unittest::UrImage generateImageWithSpecConsts() {
   UrPropertySet PropSet;
   addSpecConstants({SC1, SC2}, std::move(SpecConstData), PropSet);
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"SpecializationConstant_TestKernel"});
   UrImage Img(std::move(Entries), std::move(PropSet));
 

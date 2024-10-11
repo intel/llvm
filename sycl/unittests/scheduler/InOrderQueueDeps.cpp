@@ -107,6 +107,7 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   sycl::platform Plt = sycl::platform();
   mock::getCallbacks().set_before_callback(
       "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+  BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
   queue Q1{Ctx, default_selector_v, property::queue::in_order()};
@@ -119,9 +120,73 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   {
     event E1 = submitKernel(Q1);
     event E2 = submitKernel(Q2);
-    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandleRef();
+    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
   }
 }
+
+std::vector<size_t> KernelEventListSize;
+
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  KernelEventListSize.push_back(*params.pnumEventsInWaitList);
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueueFirst{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueueSecond{Ctx, default_selector_v,
+                           property::queue::in_order()};
+
+  event EvFirst = InOrderQueueFirst.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(EvFirst);
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueueFirst.wait();
+  InOrderQueueSecond.wait();
+
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 1u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  event EvFirst = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(EvFirst);
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  // native device events for device kernel submitted to the same in-order queue
+  // don't need to be explicitly passed as dependencies
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
+}
+
 } // anonymous namespace

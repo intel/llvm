@@ -30,7 +30,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   UrPropertySet PropSet;
   addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   UrImage Img(std::move(Entries), std::move(PropSet));
 
