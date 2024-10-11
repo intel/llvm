@@ -116,15 +116,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit df6da35d6e67f2383db28dd49ab08c5c0ef541d2
-  # Merge: 67590533 55bd5636
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Oct 7 12:28:07 2024 +0100
-  #     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
-  #     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
-  #     instead of returning misleading default value
-  set(UNIFIED_RUNTIME_TAG df6da35d6e67f2383db28dd49ab08c5c0ef541d2)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG simplify-device-global)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
