@@ -366,7 +366,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the program object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "[$x_context_handle_t] Program context info."
@@ -409,7 +409,7 @@ params:
       name: pPropValue
       desc: |
             [in,out][optional][typename(propName, propSize)] array of bytes of holding the program info property.
-            If propSize is not equal to or greater than the real number of bytes needed to return 
+            If propSize is not equal to or greater than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: "pPropSizeRet"
