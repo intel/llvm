@@ -162,7 +162,7 @@ Value *stripToMemorySource(Value *V) {
     Value *LoadSource = LI->getPointerOperand();
     auto Users = LoadSource->users();
     auto I = llvm::find_if(Users, [](User *U) { return isa<StoreInst>(U); });
-    if (I!=Users.end()) {
+    if (I != Users.end()) {
       auto *Store = cast<StoreInst>(*I);
       MemoryAccess = Store->getValueOperand();
     }
