@@ -540,7 +540,7 @@ context_impl::getProgramForHostPipe(const device &Device,
 }
 
 void context_impl::verifyProps(const property_list &Props) const {
-  auto NoAllowedPropertiesCheck = [](int PropertyKind) { return false; };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
                                                 NoAllowedPropertiesCheck);
 }

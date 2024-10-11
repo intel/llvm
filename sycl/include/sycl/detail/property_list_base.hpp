@@ -13,6 +13,7 @@
 
 #include <algorithm>   // for iter_swap
 #include <bitset>      // for bitset
+#include <functional>  // for function
 #include <memory>      // for shared_ptr, __shared_ptr_...
 #include <type_traits> // for enable_if_t
 #include <utility>     // for move

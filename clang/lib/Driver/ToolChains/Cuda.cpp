@@ -924,7 +924,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -941,11 +941,19 @@ void CudaToolChain::addClangTargetOptions(
   // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
   // device code compatability, hence we do not set Cuda mode in that instance.
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
 
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
+
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    if (FastRelaxedMath || UnsafeMathOpt)
+      CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
+                      "--nvptx-prec-sqrtf32=0"});
   } else {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
@@ -1196,8 +1204,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

@@ -191,19 +191,9 @@ __SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
       return false;
     }
   };
-  auto CheckPropertiesWithData = [](int PropertyKind) {
-#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
-#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
-  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
-    return true;
-    switch (PropertyKind) {
-#include <sycl/properties/reduction_properties.def>
-    default:
-      return false;
-    }
-  };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
   detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
-                                                CheckPropertiesWithData);
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail
