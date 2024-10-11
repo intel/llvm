@@ -47,6 +47,24 @@ TEST_P(urProgramCreateWithNativeHandleTest, Success) {
   ASSERT_NE(ref_count, 0);
 }
 
+TEST_P(urProgramCreateWithNativeHandleTest, SuccessWithProperties) {
+  // We can't pass isNativeHandleOwned = true in the generic tests since
+  // we always get the native handle from a UR object, and transferring
+  // ownership from one UR object to another isn't allowed.
+  ur_program_native_properties_t props = {
+      UR_STRUCTURE_TYPE_PROGRAM_NATIVE_PROPERTIES, nullptr, false};
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urProgramCreateWithNativeHandle(
+      native_program_handle, context, &props, &native_program));
+
+  uint32_t ref_count = 0;
+
+  ASSERT_SUCCESS(urProgramGetInfo(native_program,
+                                  UR_PROGRAM_INFO_REFERENCE_COUNT,
+                                  sizeof(ref_count), &ref_count, nullptr));
+
+  ASSERT_NE(ref_count, 0);
+}
+
 TEST_P(urProgramCreateWithNativeHandleTest, InvalidNullHandleContext) {
   ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                    urProgramCreateWithNativeHandle(native_program_handle,

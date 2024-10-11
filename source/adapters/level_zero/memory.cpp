@@ -1639,8 +1639,9 @@ ur_result_t urMemImageCreateWithNativeHandle(
     return Res;
   }
 
-  UR_CALL(createUrMemFromZeImage(
-      Context, ZeHImage, Properties->isNativeHandleOwned, ZeImageDesc, Mem));
+  auto OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
+  UR_CALL(createUrMemFromZeImage(Context, ZeHImage, OwnNativeHandle,
+                                 ZeImageDesc, Mem));
 
   return UR_RESULT_SUCCESS;
 }
