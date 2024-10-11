@@ -1862,7 +1862,12 @@ handler::getCommandGraph() const {
   if (impl->MGraph) {
     return impl->MGraph;
   }
-  return MQueue->getCommandGraph();
+
+  if (this->MQueue)
+    return MQueue->getCommandGraph();
+  // We should never reach here. MGraph and MQueue can not be null
+  // simultaneously.
+  return nullptr;
 }
 
 void handler::setUserFacingNodeType(ext::oneapi::experimental::node_type Type) {

@@ -116,19 +116,15 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
-  # commit aa53a35d4da225732e006c8c495f278ddb00ba97
-  # Author: Ross Brunton <ross@codeplay.com>
-  # Date:   Fri Sep 13 15:38:40 2024 +0100
-  #     Hardening flags
-  #
-  #     UR_DEVELOPER_MODE has also been changed to only set Werror. The
-  #     previous other flags set by this variable either have no effect
-  #     (-fno-omit-frame-pointer) or are now always enabled
-  #     (-fstack-protector-strong).
-  #
-  #     Some smaller warnings have also been fixed.
-  set(UNIFIED_RUNTIME_TAG aa53a35d4da225732e006c8c495f278ddb00ba97)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 53c461b257e7bbf5827147c3b5ca0b8ea45b434d
+  # Merge: 2c4bf63b d93b262b
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 11 11:01:37 2024 +0100
+  #     Merge pull request #2174 from ProGTX/peter/winfix
+  #     [NFC][CUDA] Include STL headers in program.cpp
+  set(UNIFIED_RUNTIME_TAG 53c461b257e7bbf5827147c3b5ca0b8ea45b434d)
+
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
   # to link statically on windows
