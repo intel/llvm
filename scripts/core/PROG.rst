@@ -340,3 +340,39 @@ through ${x}_usm_desc_t structure. Allocations that specify different pool handl
 isolated and not reside on the same page. Memory pool is subject to limits specified during pool creation.
 
 Even if no ${x}_usm_pool_handle_t is provided to an allocation function, each adapter may still perform memory pooling.
+
+Native Handles
+==============
+
+In addition to the regular object creation APIs, ${X} objects can be
+constructed with handles obtained directly from an adapter's associated
+backend. This is achieved by casting the backend handle to a
+${x}_native_handle_t and passing it to the relevant ``CreateWithNativeHandle``
+entry point.
+
+
+.. note::
+   Not all backends have a 1:1 equivalent for every ${X} handle type, as such
+   any ``CreateWithNativeHandle`` or ``GetNativeHandle`` entry point *may* fail
+   with the error code ${X}_RESULT_ERROR_UNSUPPORTED_FEATURE for a given
+   adapter.
+
+Native Handle Ownership
+-----------------------
+
+By default a ${X} object constructed from a native handle doesn't own the
+native handle, it is guaranteed not to modify the native handle's reference
+count or otherwise cause its resources to be released. A ${X} object that
+doesn't own its associated native handle **must** be destroyed before the
+native handle is.
+
+Ownership of the native handle can be tranferred to the ${X} object by passing
+``isNativeHandleOwned = true`` in the native properties struct when calling the
+``CreateWithNativeHandle`` entry point. A ${X} object that owns a native handle
+will attempt to release the native resources associated with that handle on
+destruction. The same native handle **must not** have its ownership transferred
+to more than one ${X} object.
+
+Ownership of a native handle obtained from a ${X} object via a
+``GetNativeHandle`` entry point **must not** be transferred to a new ${X}
+object.
