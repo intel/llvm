@@ -1,4 +1,4 @@
-
+{{NONDETERMINISTIC}}
 urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___1
 urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___2
 urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___3

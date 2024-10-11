@@ -13,6 +13,7 @@
 #include "memory.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
+#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -124,6 +125,30 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
         &Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE: {
+    size_t MaxGroupSize[3] = {0, 0, 0};
+    const auto &MaxWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxWorkGroupSizeMD;
+    const auto MaxWGSizeMD = MaxWGSizeMDMap.find(hKernel->getName());
+    if (MaxWGSizeMD != MaxWGSizeMDMap.end()) {
+      const auto MaxWGSize = MaxWGSizeMD->second;
+      MaxGroupSize[0] = std::get<0>(MaxWGSize);
+      MaxGroupSize[1] = std::get<1>(MaxWGSize);
+      MaxGroupSize[2] = std::get<2>(MaxWGSize);
+    }
+    return ReturnValue(MaxGroupSize, 3);
+  }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE: {
+    size_t MaxLinearGroupSize = 0;
+    const auto &MaxLinearWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxLinearWorkGroupSizeMD;
+    const auto MaxLinearWGSizeMD =
+        MaxLinearWGSizeMDMap.find(hKernel->getName());
+    if (MaxLinearWGSizeMD != MaxLinearWGSizeMDMap.end()) {
+      MaxLinearGroupSize = MaxLinearWGSizeMD->second;
+    }
+    return ReturnValue(MaxLinearGroupSize);
+  }
   default:
     break;
   }
@@ -167,10 +192,46 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, size_t localWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_KERNEL);
+
+  // We need to set the active current device for this kernel explicitly here,
+  // because the occupancy querying API does not take device parameter.
+  ur_device_handle_t Device = hKernel->getProgram()->getDevice();
+  ScopedContext Active(Device);
+  try {
+    // We need to calculate max num of work-groups using per-device semantics.
+
+    int MaxNumActiveGroupsPerCU{0};
+    UR_CHECK_ERROR(cuOccupancyMaxActiveBlocksPerMultiprocessor(
+        &MaxNumActiveGroupsPerCU, hKernel->get(), localWorkSize,
+        dynamicSharedMemorySize));
+    detail::ur::assertion(MaxNumActiveGroupsPerCU >= 0);
+    // Handle the case where we can't have all SMs active with at least 1 group
+    // per SM. In that case, the device is still able to run 1 work-group, hence
+    // we will manually check if it is possible with the available HW resources.
+    if (MaxNumActiveGroupsPerCU == 0) {
+      size_t MaxWorkGroupSize{};
+      urKernelGetGroupInfo(
+          hKernel, Device, UR_KERNEL_GROUP_INFO_WORK_GROUP_SIZE,
+          sizeof(MaxWorkGroupSize), &MaxWorkGroupSize, nullptr);
+      size_t MaxLocalSizeBytes{};
+      urDeviceGetInfo(Device, UR_DEVICE_INFO_LOCAL_MEM_SIZE,
+                      sizeof(MaxLocalSizeBytes), &MaxLocalSizeBytes, nullptr);
+      if (localWorkSize > MaxWorkGroupSize ||
+          dynamicSharedMemorySize > MaxLocalSizeBytes ||
+          hasExceededMaxRegistersPerBlock(Device, hKernel, localWorkSize))
+        *pGroupCountRet = 0;
+      else
+        *pGroupCountRet = 1;
+    } else {
+      // Multiply by the number of SMs (CUs = compute units) on the device in
+      // order to retreive the total number of groups/blocks that can be
+      // launched.
+      *pGroupCountRet = Device->getNumComputeUnits() * MaxNumActiveGroupsPerCU;
+    }
+  } catch (ur_result_t Err) {
+    return Err;
+  }
   return UR_RESULT_SUCCESS;
 }
 
@@ -307,7 +368,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   try {
     auto Device = hKernel->getProgram()->getDevice();
     ur_mem_flags_t MemAccess =
-        Properties ? Properties->memoryAccess : UR_MEM_FLAG_READ_WRITE;
+        Properties ? Properties->memoryAccess
+                   : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
     hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
     if (hArgValue->isImage()) {
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;

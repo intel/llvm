@@ -14,18 +14,16 @@
 
 #include "latency_tracker.hpp"
 #include <ur/ur.hpp>
-#include <ur_api.h>
+#include <ur_ddi.h>
 #include <ze_api.h>
 
-#include "../common.hpp"
+#include "common.hpp"
 
 namespace v2 {
 namespace raii {
-using ze_command_list_t = std::unique_ptr<::_ze_command_list_handle_t,
-                                          decltype(&zeCommandListDestroy)>;
 using cache_borrowed_command_list_t =
     std::unique_ptr<::_ze_command_list_handle_t,
-                    std::function<void(ze_command_list_handle_t)>>;
+                    std::function<void(::ze_command_list_handle_t)>>;
 } // namespace raii
 
 struct immediate_command_list_descriptor_t {
@@ -72,15 +70,16 @@ struct command_list_cache_t {
 private:
   ze_context_handle_t ZeContext;
   std::unordered_map<command_list_descriptor_t,
-                     std::stack<raii::ze_command_list_t>,
+                     std::stack<raii::ze_command_list_handle_t>,
                      command_list_descriptor_hash_t>
       ZeCommandListCache;
   ur_mutex ZeCommandListCacheMutex;
 
-  raii::ze_command_list_t getCommandList(const command_list_descriptor_t &desc);
+  raii::ze_command_list_handle_t
+  getCommandList(const command_list_descriptor_t &desc);
   void addCommandList(const command_list_descriptor_t &desc,
-                      raii::ze_command_list_t cmdList);
-  raii::ze_command_list_t
+                      raii::ze_command_list_handle_t cmdList);
+  raii::ze_command_list_handle_t
   createCommandList(const command_list_descriptor_t &desc);
 };
 } // namespace v2

@@ -127,6 +127,7 @@ inline uint64_t GetSizeAndRedzoneSizeForLocal(uint64_t Size,
             return Result;                                                     \
     }
 
+using BacktraceFrame = void *;
 using BacktraceInfo = std::string;
 
 struct SourceInfo {
@@ -157,6 +158,7 @@ bool IsInASanContext();
 
 uptr MmapNoReserve(uptr Addr, uptr Size);
 bool Munmap(uptr Addr, uptr Size);
+bool DontCoredumpRange(uptr Addr, uptr Size);
 
 void *GetMemFunctionPointer(const char *);
 

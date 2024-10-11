@@ -45,10 +45,47 @@ ur_result_t ur_event_handle_t_::release() {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRetain(ur_event_handle_t hEvent) {
-  return hEvent->retain();
-}
+namespace ur::level_zero {
+ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
 
-UR_APIEXPORT ur_result_t UR_APICALL urEventRelease(ur_event_handle_t hEvent) {
+ur_result_t urEventRelease(ur_event_handle_t hEvent) {
   return hEvent->release();
 }
+
+ur_result_t urEventWait(uint32_t numEvents,
+                        const ur_event_handle_t *phEventWaitList) {
+  for (uint32_t i = 0; i < numEvents; ++i) {
+    ZE2UR_CALL(zeEventHostSynchronize,
+               (phEventWaitList[i]->getZeEvent(), UINT64_MAX));
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
+                           size_t propValueSize, void *pPropValue,
+                           size_t *pPropValueSizeRet) {
+  UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
+
+  switch (propName) {
+  case UR_EVENT_INFO_COMMAND_EXECUTION_STATUS: {
+    auto zeStatus = ZE_CALL_NOCHECK(zeEventQueryStatus, (hEvent->getZeEvent()));
+
+    if (zeStatus == ZE_RESULT_NOT_READY) {
+      return returnValue(UR_EVENT_STATUS_SUBMITTED);
+    } else {
+      return returnValue(UR_EVENT_STATUS_COMPLETE);
+    }
+  }
+  case UR_EVENT_INFO_REFERENCE_COUNT: {
+    return returnValue(hEvent->RefCount.load());
+  }
+  default:
+    logger::error(
+        "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
+        propName, logger::toHex(propName));
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+} // namespace ur::level_zero

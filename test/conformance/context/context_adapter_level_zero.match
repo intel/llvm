@@ -1,2 +1,3 @@
+{{NONDETERMINISTIC}}
 urContextCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urContextSetExtendedDeleterTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

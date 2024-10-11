@@ -22,13 +22,25 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
             GTEST_SKIP() << "Shared USM is not supported.";
         }
 
+        // QUEUE_INFO_EMPTY isn't supported by all adapters
+        ur_bool_t empty_check = false;
+        auto result =
+            urQueueGetInfo(queue, UR_QUEUE_INFO_EMPTY, sizeof(empty_check),
+                           &empty_check, nullptr);
+        if (result == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {
+            GTEST_SKIP() << "QUEUE_INFO_EMPTY is not supported.";
+        }
+        ASSERT_SUCCESS(result);
+
         ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
                                         ArraySize * sizeof(uint32_t),
                                         &SharedMem));
     }
 
     void TearDown() override {
-        ASSERT_SUCCESS(urUSMFree(context, SharedMem));
+        if (SharedMem) {
+            ASSERT_SUCCESS(urUSMFree(context, SharedMem));
+        }
         uur::IntegrationQueueTestWithParam::TearDown();
     }
 

@@ -14,7 +14,9 @@
 #include "device.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
+namespace ur::level_zero {
+
+ur_result_t urPhysicalMemCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
     [[maybe_unused]] const ur_physical_mem_properties_t *pProperties,
     ur_physical_mem_handle_t *phPhysicalMem) {
@@ -35,14 +37,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urPhysicalMemCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
+ur_result_t urPhysicalMemRetain(ur_physical_mem_handle_t hPhysicalMem) {
   hPhysicalMem->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
+ur_result_t urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
   if (!hPhysicalMem->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -52,3 +52,4 @@ urPhysicalMemRelease(ur_physical_mem_handle_t hPhysicalMem) {
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace ur::level_zero

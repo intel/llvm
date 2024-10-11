@@ -51,3 +51,7 @@ add_adapter_reg_search_test(search-order
     SEARCH_PATH ${TEST_SEARCH_PATH}
     ENVS "TEST_ADAPTER_SEARCH_PATH=\"${TEST_SEARCH_PATH}\"" "TEST_CUR_SEARCH_PATH=\"${TEST_BIN_PATH}\""
     SOURCES search_order.cpp)
+
+add_adapter_reg_search_test(prefilter
+    SEARCH_PATH ""
+    SOURCES prefilter.cpp)

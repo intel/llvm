@@ -135,7 +135,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemBufferCreate(
     if (PerformInitialCopy && HostPtr) {
       // Perform initial copy to every device in context
       for (auto &Device : hContext->getDevices()) {
-        ScopedContext Active(Device);
+        ScopedDevice Active(Device);
         // getPtr may allocate mem if not already allocated
         const auto &Ptr = std::get<BufferMem>(URMemObj->Mem).getPtr(Device);
         UR_CHECK_ERROR(hipMemcpyHtoD(Ptr, HostPtr, size));
@@ -238,7 +238,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   // FIXME: Only getting info for the first device in the context. This
   // should be fine in general
   auto Device = hMemory->getContext()->getDevices()[0];
-  ScopedContext Active(Device);
+  ScopedDevice Active(Device);
 
   UrReturnHelper ReturnValue(propSize, pMemInfo, pPropSizeRet);
 
@@ -375,7 +375,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageCreate(
 
     if (PerformInitialCopy) {
       for (const auto &Dev : hContext->getDevices()) {
-        ScopedContext Active(Dev);
+        ScopedDevice Active(Dev);
         hipStream_t Stream{0}; // Use default stream
         UR_CHECK_ERROR(
             enqueueMigrateMemoryToDeviceIfNeeded(URMemObj.get(), Dev, Stream));
@@ -401,7 +401,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemImageGetInfo(ur_mem_handle_t hMemory,
   UR_ASSERT(hMemory->isImage(), UR_RESULT_ERROR_INVALID_MEM_OBJECT);
   // FIXME: only getting infor for first image in ctx
   auto Device = hMemory->getContext()->getDevices()[0];
-  ScopedContext Active(Device);
+  ScopedDevice Active(Device);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
   try {
@@ -474,7 +474,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemRetain(ur_mem_handle_t hMem) {
 
 ur_result_t allocateMemObjOnDeviceIfNeeded(ur_mem_handle_t Mem,
                                            const ur_device_handle_t hDevice) {
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
   auto DeviceIdx = Mem->getContext()->getDeviceIndex(hDevice);
   ur_lock LockGuard(Mem->MemoryAllocationMutex);
 
@@ -640,7 +640,7 @@ ur_result_t enqueueMigrateMemoryToDeviceIfNeeded(
   if (Mem->HaveMigratedToDeviceSinceLastWrite[DeviceIdx])
     return UR_RESULT_SUCCESS;
 
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
   if (Mem->isBuffer()) {
     UR_CHECK_ERROR(enqueueMigrateBufferToDevice(Mem, hDevice, Stream));
   } else {

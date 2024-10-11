@@ -12,7 +12,9 @@
 #include "logger/ur_logger.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
+namespace ur::level_zero {
+
+ur_result_t urSamplerCreate(
     ur_context_handle_t Context, ///< [in] handle of the context object
     const ur_sampler_desc_t
         *Props, ///< [in] specifies a list of sampler property names and their
@@ -109,17 +111,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreate(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerRetain(
-    ur_sampler_handle_t
-        Sampler ///< [in] handle of the sampler object to get access
+ur_result_t
+urSamplerRetain(ur_sampler_handle_t
+                    Sampler ///< [in] handle of the sampler object to get access
 ) {
   Sampler->RefCount.increment();
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
-    ur_sampler_handle_t
-        Sampler ///< [in] handle of the sampler object to release
+ur_result_t
+urSamplerRelease(ur_sampler_handle_t
+                     Sampler ///< [in] handle of the sampler object to release
 ) {
   if (!Sampler->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
@@ -133,7 +135,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerRelease(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetInfo(
+ur_result_t urSamplerGetInfo(
     ur_sampler_handle_t Sampler, ///< [in] handle of the sampler object
     ur_sampler_info_t PropName,  ///< [in] name of the sampler property to query
     size_t PropValueSize, ///< [in] size in bytes of the sampler property value
@@ -152,7 +154,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetInfo(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
+ur_result_t urSamplerGetNativeHandle(
     ur_sampler_handle_t Sampler,      ///< [in] handle of the sampler.
     ur_native_handle_t *NativeSampler ///< [out] a pointer to the native
                                       ///< handle of the sampler.
@@ -164,7 +166,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerGetNativeHandle(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
+ur_result_t urSamplerCreateWithNativeHandle(
     ur_native_handle_t
         NativeSampler,           ///< [in] the native handle of the sampler.
     ur_context_handle_t Context, ///< [in] handle of the context object
@@ -182,3 +184,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urSamplerCreateWithNativeHandle(
                 "{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+} // namespace ur::level_zero

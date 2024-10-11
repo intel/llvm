@@ -108,6 +108,26 @@ def _mako_print_cpp(path, namespace, tags, version, specs, meta):
         specs=specs,
         meta=meta)
 
+
+def _mako_api_funcs(path, namespace, tags, version, revision, specs, meta):
+    template = "api_funcs.def.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = "%s_api_funcs"%(namespace)
+    filename = "%s.def"%(name)
+    fout = os.path.join(path, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        ver=version,
+        rev=revision,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta)
+
 """
     generates c/c++ files from the specification documents
 """
@@ -116,6 +136,7 @@ def _generate_api_cpp(incpath, srcpath, namespace, tags, version, revision, spec
     loc += _mako_api_cpp(srcpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_ddi_h(incpath, namespace, tags, version, revision, specs, meta)
     loc += _mako_print_hpp(incpath, namespace, tags, version, revision, specs, meta)
+    loc += _mako_api_funcs(incpath, namespace, tags, version, revision, specs, meta)
 
     return loc
 
@@ -380,6 +401,32 @@ def generate_loader(path, section, namespace, tags, version, specs, meta):
     print("Generated %s lines of code.\n"%loc)
 
 """
+    generates c/c++ files from the specification documents
+"""
+def _mako_interface_loader_api(path, adapter, ext, namespace, tags, version, specs, meta):
+    dstpath = os.path.join(path, adapter)
+    os.makedirs(dstpath, exist_ok=True)
+
+    template = f"ur_interface_loader.{ext}.mako"
+    fin = os.path.join(templates_dir, template)
+
+    name = f"ur_interface_loader"
+
+    filename = f"{name}.{ext}"
+    fout = os.path.join(dstpath, filename)
+
+    print("Generating %s..."%fout)
+    return util.makoWrite(
+        fin, fout,
+        name=name,
+        adapter=adapter,
+        ver=version,
+        namespace=namespace,
+        tags=tags,
+        specs=specs,
+        meta=meta,)
+
+"""
 Entry-point:
     generates adapter for unified_runtime
 """
@@ -395,6 +442,10 @@ def generate_adapters(path, section, namespace, tags, version, specs, meta):
     loc += _mako_linker_scripts(
         dstpath, "adapter", "def", namespace, tags, version, specs, meta
     )
+
+    loc += _mako_interface_loader_api(dstpath, "level_zero", "cpp", namespace, tags, version, specs, meta)
+    loc += _mako_interface_loader_api(dstpath, "level_zero", "hpp", namespace, tags, version, specs, meta)
+
     print("Generated %s lines of code.\n"%loc)
 
 """

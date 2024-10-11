@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -28,13 +28,14 @@ function(add_cppformat name)
     if(${ARGC} EQUAL 0)
         return()
     else()
+        # Split args into 2 parts (in Windows the list is probably too long)
+        list(SUBLIST ARGN 0 250 selected_files_1)
+        list(SUBLIST ARGN 251 -1 selected_files_2)
         add_custom_target(cppformat-${name}
-            COMMAND ${CLANG_FORMAT}
-                --style=file
-                --i
-                ${ARGN}
+            COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_1}
+            COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_2}
             COMMENT "Format CXX source files"
-            )
+        )
     endif()
 
     add_dependencies(cppformat cppformat-${name})
@@ -70,6 +71,7 @@ function(add_ur_target_compile_options name)
         )
         if (CMAKE_BUILD_TYPE STREQUAL "Release")
             target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
+            target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
         if(UR_DEVELOPER_MODE)
             target_compile_options(${name} PRIVATE
@@ -136,6 +138,15 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
+endfunction()
+
+function(install_ur_library name)
+    install(TARGETS ${name}
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+    )
 endfunction()
 
 include(FetchContent)

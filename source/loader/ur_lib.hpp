@@ -112,7 +112,7 @@ class __urdlllocal context_t : public AtomicSingleton<context_t> {
     codeloc_data codelocData;
 
     void parseEnvEnabledLayers();
-    void initLayers() const;
+    void initLayers();
     void tearDownLayers() const;
 };
 

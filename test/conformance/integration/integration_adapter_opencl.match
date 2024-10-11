@@ -1,6 +1,0 @@
-QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/Intel_R__OpenCL___{{.*}}___IN_ORDER_QUEUE
-QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/Intel_R__OpenCL___{{.*}}___OUT_OF_ORDER_QUEUE
-QueueUSMTestWithParam.QueueUSMTest/Intel_R__OpenCL___{{.*}}___IN_ORDER_QUEUE
-QueueUSMTestWithParam.QueueUSMTest/Intel_R__OpenCL___{{.*}}___OUT_OF_ORDER_QUEUE
-QueueBufferTestWithParam.QueueBufferTest/Intel_R__OpenCL___{{.*}}___IN_ORDER_QUEUE
-QueueBufferTestWithParam.QueueBufferTest/Intel_R__OpenCL___{{.*}}___OUT_OF_ORDER_QUEUE

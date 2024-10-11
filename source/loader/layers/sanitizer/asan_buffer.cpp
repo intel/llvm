@@ -75,6 +75,15 @@ ur_result_t MemBuffer::getHandle(ur_device_handle_t Device, char *&Handle) {
         return UR_RESULT_SUCCESS;
     }
 
+    // Device may be null, we follow the L0 adapter's practice to use the first
+    // device
+    if (!Device) {
+        auto Devices = GetDevices(Context);
+        assert(Devices.size() > 0 && "Devices should not be empty");
+        Device = Devices[0];
+    }
+    assert((void *)Device != nullptr && "Device cannot be nullptr");
+
     std::scoped_lock<ur_shared_mutex> Guard(Mutex);
     auto &Allocation = Allocations[Device];
     ur_result_t URes = UR_RESULT_SUCCESS;
@@ -183,8 +192,8 @@ size_t MemBuffer::getAlignment() {
     // usually choose a very large size (more than 1k). Then sanitizer will
     // allocate extra unnessary memory. Not sure if this will impact
     // performance.
-    size_t MsbIdx = 63 - __builtin_clz(Size);
-    size_t Alignment = (1 << (MsbIdx + 1));
+    size_t MsbIdx = 63 - __builtin_clzl(Size);
+    size_t Alignment = (1ULL << (MsbIdx + 1));
     if (Alignment > 128) {
         Alignment = 128;
     }

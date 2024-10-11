@@ -15,7 +15,9 @@
 #include "physical_mem.hpp"
 #include "ur_level_zero.hpp"
 
-UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
+namespace ur::level_zero {
+
+ur_result_t urVirtualMemGranularityGetInfo(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     ur_virtual_mem_granularity_info_t propName, size_t propSize,
     void *pPropValue, size_t *pPropSizeRet) {
@@ -39,24 +41,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGranularityGetInfo(
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urVirtualMemReserve(ur_context_handle_t hContext, const void *pStart,
-                    size_t size, void **ppStart) {
+ur_result_t urVirtualMemReserve(ur_context_handle_t hContext,
+                                const void *pStart, size_t size,
+                                void **ppStart) {
   ZE2UR_CALL(zeVirtualMemReserve, (hContext->ZeContext, pStart, size, ppStart));
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemFree(
-    ur_context_handle_t hContext, const void *pStart, size_t size) {
+ur_result_t urVirtualMemFree(ur_context_handle_t hContext, const void *pStart,
+                             size_t size) {
   ZE2UR_CALL(zeVirtualMemFree, (hContext->ZeContext, pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
-                      size_t size, ur_virtual_mem_access_flags_t flags) {
+ur_result_t urVirtualMemSetAccess(ur_context_handle_t hContext,
+                                  const void *pStart, size_t size,
+                                  ur_virtual_mem_access_flags_t flags) {
   ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
@@ -69,10 +71,10 @@ urVirtualMemSetAccess(ur_context_handle_t hContext, const void *pStart,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL
-urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
-                ur_physical_mem_handle_t hPhysicalMem, size_t offset,
-                ur_virtual_mem_access_flags_t flags) {
+ur_result_t urVirtualMemMap(ur_context_handle_t hContext, const void *pStart,
+                            size_t size, ur_physical_mem_handle_t hPhysicalMem,
+                            size_t offset,
+                            ur_virtual_mem_access_flags_t flags) {
   ze_memory_access_attribute_t AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_NONE;
   if (flags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     AccessAttr = ZE_MEMORY_ACCESS_ATTRIBUTE_READWRITE;
@@ -86,17 +88,18 @@ urVirtualMemMap(ur_context_handle_t hContext, const void *pStart, size_t size,
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemUnmap(
-    ur_context_handle_t hContext, const void *pStart, size_t size) {
+ur_result_t urVirtualMemUnmap(ur_context_handle_t hContext, const void *pStart,
+                              size_t size) {
   ZE2UR_CALL(zeVirtualMemUnmap, (hContext->ZeContext, pStart, size));
 
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
-    ur_context_handle_t hContext, const void *pStart,
-    [[maybe_unused]] size_t size, ur_virtual_mem_info_t propName,
-    size_t propSize, void *pPropValue, size_t *pPropSizeRet) {
+ur_result_t urVirtualMemGetInfo(ur_context_handle_t hContext,
+                                const void *pStart,
+                                [[maybe_unused]] size_t size,
+                                ur_virtual_mem_info_t propName, size_t propSize,
+                                void *pPropValue, size_t *pPropSizeRet) {
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   switch (propName) {
   case UR_VIRTUAL_MEM_INFO_ACCESS_MODE: {
@@ -119,3 +122,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urVirtualMemGetInfo(
 
   return UR_RESULT_SUCCESS;
 }
+} // namespace ur::level_zero

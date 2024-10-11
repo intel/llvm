@@ -17,6 +17,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE ${TARGET_XPTI})
 target_include_directories(${TARGET_NAME} PRIVATE ${xpti_SOURCE_DIR}/include)
 
 if(MSVC)
-    target_compile_definitions(${TARGET_NAME} PRIVATE
-        XPTI_STATIC_LIBRARY XPTI_CALLBACK_API_EXPORTS)
+    target_compile_definitions(${TARGET_NAME} PRIVATE XPTI_STATIC_LIBRARY)
 endif()
+target_compile_definitions(${TARGET_NAME} PRIVATE XPTI_CALLBACK_API_EXPORTS)
