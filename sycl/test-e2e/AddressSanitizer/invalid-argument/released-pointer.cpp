@@ -1,6 +1,6 @@
 // REQUIRES: linux, gpu
 
-// https://github.com/intel/llvm/issues/15648
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15648
 // XFAIL: gpu-intel-dg2 && linux
 
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
