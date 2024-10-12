@@ -129,6 +129,8 @@ int main() {
                               float>();
         res += gemm_row_major<32, 64, 16, class bf16_32x64x16, bfloat16,
                               bfloat16, float>();
+        res += gemm_row_major<32, 64, 32, class bf16_32x64x32, bfloat16,
+                              bfloat16, float>();
       }
       break;
     }
