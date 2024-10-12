@@ -22,7 +22,7 @@ void printUSM(int *usmPtr, int size) {
   std::cout << "}\n";
 }
 
-bool checkUSM(int *usmPtr, int size, int *Result) {
+bool checkUSM(int *usmPtr, int size, int *Result, int line = __builtin_LINE()) {
   bool Pass = true;
   for (int i = 0; i < size; i++) {
     if (usmPtr[i] != Result[i]) {
@@ -43,6 +43,7 @@ bool checkUSM(int *usmPtr, int size, int *Result) {
     std::cout << usmPtr[i] << ", ";
   }
   std::cout << "}\n";
+  std::cout << "checkUSM failed, called from line " << line << std::endl;
   return false;
 }
 
@@ -71,9 +72,9 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 0a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
+  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
@@ -88,7 +89,6 @@ bool test_0(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 0b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
 #endif
@@ -120,9 +120,9 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 1a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
+  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
@@ -138,7 +138,6 @@ bool test_1(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 1b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
 #endif
@@ -175,9 +174,9 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 2a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
+  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
@@ -192,7 +191,6 @@ bool test_2(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 2b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
 #endif
@@ -233,9 +231,9 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   bool PassA = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 3a: " << (PassA ? "PASS" : "FAIL") << std::endl;
 
   bool PassB = false;
+  // TODO: Avoid using __SYCL_DEVICE_ONLY__ or give rationale with a comment
 #ifndef __SYCL_DEVICE_ONLY__
   kernel_bundle Bundle =
       get_kernel_bundle<bundle_state::executable>(Queue.get_context());
@@ -250,7 +248,6 @@ bool test_3(queue Queue) {
   });
   Queue.wait();
   PassB = checkUSM(usmPtr, Range, Result);
-  std::cout << "Test 3b: " << (PassB ? "PASS" : "FAIL") << std::endl;
 
   free(usmPtr, Queue);
 #endif
