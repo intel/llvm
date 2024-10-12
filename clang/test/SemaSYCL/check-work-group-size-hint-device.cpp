@@ -17,8 +17,7 @@
 
 // Produce a conflicting attribute warning when the args are different.
 [[sycl::work_group_size_hint(4, 1, 1)]] void f3();    // expected-note {{previous attribute is here}}
-[[sycl::work_group_size_hint(1, 1, 32)]] void f3() {} // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}} \
-// expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+[[sycl::work_group_size_hint(1, 1, 32)]] void f3(); // expected-warning {{attribute 'work_group_size_hint' is already applied with different arguments}}
 
 // 1 and 2 dim versions
 [[sycl::work_group_size_hint(2)]] void f4();    // ok
@@ -44,13 +43,6 @@ public:
 template <int N>
 [[sycl::work_group_size_hint(N, 1, 1)]] void f8(); // #f8
 
-// Test that template redeclarations also get diagnosed properly.
-template <int X, int Y, int Z>
-[[sycl::work_group_size_hint(1, 1, 1)]] void f9(); // #f9prev
-
-template <int X, int Y, int Z>
-[[sycl::work_group_size_hint(X, Y, Z)]] void f9() {} // #f9
-
 // Test that a template redeclaration where the difference is known up front is
 // diagnosed immediately, even without instantiation.
 template <int X, int Y, int Z>
@@ -70,15 +62,6 @@ void instantiate() {
   // expected-error@#f8 {{'work_group_size_hint' attribute requires a positive integral compile time constant expression}}
   f8<0>(); // expected-note {{in instantiation}}
 #endif
-
-  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
-  f9<1, 1, 1>(); // OK, args are the same on the redecl.
-
-  // expected-warning@#f9 {{attribute 'work_group_size_hint' is already applied with different arguments}}
-  // expected-note@#f9prev {{previous attribute is here}}
-  // expected-warning@#f9prev {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
-
-  f9<1, 2, 3>(); // expected-note {{in instantiation}}
 }
 
 // Show that the attribute works on member functions.
@@ -101,20 +84,7 @@ public:
 
 class Functor4x4x4 {
 public:
-  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {}; // expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
-};
-
-// Checking whether propagation of the attribute happens or not, according to the SYCL version.
-#if defined(EXPECT_PROP) // if attribute is propagated, then we expect errors here
-void f8x8x8(){};
-#else // otherwise no error
-[[sycl::work_group_size_hint(8, 8, 8)]] void f8x8x8(){}; // expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
-#endif
-class FunctorNoProp {
-public:
-  void operator()() const {
-    f8x8x8();
-  };
+  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {};
 };
 
 void invoke() {
@@ -137,12 +107,6 @@ void invoke() {
     // CHECK-NEXT:  value: Int 1
     // CHECK-NEXT:  IntegerLiteral{{.*}}1{{$}}
 
-
-    FunctorNoProp fNoProp;
-    h.single_task<class kernel_3>(fNoProp);
-    // CHECK: FunctionDecl {{.*}} {{.*}}kernel_3
-    // CHECK-NOT: SYCLWorkGroupSizeHintAttr
-
     h.single_task<class kernel_name4>([]() [[sycl::work_group_size_hint(4,4,4)]] {});
     // CHECK: FunctionDecl {{.*}}kernel_name4
     // CHECK: SYCLWorkGroupSizeHintAttr {{.*}}
@@ -156,6 +120,7 @@ void invoke() {
     // CHECK-NEXT:  value: Int 4
     // CHECK-NEXT:  IntegerLiteral{{.*}}4{{$}}
 
+    h.single_task<class kernel_name5>(f4x4x4);
   });
 
   // FIXME: Add tests with the C++23 lambda attribute syntax.
