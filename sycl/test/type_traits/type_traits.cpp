@@ -34,11 +34,6 @@ void test_make_type_t() {
                 "");
 }
 
-template <typename T, typename CheckedT, bool Expected = true>
-void test_make_larger_t() {
-  static_assert(is_same<d::make_larger_t<T>, CheckedT>::value == Expected, "");
-}
-
 template <typename T, typename T2, typename CheckedT, bool Expected = true>
 void test_change_base_type_t() {
   static_assert(
@@ -65,11 +60,6 @@ template <typename T, typename CheckedT, bool Expected = true>
 void test_remove_pointer_t() {
   static_assert(is_same<d::remove_pointer_t<T>, CheckedT>::value == Expected,
                 "");
-}
-
-template <typename T, int Checked, bool Expected = true>
-void test_vector_size() {
-  static_assert((d::vector_size<T>::value == Checked) == Expected, "");
 }
 
 int main() {
@@ -121,17 +111,6 @@ int main() {
   test_make_type_t<s::vec<s::opencl::cl_int, 3>, d::gtl::scalar_float_list,
                    s::vec<s::opencl::cl_float, 3>>();
 
-  test_make_larger_t<s::half, float>();
-  test_make_larger_t<s::half3, s::float3>();
-  test_make_larger_t<float, double>();
-  test_make_larger_t<s::float3, s::double3>();
-  test_make_larger_t<double, void>();
-  test_make_larger_t<s::double3, void>();
-  test_make_larger_t<int32_t, int64_t>();
-  test_make_larger_t<s::vec<int32_t, 8>, s::vec<int64_t, 8>>();
-  test_make_larger_t<int64_t, void>();
-  test_make_larger_t<s::vec<int64_t, 8>, void>();
-
   test_change_base_type_t<int, float, float>();
   test_change_base_type_t<s::int2, float, s::float2>();
   test_change_base_type_t<long, float, float>();
@@ -154,14 +133,6 @@ int main() {
   test_make_unsigned_t<const s::int2, const s::uint2>();
   test_make_unsigned_t<s::uint2, s::uint2>();
   test_make_unsigned_t<const s::uint2, const s::uint2>();
-
-  test_vector_size<int, 1>();
-  test_vector_size<float, 1>();
-  test_vector_size<double, 1>();
-  test_vector_size<s::int2, 2>();
-  test_vector_size<s::float3, 3>();
-  test_vector_size<s::double4, 4>();
-  test_vector_size<s::vec<int, 1>, 1>();
 
 #ifdef __SYCL_DEVICE_ONLY__
   static_assert(

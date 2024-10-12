@@ -8,14 +8,14 @@
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: CL/__spirv/spirv_ops.hpp
-// CHECK-NEXT: CL/__spirv/spirv_types.hpp
+// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
+// CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
@@ -84,6 +84,7 @@
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
@@ -112,6 +113,7 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: properties/buffer_properties.def
 // CHECK-NEXT: queue.hpp
 // CHECK-NEXT: detail/assert_happened.hpp
 // CHECK-NEXT: detail/cg_types.hpp
