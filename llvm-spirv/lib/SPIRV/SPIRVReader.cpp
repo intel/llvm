@@ -2997,55 +2997,7 @@ bool SPIRVToLLVM::foreachFuncCtlMask(SourceTy Source, FuncTy Func) {
   return true;
 }
 
-Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
-  auto Loc = FuncMap.find(BF);
-  if (Loc != FuncMap.end())
-    return Loc->second;
-
-  auto IsKernel = isKernel(BF);
-  auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
-  FunctionType *FT = cast<FunctionType>(transType(BF->getFunctionType()));
-  std::string FuncName = BF->getName();
-  StringRef FuncNameRef(FuncName);
-  // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
-  // assuming llvm.memset is supported by the device compiler. If this
-  // assumption is not safe, we should have a command line option to control
-  // this behavior.
-  if (FuncNameRef.starts_with("spirv.llvm_memset_p")) {
-    // We can't guarantee that the name is correctly mangled due to opaque
-    // pointers. Derive the correct name from the function type.
-    FuncName =
-        Intrinsic::getDeclaration(M, Intrinsic::memset,
-                                  {FT->getParamType(0), FT->getParamType(2)})
-            ->getName();
-  }
-  if (FuncNameRef.consume_front("spirv.")) {
-    FuncNameRef.consume_back(".volatile");
-    FuncName = FuncNameRef.str();
-    std::replace(FuncName.begin(), FuncName.end(), '_', '.');
-  }
-  Function *F = M->getFunction(FuncName);
-  if (!F)
-    F = Function::Create(FT, Linkage, FuncName, M);
-  F = cast<Function>(mapValue(BF, F));
-  mapFunction(BF, F);
-
-  if (F->isIntrinsic()) {
-    if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
-      return F;
-    std::string Name = F->getName().str();
-    auto *ST = cast<StructType>(F->getReturnType());
-    auto *FT = F->getFunctionType();
-    auto *NewST = StructType::get(ST->getContext(), ST->elements());
-    auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
-    F->setName("old_" + Name);
-    auto *NewFn = Function::Create(NewFT, F->getLinkage(), F->getAddressSpace(),
-                                   Name, F->getParent());
-    return NewFn;
-  }
-
-  F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
-                             : CallingConv::SPIR_FUNC);
+void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
   if (BF->hasDecorate(DecorationReferencedIndirectlyINTEL))
     F->addFnAttr("referenced-indirectly");
   if (isFuncNoUnwind())
@@ -3095,6 +3047,77 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
       return;
     F->addRetAttr(SPIRSPIRVFuncParamAttrMap::rmap(Kind));
   });
+}
+
+Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF) {
+  auto Loc = FuncMap.find(BF);
+  if (Loc != FuncMap.end())
+    return Loc->second;
+
+  auto IsKernel = isKernel(BF);
+
+  if (IsKernel) {
+    // search for a previous function with the same name
+    // upgrade it to a kernel and drop this if it's found
+    for (auto &I : FuncMap) {
+      auto BFName = I.getFirst()->getName();
+      if (BF->getName() == BFName) {
+        auto *F = I.getSecond();
+        F->setCallingConv(CallingConv::SPIR_KERNEL);
+        F->setLinkage(GlobalValue::ExternalLinkage);
+        F->setDSOLocal(false);
+        F = cast<Function>(mapValue(BF, F));
+        mapFunction(BF, F);
+        transFunctionAttrs(BF, F);
+        return F;
+      }
+    }
+  }
+
+  auto Linkage = IsKernel ? GlobalValue::ExternalLinkage : transLinkageType(BF);
+  FunctionType *FT = cast<FunctionType>(transType(BF->getFunctionType()));
+  std::string FuncName = BF->getName();
+  StringRef FuncNameRef(FuncName);
+  // Transform "@spirv.llvm_memset_p0i8_i32.volatile" to @llvm.memset.p0i8.i32
+  // assuming llvm.memset is supported by the device compiler. If this
+  // assumption is not safe, we should have a command line option to control
+  // this behavior.
+  if (FuncNameRef.starts_with("spirv.llvm_memset_p")) {
+    // We can't guarantee that the name is correctly mangled due to opaque
+    // pointers. Derive the correct name from the function type.
+    FuncName =
+        Intrinsic::getDeclaration(M, Intrinsic::memset,
+                                  {FT->getParamType(0), FT->getParamType(2)})
+            ->getName();
+  }
+  if (FuncNameRef.consume_front("spirv.")) {
+    FuncNameRef.consume_back(".volatile");
+    FuncName = FuncNameRef.str();
+    std::replace(FuncName.begin(), FuncName.end(), '_', '.');
+  }
+  Function *F = M->getFunction(FuncName);
+  if (!F)
+    F = Function::Create(FT, Linkage, FuncName, M);
+  F = cast<Function>(mapValue(BF, F));
+  mapFunction(BF, F);
+
+  if (F->isIntrinsic()) {
+    if (F->getIntrinsicID() != Intrinsic::umul_with_overflow)
+      return F;
+    std::string Name = F->getName().str();
+    auto *ST = cast<StructType>(F->getReturnType());
+    auto *FT = F->getFunctionType();
+    auto *NewST = StructType::get(ST->getContext(), ST->elements());
+    auto *NewFT = FunctionType::get(NewST, FT->params(), FT->isVarArg());
+    F->setName("old_" + Name);
+    auto *NewFn = Function::Create(NewFT, F->getLinkage(), F->getAddressSpace(),
+                                   Name, F->getParent());
+    return NewFn;
+  }
+
+  F->setCallingConv(IsKernel ? CallingConv::SPIR_KERNEL
+                             : CallingConv::SPIR_FUNC);
+  transFunctionAttrs(BF, F);
 
   // Creating all basic blocks before creating instructions.
   for (size_t I = 0, E = BF->getNumBasicBlock(); I != E; ++I) {
