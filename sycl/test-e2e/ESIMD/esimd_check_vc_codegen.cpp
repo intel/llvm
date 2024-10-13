@@ -94,4 +94,4 @@ int main(void) {
 // Don't use -NEXT here to split the line because we need to allow for the
 // possbility of a BuildExp( that fails with UNSUPPORTED followed by a Build(
 // that results in SUCCESS
-// CHECK: ---> urProgramBuild{{(Exp)?}}({{.*}}-vc-codegen{{.*}} -> UR_RESULT_SUCCESS
+// CHECK: <--- urProgramBuild{{(Exp)?}}({{.*}}-vc-codegen{{.*}} -> UR_RESULT_SUCCESS
