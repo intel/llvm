@@ -53,6 +53,7 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/traits.hpp>
+#include <syclcompat/defs.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
@@ -84,6 +85,23 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
+}
+
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, uint32_t>) {
+    return (intptr_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+  } else {
+    return (size_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+  }
+#else
+  throw sycl::exception(make_error_code(sycl::errc::runtime),
+                        "ptr_to_int is only supported on Nvidia devices.");
+#endif
 }
 
 enum class memory_region {

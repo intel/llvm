@@ -16,7 +16,7 @@
 // CREATE_IMAGE: ocloc{{.*}} "-output" "[[OCLOC_OUT:.+\.out]]" "-file" "[[LLVMSPIRV_TXT]]"{{.*}} "-device" "skl"
 // CREATE_IMAGE: file-table-tform{{.*}} "-o" "[[TFORM_TABLE:.+\.table]]" "[[POSTLINK_TABLE]]" "[[OCLOC_OUT]]"
 // CREATE_IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPPER_BC:.+\.bc]]"
-// CREATE_IMAGE: llc{{.*}} "-o" "[[DEVICE_OBJECT:.+\.o]]" "[[WRAPPER_BC]]"
+// CREATE_IMAGE: clang{{.*}} "-c" "-o" "[[DEVICE_OBJECT:.+\.o]]" "[[WRAPPER_BC]]"
 // CREATE_IMAGE: clang{{.*}} "-fsycl-is-host"{{.*}} "-o" "[[HOST_OBJECT:.+\.o]]"
 // CREATE_IMAGE: clang-offload-bundler{{.*}} "-targets=sycl-spir64_gen_image-unknown-unknown,host-x86_64-unknown-linux-gnu" "-output={{.*}}" "-input=[[DEVICE_OBJECT]]" "-input=[[HOST_OBJECT]]"
  

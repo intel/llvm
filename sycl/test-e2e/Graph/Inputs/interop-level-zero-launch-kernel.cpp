@@ -115,20 +115,26 @@ int main(int, char **argv) {
               ZeContext, ZeDevice, &ZeCommandQueueDesc, &ZeCommandList);
           assert(status == ZE_RESULT_SUCCESS);
 
-          status = zeKernelSetArgumentValue(ZeKernel, 0,
-                                            Size * sizeof(uint32_t), &MemZ);
+          status = zeKernelSetArgumentValue(ZeKernel, 0, sizeof(MemZ), &MemZ);
           assert(status == ZE_RESULT_SUCCESS);
-          status = zeKernelSetArgumentValue(ZeKernel, 1,
-                                            Size * sizeof(uint32_t), &MemX);
-          assert(status == ZE_RESULT_SUCCESS);
-          ze_group_count_t ZeGroupCount{Size, 1, 1};
-
-          zeKernelSetGroupSize(ZeKernel, 1024, 1, 1);
+          status = zeKernelSetArgumentValue(ZeKernel, 1, sizeof(MemX), &MemX);
           assert(status == ZE_RESULT_SUCCESS);
 
+          uint32_t GroupSizeX = 32;
+          uint32_t GroupSizeY = 1;
+          uint32_t GroupSizeZ = 1;
+          status = zeKernelSuggestGroupSize(ZeKernel, Size, 1, 1, &GroupSizeX,
+                                            &GroupSizeY, &GroupSizeZ);
+          assert(status == ZE_RESULT_SUCCESS);
+
+          status = zeKernelSetGroupSize(ZeKernel, GroupSizeX, GroupSizeY,
+                                        GroupSizeZ);
+          assert(status == ZE_RESULT_SUCCESS);
+
+          ze_group_count_t ZeGroupCount{
+              static_cast<uint32_t>(Size) / GroupSizeX, 1, 1};
           status = zeCommandListAppendLaunchKernel(
               ZeCommandList, ZeKernel, &ZeGroupCount, nullptr, 0, nullptr);
-
           assert(status == ZE_RESULT_SUCCESS);
 
           status = zeCommandListHostSynchronize(ZeCommandList, 0);
