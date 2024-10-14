@@ -116,24 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
-  # commit f5979a687d7b431338d59dec76bc7fdb9102c806
-  # Author: Ross Brunton <ross@codeplay.com>
-  # Date:   Fri Mar 22 17:18:22 2024 +0000
-  #     [Spec Constants] Improved handling of invalid/unsupported spec. constants
-  #
-  #     Two main changes to how `Kernel/ProgramSetSpecializationConstants`
-  #     are handled:
-  #     * They may now output either `INVALID_VALUE` or the new
-  #       `INVALID_SPEC_ID` when the provided list is invalid.
-  #     * The OpenCL and level 0 adapters now respond to
-  #       `UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS` with `false`
-  #       rather than erroring out. This fixes some tests that were
-  #       incorrectly not being skipped.
-  #     * `urKernelSetSpecializationConstants` now "implemented" (as a
-  #       function that returns `UNSUPPORTED_FEATURE` for a number of
-  #       adapters.
-  set(UNIFIED_RUNTIME_TAG f5979a687d7b431338d59dec76bc7fdb9102c806)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit 4814e505335bfb968ea905d76e5b978f6f4d0002
+  # Merge: d977bd76 aa53a35d
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 11 16:05:19 2024 +0100
+  #     Merge pull request #2090 from RossBrunton/ross/harden
+  #     Hardening flags
+  set(UNIFIED_RUNTIME_TAG 4814e505335bfb968ea905d76e5b978f6f4d0002)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
