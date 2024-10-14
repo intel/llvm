@@ -1,6 +1,6 @@
 # SYCL Native CPU
 
-The SYCL Native CPU flow aims at treating the host CPU as a "first class citizen", providing a SYCL implementation that targets CPUs of various different architectures, with no other dependencies than DPC++ itself, while bringing performances comparable to state-of-the-art CPU backends. SYCL Native CPU also provides some support for LLVM's [source-based code coverage tools](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html) (see also section [Code coverage](#code-coverage)).
+The SYCL Native CPU flow aims at treating the host CPU as a "first class citizen", providing a SYCL implementation that targets CPUs of various different architectures, with no other dependencies than DPC++ itself, while bringing performances comparable to state-of-the-art CPU backends. SYCL Native CPU also provides some initial/experimental support for LLVM's [source-based code coverage tools](https://clang.llvm.org/docs/SourceBasedCodeCoverage.html) (see also section [Code coverage](#code-coverage)).
 
 # Compiler and runtime options
 
@@ -93,7 +93,7 @@ Whole Function Vectorization is enabled by default, and can be controlled throug
 * `-mllvm -sycl-native-cpu-no-vecz`: disable Whole Function Vectorization.
 * `-mllvm -sycl-native-cpu-vecz-width`: sets the vector width to the specified value, defaults to 8.
 
-For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details[(#technical-details) section.
+For more details on how the Whole Function Vectorizer is integrated for SYCL Native CPU, refer to the [Technical details](#technical-details) section.
 
 # Code coverage
 
@@ -114,7 +114,7 @@ llvm-cov show .\vector-add.exe -instr-profile=foo.profdata
 * Subgroup support
 * Performance optimizations
 
-### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be reinstantiated soon.
+### Please note that Windows is partially supported but temporarily disabled due to some implementation details, it will be re-enabled soon.
 
 # Technical details
 
