@@ -32,6 +32,8 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -DCOMPAT_USM_LEVEL_NONE -o %t.out
+// RUN: %{run} %t.out
 // Tests for the sycl::events returned from syclcompat::*Async API calls
 
 #include <stdio.h>
@@ -187,6 +189,11 @@ void test_combine_events() {
 }
 
 int main() {
+#ifdef COMPAT_USM_LEVEL_NONE
+  std::cout << "Running COMPAT_USM_LEVEL_NONE tests" << std::endl;
+#else
+  std::cout << "Running USM tests" << std::endl;
+#endif
   test_free_async();
 
   test_memcpy_async1();
