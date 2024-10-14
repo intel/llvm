@@ -3574,6 +3574,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   CompoundStmt *createKernelBody() {
     // Push the Kernel function scope to ensure the scope isn't empty
     SemaSYCLRef.SemaRef.PushFunctionScope();
+
     if (!UseTopLevelKernelObj) {
       // Initialize kernel object local clone
       assert(CollectionInitExprs.size() == 1 &&
