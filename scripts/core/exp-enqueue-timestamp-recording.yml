@@ -17,7 +17,7 @@ extend: true
 typed_etors: true
 desc: "Extension enums to $x_device_info_t to support timestamp recordings."
 name: $x_device_info_t
-etors: 
+etors:
     - name: TIMESTAMP_RECORDING_SUPPORT_EXP
       value: "0x2018"
       desc: "[$x_bool_t] returns true if the device supports timestamp recording"
@@ -52,7 +52,7 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating no wait events. 
+            If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
