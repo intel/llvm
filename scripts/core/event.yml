@@ -107,7 +107,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the event object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
 --- #--------------------------------------------------------------------------
 type: enum
@@ -210,7 +210,7 @@ params:
     - type: "const $x_event_handle_t*"
       name: phEventWaitList
       desc: "[in][range(0, numEvents)] pointer to a list of events to wait for completion"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_VALUE:
       - "`numEvents == 0`"
     - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:

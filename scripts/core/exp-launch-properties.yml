@@ -138,4 +138,3 @@ etors:
     - name: CLUSTER_LAUNCH_EXP
       value: "0x1111"
       desc: "[$x_bool_t] return true if enqueue Cluster Launch is supported"
-

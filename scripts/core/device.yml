@@ -15,8 +15,8 @@ ordinal: "2"
 --- #--------------------------------------------------------------------------
 type: macro
 desc: |
-      Target identification strings for $x_device_binary_t.pDeviceTargetSpec 
-      A device type represented by a particular target triple requires specific 
+      Target identification strings for $x_device_binary_t.pDeviceTargetSpec
+      A device type represented by a particular target triple requires specific
       binary images. We need to map the image type onto the device target triple
 name: "$X_DEVICE_BINARY_TARGET_UNKNOWN"
 value: "\"<unknown>\""
@@ -35,7 +35,7 @@ value: "\"spir64\""
 --- #--------------------------------------------------------------------------
 type: macro
 desc: |
-      Device-specific binary images produced from SPIR-V 64-bit <-> various 
+      Device-specific binary images produced from SPIR-V 64-bit <-> various
       "spir64_*" triples for specific 64-bit OpenCL CPU devices
 name: "$X_DEVICE_BINARY_TARGET_SPIRV64_X86_64"
 value: "\"spir64_x86_64\""
@@ -75,7 +75,7 @@ members:
       name: pDeviceTargetSpec
       desc: |
             [in] null-terminated string representation of the device's target architecture.
-            For example: 
+            For example:
             + $X_DEVICE_BINARY_TARGET_UNKNOWN
             + $X_DEVICE_BINARY_TARGET_SPIRV32
             + $X_DEVICE_BINARY_TARGET_SPIRV64
@@ -326,7 +326,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the device object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: IL_VERSION
       desc: "[char[]] IL version"
@@ -356,7 +356,7 @@ etors:
       desc: "[uint32_t] maximum number of sub-devices when the device is partitioned"
     - name: PARTITION_AFFINITY_DOMAIN
       desc: |
-            [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning. 
+            [$x_device_affinity_domain_flags_t] Returns a bit-field of the supported affinity domains for partitioning.
             If the device does not support any affinity domains, then 0 will be returned.
     - name: PARTITION_TYPE
       desc: "[$x_device_partition_property_t[]] return an array of $x_device_partition_property_t for properties specified in $xDevicePartition"
@@ -412,7 +412,7 @@ etors:
       desc: "[$x_bool_t] support for bfloat16"
     - name: MAX_COMPUTE_QUEUE_INDICES
       desc: |
-            [uint32_t] Returns 1 if the device doesn't have a notion of a 
+            [uint32_t] Returns 1 if the device doesn't have a notion of a
             queue index. Otherwise, returns the number of queue indices that are
             available for this device.
     - name: KERNEL_SET_SPECIALIZATION_CONSTANTS
@@ -548,10 +548,10 @@ etors:
       value: "$X_BIT(4)"
     - name: NEXT_PARTITIONABLE
       desc: |
-            Split the device along the next partitionable affinity domain. 
+            Split the device along the next partitionable affinity domain.
             The implementation shall find the first level along which the device
-            or sub device may be further subdivided in the order: 
-            $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE, 
+            or sub device may be further subdivided in the order:
+            $X_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, $X_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
             and partition the device into sub devices comprised of compute units that share memory subsystems at this level.
       value: "$X_BIT(5)"
 --- #--------------------------------------------------------------------------
@@ -679,7 +679,7 @@ params:
     - type: "uint32_t"
       name: NumBinaries
       desc: |
-            [in] the number of binaries passed in ppBinaries. 
+            [in] the number of binaries passed in ppBinaries.
             Must greater than or equal to zero otherwise $X_RESULT_ERROR_INVALID_VALUE is returned.
     - type: "uint32_t*"
       name: pSelectedBinary
@@ -850,13 +850,13 @@ params:
       desc:  "[in] handle of the device instance"
     - type: "uint64_t*"
       name: pDeviceTimestamp
-      desc: | 
-            [out][optional] pointer to the Device's global timestamp that 
+      desc: |
+            [out][optional] pointer to the Device's global timestamp that
             correlates with the Host's global timestamp value
     - type: "uint64_t*"
       name: pHostTimestamp
       desc: |
-            [out][optional] pointer to the Host's global timestamp that 
+            [out][optional] pointer to the Host's global timestamp that
             correlates with the Device's global timestamp value
 --- #--------------------------------------------------------------------------
 type: enum

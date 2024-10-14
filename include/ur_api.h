@@ -1299,10 +1299,8 @@ typedef enum ur_platform_backend_t {
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_DEVICE_BINARY_TARGET_UNKNOWN
-/// @brief Target identification strings for
-///        ::ur_device_binary_t.pDeviceTargetSpec
-///        A device type represented by a particular target triple requires
-///        specific
+/// @brief Target identification strings for ::ur_device_binary_t.pDeviceTargetSpec
+///        A device type represented by a particular target triple requires specific
 ///        binary images. We need to map the image type onto the device target triple
 #define UR_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
 #endif // UR_DEVICE_BINARY_TARGET_UNKNOWN
@@ -1825,8 +1823,7 @@ typedef enum ur_device_affinity_domain_flag_t {
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
                                                                    ///< and partition the device into sub devices comprised of compute units
                                                                    ///< that share memory subsystems at this level.
     /// @cond
@@ -2611,8 +2608,7 @@ typedef struct ur_image_desc_t {
 ///
 /// @details
 ///     - The primary ::ur_image_format_t that must be supported by all the
-///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
-///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
@@ -6152,13 +6148,11 @@ urEnqueueKernelLaunch(
     const size_t *pLocalWorkSize,             ///< [in][optional] pointer to an array of workDim unsigned values that
                                               ///< specify the number of local work-items forming a work-group that will
                                               ///< execute the kernel function.
-                                              ///< If nullptr, the runtime implementation will choose the work-group
-                                              ///< size.
+                                              ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -7161,8 +7155,7 @@ urEnqueueUSMFill2D(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -7212,8 +7205,7 @@ urEnqueueUSMMemcpy2D(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -7251,8 +7243,7 @@ urEnqueueDeviceGlobalVariableWrite(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list.
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -7290,8 +7281,7 @@ urEnqueueDeviceGlobalVariableRead(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list.
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -7331,8 +7321,7 @@ urEnqueueReadHostPipe(
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the host pipe read.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
-    ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this read
-                                              ///< command
+    ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this read command
                                               ///< and can be used to query or queue a wait for this command to complete.
 );
 
@@ -9128,13 +9117,11 @@ urEnqueueCooperativeKernelLaunchExp(
     const size_t *pLocalWorkSize,             ///< [in][optional] pointer to an array of workDim unsigned values that
                                               ///< specify the number of local work-items forming a work-group that will
                                               ///< execute the kernel function.
-                                              ///< If nullptr, the runtime implementation will choose the work-group
-                                              ///< size.
+                                              ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
                                               ///< kernel execution instance.
 );
@@ -9193,8 +9180,7 @@ urEnqueueTimestampRecordingExp(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-                                              ///< events.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                ///< [in,out] return an event object that identifies this particular kernel
                                               ///< execution instance. Profiling information can be queried
                                               ///< from this event as if `hQueue` had profiling enabled. Querying
