@@ -42,7 +42,7 @@ function(add_test_adapter name adapter backend)
         if(UR_CONFORMANCE_ENABLE_MATCH_FILES)
             list(APPEND env GTEST_COLOR=no)
         endif()
-        set_tests_properties(${TEST_NAME} PROPERTIES
+        set_tests_properties(${tname} PROPERTIES
             ENVIRONMENT "${env}"
             LABELS "conformance;${adapter}")
     endfunction()
