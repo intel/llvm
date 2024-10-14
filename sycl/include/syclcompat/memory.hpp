@@ -994,16 +994,11 @@ static inline void wait_and_free(void *ptr,
 /// Free the memory \p ptr on the default queue without synchronizing
 /// \param ptr Point to free.
 /// \returns no return value.
-// TODO(joe) in dpct this defers to detail::dpct_free
-// Need this to handle the wait()
 static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
-  if (ptr) {
-#ifdef COMPAT_USM_LEVEL_NONE
-    detail::mem_mgr::instance().mem_free(ptr);
-#else
-    sycl::free(ptr, q);
-#endif // COMPAT_USM_LEVEL_NONE
-  }
+#ifndef COMPAT_USM_LEVEL_NONE
+  get_device(get_device_id(q.get_device())).queues_wait_and_throw();
+#endif
+  detail::free(ptr, q);
 }
 
 /// Enqueues the release of all pointers in /p pointers on the /p q.
