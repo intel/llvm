@@ -113,6 +113,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
       if (has_property<ext::oneapi::property::queue::discard_events>())
         throw sycl::exception(make_error_code(errc::invalid),
@@ -242,6 +243,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     queue_impl_interop(UrQueue);
   }
 
@@ -335,16 +337,17 @@ public:
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc,
+               const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     try {
       ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                             /*CallerNeedsEvent=*/true, Loc, PostProcess);
+                             /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
+                             PostProcess);
     } catch (...) {
-      ResEvent =
-          SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                   /*CallerNeedsEvent=*/true, Loc, PostProcess);
+      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                          /*CallerNeedsEvent=*/true, Loc,
+                                          IsTopCodeLoc, PostProcess);
     }
     return discard_or_return(ResEvent);
   }
@@ -359,19 +362,20 @@ public:
   /// \return a SYCL event object for the submitted command group.
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
-               const detail::code_location &Loc,
+               const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    auto ResEvent = submit_impl(CGF, Self, Self, nullptr,
-                                /*CallerNeedsEvent=*/true, Loc, PostProcess);
+    auto ResEvent =
+        submit_impl(CGF, Self, Self, nullptr,
+                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, PostProcess);
     return discard_or_return(ResEvent);
   }
 
   void submit_without_event(const std::function<void(handler &)> &CGF,
                             const std::shared_ptr<queue_impl> &Self,
-                            const detail::code_location &Loc,
+                            const detail::code_location &Loc, bool IsTopCodeLoc,
                             const SubmitPostProcessF *PostProcess = nullptr) {
     submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                PostProcess);
+                IsTopCodeLoc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -812,7 +816,7 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
-                    const SubmitPostProcessF *PostProcess);
+                    bool IsTopCodeLoc, const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -960,6 +964,8 @@ protected:
   std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

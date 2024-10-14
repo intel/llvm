@@ -10,7 +10,7 @@
 
 #ifdef __SYCL_DEVICE_ONLY__
 
-#include <CL/__spirv/spirv_types.hpp>         // for __ocl_vec_t
+#include <sycl/__spirv/spirv_types.hpp>       // for __ocl_vec_t
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 
 #include <cstddef> // for size_t
@@ -172,7 +172,7 @@ namespace __spirv {
 // Helper function templates to initialize and get vector component from SPIR-V
 // built-in variables
 #define __SPIRV_DEFINE_INIT_AND_GET_HELPERS(POSTFIX)                           \
-  template <int ID> static size_t get##POSTFIX();                              \
+  template <int ID> size_t get##POSTFIX();                                     \
   template <> size_t get##POSTFIX<0>() { return __spirv_##POSTFIX##_x(); }     \
   template <> size_t get##POSTFIX<1>() { return __spirv_##POSTFIX##_y(); }     \
   template <> size_t get##POSTFIX<2>() { return __spirv_##POSTFIX##_z(); }     \

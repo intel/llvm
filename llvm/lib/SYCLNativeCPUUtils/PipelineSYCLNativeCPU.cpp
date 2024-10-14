@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/FixABIMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
@@ -65,6 +66,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
 #ifdef NATIVECPU_USE_OCK
   MPM.addPass(compiler::utils::TransferKernelMetadataPass());
+  MPM.addPass(FixABIMuxBuiltinsPass());
   // Always enable vectorizer, unless explictly disabled or -O0 is set.
   if (OptLevel != OptimizationLevel::O0 && !SYCLNativeCPUNoVecz) {
     MAM.registerPass([] { return vecz::TargetInfoAnalysis(); });
