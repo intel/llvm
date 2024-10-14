@@ -211,7 +211,7 @@ As you can see, the `subhandler` steals the kernel's function name, and receives
 
 ## Handling barriers 
 
-On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are defined in the device library to call the corresponding `mux` builtins (used by the OCK).
+On SYCL Native CPU, calls to `__spirv_ControlBarrier` are handled using the `WorkItemLoopsPass` from the oneAPI Construction Kit. This pass handles barriers by splitting the kernel between calls to `__spirv_ControlBarrier`, and creating a wrapper that runs the subkernels over the local range. In order to correctly interface to the oneAPI Construction Kit pass pipeline, SPIRV builtins are defined in the device library to call the corresponding `mux` builtins (used by the OCK).
 
 ## Vectorization
 
