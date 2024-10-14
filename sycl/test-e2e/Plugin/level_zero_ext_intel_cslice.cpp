@@ -186,7 +186,7 @@ bool IsPVC_T1(sycl::device &d) {
 int main() {
   device d;
   // Check to skip the test for PVC T1
-  if(!IsPVC_T1(d)){ 
+  if (!IsPVC_T1(d)) {
     test_pvc(d);
   }
   test_non_pvc(d);
