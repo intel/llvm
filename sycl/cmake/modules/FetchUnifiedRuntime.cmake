@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5ade7fc44d453d86dc7440595dbea37c29ce54dc
-  # Merge: 66ea35dc 0b5b89f0
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Oct 14 12:17:07 2024 +0100
-  #     Merge pull request #1823 from Bensuo/ewan/ur_dyn_events
-  #     Add event update to command-buffers
-  set(UNIFIED_RUNTIME_TAG 5ade7fc44d453d86dc7440595dbea37c29ce54dc)
+  # commit b2a87251eb3b9b1743191a4740b99088f7ba57b1
+  # Merge: 090d4fbc 8e29e014
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Oct 14 16:34:13 2024 +0200
+  #    Merge pull request #2197 from pbalcer/disable-cuda-umf
+  #    disable UMF CUDA provider
+  set(UNIFIED_RUNTIME_TAG b2a87251eb3b9b1743191a4740b99088f7ba57b1)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
