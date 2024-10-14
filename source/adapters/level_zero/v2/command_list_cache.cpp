@@ -91,7 +91,7 @@ command_list_cache_t::getImmediateCommandList(
   Desc.Priority = Priority;
   Desc.Index = Index;
 
-  auto CommandList = getCommandList(Desc).release();
+  auto [CommandList, _] = getCommandList(Desc).release();
   return raii::cache_borrowed_command_list_t(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
         Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
@@ -108,7 +108,7 @@ command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
   Desc.IsInOrder = IsInOrder;
   Desc.Ordinal = Ordinal;
 
-  auto CommandList = getCommandList(Desc).release();
+  auto [CommandList, _] = getCommandList(Desc).release();
 
   return raii::cache_borrowed_command_list_t(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {

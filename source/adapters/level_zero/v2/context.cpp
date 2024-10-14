@@ -120,6 +120,27 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
+                                     ur_native_handle_t *phNativeContext) {
+  *phNativeContext =
+      reinterpret_cast<ur_native_handle_t>(hContext->getZeHandle());
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urContextCreateWithNativeHandle(
+    ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
+    const ur_device_handle_t *phDevices,
+    const ur_context_native_properties_t *pProperties,
+    ur_context_handle_t *phContext) {
+  auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
+
+  auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
+
+  *phContext =
+      new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t urContextRetain(ur_context_handle_t hContext) {
   return hContext->retain();
 }
