@@ -5747,10 +5747,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
 
-      // Add the -include-internal-footer option to add the integration footer
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
+        // Add the -include-internal-footer option to add the integration foote
         CmdArgs.push_back("-include-internal-footer");
         CmdArgs.push_back(Args.MakeArgString(Footer));
         // When creating dependency information, filter out the generated
