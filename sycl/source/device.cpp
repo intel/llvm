@@ -10,9 +10,9 @@
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/info/info_desc.hpp>
@@ -234,8 +234,8 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
     return true;
   }
 
-  size_t returnSize;
-  int value;
+  size_t returnSize = 0;
+  int value = 0;
 
   ur_exp_peer_info_t UrAttr = [&]() {
     switch (attr) {

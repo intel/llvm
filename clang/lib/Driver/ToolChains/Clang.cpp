@@ -1160,7 +1160,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(D, Args, CmdArgs);
+    getToolChain().AddSYCLIncludeArgs(Args, CmdArgs);
     if (Inputs[0].getType() == types::TY_CUDA) {
       // Include __clang_cuda_runtime_wrapper.h in .cu SYCL compilation.
       getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
@@ -10216,7 +10216,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (I.getType() == types::TY_Tempfiletable ||
         I.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
-      // wrapper actual input files are passed via the batch job file table:
+      // Input files are passed via the batch job file table.
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
 
@@ -10283,6 +10283,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back(
         TCArgs.MakeArgString(Twine("-target=") + Triple.getTriple()));
 
+    if (Inputs[0].getType() == types::TY_Tempfiletable ||
+        Inputs[0].getType() == types::TY_Tempfilelist)
+      // Input files are passed via the batch job file table.
+      CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
+
     // Add input.
     assert(Inputs[0].isFilename() && "Invalid input.");
     CmdArgs.push_back(TCArgs.MakeArgString(Inputs[0].getFilename()));
@@ -10320,7 +10325,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (Inputs[I].getType() == types::TY_Tempfiletable ||
         Inputs[I].getType() == types::TY_Tempfilelist)
-      // wrapper actual input files are passed via the batch job file table:
+      // Input files are passed via the batch job file table.
       CmdArgs.push_back(C.getArgs().MakeArgString("-batch"));
 
     // Add input.
