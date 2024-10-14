@@ -205,7 +205,7 @@ StringRef remove_leading_dotslash(StringRef path, Style style = Style::native);
 ///
 /// @param path Input path.
 /// @result The cleaned-up \a path.
-StringRef remove_leading_dotbackslah(StringRef path);
+StringRef remove_leading_dotbackslash(StringRef path);
 
 /// In-place remove any './' and optionally '../' components from a path.
 ///

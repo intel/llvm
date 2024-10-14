@@ -265,26 +265,22 @@ void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << '\n';
 }
 
-static bool is_separator(char value) {
-  if (value == '\\')
-    return true;
-  return false;
-}
+static bool is_separator(char value) { return value == '\\'; }
 
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
 
-  // Emit #line directives or GNU line markers depending on what mode we're in.
   StringRef CurFilenameWithNoLeaningDotSlash =
-      llvm::sys::path::remove_leading_dotbackslah(CurFilename.str());
+      llvm::sys::path::remove_leading_dotbackslash(CurFilename.str());
   if ((CurFilenameWithNoLeaningDotSlash ==
               PP.getPreprocessorOpts().IncludeFooter) ||
       CurFilenameWithNoLeaningDotSlash ==
               PP.getPreprocessorOpts().IncludeHeader) {
     CurFilename = "<uninit>";
   }
+    // Emit #line directives or GNU line markers depending on what mode we're in.
     if (UseLineDirectives) {
       *OS << "#line" << ' ' << LineNo << ' ' << '"';
       OS->write_escaped(CurFilename);

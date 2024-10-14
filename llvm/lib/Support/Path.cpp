@@ -711,7 +711,7 @@ StringRef remove_leading_dotslash(StringRef Path, Style style) {
   return Path;
 }
 
-StringRef remove_leading_dotbackslah(StringRef Path) {
+StringRef remove_leading_dotbackslash(StringRef Path) {
   // Remove leading ".\\".
   if (Path.size() > 2 && Path[0] == '.' && Path[1] == '\\')
     Path = Path.substr(2);
