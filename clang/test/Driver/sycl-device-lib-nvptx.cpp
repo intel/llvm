@@ -42,3 +42,9 @@
 // CHK-ALL: [[DEVLIB:[0-9]+]]: input, "{{.*}}devicelib--cuda.bc", ir, (device-sycl, sm_50)
 // CHK-ALL: {{[0-9]+}}: linker, {{{.*}}[[DEVLIB]]{{.*}}}, ir, (device-sycl, sm_50)
 
+// Check that llvm-link uses the "-only-needed" flag.
+// Not using the flag breaks kernel bundles.
+// RUN: %clangxx -### -nocudalib -fno-sycl-libspirv --sysroot=%S/Inputs/SYCL -fsycl -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN: | FileCheck -check-prefix=CHK-ONLY-NEEDED %s
+
+// CHK-ONLY-NEEDED: llvm-link"{{.*}}"-only-needed"{{.*}}"{{.*}}devicelib--cuda.bc"{{.*}}

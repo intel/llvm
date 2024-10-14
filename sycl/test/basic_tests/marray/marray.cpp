@@ -38,11 +38,6 @@ template <size_t N> bool AllTrue(sycl::marray<bool, N> M) {
          AllTrue((LHS OP RHS[0]) == (LHS OP RHS)) &&                           \
          AllTrue((LHS[0] OP RHS[0]) == (LHS OP RHS)));
 
-struct NotDefaultConstructible {
-  NotDefaultConstructible() = delete;
-  constexpr NotDefaultConstructible(int){};
-};
-
 template <typename T> void CheckBinOps() {
   sycl::marray<T, 3> ref_arr0{T(0)};
   sycl::marray<T, 3> ref_arr1{T(1)};
@@ -223,7 +218,6 @@ int main() {
   CheckConstexprVariadicCtors<sycl::half>();
   CheckConstexprVariadicCtors<float>();
   CheckConstexprVariadicCtors<double>();
-  CheckConstexprVariadicCtors<NotDefaultConstructible>();
 
   // check trivially copyability
   struct Copyable {

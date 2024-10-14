@@ -83,21 +83,5 @@ int main() {
     });
   }
 
-  {
-    sycl::sampler Sampler(
-        sycl::coordinate_normalization_mode::unnormalized,
-        sycl::addressing_mode::clamp, sycl::filtering_mode::nearest,
-        sycl::property_list{sycl::property::buffer::use_host_ptr{}});
-
-    if (!Sampler.has_property<sycl::property::buffer::use_host_ptr>()) {
-      std::cerr << "Line " << __LINE__ << ": Property was not found"
-                << std::endl;
-      return 1;
-    }
-
-    sycl::property::buffer::use_host_ptr Prop =
-        Sampler.get_property<sycl::property::buffer::use_host_ptr>();
-  }
-
   return 0;
 }

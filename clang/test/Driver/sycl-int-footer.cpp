@@ -66,7 +66,7 @@
 // DEP_GEN:  clang{{.*}} "-fsycl-is-device"
 // DEP_GEN-SAME: "-dependency-file" "[[DEPFILE:.+\.d]]"
 // DEP_GEN-SAME: "-MT"
-// DEP_GEN-SAME: "-internal-isystem" "{{.*}}{{[/\\]+}}include{{[/\\]+}}sycl"
+// DEP_GEN-SAME: "-internal-isystem" "{{.*}}{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // DEP_GEN-SAME: "-x" "c++" "[[INPUTFILE:.+\.cpp]]"
 // DEP_GEN: clang{{.*}} "-fsycl-is-host"
 // DEP_GEN-SAME: "-dependency-file" "[[DEPFILE]]"

@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5
-  # Merge: a99dbcee 3abe18cf
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Fri Sep 6 17:21:17 2024 +0200
-  #   Merge pull request #1820 from pbalcer/static-linking
-  #   Add support for static linking of the L0 adapter
-  set(UNIFIED_RUNTIME_TAG 8c9dd7e464a99ebbfb238ac2dabefc3ac77baea5)
+  # commit 53c461b257e7bbf5827147c3b5ca0b8ea45b434d
+  # Merge: 2c4bf63b d93b262b
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Oct 11 11:01:37 2024 +0100
+  #     Merge pull request #2174 from ProGTX/peter/winfix
+  #     [NFC][CUDA] Include STL headers in program.cpp
+  set(UNIFIED_RUNTIME_TAG 53c461b257e7bbf5827147c3b5ca0b8ea45b434d)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

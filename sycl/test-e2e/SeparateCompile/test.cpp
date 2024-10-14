@@ -51,7 +51,7 @@
 // RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o
 //
 // >> ---- link the full hetero app
-// RUN: %clangxx wrapper.o a.o b.o -o app.exe %sycl_options
+// RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
 // RUN: %{run} ./app.exe | FileCheck %s
 // CHECK: pass
 

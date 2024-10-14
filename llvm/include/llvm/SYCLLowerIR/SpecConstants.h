@@ -72,11 +72,6 @@ public:
   collectSpecConstantDefaultValuesMetadata(const Module &M,
                                            std::vector<char> &DefaultValues);
 
-  // Name of the metadata which holds a list of all specialization constants
-  // (with associated information) encountered in the module
-  static constexpr char SPEC_CONST_MD_STRING[] =
-      "sycl.specialization-constants";
-
   // Name of the metadata which indicates this module was proccessed with the
   // default values handing mode.
   static constexpr char SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING[] =
