@@ -610,14 +610,6 @@ namespace syclcompat {
 namespace experimental {
 // Forward declarations for types relating to unsupported memcpy_parameter API:
 
-enum memcpy_direction {
-  host_to_host,
-  host_to_device,
-  device_to_host,
-  device_to_device,
-  automatic
-};
-
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
 #endif
@@ -636,7 +628,6 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
 };
 
 /// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .

@@ -76,7 +76,7 @@ template <typename AllocT> auto *local_mem() {
   return As;
 }
 
-namespace experimental {
+namespace detail {
 enum memcpy_direction {
   host_to_host,
   host_to_device,
@@ -84,7 +84,7 @@ enum memcpy_direction {
   device_to_device,
   automatic
 };
-}
+} // namespace detail
 
 enum class memory_region {
   global = 0, // device global memory
@@ -153,8 +153,6 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::experimental::memcpy_direction direction{
-      syclcompat::experimental::memcpy_direction::automatic};
 };
 } // namespace experimental
 
@@ -468,10 +466,9 @@ static pointer_access_attribute get_pointer_attribute(sycl::queue q,
 #endif // COMPAT_USM_LEVEL_NONE
 }
 
-static experimental::memcpy_direction
+static memcpy_direction
 deduce_memcpy_direction(sycl::queue q, void *to_ptr, const void *from_ptr) {
   // table[to_attribute][from_attribute]
-  using namespace experimental; // for memcpy_direction
   static const memcpy_direction
       direction_table[static_cast<unsigned>(pointer_access_attribute::end)]
                      [static_cast<unsigned>(pointer_access_attribute::end)] = {
@@ -489,7 +486,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     return sycl::event{};
 #ifdef COMPAT_USM_LEVEL_NONE
   auto &mm = mem_mgr::instance();
-  auto real_direction = deduce_memcpy_direction(q, to_ptr, from_ptr, direction);
+  auto real_direction = deduce_memcpy_direction(q, to_ptr, from_ptr);
 
   switch (real_direction) {
   case host_to_host:
