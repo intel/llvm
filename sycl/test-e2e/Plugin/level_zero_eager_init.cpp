@@ -45,7 +45,7 @@ void simple_vadd(sycl::queue &Queue, const std::array<T, N> &VA,
 
 int main() {
   const size_t array_size = 4;
-  std::array<sycl::cl_int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}},
+  std::array<sycl::opencl::cl_int, array_size> A = {{1, 2, 3, 4}}, B = {{1, 2, 3, 4}},
                                        C;
   sycl::queue Q;
 
