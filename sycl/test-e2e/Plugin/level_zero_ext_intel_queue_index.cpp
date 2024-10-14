@@ -1,8 +1,6 @@
 // REQUIRES: aspect-ext_intel_device_id
 // REQUIRES: level_zero
 
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 
 // TODO: at this time PVC 1T systems are not correctly supporting CSLICE
@@ -111,9 +109,17 @@ void test_pvc(device &d) {
   std::cout << "Test PVC End" << std::endl;
   // CHECK-PVC: Test PVC End
 }
+bool IsPVC_T1(sycl::device &d) {
+  uint32_t device_id = d.get_info<sycl::ext::intel::info::device::device_id>();
+  return device_id == 0xbda;
+}
 
 int main() {
   device d;
+  // Check to skip the test for PVC T1
+  if (IsPVC_T1(d)){
+    return 0; 
+  }
 
   test_pvc(d);
 

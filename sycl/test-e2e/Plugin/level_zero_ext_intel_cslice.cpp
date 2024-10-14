@@ -1,7 +1,5 @@
 // REQUIRES: level_zero
 // REQUIRES: aspect-ext_intel_device_id
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
@@ -180,10 +178,17 @@ void test_non_pvc(device &d) {
   }
 }
 
+bool IsPVC_T1(sycl::device &d) {
+  uint32_t device_id = d.get_info<sycl::ext::intel::info::device::device_id>();
+  return device_id == 0xbda;
+}
+
 int main() {
   device d;
-
-  test_pvc(d);
+  // Check to skip the test for PVC T1
+  if(!IsPVC_T1(d)){ 
+    test_pvc(d);
+  }
   test_non_pvc(d);
 
   return 0;
