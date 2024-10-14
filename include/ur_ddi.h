@@ -1935,7 +1935,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendKernelLaunchExp_t)(
     ur_kernel_handle_t *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
+    uint32_t,
+    const ur_event_handle_t *,
     ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
     ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1947,7 +1950,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMMemcpyExp_t)(
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMFillExp
@@ -1959,7 +1966,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMFillExp_t)(
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferCopyExp
@@ -1972,7 +1983,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyExp_t)(
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferWriteExp
@@ -1984,7 +1999,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteExp_t)(
     const void *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferReadExp
@@ -1996,7 +2015,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadExp_t)(
     void *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferCopyRectExp
@@ -2013,7 +2036,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferCopyRectExp_t)
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferWriteRectExp
@@ -2030,7 +2057,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferWriteRectExp_t
     void *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferReadRectExp
@@ -2047,7 +2078,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferReadRectExp_t)
     void *,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendMemBufferFillExp
@@ -2060,7 +2095,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendMemBufferFillExp_t)(
     size_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMPrefetchExp
@@ -2071,7 +2110,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMPrefetchExp_t)(
     ur_usm_migration_flags_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferAppendUSMAdviseExp
@@ -2082,7 +2125,11 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferAppendUSMAdviseExp_t)(
     ur_usm_advice_flags_t,
     uint32_t,
     const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *);
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *,
+    ur_exp_command_buffer_command_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferEnqueueExp
@@ -2108,6 +2155,19 @@ typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferReleaseCommandExp_t)(
 typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateKernelLaunchExp_t)(
     ur_exp_command_buffer_command_handle_t,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferUpdateSignalEventExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateSignalEventExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urCommandBufferUpdateWaitEventsExp
+typedef ur_result_t(UR_APICALL *ur_pfnCommandBufferUpdateWaitEventsExp_t)(
+    ur_exp_command_buffer_command_handle_t,
+    uint32_t,
+    const ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function-pointer for urCommandBufferGetInfoExp
@@ -2150,6 +2210,8 @@ typedef struct ur_command_buffer_exp_dditable_t {
     ur_pfnCommandBufferRetainCommandExp_t pfnRetainCommandExp;
     ur_pfnCommandBufferReleaseCommandExp_t pfnReleaseCommandExp;
     ur_pfnCommandBufferUpdateKernelLaunchExp_t pfnUpdateKernelLaunchExp;
+    ur_pfnCommandBufferUpdateSignalEventExp_t pfnUpdateSignalEventExp;
+    ur_pfnCommandBufferUpdateWaitEventsExp_t pfnUpdateWaitEventsExp;
     ur_pfnCommandBufferGetInfoExp_t pfnGetInfoExp;
     ur_pfnCommandBufferCommandGetInfoExp_t pfnCommandGetInfoExp;
 } ur_command_buffer_exp_dditable_t;
