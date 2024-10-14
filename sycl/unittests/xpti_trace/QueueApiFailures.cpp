@@ -66,7 +66,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::UrMock<> MockPlugin;
+  sycl::unittest::UrMock<> MockAdapter;
 
   static constexpr char FileName[] = "QueueApiFailures.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";

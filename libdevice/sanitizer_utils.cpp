@@ -120,22 +120,20 @@ __SYCL_PRIVATE__ void *ToPrivate(void *ptr) {
   return __spirv_GenericCastToPtrExplicit_ToPrivate(ptr, 7);
 }
 
-inline bool ConvertGenericPointer(uptr &addr, uint32_t &as) {
+inline void ConvertGenericPointer(uptr &addr, uint32_t &as) {
   auto old = addr;
   if ((addr = (uptr)ToPrivate((void *)old))) {
     as = ADDRESS_SPACE_PRIVATE;
   } else if ((addr = (uptr)ToLocal((void *)old))) {
     as = ADDRESS_SPACE_LOCAL;
-  } else if ((addr = (uptr)ToGlobal((void *)old))) {
-    as = ADDRESS_SPACE_GLOBAL;
   } else {
-    if (__AsanDebug)
-      __spirv_ocl_printf(__generic_to_fail, old);
-    return false;
+    // FIXME: I'm not sure if we need to check ADDRESS_SPACE_CONSTANT,
+    // but this can really simplify the generic pointer conversion logic
+    as = ADDRESS_SPACE_GLOBAL;
+    addr = old;
   }
   if (__AsanDebug)
     __spirv_ocl_printf(__generic_to, old, addr, as);
-  return true;
 }
 
 inline uptr MemToShadow_CPU(uptr addr) {
@@ -144,9 +142,7 @@ inline uptr MemToShadow_CPU(uptr addr) {
 
 inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
-    if (!ConvertGenericPointer(addr, as)) {
-      return 0;
-    }
+    ConvertGenericPointer(addr, as);
   }
 
   if (as == ADDRESS_SPACE_GLOBAL) {     // global
@@ -233,9 +229,7 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
 inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
   if (as == ADDRESS_SPACE_GENERIC) {
-    if (!ConvertGenericPointer(addr, as)) {
-      return 0;
-    }
+    ConvertGenericPointer(addr, as);
   }
 
   if (as == ADDRESS_SPACE_GLOBAL) { // global

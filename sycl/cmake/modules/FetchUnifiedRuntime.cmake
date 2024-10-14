@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 897bcfb10a7e13b8e413278550e845322f6bd560 (HEAD, origin/main, origin/HEAD)
-  # Merge: 18514924 71cdf253
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Sep 19 14:35:55 2024 +0100
-  #   Merge pull request #2022 from nrspruit/add_3_channel_image_support
-  #   [L0] Add 3-channel image support
-  set(UNIFIED_RUNTIME_TAG 897bcfb10a7e13b8e413278550e845322f6bd560)
+  # commit 22ef899035a85b70b5472416ad6db8021effb5c1
+  # Merge: 4814e505 f5979a68
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Mon Oct 14 10:03:13 2024 +0100
+  #     Merge pull request #1469 from RossBrunton/ross/specconst
+  #     [Spec Constants] Improved handling of invalid spec. constants
+  set(UNIFIED_RUNTIME_TAG 22ef899035a85b70b5472416ad6db8021effb5c1)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

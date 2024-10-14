@@ -66,73 +66,6 @@ inline constexpr bool is_svgenfloat_v =
     is_contained_v<T, gtl::scalar_vector_floating_list>;
 
 template <typename T>
-inline constexpr bool is_mgenfloat_v =
-    is_marray_v<T> && is_svgenfloat_v<get_elem_type_t<T>>;
-
-template <typename T>
-inline constexpr bool is_gengeofloat_v = is_contained_v<T, gtl::geo_float_list>;
-
-template <typename T>
-inline constexpr bool is_gengeodouble_v =
-    is_contained_v<T, gtl::geo_double_list>;
-
-template <typename T>
-inline constexpr bool is_gengeomarrayfloat_v =
-    is_contained_v<T, gtl::marray_geo_float_list>;
-
-template <typename T>
-inline constexpr bool is_gengeomarray_v =
-    is_contained_v<T, gtl::marray_geo_list>;
-
-template <typename T>
-inline constexpr bool is_gengeohalf_v = is_contained_v<T, gtl::geo_half_list>;
-
-template <typename T>
-inline constexpr bool is_vgengeofloat_v =
-    is_contained_v<T, gtl::vector_geo_float_list>;
-
-template <typename T>
-inline constexpr bool is_vgengeodouble_v =
-    is_contained_v<T, gtl::vector_geo_double_list>;
-
-template <typename T>
-inline constexpr bool is_vgengeohalf_v =
-    is_contained_v<T, gtl::vector_geo_half_list>;
-
-template <typename T>
-inline constexpr bool is_sgengeo_v = is_contained_v<T, gtl::scalar_geo_list>;
-
-template <typename T>
-inline constexpr bool is_vgengeo_v = is_contained_v<T, gtl::vector_geo_list>;
-
-template <typename T>
-inline constexpr bool is_gencrossfloat_v =
-    is_contained_v<T, gtl::cross_float_list>;
-
-template <typename T>
-inline constexpr bool is_gencrossdouble_v =
-    is_contained_v<T, gtl::cross_double_list>;
-
-template <typename T>
-inline constexpr bool is_gencrosshalf_v =
-    is_contained_v<T, gtl::cross_half_list>;
-
-template <typename T>
-inline constexpr bool is_gencross_v =
-    is_contained_v<T, gtl::cross_floating_list>;
-
-template <typename T>
-inline constexpr bool is_gencrossmarray_v =
-    is_contained_v<T, gtl::cross_marray_list>;
-
-template <typename T>
-inline constexpr bool is_ugenint_v = is_contained_v<T, gtl::unsigned_int_list>;
-
-template <typename T>
-inline constexpr bool is_intn_v =
-    is_contained_v<T, gtl::vector_signed_int_list>;
-
-template <typename T>
 inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
 
 template <typename T>
@@ -142,26 +75,8 @@ template <typename T>
 using is_geninteger = std::bool_constant<is_geninteger_v<T>>;
 
 template <typename T>
-inline constexpr bool is_igeninteger_v =
-    is_contained_v<T, gtl::signed_integer_list>;
-
-template <typename T>
-using is_igeninteger = std::bool_constant<is_igeninteger_v<T>>;
-
-template <typename T>
-inline constexpr bool is_ugeninteger_v =
-    is_contained_v<T, gtl::unsigned_integer_list>;
-
-template <typename T>
-using is_ugeninteger = std::bool_constant<is_ugeninteger_v<T>>;
-
-template <typename T>
 inline constexpr bool is_sgeninteger_v =
     is_contained_v<T, gtl::scalar_integer_list>;
-
-template <typename T>
-inline constexpr bool is_vgeninteger_v =
-    is_contained_v<T, gtl::vector_integer_list>;
 
 template <typename T>
 inline constexpr bool is_sigeninteger_v =
@@ -172,85 +87,7 @@ inline constexpr bool is_sugeninteger_v =
     is_contained_v<T, gtl::scalar_unsigned_integer_list>;
 
 template <typename T>
-inline constexpr bool is_vigeninteger_v =
-    is_contained_v<T, gtl::vector_signed_integer_list>;
-
-template <typename T>
-inline constexpr bool is_vugeninteger_v =
-    is_contained_v<T, gtl::vector_unsigned_integer_list>;
-
-template <typename T>
 inline constexpr bool is_genbool_v = is_contained_v<T, gtl::bool_list>;
-
-template <typename T>
-inline constexpr bool is_gentype_v = is_contained_v<T, gtl::basic_list>;
-
-template <typename T>
-inline constexpr bool is_vgentype_v = is_contained_v<T, gtl::vector_basic_list>;
-
-template <typename T>
-inline constexpr bool is_sgentype_v = is_contained_v<T, gtl::scalar_basic_list>;
-
-template <typename T>
-inline constexpr bool is_igeninteger8bit_v =
-    is_gen_based_on_type_sizeof_v<T, 1, is_igeninteger>;
-
-template <typename T>
-inline constexpr bool is_igeninteger16bit_v =
-    is_gen_based_on_type_sizeof_v<T, 2, is_igeninteger>;
-
-template <typename T>
-inline constexpr bool is_igeninteger32bit_v =
-    is_gen_based_on_type_sizeof_v<T, 4, is_igeninteger>;
-
-template <typename T>
-inline constexpr bool is_igeninteger64bit_v =
-    is_gen_based_on_type_sizeof_v<T, 8, is_igeninteger>;
-
-template <typename T>
-inline constexpr bool is_ugeninteger8bit_v =
-    is_gen_based_on_type_sizeof_v<T, 1, is_ugeninteger>;
-
-template <typename T>
-inline constexpr bool is_ugeninteger16bit_v =
-    is_gen_based_on_type_sizeof_v<T, 2, is_ugeninteger>;
-
-template <typename T>
-inline constexpr bool is_ugeninteger32bit_v =
-    is_gen_based_on_type_sizeof_v<T, 4, is_ugeninteger>;
-
-template <typename T>
-inline constexpr bool is_ugeninteger64bit_v =
-    is_gen_based_on_type_sizeof_v<T, 8, is_ugeninteger>;
-
-template <typename T>
-inline constexpr bool is_genintptr_v =
-    is_pointer_v<T> && is_genint_v<remove_pointer_t<T>> &&
-    is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
-
-template <typename T, access::address_space AddressSpace,
-          access::decorated IsDecorated>
-inline constexpr bool is_genintptr_marray_v =
-    std::is_same_v<T, sycl::marray<marray_element_t<T>, T::size()>> &&
-    is_genint_v<marray_element_t<remove_pointer_t<T>>> &&
-    is_address_space_compliant_v<multi_ptr<T, AddressSpace, IsDecorated>,
-                                 gvl::nonconst_address_space_list> &&
-    (IsDecorated == access::decorated::yes ||
-     IsDecorated == access::decorated::no);
-
-template <typename T>
-inline constexpr bool is_genfloatptr_v =
-    is_pointer_v<T> && is_genfloat_v<remove_pointer_t<T>> &&
-    is_address_space_compliant_v<T, gvl::nonconst_address_space_list>;
-
-template <typename T, access::address_space AddressSpace,
-          access::decorated IsDecorated>
-inline constexpr bool is_genfloatptr_marray_v =
-    is_mgenfloat_v<T> &&
-    is_address_space_compliant_v<multi_ptr<T, AddressSpace, IsDecorated>,
-                                 gvl::nonconst_address_space_list> &&
-    (IsDecorated == access::decorated::yes ||
-     IsDecorated == access::decorated::no);
 
 template <typename T>
 using is_byte = typename
@@ -415,29 +252,6 @@ template <typename T> inline constexpr T msbMask(T) {
 template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
-
-// Try to get vector element count or 1 otherwise
-template <typename T> struct GetNumElements {
-  static constexpr int value = 1;
-};
-template <typename Type, int NumElements>
-struct GetNumElements<typename sycl::vec<Type, NumElements>> {
-  static constexpr int value = NumElements;
-};
-
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A, typename = std::enable_if_t<!std::is_same_v<
-                            typename A::element_type, typename A::value_type>>>
-  static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
 
 template <typename T> static constexpr T max_v() {
   return (std::numeric_limits<T>::max)();

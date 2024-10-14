@@ -855,6 +855,41 @@ public:
 } // syclcompat
 ```
 
+### ptr_to_int
+
+The following cuda backend specific function is introduced in order to
+translate from local memory pointers to `uint32_t` or `size_t` variables that
+contain a byte address to the local (local refers to`.shared` in nvptx) memory
+state space.
+
+``` c++
+namespace syclcompat {
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr)
+} // namespace syclcompat
+```
+
+These variables can be used in inline PTX instructions that take address
+operands. Such inline PTX instructions are commonly used in optimized
+libraries. A simplified example usage of the above functions is as follows:
+
+``` c++
+  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
+  // ...
+  // ...
+  T addr =
+      syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
+  uint32_t fragment;
+#if defined(__NVPTX__)
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
+               : "=r"(fragment)
+               : "r"(addr));
+#endif
+```
+
 ### Device Information
 
 `sycl::device` properties are encapsulated using the `device_info` helper class.
@@ -1544,10 +1579,10 @@ SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
 expressions that might throw `sycl::exception` and `std::runtime_error`. If no
-exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
-`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+exceptions are thrown, it returns `syclcompat::error_code::success`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::backend_error`.
 If a `std::runtime_error` exception is caught,
-`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+`syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
 
 ``` c++
@@ -1570,7 +1605,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
@@ -1580,7 +1615,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+enum error_code { success = 0, backend_error = 1, default_error = 999 };
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
