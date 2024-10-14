@@ -307,6 +307,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
         PropSet.add(PropSetRegTy::SYCL_PROGRAM_METADATA, MetadataNames.back(),
                     *MaxLinearWGSize);
       }
+
+      if (auto IsNDRange = getKernelSingleEltMetadata<bool>(Func, "is_nd_range")) {
+        MetadataNames.push_back(Func.getName().str() + "@is_nd_range");
+        PropSet.add(PropSetRegTy::SYCL_NATIVE_CPU_PROPS, MetadataNames.back(), *IsNDRange);
+      }
     }
 
     // Add global_id_mapping information with mapping between device-global
