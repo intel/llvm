@@ -386,19 +386,6 @@ struct remove_pointer : remove_pointer_impl<std::remove_cv_t<T>> {};
 
 template <typename T> using remove_pointer_t = typename remove_pointer<T>::type;
 
-// make_type_t
-template <typename T, typename TL> struct make_type_impl {
-  using type = find_same_size_type_t<TL, T>;
-};
-
-template <typename T, int N, typename TL> struct make_type_impl<vec<T, N>, TL> {
-  using scalar_type = typename make_type_impl<T, TL>::type;
-  using type = vec<scalar_type, N>;
-};
-
-template <typename T, typename TL>
-using make_type_t = typename make_type_impl<T, TL>::type;
-
 #if defined(RESTRICT_WRITE_ACCESS_TO_CONSTANT_PTR)
 template <access::address_space AS, class DataT>
 using const_if_const_AS =

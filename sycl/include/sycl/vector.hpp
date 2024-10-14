@@ -248,7 +248,7 @@ private:
   }
 
   // Element type for relational operator return value.
-  using rel_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using rel_t = detail::fixed_width_signed<sizeof(DataT)>;
 
 public:
   // Aliases required by SYCL 2020 to make sycl::vec consistent
@@ -492,8 +492,7 @@ public:
 private:
   DataT m_Data;
 };
-template <typename T>
-using rel_t = detail::select_cl_scalar_integral_signed_t<T>;
+template <typename T> using rel_t = detail::fixed_width_signed<sizeof(T)>;
 
 template <typename T> struct EqualTo {
   constexpr rel_t<T> operator()(const T &Lhs, const T &Rhs) const {
