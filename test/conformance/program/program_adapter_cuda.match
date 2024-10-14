@@ -7,5 +7,8 @@ urProgramBuildTest.BuildFailure/NVIDIA_CUDA_BACKEND___{{.*}}_
 {{OPT}}urProgramGetBuildInfoSingleTest.LogIsNullTerminated/NVIDIA_CUDA_BACKEND___{{.*}}
 {{OPT}}urProgramSetSpecializationConstantsTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}
 {{OPT}}urProgramSetSpecializationConstantsTest.UseDefaultValue/NVIDIA_CUDA_BACKEND___{{.*}}
-urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/NVIDIA_CUDA_BACKEND___{{.*}}
-urProgramSetMultipleSpecializationConstantsTest.SingleCall/NVIDIA_CUDA_BACKEND___{{.*}}
+urProgramSetSpecializationConstantsTest.InvalidValueSize/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetSpecializationConstantsTest.InvalidValueId/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetSpecializationConstantsTest.InvalidValuePtr/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/NVIDIA_CUDA_BACKEND___{{.*}}_
+urProgramSetMultipleSpecializationConstantsTest.SingleCall/NVIDIA_CUDA_BACKEND___{{.*}}_

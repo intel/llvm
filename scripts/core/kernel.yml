@@ -475,6 +475,11 @@ returns:
         - "`count == 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "A pSpecConstant entry contains a size that does not match that of the specialization constant in the module."
+        - "A pSpecConstant entry contains a nullptr pValue."
+    - $X_RESULT_ERROR_INVALID_SPEC_ID:
+        - "Any id specified in a pSpecConstant entry is not a valid specialization constant identifier."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native kernel handle."

@@ -7,3 +7,6 @@ urProgramGetFunctionPointerTest.InvalidKernelName/Intel_R__oneAPI_Unified_Runtim
 urProgramGetNativeHandleTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urProgramLinkErrorTest.LinkFailure/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urProgramLinkErrorTest.SetOutputOnLinkError/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urProgramSetSpecializationConstantsTest.InvalidValueSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+urProgramSetSpecializationConstantsTest.InvalidValueId/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urProgramSetSpecializationConstantsTest.InvalidValuePtr/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

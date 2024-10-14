@@ -1591,6 +1591,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_result_t value) {
     case UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE:
         os << "UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE";
         break;
+    case UR_RESULT_ERROR_INVALID_SPEC_ID:
+        os << "UR_RESULT_ERROR_INVALID_SPEC_ID";
+        break;
     case UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP:
         os << "UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP";
         break;
