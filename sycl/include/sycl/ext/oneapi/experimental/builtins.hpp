@@ -95,9 +95,13 @@ namespace native {
 // sycl::native::tanh is only implemented on nvptx backend so far. For other
 // backends we revert to the sycl::tanh impl.
 template <typename T>
-inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    sycl::detail::is_svgenfloatf_v<T> || sycl::detail::is_svgenfloath_v<T>, T>
-tanh(T x) __NOEXC {
+inline __SYCL_ALWAYS_INLINE
+    std::enable_if_t<std::is_same_v<T, float> || std::is_same_v<T, half> ||
+                         (detail::is_vec_v<T> &&
+                          (std::is_same_v<detail::element_type_t<T>, float> ||
+                           std::is_same_v<detail::element_type_t<T>, half>)),
+                     T>
+    tanh(T x) __NOEXC {
 #if defined(__NVPTX__)
   return sycl::detail::convertFromOpenCLTypeFor<T>(
       __clc_native_tanh(sycl::detail::convertToOpenCLType(x)));
@@ -144,7 +148,10 @@ inline __SYCL_ALWAYS_INLINE
 // For other backends we revert to the sycl::exp2 impl.
 template <typename T>
 inline __SYCL_ALWAYS_INLINE
-    std::enable_if_t<sycl::detail::is_svgenfloath_v<T>, T>
+    std::enable_if_t<std::is_same_v<T, half> ||
+                         (detail::is_vec_v<T> &&
+                          std::is_same_v<detail::element_type_t<T>, half>),
+                     T>
     exp2(T x) __NOEXC {
 #if defined(__NVPTX__)
   return sycl::detail::convertFromOpenCLTypeFor<T>(

@@ -27,13 +27,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <typename T>
-inline constexpr bool is_svgenfloatf_v =
-    is_contained_v<T, gtl::scalar_vector_float_list>;
-
-template <typename T>
-inline constexpr bool is_svgenfloath_v =
-    is_contained_v<T, gtl::scalar_vector_half_list>;
 
 template <typename T>
 inline constexpr bool is_genfloat_v = is_contained_v<T, gtl::floating_list>;
