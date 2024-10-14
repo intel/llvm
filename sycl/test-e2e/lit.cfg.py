@@ -718,9 +718,9 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
-        if re.match(r" *UUID*", line):
+        if re.match(r" *DeviceID*", line):
             _, uuid = line.strip().split(":", 1)
-            if uuid.strip() == "1341282181147000410000000":             
+            if uuid.strip() == "3034":             
                 config.available_features.add("gpu-intel-pvc-1T")
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
