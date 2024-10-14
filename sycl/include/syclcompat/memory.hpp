@@ -1010,16 +1010,15 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 /// \param events The events to be waited on.
 /// \param q The sycl::queue the memory relates to.
 // Can't be static due to the friend declaration in the memory header.
-// TODO(joe): implement this in terms of detail::dpct_free...
 inline sycl::event enqueue_free(const std::vector<void *> &pointers,
                                 const std::vector<sycl::event> &events,
                                 sycl::queue q = get_default_queue()) {
   auto event = q.submit(
-      [&pointers, &events, ctxt = q.get_context()](sycl::handler &cgh) {
+      [&pointers, &events, &q](sycl::handler &cgh) {
         cgh.depends_on(events);
         cgh.host_task([=]() {
           for (auto p : pointers)
-            sycl::free(p, ctxt);
+            detail::free(p, q);
         });
       });
   get_current_device().add_event(event);
