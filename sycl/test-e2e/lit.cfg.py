@@ -430,8 +430,6 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
-        if "Intel(R) Data Center GPU Max 1100" in line:
-            config.available_features.add("gpu-intel-pvc-1T")
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
@@ -720,6 +718,10 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
+        if re.match(r" *UUID*", line):
+            _, uuid = line.strip().split(":", 1)
+            if uuid.strip() == "1341282181147000410000000":             
+                config.available_features.add("gpu-intel-pvc-1T")
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())

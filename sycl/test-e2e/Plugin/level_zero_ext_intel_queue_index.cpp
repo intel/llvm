@@ -2,7 +2,7 @@
 // REQUIRES: level_zero
 
 // https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc
+// XFAIL: gpu-intel-pvc-1T
 // RUN: %{build} -o %t.out
 
 // TODO: at this time PVC 1T systems are not correctly supporting CSLICE
