@@ -38,7 +38,6 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Support/raw_ostream.h>
-#include <multi_llvm/basicblock_helper.h>
 
 #include <queue>
 #include <utility>
@@ -717,7 +716,7 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
 
     if (LTag->isLoopDivergent()) {
       PHINode *PHI = PHINode::Create(maskTy, 2, BB.getName() + ".entry_mask");
-      multi_llvm::insertBefore(PHI, BB.begin());
+      PHI->insertBefore(BB.begin());
       PHI->addIncoming(MaskInfos[preheader].exitMasks[&BB], preheader);
       maskInfo.entryMask = PHI;
       LLVM_DEBUG(dbgs() << "Loop divergent loop header " << BB.getName()
@@ -769,7 +768,7 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
     // A phi function of the predecessors otherwise.
     PHINode *PHI =
         PHINode::Create(maskTy, numPreds, BB.getName() + ".entry_mask");
-    multi_llvm::insertBefore(PHI, BB.begin());
+    PHI->insertBefore(BB.begin());
     for (auto it = pred_begin(&BB); it != pred_end(&BB); ++it) {
       PHI->addIncoming(MaskInfos[*it].exitMasks[&BB], *it);
     }
@@ -951,8 +950,7 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
       // between the mask update and the loop exit mask phi.
       auto *const exitMask =
           PHINode::Create(maskTy, 2, exitBlock->getName() + ".loop_exit_mask");
-      multi_llvm::insertBefore(exitMask,
-                               multi_llvm::getFirstNonPHIIt(LTag.header));
+      exitMask->insertBefore(LTag.header->getFirstNonPHIIt());
       LMask.persistedDivergentExitMasks[exitingBlock] = exitMask;
       if (BOSCC) {
         BOSCC->createReference(exitMask, getDefaultValue(maskTy));
@@ -2097,7 +2095,7 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResults(
                     << LTag.loop->getName() << "\n");
 
   // First create instructions to save the value of the last iteration ...
-  IRBuilder<> B(LTag.header, multi_llvm::getFirstNonPHIIt(LTag.header));
+  IRBuilder<> B(LTag.header, LTag.header->getFirstNonPHIIt());
   for (Value *LLV : LTag.loopLiveValues) {
     LTag.loopResultPrevs[LLV] =
         B.CreatePHI(LLV->getType(), 2, LLV->getName() + ".prev");
@@ -2123,8 +2121,7 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResults(
 
         uniformLRP->setIncomingValue(1, LLV);
 
-        multi_llvm::insertBefore(uniformLRP,
-                                 multi_llvm::getFirstNonPHIIt(uniformHeader));
+        uniformLRP->insertBefore(uniformHeader->getFirstNonPHIIt());
         BOSCC->createReference(LRP, uniformLRP, true);
       }
     }
@@ -2199,7 +2196,7 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopLiveValues(
 
     PHINode *blend =
         PHINode::Create(LLV->getType(), 2, LLV->getName() + ".blend");
-    multi_llvm::insertBefore(blend, LTag.pureExit->begin());
+    blend->insertBefore(LTag.pureExit->begin());
 
     // Replace all uses outside the loop.
     VECZ_FAIL_IF(
@@ -2264,7 +2261,7 @@ bool ControlFlowConversionState::Impl::blendDivergentLoopExitMasks(
 
       PHINode *blend =
           PHINode::Create(prev->getType(), 2, prev->getName() + ".blend");
-      multi_llvm::insertBefore(blend, LTag.pureExit->begin());
+      blend->insertBefore(LTag.pureExit->begin());
 
       // Replace all uses outside the loop.
       VECZ_FAIL_IF(!replaceUsesOutsideDivergentLoop(LTag, update, blend,
@@ -2950,7 +2947,7 @@ bool ControlFlowConversionState::Impl::blendInstructions() {
     const unsigned numPreds = std::distance(pred_begin(B), pred_end(B));
     Value *blend = nullptr;
     PHINode *PHI = PHINode::Create(T, numPreds, opDef->getName() + ".merge");
-    multi_llvm::insertBefore(PHI, B->begin());
+    PHI->insertBefore(B->begin());
 
     const auto *const LTag = DR->getTag(B).loop;
     bool hasVisitedPred = false;

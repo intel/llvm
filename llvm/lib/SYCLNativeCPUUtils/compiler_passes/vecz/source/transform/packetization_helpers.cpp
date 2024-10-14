@@ -268,13 +268,12 @@ bool createSubSplats(const vecz::TargetInfo &TI, IRBuilder<> &B,
   return true;
 }
 
-Value *createMaybeVPTargetReduction(IRBuilderBase &B,
-                                    const TargetTransformInfo &TTI, Value *Val,
-                                    RecurKind Kind, Value *VL) {
+Value *createMaybeVPReduction(IRBuilderBase &B, Value *Val, RecurKind Kind,
+                              Value *VL) {
   assert(isa<VectorType>(Val->getType()) && "Must be vector type");
   // If VL is null, it's not a vector-predicated reduction.
   if (!VL) {
-    return multi_llvm::createSimpleTargetReduction(B, &TTI, Val, Kind);
+    return multi_llvm::createSimpleReduction(B, Val, Kind);
   }
   auto IntrinsicOp = Intrinsic::not_intrinsic;
   switch (Kind) {
