@@ -27,6 +27,15 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+template <typename T>
+using is_byte = typename
+#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
+    std::is_same<T, std::byte>;
+#else
+    std::false_type;
+#endif
+
+template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
 
 template <typename T>
 inline constexpr bool is_sgenfloat_v =
@@ -43,35 +52,32 @@ inline constexpr bool is_genfloat_v =
      is_allowed_vec_size_v<num_elements_v<T>>);
 
 template <typename T>
-inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
-
-template <typename T>
-inline constexpr bool is_sgeninteger_v =
-    is_contained_v<T, gtl::scalar_integer_list>;
-
-template <typename T>
 inline constexpr bool is_sigeninteger_v =
-    is_contained_v<T, gtl::scalar_signed_integer_list>;
+    check_type_in_v<T, signed char, short, int, long, long long> ||
+    (std::is_same_v<T, char> && std::is_signed_v<char>);
 
 template <typename T>
 inline constexpr bool is_sugeninteger_v =
-    is_contained_v<T, gtl::scalar_unsigned_integer_list>;
+    check_type_in_v<T, unsigned char, unsigned short, unsigned int,
+                    unsigned long, unsigned long long> ||
+    (std::is_same_v<T, char> && std::is_unsigned_v<char>) || is_byte_v<T>;
+
+template <typename T>
+inline constexpr bool is_sgeninteger_v =
+    is_sigeninteger_v<T> || is_sugeninteger_v<T>;
+
+template <typename T>
+inline constexpr bool is_geninteger_v =
+    is_sgeninteger_v<T> ||
+    (is_vec_v<T> && is_sgeninteger_v<element_type_t<T>>) ||
+    (is_marray_v<T> && is_sgeninteger_v<element_type_t<T>> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
 
 template <typename T>
 inline constexpr bool is_genbool_v =
     std::is_same_v<T, bool> ||
     (is_marray_v<T> && std::is_same_v<element_type_t<T>, bool> &&
      is_allowed_vec_size_v<num_elements_v<T>>);
-
-template <typename T>
-using is_byte = typename
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-    std::is_same<T, std::byte>;
-#else
-    std::false_type;
-#endif
-
-template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
 
 template <int Size>
 using fixed_width_unsigned = std::conditional_t<
