@@ -78,7 +78,6 @@ int main() {
   float_point_to_sign_integeral
 
   make_unsigned
-  make_larger
   */
 
   // checks for some type conversions.

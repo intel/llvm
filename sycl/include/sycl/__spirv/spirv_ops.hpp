@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>         // for Scope, __ocl_event_t
+#include <sycl/__spirv/spirv_types.hpp>       // for Scope, __ocl_event_t
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 
@@ -975,7 +975,7 @@ __spirv_ocl_prefetch(const __attribute__((opencl_global)) char *Ptr,
                      size_t NumBytes) noexcept;
 
 extern __DPCPP_SYCL_EXTERNAL float
-    __spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
+__spirv_ConvertBF16ToFINTEL(uint16_t) noexcept;
 extern __DPCPP_SYCL_EXTERNAL uint16_t
 __spirv_ConvertFToBF16INTEL(float) noexcept;
 template <int N>
@@ -1181,7 +1181,15 @@ __clc_BarrierTestWait(int64_t *state, int64_t arrival) noexcept;
 __SYCL_CONVERGENT__ extern __DPCPP_SYCL_EXTERNAL __SYCL_EXPORT void
 __clc_BarrierArriveAndWait(int64_t *state) noexcept;
 
-#ifdef __SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__
+#if defined(__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__) &&                         \
+    !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wpedantic"
+#warning                                                                       \
+    "__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ is deprecated and will be removed in a future release."
+#pragma clang diagnostic pop
+#endif
 extern __DPCPP_SYCL_EXTERNAL int
 __spirv_ocl_printf(const __attribute__((opencl_constant)) char *Format, ...);
 extern __DPCPP_SYCL_EXTERNAL int __spirv_ocl_printf(const char *Format, ...);
