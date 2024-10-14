@@ -5776,7 +5776,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(stream);
     CASE(specialization_constants_buffer);
     CASE(pointer);
-    CASE(work_group_mmeory);
+    CASE(work_group_memory);
   }
   return "<ERROR>";
 
