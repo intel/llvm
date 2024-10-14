@@ -7001,13 +7001,13 @@ void SG_PS_D(p1u8_p1u8_u32_p1i8)(uint8_t *key, uint8_t *val, uint8_t *scratch) {
 
 DEVICE_EXTERN_C_INLINE
 void SG_PS_A(p1u8_p1i8_u32_p1i8)(uint8_t *key, int8_t *val, uint8_t *scratch) {
-  private_merge_sort_key_value_close(key, reinterpret_cast<int8_t *>(val), 1,
+  private_merge_sort_key_value_close(key, reinterpret_cast<uint8_t *>(val), 1,
                                      scratch, std::less_equal<uint8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
 void SG_PS_D(p1u8_p1i8_u32_p1i8)(uint8_t *key, int8_t *val, uint8_t *scratch) {
-  private_merge_sort_key_value_close(key, reinterpret_cast<int8_t *>(val), 1,
+  private_merge_sort_key_value_close(key, reinterpret_cast<uint8_t *>(val), 1,
                                      scratch, std::greater_equal<uint8_t>{});
 }
 
@@ -7124,14 +7124,14 @@ void SG_PS_D(p1u16_p1u8_u32_p1i8)(uint16_t *key, uint8_t *val,
 DEVICE_EXTERN_C_INLINE
 void SG_PS_A(p1u16_p1i8_u32_p1i8)(uint16_t *key, int8_t *val,
                                   uint8_t *scratch) {
-  private_merge_sort_key_value_close(key, reinterpret_cast<int8_t *>(val), 1,
+  private_merge_sort_key_value_close(key, reinterpret_cast<uint8_t *>(val), 1,
                                      scratch, std::less_equal<uint16_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
 void SG_PS_D(p1u16_p1i8_u32_p1i8)(uint16_t *key, int8_t *val,
                                   uint8_t *scratch) {
-  private_merge_sort_key_value_close(key, reinterpret_cast<int8_t *>(val), 1,
+  private_merge_sort_key_value_close(key, reinterpret_cast<uint8_t *>(val), 1,
                                      scratch, std::greater_equal<uint16_t>{});
 }
 
