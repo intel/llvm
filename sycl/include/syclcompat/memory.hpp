@@ -785,9 +785,8 @@ static buffer_t get_buffer(const void *ptr) {
 /// \returns A host pointer
 template <typename T> static inline T *get_host_ptr(const void *ptr) {
   auto BufferOffset = get_buffer_and_offset(ptr);
-  auto host_ptr =
-      BufferOffset.first.get_host_access()
-          .get_multi_ptr<sycl::access::decorated::no>();
+  auto host_ptr = BufferOffset.first.get_host_access()
+                      .get_multi_ptr<sycl::access::decorated::no>();
   return (T *)(host_ptr + BufferOffset.second);
 }
 
