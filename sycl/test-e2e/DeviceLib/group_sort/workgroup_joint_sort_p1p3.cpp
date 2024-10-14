@@ -17,7 +17,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 
 // For __devicelib_default_work_group_xxx_p1*_u32_p3u8, the scratch memory is

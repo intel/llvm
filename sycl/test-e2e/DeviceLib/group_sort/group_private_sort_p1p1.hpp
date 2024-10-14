@@ -1,5 +1,5 @@
 #pragma once
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 #ifdef __SYCL_DEVICE_ONLY__
 SYCL_EXTERNAL extern "C" void
 __devicelib_default_work_group_private_sort_close_ascending_p1i8_u32_p1i8(

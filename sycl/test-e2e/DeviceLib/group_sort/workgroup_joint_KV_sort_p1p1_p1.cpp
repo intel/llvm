@@ -12,7 +12,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 #include <tuple>
 #include <vector>
 

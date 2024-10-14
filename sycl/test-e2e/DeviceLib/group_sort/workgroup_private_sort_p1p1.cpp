@@ -26,7 +26,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 using namespace sycl;
 template <typename Ty, size_t WG_SZ, size_t NUM, typename SortHelper>
 void test_work_group_private_sort(sycl::queue &q, Ty input[NUM],

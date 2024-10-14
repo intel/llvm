@@ -1,5 +1,5 @@
 #pragma once
-#include <sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
 SYCL_EXTERNAL extern "C" void
