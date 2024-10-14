@@ -1,7 +1,12 @@
 // https://github.com/intel/llvm/issues/14244
-// sycl-ls --verbose shows the "ext_intel_free_memory" aspect only if
-// ZES_ENABLE_SYSMAN=1 is set, so this test is missed if it requires
-// aspect-ext_intel_free_memory. Since gen9 and get12 don't support this query,
+// sycl-ls --verbose shows the "ext_intel_free_memory" aspect if 
+// ZES_ENABLE_SYSMAN=1 is set, but also is sysman init is supported, 
+// so this test is missed if it requires aspect-ext_intel_free_memory.
+
+// https://github.com/intel/llvm/issues/15648
+// XFAIL: gpu-intel-dg2 && linux
+
+// Since gen9 and get12 don't support this query,
 // so requiring DG2. There may be more devices in our CI supporting this aspect.
 // REQUIRES: gpu-intel-dg2
 // REQUIRES: level_zero, level_zero_dev_kit
@@ -10,9 +15,10 @@
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZES_ENABLE_SYSMAN=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env ZES_ENABLE_SYSMAN=0 %{run} %t.out 2>&1 | FileCheck %s
 //
 // The test is to check that the free device memory is reported by Level Zero
-// backend
+// backend both with and without the sysman environment variable.
 //
 // CHECK: Root-device free memory
 

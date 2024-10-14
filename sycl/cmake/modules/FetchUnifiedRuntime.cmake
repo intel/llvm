@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
-  # commit 7ecf64d60c31cd72bd88588498536d067bad59d6
-  # Merge: 17aa04d3 6eb5208b
+  # commit 4814e505335bfb968ea905d76e5b978f6f4d0002
+  # Merge: d977bd76 aa53a35d
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Sep 25 11:14:47 2024 +0100
-  #     Merge pull request #1996 from frasercrmck/ur-max-wg-size-props
-  #     Add two new properties to ur_kernel_group_info_t
-  set(UNIFIED_RUNTIME_TAG da1ebe8deba17e825db12d4a939710e2d9bae556)
+  # Date:   Fri Oct 11 16:05:19 2024 +0100
+  #     Merge pull request #2090 from RossBrunton/ross/harden
+  #     Hardening flags
+  set(UNIFIED_RUNTIME_TAG 3bea1f72a3de10c27b4996e4cc9fedbf7c519a78)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

@@ -8,9 +8,9 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>

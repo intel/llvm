@@ -11,7 +11,7 @@
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <type_traits>
 #endif
 

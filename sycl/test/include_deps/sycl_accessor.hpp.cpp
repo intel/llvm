@@ -7,14 +7,14 @@
 // CHECK-NEXT: accessor.hpp
 // CHECK-NEXT: access/access.hpp
 // CHECK-NEXT: detail/defines_elementary.hpp
-// CHECK-NEXT: CL/__spirv/spirv_ops.hpp
-// CHECK-NEXT: CL/__spirv/spirv_types.hpp
+// CHECK-NEXT: __spirv/spirv_ops.hpp
+// CHECK-NEXT: __spirv/spirv_types.hpp
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: atomic.hpp
 // CHECK-NEXT: detail/helpers.hpp
 // CHECK-NEXT: memory_enums.hpp
-// CHECK-NEXT: CL/__spirv/spirv_vars.hpp
+// CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
 // CHECK-NEXT: half_type.hpp
@@ -59,13 +59,7 @@
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
-// CHECK-NEXT: detail/cl.h
-// CHECK-NEXT: CL/cl.h
-// CHECK-NEXT: CL/cl_version.h
-// CHECK-NEXT: CL/cl_platform.h
-// CHECK-NEXT: CL/cl_ext.h
 // CHECK-NEXT: detail/string.hpp
-// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/common.hpp
 // CHECK-NEXT: detail/is_device_copyable.hpp
 // CHECK-NEXT: detail/owner_less_base.hpp
@@ -82,12 +76,14 @@
 // CHECK-NEXT: properties/property_traits.hpp
 // CHECK-NEXT: id.hpp
 // CHECK-NEXT: range.hpp
+// CHECK-NEXT: ur_api.h
 // CHECK-NEXT: detail/accessor_iterator.hpp
 // CHECK-NEXT: detail/generic_type_traits.hpp
 // CHECK-NEXT: ext/oneapi/bfloat16.hpp
 // CHECK-NEXT: detail/handler_proxy.hpp
 // CHECK-NEXT: pointers.hpp
 // CHECK-NEXT: properties/accessor_properties.hpp
+// CHECK-NEXT: properties/runtime_accessor_properties.def
 // CHECK-NEXT: properties/buffer_properties.hpp
 // CHECK-NEXT: context.hpp
 // CHECK-NEXT: async_handler.hpp
@@ -116,4 +112,5 @@
 // CHECK-NEXT: detail/string_view.hpp
 // CHECK-NEXT: detail/util.hpp
 // CHECK-NEXT: device_selector.hpp
+// CHECK-NEXT: buffer_properties.def
 // CHECK-EMPTY:

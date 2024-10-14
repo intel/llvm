@@ -34,7 +34,7 @@
 
 #include <type_traits>
 
-#include <CL/__spirv/spirv_ops.hpp> // for __SYCL_CONVERGENT__
+#include <sycl/__spirv/spirv_ops.hpp> // for __SYCL_CONVERGENT__
 #include <sycl/half_type.hpp>       // for half
 
 // We provide std::complex specializations here for the following:

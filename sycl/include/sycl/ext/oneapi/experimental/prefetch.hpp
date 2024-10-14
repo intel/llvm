@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/types.hpp>
 
