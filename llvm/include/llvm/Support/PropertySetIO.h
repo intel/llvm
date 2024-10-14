@@ -235,6 +235,7 @@ public:
       "SYCLBIN/ir module metadata";
   static constexpr char SYCLBIN_NATIVE_DEVICE_CODE_IMAGE_METADATA[] =
       "SYCLBIN/native device code image metadata";
+  static constexpr char SYCL_NATIVE_CPU_PROPS[] = "SYCL/native cpu properties";
 
   /// Function for bulk addition of an entire property set in the given
   /// \p Category .
