@@ -1665,7 +1665,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    std::string DevArg("");
+    std::string DevArg;
     if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
       // The -device option passed in by the user may not be 'pvc'. Use the
       // value provided by the user if it was specified.
