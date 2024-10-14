@@ -42,6 +42,7 @@
 #include <llvm/Transforms/Scalar/FlattenCFG.h>
 #include <llvm/Transforms/Scalar/GVN.h>
 #include <llvm/Transforms/Scalar/IndVarSimplify.h>
+#include <llvm/Transforms/Scalar/InferAlignment.h>
 #include <llvm/Transforms/Scalar/LoopPassManager.h>
 #include <llvm/Transforms/Scalar/SROA.h>
 #include <llvm/Transforms/Scalar/SimplifyCFG.h>
@@ -74,10 +75,6 @@
 #include "transform/passes.h"
 #include "transform/scalarization_pass.h"
 #include "transform/ternary_transform_pass.h"
-
-#if LLVM_VERSION_GREATER_EQUAL(18, 0)
-#include <llvm/Transforms/Scalar/InferAlignment.h>
-#endif
 
 #define DEBUG_TYPE "vecz"
 using namespace llvm;
@@ -278,10 +275,7 @@ bool vecz::buildPassPipeline(ModulePassManager &PM) {
     FPM.addPass(InterleavedGroupCombinePass(eInterleavedStore));
     FPM.addPass(InterleavedGroupCombinePass(eInterleavedLoad));
     FPM.addPass(InstCombinePass());
-#if LLVM_VERSION_GREATER_EQUAL(18, 0)
-    // LLVM 18 split this pass out of InstCombine
     FPM.addPass(InferAlignmentPass());
-#endif
     FPM.addPass(DCEPass());
     FPM.addPass(SimplifyMaskedMemOpsPass());
 

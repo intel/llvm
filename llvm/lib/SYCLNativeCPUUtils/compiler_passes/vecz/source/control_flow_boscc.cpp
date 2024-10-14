@@ -23,7 +23,6 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <multi_llvm/basicblock_helper.h>
 
 #include <numeric>
 #include <queue>
@@ -1026,7 +1025,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
 
       PHINode *blend = PHINode::Create(liveIn->getType(), 2,
                                        liveIn->getName() + ".boscc_blend");
-      multi_llvm::insertBefore(blend, blendPoint->begin());
+      blend->insertBefore(blendPoint->begin());
       bool replaceUniform = false;
       bool replacePredicate = false;
       // For each predecessor, if it can reach the instruction, set the
@@ -1096,7 +1095,7 @@ bool ControlFlowConversionState::BOSCCGadget::blendFinalize() {
 
             PHINode *blend = PHINode::Create(
                 incoming->getType(), 1, incoming->getName() + ".boscc_lcssa");
-            multi_llvm::insertBefore(blend, target->begin());
+            blend->insertBefore(target->begin());
             blend->addIncoming(incoming, runtimeCheckerBlock);
             PHI->setIncomingValue(idx, blend);
           }
@@ -1219,7 +1218,7 @@ bool ControlFlowConversionState::BOSCCGadget::updateLoopBlendValues(
   auto createLatchIncoming = [&from, &LTag, this] {
     auto *ret =
         PHINode::Create(from->getType(), 2, from->getName() + ".boscc_blend");
-    multi_llvm::insertBefore(ret, LTag->latch->begin());
+    ret->insertBefore(LTag->latch->begin());
     Value *uniform = getUniformV(from);
     Value *default_val = getDefaultValue(from->getType());
     for (BasicBlock *pred : predecessors(LTag->latch)) {
