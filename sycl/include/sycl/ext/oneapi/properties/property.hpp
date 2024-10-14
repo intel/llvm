@@ -214,7 +214,7 @@ enum PropKind : uint32_t {
   ResponseCapacity = 73,
   MaxWorkGroupSize = 74,
   MaxLinearWorkGroupSize = 75,
-  WorkGroupMem = 76,
+  WorkGroupStaticMem = 76,
   // PropKindSize must always be the last value.
   PropKindSize = 77,
 };

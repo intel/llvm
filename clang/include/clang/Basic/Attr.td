@@ -1634,7 +1634,7 @@ def SYCLScope : Attr {
     }
   }];
 
-  let Documentation = [InternalOnly];
+  let Documentation = [SYCLWGScopeDocs];
 }
 
 def SYCLDeviceIndirectlyCallable : InheritableAttr {

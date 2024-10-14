@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: cuda
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_static.hpp>

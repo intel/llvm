@@ -266,6 +266,7 @@ public:
 
   void CheckSYCLKernelCall(FunctionDecl *CallerFunc,
                            ArrayRef<const Expr *> Args);
+  void CheckSYCLScope(CXXRecordDecl *Decl);
 
   /// Creates a SemaDiagnosticBuilder that emits the diagnostic if the current
   /// context is "used as device code".

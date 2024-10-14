@@ -82,36 +82,35 @@ std::enable_if_t<
 }
 
 // Property
-struct work_group_static_size_key;
+struct work_group_static_size_key
+    : ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem>,
+      property_value<work_group_static_size_key> {
+  using value_t = property_value<work_group_static_size_key>;
+};
 
 struct work_group_static_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem>,
-      property_value<work_group_static_size_key> {
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem>,
+      work_group_static_size_key {
+  using value_t = work_group_static_size_key::value_t;
   // Runtime property part
   constexpr work_group_static_size(size_t bytes) : size(bytes) {}
 
   size_t size;
 };
 
-struct work_group_static_size_key
-    : ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupMem> {
-  using value_t = work_group_static_size;
-};
-
-template <>
-struct is_property_key<work_group_static_size_key> : std::true_type {};
+template <> struct is_property_key<work_group_static_size> : std::true_type {};
 
 template <typename T>
-struct is_property_key_of<work_group_static_size_key, T> : std::true_type {};
+struct is_property_key_of<work_group_static_size, T> : std::true_type {};
 template <>
-struct is_property_value<work_group_static_size_key>
-    : is_property_key<work_group_static_size_key> {};
+struct is_property_value<work_group_static_size>
+    : is_property_key<work_group_static_size> {};
 
 namespace detail {
-template <> struct PropertyMetaInfo<work_group_static_size_key> {
-  static constexpr const char *name = "work-group-static";
+template <> struct PropertyMetaInfo<work_group_static_size> {
+  static constexpr const char *name = "sycl-work-group-static";
   static constexpr int value = 1;
 };
 

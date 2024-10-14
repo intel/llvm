@@ -1,7 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: cuda
 
 // Test work_group_static extension with allocation size specified at runtime.
 
