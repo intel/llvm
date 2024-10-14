@@ -1480,6 +1480,8 @@ private:
 };
 
 /// Device variable with address space of shared or global.
+// TODO(syclcompat-lib-reviewers): This doesn't yet support multi-device (ptr
+// per device)
 template <class T, memory_region Memory, size_t Dimension> class device_memory {
 public:
   using accessor_t =
@@ -1626,7 +1628,6 @@ private:
         _device_ptr(memory_ptr), _q(q) {}
 
   void allocate_device(sycl::queue q) {
-    // TODO(joe): _q = q; here..., and in dpct this fn returns the ptr
 #ifndef COMPAT_USM_LEVEL_NONE
     if (Memory == memory_region::usm_shared) {
       _device_ptr = (value_t *)sycl::malloc_shared(_size, q.get_device(),
@@ -1649,7 +1650,7 @@ private:
   sycl::range<Dimension> _range;
   bool _reference;
   value_t *_host_ptr;
-  value_t *_device_ptr; // TODO(joe) in dpct this is a vector<value_t*>
+  value_t *_device_ptr;
   sycl::queue _q;
 };
 template <class T, memory_region Memory>
