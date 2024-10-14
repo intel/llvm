@@ -4616,7 +4616,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnKernelLaunch = getContext()->urDdiTable.Enqueue.pfnKernelLaunch;
 
@@ -4688,7 +4689,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnEventsWait = getContext()->urDdiTable.Enqueue.pfnEventsWait;
 
@@ -4742,7 +4744,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnEventsWaitWithBarrier =
         getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrier;
@@ -4802,7 +4805,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferRead = getContext()->urDdiTable.Enqueue.pfnMemBufferRead;
 
@@ -4884,7 +4888,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferWrite = getContext()->urDdiTable.Enqueue.pfnMemBufferWrite;
 
@@ -4976,7 +4981,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferReadRect =
         getContext()->urDdiTable.Enqueue.pfnMemBufferReadRect;
@@ -5113,7 +5119,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferWriteRect =
         getContext()->urDdiTable.Enqueue.pfnMemBufferWriteRect;
@@ -5236,7 +5243,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferCopy = getContext()->urDdiTable.Enqueue.pfnMemBufferCopy;
 
@@ -5338,7 +5346,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferCopyRect =
         getContext()->urDdiTable.Enqueue.pfnMemBufferCopyRect;
@@ -5468,7 +5477,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemBufferFill = getContext()->urDdiTable.Enqueue.pfnMemBufferFill;
 
@@ -5573,7 +5583,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemImageRead = getContext()->urDdiTable.Enqueue.pfnMemImageRead;
 
@@ -5663,7 +5674,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemImageWrite = getContext()->urDdiTable.Enqueue.pfnMemImageWrite;
 
@@ -5754,7 +5766,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemImageCopy = getContext()->urDdiTable.Enqueue.pfnMemImageCopy;
 
@@ -5850,7 +5863,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent, ///< [out][optional] return an event object that identifies this particular
-                 ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
 ) {
@@ -5933,7 +5947,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnMemUnmap = getContext()->urDdiTable.Enqueue.pfnMemUnmap;
 
@@ -6008,7 +6023,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMFill = getContext()->urDdiTable.Enqueue.pfnUSMFill;
 
@@ -6095,7 +6111,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMMemcpy = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy;
 
@@ -6179,7 +6196,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMPrefetch = getContext()->urDdiTable.Enqueue.pfnUSMPrefetch;
 
@@ -6317,7 +6335,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMFill2D = getContext()->urDdiTable.Enqueue.pfnUSMFill2D;
 
@@ -6429,7 +6448,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnUSMMemcpy2D = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy2D;
 
@@ -6533,7 +6553,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnDeviceGlobalVariableWrite =
         getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite;
@@ -6613,7 +6634,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnDeviceGlobalVariableRead =
         getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead;
@@ -6698,6 +6720,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ur_event_handle_t *
         phEvent ///< [out][optional] returns an event object that identifies this read command
     ///< and can be used to query or queue a wait for this command to complete.
+    ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    ///< an element of the phEventWaitList array.
 ) {
     auto pfnReadHostPipe = getContext()->urDdiTable.Enqueue.pfnReadHostPipe;
 
@@ -6782,6 +6806,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *
         phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
+    ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    ///< an element of the phEventWaitList array.
 ) {
     auto pfnWriteHostPipe = getContext()->urDdiTable.Enqueue.pfnWriteHostPipe;
 
@@ -7264,7 +7290,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnImageCopyExp =
         getContext()->urDdiTable.BindlessImagesExp.pfnImageCopyExp;
@@ -7822,7 +7849,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnWaitExternalSemaphoreExp =
         getContext()->urDdiTable.BindlessImagesExp.pfnWaitExternalSemaphoreExp;
@@ -7882,7 +7910,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnSignalExternalSemaphoreExp =
         getContext()
@@ -9167,7 +9196,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command-buffer execution instance.
+    ///< command-buffer execution instance. If phEventWaitList and phEvent are
+    ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnEnqueueExp =
         getContext()->urDdiTable.CommandBufferExp.pfnEnqueueExp;
@@ -9499,7 +9529,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnCooperativeKernelLaunchExp =
         getContext()->urDdiTable.EnqueueExp.pfnCooperativeKernelLaunchExp;
@@ -9620,7 +9651,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
     ///< reports the timestamp at the time of the call to this function.
     ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
-    ///< reports the timestamp recorded when the command is executed on the device.
+    ///< reports the timestamp recorded when the command is executed on the
+    ///< device. If phEventWaitList and phEvent are not NULL, phEvent must not
+    ///< refer to an element of the phEventWaitList array.
 ) {
     auto pfnTimestampRecordingExp =
         getContext()->urDdiTable.EnqueueExp.pfnTimestampRecordingExp;
@@ -9694,7 +9727,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ///< the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList
+    ///< array.
 ) {
     auto pfnKernelLaunchCustomExp =
         getContext()->urDdiTable.EnqueueExp.pfnKernelLaunchCustomExp;
@@ -10112,7 +10147,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies the work that has
-    ///< been enqueued in nativeEnqueueFunc.
+    ///< been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     auto pfnNativeCommandExp =
         getContext()->urDdiTable.EnqueueExp.pfnNativeCommandExp;
