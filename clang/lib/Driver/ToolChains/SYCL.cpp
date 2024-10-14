@@ -1399,7 +1399,11 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
 }
 
 // Currently supported options by SYCL NativeCPU device compilation
-static inline bool SupportedByNativeCPU(OptSpecifier Opt) {
+static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+                                        const OptSpecifier &Opt) {
+  if (!TC.IsSYCLNativeCPU)
+    return false;
+
   switch (Opt.getID()) {
   case options::OPT_fcoverage_mapping:
   case options::OPT_fno_coverage_mapping:
@@ -1424,7 +1428,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
     if (const Arg *A = Args.getLastArg(Opt)) {
       // Native CPU can support options unsupported by other targets,
       // currently source-based code coverage
-      if (this->IsSYCLNativeCPU && SupportedByNativeCPU(Opt))
+      if (SupportedByNativeCPU(*this, Opt))
         continue;
       // All sanitizer options are not currently supported, except
       // AddressSanitizer
@@ -1468,7 +1472,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
       if (Opt.matches(UnsupportedOpt)) {
         // NativeCPU should allow most normal cpu options like
         // for coverage testing and we enable them as we have tests.
-        if (this->IsSYCLNativeCPU && SupportedByNativeCPU(Opt.getID()))
+        if (SupportedByNativeCPU(*this, Opt.getID()))
           continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
