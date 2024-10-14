@@ -35,11 +35,8 @@ private:
 
 } // namespace detail
 namespace ext::oneapi::experimental {
-#ifdef __SYCL_DEVICE_ONLY__
+
 template <typename DataT, typename PropertyListT = empty_properties_t>
-#else
-template <typename DataT, typename PropertyListT>
-#endif
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
 public:
