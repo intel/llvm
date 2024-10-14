@@ -276,7 +276,7 @@ public:
       : UrImage(
             SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
             SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
-            "", "", {}, std::move(std::vector<unsigned char>{1, 2, 3, 4, 5}),
+            "", "", {}, std::vector<unsigned char>{1, 2, 3, 4, 5},
             internal::LifetimeExtender(std::move(OffloadEntries)),
             std::move(PropertySet)) {}
 

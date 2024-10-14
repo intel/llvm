@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 53c461b257e7bbf5827147c3b5ca0b8ea45b434d
-  # Merge: 2c4bf63b d93b262b
+  # commit 5ade7fc44d453d86dc7440595dbea37c29ce54dc
+  # Merge: 66ea35dc 0b5b89f0
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Fri Oct 11 11:01:37 2024 +0100
-  #     Merge pull request #2174 from ProGTX/peter/winfix
-  #     [NFC][CUDA] Include STL headers in program.cpp
-  set(UNIFIED_RUNTIME_TAG 53c461b257e7bbf5827147c3b5ca0b8ea45b434d)
+  # Date:   Mon Oct 14 12:17:07 2024 +0100
+  #     Merge pull request #1823 from Bensuo/ewan/ur_dyn_events
+  #     Add event update to command-buffers
+  set(UNIFIED_RUNTIME_TAG 5ade7fc44d453d86dc7440595dbea37c29ce54dc)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
