@@ -4,14 +4,17 @@
 
 // FOOTER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}"{{.*}} "-include" "dummy.h"
 // FOOTER: clang{{.*}} "-include-internal-header" "[[INTHEADER]]"
-// FOOTER: "-fsycl-is-host" {{.*}} "-include" "dummy.h"{{.*}} "-I" "cmdline/dir"
+// FOOTER-SAME: "-fsycl-is-host"{{.*}} "-include" "dummy.h"{{.*}} "-I" "cmdline/dir"
+// FOOTER-NOT: "-include-internal-header" "[[INTHEADER]]"
 
 /// Preprocessed file creation with integration footer
 // RUN: %clangxx -fsycl --offload-new-driver -E %/s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix FOOTER_PREPROC_GEN %s
 // FOOTER_PREPROC_GEN: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INTHEADER:.+\.h]]" "-fsycl-int-footer=[[INTFOOTER:.+\h]]" "-sycl-std={{.*}}" "-o" "[[PREPROC_DEVICE:.+\.ii]]"
 // FOOTER_PREPROC_GEN: clang{{.*}} "-include-internal-header" "[[INTHEADER]]"
+// FOOTER_PREPROC_GEN-SAME: "-dependency-filter" "[[INTHEADER]]"
 // FOOTER_PREPROC_GEN-SAME: "-include-internal-footer" "[[INTFOOTER]]"
+// FOOTER_PREPROC_GEN-SAME: "-dependency-filter" "[[INTFOOTER]]"
 // FOOTER_PREPROC_GEN-SAME: "-fsycl-is-host"{{.*}} "-E"{{.*}} "-o" "-"
 
 /// Preprocessed file use with integration footer
@@ -28,7 +31,7 @@
 
 /// Check phases without integration footer
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fno-sycl-device-lib=all -fno-sycl-use-footer -target x86_64-unknown-linux-gnu %s -ccc-print-phases 2>&1 \
-// RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES %s
+// RUN:   | FileCheck -check-prefix NO-FOOTER-PHASES -check-prefix COMMON-PHASES %s
 // NO-FOOTER-PHASES: 0: input, "{{.*}}", c++, (host-sycl)
 // NO-FOOTER-PHASES: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // NO-FOOTER-PHASES: [[#HOST_IR:]]: compiler, {1}, ir, (host-sycl)
@@ -52,6 +55,13 @@
 // COMMON-PHASES: [[#OFFLOAD+4]]: backend, {[[#OFFLOAD+3]]}, assembler, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+5]]: assembler, {[[#OFFLOAD+4]]}, object, (host-sycl)
 // COMMON-PHASES: [[#OFFLOAD+6]]: clang-linker-wrapper, {[[#OFFLOAD+5]]}, image, (host-sycl)
+
+/// Test for -fsycl-footer-path=<dir>
+// RUN:  %clangxx -fsycl --offload-new-driver -fsycl-footer-path=dummy_dir %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix FOOTER_PATH %s
+// FOOTER_PATH: clang{{.*}} "-fsycl-is-device"
+// FOOTER_PATH-SAME: "-fsycl-int-footer=dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
+// FOOTER_PATH: clang{{.*}} "-include-internal-footer" "dummy_dir{{(/|\\\\)}}{{.*}}-footer-{{.*}}.h"
 
 /// Check behaviors for dependency generation
 // RUN:  %clangxx -fsycl --offload-new-driver -MD -c %s -### 2>&1 \
