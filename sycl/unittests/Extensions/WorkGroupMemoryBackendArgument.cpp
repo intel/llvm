@@ -1,20 +1,41 @@
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
+//==--------------------- DefaultContext.cpp -------------------------------==//
+//
+// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
+// See https://llvm.org/LICENSE.txt for license information.
+// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+//
+//===----------------------------------------------------------------------===//
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
+#include <gtest/gtest.h>
+#include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
+#include <sycl/sycl.hpp>
 
 // Check that the work group memory object is mapped to exactly one backend
 // kernel argument.
 
-int main() {
-  sycl::queue q;
-  q.submit([&](sycl::handler &cgh) {
-    sycl::ext::oneapi::experimental::work_group_memory<int[2]> data{cgh};
-    cgh.parallel_for(sycl::nd_range<1>{1, 1},
-                     [=](sycl::nd_item<1> it) { data[0] = 42; });
-  });
+namespace syclext = sycl::ext::oneapi::experimental;
+using arg_type = syclext::work_group_memory<int, syclext::empty_properties_t>;
+
+static int urKernelSetArgLocalCalls = 0;
+inline ur_result_t redefined_urKernelSetArgLocal(void *) {
+  ++urKernelSetArgLocalCalls;
+  return UR_RESULT_SUCCESS;
 }
 
-// CHECK-COUNT-1: ---> urKernelSetArg
-// CHECK-NOT: ---> urKernelSetArg
+TEST(URArgumentTest, URArgumentTest) {
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urKernelSetArgLocal",
+                                            &redefined_urKernelSetArgLocal);
+  sycl::platform Platform = sycl::platform();
+  const sycl::device dev = Platform.get_devices()[0];
+  sycl::queue q{dev};
+  syclext::submit(q, [&](sycl::handler &cgh) {
+    arg_type data{cgh};
+    const auto mykernel = [=](sycl::nd_item<1> it) { data = 42; };
+    syclext::nd_launch<TestKernel<sizeof(mykernel)>>(
+        cgh, sycl::nd_range<1>{1, 1}, mykernel);
+  });
+  q.wait();
+  ASSERT_EQ(urKernelSetArgLocalCalls, 1);
+}
