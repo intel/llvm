@@ -44,18 +44,13 @@ using ldg_vector_types = sycl::detail::type_list<
     sycl::vec<half, 2>, sycl::vec<half, 3>, sycl::vec<half, 4>,
     sycl::vec<float, 2>, sycl::vec<float, 3>, sycl::vec<float, 4>,
     sycl::vec<double, 2>, sycl::vec<double, 3>, sycl::vec<double, 4>>;
-
-using ldg_types =
-    sycl::detail::tl_append<ldg_vector_types,
-                            sycl::detail::gtl::scalar_floating_list,
-                            sycl::detail::gtl::scalar_signed_integer_list,
-                            sycl::detail::gtl::scalar_unsigned_integer_list>;
 } // namespace detail
 
 template <typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
-    sycl::detail::is_contained<
-        T, sycl::ext::oneapi::experimental::cuda::detail::ldg_types>::value,
+    sycl::detail::is_sgeninteger_v<T> || sycl::detail::is_sgenfloat_v<T> ||
+        sycl::detail::is_contained<T, sycl::ext::oneapi::experimental::cuda::
+                                          detail::ldg_vector_types>::value,
     T>
 ldg(const T *ptr) {
 #if defined(__SYCL_DEVICE_ONLY__)
