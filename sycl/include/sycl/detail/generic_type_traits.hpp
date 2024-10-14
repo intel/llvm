@@ -65,7 +65,10 @@ inline constexpr bool is_sugeninteger_v =
     is_contained_v<T, gtl::scalar_unsigned_integer_list>;
 
 template <typename T>
-inline constexpr bool is_genbool_v = is_contained_v<T, gtl::bool_list>;
+inline constexpr bool is_genbool_v =
+    std::is_same_v<T, bool> ||
+    (is_marray_v<T> && std::is_same_v<element_type_t<T>, bool> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
 
 template <typename T>
 using is_byte = typename
