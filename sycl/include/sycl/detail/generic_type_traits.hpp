@@ -47,9 +47,6 @@ inline constexpr bool is_vgenfloat_v =
     is_contained_v<T, gtl::vector_floating_list>;
 
 template <typename T>
-inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
-
-template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
 
 template <typename T>
