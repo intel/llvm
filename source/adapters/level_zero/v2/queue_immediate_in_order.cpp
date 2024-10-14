@@ -249,35 +249,45 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
 
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(hKernel->Mutex,
-                                                          this->Mutex);
-
-  if (pGlobalWorkOffset != NULL) {
-    UR_CALL(
-        setKernelGlobalOffset(hContext, hZeKernel, workDim, pGlobalWorkOffset));
-  }
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(this->Mutex,
+                                                          hKernel->Mutex);
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
-  uint32_t WG[3];
+  uint32_t WG[3]{};
   UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice,
                                         zeThreadGroupDimensions, WG, workDim,
                                         pGlobalWorkSize, pLocalWorkSize));
 
-  ZE2UR_CALL(zeKernelSetGroupSize, (hZeKernel, WG[0], WG[1], WG[2]));
-
   auto handler = getCommandListHandlerForCompute();
   auto signalEvent = getSignalEvent(handler, phEvent);
 
-  auto [pWaitEvents, numWaitEvents] =
+  auto waitList =
       getWaitListView(phEventWaitList, numEventsInWaitList, handler);
 
-  // TODO: consider migrating memory to the device if memory buffers are used
+  bool memoryMigrated = false;
+  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
+    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                      (handler->commandList.get(), dst, src, size, nullptr,
+                       waitList.second, waitList.first));
+    memoryMigrated = true;
+  };
+
+  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
+                                        workDim, WG[0], WG[1], WG[2],
+                                        memoryMigrate));
+
+  if (memoryMigrated) {
+    // If memory was migrated, we don't need to pass the wait list to
+    // the copy command again.
+    waitList.first = nullptr;
+    waitList.second = 0;
+  }
 
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::zeCommandListAppendLaunchKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (handler->commandList.get(), hZeKernel, &zeThreadGroupDimensions,
-              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
+              signalEvent->getZeEvent(), waitList.second, waitList.first));
 
   return finalizeHandler(handler);
 }
