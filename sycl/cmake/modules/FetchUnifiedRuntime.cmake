@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5ade7fc44d453d86dc7440595dbea37c29ce54dc
-  # Merge: 66ea35dc 0b5b89f0
+  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime.git")
+  # commit 22ef899035a85b70b5472416ad6db8021effb5c1
+  # Merge: 4814e505 f5979a68
   # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Oct 14 12:17:07 2024 +0100
-  #     Merge pull request #1823 from Bensuo/ewan/ur_dyn_events
-  #     Add event update to command-buffers
-  set(UNIFIED_RUNTIME_TAG 5ade7fc44d453d86dc7440595dbea37c29ce54dc)
+  # Date:   Mon Oct 14 10:03:13 2024 +0100
+  #     Merge pull request #1469 from RossBrunton/ross/specconst
+  #     [Spec Constants] Improved handling of invalid spec. constants
+  set(UNIFIED_RUNTIME_TAG aaron/nativeCPUBatch)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
