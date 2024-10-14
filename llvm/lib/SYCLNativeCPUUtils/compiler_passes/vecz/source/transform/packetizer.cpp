@@ -921,7 +921,7 @@ Value *Packetizer::Impl::reduceBranchCond(Value *cond, Instruction *terminator,
   // value.
   Value *&f = conds.front();
 
-  return createMaybeVPTargetReduction(B, TTI, f, kind, VL);
+  return createMaybeVPReduction(B, f, kind, VL);
 }
 
 Packetizer::Result Packetizer::Impl::assign(Value *Scalar, Value *Vectorized) {
@@ -976,7 +976,7 @@ Packetizer::Result Packetizer::Impl::packetize(Value *V) {
       if (newCond->getType()->isVectorTy()) {
         IRBuilder<> B(Branch);
         const RecurKind kind = RecurKind::Or;
-        newCond = createMaybeVPTargetReduction(B, TTI, newCond, kind, VL);
+        newCond = createMaybeVPReduction(B, newCond, kind, VL);
       }
 
       Branch->setCondition(newCond);
@@ -1269,8 +1269,7 @@ Value *Packetizer::Impl::packetizeGroupReduction(Instruction *I) {
   }
 
   // Reduce to a scalar.
-  Value *v = createMaybeVPTargetReduction(B, TTI, opPackets.front(),
-                                          Info->Recurrence, VL);
+  Value *v = createMaybeVPReduction(B, opPackets.front(), Info->Recurrence, VL);
 
   // We leave the original reduction function and divert the vectorized
   // reduction through it, giving us a reduction over the full apparent
@@ -1943,8 +1942,7 @@ Value *Packetizer::Impl::packetizeMaskVarying(Instruction *I) {
       }
     }();
 
-    Value *anyOfMask =
-        createMaybeVPTargetReduction(B, TTI, vecMask, RecurKind::Or, VL);
+    Value *anyOfMask = createMaybeVPReduction(B, vecMask, RecurKind::Or, VL);
     anyOfMask->setName("any_of_mask");
 
     if (isVector) {
@@ -2389,8 +2387,7 @@ ValuePacket Packetizer::Impl::packetizeGroupScan(
   // Thus we essentially keep the original group scan, but change it to be an
   // exclusive one.
   auto *Reduction = Ops.front();
-  Reduction =
-      createMaybeVPTargetReduction(B, TTI, Reduction, Scan.Recurrence, VL);
+  Reduction = createMaybeVPReduction(B, Reduction, Scan.Recurrence, VL);
 
   // Now we defer to an *exclusive* scan over the group.
   auto ExclScan = Scan;

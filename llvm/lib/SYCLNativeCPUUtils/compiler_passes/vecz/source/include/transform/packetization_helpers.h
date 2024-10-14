@@ -24,7 +24,6 @@
 #include <llvm/ADT/DenseMap.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/Analysis/IVDescriptors.h>
-#include <llvm/Analysis/TargetTransformInfo.h>
 #include <llvm/IR/IRBuilder.h>
 #include <multi_llvm/llvm_version.h>
 #include <multi_llvm/multi_llvm.h>
@@ -98,11 +97,9 @@ bool createSubSplats(const vecz::TargetInfo &TI, llvm::IRBuilder<> &B,
 ///
 /// Only works on RecurKind::And, Or, Xor, Add, Mul, FAdd, FMul, {S,U,F}Min,
 /// {S,U,F}Max.
-llvm::Value *createMaybeVPTargetReduction(llvm::IRBuilderBase &B,
-                                          const llvm::TargetTransformInfo &TTI,
-                                          llvm::Value *Val,
-                                          llvm::RecurKind Kind,
-                                          llvm::Value *VL = nullptr);
+llvm::Value *createMaybeVPReduction(llvm::IRBuilderBase &B, llvm::Value *Val,
+                                    llvm::RecurKind Kind,
+                                    llvm::Value *VL = nullptr);
 
 /// @brief Utility function to obtain an indices vector to be used in a gather
 /// operation.

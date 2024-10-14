@@ -183,11 +183,7 @@ bool BasicMem2RegPass::promoteAlloca(AllocaInst *Alloca) const {
       StoredValue = Store->getValueOperand();
       ToDelete.push_back(Store);
       DIBuilder DIB(*Alloca->getModule(), /*AllowUnresolved*/ false);
-#if LLVM_VERSION_GREATER_EQUAL(18, 0)
       auto DbgIntrinsics = findDbgDeclares(Alloca);
-#else
-      auto DbgIntrinsics = FindDbgDeclareUses(Alloca);
-#endif
       for (auto oldDII : DbgIntrinsics) {
         ConvertDebugDeclareToDebugValue(oldDII, Store, DIB);
       }
