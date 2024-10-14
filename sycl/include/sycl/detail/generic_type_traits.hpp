@@ -29,15 +29,18 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename T>
-inline constexpr bool is_genfloat_v = is_contained_v<T, gtl::floating_list>;
-
-template <typename T>
 inline constexpr bool is_sgenfloat_v =
-    is_contained_v<T, gtl::scalar_floating_list>;
+    check_type_in_v<T, float, double, half, ext::oneapi::bfloat16>;
 
 template <typename T>
 inline constexpr bool is_vgenfloat_v =
-    is_contained_v<T, gtl::vector_floating_list>;
+    is_vec_v<T> && is_sgenfloat_v<element_type_t<T>>;
+
+template <typename T>
+inline constexpr bool is_genfloat_v =
+    is_sgenfloat_v<T> || is_vgenfloat_v<T> ||
+    (is_marray_v<T> && is_sgenfloat_v<element_type_t<T>> &&
+     is_allowed_vec_size_v<num_elements_v<T>>);
 
 template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
