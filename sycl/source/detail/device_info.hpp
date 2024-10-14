@@ -840,6 +840,14 @@ struct get_device_info_impl<
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
              (architecture::intel_gpu_lnl_m == DeviceArch))
       return {
+          {8, 0, 0, 0, 16, 64, matrix_type::uint4, matrix_type::uint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::uint4, matrix_type::sint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::sint4, matrix_type::uint4,
+           matrix_type::sint32, matrix_type::sint32},
+          {8, 0, 0, 0, 16, 64, matrix_type::sint4, matrix_type::sint4,
+           matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
