@@ -1140,7 +1140,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command-buffer execution instance.
+            [out][optional] return an event object that identifies this particular command-buffer execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_QUEUE
