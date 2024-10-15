@@ -163,7 +163,6 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename> class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -172,6 +171,7 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
 class queue_impl;
@@ -1875,10 +1875,11 @@ public:
                                 ext::oneapi::experimental::empty_properties_t>
   void set_arg(
       int ArgIndex,
-      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
+      detail::work_group_memory_impl &Arg) {
+    MWorkGroupMemoryObjects.push_back(
+        std::make_shared<detail::work_group_memory_impl>(Arg));
     addArg(detail::kernel_param_kind_t::kind_work_group_memory,
-           std::make_shared<std::remove_reference_t<decltype(Arg)>>(Arg).get(),
-           0, ArgIndex);
+           MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
   }
 
   // set_arg for graph dynamic_parameters
@@ -3242,9 +3243,10 @@ public:
 private:
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
-
+  
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
   detail::string MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;
