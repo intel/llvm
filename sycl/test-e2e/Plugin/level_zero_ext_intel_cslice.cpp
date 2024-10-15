@@ -1,7 +1,8 @@
 // REQUIRES: level_zero
 // REQUIRES: aspect-ext_intel_device_id
-// https://github.com/intel/llvm/issues/14826
+
 // XFAIL: gpu-intel-pvc-1T
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15699
 
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 
