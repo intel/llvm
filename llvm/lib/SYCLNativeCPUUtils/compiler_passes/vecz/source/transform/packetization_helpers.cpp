@@ -30,7 +30,7 @@
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
-#include <multi_llvm/multi_llvm.h>
+#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
@@ -322,8 +322,8 @@ Value *createMaybeVPReduction(IRBuilderBase &B, Value *Val, RecurKind Kind,
       break;
   }
 
-  auto *const F = Intrinsic::getDeclaration(B.GetInsertBlock()->getModule(),
-                                            IntrinsicOp, Val->getType());
+  auto *const F = multi_llvm::GetOrInsertIntrinsicDeclaration(
+      B.GetInsertBlock()->getModule(), IntrinsicOp, Val->getType());
   assert(F && "Could not declare vector-predicated reduction intrinsic");
 
   auto *const VecTy = cast<VectorType>(Val->getType());

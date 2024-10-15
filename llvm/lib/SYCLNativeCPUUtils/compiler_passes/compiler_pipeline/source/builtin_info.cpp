@@ -23,6 +23,7 @@
 #include <llvm/ADT/StringExtras.h>
 #include <llvm/ADT/StringSwitch.h>
 #include <llvm/IR/Module.h>
+#include <multi_llvm/intrinsic.h>
 
 using namespace llvm;
 
@@ -538,7 +539,7 @@ Function *BuiltinInfo::getScalarEquivalent(const Builtin &B, Module *M) {
     Type *ScalarType = VecRetTy->getElementType();
     // Get the scalar version of the intrinsic
     Function *ScalarIntrinsic =
-        Intrinsic::getDeclaration(M, IntrinsicID, ScalarType);
+        multi_llvm::GetOrInsertIntrinsicDeclaration(M, IntrinsicID, ScalarType);
 
     return ScalarIntrinsic;
   }

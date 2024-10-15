@@ -20,7 +20,6 @@
 #include <unordered_set>
 
 #include "debugging.h"
-#include "multi_llvm/multi_llvm.h"
 #include "transform/passes.h"
 
 using namespace llvm;
@@ -100,8 +99,8 @@ PreservedAnalyses vecz::SimplifyInfiniteLoopPass::run(
     }
     // Add new phi nodes for instructions computed in `toBlend`.
     for (Instruction *I : toBlend) {
-      PHINode *PHI = PHINode::Create(I->getType(), 2, I->getName() + ".blend",
-                                     &target->front());
+      PHINode *PHI = PHINode::Create(I->getType(), 2, I->getName() + ".blend");
+      PHI->insertBefore(target->begin());
       for (BasicBlock *pred : predecessors(target)) {
         if (pred != virtualExit) {
           PHI->addIncoming(I, pred);

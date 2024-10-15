@@ -32,7 +32,6 @@
 #include <llvm/TargetParser/Triple.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <llvm/Transforms/Utils/ValueMapper.h>
-#include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <cmath>
@@ -2807,7 +2806,8 @@ Instruction *CLBuiltinInfo::lowerBuiltinToMuxBuiltin(
     auto *const MuxBuiltinFn = BIMuxImpl.getOrDeclareMuxBuiltin(*MuxID, M);
     assert(MuxBuiltinFn && "Could not get/declare mux builtin");
     const SmallVector<Value *> Args(CI.args());
-    auto *const NewCI = CallInst::Create(MuxBuiltinFn, Args, CI.getName(), &CI);
+    auto *const NewCI = CallInst::Create(MuxBuiltinFn, Args, CI.getName());
+    NewCI->insertBefore(CI.getIterator());
     NewCI->takeName(&CI);
     NewCI->setAttributes(MuxBuiltinFn->getAttributes());
     return NewCI;
@@ -3344,9 +3344,9 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
     Args.push_back(Val);
   } else {
     assert(Val->getType()->isIntegerTy());
-    auto *NEZero =
-        ICmpInst::Create(Instruction::ICmp, ICmpInst::ICMP_NE, Val,
-                         ConstantInt::getNullValue(Val->getType()), "", &CI);
+    auto *NEZero = ICmpInst::Create(Instruction::ICmp, ICmpInst::ICMP_NE, Val,
+                                    ConstantInt::getNullValue(Val->getType()));
+    NEZero->insertBefore(CI.getIterator());
     Args.push_back(NEZero);
   }
 
@@ -3363,7 +3363,8 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
     }
   }
 
-  auto *const NewCI = CallInst::Create(MuxBuiltinFn, Args, CI.getName(), &CI);
+  auto *const NewCI = CallInst::Create(MuxBuiltinFn, Args, CI.getName());
+  NewCI->insertBefore(CI.getIterator());
   NewCI->takeName(&CI);
   NewCI->setAttributes(MuxBuiltinFn->getAttributes());
 
@@ -3371,7 +3372,9 @@ Instruction *CLBuiltinInfo::lowerGroupBuiltinToMuxBuiltin(
     return NewCI;
   }
   // For any/all we need to recreate the original i32 return value.
-  return SExtInst::Create(Instruction::SExt, NewCI, CI.getType(), "sext", &CI);
+  auto *SExt = SExtInst::Create(Instruction::SExt, NewCI, CI.getType(), "sext");
+  SExt->insertBefore(CI.getIterator());
+  return SExt;
 }
 
 Instruction *CLBuiltinInfo::lowerAsyncBuiltinToMuxBuiltin(

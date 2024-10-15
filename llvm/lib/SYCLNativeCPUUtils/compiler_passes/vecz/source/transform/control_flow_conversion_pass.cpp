@@ -38,6 +38,7 @@
 #include <llvm/Support/Error.h>
 #include <llvm/Support/TypeSize.h>
 #include <llvm/Support/raw_ostream.h>
+#include <multi_llvm/multi_llvm.h>
 
 #include <queue>
 #include <utility>
@@ -371,30 +372,33 @@ STATISTIC(VeczCFGFail,
 
 namespace {
 
-Instruction *getInsertionPt(BasicBlock &BB) {
+BasicBlock::iterator getInsertionPt(BasicBlock &BB) {
   // We have to insert instructions after any Allocas
   auto it = BB.getFirstInsertionPt();
   while (isa<AllocaInst>(*it)) {
     ++it;
   }
-  return &*it;
+  return it;
 }
 
-Instruction *copyMask(Value *mask, Twine name, Instruction *insertBefore) {
-  VECZ_ERROR_IF(!mask || !insertBefore,
-                "Trying to copy mask with invalid arguments");
+Instruction *copyMask(Value *mask, Twine name) {
+  VECZ_ERROR_IF(!mask, "Trying to copy mask with invalid arguments");
   return BinaryOperator::CreateAnd(mask, getDefaultValue(mask->getType(), 1),
-                                   name, insertBefore);
+                                   name);
 }
 
 Instruction *copyEntryMask(Value *mask, BasicBlock &BB) {
   VECZ_ERROR_IF(!mask, "Trying to copy entry mask with invalid arguments");
-  return copyMask(mask, BB.getName() + ".entry_mask", getInsertionPt(BB));
+  auto *EM = copyMask(mask, BB.getName() + ".entry_mask");
+  EM->insertBefore(getInsertionPt(BB));
+  return EM;
 }
 
 Instruction *copyExitMask(Value *mask, StringRef base, BasicBlock &BB) {
   VECZ_ERROR_IF(!mask, "Trying to copy exit mask with invalid arguments");
-  return copyMask(mask, base + ".exit_mask", BB.getTerminator());
+  auto *EM = copyMask(mask, base + ".exit_mask");
+  EM->insertBefore(BB.getTerminator()->getIterator());
+  return EM;
 }
 
 /// Wrap a string into an llvm::StringError, pointing to an instruction.
@@ -754,11 +758,11 @@ bool ControlFlowConversionState::Impl::createEntryMasks(BasicBlock &BB) {
         LLVM_DEBUG(dbgs() << "Blend block " << BB.getName()
                           << ": entry mask: " << *maskInfo.entryMask << "\n");
       } else {
-        Instruction *insertBefore =
-            cast<Instruction>(maskInfo.entryMask)->getNextNode();
+        auto InsertPt = std::next(maskInfo.entryMask->getIterator());
         maskInfo.entryMask = BinaryOperator::CreateOr(
             maskInfo.entryMask, MaskInfos[*it].exitMasks[&BB],
-            BB.getName() + ".entry_mask", insertBefore);
+            BB.getName() + ".entry_mask");
+        maskInfo.entryMask->insertBefore(InsertPt);
 
         LLVM_DEBUG(dbgs() << "Blend block " << BB.getName()
                           << ": entry mask: " << *maskInfo.entryMask << "\n");
@@ -1017,8 +1021,8 @@ bool ControlFlowConversionState::Impl::createLoopExitMasks(LoopTag &LTag) {
 
       BinaryOperator *maskUpdate = BinaryOperator::CreateOr(
           REM, maskUpdateOperand,
-          exitBlock->getName() + ".loop_exit_mask.update",
-          exitingBlock->getTerminator());
+          exitBlock->getName() + ".loop_exit_mask.update");
+      maskUpdate->insertBefore(exitingBlock->getTerminator()->getIterator());
 
       LMask.updatedPersistedDivergentExitMasks[exitingBlock] = maskUpdate;
 
@@ -1076,27 +1080,27 @@ bool ControlFlowConversionState::Impl::createCombinedLoopExitMask(
         LMask.combinedDivergentExitMask = copyMask(
             LMask.updatedPersistedDivergentExitMasks[exitingBlock]->getOperand(
                 1),
-            Loop->getName() + ".combined_divergent_exit_mask",
-            LTag.latch->getTerminator());
+            Loop->getName() + ".combined_divergent_exit_mask");
 
         LMask.persistedCombinedDivergentExitMask = copyMask(
             LMask.updatedPersistedDivergentExitMasks[exitingBlock],
-            Loop->getName() + ".persisted_combined_divergent_exit_mask",
-            LTag.latch->getTerminator());
+            Loop->getName() + ".persisted_combined_divergent_exit_mask");
       } else {
         LMask.combinedDivergentExitMask = BinaryOperator::CreateOr(
             LMask.combinedDivergentExitMask,
             LMask.updatedPersistedDivergentExitMasks[exitingBlock]->getOperand(
                 1),
-            Loop->getName() + ".combined_divergent_exit_mask",
-            LTag.latch->getTerminator());
+            Loop->getName() + ".combined_divergent_exit_mask");
 
         LMask.persistedCombinedDivergentExitMask = BinaryOperator::CreateOr(
             LMask.persistedCombinedDivergentExitMask,
             LMask.updatedPersistedDivergentExitMasks[exitingBlock],
-            Loop->getName() + ".persisted_combined_divergent_exit_mask",
-            LTag.latch->getTerminator());
+            Loop->getName() + ".persisted_combined_divergent_exit_mask");
       }
+      LMask.combinedDivergentExitMask->insertBefore(
+          LTag.latch->getTerminator()->getIterator());
+      LMask.persistedCombinedDivergentExitMask->insertBefore(
+          LTag.latch->getTerminator()->getIterator());
     }
   }
 
@@ -1195,7 +1199,8 @@ CallInst *ControlFlowConversionState::Impl::emitMaskedVersion(CallInst *CI,
   }
   fnArgs.push_back(entryBit);
 
-  CallInst *newCI = CallInst::Create(newFunction, fnArgs, "", CI);
+  CallInst *newCI = CallInst::Create(newFunction, fnArgs);
+  newCI->insertBefore(CI->getIterator());
   newCI->setCallingConv(CI->getCallingConv());
   newCI->setAttributes(CI->getAttributes());
 
@@ -1246,9 +1251,11 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToBinOp(
               // to do anything.
               masked = divisor;
             } else {
-              masked = SelectInst::Create(
+              auto *SI = SelectInst::Create(
                   mask, divisor, ConstantInt::get(divisor->getType(), 1),
-                  divisor->getName() + ".masked", &I);
+                  divisor->getName() + ".masked");
+              SI->insertBefore(I.getIterator());
+              masked = SI;
             }
           }
 
@@ -1285,16 +1292,17 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToMemOp(
   if (memOp.isLoadStoreInst()) {
     // Create a new mem-op the same as the original except for the addition
     // of the mask.
-    Value *newVal = nullptr;
+    Instruction *newVal = nullptr;
     if (memOp.isLoad()) {
       newVal = createMaskedLoad(
           Ctx, memOp.getDataType(), memOp.getPointerOperand(), wideMask,
-          /*VL*/ nullptr, memOp.getAlignment(), I->getName(), I);
+          /*VL*/ nullptr, memOp.getAlignment(), I->getName());
     } else {
       newVal = createMaskedStore(
           Ctx, memOp.getDataOperand(), memOp.getPointerOperand(), wideMask,
-          /*VL*/ nullptr, memOp.getAlignment(), I->getName(), I);
+          /*VL*/ nullptr, memOp.getAlignment(), I->getName());
     }
+    newVal->insertBefore(I->getIterator());
 
     VECZ_FAIL_IF(!newVal);
     if (!I->getType()->isVoidTy()) {
@@ -1305,8 +1313,9 @@ bool ControlFlowConversionState::Impl::tryApplyMaskToMemOp(
   }
 
   if (auto *opMask = memOp.getMaskOperand()) {
-    memOp.setMaskOperand(
-        BinaryOperator::CreateAnd(wideMask, opMask, "composite_mask", I));
+    auto *mask = BinaryOperator::CreateAnd(wideMask, opMask, "composite_mask");
+    mask->insertBefore(I->getIterator());
+    memOp.setMaskOperand(mask);
     return true;
   }
 
@@ -1436,8 +1445,9 @@ bool ControlFlowConversionState::Impl::applyMaskToAtomic(
         ConstantInt::get(IntegerType::getInt32Ty(I.getContext()), 1));
   }
 
-  CallInst *maskedCI = CallInst::Create(maskedAtomicFn, maskedFnArgs, "", &I);
+  CallInst *maskedCI = CallInst::Create(maskedAtomicFn, maskedFnArgs);
   VECZ_FAIL_IF(!maskedCI);
+  maskedCI->insertBefore(I.getIterator());
 
   I.replaceAllUsesWith(maskedCI);
   toDelete.emplace_back(&I, maskedCI);
@@ -1537,9 +1547,11 @@ bool ControlFlowConversionState::Impl::createBranchReductions() {
         if (auto *LTag = DR->getTag(&BB).loop;
             DR->isDivergent(BB) && (!LTag || LTag->isLoopDivergent())) {
           if (!isBranchCondTrulyUniform(cond, *UVR)) {
-            cond = BinaryOperator::Create(Instruction::BinaryOps::And, cond,
-                                          MaskInfos[&BB].entryMask,
-                                          cond->getName() + "_active", Branch);
+            auto *newcond = BinaryOperator::Create(
+                Instruction::BinaryOps::And, cond, MaskInfos[&BB].entryMask,
+                cond->getName() + "_active");
+            newcond->insertBefore(Branch->getIterator());
+            cond = newcond;
           }
         }
 
@@ -1548,8 +1560,9 @@ bool ControlFlowConversionState::Impl::createBranchReductions() {
             Twine(baseName).concat(name).str(), FT);
         VECZ_FAIL_IF(!F);
 
-        auto *const newCall = CallInst::Create(
-            F, {cond}, Twine(cond->getName()).concat(name), Branch);
+        auto *const newCall =
+            CallInst::Create(F, {cond}, Twine(cond->getName()).concat(name));
+        newCall->insertBefore(Branch->getIterator());
         Branch->setCondition(newCall);
       }
     } else if (isa<SwitchInst>(TI) &&
@@ -1855,7 +1868,8 @@ bool ControlFlowConversionState::Impl::rewireDivergentLoopExitBlocks(
         break;
       case Instruction::Br: {
         const unsigned keepIdx = succIdx == 0 ? 1 : 0;
-        auto *newT = BranchInst::Create(T->getSuccessor(keepIdx), T);
+        auto *newT = BranchInst::Create(T->getSuccessor(keepIdx));
+        newT->insertBefore(T->getIterator());
 
         updateMaps(T, newT);
 
@@ -2136,8 +2150,9 @@ bool ControlFlowConversionState::Impl::generateDivergentLoopResultUpdates(
   Value *mask = LMask.combinedDivergentExitMask;
   VECZ_ERROR_IF(!mask, "Divergent loop does not have an exit mask");
   PHINode *PHI = LTag.loopResultPrevs[LLV];
-  SelectInst *select = SelectInst::Create(
-      mask, LLV, PHI, LLV->getName() + ".update", LTag.latch->getTerminator());
+  SelectInst *select =
+      SelectInst::Create(mask, LLV, PHI, LLV->getName() + ".update");
+  select->insertBefore(LTag.latch->getTerminator()->getIterator());
   LTag.loopResultUpdates[LLV] = select;
 
   // The PHI function of each loop live value has one incoming value from
@@ -2632,7 +2647,8 @@ bool ControlFlowConversionState::Impl::linearizeCFG() {
         LLVM_DEBUG(dbgs() << "\tRemove successor: " << succ->getName() << "\n");
       }
 
-      auto *newT = BranchInst::Create(T->getSuccessor(0), T);
+      auto *newT = BranchInst::Create(T->getSuccessor(0));
+      newT->insertBefore(T->getIterator());
 
       updateMaps(T, newT);
 
@@ -2724,10 +2740,10 @@ bool ControlFlowConversionState::Impl::generateSelectFromPHI(PHINode *PHI,
     maskInfo.entryMask = copyEntryMask(PHI->getIncomingValue(0), *B);
     for (unsigned i = 1; i < phiNumIncVals; i++) {
       Value *V = PHI->getIncomingValue(i);
-      Instruction *insertBefore =
-          cast<Instruction>(maskInfo.entryMask)->getNextNode();
+      auto InsertPt = std::next(maskInfo.entryMask->getIterator());
       maskInfo.entryMask = BinaryOperator::CreateOr(
-          maskInfo.entryMask, V, B->getName() + ".entry_mask", insertBefore);
+          maskInfo.entryMask, V, B->getName() + ".entry_mask");
+      maskInfo.entryMask->insertBefore(InsertPt);
     }
     newVal = maskInfo.entryMask;
   } else {
@@ -2738,19 +2754,21 @@ bool ControlFlowConversionState::Impl::generateSelectFromPHI(PHINode *PHI,
       Value *cond = MaskInfos[PHIB].exitMasks[B];
       VECZ_ERROR_IF(!cond, "Exit mask does not exist");
 
-      Instruction *insertBefore = &*B->getFirstInsertionPt();
+      auto InsertPt = B->getFirstInsertionPt();
       if (i == 1) {
         if (Instruction *condI = dyn_cast<Instruction>(cond)) {
           BasicBlock *maskParent = condI->getParent();
           if (maskParent == B) {
-            insertBefore = condI->getNextNode();
+            InsertPt = std::next(condI->getIterator());
           }
         }
       } else {
-        insertBefore = cast<Instruction>(select)->getNextNode();
+        InsertPt = std::next(cast<Instruction>(select)->getIterator());
       }
-      select = SelectInst::Create(cond, V, select, PHI->getName() + ".blend",
-                                  insertBefore);
+      auto *selectInst =
+          SelectInst::Create(cond, V, select, PHI->getName() + ".blend");
+      selectInst->insertBefore(InsertPt);
+      select = selectInst;
     }
     newVal = select;
   }
@@ -2820,7 +2838,7 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
       // Instruction that will combine the phi node and the select instructions
       // created from it if some incoming blocks are no longer predecessors.
       Instruction *newBlend = nullptr;
-      Instruction *insertBefore = getInsertionPt(*BB);
+      const BasicBlock::iterator InsertPt = getInsertionPt(*BB);
 
       auto &maskInfo = MaskInfos[BB];
       const bool isEntryMask = PHI == maskInfo.entryMask;
@@ -2837,24 +2855,25 @@ bool ControlFlowConversionState::Impl::updatePHIsIncomings() {
           // The entry mask of a blend value should be the conjunction of
           // the incoming masks, so change it.
           if (!newBlend) {
-            newBlend = BinaryOperator::CreateOr(
-                PHI, V, BB->getName() + ".entry_mask", insertBefore);
+            newBlend =
+                BinaryOperator::CreateOr(PHI, V, BB->getName() + ".entry_mask");
           } else {
-            newBlend = BinaryOperator::CreateOr(
-                newBlend, V, BB->getName() + ".entry_mask", insertBefore);
+            newBlend = BinaryOperator::CreateOr(newBlend, V,
+                                                BB->getName() + ".entry_mask");
           }
           maskInfo.entryMask = newBlend;
         } else {
           Value *cond = MaskInfos[incoming].exitMasks[BB];
           VECZ_ERROR_IF(!cond, "Exit mask does not exist");
           if (!newBlend) {
-            newBlend = SelectInst::Create(
-                cond, V, PHI, PHI->getName() + ".blend", insertBefore);
+            newBlend =
+                SelectInst::Create(cond, V, PHI, PHI->getName() + ".blend");
           } else {
-            newBlend = SelectInst::Create(
-                cond, V, newBlend, PHI->getName() + ".blend", insertBefore);
+            newBlend = SelectInst::Create(cond, V, newBlend,
+                                          PHI->getName() + ".blend");
           }
         }
+        newBlend->insertBefore(InsertPt);
         PHI->removeIncomingValue(idx--);
       }
 
