@@ -19,16 +19,17 @@ from benches.options import options
 from output import generate_markdown
 import argparse
 import re
+import subprocess
 
 # Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = '1.6'
+INTERNAL_WORKDIR_VERSION = '1.7'
 
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
     cb = ComputeBench(directory)
-    sb = SyclBench(directory)
     vb = VelocityBench(directory)
+    sb = SyclBench(directory)
 
     benchmarks = [
         # *** Compute benchmarks
@@ -53,7 +54,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         SobelFilter(vb),
 
         # *** sycl-bench multi benchmarks
-        Blocked_transform(sb),
+        # Blocked_transform(sb), # run time < 1ms
         DagTaskI(sb),
         DagTaskS(sb),
         HostDevBandwidth(sb),
@@ -69,12 +70,12 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         VecAdd(sb),
 
         # *** sycl-bench single benchmarks
-        TwoDConvolution(sb),
+        # TwoDConvolution(sb), # run time < 1ms
         Two_mm(sb),
         Three_mm(sb),
-        Arith(sb),
+        # Arith(sb), # run time < 1ms
         Atax(sb),
-        Atomic_reduction(sb),
+        # Atomic_reduction(sb), # run time < 1ms
         Bicg(sb),
         Correlation(sb),
         Covariance(sb),
@@ -83,7 +84,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         Gramschmidt(sb),
         KMeans(sb),
         LinRegCoeff(sb),
-        LinRegError(sb),
+        # LinRegError(sb), # run time < 1ms
         MatmulChain(sb),
         MolDyn(sb),
         Mvt(sb),
@@ -117,24 +118,29 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 bench_results = benchmark.run(merged_env_vars)
                 if bench_results is not None:
                     for bench_result in bench_results:
-                        print(f"complete ({bench_result.label}: {bench_result.value} {benchmark.unit()}).")
+                        if bench_result.passed:
+                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {benchmark.unit()}).")
+                        else:
+                            print(f"complete ({bench_result.label}: verification FAILED)")
                         iteration_results.append(bench_result)
                 else:
-                    print(f"did not finish.")
+                    print(f"did not finish (OK for sycl-bench).")
+                    break;
 
             if len(iteration_results) == 0:
                 continue
 
             for label in set([result.label for result in iteration_results]):
-                label_results = [result for result in iteration_results if result.label == label]
-                label_results.sort(key=lambda res: res.value)
-                median_index = len(label_results) // 2
-                median_result = label_results[median_index]
+                label_results = [result for result in iteration_results if result.label == label and result.passed == True]
+                if len(label_results) > 0:
+                    label_results.sort(key=lambda res: res.value)
+                    median_index = len(label_results) // 2
+                    median_result = label_results[median_index]
 
-                median_result.unit = benchmark.unit()
-                median_result.name = label
+                    median_result.unit = benchmark.unit()
+                    median_result.name = label
 
-                results.append(median_result)
+                    results.append(median_result)
         except Exception as e:
             if options.exit_on_failure:
                 raise e

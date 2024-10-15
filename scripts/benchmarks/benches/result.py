@@ -14,6 +14,7 @@ class Result:
     command: str
     env: str
     stdout: str
+    passed: bool = True
     unit: str = ""
     name: str = ""
     lower_is_better: bool = True

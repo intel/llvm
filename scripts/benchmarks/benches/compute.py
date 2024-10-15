@@ -20,7 +20,7 @@ class ComputeBench:
         if self.built:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "f6882552215736f90295244046fcb6e17fe53e83")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "08c41bb8bc1762ad53c6194df6d36bfcceff4aa2")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -34,12 +34,13 @@ class ComputeBench:
             f"-DBUILD_UR=ON",
             f"-Dunified-runtime_DIR={options.ur_dir}/lib/cmake/unified-runtime",
         ]
-        run(configure_command, add_sycl=True)
 
+        print(f"{self.__class__.__name__}: Run {configure_command}")
+        run(configure_command, add_sycl=True)
+        print(f"{self.__class__.__name__}: Run cmake --build {build_path} -j")
         run(f"cmake --build {build_path} -j", add_sycl=True)
 
         self.built = True
-        self.bins = os.path.join(build_path, 'bin')
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -58,8 +59,8 @@ class ComputeBenchmark(Benchmark):
         return "μs"
 
     def setup(self):
+        self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
         self.bench.setup()
-        self.benchmark_bin = os.path.join(self.bench.bins, self.bench_name)
 
     def run(self, env_vars) -> list[Result]:
         command = [
