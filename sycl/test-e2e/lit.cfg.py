@@ -727,7 +727,6 @@ for sycl_device in config.sycl_devices:
                 config.available_features.add("gpu-intel-pvc-1T")
             if device_id == gpu_intel_pvc_2T_device_id:
                 config.available_features.add("gpu-intel-pvc-2T")
-                
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
