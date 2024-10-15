@@ -719,9 +719,15 @@ for sycl_device in config.sycl_devices:
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
         if re.match(r" *DeviceID*", line):
+            gpu_intel_pvc_1T_device_id = "3034"
+            gpu_intel_pvc_2T_device_id = "3029"
+            
             _, device_id = line.strip().split(":", 1)
-            if device_id.strip() == "3034":             
+            if device_id.strip() == gpu_intel_pvc_1T_device_id:             
                 config.available_features.add("gpu-intel-pvc-1T")
+            if device_id.strip() == gpu_intel_pvc_2T_device_id:
+                config.available_features.add("gpu-intel-pvc-2T")
+                
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())
