@@ -117,13 +117,11 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b2a87251eb3b9b1743191a4740b99088f7ba57b1
-  # Merge: 090d4fbc 8e29e014
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Oct 14 16:34:13 2024 +0200
-  #    Merge pull request #2197 from pbalcer/disable-cuda-umf
-  #    disable UMF CUDA provider
-  set(UNIFIED_RUNTIME_TAG b2a87251eb3b9b1743191a4740b99088f7ba57b1)
+  # commit 568a96aabc6edabe8514ae163aecc64cd5a41878
+  # Author: Mateusz P. Nowak <112635238+mateuszpn@users.noreply.github.com>
+  # Date:   Tue Oct 15 13:57:26 2024 +0200
+  #     Benchmark updates for faster run and more reliable results (#2164)
+  set(UNIFIED_RUNTIME_TAG 568a96aabc6edabe8514ae163aecc64cd5a41878)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
