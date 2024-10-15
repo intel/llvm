@@ -18,7 +18,7 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
   buffer<TResult, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
+  size_t sg_size = get_sg_size<mult<TResult, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
@@ -127,15 +127,15 @@ int main() {
       // This combination is not currently supported for sub group size = 32 in
       // IGC
 #if (!defined(SG_SZ) || SG_SZ != 32)
-      // test<half, float, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
       // test<half, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
-      // test<half, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
       // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
-      // test<half, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
       // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
-      // test<half, float, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
       // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
-      // test<half, float, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
       // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
 #endif
       break;
