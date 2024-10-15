@@ -28,6 +28,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 #include <llvm/TargetParser/Triple.h>
+#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #define DEBUG_TYPE "ca-optimal-builtins"
@@ -61,7 +62,8 @@ Value *OptimalBuiltinReplacementPass::replaceAbacusCLZ(
   SmallVector<Value *, 4> Args(CB.args());
   // Get the declaration for the intrinsic
   auto *const ArgTy = Args[0]->getType();
-  auto *const Intrinsic = Intrinsic::getDeclaration(M, Intrinsic::ctlz, ArgTy);
+  auto *const Intrinsic =
+      multi_llvm::GetOrInsertIntrinsicDeclaration(M, Intrinsic::ctlz, ArgTy);
   // If we didn't find the intrinsic or the return type isn't what we
   // expect, skip this optimization
   Function *Callee = CB.getCalledFunction();
@@ -82,7 +84,9 @@ Value *OptimalBuiltinReplacementPass::replaceAbacusCLZ(
   LLVMContext &Ctx = M->getContext();
   Args.push_back(ConstantInt::getFalse(Ctx));
 
-  return CallInst::Create(Intrinsic, Args, "", &CB);
+  auto *Call = CallInst::Create(Intrinsic, Args);
+  Call->insertBefore(CB.getIterator());
+  return Call;
 }
 
 Value *OptimalBuiltinReplacementPass::replaceAbacusMulhi(

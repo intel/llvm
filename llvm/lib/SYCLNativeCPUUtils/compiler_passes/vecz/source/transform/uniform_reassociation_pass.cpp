@@ -166,7 +166,8 @@ bool Reassociator::reassociate(llvm::BinaryOperator &Op) {
       // Transform (Varying Op Uniform) Op Varying
       // into (Varying Op Varying) Op Uniform
       auto *const P = BinaryOperator::Create(Opcode, A->getOperand(0), RHS,
-                                             "varying.reassoc", &Op);
+                                             "varying.reassoc");
+      P->insertBefore(Op.getIterator());
       UVR->setVarying(P);
       Op.setOperand(0, P);
       Op.setOperand(1, A->getOperand(1));
@@ -177,7 +178,8 @@ bool Reassociator::reassociate(llvm::BinaryOperator &Op) {
       // Transform (Varying Op Uniform) Op Uniform
       // into Varying Op (Uniform Op Uniform)
       auto *const P = BinaryOperator::Create(Opcode, A->getOperand(1), RHS,
-                                             "uniform.reassoc", &Op);
+                                             "uniform.reassoc");
+      P->insertBefore(Op.getIterator());
       Op.setOperand(0, A->getOperand(0));
       Op.setOperand(1, P);
       UVR->remove(A);
@@ -192,7 +194,8 @@ bool Reassociator::reassociate(llvm::BinaryOperator &Op) {
     // Transform Varying Op (Varying Op Uniform)
     // into (Varying Op Varying) Op Uniform
     auto *const P = BinaryOperator::Create(Opcode, B->getOperand(0), LHS,
-                                           "varying.reassoc", &Op);
+                                           "varying.reassoc");
+    P->insertBefore(Op.getIterator());
     Op.setOperand(0, P);
     Op.setOperand(1, B->getOperand(1));
     UVR->setVarying(P);

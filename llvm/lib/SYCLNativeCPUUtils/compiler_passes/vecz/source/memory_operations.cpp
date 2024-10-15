@@ -108,17 +108,13 @@ Function *vecz::getOrCreateMaskedMemOpFn(VectorizationContext &Ctx,
 
 static CallInst *createMaskedMemOp(VectorizationContext &Ctx, Value *Data,
                                    Type *DataTy, Value *Ptr, Value *Mask,
-                                   Value *EVL, unsigned Alignment, Twine Name,
-                                   Instruction *InsertBefore) {
+                                   Value *EVL, unsigned Alignment, Twine Name) {
   VECZ_FAIL_IF(!DataTy);
   VECZ_FAIL_IF(!Ptr || !Ptr->getType()->isPointerTy());
   VECZ_FAIL_IF(!Mask);
   assert(!Data || Data->getType() == DataTy);
   auto *PtrTy =
       PointerType::get(DataTy, Ptr->getType()->getPointerAddressSpace());
-  if (Ptr->getType() != PtrTy) {
-    Ptr = BitCastInst::CreatePointerCast(Ptr, PtrTy, "", InsertBefore);
-  }
   Function *F =
       getOrCreateMaskedMemOpFn(Ctx, DataTy, PtrTy, Alignment,
                                /*IsLoad*/ Data == nullptr, EVL != nullptr);
@@ -132,23 +128,21 @@ static CallInst *createMaskedMemOp(VectorizationContext &Ctx, Value *Data,
   if (EVL) {
     Ops.push_back(EVL);
   }
-  return CallInst::Create(F, Ops, Name, InsertBefore);
+  return CallInst::Create(F, Ops, Name);
 }
 
 CallInst *vecz::createMaskedLoad(VectorizationContext &Ctx, Type *Ty,
                                  Value *Ptr, Value *Mask, Value *EVL,
-                                 unsigned Alignment, Twine Name,
-                                 Instruction *InsertBefore) {
+                                 unsigned Alignment, Twine Name) {
   return createMaskedMemOp(Ctx, /*Data*/ nullptr, Ty, Ptr, Mask, EVL, Alignment,
-                           Name, InsertBefore);
+                           Name);
 }
 
 CallInst *vecz::createMaskedStore(VectorizationContext &Ctx, Value *Data,
                                   Value *Ptr, Value *Mask, Value *EVL,
-                                  unsigned Alignment, Twine Name,
-                                  Instruction *InsertBefore) {
+                                  unsigned Alignment, Twine Name) {
   return createMaskedMemOp(Ctx, Data, Data->getType(), Ptr, Mask, EVL,
-                           Alignment, Name, InsertBefore);
+                           Alignment, Name);
 }
 
 static std::string getInterleavedMemOpName(Type *DataTy, PointerType *PtrTy,
@@ -244,16 +238,12 @@ Function *vecz::getOrCreateInterleavedMemOpFn(VectorizationContext &Ctx,
 static CallInst *createInterleavedMemOp(VectorizationContext &Ctx, Value *Data,
                                         Type *DataTy, Value *Ptr, Value *Stride,
                                         Value *Mask, Value *EVL,
-                                        unsigned Alignment, llvm::Twine Name,
-                                        llvm::Instruction *InsertBefore) {
+                                        unsigned Alignment, llvm::Twine Name) {
   VECZ_FAIL_IF(!DataTy);
   VECZ_FAIL_IF(!Ptr || !Ptr->getType()->isPointerTy());
   assert(!Data || Data->getType() == DataTy);
   auto *PtrTy = PointerType::get(DataTy->getScalarType(),
                                  Ptr->getType()->getPointerAddressSpace());
-  if (Ptr->getType() != PtrTy) {
-    Ptr = BitCastInst::CreatePointerCast(Ptr, PtrTy, "", InsertBefore);
-  }
   Type *MaskTy = Mask ? Mask->getType() : nullptr;
   Function *F = getOrCreateInterleavedMemOpFn(
       Ctx, DataTy, PtrTy, Stride, MaskTy, Alignment,
@@ -273,23 +263,23 @@ static CallInst *createInterleavedMemOp(VectorizationContext &Ctx, Value *Data,
   if (!isa<ConstantInt>(Stride)) {
     Ops.push_back(Stride);
   }
-  return CallInst::Create(F, Ops, Name, InsertBefore);
+  return CallInst::Create(F, Ops, Name);
 }
 
 CallInst *vecz::createInterleavedLoad(VectorizationContext &Ctx, Type *Ty,
                                       Value *Ptr, Value *Stride, Value *Mask,
                                       Value *EVL, unsigned Alignment,
-                                      Twine Name, Instruction *InsertBefore) {
+                                      Twine Name) {
   return createInterleavedMemOp(Ctx, /*Data*/ nullptr, Ty, Ptr, Stride, Mask,
-                                EVL, Alignment, Name, InsertBefore);
+                                EVL, Alignment, Name);
 }
 
 CallInst *vecz::createInterleavedStore(VectorizationContext &Ctx, Value *Data,
                                        Value *Ptr, Value *Stride, Value *Mask,
                                        Value *EVL, unsigned Alignment,
-                                       Twine Name, Instruction *InsertBefore) {
+                                       Twine Name) {
   return createInterleavedMemOp(Ctx, Data, Data->getType(), Ptr, Stride, Mask,
-                                EVL, Alignment, Name, InsertBefore);
+                                EVL, Alignment, Name);
 }
 
 static std::string getScatterGatherMemOpName(Type *DataTy, VectorType *VecPtrTy,
@@ -379,8 +369,7 @@ static CallInst *createScatterGatherMemOp(VectorizationContext &Ctx,
                                           Value *VecData, Type *DataTy,
                                           Value *VecPtr, Value *Mask,
                                           Value *EVL, unsigned Alignment,
-                                          Twine Name,
-                                          Instruction *InsertBefore) {
+                                          Twine Name) {
   VECZ_FAIL_IF(!DataTy);
   VECZ_FAIL_IF(!VecPtr || !VecPtr->getType()->isVectorTy() ||
                !VecPtr->getType()->getScalarType()->isPointerTy());
@@ -400,25 +389,23 @@ static CallInst *createScatterGatherMemOp(VectorizationContext &Ctx,
   if (EVL) {
     Ops.push_back(EVL);
   }
-  return CallInst::Create(F, Ops, Name, InsertBefore);
+  return CallInst::Create(F, Ops, Name);
 }
 
 llvm::CallInst *vecz::createGather(VectorizationContext &Ctx, llvm::Type *Ty,
                                    llvm::Value *VecPtr, llvm::Value *Mask,
                                    llvm::Value *EVL, unsigned Alignment,
-                                   llvm::Twine Name,
-                                   llvm::Instruction *InsertBefore) {
+                                   llvm::Twine Name) {
   return createScatterGatherMemOp(Ctx, /*Data*/ nullptr, Ty, VecPtr, Mask, EVL,
-                                  Alignment, Name, InsertBefore);
+                                  Alignment, Name);
 }
 
 llvm::CallInst *vecz::createScatter(VectorizationContext &Ctx,
                                     llvm::Value *VecData, llvm::Value *VecPtr,
                                     llvm::Value *Mask, llvm::Value *EVL,
-                                    unsigned Alignment, llvm::Twine Name,
-                                    llvm::Instruction *InsertBefore) {
+                                    unsigned Alignment, llvm::Twine Name) {
   return createScatterGatherMemOp(Ctx, VecData, VecData->getType(), VecPtr,
-                                  Mask, EVL, Alignment, Name, InsertBefore);
+                                  Mask, EVL, Alignment, Name);
 }
 
 MemOpDesc::MemOpDesc()

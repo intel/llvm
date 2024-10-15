@@ -63,7 +63,8 @@ PreservedAnalyses RemoveIntPtrPass::run(Function &F,
         // hopefully be removed later.
         auto num_values = phi->getNumIncomingValues();
         PHINode *new_phi = PHINode::Create(int_ptr->getSrcTy(), num_values,
-                                           phi->getName() + ".intptr", phi);
+                                           phi->getName() + ".intptr");
+        new_phi->insertBefore(phi->getIterator());
 
         Instruction *insert = phi;
         while (isa<PHINode>(insert)) {

@@ -113,7 +113,7 @@ class ControlFlowConversionState {
     llvm::SmallDenseMap<llvm::BasicBlock *, llvm::Value *, 4> exitMasks;
     /// @brief Mask that describes which lanes are active at the start of the
     /// basic block.
-    llvm::Value *entryMask = nullptr;
+    llvm::Instruction *entryMask = nullptr;
   };
   llvm::DenseMap<llvm::BasicBlock *, MaskInfo> MaskInfos;
 

@@ -51,7 +51,6 @@
 #include <llvm/Pass.h>
 #include <llvm/Support/InstructionCost.h>
 #include <llvm/Transforms/Utils/LoopUtils.h>
-#include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "analysis/uniform_value_analysis.h"
@@ -192,15 +191,16 @@ bool hoistInstructions(BasicBlock &BB, BranchInst &Branch, bool exceptions) {
               Value *one = ConstantInt::get(divisor->getType(), 1);
               Value *cond = Branch.getCondition();
 
+              Instruction *SI;
               if (TrueBranch) {
-                masked =
-                    SelectInst::Create(cond, divisor, one,
-                                       divisor->getName() + ".hoist_guard", &I);
+                SI = SelectInst::Create(cond, divisor, one,
+                                        divisor->getName() + ".hoist_guard");
               } else {
-                masked =
-                    SelectInst::Create(cond, one, divisor,
-                                       divisor->getName() + ".hoist_guard", &I);
+                SI = SelectInst::Create(cond, one, divisor,
+                                        divisor->getName() + ".hoist_guard");
               }
+              SI->insertBefore(I.getIterator());
+              masked = SI;
             }
           }
 

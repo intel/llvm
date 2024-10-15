@@ -31,7 +31,6 @@
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <multi_llvm/llvm_version.h>
-#include <multi_llvm/multi_llvm.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include <cassert>
@@ -440,7 +439,8 @@ void remapClonedCallsites(llvm::Function &oldFunc, llvm::Function &newFunc,
       }
 
       // create our new call instruction to replace the old one
-      auto newCi = llvm::CallInst::Create(&newFunc, args, name, ci);
+      auto newCi = llvm::CallInst::Create(&newFunc, args, name);
+      newCi->insertBefore(ci->getIterator());
 
       // use the debug location from the old call (if any)
       newCi->setDebugLoc(ci->getDebugLoc());

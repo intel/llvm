@@ -20,6 +20,7 @@
 #include <llvm/MC/TargetRegistry.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/TargetParser/Triple.h>
+#include <multi_llvm/intrinsic.h>
 #include <multi_llvm/vector_type_helper.h>
 
 #include "debugging.h"
@@ -505,7 +506,7 @@ Value *TargetInfo::createMaskedGatherLoad(IRBuilder<> &B, Type *Ty, Value *Ptr,
       const SmallVector<llvm::Type *, 2> Tys = {Ty, VecPtrTy};
       return B.CreateIntrinsic(llvm::Intrinsic::vp_gather, Tys, Args);
     } else if (Legality.isMaskLegal()) {
-      Function *MaskedGather = Intrinsic::getDeclaration(
+      Function *MaskedGather = multi_llvm::GetOrInsertIntrinsicDeclaration(
           F->getParent(), Intrinsic::masked_gather, {Ty, VecPtrTy});
 
       if (MaskedGather) {
@@ -603,7 +604,7 @@ Value *TargetInfo::createMaskedScatterStore(IRBuilder<> &B, Value *Data,
       const SmallVector<llvm::Type *, 2> Tys = {Data->getType(), VecPtrTy};
       return B.CreateIntrinsic(llvm::Intrinsic::vp_scatter, Tys, Args);
     } else if (Legality.isMaskLegal()) {
-      Function *MaskedScatter = Intrinsic::getDeclaration(
+      Function *MaskedScatter = multi_llvm::GetOrInsertIntrinsicDeclaration(
           F->getParent(), Intrinsic::masked_scatter, {DataTy, VecPtrTy});
 
       if (MaskedScatter) {
@@ -699,7 +700,7 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
   const unsigned fixedVecElts =
       multi_llvm::getVectorNumElements(origSrc->getType());
 
-  Value *load = nullptr;
+  Instruction *load = nullptr;
   if (!index->getType()->isVectorTy()) {
     // If the index remains a scalar (is uniform) then we can use a strided load
     // starting from the address '&alloc[index]', strided by the original vector
@@ -713,8 +714,7 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
         B.CreateInBoundsGEP(eltTy, bcastalloc, index, "vec.alloc");
 
     load = ::createInterleavedLoad(Ctx, narrowTy, gep, stride, /*Mask*/ nullptr,
-                                   /*EVL*/ nullptr, alignment.value(), "",
-                                   &*B.GetInsertPoint());
+                                   /*EVL*/ nullptr, alignment.value());
   } else {
     // Else if we've got a varying, vector index, then we must use a gather.
     // Take our indices, and add them to a step multiplied by the original
@@ -731,8 +731,9 @@ Value *TargetInfo::createScalableExtractElement(IRBuilder<> &B,
         B.CreateInBoundsGEP(eltTy, bcastalloc, index, "vec.alloc");
 
     load = ::createGather(Ctx, narrowTy, gep, /*Mask*/ nullptr, /*EVL*/ nullptr,
-                          alignment.value(), "", &*B.GetInsertPoint());
+                          alignment.value());
   }
+  load->insertBefore(B.GetInsertPoint());
 
   return load;
 }
@@ -848,6 +849,7 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
 
   // Construct the index, either by packetizing if (if varying) or by
   // splatting it and combining it with a step vector
+  Instruction *store;
   if (!index->getType()->isVectorTy()) {
     // If the index remains a scalar (is uniform) then we can use a strided
     // store starting from the address '&alloc[index]', strided by the original
@@ -861,10 +863,8 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
     auto *const gep =
         B.CreateInBoundsGEP(scalarTy, bcastalloc, index, "vec.alloc");
 
-    Value *store = ::createInterleavedStore(
-        Ctx, elt, gep, stride, /*Mask*/ nullptr,
-        /*EVL*/ nullptr, alignment.value(), "", &*B.GetInsertPoint());
-    VECZ_FAIL_IF(!store);
+    store = ::createInterleavedStore(Ctx, elt, gep, stride, /*Mask*/ nullptr,
+                                     /*EVL*/ nullptr, alignment.value());
   } else {
     // Else if we've got a varying, vector index, then we must use a scatter.
     // Take our indices, and add them to a step multiplied by the original
@@ -886,11 +886,11 @@ Value *TargetInfo::createScalableInsertElement(IRBuilder<> &B,
     auto *const gep =
         B.CreateInBoundsGEP(scalarTy, bcastalloc, index, "vec.alloc");
 
-    Value *store = ::createScatter(Ctx, elt, gep, /*Mask*/ nullptr,
-                                   /*EVL*/ nullptr, alignment.value(), "",
-                                   &*B.GetInsertPoint());
-    VECZ_FAIL_IF(!store);
+    store = ::createScatter(Ctx, elt, gep, /*Mask*/ nullptr,
+                            /*EVL*/ nullptr, alignment.value());
   }
+  VECZ_FAIL_IF(!store);
+  store->insertBefore(B.GetInsertPoint());
 
   // Load the vector back from the stack
   return B.CreateLoad(intoTy, alloc);

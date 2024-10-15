@@ -19,6 +19,7 @@
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/IR/Module.h>
 #include <llvm/IR/PassManager.h>
+#include <multi_llvm/multi_llvm.h>
 
 #include "analysis/stride_analysis.h"
 #include "analysis/uniform_value_analysis.h"
@@ -153,12 +154,14 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
     auto Alignment = Mem.getAlignment();
     if (isa<LoadInst>(Memop)) {
       // Transform load
-      Value *LoadTrue =
+      auto *LoadTrue =
           createMaskedLoad(Ctx, Mem.getDataType(), GepTrue, Condition,
-                           /*VL*/ nullptr, Alignment, "", Memop);
-      Value *LoadFalse =
+                           /*VL*/ nullptr, Alignment);
+      LoadTrue->insertBefore(Memop->getIterator());
+      auto *LoadFalse =
           createMaskedLoad(Ctx, Mem.getDataType(), GepFalse, InvCondition,
-                           /*VL*/ nullptr, Alignment, "", Memop);
+                           /*VL*/ nullptr, Alignment);
+      LoadFalse->insertBefore(Memop->getIterator());
       B.SetInsertPoint(Memop);
       Value *LoadResult = B.CreateSelect(Condition, LoadTrue, LoadFalse);
 
@@ -167,9 +170,11 @@ void Transform(SelectInst *Select, VectorizationContext &Ctx) {
     } else if (isa<StoreInst>(Memop)) {
       // Transform store
       createMaskedStore(Ctx, StoredValue, GepTrue, Condition, /*VL*/ nullptr,
-                        Alignment, "", Memop);
+                        Alignment)
+          ->insertBefore(Memop->getIterator());
       createMaskedStore(Ctx, StoredValue, GepFalse, InvCondition,
-                        /*VL*/ nullptr, Alignment, "", Memop);
+                        /*VL*/ nullptr, Alignment)
+          ->insertBefore(Memop->getIterator());
     }
   };
 

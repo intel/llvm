@@ -70,14 +70,12 @@ llvm::Function *getOrCreateMaskedMemOpFn(VectorizationContext &Ctx,
 /// @param[in] EVL vector length as i32, else null (full width operation).
 /// @param[in] Alignment Alignment
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
 llvm::CallInst *createMaskedLoad(VectorizationContext &Ctx, llvm::Type *Ty,
                                  llvm::Value *Ptr, llvm::Value *Mask,
                                  llvm::Value *EVL, unsigned Alignment,
-                                 llvm::Twine Name = "",
-                                 llvm::Instruction *InsertBefore = nullptr);
+                                 llvm::Twine Name = "");
 
 /// @brief Create a call to a masked store operation builtin function.
 ///
@@ -88,14 +86,12 @@ llvm::CallInst *createMaskedLoad(VectorizationContext &Ctx, llvm::Type *Ty,
 /// @param[in] EVL vector length as i32, else null (full width operation).
 /// @param[in] Alignment Alignment
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
 llvm::CallInst *createMaskedStore(VectorizationContext &Ctx, llvm::Value *Data,
                                   llvm::Value *Ptr, llvm::Value *Mask,
                                   llvm::Value *EVL, unsigned Alignment,
-                                  llvm::Twine Name = "",
-                                  llvm::Instruction *InsertBefore = nullptr);
+                                  llvm::Twine Name = "");
 
 /// @brief Return or declare a (masked) interleaved memory operation builtin
 /// function.
@@ -130,14 +126,13 @@ llvm::Function *getOrCreateInterleavedMemOpFn(
 /// case an unmasked builtin is called.
 /// @param[in] Alignment Alignment of the operation.
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
-llvm::CallInst *createInterleavedLoad(
-    VectorizationContext &Ctx, llvm::Type *Ty, llvm::Value *Ptr,
-    llvm::Value *Stride, llvm::Value *Mask, llvm::Value *EVL,
-    unsigned Alignment, llvm::Twine Name = "",
-    llvm::Instruction *InsertBefore = nullptr);
+llvm::CallInst *createInterleavedLoad(VectorizationContext &Ctx, llvm::Type *Ty,
+                                      llvm::Value *Ptr, llvm::Value *Stride,
+                                      llvm::Value *Mask, llvm::Value *EVL,
+                                      unsigned Alignment,
+                                      llvm::Twine Name = "");
 
 /// @brief Create a call to a (masked) interleaved store builtin function. Also
 /// known as a strided store.
@@ -152,14 +147,13 @@ llvm::CallInst *createInterleavedLoad(
 /// case an unmasked builtin is called.
 /// @param[in] Alignment Alignment of the operation.
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
-llvm::CallInst *createInterleavedStore(
-    VectorizationContext &Ctx, llvm::Value *Data, llvm::Value *Ptr,
-    llvm::Value *Stride, llvm::Value *Mask, llvm::Value *EVL,
-    unsigned Alignment, llvm::Twine Name = "",
-    llvm::Instruction *InsertBefore = nullptr);
+llvm::CallInst *createInterleavedStore(VectorizationContext &Ctx,
+                                       llvm::Value *Data, llvm::Value *Ptr,
+                                       llvm::Value *Stride, llvm::Value *Mask,
+                                       llvm::Value *EVL, unsigned Alignment,
+                                       llvm::Twine Name = "");
 
 /// @brief Return or declare a (masked) scatter/gather memory operation builtin
 /// function.
@@ -196,14 +190,12 @@ llvm::Function *getOrCreateScatterGatherMemOpFn(vecz::VectorizationContext &Ctx,
 /// @param[in] Alignment Alignment of the operation.
 /// @param[in] EVL vector length as i32, else null (full width operation).
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
 llvm::CallInst *createGather(VectorizationContext &Ctx, llvm::Type *Ty,
                              llvm::Value *VecPtr, llvm::Value *Mask,
                              llvm::Value *EVL, unsigned Alignment,
-                             llvm::Twine Name = "",
-                             llvm::Instruction *InsertBefore = nullptr);
+                             llvm::Twine Name = "");
 
 /// @brief Create a call to a (masked) scatter memory operation builtin
 /// function.
@@ -218,14 +210,12 @@ llvm::CallInst *createGather(VectorizationContext &Ctx, llvm::Type *Ty,
 /// @param[in] Alignment Alignment of the operation.
 /// @param[in] EVL vector length as i32, else null (full width operation).
 /// @param[in] Name Name to give to the call instruction.
-/// @param[in] InsertBefore Insertion point for the call instruction.
 ///
 /// @return Call instruction or null on error.
 llvm::CallInst *createScatter(VectorizationContext &Ctx, llvm::Value *VecData,
                               llvm::Value *VecPtr, llvm::Value *Mask,
                               llvm::Value *EVL, unsigned Alignment,
-                              llvm::Twine Name = "",
-                              llvm::Instruction *InsertBefore = nullptr);
+                              llvm::Twine Name = "");
 
 /// @brief an enum to distinguish between loads and stores, and between builtin
 /// memop calls and native IR memop instructions.
