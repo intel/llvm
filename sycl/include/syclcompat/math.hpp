@@ -2302,30 +2302,3 @@ inline constexpr unsigned extend_vcompare4_add(AT a, BT b, unsigned c,
 }
 
 } // namespace syclcompat
-
-// Specialize std::common_type for bfloat16
-// Semantics here match bfloat16.hpp operator overloads (all mixed type math
-// ops return bfloat16)
-// TODO(syclcompat-lib-reviewers) Move this to bfloat extension
-namespace std {
-template <> struct common_type<sycl::ext::oneapi::bfloat16> {
-  using type = sycl::ext::oneapi::bfloat16;
-};
-
-template <>
-struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
-  using type = sycl::ext::oneapi::bfloat16;
-};
-
-template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
-  using type = sycl::ext::oneapi::bfloat16; // std::common_type_t<float, T>;  //
-                                            // sycl::ext::oneapi::bfloat16
-                                            // promotes to float
-};
-
-template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
-  using type = sycl::ext::oneapi::bfloat16; // std::common_type_t<T, float>;  //
-                                            // sycl::ext::oneapi::bfloat16
-                                            // promotes to float
-};
-} // namespace std

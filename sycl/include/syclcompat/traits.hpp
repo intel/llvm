@@ -268,3 +268,26 @@ template <typename T>
 inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
 
 } // namespace syclcompat
+
+// Specialize std::common_type for bfloat16
+// Semantics here match bfloat16.hpp operator overloads (all mixed type math
+// ops return bfloat16)
+// TODO(syclcompat-lib-reviewers) Move this to bfloat extension
+namespace std {
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+} // namespace std
