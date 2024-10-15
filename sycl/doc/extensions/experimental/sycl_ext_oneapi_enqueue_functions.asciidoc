@@ -733,6 +733,27 @@ _Constraints_: Device and context associated with queue need to be identical
 to device and context provided at command graph creation.
 
 _Effects_: Submits an executable command graph to the `sycl::queue`.
+
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+sycl::event submit_with_event(sycl::queue q, command_graph<graph_state::executable> g);
+
+}
+----
+!====
+_Constraints_: Device and context associated with queue need to be identical 
+to device and context provided at command graph creation.
+
+_Effects_: Submits an executable command graph to the `sycl::queue`.
+
+_Returns_: A `sycl::event` associated with the submitted command.
+
 |====
 
 == Issues
