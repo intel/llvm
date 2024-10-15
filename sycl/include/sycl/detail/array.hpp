@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/exception.hpp>
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_VALUE
 
 #include <stddef.h>    // for size_t
 #include <type_traits> // for enable_if_t

@@ -46,7 +46,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::UrMock<> Mock;
+  sycl::unittest::UrMock<> MockAdapter;
 
   static constexpr size_t KernelSize = 1;
 

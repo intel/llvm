@@ -26,7 +26,7 @@
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
 // CHECK: ---> urEventGetInfo
-// CHECK-NOT: urEventsWait
+// CHECK-NOT: ---> urEventsWait
 // CHECK: ---> urEnqueueKernelLaunch
 // CHECK: ZE ---> zeCommandListAppendLaunchKernel
 // CHECK: ---> urQueueFinish

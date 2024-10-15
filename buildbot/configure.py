@@ -116,7 +116,6 @@ def do_configure(args):
         llvm_enable_assertions = "OFF"
 
     if args.docs:
-        llvm_enable_doxygen = "ON"
         llvm_enable_sphinx = "ON"
 
     if args.shared_libs:

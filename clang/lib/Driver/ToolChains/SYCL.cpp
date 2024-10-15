@@ -43,6 +43,26 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
   DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
+void SYCLInstallationDetector::AddSYCLIncludeArgs(
+    const ArgList &DriverArgs, ArgStringList &CC1Args) const {
+  // Add the SYCL header search locations in the specified order.
+  //   ../include/sycl/stl_wrappers
+  //   ../include
+  SmallString<128> IncludePath(D.Dir);
+  llvm::sys::path::append(IncludePath, "..");
+  llvm::sys::path::append(IncludePath, "include");
+  // This is used to provide our wrappers around STL headers that provide
+  // additional functions/template specializations when the user includes those
+  // STL headers in their programs (e.g., <complex>).
+  SmallString<128> STLWrappersPath(IncludePath);
+  llvm::sys::path::append(STLWrappersPath, "sycl");
+  llvm::sys::path::append(STLWrappersPath, "stl_wrappers");
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
+  CC1Args.push_back("-internal-isystem");
+  CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
+}
+
 void SYCLInstallationDetector::print(llvm::raw_ostream &OS) const {
   if (!InstallationCandidates.size())
     return;
@@ -165,9 +185,9 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
 
   // spir64 target is actually JIT compilation, so we defer selection of
   // bfloat16 libraries to runtime. For AOT we need libraries, but skip
-  // for Nvidia.
-  NeedLibs =
-      Triple.getSubArch() != llvm::Triple::NoSubArch && !Triple.isNVPTX();
+  // for Nvidia and AMD.
+  NeedLibs = Triple.getSubArch() != llvm::Triple::NoSubArch &&
+             !Triple.isNVPTX() && !Triple.isAMDGCN();
   UseNative = false;
   if (NeedLibs && Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen &&
       C.hasOffloadToolChain<Action::OFK_SYCL>()) {
@@ -212,9 +232,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   SmallVector<std::string, 8> LibraryList;
   const llvm::opt::ArgList &Args = C.getArgs();
 
-  // For NVPTX we only use one single bitcode library and ignore
+  // For NVPTX and AMDGCN we only use one single bitcode library and ignore
   // manually specified SYCL device libraries.
-  bool IgnoreSingleLibs = TargetTriple.isNVPTX();
+  bool IgnoreSingleLibs = TargetTriple.isNVPTX() || TargetTriple.isAMDGCN();
 
   struct DeviceLibOptInfo {
     StringRef DeviceLibName;
@@ -276,7 +296,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
+
+  if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
+    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
 
   if (IgnoreSingleLibs)
     return LibraryList;
@@ -576,6 +599,7 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     auto isSYCLDeviceLib = [&](const InputInfo &II) {
       const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
       const bool IsNVPTX = this->getToolChain().getTriple().isNVPTX();
+      const bool IsAMDGCN = this->getToolChain().getTriple().isAMDGCN();
       const bool IsFPGA = this->getToolChain().getTriple().isSPIR() &&
                           this->getToolChain().getTriple().getSubArch() ==
                               llvm::Triple::SPIRSubArch_fpga;
@@ -592,16 +616,18 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
         NewLibPostfix = ".new.obj";
       std::string FileName = this->getToolChain().getInputFilename(II);
       StringRef InputFilename = llvm::sys::path::filename(FileName);
-      if (IsNVPTX || IsSYCLNativeCPU) {
-        // Linking SYCL Device libs requires libclc as well as libdevice
-        if ((InputFilename.find("libspirv") != InputFilename.npos ||
-             InputFilename.find("libdevice") != InputFilename.npos))
-          return true;
-        if (IsNVPTX) {
-          LibPostfix = ".cubin";
-          NewLibPostfix = ".new.cubin";
-        }
-      }
+      // NativeCPU links against libclc (libspirv)
+      if (IsSYCLNativeCPU && InputFilename.contains("libspirv"))
+        return true;
+      // AMDGCN links against our libdevice (devicelib)
+      if (IsAMDGCN && InputFilename.starts_with("devicelib-"))
+        return true;
+      // NVPTX links against our libclc (libspirv), our libdevice (devicelib),
+      // and the CUDA libdevice
+      if (IsNVPTX && (InputFilename.starts_with("devicelib-") ||
+                      InputFilename.contains("libspirv") ||
+                      InputFilename.contains("libdevice")))
+        return true;
       StringRef LibSyclPrefix("libsycl-");
       if (!InputFilename.starts_with(LibSyclPrefix) ||
           !InputFilename.ends_with(LibPostfix) ||
@@ -712,21 +738,6 @@ const char *SYCL::Linker::constructLLVMLinkCommand(
     AddLinkCommand(OutputFileName, LinkInputs, {"--only-needed"});
   }
   return OutputFileName;
-}
-
-void SYCL::Linker::constructLlcCommand(Compilation &C, const JobAction &JA,
-                                       const InputInfo &Output,
-                                       const char *InputFileName) const {
-  // Construct llc command.
-  // The output is an object file.
-  ArgStringList LlcArgs{"-filetype=obj", "-o", Output.getFilename(),
-                        InputFileName};
-  SmallString<128> LlcPath(C.getDriver().Dir);
-  llvm::sys::path::append(LlcPath, "llc");
-  const char *Llc = C.getArgs().MakeArgString(LlcPath);
-  C.addCommand(std::make_unique<Command>(JA, *this,
-                                         ResponseFileSupport::AtFileUTF8(), Llc,
-                                         LlcArgs, std::nullopt));
 }
 
 // For SYCL the inputs of the linker job are SPIR-V binaries and output is
@@ -1022,7 +1033,7 @@ static OclocInfo PVCDevices[] = {
 
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
-static bool hasPVCDevice(const ArgStringList &CmdArgs) {
+static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
   bool DeviceSeen = false;
   StringRef DeviceArg;
   for (StringRef Arg : CmdArgs) {
@@ -1063,16 +1074,22 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs) {
     // Check for device, version or hex (literal values)
     for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
       if (SingleArg.equals_insensitive(PVCDevices[I].DeviceName) ||
-          SingleArg.equals_insensitive(PVCDevices[I].Version))
+          SingleArg.equals_insensitive(PVCDevices[I].Version)) {
+        DevArg = SingleArg.str();
         return true;
+      }
       for (int HexVal : PVCDevices[I].HexValues) {
         int Value = 0;
-        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal)
+        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal) {
+          DevArg = SingleArg.str();
           return true;
+        }
       }
       if (CheckShortVersion &&
-          StringRef(PVCDevices[I].Version).starts_with(SingleArg))
+          StringRef(PVCDevices[I].Version).starts_with(SingleArg)) {
+        DevArg = SingleArg.str();
         return true;
+      }
     }
   }
   return false;
@@ -1390,7 +1407,7 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
-      IsSYCLNativeCPU(Triple == HostTC.getTriple()) {
+      IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
   // Lookup binaries into the driver directory, this is used to
   // discover the clang-offload-bundler executable.
   getProgramPaths().push_back(getDriver().Dir);
@@ -1648,8 +1665,13 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
+    std::string DevArg;
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
+      // The -device option passed in by the user may not be 'pvc'. Use the
+      // value provided by the user if it was specified.
       StringRef DeviceName = "pvc";
+      if (!DevArg.empty())
+        DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
         PerDeviceArgs.push_back(
@@ -1824,29 +1846,9 @@ SYCLToolChain::GetCXXStdlibType(const ArgList &Args) const {
   return HostTC.GetCXXStdlibType(Args);
 }
 
-void SYCLToolChain::AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
-                                       const ArgList &DriverArgs,
-                                       ArgStringList &CC1Args) {
-  // Add the SYCL header search locations in the specified order.
-  //   ../include/sycl
-  //   ../include/sycl/stl_wrappers
-  //   ../include
-  SmallString<128> IncludePath(Driver.Dir);
-  llvm::sys::path::append(IncludePath, "..");
-  llvm::sys::path::append(IncludePath, "include");
-  SmallString<128> SYCLPath(IncludePath);
-  llvm::sys::path::append(SYCLPath, "sycl");
-  // This is used to provide our wrappers around STL headers that provide
-  // additional functions/template specializations when the user includes those
-  // STL headers in their programs (e.g., <complex>).
-  SmallString<128> STLWrappersPath(SYCLPath);
-  llvm::sys::path::append(STLWrappersPath, "stl_wrappers");
-  CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(SYCLPath));
-  CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(STLWrappersPath));
-  CC1Args.push_back("-internal-isystem");
-  CC1Args.push_back(DriverArgs.MakeArgString(IncludePath));
+void SYCLToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                                       ArgStringList &CC1Args) const {
+  SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
 }
 
 void SYCLToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,

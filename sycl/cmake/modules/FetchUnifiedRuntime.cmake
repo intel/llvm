@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 2bbe952669861579ea84fa30f14e1ed27ead0692
-  # Merge: d357964a 6b353545
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Thu Sep 12 11:36:11 2024 +0100
-  #     Merge pull request #1928 from isaacault/iault/image_array_copy
-  #     [Bindless][Exp] Image Array Sub-Region Copies
-  set(UNIFIED_RUNTIME_TAG 2bbe952669861579ea84fa30f14e1ed27ead0692)
+  # commit b2a87251eb3b9b1743191a4740b99088f7ba57b1
+  # Merge: 090d4fbc 8e29e014
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Oct 14 16:34:13 2024 +0200
+  #    Merge pull request #2197 from pbalcer/disable-cuda-umf
+  #    disable UMF CUDA provider
+  set(UNIFIED_RUNTIME_TAG b2a87251eb3b9b1743191a4740b99088f7ba57b1)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

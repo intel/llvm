@@ -160,8 +160,9 @@ if the Function "can be imported".  A `canBeImportedFunction` is:
 
   1. Not an intrinsic
   2. Name does not start with "__"
-  3. Demangled name does not start with "__"
-  4. Must be a `SYCL_EXTERNAL` function
+  3. Is not a SPIRV, SYCL, or ESIMD builtin function
+  4. Demangled name does not start with "__"
+  5. Must be a `SYCL_EXTERNAL` function
 
 More information about `SYCL_EXTERNAL` can be found in:
 https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:syclexternal
@@ -173,7 +174,9 @@ the following modifications:
   function.  Instead the dependency is recorded in the imported symbols property list.
 - An image that provides a `canBeImportedFunction` has the symbol recorded in the exported
   symbols property list.
-- All functions symbols that are not `canBeImportedFunction` are internalized
+- All functions symbols that are not `canBeImportedFunction` and are not kernels are internalized.
+  Note that kernel functions should not be included in `canBeImportedFunction` since kernels
+  are only callable by host code, and thus would never need to be imported into a device image.
 
 
 

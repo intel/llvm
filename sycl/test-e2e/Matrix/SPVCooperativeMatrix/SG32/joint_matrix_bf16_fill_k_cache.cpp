@@ -10,7 +10,7 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_vnni.out -DVNNI -ffp-model=precise
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t_vnni.out -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out
 
 // TODO: add row major compilation and run once Sub-group size 32
