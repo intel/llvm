@@ -7,7 +7,7 @@
 // CHECK-IR-SAME: ptr addrspace(3) noundef align 4 [[PTR:%[a-zA-Z0-9_]+]]
 //
 // CHECK-IR: [[PTR]].addr = alloca ptr addrspace(3), align 8
-// CHECK-IR: [[PTR]].addr.ascast = addrspacecast ptr %_arg_mem.addr to ptr addrspace(4)
+// CHECK-IR: [[PTR]].addr.ascast = addrspacecast ptr [[PTR]].addr to ptr addrspace(4)
 // CHECK-IR: store ptr addrspace(3) [[PTR]], ptr addrspace(4) [[PTR]].addr.ascast, align 8
 // CHECK-IR: [[PTR_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(3), ptr addrspace(4) [[PTR]].addr.ascast, align 8
 //
