@@ -49,7 +49,7 @@ target_include_directories(sycl-jit
   SYSTEM PRIVATE
   ${LLVM_MAIN_INCLUDE_DIR}
   ${LLVM_SPIRV_INCLUDE_DIRS}
-  ${CMAKE_SOURCE_DIR}/../clang/include
+  ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/tools/clang/include
 )
 target_include_directories(sycl-jit
