@@ -156,7 +156,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         devices_for_test = []
         triples = set()
-        if "run-mode" in test.config.available_features:
+        if "run-mode" not in test.config.available_features:
+            # TODO: Use requires/unsupported to decide triples to build for
+            triples.add("spir64")
+        else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
                 return lit.Test.Result(
@@ -166,9 +169,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
                 triples.add(get_triple(test, backend))
-        elif "build-mode" in test.config.available_features:
-            # TODO: Use requires/unsupported to decide triples to build for
-            triples.add("spir64")
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
