@@ -30,10 +30,8 @@
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
@@ -1242,11 +1240,9 @@ public:
     static_assert((sizeof(Tmp) == sizeof(asT)),
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL swizzled vec");
-    static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
-            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
-        "asT must be SYCL vec of a different element type and "
-        "number of elements specified by asT");
+    static_assert(detail::is_vec_v<asT>,
+                  "asT must be SYCL vec of a different element type and "
+                  "number of elements specified by asT");
     return Tmp.template as<asT>();
   }
 

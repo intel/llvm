@@ -32,10 +32,6 @@ inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
 
 template <typename T>
-inline constexpr bool is_svgenfloatd_v =
-    is_contained_v<T, gtl::scalar_vector_double_list>;
-
-template <typename T>
 inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
 
 template <typename T>
@@ -62,17 +58,10 @@ inline constexpr bool is_vgenfloat_v =
     is_contained_v<T, gtl::vector_floating_list>;
 
 template <typename T>
-inline constexpr bool is_svgenfloat_v =
-    is_contained_v<T, gtl::scalar_vector_floating_list>;
-
-template <typename T>
 inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
 
 template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
-
-template <typename T>
-using is_geninteger = std::bool_constant<is_geninteger_v<T>>;
 
 template <typename T>
 inline constexpr bool is_sgeninteger_v =
