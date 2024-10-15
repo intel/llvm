@@ -16,6 +16,7 @@
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/id_queries_fit_in_int.hpp>
 #include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/detail/reduction_forward.hpp>
@@ -227,22 +228,6 @@ __SYCL_EXPORT void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase);
 
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-template <typename T> struct NotIntMsg;
-
-template <int Dims> struct NotIntMsg<range<Dims>> {
-  constexpr static const char *Msg =
-      "Provided range is out of integer limits. Pass "
-      "`-fno-sycl-id-queries-fit-in-int' to disable range check.";
-};
-
-template <int Dims> struct NotIntMsg<id<Dims>> {
-  constexpr static const char *Msg =
-      "Provided offset is out of integer limits. Pass "
-      "`-fno-sycl-id-queries-fit-in-int' to disable offset check.";
-};
-#endif
-
 // Helper for merging properties with ones defined in an optional kernel functor
 // getter.
 template <typename KernelType, typename PropertiesT, typename Cond = void>
@@ -264,70 +249,6 @@ struct GetMergedKernelProperties<
   using type = ext::oneapi::experimental::detail::merged_properties_t<
       PropertiesT, get_method_properties>;
 };
-
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-template <typename T, typename ValT>
-typename std::enable_if_t<std::is_same<ValT, size_t>::value ||
-                          std::is_same<ValT, unsigned long long>::value>
-checkValueRangeImpl(ValT V) {
-  static constexpr size_t Limit =
-      static_cast<size_t>((std::numeric_limits<int>::max)());
-  if (V > Limit)
-    throw sycl::exception(make_error_code(errc::nd_range), NotIntMsg<T>::Msg);
-}
-#endif
-
-template <int Dims, typename T>
-typename std::enable_if_t<std::is_same_v<T, range<Dims>> ||
-                          std::is_same_v<T, id<Dims>>>
-checkValueRange(const T &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  for (size_t Dim = 0; Dim < Dims; ++Dim)
-    checkValueRangeImpl<T>(V[Dim]);
-
-  {
-    unsigned long long Product = 1;
-    for (size_t Dim = 0; Dim < Dims; ++Dim) {
-      Product *= V[Dim];
-      // check value now to prevent product overflow in the end
-      checkValueRangeImpl<T>(Product);
-    }
-  }
-#else
-  (void)V;
-#endif
-}
-
-template <int Dims>
-void checkValueRange(const range<Dims> &R, const id<Dims> &O) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  checkValueRange<Dims>(R);
-  checkValueRange<Dims>(O);
-
-  for (size_t Dim = 0; Dim < Dims; ++Dim) {
-    unsigned long long Sum = R[Dim] + O[Dim];
-
-    checkValueRangeImpl<range<Dims>>(Sum);
-  }
-#else
-  (void)R;
-  (void)O;
-#endif
-}
-
-template <int Dims, typename T>
-typename std::enable_if_t<std::is_same_v<T, nd_range<Dims>>>
-checkValueRange(const T &V) {
-#if __SYCL_ID_QUERIES_FIT_IN_INT__
-  checkValueRange<Dims>(V.get_global_range());
-  checkValueRange<Dims>(V.get_local_range());
-  checkValueRange<Dims>(V.get_offset());
-
-  checkValueRange<Dims>(V.get_global_range(), V.get_offset());
-#else
-  (void)V;
-#endif
-}
 
 template <int Dims> class RoundedRangeIDGenerator {
   id<Dims> Id;
@@ -1353,8 +1274,10 @@ private:
   /// \param Kernel is a SYCL kernel function.
   /// \param Properties is the properties.
   template <int Dims, typename PropertiesT>
-  void parallel_for_impl(range<Dims> NumWorkItems, PropertiesT Props,
-                         kernel Kernel) {
+  void parallel_for_impl([[maybe_unused]] range<Dims> NumWorkItems,
+                         [[maybe_unused]] PropertiesT Props,
+                         [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems);
@@ -1364,6 +1287,7 @@ private:
     setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
@@ -1376,8 +1300,10 @@ private:
   /// \param Properties is the properties.
   /// \param Kernel is a SYCL kernel function.
   template <int Dims, typename PropertiesT>
-  void parallel_for_impl(nd_range<Dims> NDRange, PropertiesT Props,
-                         kernel Kernel) {
+  void parallel_for_impl([[maybe_unused]] nd_range<Dims> NDRange,
+                         [[maybe_unused]] PropertiesT Props,
+                         [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NDRange);
@@ -1387,6 +1313,7 @@ private:
     setNDRangeUsed(true);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Hierarchical kernel invocation method of a kernel defined as a lambda
@@ -2136,8 +2063,10 @@ public:
   /// \param Kernel is a SYCL kernel function.
   template <int Dims>
   __SYCL2020_DEPRECATED("offsets are deprecated in SYCL 2020")
-  void parallel_for(range<Dims> NumWorkItems, id<Dims> WorkItemOffset,
-                    kernel Kernel) {
+  void parallel_for([[maybe_unused]] range<Dims> NumWorkItems,
+                    [[maybe_unused]] id<Dims> WorkItemOffset,
+                    [[maybe_unused]] kernel Kernel) {
+#ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
     MKernel = detail::getSyclObjImpl(std::move(Kernel));
     detail::checkValueRange<Dims>(NumWorkItems, WorkItemOffset);
@@ -2146,6 +2075,7 @@ public:
     setNDRangeUsed(false);
     extractArgsAndReqs();
     MKernelName = getKernelName();
+#endif
   }
 
   /// Defines and invokes a SYCL kernel function for the specified range and
