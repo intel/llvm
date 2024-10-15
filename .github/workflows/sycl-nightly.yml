@@ -67,14 +67,7 @@ jobs:
             reset_intel_gpu: true
             tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
-
-          - name: OCL CPU (AMD)
-            runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001
-            target_devices: opencl:cpu
-            tests_selector: e2e
-
+      
           - name: OCL CPU (Intel/GEN12)
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
