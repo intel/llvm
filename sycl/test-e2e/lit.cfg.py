@@ -721,11 +721,11 @@ for sycl_device in config.sycl_devices:
         if re.match(r" *DeviceID*", line):
             gpu_intel_pvc_1T_device_id = "3034"
             gpu_intel_pvc_2T_device_id = "3029"
-            
             _, device_id = line.strip().split(":", 1)
-            if device_id.strip() == gpu_intel_pvc_1T_device_id:             
+            device_id = device_id.strip()
+            if device_id == gpu_intel_pvc_1T_device_id:             
                 config.available_features.add("gpu-intel-pvc-1T")
-            if device_id.strip() == gpu_intel_pvc_2T_device_id:
+            if device_id == gpu_intel_pvc_2T_device_id:
                 config.available_features.add("gpu-intel-pvc-2T")
                 
         if re.match(r" *Architecture:", line):
