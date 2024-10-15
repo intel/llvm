@@ -4,11 +4,12 @@
 
 // We can't use __builtin_popcountg because it supports only unsigned
 // types, and we can't use __builtin_popcount because the implicit cast
-// to int doesn't work due to sign extension, so we explictly cast to
-// the unsigned type.
+// to int doesn't work due to sign extension, so we use type punning to
+// preserve the bit pattern and avoid sign extension.
+
 #define DEF_POPCOUNT_HELPER(TYPE, UTYPE) \
 _CLC_OVERLOAD TYPE __popcount_helper(TYPE c) { \
-  return __builtin_popcountg((UTYPE)c); \
+  return __builtin_popcountg(*(UTYPE*)&c); \
 }
 
 DEF_POPCOUNT_HELPER(char, unsigned char)
