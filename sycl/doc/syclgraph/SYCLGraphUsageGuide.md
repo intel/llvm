@@ -497,7 +497,6 @@ ExecGraph.update(DynamicCGNode);
 Queue.ext_oneapi_graph(ExecGraph).wait();
 ```
 
-
 ### Whole Graph Update
 
 Example that shows recording and updating several nodes with different
