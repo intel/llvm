@@ -12,6 +12,7 @@ and a wide range of compute accelerators such as GPU and FPGA.
     * [Build DPC++ toolchain with support for NVIDIA CUDA](#build-dpc-toolchain-with-support-for-nvidia-cuda)
     * [Build DPC++ toolchain with support for HIP AMD](#build-dpc-toolchain-with-support-for-hip-amd)
     * [Build DPC++ toolchain with support for HIP NVIDIA](#build-dpc-toolchain-with-support-for-hip-nvidia)
+    * [Build DPC++ toolchain with support for ARM processors](#build-dpc-toolchain-with-support-for-arm-processors)
     * [Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation](#build-dpc-toolchain-with-support-for-runtime-kernel-fusion-and-jit-compilation)
     * [Build DPC++ toolchain with a custom Unified Runtime](#build-dpc-toolchain-with-a-custom-unified-runtime)
     * [Build Doxygen documentation](#build-doxygen-documentation)
@@ -302,6 +303,18 @@ as well as the CUDA Runtime API to be installed, see
 
 Currently, this has only been tried on Linux, with ROCm 4.2.0 or 4.3.0, with
 CUDA 11, and using a GeForce 1060 device.
+
+### Build DPC++ toolchain with support for ARM processors
+
+There is no continuous integration for this, and there are no guarantees for supported platforms or configurations.
+
+To enable support for ARM processors, follow the instructions for the linux
+toolchain, but add the `--host-target "AArch64;ARM;X86"` flag to `configure.py`.
+
+For CUDA support also add the `--cuda` flag.
+
+Currently, this has only been tried on Linux, with CUDA 12.3, and using a 
+Grace Hopper platform with a ARM64 processor and an H100 GPU.
 
 ### Build DPC++ toolchain with support for runtime kernel fusion and JIT compilation
 
