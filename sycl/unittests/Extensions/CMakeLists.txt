@@ -16,6 +16,7 @@ add_sycl_unittest(ExtensionsTests OBJECT
   KernelProperties.cpp
   NoDeviceIPVersion.cpp
   WorkGroupMemoryBackendArgument.cpp
+  GetLastEvent.cpp
 )
 
 add_subdirectory(CommandGraph)

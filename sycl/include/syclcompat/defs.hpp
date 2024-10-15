@@ -47,7 +47,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
