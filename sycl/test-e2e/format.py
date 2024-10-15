@@ -154,18 +154,23 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if isinstance(script, lit.Test.Result):
             return script
 
-        devices_for_test = self.select_devices_for_test(test)
-        if not devices_for_test:
-            return lit.Test.Result(
-                lit.Test.UNSUPPORTED, "No supported devices to run the test on"
-            )
+        devices_for_test = []
+        triples = set()
+        if "run-mode" in test.config.available_features:
+            devices_for_test = self.select_devices_for_test(test)
+            if not devices_for_test:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported devices to run the test on"
+                )
+
+            for sycl_device in devices_for_test:
+                (backend, _) = sycl_device.split(":")
+                triples.add(get_triple(test, backend))
+        elif "build-mode" in test.config.available_features:
+            # TODO: Use requires/unsupported to decide triples to build for
+            triples.add("spir64")
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
-        triples = set()
-        for sycl_device in devices_for_test:
-            (backend, _) = sycl_device.split(":")
-            triples.add(get_triple(test, backend))
-
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
@@ -223,6 +228,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 new_script.append(directive)
                 continue
 
+            # Filter commands based on split-mode
+            is_run_line = any(i in directive.command for i in
+                   ["%{run}","%{run-unfiltered-devices}","%if run-mode"])
+
+            if ((is_run_line and "run-mode" not in test.config.available_features) or
+                (not is_run_line and "build-mode" not in test.config.available_features)):
+                directive.command=""
+
+            # %{run} mode expansion
             if "%{run}" not in directive.command:
                 new_script.append(directive)
                 continue
@@ -278,7 +292,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if len(devices_for_test) > 1:
+        if (len(devices_for_test) > 1 or
+            "run-mode" not in test.config.available_features):
             return result
 
         # Single device - might be an XFAIL.
