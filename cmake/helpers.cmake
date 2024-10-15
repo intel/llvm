@@ -58,6 +58,8 @@ macro(add_sanitizer_flag flag)
     set(CMAKE_REQUIRED_LIBRARIES ${SAVED_CMAKE_REQUIRED_LIBRARIES})
 endmacro()
 
+check_cxx_compiler_flag("-fcf-protection=full" CXX_HAS_FCF_PROTECTION_FULL)
+
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
         target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
@@ -78,8 +80,7 @@ function(add_ur_target_compile_options name)
             # See: https://github.com/oneapi-src/unified-runtime/issues/2120
             # -flto
             # $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fsanitize=cfi>
-            # -fcf-protection not supported in GCC < 8
-            $<$<OR:$<NOT:$<CXX_COMPILER_ID:GNU>>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,8>>:-fcf-protection=full>
+            $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             # -fstack-clash-protection is not supported in apple clang or GCC < 8
             $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,8>>:-fstack-clash-protection>
             $<$<CXX_COMPILER_ID:Clang>:-fstack-clash-protection>
