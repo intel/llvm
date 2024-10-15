@@ -116,14 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/winstonzhang-intel/unified-runtime.git")
-  # commit b79ebe4e98789144bcdf3832088eb6e6b5ae6967
-  # Merge: 7b4bc761 fbb6e862
-  # Author: Kenneth Benzie (Benie) <k.benzie@codeplay.com>
-  # Date:   Fri Oct 4 16:39:59 2024 +0100
-  #     Merge pull request #2018 from wenju-he/L0-bindless-image-device-query
-  #     [L0] Fix device query of bindless image support
-  set(UNIFIED_RUNTIME_TAG af6e1868434af74631fd8d736e5b2d0d8a9d6263)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # commit b2a87251eb3b9b1743191a4740b99088f7ba57b1
+  # Merge: 090d4fbc 8e29e014
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Mon Oct 14 16:34:13 2024 +0200
+  #    Merge pull request #2197 from pbalcer/disable-cuda-umf
+  #    disable UMF CUDA provider
+  set(UNIFIED_RUNTIME_TAG b2a87251eb3b9b1743191a4740b99088f7ba57b1)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -136,8 +136,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endif()
 
   fetch_adapter_source(level_zero
-   https://github.com/winstonzhang-intel/unified-runtime.git
-   af6e1868434af74631fd8d736e5b2d0d8a9d6263
+    ${UNIFIED_RUNTIME_REPO}
+    ${UNIFIED_RUNTIME_TAG}
   )
 
   fetch_adapter_source(opencl

@@ -11,6 +11,7 @@
 
 #include <helpers/TestKernel.hpp>
 #include <helpers/UrMock.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 #include <memory>
@@ -187,6 +188,36 @@ TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
   // native device events for device kernel submitted to the same in-order queue
   // don't need to be explicitly passed as dependencies
   EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
+}
+
+// Test that barrier is not filtered out when waitlist contains an event
+// produced by command which is bypassing the scheduler.
+TEST_F(SchedulerTest, BypassSchedulerWithBarrier) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+  BarrierCalled = false;
+
+  context Ctx{Plt};
+  queue Q1{Ctx, default_selector_v, property::queue::in_order()};
+  queue Q2{Ctx, default_selector_v, property::queue::in_order()};
+  static constexpr size_t Size = 10;
+
+  int *X = malloc_host<int>(Size, Ctx);
+
+  // Submit a command which bypasses the scheduler.
+  auto FillEvent = Q2.memset(X, 0, sizeof(int) * Size);
+  // Submit a barrier which depends on that event.
+  ExpectedEvent = detail::getSyclObjImpl(FillEvent)->getHandle();
+  auto BarrierQ1 = Q1.ext_oneapi_submit_barrier({FillEvent});
+  Q1.wait();
+  Q2.wait();
+  // Verify that barrier is not filtered out.
+  EXPECT_EQ(BarrierCalled, true);
+
+  free(X, Ctx);
 }
 
 } // anonymous namespace

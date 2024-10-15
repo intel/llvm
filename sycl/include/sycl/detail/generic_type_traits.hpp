@@ -99,41 +99,19 @@ using is_byte = typename
 
 template <typename T> inline constexpr bool is_byte_v = is_byte<T>::value;
 
-template <typename T>
-using make_floating_point_t = make_type_t<T, gtl::scalar_floating_list>;
-
-template <typename T>
-using make_singed_integer_t = make_type_t<T, gtl::scalar_signed_integer_list>;
-
-template <typename T>
-using make_unsinged_integer_t =
-    make_type_t<T, gtl::scalar_unsigned_integer_list>;
+template <int Size>
+using fixed_width_unsigned = std::conditional_t<
+    Size == 1, uint8_t,
+    std::conditional_t<
+        Size == 2, uint16_t,
+        std::conditional_t<Size == 4, uint32_t, uint64_t>>>;
 
 template <int Size>
-using cl_unsigned = std::conditional_t<
-    Size == 1, opencl::cl_uchar,
+using fixed_width_signed = std::conditional_t<
+    Size == 1, int8_t,
     std::conditional_t<
-        Size == 2, opencl::cl_ushort,
-        std::conditional_t<Size == 4, opencl::cl_uint, opencl::cl_ulong>>>;
-
-// select_apply_cl_scalar_t selects from T8/T16/T32/T64 basing on
-// sizeof(IN).  expected to handle scalar types.
-template <typename T, typename T8, typename T16, typename T32, typename T64>
-using select_apply_cl_scalar_t = std::conditional_t<
-    sizeof(T) == 1, T8,
-    std::conditional_t<sizeof(T) == 2, T16,
-                       std::conditional_t<sizeof(T) == 4, T32, T64>>>;
-
-// Shortcuts for selecting scalar int/unsigned int/fp type.
-template <typename T>
-using select_cl_scalar_integral_signed_t =
-    select_apply_cl_scalar_t<T, sycl::opencl::cl_char, sycl::opencl::cl_short,
-                             sycl::opencl::cl_int, sycl::opencl::cl_long>;
-
-template <typename T>
-using select_cl_scalar_integral_unsigned_t =
-    select_apply_cl_scalar_t<T, sycl::opencl::cl_uchar, sycl::opencl::cl_ushort,
-                             sycl::opencl::cl_uint, sycl::opencl::cl_ulong>;
+        Size == 2, int16_t,
+        std::conditional_t<Size == 4, int32_t, int64_t>>>;
 
 // Use SFINAE so that std::complex specialization could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's
@@ -188,10 +166,9 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     return static_cast<uint8_t>(x);
 #endif
   } else if constexpr (std::is_integral_v<no_ref>) {
-    using OpenCLType =
-        std::conditional_t<std::is_signed_v<no_ref>,
-                           select_cl_scalar_integral_signed_t<no_ref>,
-                           select_cl_scalar_integral_unsigned_t<no_ref>>;
+    using OpenCLType = std::conditional_t<std::is_signed_v<no_ref>,
+                                          fixed_width_signed<sizeof(no_ref)>,
+                                          fixed_width_unsigned<sizeof(no_ref)>>;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
   } else if constexpr (is_half_v<no_ref>) {
@@ -252,29 +229,6 @@ template <typename T> inline constexpr T msbMask(T) {
 template <typename T> inline constexpr bool msbIsSet(const T x) {
   return (x & msbMask(x));
 }
-
-// Try to get vector element count or 1 otherwise
-template <typename T> struct GetNumElements {
-  static constexpr int value = 1;
-};
-template <typename Type, int NumElements>
-struct GetNumElements<typename sycl::vec<Type, NumElements>> {
-  static constexpr int value = NumElements;
-};
-
-// TryToGetElementType<T>::type is T::element_type or T::value_type if those
-// exist, otherwise T.
-template <typename T> class TryToGetElementType {
-  static T check(...);
-  template <typename A> static typename A::element_type check(const A &);
-  template <typename A, typename = std::enable_if_t<!std::is_same_v<
-                            typename A::element_type, typename A::value_type>>>
-  static typename A::value_type check(const A &);
-
-public:
-  using type = decltype(check(T()));
-  static constexpr bool value = !std::is_same_v<T, type>;
-};
 
 template <typename T> static constexpr T max_v() {
   return (std::numeric_limits<T>::max)();
