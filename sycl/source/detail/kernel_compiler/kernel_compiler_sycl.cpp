@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel_compiler_sycl.hpp"
-#include "../jit_compiler.hpp"
 #include <sycl/exception.hpp> // make_error_code
 
 #if __GNUC__ && __GNUC__ < 8
@@ -311,6 +310,25 @@ bool SYCL_Compilation_Available() {
   return (result == 0);
 }
 
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
+#endif
+
+#if SYCL_EXT_JIT_ENABLE
+
+#include "../jit_compiler.hpp"
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+bool SYCLJIT_Compilation_Available() {
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
+}
+
 spirv_vec_t
 SYCLJIT_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
                  const std::vector<std::string> &UserArgs, std::string *LogPtr,
@@ -319,12 +337,37 @@ SYCLJIT_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
       SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
 }
 
-bool SYCLJIT_Compilation_Available() {
-  return sycl::detail::jit_compiler::get_instance().isAvailable();
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
+
+#else
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+bool SYCLJIT_Compilation_Available() { return false; }
+
+spirv_vec_t
+SYCLJIT_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
+                 const std::vector<std::string> &UserArgs, std::string *LogPtr,
+                 const std::vector<std::string> &RegisteredKernelNames) {
+  (void)SYCLSource;
+  (void)IncludePairs;
+  (void)UserArgs;
+  (void)LogPtr;
+  (void)RegisteredKernelNames;
+
+  throw sycl::exception(sycl::errc::build,
+                        "kernel_compiler via sycl-jit is not available");
 }
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
 } // namespace sycl
-#endif
+
+#endif // SYCL_EXT_JIT_ENABLE
