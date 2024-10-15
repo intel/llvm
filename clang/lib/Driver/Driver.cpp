@@ -1192,7 +1192,6 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
-
       if (SYCLTargetsValues->getNumValues()) {
 
         // Multiple targets are currently not supported when using
@@ -1301,10 +1300,10 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   else if (HasValidSYCLRuntime &&
            C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
            !IsCuda) {
-    // SYCL offloading to AOT Targets with ``--offload-arch``
-    // is currently enabled only with ``--offload-new-driver`` option.
-    // Emit a diagnostic if ``--offload-arch`` is invoked without
-    // ``--offload-new driver`` option.
+    // SYCL offloading to AOT Targets with '--offload-arch'
+    // is currently enabled only with '--offload-new-driver' option.
+    // Emit a diagnostic if '--offload-arch' is invoked without
+    // '--offload-new driver' option.
     if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
                                   options::OPT_no_offload_new_driver, false)) {
       Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
@@ -1351,11 +1350,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
             Arch);
       } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch))) {
         StringRef IntelGPUArch;
-        // For Intel Graphics AOT target, valid values for ``--offload-arch``
+        // For Intel Graphics AOT target, valid values for '--offload-arch'
         // are mapped to valid device names accepted by OCLOC (the Intel GPU AOT
-        // compiler) via the ``-device`` option. The mapIntelGPUArchName
-        // function maps the accepted values for `--offload-arch` to enable SYCL
-        // offloading to Intel GPUs and the corresponding `-device` value passed
+        // compiler) via the '-device' option. The mapIntelGPUArchName
+        // function maps the accepted values for '--offload-arch' to enable SYCL
+        // offloading to Intel GPUs and the corresponding '-device' value passed
         // to OCLOC.
         IntelGPUArch = mapIntelGPUArchName(Arch).data();
         DerivedArchs[MakeSYCLDeviceTriple("spir64_gen").getTriple()].insert(
