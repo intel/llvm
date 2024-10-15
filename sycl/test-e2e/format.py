@@ -236,7 +236,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 (not is_run_line and "build-mode" not in test.config.available_features)):
                 directive.command=""
 
-            # %{run} mode expansion
             if "%{run}" not in directive.command:
                 new_script.append(directive)
                 continue
