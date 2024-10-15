@@ -394,12 +394,12 @@ sycl_ext::command_graph myGraph(myContext, myDevice);
 
 int myScalar = 42;
 // Create graph dynamic parameters
-dynamic_parameter dynParamInput(myGraph, ptrX);
-dynamic_parameter dynParamScalar(myGraph, myScalar);
+sycl_ext::dynamic_parameter dynParamInput(myGraph, ptrX);
+sycl_ext::dynamic_parameter dynParamScalar(myGraph, myScalar);
 
 // The node uses ptrX as an input & output parameter, with operand
 // mySclar as another argument.
-node kernelNode = myGraph.add([&](handler& cgh) {
+sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
     cgh.set_args(dynParamInput, ptrY, dynParamScalar);
     cgh.parallel_for(range {n}, builtinKernel);
 });
@@ -438,9 +438,9 @@ sycl::buffer bufferB{...};
 
 // Create graph dynamic parameter using a placeholder accessor, since the
 // sycl::handler is not available here outside of the command-group scope.
-dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
+sycl_ext::dynamic_parameter dynParamAccessor(myGraph, bufferA.get_access());
 
-node kernelNode = myGraph.add([&](handler& cgh) {
+sycl_ext::node kernelNode = myGraph.add([&](handler& cgh) {
     // Require the accessor contained in the dynamic paramter
     cgh.require(dynParamAccessor);
     // Set the arg on the kernel using the dynamic parameter directly
@@ -496,7 +496,6 @@ ExecGraph.update(DynamicCGNode);
 // The graph will execute CgfB.
 Queue.ext_oneapi_graph(ExecGraph).wait();
 ```
-
 
 ### Whole Graph Update
 

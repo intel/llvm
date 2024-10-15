@@ -425,7 +425,7 @@ Exceptions:
 template <int Dimensions>
 void update_nd_range(nd_range<Dimensions> executionRange);
 ----
-| Updates the ND-Range for this node with a new value. This new value will not
+| Updates the ND-range for this node with a new value. This new value will not
 affect any executable graphs this node is part of until it is passed to the
 executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
@@ -433,15 +433,12 @@ about updating kernel nodes.
 
 Parameters:
 
-* `executionRange` - The new value for the ND-Range.
+* `executionRange` - The new value for the ND-range.
 
 Exceptions:
 
 * Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the nd_range the kernel was originally created with.
-
-* Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::range`.
+  of the existing kernel execution range.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -452,7 +449,7 @@ Exceptions:
 template <int Dimensions>
 void update_range(range<Dimensions> executionRange);
 ----
-| Updates the execution Range for this node with a new value. This new value
+| Updates the execution range for this node with a new value. This new value
 will not affect any executable graphs this node is part of until it is
 passed to the executable graph's update function.
 See <<executable-graph-update, Executable Graph Update>> for more information
@@ -460,15 +457,12 @@ about updating kernel nodes.
 
 Parameters:
 
-* `executionRange` - The new value for the Range.
+* `executionRange` - The new value for the range.
 
 Exceptions:
 
 * Throws with error code `invalid` if `Dimensions` does not match the dimensions
-  of the range the kernel was originally created with.
-
-* Throws with error code `invalid` if the kernel node was originally created
-  with a `sycl::nd_range`.
+  of the existing kernel execution range.
 
 * Throws with error code `invalid` if the type of the node is not a kernel
   execution.
@@ -523,7 +517,7 @@ Table {counter: tableNumber}. Member functions of the `dynamic_parameter` class.
 |
 [source,c++]
 ----
-dynamic_parameter(command_graph<graph_state::modifiable> graph, 
+dynamic_parameter(command_graph<graph_state::modifiable> graph,
                   const ValueT &initialValue);
 ----
 |Constructs a dynamic parameter object that can be registered with command graph
@@ -564,10 +558,10 @@ namespace ext::oneapi::experimental {
 class dynamic_command_group {
 public:
   dynamic_command_group(
-      command_graph<graph_state::modifiable> graph,
+      command_graph<graph_state::modifiable> &graph,
       const std::vector<std::function<void(handler &)>>& cgfList);
 
-  size_t get_active_cgf();
+  size_t get_active_cgf() const;
   void set_active_cgf(size_t cgfIndex);
 };
 ----
@@ -578,6 +572,8 @@ There is always one command-group function in the dynamic command-group that is 
 as active. When a dynamic command-group node is executed, the kernel of the active
 command-group function will be run and all the other command-group functions in
 `cgfList` will be ignored.
+
+The `dynamic_command_group` class provides the {crs}[common reference semantics].
 
 See <<executable-graph-update, Executable Graph Update>> for more information
 about updating command-groups.
@@ -591,7 +587,8 @@ All the command-group functions in a dynamic command-group must have identical d
 It is not allowed for a dynamic command-group to have command-group functions that would
 result in a change to the graph topology when set to active. In practice, this means that
 any calls to `handler.depends_on()` must be identical for all the command-group functions
-in a dynamic command-group.
+in a dynamic command-group. The dependencies created by buffer accessors must also create
+identical node dependencies across all of the command-group functions.
 
 Table {counter: tableNumber}. Member functions of the `dynamic_command_group` class.
 [cols="2a,a"]
@@ -602,7 +599,7 @@ Table {counter: tableNumber}. Member functions of the `dynamic_command_group` cl
 [source,c++]
 ----
 dynamic_command_group(
-command_graph<graph_state::modifiable> graph,
+command_graph<graph_state::modifiable> &graph,
 const std::vector<std::function<void(handler &)>>& cgfList);
 ----
 
@@ -618,21 +615,19 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if the graph wasn't created with
   the `property::graph::assume_buffer_outlives_graph` property and the `dynamic_command_group`
-  is created with command-group functions that use buffers. See the
+  is created with any command-group function that uses buffers. See the
   <<assume-buffer-outlives-graph-property, Assume-Buffer-Outlives-Graph>>
   property for more information.
 
 * Throws with error code `invalid` if the `dynamic_command_group` is created with
   command-group functions that are not kernel executions.
 
-* Throws with error code `invalid` if the command-group functions in `cgfList` have
-  event dependencies that are incompatible with each other and would result in
-  different graph topologies when set to active.
+* Throws with error code `invalid` if `cgfList` is empty.
 
 |
 [source,c++]
 ----
-size_t get_active_cgf();
+size_t get_active_cgf() const;
 ----
 |Returns the index of the currently active command-group function in this
 `dynamic_command_group`.
@@ -844,9 +839,9 @@ The aspects of a kernel execution node that can be changed during update are
 different depending on the API used to perform the update:
 
 * For the <<individual-node-update, Individual Node Update>> API it's possible to update
-the kernel function, the parameters to the kernel, and the ND-Range.
+the kernel function, the parameters to the kernel, and the ND-range.
 * For the <<whole-graph-update, Whole Graph Update>> API, only the parameters of the kernel
-and the ND-Range can be updated.
+and the ND-range can be updated.
 
 ===== Individual Node Update [[individual-node-update]]
 
@@ -889,7 +884,11 @@ kernel, this can be set through `node::update_nd_range()` or
 `node::update_range()` but does not require any prior registration.
 
 An alternative way to update the execution range of a node is to do so while
-updating command groups as described in the next section.
+updating command groups as described in the next section. Using this mechanism
+lifts the restriction from `node::update_nd_range()` / `node::update_range()`
+of only being to update the execution range in the same dimension. As the
+update being tied to a change in command-group means that the updated kernel
+code may be defined as operating in a different dimension.
 
 ====== Command Group Updates
 
@@ -908,6 +907,14 @@ Dynamic command-groups are compatible with dynamic parameters. This means that
 dynamic parameters can be used in command-group functions that are part of
 dynamic command-groups. Updates to such dynamic parameters will be reflected
 in the command-group functions once they are activated.
+
+Note that the execution range is tied to the command-group, therefore updating
+the range of a node which uses a dynamic command-group shared by another node
+will also update the execution range of the nodes sharing the dynamic
+command-group. Activating a command-group with `set_active_cgf` to a
+command-group that previously had its execution range updated with
+`node::update_range()` or `node::update_nd_range()` will not reset the execution
+range to the original, but instead use the most recently updated value.
 
 ====== Committing Updates
 
@@ -1230,6 +1237,14 @@ Exceptions:
 
 * Throws synchronously with error code `invalid` if a queue is recording
   commands to the graph.
+
+* Throws synchronously with error code `invalid` if the graph does not match
+  the graph used on construction of `dynamicCG`.
+
+* Throws with error code `invalid` if the command-group functions in `cgfList` have
+  event or accessor dependencies that are incompatible with each other and
+  would result in different graph topologies when set to active.
+
 |
 [source,c++]
 ----
@@ -2381,8 +2396,8 @@ if used in application code.
 
 . Using reductions in a graph node.
 . Using sycl streams in a graph node.
-. Synchronization between multiple executions of the same command-buffer 
-  must be handled in the host for level-zero backend, which may involve 
+. Synchronization between multiple executions of the same command-buffer
+  must be handled in the host for level-zero backend, which may involve
   extra latency for subsequent submissions.
 
 == Revision History
