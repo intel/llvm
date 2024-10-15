@@ -657,7 +657,8 @@ void collectVirtualFunctionSetInfo(
 }
 
 // For each set S of virtual functions that F declares,
-// propagate S through the CG and then
+// propagate S through the CG and then add the aspects
+// used by S to F.
 void processDeclaredVirtualFunctionSets(
     Function *F, CallGraphTy &CG, FunctionToAspectsMapTy &AspectsMap,
     SmallPtrSet<const Function *, 16> &Visited,
