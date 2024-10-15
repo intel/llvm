@@ -20,7 +20,12 @@ enum class bundle_state : char {
 
 namespace ext::oneapi::experimental {
 
-enum class source_language : int { opencl = 0, spirv = 1, sycl = 2 /* cuda */ };
+enum class source_language : int {
+  opencl = 0,
+  spirv = 1,
+  sycl = 2 /* cuda */,
+  sycljit = 99
+};
 
 // opencl versions
 struct cl_version {
