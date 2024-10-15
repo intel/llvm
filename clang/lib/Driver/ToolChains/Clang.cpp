@@ -10814,7 +10814,7 @@ static bool allowDeviceImageDependencies(const llvm::opt::ArgList &TCArgs) {
 
   // preferred
   if (TCArgs.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
-                     options::OPT_fno_sycl_allow_device_image_dependencies, false))
+                     options::OPT_fno_sycl_allow_device_image_dependencies, true))
     return true;
 
   return false;

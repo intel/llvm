@@ -35,9 +35,9 @@
 // CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
 
 /// FPGA target implies -emit-only-kernels-as-entry-points in sycl-post-link
-// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fno-sycl-allow-device-image-dependencies -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
-// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
+// RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fno-sycl-allow-device-image-dependencies -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-NON-KERNEL-ENTRY-POINTS %s
 // CHK-NON-KERNEL-ENTRY-POINTS: sycl-post-link{{.*}} "-emit-only-kernels-as-entry-points"
 
