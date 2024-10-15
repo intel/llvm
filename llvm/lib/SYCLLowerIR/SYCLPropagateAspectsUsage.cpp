@@ -647,6 +647,37 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
     F->setMetadata("sycl_fixed_targets", MDN);
 }
 
+void collectVirtualFunctionSetInfo(
+    Function &F, StringMap<std::vector<Function *>> &VirtualFunctionSets) {
+  if (!F.hasFnAttribute("indirectly-callable"))
+    return;
+  Attribute IndirectlyCallableAttr = F.getFnAttribute("indirectly-callable");
+  StringRef SetName = IndirectlyCallableAttr.getValueAsString();
+  VirtualFunctionSets[SetName].push_back(&F);
+}
+
+// For each set S of virtual functions that F declares,
+// propagate S through the CG and then
+void processDeclaredVirtualFunctionSets(
+    Function *F, CallGraphTy &CG, FunctionToAspectsMapTy &AspectsMap,
+    SmallPtrSet<const Function *, 16> &Visited,
+    StringMap<std::vector<Function *>> &VirtualFunctionSets) {
+  if (!F->hasFnAttribute("calls-indirectly"))
+    return;
+  Attribute CallsIndirectlyAttr = F->getFnAttribute("calls-indirectly");
+  SmallVector<StringRef, 4> DeclaredVirtualFunctionSetNames;
+  CallsIndirectlyAttr.getValueAsString().split(DeclaredVirtualFunctionSetNames,
+                                               ",");
+  auto &AspectsF = AspectsMap[F];
+  for (auto Name : DeclaredVirtualFunctionSetNames) {
+    for (auto VFn : VirtualFunctionSets[Name]) {
+      propagateAspectsThroughCG(VFn, CG, AspectsMap, Visited);
+      for (auto Aspect : AspectsMap[VFn])
+        AspectsF.insert(Aspect);
+    }
+  }
+}
+
 /// Returns a map of functions with corresponding used aspects.
 std::pair<FunctionToAspectsMapTy, FunctionToAspectsMapTy>
 buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
@@ -655,16 +686,21 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            bool ValidateAspects, bool FP64ConvEmu) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
   FunctionToAspectsMapTy FunctionToDeclaredAspects;
+  StringMap<std::vector<Function *>> VirtualFunctionSets;
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
     processFunction(F, FunctionToUsedAspects, FunctionToDeclaredAspects,
                     TypesWithAspects, CG, AspectValues, FP64ConvEmu);
+    collectVirtualFunctionSetInfo(F, VirtualFunctionSets);
   }
 
   SmallPtrSet<const Function *, 16> Visited;
-  for (Function *F : EntryPoints)
+  for (Function *F : EntryPoints) {
     propagateAspectsThroughCG(F, CG, FunctionToUsedAspects, Visited);
+    processDeclaredVirtualFunctionSets(F, CG, FunctionToUsedAspects, Visited,
+                                       VirtualFunctionSets);
+  }
 
   if (ValidateAspects)
     validateUsedAspectsForFunctions(FunctionToUsedAspects, AspectValues,
