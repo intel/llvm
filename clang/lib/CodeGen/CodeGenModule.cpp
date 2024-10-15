@@ -5758,6 +5758,10 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     auto *Scope = D->getAttr<SYCLScopeAttr>();
     if (Scope && Scope->isWorkGroup())
       return LangAS::sycl_local;
+
+    const RecordDecl *RD = D->getType()->getAsRecordDecl();
+    if (getTriple().isNVPTX() && RD && RD->hasAttr<SYCLDeviceGlobalAttr>() && D->getType().isConstQualified())
+      return LangAS::cuda_constant;
   }
 
   if (LangOpts.SYCLIsDevice &&
