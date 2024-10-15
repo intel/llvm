@@ -34,23 +34,8 @@ namespace experimental {
 
 class node;
 namespace property::node {
-/// Property used to define dependent nodes when creating a new node with
-/// command_graph::add().
-class depends_on : public ::sycl::detail::PropertyWithData<
-                       ::sycl::detail::GraphNodeDependencies> {
-public:
-  template <typename... NodeTN> depends_on(NodeTN... nodes) : MDeps{nodes...} {}
-
-  const std::vector<::sycl::ext::oneapi::experimental::node> &
-  get_dependencies() const {
-    return MDeps;
-  }
-
-private:
-  const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
-};
+class depends_on;
 } // namespace property::node
-
 // Graph property trait specializations.
 enum class graph_state;
 template <graph_state State> class command_graph;

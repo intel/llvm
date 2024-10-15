@@ -146,6 +146,24 @@ private:
   std::shared_ptr<detail::node_impl> impl;
 };
 
+namespace property::node {
+/// Property used to define dependent nodes when creating a new node with
+/// command_graph::add().
+class depends_on : public ::sycl::detail::PropertyWithData<
+                       ::sycl::detail::GraphNodeDependencies> {
+public:
+  template <typename... NodeTN> depends_on(NodeTN... nodes) : MDeps{nodes...} {}
+
+  const std::vector<::sycl::ext::oneapi::experimental::node> &
+  get_dependencies() const {
+    return MDeps;
+  }
+
+private:
+  const std::vector<::sycl::ext::oneapi::experimental::node> MDeps;
+};
+} // namespace property::node
+
 namespace detail {
 // Templateless modifiable command-graph base class.
 class __SYCL_EXPORT modifiable_command_graph {
