@@ -446,6 +446,12 @@ public:
                                              BuildOptions, LogPtr,
                                              RegisteredKernelNames);
       }
+      if (Language == syclex::source_language::sycljit) {
+        const auto &SourceStr = std::get<std::string>(this->Source);
+        return syclex::detail::SYCLJIT_to_SPIRV(SourceStr, IncludePairs,
+                                                BuildOptions, LogPtr,
+                                                RegisteredKernelNames);
+      }
       throw sycl::exception(
           make_error_code(errc::invalid),
           "OpenCL C and SPIR-V are the only supported languages at this time");

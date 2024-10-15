@@ -31,6 +31,13 @@ SYCL_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
 
 bool SYCL_Compilation_Available();
 
+spirv_vec_t
+SYCLJIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
+                 const std::vector<std::string> &UserArgs, std::string *LogPtr,
+                 const std::vector<std::string> &RegisteredKernelNames);
+
+bool SYCLJIT_Compilation_Available();
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 

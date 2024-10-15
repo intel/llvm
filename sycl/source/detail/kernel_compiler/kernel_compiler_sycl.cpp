@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "kernel_compiler_sycl.hpp"
+#include "../jit_compiler.hpp"
 #include <sycl/exception.hpp> // make_error_code
 
 #if __GNUC__ && __GNUC__ < 8
@@ -308,6 +309,18 @@ bool SYCL_Compilation_Available() {
   int result = std::system(TestCommand.c_str());
 
   return (result == 0);
+}
+
+spirv_vec_t
+SYCLJIT_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
+                 const std::vector<std::string> &UserArgs, std::string *LogPtr,
+                 const std::vector<std::string> &RegisteredKernelNames) {
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
+      SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+}
+
+bool SYCLJIT_Compilation_Available() {
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
 }
 
 } // namespace detail

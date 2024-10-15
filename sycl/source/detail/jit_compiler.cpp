@@ -18,6 +18,9 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <dlfcn.h>
+#include <link.h>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -71,6 +74,31 @@ jit_compiler::jit_compiler() {
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "compileSYCL"));
+    if (!this->CompileSYCLHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    // TODO: Move this query to a more appropriate location (e.g. add
+    // `sycl::detail::ur::getOsLibraryPath`), and handle non-POSIX OSs. For now,
+    // it should be fine here because the JIT is not built on Windows.
+    link_map *Map = nullptr;
+    if (dlinfo(LibraryPtr, RTLD_DI_LINKMAP, &Map) == 0) {
+      std::string LoadedLibraryPath = Map->l_name;
+      std::string JITLibraryPathSuffix = "/lib/" + JITLibraryName;
+      auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
+      if (Pos != std::string::npos) {
+        this->DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
+      }
+    }
+    if (this->DPCPPRoot.empty()) {
+      printPerformanceWarning("Cannot determine JIT library location");
       return false;
     }
 
@@ -1141,6 +1169,45 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
     Ptr += sizeof(uint32_t);
   }
   return Encoded;
+}
+
+std::vector<uint8_t> jit_compiler::compileSYCL(
+    const std::string &SYCLSource,
+    const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    const std::vector<std::string> &RegisteredKernelNames) {
+
+  // TODO: Handle situation.
+  assert(RegisteredKernelNames.empty() &&
+         "Instantiation of kernel templates NYI");
+
+  std::vector<::jit_compiler::IncludePair> IncludePairsView;
+  IncludePairsView.reserve(IncludePairs.size());
+  std::transform(IncludePairs.begin(), IncludePairs.end(),
+                 std::back_inserter(IncludePairsView), [](const auto &Pair) {
+                   return ::jit_compiler::IncludePair{Pair.first.c_str(),
+                                                      Pair.second.c_str()};
+                 });
+  std::vector<const char *> UserArgsView;
+  UserArgsView.reserve(UserArgs.size());
+  std::transform(UserArgs.begin(), UserArgs.end(),
+                 std::back_inserter(UserArgsView),
+                 [](const auto &Arg) { return Arg.c_str(); });
+
+  auto Result = CompileSYCLHandle(SYCLSource.c_str(), IncludePairsView,
+                                  UserArgsView, DPCPPRoot.c_str());
+
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  }
+
+  // TODO: We currently don't have a meaningful build log.
+  (void)LogPtr;
+
+  const auto &BI = Result.getKernelInfo().BinaryInfo;
+  assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
+  std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
+  return SPV;
 }
 
 } // namespace detail
