@@ -671,6 +671,10 @@ static uint64_t GetCtorAndDtorPriority(Triple &TargetTriple) {
   }
 }
 
+static Twine genName(StringRef suffix) {
+  return Twine(kAsanGenPrefix) + suffix;
+}
+
 namespace {
 /// Helper RAII class to post-process inserted asan runtime calls during a
 /// pass on a single Function. Upon end of scope, detects and applies the
@@ -988,13 +992,14 @@ private:
   bool shouldInstrumentGlobal(GlobalVariable *G) const;
   bool ShouldUseMachOGlobalsSection() const;
   StringRef getGlobalMetadataSection() const;
-  void poisonOneInitializer(Function &GlobalInit, GlobalValue *ModuleName);
-  void createInitializerPoisonCalls(GlobalValue *ModuleName);
+  void poisonOneInitializer(Function &GlobalInit);
+  void createInitializerPoisonCalls();
   uint64_t getMinRedzoneSizeForGlobal() const {
     return getRedzoneSizeForScale(Mapping.Scale);
   }
   uint64_t getRedzoneSizeForGlobal(uint64_t SizeInBytes) const;
   int GetAsanVersion() const;
+  GlobalVariable *getOrCreateModuleName();
 
   Module &M;
   bool CompileKernel;
@@ -1022,6 +1027,7 @@ private:
 
   Function *AsanCtorFunction = nullptr;
   Function *AsanDtorFunction = nullptr;
+  GlobalVariable *ModuleName = nullptr;
 };
 
 // Stack poisoning does not play well with exception handling.
@@ -1500,10 +1506,40 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+static bool containsTargetExtType(const Type *Ty) {
+  if (isa<TargetExtType>(Ty))
+    return true;
+
+  if (Ty->isVectorTy())
+    return containsTargetExtType(Ty->getScalarType());
+
+  if (Ty->isArrayTy())
+    return containsTargetExtType(Ty->getArrayElementType());
+
+  if (auto *STy = dyn_cast<StructType>(Ty)) {
+    for (unsigned int i = 0; i < STy->getNumElements(); i++)
+      if (containsTargetExtType(STy->getElementType(i)))
+        return true;
+    return false;
+  }
+
+  return false;
+}
+
+static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (isa<StoreInst>(Inst) &&
+      containsTargetExtType(
+          cast<StoreInst>(Inst)->getValueOperand()->getType()))
+    return true;
+
+  if (isa<LoadInst>(Inst) && containsTargetExtType(Inst->getType()))
     return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
@@ -1512,7 +1548,7 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
     if (!ClSpirOffloadPrivates)
       return true;
     // Skip kernel arguments
-    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
   case kSpirOffloadGlobalAS: {
@@ -1750,7 +1786,10 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // swifterror allocas are register promoted by ISel
        !AI.isSwiftError() &&
        // safe allocas are not interesting
-       !(SSGI && SSGI->isSafe(AI)));
+       !(SSGI && SSGI->isSafe(AI)) &&
+       // ignore alloc contains target ext type since we can't know exactly what
+       // size it is.
+       !containsTargetExtType(AI.getAllocatedType()));
 
   ProcessedAllocas[&AI] = IsInteresting;
   return IsInteresting;
@@ -1759,7 +1798,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
+    if (isUnsupportedSPIRAccess(Ptr, Inst))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
@@ -2360,14 +2399,14 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
   }
 }
 
-void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit,
-                                                  GlobalValue *ModuleName) {
+void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit) {
   // Set up the arguments to our poison/unpoison functions.
   IRBuilder<> IRB(&GlobalInit.front(),
                   GlobalInit.front().getFirstInsertionPt());
 
   // Add a call to poison all external globals before the given function starts.
-  Value *ModuleNameAddr = ConstantExpr::getPointerCast(ModuleName, IntptrTy);
+  Value *ModuleNameAddr =
+      ConstantExpr::getPointerCast(getOrCreateModuleName(), IntptrTy);
   IRB.CreateCall(AsanPoisonGlobals, ModuleNameAddr);
 
   // Add calls to unpoison all globals before each return instruction.
@@ -2376,8 +2415,7 @@ void ModuleAddressSanitizer::poisonOneInitializer(Function &GlobalInit,
       CallInst::Create(AsanUnpoisonGlobals, "", RI->getIterator());
 }
 
-void ModuleAddressSanitizer::createInitializerPoisonCalls(
-    GlobalValue *ModuleName) {
+void ModuleAddressSanitizer::createInitializerPoisonCalls() {
   GlobalVariable *GV = M.getGlobalVariable("llvm.global_ctors");
   if (!GV)
     return;
@@ -2397,7 +2435,7 @@ void ModuleAddressSanitizer::createInitializerPoisonCalls(
       // Don't instrument CTORs that will run before asan.module_ctor.
       if (Priority->getLimitedValue() <= GetCtorAndDtorPriority(TargetTriple))
         continue;
-      poisonOneInitializer(*F, ModuleName);
+      poisonOneInitializer(*F);
     }
   }
 }
@@ -2642,7 +2680,7 @@ void ModuleAddressSanitizer::SetComdatForGlobalMetadata(
       // If G is unnamed, it must be internal. Give it an artificial name
       // so we can put it in a comdat.
       assert(G->hasLocalLinkage());
-      G->setName(Twine(kAsanGenPrefix) + "_anon_global");
+      G->setName(genName("anon_global"));
     }
 
     if (!InternalSuffix.empty() && G->hasLocalLinkage()) {
@@ -2932,16 +2970,6 @@ void ModuleAddressSanitizer::instrumentGlobals(IRBuilder<> &IRB,
   SmallVector<GlobalVariable *, 16> NewGlobals(n);
   SmallVector<Constant *, 16> Initializers(n);
 
-  bool HasDynamicallyInitializedGlobals = false;
-
-  // We shouldn't merge same module names, as this string serves as unique
-  // module ID in runtime.
-  GlobalVariable *ModuleName =
-      n != 0
-          ? createPrivateGlobalForString(M, M.getModuleIdentifier(),
-                                         /*AllowMerging*/ false, kAsanGenPrefix)
-          : nullptr;
-
   for (size_t i = 0; i < n; i++) {
     GlobalVariable *G = GlobalsToChange[i];
 
@@ -2955,7 +2983,7 @@ void ModuleAddressSanitizer::instrumentGlobals(IRBuilder<> &IRB,
     std::string NameForGlobal = G->getName().str();
     GlobalVariable *Name =
         createPrivateGlobalForString(M, llvm::demangle(NameForGlobal),
-                                     /*AllowMerging*/ true, kAsanGenPrefix);
+                                     /*AllowMerging*/ true, genName("global"));
 
     Type *Ty = G->getValueType();
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
@@ -3042,13 +3070,10 @@ void ModuleAddressSanitizer::instrumentGlobals(IRBuilder<> &IRB,
         ConstantInt::get(IntptrTy, SizeInBytes),
         ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
         ConstantExpr::getPointerCast(Name, IntptrTy),
-        ConstantExpr::getPointerCast(ModuleName, IntptrTy),
+        ConstantExpr::getPointerCast(getOrCreateModuleName(), IntptrTy),
         ConstantInt::get(IntptrTy, MD.IsDynInit),
         Constant::getNullValue(IntptrTy),
         ConstantExpr::getPointerCast(ODRIndicator, IntptrTy));
-
-    if (ClInitializers && MD.IsDynInit)
-      HasDynamicallyInitializedGlobals = true;
 
     LLVM_DEBUG(dbgs() << "NEW GLOBAL: " << *NewGlobal << "\n");
 
@@ -3088,8 +3113,8 @@ void ModuleAddressSanitizer::instrumentGlobals(IRBuilder<> &IRB,
   }
 
   // Create calls for poisoning before initializers run and unpoisoning after.
-  if (HasDynamicallyInitializedGlobals)
-    createInitializerPoisonCalls(ModuleName);
+  if (ClInitializers)
+    createInitializerPoisonCalls();
 
   LLVM_DEBUG(dbgs() << M);
 }
@@ -3127,6 +3152,17 @@ int ModuleAddressSanitizer::GetAsanVersion() const {
   // shadow.
   Version += (LongSize == 32 && isAndroid);
   return Version;
+}
+
+GlobalVariable *ModuleAddressSanitizer::getOrCreateModuleName() {
+  if (!ModuleName) {
+    // We shouldn't merge same module names, as this string serves as unique
+    // module ID in runtime.
+    ModuleName =
+        createPrivateGlobalForString(M, M.getModuleIdentifier(),
+                                     /*AllowMerging*/ false, genName("module"));
+  }
+  return ModuleName;
 }
 
 bool ModuleAddressSanitizer::instrumentModule() {
@@ -4118,7 +4154,7 @@ void FunctionStackPoisoner::processStaticAllocas() {
         IntptrPtrTy);
     GlobalVariable *StackDescriptionGlobal =
         createPrivateGlobalForString(*F.getParent(), DescriptionString,
-                                     /*AllowMerging*/ true, kAsanGenPrefix);
+                                     /*AllowMerging*/ true, genName("stack"));
     Value *Description =
         IRB.CreatePointerCast(StackDescriptionGlobal, IntptrTy);
     IRB.CreateStore(Description, BasePlus1);

@@ -30,10 +30,8 @@
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
@@ -131,6 +129,8 @@ class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
                                                    DataT, NumElements> {
+  static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
+                "DataT must be cv-unqualified");
 
   static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
                     NumElements == 4 || NumElements == 8 || NumElements == 16,
@@ -246,7 +246,7 @@ private:
   }
 
   // Element type for relational operator return value.
-  using rel_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using rel_t = detail::fixed_width_signed<sizeof(DataT)>;
 
 public:
   // Aliases required by SYCL 2020 to make sycl::vec consistent
@@ -490,8 +490,7 @@ public:
 private:
   DataT m_Data;
 };
-template <typename T>
-using rel_t = detail::select_cl_scalar_integral_signed_t<T>;
+template <typename T> using rel_t = detail::fixed_width_signed<sizeof(T)>;
 
 template <typename T> struct EqualTo {
   constexpr rel_t<T> operator()(const T &Lhs, const T &Rhs) const {
@@ -1241,11 +1240,9 @@ public:
     static_assert((sizeof(Tmp) == sizeof(asT)),
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL swizzled vec");
-    static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
-            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
-        "asT must be SYCL vec of a different element type and "
-        "number of elements specified by asT");
+    static_assert(detail::is_vec_v<asT>,
+                  "asT must be SYCL vec of a different element type and "
+                  "number of elements specified by asT");
     return Tmp.template as<asT>();
   }
 

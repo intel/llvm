@@ -119,59 +119,6 @@ using scalar_vector_floating_list =
 using floating_list =
     tl_append<scalar_floating_list, vector_floating_list, marray_floating_list>;
 
-// geometric floating point types
-using scalar_geo_half_list = type_list<half>;
-
-using scalar_geo_float_list = type_list<float>;
-
-using scalar_geo_double_list = type_list<double>;
-
-using vector_geo_half_list =
-    type_list<vec<half, 1>, vec<half, 2>, vec<half, 3>, vec<half, 4>>;
-
-using vector_geo_float_list =
-    type_list<vec<float, 1>, vec<float, 2>, vec<float, 3>, vec<float, 4>>;
-
-using vector_geo_double_list =
-    type_list<vec<double, 1>, vec<double, 2>, vec<double, 3>, vec<double, 4>>;
-
-using marray_geo_float_list =
-    type_list<marray<float, 2>, marray<float, 3>, marray<float, 4>>;
-
-using marray_geo_double_list =
-    type_list<marray<double, 2>, marray<double, 3>, marray<double, 4>>;
-
-using geo_half_list = tl_append<scalar_geo_half_list, vector_geo_half_list>;
-
-using geo_float_list = tl_append<scalar_geo_float_list, vector_geo_float_list>;
-
-using geo_double_list =
-    tl_append<scalar_geo_double_list, vector_geo_double_list>;
-
-using scalar_geo_list = tl_append<scalar_geo_half_list, scalar_geo_float_list,
-                                  scalar_geo_double_list>;
-
-using vector_geo_list = tl_append<vector_geo_half_list, vector_geo_float_list,
-                                  vector_geo_double_list>;
-
-using marray_geo_list =
-    tl_append<marray_geo_float_list, marray_geo_double_list>;
-
-using geo_list = tl_append<scalar_geo_list, vector_geo_list>;
-
-// cross floating point types
-using cross_half_list = type_list<vec<half, 3>, vec<half, 4>>;
-
-using cross_float_list = type_list<vec<float, 3>, vec<float, 4>>;
-
-using cross_double_list = type_list<vec<double, 3>, vec<double, 4>>;
-
-using cross_floating_list =
-    tl_append<cross_float_list, cross_double_list, cross_half_list>;
-
-using cross_marray_list = type_list<marray<float, 3>, marray<float, 4>,
-                                    marray<double, 3>, marray<double, 4>>;
-
 using scalar_default_char_list = type_list<char>;
 
 using vector_default_char_list =
@@ -197,10 +144,6 @@ using marray_signed_char_list =
               marray<signed char, 3>, marray<signed char, 4>,
               marray<signed char, 8>, marray<signed char, 16>>;
 
-using signed_char_list =
-    tl_append<scalar_signed_char_list, vector_signed_char_list,
-              marray_signed_char_list>;
-
 using scalar_unsigned_char_list = type_list<unsigned char>;
 
 using vector_unsigned_char_list =
@@ -212,24 +155,6 @@ using marray_unsigned_char_list =
     type_list<marray<unsigned char, 1>, marray<unsigned char, 2>,
               marray<unsigned char, 3>, marray<unsigned char, 4>,
               marray<unsigned char, 8>, marray<unsigned char, 16>>;
-
-using unsigned_char_list =
-    tl_append<scalar_unsigned_char_list, vector_unsigned_char_list,
-              marray_unsigned_char_list>;
-
-using scalar_char_list =
-    tl_append<scalar_default_char_list, scalar_signed_char_list,
-              scalar_unsigned_char_list>;
-
-using vector_char_list =
-    tl_append<vector_default_char_list, vector_signed_char_list,
-              vector_unsigned_char_list>;
-
-using marray_char_list =
-    tl_append<marray_default_char_list, marray_signed_char_list,
-              marray_unsigned_char_list>;
-
-using char_list = tl_append<scalar_char_list, vector_char_list>;
 
 // short int types
 using scalar_signed_short_list = type_list<signed short>;
@@ -243,10 +168,6 @@ using marray_signed_short_list =
     type_list<marray<signed short, 1>, marray<signed short, 2>,
               marray<signed short, 3>, marray<signed short, 4>,
               marray<signed short, 8>, marray<signed short, 16>>;
-
-using signed_short_list =
-    tl_append<scalar_signed_short_list, vector_signed_short_list,
-              marray_signed_short_list>;
 
 using scalar_unsigned_short_list = type_list<unsigned short>;
 
@@ -552,58 +473,7 @@ using scalar_bool_list = type_list<bool>;
 
 using bool_list = tl_append<scalar_bool_list, marray_bool_list>;
 
-using vector_bool_list = type_list<vec<bool, 1>, vec<bool, 2>, vec<bool, 3>,
-                                   vec<bool, 4>, vec<bool, 8>, vec<bool, 16>>;
-
-// basic types
-using scalar_signed_basic_list =
-    tl_append<scalar_floating_list, scalar_signed_integer_list>;
-
-using vector_signed_basic_list =
-    tl_append<vector_floating_list, vector_signed_integer_list>;
-
-using marray_signed_basic_list =
-    tl_append<marray_floating_list, marray_signed_integer_list>;
-
-using signed_basic_list =
-    tl_append<scalar_signed_basic_list, vector_signed_basic_list,
-              marray_signed_basic_list>;
-
-using scalar_unsigned_basic_list = tl_append<scalar_unsigned_integer_list>;
-
-using vector_unsigned_basic_list = tl_append<vector_unsigned_integer_list>;
-
-using marray_unsigned_basic_list = tl_append<marray_unsigned_integer_list>;
-
-using unsigned_basic_list =
-    tl_append<scalar_unsigned_basic_list, vector_unsigned_basic_list,
-              marray_unsigned_basic_list>;
-
-using scalar_basic_list =
-    tl_append<scalar_signed_basic_list, scalar_unsigned_basic_list>;
-
-using vector_basic_list =
-    tl_append<vector_signed_basic_list, vector_unsigned_basic_list>;
-
-using marray_basic_list =
-    tl_append<marray_signed_basic_list, marray_unsigned_basic_list>;
-
-using basic_list =
-    tl_append<scalar_basic_list, vector_basic_list, marray_basic_list>;
-
-// nan builtin types
-using nan_list = tl_append<gtl::unsigned_short_list, gtl::unsigned_int_list,
-                           gtl::unsigned_long_integer_list>;
 } // namespace gtl
-namespace gvl {
-// address spaces
-using nonconst_address_space_list = address_space_list<
-    access::address_space::local_space, access::address_space::global_space,
-    access::address_space::private_space, access::address_space::generic_space,
-    access::address_space::ext_intel_global_device_space,
-    access::address_space::ext_intel_global_host_space>;
-
-} // namespace gvl
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

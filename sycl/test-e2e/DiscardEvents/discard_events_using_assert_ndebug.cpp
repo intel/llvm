@@ -5,7 +5,7 @@
 // The test checks that the last parameter is `nullptr` for
 // urEnqueueKernelLaunch.
 //
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: .phEvent = nullptr
 //
 // CHECK: The test passed.
