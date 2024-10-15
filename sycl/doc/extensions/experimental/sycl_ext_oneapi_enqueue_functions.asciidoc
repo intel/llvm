@@ -670,9 +670,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void barrier(sycl::queue q);
+template <typename Properties = empty_properties_t>
+void barrier(sycl::queue q, Properties properties = {});
 
-void barrier(sycl::handler h);
+template <typename Properties = empty_properties_t>
+void barrier(sycl::handler h, Properties properties = {});
 
 }
 ----
@@ -690,9 +692,13 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-void partial_barrier(sycl::queue q, const std::vector<sycl::event>& events);
+template <typename Properties = empty_properties_t>
+void partial_barrier(sycl::queue q, const std::vector<sycl::event>& events,
+                     Properties properties = {});
 
-void partial_barrier(sycl::handler h, const std::vector<sycl::event>& events);
+template <typename Properties = empty_properties_t>
+void partial_barrier(sycl::handler h, const std::vector<sycl::event>& events,
+                     Properties properties = {});
 
 }
 ----

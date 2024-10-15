@@ -349,21 +349,34 @@ __SYCL_EXPORT void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
                               const sycl::detail::code_location &CodeLoc =
                                   sycl::detail::code_location::current());
 
-inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
-
-inline void barrier(queue Q, const sycl::detail::code_location &CodeLoc =
-                                 sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { barrier(CGH); }, CodeLoc);
+template <typename PropertiesT = empty_properties_t>
+inline void barrier(handler &CGH, PropertiesT Properties = {}) {
+  std::ignore = Properties;
+  CGH.ext_oneapi_barrier();
 }
 
-inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
+template <typename PropertiesT = empty_properties_t>
+inline void barrier(queue Q, PropertiesT Properties = {},
+                    const sycl::detail::code_location &CodeLoc =
+                        sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { barrier(CGH, Properties); }, CodeLoc);
+}
+
+template <typename PropertiesT = empty_properties_t>
+inline void partial_barrier(handler &CGH, const std::vector<event> &Events,
+                            PropertiesT Properties = {}) {
+  std::ignore = Properties;
   CGH.ext_oneapi_barrier(Events);
 }
 
+template <typename PropertiesT = empty_properties_t>
 inline void partial_barrier(queue Q, const std::vector<event> &Events,
+                            PropertiesT Properties = {},
                             const sycl::detail::code_location &CodeLoc =
                                 sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
+  submit(
+      Q, [&](handler &CGH) { partial_barrier(CGH, Events, Properties); },
+      CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental
