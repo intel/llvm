@@ -1017,83 +1017,103 @@ is shown in a single column in the table below.
 
 ==== Intel XMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_gpu_pvc`, `architecture::intel_gpu_dg2_g10`,
-`architecture::intel_gpu_dg2_g11`, and
-`architecture::intel_gpu_dg2_g12`.
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`, `architecture::intel_gpu_dg2_g10`,
+`architecture::intel_gpu_dg2_g11`, `architecture::intel_gpu_dg2_g12`,
+and `architecture::intel_gpu_arl_h`.
 
 [frame="none",options="header"]
 |======================
 | A type | B type | C type | D type | M | N | K | device
 .2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32` .2+| `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
-|`architecture::intel_gpu_pvc`
+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32` .2+|`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
 `matrix_type::sint32` .2+|`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
 `matrix_type::sint32` .2+| `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .8+|`matrix_type::fp16`       .8+|  `matrix_type::fp16`   .8+|
 `matrix_type::fp32` .8+|`matrix_type::fp32`  .1+| 16 .1+| 16 | 16
-.6+|`architecture::intel_gpu_pvc`
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 .2+| 1 .2+| 64 | 16 |32
 .2+| 32 .2+| 64 | 16 |32
 .2+|  +<=+ 8 |  16   .2+|  16
 |8 .2+| `architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .1+| 32 .1+| 32 .1+| 16
 .6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
 `matrix_type::fp16` .6+|`matrix_type::fp32`  .1+|  +<=+ 8 |  16   .1+|  16
-.6+| `architecture::intel_gpu_pvc`
+.6+| `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 | 16 | 32
 .6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
 `matrix_type::fp32` .6+|`matrix_type::fp16`  .1+|  +<=+ 8 |  16    .1+|  16
-.6+|`architecture::intel_gpu_pvc`
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
 `matrix_type::fp16` .6+|`matrix_type::fp16`  .1+|  +<=+ 8 |  16   .1+|  16
-.6+|`architecture::intel_gpu_pvc`
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 |32 .2+| 32 .2+| 64 | 16 | 32
 .8+|  `matrix_type::bf16`       .8+|  `matrix_type::bf16`   .8+|
 `matrix_type::fp32` .8+| `matrix_type::fp32`  | 16 | 16 | 16
-.6+|`architecture::intel_gpu_pvc`
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 | 16 |32
 .2+|  +<=+ 8 |  16   .2+|  16
 |8 .2+| `architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .1+| 32 .1+| 32 .1+| 16
 .6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::bf16` .6+|`matrix_type::fp32`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::fp32` .6+|`matrix_type::bf16`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 .6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
 `matrix_type::bf16` .6+|`matrix_type::bf16`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 | 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
 .2+| 32 .2+| 64 |16 | 32
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
 `matrix_type::fp32` .2+| `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
-`architecture::intel_gpu_pvc`
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |======================
 
 ==== Nvidia Tensor Cores Supported Combinations
