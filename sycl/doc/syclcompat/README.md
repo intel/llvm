@@ -1586,8 +1586,8 @@ If a `std::runtime_error` exception is caught,
 prints the error message to the standard error stream.
 
 `get_error_string_dummy` is a dummy function introduced to assist auto
-migration. It needs to be replaced with a real error-handling function. SYCL
-reports errors using exceptions and does not use error codes.
+migration. The SYCLomatic user should replace it with a real error-handling 
+function. SYCL reports errors using exceptions and does not use error codes.
 
 ``` c++
 namespace syclcompat {
