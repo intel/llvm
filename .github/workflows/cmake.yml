@@ -284,7 +284,7 @@ jobs:
     name: Build - MacOS
     strategy:
         matrix:
-          os: ['macos-12', 'macos-13']
+          os: ['macos-13']
     runs-on: ${{matrix.os}}
 
     steps:
