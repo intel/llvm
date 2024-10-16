@@ -325,7 +325,7 @@ inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
 
-bool SYCLJIT_Compilation_Available() {
+bool SYCL_JIT_Compilation_Available() {
 #if SYCL_EXT_JIT_ENABLE
   return sycl::detail::jit_compiler::get_instance().isAvailable();
 #else
@@ -333,7 +333,7 @@ bool SYCLJIT_Compilation_Available() {
 #endif
 }
 
-spirv_vec_t SYCLJIT_to_SPIRV(
+spirv_vec_t SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::string &SYCLSource,
     [[maybe_unused]] include_pairs_t IncludePairs,
     [[maybe_unused]] const std::vector<std::string> &UserArgs,

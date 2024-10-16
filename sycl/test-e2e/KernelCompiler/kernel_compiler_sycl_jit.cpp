@@ -1,4 +1,4 @@
-//==- kernel_compiler_sycljit.cpp --- kernel_compiler extension tests ------==//
+//==- kernel_compiler_sycl_jit.cpp --- kernel_compiler extension tests -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -79,9 +79,9 @@ void test_build_and_run() {
   sycl::context ctx = q.get_context();
 
   bool ok =
-      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycljit);
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
   if (!ok) {
-    std::cout << "Apparently this device does not support SYCLRTC source "
+    std::cout << "Apparently this device does not support `sycl_jit` source "
                  "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
@@ -92,7 +92,7 @@ void test_build_and_run() {
   syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
   incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
-      ctx, syclex::source_language::sycljit, SYCLSource,
+      ctx, syclex::source_language::sycl_jit, SYCLSource,
       syclex::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().

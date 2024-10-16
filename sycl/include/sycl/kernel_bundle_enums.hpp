@@ -23,8 +23,9 @@ namespace ext::oneapi::experimental {
 enum class source_language : int {
   opencl = 0,
   spirv = 1,
-  sycl = 2 /* cuda */,
-  sycljit = 99
+  sycl = 2,
+  /* cuda */
+  sycl_jit /* temporary, alternative implementation for SYCL */
 };
 
 // opencl versions

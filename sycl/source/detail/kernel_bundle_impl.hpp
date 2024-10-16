@@ -446,11 +446,11 @@ public:
                                              BuildOptions, LogPtr,
                                              RegisteredKernelNames);
       }
-      if (Language == syclex::source_language::sycljit) {
+      if (Language == syclex::source_language::sycl_jit) {
         const auto &SourceStr = std::get<std::string>(this->Source);
-        return syclex::detail::SYCLJIT_to_SPIRV(SourceStr, IncludePairs,
-                                                BuildOptions, LogPtr,
-                                                RegisteredKernelNames);
+        return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
+                                                 BuildOptions, LogPtr,
+                                                 RegisteredKernelNames);
       }
       throw sycl::exception(
           make_error_code(errc::invalid),

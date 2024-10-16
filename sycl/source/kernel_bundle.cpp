@@ -380,8 +380,8 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
       return true;
     } else if (Language == source_language::sycl) {
       return detail::SYCL_Compilation_Available();
-    } else if (Language == source_language::sycljit) {
-      return detail::SYCLJIT_Compilation_Available();
+    } else if (Language == source_language::sycl_jit) {
+      return detail::SYCL_JIT_Compilation_Available();
     }
   }
 
