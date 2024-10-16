@@ -24,6 +24,9 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 namespace cuda {
+namespace detail {
+using namespace sycl::detail;
+}
 
 template <typename T>
 inline __SYCL_ALWAYS_INLINE std::enable_if_t<
