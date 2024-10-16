@@ -45,7 +45,7 @@ public:
                            const std::vector<unsigned char> &SpecConstBlob);
 
   std::vector<uint8_t> compileSYCL(
-      const std::string &SYCLSource,
+      const std::string &Id, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
       const std::vector<std::string> &RegisteredKernelNames);

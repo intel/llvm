@@ -236,10 +236,10 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   return JITResult{FusedKernelInfo};
 }
 
-extern "C" JITResult compileSYCL(const char *SYCLSource,
-                                 View<IncludePair> IncludePairs,
+extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
+                                 View<InMemoryFile> IncludeFiles,
                                  View<const char *> UserArgs) {
-  auto ModuleOrErr = compileDeviceCode(SYCLSource, IncludePairs, UserArgs);
+  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
   if (!ModuleOrErr) {
     return errorToFusionResult(ModuleOrErr.takeError(),
                                "Device compilation failed");

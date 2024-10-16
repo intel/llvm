@@ -9,6 +9,29 @@
 #include "kernel_compiler_sycl.hpp"
 #include <sycl/exception.hpp> // make_error_code
 
+#include <iomanip>
+#include <random>
+#include <sstream>
+
+static std::string generateSemiUniqueId() {
+  auto Now = std::chrono::high_resolution_clock::now();
+  auto Milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      Now.time_since_epoch());
+
+  // Generate random number between 10'000 and 99'900.
+  std::random_device RD;
+  std::mt19937 Gen(RD());
+  std::uniform_int_distribution<int> Distrib(10'000, 99'999);
+  int RandomNumber = Distrib(Gen);
+
+  // Combine time and random number into a string.
+  std::stringstream Ss;
+  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
+     << RandomNumber;
+
+  return Ss.str();
+}
+
 #if __GNUC__ && __GNUC__ < 8
 
 // std::filesystem is not availalbe for GCC < 8
@@ -48,34 +71,13 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
 #include <ctime>
 #include <filesystem>
 #include <fstream>
-#include <random>
 #include <regex>
-#include <sstream>
 #include <stdio.h>
 
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
-
-std::string generateSemiUniqueId() {
-  auto Now = std::chrono::high_resolution_clock::now();
-  auto Milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
-      Now.time_since_epoch());
-
-  // Generate random number between 10'000 and 99'900.
-  std::random_device RD;
-  std::mt19937 Gen(RD());
-  std::uniform_int_distribution<int> Distrib(10'000, 99'999);
-  int RandomNumber = Distrib(Gen);
-
-  // Combine time and random number into a string.
-  std::stringstream Ss;
-  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
-     << RandomNumber;
-
-  return Ss.str();
-}
 
 std::filesystem::path prepareWS(const std::string &Id) {
   namespace fs = std::filesystem;
@@ -341,7 +343,8 @@ spirv_vec_t SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
 #if SYCL_EXT_JIT_ENABLE
   return sycl::detail::jit_compiler::get_instance().compileSYCL(
-      SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+      generateSemiUniqueId(), SYCLSource, IncludePairs, UserArgs, LogPtr,
+      RegisteredKernelNames);
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");

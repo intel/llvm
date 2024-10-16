@@ -349,7 +349,7 @@ struct SYCLKernelInfo {
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
-struct IncludePair {
+struct InMemoryFile {
   const char *Path;
   const char *Contents;
 };

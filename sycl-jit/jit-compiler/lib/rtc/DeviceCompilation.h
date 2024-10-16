@@ -23,7 +23,7 @@ class Module;
 namespace jit_compiler {
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
-compileDeviceCode(const char *SYCLSource, View<IncludePair> IncludePairs,
+compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   View<const char *> UserArgs);
 
 } // namespace jit_compiler

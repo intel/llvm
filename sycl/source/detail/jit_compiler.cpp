@@ -1155,7 +1155,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
 }
 
 std::vector<uint8_t> jit_compiler::compileSYCL(
-    const std::string &SYCLSource,
+    const std::string &Id, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
@@ -1164,12 +1164,16 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
   assert(RegisteredKernelNames.empty() &&
          "Instantiation of kernel templates NYI");
 
-  std::vector<::jit_compiler::IncludePair> IncludePairsView;
-  IncludePairsView.reserve(IncludePairs.size());
+  std::string SYCLFileName = Id + ".cpp";
+  ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
+                                          SYCLSource.c_str()};
+
+  std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
+  IncludeFilesView.reserve(IncludePairs.size());
   std::transform(IncludePairs.begin(), IncludePairs.end(),
-                 std::back_inserter(IncludePairsView), [](const auto &Pair) {
-                   return ::jit_compiler::IncludePair{Pair.first.c_str(),
-                                                      Pair.second.c_str()};
+                 std::back_inserter(IncludeFilesView), [](const auto &Pair) {
+                   return ::jit_compiler::InMemoryFile{Pair.first.c_str(),
+                                                       Pair.second.c_str()};
                  });
   std::vector<const char *> UserArgsView;
   UserArgsView.reserve(UserArgs.size());
@@ -1177,8 +1181,7 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
                  std::back_inserter(UserArgsView),
                  [](const auto &Arg) { return Arg.c_str(); });
 
-  auto Result =
-      CompileSYCLHandle(SYCLSource.c_str(), IncludePairsView, UserArgsView);
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
 
   if (Result.failed()) {
     throw sycl::exception(sycl::errc::build, Result.getErrorMessage());

@@ -110,8 +110,8 @@ struct GetLLVMModuleAction : public ToolAction {
 } // anonymous namespace
 
 llvm::Expected<std::unique_ptr<llvm::Module>>
-jit_compiler::compileDeviceCode(const char *SYCLSource,
-                                View<IncludePair> IncludePairs,
+jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
+                                View<InMemoryFile> IncludeFiles,
                                 View<const char *> UserArgs) {
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
@@ -123,15 +123,14 @@ jit_compiler::compileDeviceCode(const char *SYCLSource,
   //       implemented.
   CommandLine.push_back("-fno-sycl-instrument-device-code");
   CommandLine.append(UserArgs.begin(), UserArgs.end());
-  clang::tooling::FixedCompilationDatabase DB{"./", CommandLine};
+  clang::tooling::FixedCompilationDatabase DB{".", CommandLine};
 
-  constexpr auto SourcePath = "rtc.cpp";
-  clang::tooling::ClangTool Tool{DB, {SourcePath}};
+  clang::tooling::ClangTool Tool{DB, {SourceFile.Path}};
 
   // Set up in-memory filesystem.
-  Tool.mapVirtualFile(SourcePath, SYCLSource);
-  for (const auto &IP : IncludePairs) {
-    Tool.mapVirtualFile(IP.Path, IP.Contents);
+  Tool.mapVirtualFile(SourceFile.Path, SourceFile.Contents);
+  for (const auto &IF : IncludeFiles) {
+    Tool.mapVirtualFile(IF.Path, IF.Contents);
   }
 
   // Reset argument adjusters to drop the `-fsyntax-only` flag which is added by
