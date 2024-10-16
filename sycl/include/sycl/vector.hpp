@@ -119,6 +119,11 @@ struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
   operator T() const { return (*static_cast<const Vec *>(this))[0]; }
 };
 
+template <typename T>
+inline constexpr bool is_fundamental_or_half_or_bfloat16 =
+    std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
+    std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
+
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -288,10 +293,8 @@ public:
   // when NumElements == 1. The template prevents implicit conversion from
   // vec<_, 1> to DataT.
   template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<Ty> ||
-          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
-      vec &>
+  typename std::enable_if_t<detail::is_fundamental_or_half_or_bfloat16<Ty>,
+                            vec &>
   operator=(const DataT &Rhs) {
     *this = vec{Rhs};
     return *this;
@@ -626,16 +629,14 @@ class SwizzleOp {
       1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
 
   template <typename T>
-  using EnableIfScalarType = typename std::enable_if_t<
-      std::is_convertible_v<DataT, T> &&
-      (std::is_fundamental_v<T> ||
-       detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
+  using EnableIfScalarType =
+      typename std::enable_if_t<std::is_convertible_v<DataT, T> &&
+                                detail::is_fundamental_or_half_or_bfloat16<T>>;
 
   template <typename T>
-  using EnableIfNoScalarType = typename std::enable_if_t<
-      !std::is_convertible_v<DataT, T> ||
-      !(std::is_fundamental_v<T> ||
-        detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
+  using EnableIfNoScalarType =
+      typename std::enable_if_t<!std::is_convertible_v<DataT, T> ||
+                                !detail::is_fundamental_or_half_or_bfloat16<T>>;
 
   template <int... Indices>
   using Swizzle =
