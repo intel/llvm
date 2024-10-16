@@ -19,6 +19,7 @@
 #include <detail/queue_impl.hpp>
 #include <detail/spec_constant_impl.hpp>
 #include <detail/split_string.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
@@ -26,7 +27,6 @@
 #include <sycl/detail/kernel_properties.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 #include <sycl/exception.hpp>
@@ -816,9 +816,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
     uint32_t DeviceLibReqMask = 0;
-    if (!DeviceCodeWasInCache &&
-        Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
-        !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
+    bool UseDeviceLibs = !DeviceCodeWasInCache &&
+                         Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
+                         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get();
+    if (UseDeviceLibs)
       DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     std::vector<ur_program_handle_t> ProgramsToLink;
@@ -826,6 +827,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // program already.
     if (!DeviceCodeWasInCache) {
       for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
+        if (UseDeviceLibs)
+          DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
         device_image_plain DevImagePlain =
             getDeviceImageFromBinaryImage(BinImg, Context, Device);
         const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =

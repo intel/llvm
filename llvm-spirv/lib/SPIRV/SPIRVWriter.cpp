@@ -417,8 +417,8 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   // A pointer to image or pipe type in LLVM is translated to a SPIRV
   // (non-pointer) image or pipe type.
   if (T->isPointerTy()) {
-    auto *ET = Type::getInt8Ty(T->getContext());
     auto AddrSpc = T->getPointerAddressSpace();
+    auto *ET = Type::getInt8Ty(T->getContext());
     return transPointerType(ET, AddrSpc);
   }
 
@@ -453,24 +453,19 @@ SPIRVType *LLVMToSPIRVBase::transType(Type *T) {
   if (T->isArrayTy()) {
     // SPIR-V 1.3 s3.32.6: Length is the number of elements in the array.
     //                     It must be at least 1.
-    if (T->getArrayNumElements() < 1) {
-      std::string Str;
-      llvm::raw_string_ostream OS(Str);
-      OS << *T;
-      SPIRVCK(T->getArrayNumElements() >= 1, InvalidArraySize, OS.str());
-    }
+    const auto ArraySize =
+        T->getArrayNumElements() ? T->getArrayNumElements() : 1;
     Type *ElTy = T->getArrayElementType();
     SPIRVType *TransType = BM->addArrayType(
         transType(ElTy),
         static_cast<SPIRVConstant *>(transValue(
-            ConstantInt::get(getSizetType(), T->getArrayNumElements(), false),
-            nullptr)));
+            ConstantInt::get(getSizetType(), ArraySize, false), nullptr)));
     mapType(T, TransType);
     if (ElTy->isPointerTy()) {
       mapType(
           ArrayType::get(TypedPointerType::get(Type::getInt8Ty(*Ctx),
                                                ElTy->getPointerAddressSpace()),
-                         T->getArrayNumElements()),
+                         ArraySize),
           TransType);
     }
     return TransType;
@@ -720,7 +715,6 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
           transType(ET)));
     }
   } else {
-    SPIRVType *ElementType = transType(ET);
     // ET, as a recursive type, may contain exactly the same pointer T, so it
     // may happen that after translation of ET we already have translated T,
     // added the translated pointer to the SPIR-V module and mapped T to this
@@ -729,7 +723,17 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(Type *ET, unsigned AddrSpc) {
     if (Loc != PointeeTypeMap.end()) {
       return Loc->second;
     }
-    SPIRVType *TranslatedTy = transPointerType(ElementType, AddrSpc);
+
+    SPIRVType *ElementType = nullptr;
+    SPIRVType *TranslatedTy = nullptr;
+    if (ET->isPointerTy() &&
+        BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+      TranslatedTy = BM->addUntypedPointerKHRType(
+          SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+    } else {
+      ElementType = transType(ET);
+      TranslatedTy = transPointerType(ElementType, AddrSpc);
+    }
     PointeeTypeMap[TypeKey] = TranslatedTy;
     return TranslatedTy;
   }
@@ -744,8 +748,16 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
   if (Loc != PointeeTypeMap.end())
     return Loc->second;
 
-  SPIRVType *TranslatedTy = BM->addPointerType(
-      SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
+  SPIRVType *TranslatedTy = nullptr;
+  if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
+      !(ET->isTypeArray() || ET->isTypeVector() || ET->isTypeStruct() ||
+        ET->isTypeImage() || ET->isTypeSampler() || ET->isTypePipe())) {
+    TranslatedTy = BM->addUntypedPointerKHRType(
+        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
+  } else {
+    TranslatedTy = BM->addPointerType(
+        SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)), ET);
+  }
   PointeeTypeMap[TypeKey] = TranslatedTy;
   return TranslatedTy;
 }
@@ -1312,7 +1324,8 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
   if (Trans->getType() == ExpectedType || Trans->getType()->isTypePipeStorage())
     return Trans;
 
-  assert(C->getType()->isPointerTy() &&
+  assert((C->getType()->isPointerTy() ||
+          ExpectedType->isTypeUntypedPointerKHR()) &&
          "Only pointer type mismatches should be possible");
   // In the common case of strings ([N x i8] GVs), see if we can emit a GEP
   // instruction.
@@ -2050,8 +2063,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
           }
         }
       }
-      SPIRVType *TransTy = transType(Ty);
-      BVarInit = transConstantUse(Init, TransTy->getPointerElementType());
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+        BVarInit = transConstantUse(Init, transType(Init->getType()));
+      } else {
+        SPIRVType *TransTy = transType(Ty);
+        BVarInit = transConstantUse(Init, TransTy->getPointerElementType());
+      }
     }
 
     SPIRVStorageClassKind StorageClass;
@@ -2084,9 +2101,12 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
     }
 
     SPIRVType *TranslatedTy = transType(Ty);
-    auto *BVar = static_cast<SPIRVVariable *>(
-        BM->addVariable(TranslatedTy, GV->isConstant(), transLinkageType(GV),
-                        BVarInit, GV->getName().str(), StorageClass, nullptr));
+    auto *BVar = static_cast<SPIRVVariableBase *>(BM->addVariable(
+        TranslatedTy,
+        TranslatedTy->isTypeUntypedPointerKHR() ? transType(GV->getValueType())
+                                                : nullptr,
+        GV->isConstant(), transLinkageType(GV), BVarInit, GV->getName().str(),
+        StorageClass, nullptr));
 
     if (IsVectorCompute) {
       BVar->addDecorate(DecorationVectorComputeVariableINTEL);
@@ -2196,8 +2216,13 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                              MemoryAccessNoAliasINTELMaskMask);
     if (MemoryAccess.front() == 0)
       MemoryAccess.clear();
-    return mapValue(V, BM->addLoadInst(transValue(LD->getPointerOperand(), BB),
-                                       MemoryAccess, BB));
+    return mapValue(
+        V,
+        BM->addLoadInst(
+            transValue(LD->getPointerOperand(), BB), MemoryAccess, BB,
+            BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)
+                ? transType(LD->getType())
+                : nullptr));
   }
 
   if (BinaryOperator *B = dyn_cast<BinaryOperator>(V)) {
@@ -2270,8 +2295,9 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
             StorageClassFunction,
             BM->addArrayType(transType(Alc->getAllocatedType()), Length));
         SPIRVValue *Arr = BM->addVariable(
-            AllocationType, false, spv::internal::LinkageTypeInternal, nullptr,
-            Alc->getName().str() + "_alloca", StorageClassFunction, BB);
+            AllocationType, nullptr, false, spv::internal::LinkageTypeInternal,
+            nullptr, Alc->getName().str() + "_alloca", StorageClassFunction,
+            BB);
         // Manually set alignment. OpBitcast created below will be decorated as
         // that's the SPIR-V value mapped to the original LLVM one.
         transAlign(Alc, Arr);
@@ -2295,7 +2321,10 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
                                  TranslatedTy->getPointerElementType())
             : TranslatedTy;
     SPIRVValue *Var = BM->addVariable(
-        VarTy, false, spv::internal::LinkageTypeInternal, nullptr,
+        VarTy,
+        VarTy->isTypeUntypedPointerKHR() ? transType(Alc->getAllocatedType())
+                                         : nullptr,
+        false, spv::internal::LinkageTypeInternal, nullptr,
         Alc->getName().str(), StorageClassFunction, BB);
     if (V->getType()->getPointerAddressSpace() == SPIRAS_Generic) {
       SPIRVValue *Cast =
@@ -2407,14 +2436,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
 
   if (auto *Phi = dyn_cast<PHINode>(V)) {
     std::vector<SPIRVValue *> IncomingPairs;
+    SPIRVType *Ty = transScavengedType(Phi);
 
     for (size_t I = 0, E = Phi->getNumIncomingValues(); I != E; ++I) {
-      IncomingPairs.push_back(transValue(Phi->getIncomingValue(I), BB, true,
-                                         FuncTransMode::Pointer));
+      SPIRVValue *Val = transValue(Phi->getIncomingValue(I), BB, true,
+                                   FuncTransMode::Pointer);
+      if (Val->getType() != Ty)
+        Val = BM->addUnaryInst(OpBitcast, Ty, Val, BB);
+      IncomingPairs.push_back(Val);
       IncomingPairs.push_back(transValue(Phi->getIncomingBlock(I), nullptr));
     }
-    return mapValue(V,
-                    BM->addPhiInst(transScavengedType(Phi), IncomingPairs, BB));
+    return mapValue(V, BM->addPhiInst(Ty, IncomingPairs, BB));
   }
 
   if (auto *Ext = dyn_cast<ExtractValueInst>(V)) {
@@ -2737,7 +2769,7 @@ void checkIsGlobalVar(SPIRVEntry *E, Decoration Dec) {
   E->getErrorLog().checkError(E->isVariable(), SPIRVEC_InvalidModule, ErrStr);
 
   auto AddrSpace = SPIRSPIRVAddrSpaceMap::rmap(
-      static_cast<SPIRVVariable *>(E)->getStorageClass());
+      static_cast<SPIRVVariableBase *>(E)->getStorageClass());
   ErrStr += " in a global (module) scope";
   E->getErrorLog().checkError(AddrSpace == SPIRAS_Global, SPIRVEC_InvalidModule,
                               ErrStr);
@@ -2885,10 +2917,11 @@ static void transMetadataDecorations(Metadata *MD, SPIRVValue *Target) {
     case spv::internal::DecorationInitModeINTEL:
     case DecorationInitModeINTEL: {
       checkIsGlobalVar(Target, DecoKind);
-      ErrLog.checkError(static_cast<SPIRVVariable *>(Target)->getInitializer(),
-                        SPIRVEC_InvalidLlvmModule,
-                        "InitModeINTEL only be applied to a global (module "
-                        "scope) variable which has an Initializer operand");
+      ErrLog.checkError(
+          static_cast<SPIRVVariableBase *>(Target)->getInitializer(),
+          SPIRVEC_InvalidLlvmModule,
+          "InitModeINTEL only be applied to a global (module "
+          "scope) variable which has an Initializer operand");
 
       ErrLog.checkError(NumOperands == 2, SPIRVEC_InvalidLlvmModule,
                         "InitModeINTEL requires exactly 1 extra operand");
@@ -4130,14 +4163,18 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
     SPIRVType *FTy = transType(II->getType()->getStructElementType(0));
     SPIRVTypePointer *ITy = static_cast<SPIRVTypePointer *>(transPointerType(
         II->getType()->getStructElementType(1), SPIRAS_Private));
-
-    unsigned BitWidth = ITy->getElementType()->getBitWidth();
-    BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
-                                 std::to_string(BitWidth));
-
+    if (!ITy->isTypeUntypedPointerKHR()) {
+      unsigned BitWidth = ITy->getElementType()->getBitWidth();
+      BM->getErrorLog().checkError(BitWidth == 32, SPIRVEC_InvalidBitWidth,
+                                   std::to_string(BitWidth));
+    }
     SPIRVValue *IntVal =
-        BM->addVariable(ITy, false, spv::internal::LinkageTypeInternal, nullptr,
-                        "", ITy->getStorageClass(), BB);
+        BM->addVariable(ITy,
+                        ITy->isTypeUntypedPointerKHR()
+                            ? transType(II->getType()->getStructElementType(1))
+                            : nullptr,
+                        false, spv::internal::LinkageTypeInternal, nullptr, "",
+                        ITy->getStorageClass(), BB);
 
     std::vector<SPIRVValue *> Ops{transValue(II->getArgOperand(0), BB), IntVal};
 
@@ -4559,7 +4596,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       Init = BM->addCompositeConstant(CompositeTy, Elts);
     }
     SPIRVType *VarTy = transPointerType(AT, SPIRV::SPIRAS_Constant);
-    SPIRVValue *Var = BM->addVariable(VarTy, /*isConstant*/ true,
+    SPIRVValue *Var = BM->addVariable(VarTy, nullptr, /*isConstant*/ true,
                                       spv::internal::LinkageTypeInternal, Init,
                                       "", StorageClassUniformConstant, nullptr);
     SPIRVType *SourceTy =
@@ -6671,9 +6708,12 @@ LLVMToSPIRVBase::transBuiltinToInstWithoutDecoration(Op OC, CallInst *CI,
           assert((Pointee == Args[I] || !isa<Function>(Pointee)) &&
                  "Illegal use of a function pointer type");
         }
-        SPArgs.push_back(SPI->isOperandLiteral(I)
-                             ? cast<ConstantInt>(Args[I])->getZExtValue()
-                             : transValue(Args[I], BB)->getId());
+        if (!SPI->isOperandLiteral(I)) {
+          SPIRVValue *Val = transValue(Args[I], BB);
+          SPArgs.push_back(Val->getId());
+        } else {
+          SPArgs.push_back(cast<ConstantInt>(Args[I])->getZExtValue());
+        }
       }
       BM->addInstTemplate(SPI, SPArgs, BB, SPRetTy);
       if (!SPRetTy || !SPRetTy->isTypeStruct())
