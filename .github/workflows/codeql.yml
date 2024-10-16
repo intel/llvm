@@ -27,6 +27,7 @@ jobs:
       uses: github/codeql-action/init@f079b8493333aace61c81488f8bd40919487bd9f # v3.25.7
       with:
         languages: cpp, python
+        config-file: ./.github/codeql/codeql-config.yml
 
     - name: Install pip packages
       run: pip install -r third_party/requirements.txt
