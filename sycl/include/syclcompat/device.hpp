@@ -959,4 +959,10 @@ static inline unsigned int get_device_id(const sycl::device &dev) {
 static inline unsigned int device_count() {
   return detail::dev_mgr::instance().device_count();
 }
+
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props) {
+  get_device(get_device_id(dev)).has_capability_or_fail(props);
+}
 } // namespace syclcompat
