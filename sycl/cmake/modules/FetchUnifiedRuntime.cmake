@@ -116,14 +116,16 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 80fdb0261d4a3623b05d1795f2f59ace9f718d76
-  # Merge: 568a96aa 77b6c4c7
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 16 13:53:51 2024 +0100
-  #     Merge pull request #2206 from oneapi-src/revert-2138-counter-based-3
-  #     Revert "[L0] Phase 2 of Counter-Based Event Implementation"
-  set(UNIFIED_RUNTIME_TAG 80fdb0261d4a3623b05d1795f2f59ace9f718d76)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
+  # commit 623e885868188f61c0ef099eba8f7a87a530591e
+  # Author: Ross Brunton <ross@codeplay.com>
+  # Date:   Tue Oct 8 16:56:58 2024 +0100
+  #     Enable Wextra on Linux
+  #
+  #     Also fixed some warnings:
+  #     * A small fallthrough bug fix for level zero v2
+  #     * Unset initializers in command buffer tests
+  set(UNIFIED_RUNTIME_TAG 623e885868188f61c0ef099eba8f7a87a530591e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
