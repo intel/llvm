@@ -51,7 +51,7 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: unstable
             build_args: "use_latest=true"
-          - name: All Dependencies Docker image
+          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
             file: ubuntu2204_intel_drivers
             tag: alldeps
             build_args: |
