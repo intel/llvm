@@ -115,7 +115,8 @@ enum sycl_device_binary_type : uint8_t {
   SYCL_DEVICE_BINARY_TYPE_NONE = 0,   // undetermined
   SYCL_DEVICE_BINARY_TYPE_NATIVE = 1, // specific to a device
   SYCL_DEVICE_BINARY_TYPE_SPIRV = 2,
-  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3
+  SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE = 3,
+  SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE = 4
 };
 
 // Device binary descriptor version supported by this library.

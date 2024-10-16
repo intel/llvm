@@ -69,6 +69,13 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  if (NOT LLVM_ENABLE_ZSTD)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
+  else()
+    target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
+  endif()
+
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 
   # ur_win_proxy_loader
