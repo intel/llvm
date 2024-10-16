@@ -859,8 +859,8 @@ pow(const ValueT a, const ValueU b) {
 template <typename ValueT> inline ValueT relu(const ValueT a) {
   if constexpr (syclcompat::is_floating_point_v<ValueT> ||
                 std::is_same_v<sycl::half, ValueT>)
-    if (!detail::isnan(a) && a < ValueT(0))
-      return ValueT(0);
+    if (detail::isnan(a))
+      return a;
   if (a < ValueT(0))
     return ValueT(0);
   return a;
@@ -1104,13 +1104,15 @@ inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
 /// \param [in] a The first value
 /// \param [in] b The second value
 /// \param [in] binary_op The operation with pred to do with the two values
-/// \param [in] pred_hi The pred pointer that pass into high halfword operation
-/// \param [in] pred_lo The pred pointer that pass into low halfword operation
+/// \param [out] pred_hi The pred pointer that pass into high halfword operation
+/// \param [out] pred_lo The pred pointer that pass into low halfword operation
 /// \returns The vectorized binary operation value of the two values
 template <typename ValueT, typename BinaryOperation>
 inline unsigned vectorized_with_pred(unsigned a, unsigned b,
                                      const BinaryOperation binary_op,
                                      bool *pred_hi, bool *pred_lo) {
+  static_assert(std::is_same_v<BinaryOperation, maximum> ||
+                std::is_same_v<BinaryOperation, minimum>);
   auto v1 = sycl::vec<unsigned, 1>(a).as<sycl::vec<ValueT, 2>>();
   auto v2 = sycl::vec<unsigned, 1>(b).as<sycl::vec<ValueT, 2>>();
   sycl::vec<ValueT, 2> ret;
