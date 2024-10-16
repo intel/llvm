@@ -3787,6 +3787,11 @@ void MicrosoftCXXNameMangler::mangleType(const DependentBitIntType *T,
   Error(Range.getBegin(), "DependentBitInt type") << Range;
 }
 
+void MicrosoftCXXNameMangler::mangleType(const HLSLAttributedResourceType *T,
+                                         Qualifiers, SourceRange Range) {
+  llvm_unreachable("HLSL uses Itanium name mangling");
+}
+
 // <this-adjustment> ::= <no-adjustment> | <static-adjustment> |
 //                       <virtual-adjustment>
 // <no-adjustment>      ::= A # private near

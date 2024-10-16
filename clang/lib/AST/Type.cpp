@@ -4581,6 +4581,8 @@ static CachedProperties computeCachedProperties(const Type *T) {
     return Cache::get(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return Cache::get(cast<PipeType>(T)->getElementType());
+  case Type::HLSLAttributedResource:
+    return Cache::get(cast<HLSLAttributedResourceType>(T)->getWrappedType());
   }
 
   llvm_unreachable("unhandled type class");
@@ -4670,6 +4672,8 @@ LinkageInfo LinkageComputer::computeTypeLinkageInfo(const Type *T) {
     return computeTypeLinkageInfo(cast<AtomicType>(T)->getValueType());
   case Type::Pipe:
     return computeTypeLinkageInfo(cast<PipeType>(T)->getElementType());
+  case Type::HLSLAttributedResource:
+    llvm_unreachable("not yet implemented");
   }
 
   llvm_unreachable("unhandled type class");
@@ -4857,6 +4861,7 @@ bool Type::canHaveNullability(bool ResultIfUnknown) const {
   case Type::BitInt:
   case Type::DependentBitInt:
   case Type::ArrayParameter:
+  case Type::HLSLAttributedResource:
     return false;
   }
   llvm_unreachable("bad type kind!");
