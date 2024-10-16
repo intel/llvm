@@ -1871,16 +1871,7 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
-  template <typename DataT, typename PropertyListT =
-                                ext::oneapi::experimental::empty_properties_t>
-  void set_arg(
-      int ArgIndex,
-      detail::work_group_memory_impl &Arg) {
-    MWorkGroupMemoryObjects.push_back(
-        std::make_shared<detail::work_group_memory_impl>(Arg));
-    addArg(detail::kernel_param_kind_t::kind_work_group_memory,
-           MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
-  }
+  void set_arg(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // set_arg for graph dynamic_parameters
   template <typename T>
@@ -3246,7 +3237,6 @@ private:
   
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
-  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
   detail::string MKernelName;
   /// Storage for a sycl::kernel object.
   std::shared_ptr<detail::kernel_impl> MKernel;

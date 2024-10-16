@@ -34,7 +34,6 @@
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
-#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/memcpy2d.hpp>
 
 namespace sycl {
@@ -817,6 +816,13 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
                     "Invalid kernel param kind");
     break;
   }
+}
+
+void handler::set_arg(int ArgIndex, detail::work_group_memory_impl &Arg) {
+  impl->MWorkGroupMemoryObjects.push_back(
+      std::make_shared<detail::work_group_memory_impl>(Arg));
+  addArg(detail::kernel_param_kind_t::kind_work_group_memory,
+         impl->MWorkGroupMemoryObjects.back().get(), 0, ArgIndex);
 }
 
 // The argument can take up more space to store additional information about
