@@ -117,13 +117,11 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 22ef899035a85b70b5472416ad6db8021effb5c1
-  # Merge: 4814e505 f5979a68
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Oct 14 10:03:13 2024 +0100
-  #     Merge pull request #1469 from RossBrunton/ross/specconst
-  #     [Spec Constants] Improved handling of invalid spec. constants
-  set(UNIFIED_RUNTIME_TAG 22ef899035a85b70b5472416ad6db8021effb5c1)
+  # commit 568a96aabc6edabe8514ae163aecc64cd5a41878
+  # Author: Mateusz P. Nowak <112635238+mateuszpn@users.noreply.github.com>
+  # Date:   Tue Oct 15 13:57:26 2024 +0200
+  #     Benchmark updates for faster run and more reliable results (#2164)
+  set(UNIFIED_RUNTIME_TAG 568a96aabc6edabe8514ae163aecc64cd5a41878)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
