@@ -613,47 +613,7 @@ Use 64 bits as memory_bus_width default value."
   /// sycl::aspect.
   void has_capability_or_fail(
       const std::initializer_list<sycl::aspect> &props) const {
-    for (const auto &it : props) {
-      if (has(it))
-        continue;
-      switch (it) {
-      case sycl::aspect::fp64:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'double' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      case sycl::aspect::fp16:
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] 'half' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-        break;
-      default:
-#define __SYCL_ASPECT(ASPECT, ID)                                              \
-  case sycl::aspect::ASPECT:                                                   \
-    return #ASPECT;
-#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
-#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
-        auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
-          switch (AspectNum) {
-#include <sycl/info/aspects.def>
-#include <sycl/info/aspects_deprecated.def>
-          default:
-            return "unknown aspect";
-          }
-        };
-#undef __SYCL_ASPECT_DEPRECATED_ALIAS
-#undef __SYCL_ASPECT_DEPRECATED
-#undef __SYCL_ASPECT
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "[SYCLcompat] '" + getAspectNameStr(it) +
-                                  "' is not supported in '" +
-                                  get_info<sycl::info::device::name>() +
-                                  "' device");
-      }
-      break;
-    }
+    ::syclcompat::has_capability_or_fail(*this, props);
   }
 
 private:
@@ -963,6 +923,45 @@ static inline unsigned int device_count() {
 static inline void
 has_capability_or_fail(const sycl::device &dev,
                        const std::initializer_list<sycl::aspect> &props) {
-  get_device(get_device_id(dev)).has_capability_or_fail(props);
+  for (const auto &it : props) {
+    if (dev.has(it))
+      continue;
+    switch (it) {
+    case sycl::aspect::fp64:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'double' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    case sycl::aspect::fp16:
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "[SYCLcompat] 'half' is not supported in '" +
+                                dev.get_info<sycl::info::device::name>() +
+                                "' device");
+      break;
+    default:
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case sycl::aspect::ASPECT:                                                   \
+    return #ASPECT;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE) __SYCL_ASPECT(ASPECT, ID)
+#define __SYCL_ASPECT_DEPRECATED_ALIAS(ASPECT, ID, MESSAGE)
+      auto getAspectNameStr = [](sycl::aspect AspectNum) -> std::string {
+        switch (AspectNum) {
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+        default:
+          return "unknown aspect";
+        }
+      };
+#undef __SYCL_ASPECT_DEPRECATED_ALIAS
+#undef __SYCL_ASPECT_DEPRECATED
+#undef __SYCL_ASPECT
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::runtime),
+          "[SYCLcompat] '" + getAspectNameStr(it) + "' is not supported in '" +
+              dev.get_info<sycl::info::device::name>() + "' device");
+    }
+    break;
+  }
 }
 } // namespace syclcompat
