@@ -24,14 +24,6 @@ kernel_impl::kernel_impl(ur_kernel_handle_t Kernel, ContextImplPtr Context,
                                                                       Context)),
       MCreatedFromSource(true), MKernelBundleImpl(std::move(KernelBundleImpl)),
       MIsInterop(true), MKernelArgMaskPtr{ArgMask} {
-  ur_context_handle_t UrContext = nullptr;
-  // Using the adapter from the passed ContextImpl
-  getAdapter()->call<UrApiKind::urKernelGetInfo>(
-      MKernel, UR_KERNEL_INFO_CONTEXT, sizeof(UrContext), &UrContext, nullptr);
-  if (Context->getHandleRef() != UrContext)
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Input context must be the same as the context of cl_kernel");
 
   // Enable USM indirect access for interoperability kernels.
   // Some UR Adapters (like OpenCL) require this call to enable USM

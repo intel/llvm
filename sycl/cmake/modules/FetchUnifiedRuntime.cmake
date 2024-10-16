@@ -124,7 +124,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   #     Merge pull request #2038 from GeorgeWeb/georgi/unsupported-max-coop-wgsize
   #     [UR][hip][opencl] Mark urKernelSuggestMaxCooperativeGroupCountExp as unsupported
   #     instead of returning misleading default value
-  set(UNIFIED_RUNTIME_TAG 50121a6f41b9ba4632cc9a9068e34a7c7b31f9e0)
+  set(UNIFIED_RUNTIME_TAG 7252088d76a910357dd3e00cb57e7a67fd3299bd)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

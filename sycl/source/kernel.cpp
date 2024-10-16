@@ -22,16 +22,17 @@ kernel::kernel(cl_kernel ClKernel, const context &SyclContext) {
   ur_kernel_handle_t hKernel = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClKernel);
-  Adapter->call<detail::UrApiKind::urKernelCreateWithNativeHandle>(
-      nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
-      nullptr, nullptr, &hKernel);
+  ur_result_t Res =
+      Adapter->call_nocheck<detail::UrApiKind::urKernelCreateWithNativeHandle>(
+          nativeHandle, detail::getSyclObjImpl(SyclContext)->getHandleRef(),
+          nullptr, nullptr, &hKernel);
+  if (Res == UR_RESULT_ERROR_INVALID_CONTEXT) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Input context must be the same as the context of cl_kernel");
+  }
   impl = std::make_shared<detail::kernel_impl>(
       hKernel, detail::getSyclObjImpl(SyclContext), nullptr, nullptr);
-  // This is a special interop constructor for OpenCL, so the kernel must be
-  // retained.
-  if (get_backend() == backend::opencl) {
-    impl->getAdapter()->call<detail::UrApiKind::urKernelRetain>(hKernel);
-  }
 }
 
 cl_kernel kernel::get() const { return impl->get(); }
