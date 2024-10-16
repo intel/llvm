@@ -1108,6 +1108,10 @@ __urdlllocal ur_result_t UR_APICALL urMemImageCreate(
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
+        if (pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype) {
+            return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
+        }
+
         if (pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type) {
             return UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR;
         }
@@ -1507,7 +1511,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_MEM_INFO_CONTEXT < propName) {
+        if (UR_MEM_INFO_REFERENCE_COUNT < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 

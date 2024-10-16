@@ -154,6 +154,7 @@ urGetMemProcAddrTable(ur_api_version_t Version, ur_mem_dditable_t *pDdiTable) {
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
   pDdiTable->pfnBufferCreateWithNativeHandle =
       urMemBufferCreateWithNativeHandle;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
   pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
   pDdiTable->pfnImageCreate = urMemImageCreate;

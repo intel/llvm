@@ -205,6 +205,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &image_format, &image_desc, nullptr,
+                                        &image));
     }
 
     void TearDown() override {
@@ -215,7 +218,7 @@ struct urMemImageTest : urContextTest {
     }
 
     ur_image_format_t image_format = {
-        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
+        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_RGBA,
         /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
     };
     ur_image_desc_t image_desc = {
@@ -226,8 +229,8 @@ struct urMemImageTest : urContextTest {
         /*.height =*/16,
         /*.depth =*/1,
         /*.arraySize =*/1,
-        /*.rowPitch =*/16 * sizeof(char[4]),
-        /*.slicePitch =*/16 * 16 * sizeof(char[4]),
+        /*.rowPitch =*/0,
+        /*.slicePitch =*/0,
         /*.numMipLevel =*/0,
         /*.numSamples =*/0,
     };
