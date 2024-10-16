@@ -153,9 +153,11 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
   // passes)
   constant->removeDeadConstantUsers();
 
-  // Only handle constants which are ConstantExpr or ConstantVector
+  // Only handle constants which are ConstantExpr, ConstantVector or
+  // ConstantArray
   assert((llvm::isa<llvm::ConstantExpr>(constant) ||
-          llvm::isa<llvm::ConstantVector>(constant)) &&
+          llvm::isa<llvm::ConstantVector>(constant) ||
+          llvm::isa<llvm::ConstantArray>(constant)) &&
          "Unsupported constant type in IR");
 
   // For each user of a constant we will check to see if they in turn are
@@ -229,6 +231,22 @@ void replaceConstantExpressionWithInstruction(llvm::Constant *const constant) {
           llvm::FixedVectorType::get(i32Ty, numEls));
       newInst = new llvm::ShuffleVectorInst(insert, undef, zeros);
       newInst->insertAfter(insert);
+    } else if (llvm::ConstantArray *constantArr =
+                   llvm::dyn_cast<llvm::ConstantArray>(constant)) {
+      auto numEls = constantArr->getNumOperands();
+      llvm::Value *undef = llvm::UndefValue::get(constantArr->getType());
+      llvm::Instruction *insertedIns = nullptr;
+      for (unsigned int i = 0; i < numEls; i++) {
+        auto *insertNext = llvm::InsertValueInst::Create(
+            insertedIns ? insertedIns : undef, constantArr->getOperand(i), {i});
+        if (insertedIns) {
+          insertNext->insertAfter(insertedIns);
+        } else {
+          insertNext->insertBefore(useFunc->getEntryBlock().getFirstNonPHI());
+        }
+        insertedIns = insertNext;
+      }
+      newInst = insertedIns;
     }
 
     // replace the use of the constant with the instruction
