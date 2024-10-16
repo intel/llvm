@@ -11,6 +11,7 @@
 #pragma once
 
 #include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/group_barrier.hpp>
 #include <sycl/sycl_span.hpp>
 
 #include <cstring>
@@ -155,7 +156,7 @@ struct BlockTypeInfo<BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>> {
   using BlockInfoTy = BlockInfo<IteratorT, ElementsPerWorkItem, Blocked>;
   static_assert(BlockInfoTy::has_builtin);
 
-  using block_type = detail::cl_unsigned<BlockInfoTy::block_size>;
+  using block_type = detail::fixed_width_unsigned<BlockInfoTy::block_size>;
 
   using block_pointer_elem_type = std::conditional_t<
       std::is_const_v<std::remove_reference_t<
@@ -216,11 +217,10 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
     if constexpr (AS == access::address_space::global_space) {
       return is_aligned ? reinterpret_cast<block_pointer_type>(iter) : nullptr;
     } else if constexpr (AS == access::address_space::generic_space) {
-      return is_aligned
-                 ? reinterpret_cast<block_pointer_type>(
-                       __SYCL_GenericCastToPtrExplicit_ToGlobal<value_type>(
-                           iter))
-                 : nullptr;
+      return is_aligned ? reinterpret_cast<block_pointer_type>(
+                              detail::dynamic_address_cast<
+                                  access::address_space::global_space>(iter))
+                        : nullptr;
     } else {
       return nullptr;
     }
@@ -391,12 +391,12 @@ group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
 #else
 template <typename... Args> void group_load(Args...) {
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      sycl::errc::feature_not_supported,
       "Group loads/stores are not supported on host.");
 }
 template <typename... Args> void group_store(Args...) {
   throw sycl::exception(
-      std::error_code(PI_ERROR_INVALID_DEVICE, sycl::sycl_category()),
+      sycl::errc::feature_not_supported,
       "Group loads/stores are not supported on host.");
 }
 #endif

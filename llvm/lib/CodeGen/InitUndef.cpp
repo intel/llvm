@@ -198,7 +198,7 @@ bool InitUndef::fixupIllOperand(MachineInstr *MI, MachineOperand &MO) {
 
   LLVM_DEBUG(
       dbgs() << "Emitting PseudoInitUndef Instruction for implicit register "
-             << MO.getReg() << '\n');
+             << printReg(MO.getReg()) << '\n');
 
   const TargetRegisterClass *TargetRegClass =
       TRI->getLargestSuperClass(MRI->getRegClass(MO.getReg()));
@@ -238,7 +238,7 @@ bool InitUndef::processBasicBlock(MachineFunction &MF, MachineBasicBlock &MBB,
     }
 
     if (isEarlyClobberMI(MI)) {
-      if (ST->enableSubRegLiveness())
+      if (MRI->subRegLivenessEnabled())
         Changed |= handleSubReg(MF, MI, DLD);
       Changed |= handleReg(&MI);
     }

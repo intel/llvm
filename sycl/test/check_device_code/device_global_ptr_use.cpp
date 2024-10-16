@@ -10,11 +10,7 @@ using namespace sycl::ext::oneapi::experimental;
 
 const device_global<int> DeviceGlobalVar;
 
-int main() {
-  queue Q;
-  Q.single_task([]() {
-    // CHECK: load {{.*}} @_ZL15DeviceGlobalVar
-    volatile int ReadVal = DeviceGlobalVar;
-  });
-  return 0;
+SYCL_EXTERNAL void global_ptr_use() {
+  // CHECK: load {{.*}} @_ZL15DeviceGlobalVar
+  volatile int ReadVal = DeviceGlobalVar;
 }

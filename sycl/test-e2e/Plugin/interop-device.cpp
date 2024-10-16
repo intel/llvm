@@ -9,7 +9,8 @@
 // doesn't create a "new" SYCL device that isn't equally comparable to one of
 // the root devices in the pre-existin fixed hierarchy.
 
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
 
 int main() {
   auto root_devices = sycl::device::get_devices();

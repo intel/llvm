@@ -45,23 +45,12 @@ using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
 template <typename PropertyListT>
 using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
 
-// Get the value of a property from a property list
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename PropertyListT>
-struct GetPropertyValueFromPropList {};
-
 template <typename PropKey, typename ConstType, typename DefaultPropVal,
           typename... Props>
 struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    detail::properties_t<Props...>> {
-  using prop_val_t = std::conditional_t<
-      detail::ContainsProperty<PropKey, std::tuple<Props...>>::value,
-      typename detail::FindCompileTimePropertyValueType<
-          PropKey, std::tuple<Props...>>::type,
-      DefaultPropVal>;
-  static constexpr ConstType value =
-      detail::PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
+                                    detail::properties_t<Props...>>
+    : GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                   std::tuple<Props...>> {};
 
 // Get the value of alignment from a property list
 // If alignment is not present in the property list, set to default value 0
@@ -94,8 +83,7 @@ template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
 template <typename T, typename propertyList>
 struct ValidAllocPropertyList : std::false_type {};
 template <typename T>
-struct ValidAllocPropertyList<T, detail::empty_properties_t> : std::true_type {
-};
+struct ValidAllocPropertyList<T, empty_properties_t> : std::true_type {};
 template <typename T, typename Prop, typename... Props>
 struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
     : std::integral_constant<
@@ -117,24 +105,22 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
 // annotated_ptr
 template <typename PropertyListT> struct GetCompileTimeProperties {};
 
-template <> struct GetCompileTimeProperties<detail::empty_properties_t> {
-  using type = detail::empty_properties_t;
+template <> struct GetCompileTimeProperties<empty_properties_t> {
+  using type = empty_properties_t;
 };
 
 template <typename Prop>
 struct GetCompileTimeProperties<detail::properties_t<Prop>> {
   using type =
       std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>,
-                         detail::empty_properties_t>;
+                         detail::properties_t<Prop>, empty_properties_t>;
 };
 
 template <typename Prop, typename... Props>
 struct GetCompileTimeProperties<detail::properties_t<Prop, Props...>> {
   using filtered_this_property_t =
       std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>,
-                         detail::empty_properties_t>;
+                         detail::properties_t<Prop>, empty_properties_t>;
   using filtered_other_properties_t =
       typename GetCompileTimeProperties<detail::properties_t<Props...>>::type;
   using type = detail::merged_properties_t<filtered_this_property_t,

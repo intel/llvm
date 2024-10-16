@@ -38,7 +38,6 @@
   - [Other restrictions](#other-restrictions)
 
 ## Other content:
-* [ESIMD API/doxygen reference](https://intel.github.io/llvm-docs/doxygen/group__sycl__esimd.html)
 * [Examples](./examples/README.md)
 * [ESIMD LIT tests - working code examples](https://github.com/intel/llvm/blob/sycl/sycl/test-e2e/ESIMD/)
 
@@ -162,7 +161,6 @@ The element type must either be a vectorizable type or the `sycl::half` type.
 The set of vectorizable types is the
 set of fundamental SYCL arithmetic types excluding `bool`. The length of the
 vector is the second template parameter.
-See the complete [API reference](https://intel.github.io/llvm-docs/doxygen/classcl_1_1____ESIMD__NS_1_1simd.html#details) for the `simd` class for more details.
 
 ESIMD compiler back-end does the best it can to map each `simd` class object to a
 contiguous block of registers in the general register file (GRF).
@@ -350,8 +348,6 @@ reduction operations are supported:
 - multiply
 - maximum
 - minimum
-
-See more details on the API documentation [page TODO](https://intel.github.io/llvm-docs/doxygen).
 
 ### Memory access APIs
 
@@ -598,9 +594,6 @@ Many memory access APIs accept offsets as arguments, which are used to determine
 actual memory location for the access. Offsets are always expressed in bytes
 rather than element units.
 
-See more details in the API documentation
-[page TODO](https://intel.github.io/llvm-docs/doxygen).
-
 ### Math operations
 
 #### Extended math
@@ -644,19 +637,10 @@ The following usual math functions are supported for all element types:
 #### Other non-standard math functions
 
 ESIMD supports the following non-standard math functions implemented in hardware:
-- Dot product (various flavors) - `dp2`, `dp3`, `dp4`, `dph`, `dp4a`
-  (with accumulator).
-- Linear equation - `line`. Solves a component-wise line equation
-  `v = p * u + q` (where `u`, `v` are vectors and `p`, `q` are scalars)
 - Fraction - `frc`,  extracts the fractional parts of the input vector elements.
 - Count leading zeroes - `lzd`.
-- Linear interpolation - `lrp`. Basically computes `src1 * src0 + src2 * (1.0f - src0)`
 - Plane equation - `plane`. Solves a component-wise plane equation
   `w = p*u + q*v + r` where `u`, `v`, `w` are vectors and `p`, `q`, `r` are scalars.
-
-
-See more details in the API documentation
-[page TODO](https://intel.github.io/llvm-docs/doxygen).
 
 ### Dot Product Accumulate Systolic - `DPAS` API
 
@@ -874,9 +858,6 @@ There are other useful miscellaneous APIs provided by ESIMD.
 - Count bits - `cbit`.
 - Find least significant set bit - `fbl`.
 - Find most significant set bit - `fbh`.
-
-See more details in the API documentation
-[page TODO](https://intel.github.io/llvm-docs/doxygen).
 
 <br>
 

@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// UNSUPPORTED: gpu-intel-pvc
+// UNSUPPORTED: arch-intel_gpu_pvc
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
@@ -13,13 +13,8 @@
 
 #include "../esimd_test_utils.hpp"
 
-#include <algorithm>
 #include <array>
-#include <iostream>
 #include <sycl/builtins_esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <sycl/ext/intel/esimd.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel;

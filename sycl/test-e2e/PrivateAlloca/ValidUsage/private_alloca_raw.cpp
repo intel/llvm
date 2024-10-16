@@ -57,7 +57,10 @@ private:
 };
 
 int main() {
-  test<value_and_sign, size, sycl::access::decorated::no>();
+  std::size_t n = 0;
+  std::cin >> n;
+
+  test<value_and_sign, size, sycl::access::decorated::no>(n);
   test<value_and_sign, size, sycl::access::decorated::no,
-       alignof(value_and_sign) * 2>();
+       alignof(value_and_sign) * 2>(n);
 }

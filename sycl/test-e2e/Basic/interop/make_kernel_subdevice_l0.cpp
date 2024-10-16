@@ -1,12 +1,12 @@
 // REQUIRES: level_zero, opencl, level_zero_dev_kit
 // RUN: %{build} %level_zero_options -lOpenCL -o %t.ze.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="level_zero:*" %t.ze.out
 
 #include <cstdlib>
 #include <iostream>
 #include <level_zero/ze_api.h>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
-#include <sycl/sycl.hpp>
 
 using namespace sycl;
 

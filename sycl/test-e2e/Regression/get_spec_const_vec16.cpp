@@ -5,8 +5,8 @@
 // of sycl::vec<char, 16> type is correct.
 
 #include <sycl/detail/core.hpp>
-
 #include <sycl/specialization_id.hpp>
+#include <sycl/types.hpp>
 
 #include <algorithm>
 

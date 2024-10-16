@@ -271,6 +271,7 @@ typedef SPIRVMap<SPIRVExtInstSetKind, std::string, SPIRVExtSetShortName>
 
 #define SPIRV_MD_PARAMETER_DECORATIONS "spirv.ParameterDecorations"
 #define SPIRV_MD_DECORATIONS "spirv.Decorations"
+#define SPIRV_MD_INTEL_CACHE_DECORATIONS "spirv.DecorationCacheControlINTEL"
 
 #define OCL_TYPE_NAME_SAMPLER_T "sampler_t"
 #define SPIR_TYPE_NAME_EVENT_T "opencl.event_t"
@@ -364,6 +365,10 @@ const static char TranslateOCLMemScope[] = "__translate_ocl_memory_scope";
 const static char TranslateSPIRVMemOrder[] = "__translate_spirv_memory_order";
 const static char TranslateSPIRVMemScope[] = "__translate_spirv_memory_scope";
 const static char TranslateSPIRVMemFence[] = "__translate_spirv_memory_fence";
+const static char ConvertHandleToImageINTEL[] = "ConvertHandleToImageINTEL";
+const static char ConvertHandleToSamplerINTEL[] = "ConvertHandleToSamplerINTEL";
+const static char ConvertHandleToSampledImageINTEL[] =
+    "ConvertHandleToSampledImageINTEL";
 } // namespace kSPIRVName
 
 namespace kSPIRVPostfix {
@@ -397,6 +402,7 @@ namespace kSPIR2MD {
 const static char Extensions[] = "opencl.used.extensions";
 const static char FPContract[] = "opencl.enable.FP_CONTRACT";
 const static char OCLVer[] = "opencl.ocl.version";
+const static char OCLCXXVer[] = "opencl.cxx.version";
 const static char OptFeatures[] = "opencl.used.optional.core.features";
 const static char SPIRVer[] = "opencl.spir.version";
 const static char VecTyHint[] = "vec_type_hint";

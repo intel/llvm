@@ -9,8 +9,6 @@
 #pragma once
 
 #include <sycl/access/access.hpp>                     // for target, mode
-#include <sycl/aliases.hpp>                           // for float4, int4
-#include <sycl/aspects.hpp>                           // for aspect
 #include <sycl/atomic.hpp>                            // for atomic
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
@@ -22,7 +20,6 @@
 #include <sycl/detail/handler_proxy.hpp>              // for associateWithH...
 #include <sycl/detail/helpers.hpp>                    // for loop
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for PI_ERROR_INVAL...
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
 #include <sycl/detail/type_list.hpp>                  // for is_contained
@@ -37,19 +34,13 @@
 #include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
-#include <sycl/sampler.hpp>                           // for addressing_mode
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
 #include <iterator>    // for reverse_iterator
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr
-#include <optional>    // for nullopt, optional
-#include <stdint.h>    // for uint32_t
-#include <tuple>       // for _Swallow_assign
 #include <type_traits> // for enable_if_t
-#include <typeinfo>    // for type_info
-#include <variant>     // for hash
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.
@@ -518,19 +509,6 @@ protected:
   AccessorBaseHost(const AccessorImplPtr &Impl) : impl{Impl} {}
 
 public:
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-  // TODO: the following function to be removed during next ABI break window
-  AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
-                   access::mode AccessMode, void *SYCLMemObject, int Dims,
-                   int ElemSize, bool IsPlaceH, int OffsetInBytes = 0,
-                   bool IsSubBuffer = false,
-                   const property_list &PropertyList = {});
-
   AccessorBaseHost(id<3> Offset, range<3> AccessRange, range<3> MemoryRange,
                    access::mode AccessMode, void *SYCLMemObject, int Dims,
                    int ElemSize, size_t OffsetInBytes = 0,
@@ -564,7 +542,7 @@ public:
   void *getMemoryObject() const;
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -599,7 +577,8 @@ public:
 
 protected:
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -857,7 +836,8 @@ private:
   friend class sycl::ext::intel::esimd::detail::AccessorPrivateProxy;
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -1447,10 +1427,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1491,10 +1470,9 @@ public:
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
@@ -1562,10 +1540,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1606,10 +1583,9 @@ public:
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
                                 BufferRef.get_range()))
-      throw sycl::invalid_object_error(
-          "accessor with requested offset and range would exceed the bounds of "
-          "the buffer",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+                            "accessor with requested offset and range would "
+                            "exceed the bounds of the buffer");
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
@@ -1959,9 +1935,8 @@ private:
     // check that no_init property is compatible with access mode
     if (PropertyList.template has_property<property::no_init>() &&
         AccessMode == access::mode::read) {
-      throw sycl::invalid_object_error(
-          "accessor would cannot be both read_only and no_init",
-          PI_ERROR_INVALID_VALUE);
+      throw sycl::exception(make_error_code(errc::invalid),
+          "accessor cannot be both read_only and no_init");
     }
   }
 
@@ -2254,7 +2229,8 @@ protected:
   }
 
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -2589,11 +2565,21 @@ public:
   __SYCL2020_DEPRECATED(
       "local_accessor::get_pointer() is deprecated, please use get_multi_ptr()")
   local_ptr<DataT> get_pointer() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_pointer must not be called on the host for a local accessor");
+#endif
     return local_ptr<DataT>(local_acc::getQualifiedPtr());
   }
 
   template <access::decorated IsDecorated>
   accessor_ptr<IsDecorated> get_multi_ptr() const noexcept {
+#ifndef __SYCL_DEVICE_ONLY__
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "get_multi_ptr must not be called on the host for a local accessor");
+#endif
     return accessor_ptr<IsDecorated>(local_acc::getQualifiedPtr());
   }
 
@@ -2662,7 +2648,7 @@ protected:
                  access::placeholder::false_t>{Impl} {}
 
   template <class Obj>
-  friend decltype(Obj::impl) getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &getSyclObjImpl(const Obj &SyclObject);
 
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);

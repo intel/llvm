@@ -8,7 +8,7 @@
 // RUN: %{run} %t.2.out
 
 // Check if the test sill passes with O0
-// RUN: %{build} -O0 -o %t.3.out
+// RUN: %{build} %O0 -o %t.3.out
 // RUN: %{run} %t.3.out
 
 // This is end-to-end test for the slm_allocator API used together with the
@@ -26,8 +26,9 @@
 // SLM resulting from foo, plus appends couple more '100's.
 
 #include <iostream>
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

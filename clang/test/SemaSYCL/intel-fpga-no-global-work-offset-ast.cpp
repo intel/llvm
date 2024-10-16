@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -Wno-sycl-2017-compat -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // Tests for AST of Intel FPGA no_global_work_offset function attribute.
 
@@ -32,7 +32,7 @@ public:
 // CHECK-NEXT: SYCLIntelNoGlobalWorkOffsetAttr
 // CHECK-NEXT: DeclRefExpr {{.*}} 'int' NonTypeTemplateParm {{.*}} 'N' 'int'
 // CHECK: FunctionDecl {{.*}} func1 'void ()'
-// CHECK-NEXT: TemplateArgument integral 1
+// CHECK-NEXT: TemplateArgument integral '1'
 // CHECK-NEXT: CompoundStmt
 // CHECK-NEXT: SYCLIntelNoGlobalWorkOffsetAttr
 // CHECK-NEXT: ConstantExpr{{.*}}'int'

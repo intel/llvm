@@ -23,7 +23,7 @@ void foo() {
 // CHECK-HEADER: namespace sycl {
 // CHECK-HEADER-NEXT: inline namespace _V1 {
 // CHECK-HEADER-NEXT: namespace detail {
-// CHECK-HEADER-NEXT: namespace {
+// CHECK-HEADER: namespace {
 // CHECK-HEADER-NEXT: class __sycl_host_pipe_registration {
 // CHECK-HEADER-NEXT: public:
 // CHECK-HEADER-NEXT: __sycl_host_pipe_registration() noexcept;
@@ -37,7 +37,7 @@ void foo() {
 // CHECK-FOOTER: #include <sycl/detail/defines_elementary.hpp>
 // CHECK-FOOTER: #include <sycl/detail/host_pipe_map.hpp>
 // CHECK-FOOTER-NEXT: namespace sycl::detail {
-// CHECK-FOOTER-NEXT: namespace {
+// CHECK-FOOTER: namespace {
 // CHECK-FOOTER-NEXT: __sycl_host_pipe_registration::__sycl_host_pipe_registration() noexcept {
 
 // CHECK-FOOTER: host_pipe_map::add((void *)&::sycl::ext::intel::experimental::host_pipe<HPInt, int>::__pipe, "THE_PREFIX____ZN4sycl3_V13ext5intel12experimental9host_pipeIZZZ3foovENKUlRNS0_7handlerEE_clES6_ENKUlvE_clEvE5HPIntiE6__pipeE");

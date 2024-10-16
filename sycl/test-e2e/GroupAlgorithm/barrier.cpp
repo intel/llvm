@@ -8,8 +8,9 @@
 // REQUIRES: aspect-ext_oneapi_cuda_async_barrier
 // REQUIRES: cuda
 
-#include "sycl/sycl.hpp"
 #include <iostream>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <vector>
 
 using namespace sycl;

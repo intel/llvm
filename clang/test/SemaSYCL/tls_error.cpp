@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -verify -Wno-sycl-2017-compat -fsyntax-only %s
+// RUN: %clang_cc1 -fsycl-is-device -triple spir64 -verify -fsyntax-only %s
 
 extern __thread void* __once_callable;  // expected-no-error
 extern __thread void (*__once_call)();  // expected-no-error

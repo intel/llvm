@@ -6,29 +6,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -o %t1.out -DEXP
-// RUN: %{run} %t1.out
-//
+
 // Test checks support of named barrier in ESIMD kernel.
 // Threads are executed in ascending order of their local ID and each thread
 // stores data to addresses that partially overlap with addresses used by
 // previous thread. Same as "exec_in_order.cpp", but each thread in separate
 // 'if' branch.
 
-#include <iostream>
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
 #include "../esimd_test_utils.hpp"
 
-#ifdef EXP
-#define NS __ESIMD_ENS
-#else
 #define NS __ESIMD_NS
-#endif
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;

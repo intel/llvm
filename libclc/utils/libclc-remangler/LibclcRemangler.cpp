@@ -396,7 +396,8 @@ private:
           *AST, FDSpecialization->getDeclContext(), SourceLocation(),
           SourceLocation(), 0, TemplateIndex, &II, /* Typename */ true,
           /*ParameterPack*/ false);
-      TTPD->setDefaultArgument(AST->getTrivialTypeSourceInfo(TemplateArgQT));
+      TTPD->setDefaultArgument(*AST,
+        TemplateArgumentLoc());
 
       TemplateNamedDecls.emplace_back(TTPD);
       auto TA = TemplateArgument(TemplateArgQT);

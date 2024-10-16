@@ -8,8 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -24,16 +23,16 @@ static bool containsAspect(const std::vector<sycl::aspect> &DeviceAspects,
 }
 
 TEST(DeviceGetInfo, SupportedDeviceAspects) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
   sycl::device Dev = Plt.get_devices()[0];
 
   std::vector<sycl::aspect> DeviceAspects =
       Dev.get_info<info::device::aspects>();
 
   // Tests to examine aspects of default mock device, as defined in
-  // helpers/PiMockPlugin.hpp so these tests all need to be kept in sync with
+  // helpers/UrMockAdapter.hpp so these tests all need to be kept in sync with
   // changes to that file.
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::gpu));
   EXPECT_TRUE(containsAspect(DeviceAspects, aspect::fp16));

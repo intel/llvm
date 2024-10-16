@@ -1,6 +1,6 @@
 // REQUIRES: opencl, cpu
 // RUN: %{build} -o %t.out
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out 1 &> tmp.txt
+// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %{run-unfiltered-devices} %t.out 1 > tmp.txt
 // RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:*,cpu" %{run-unfiltered-devices} %t.out
 // RUN: cat tmp.txt | env ONEAPI_DEVICE_SELECTOR="opencl:cpu,cpu" %{run-unfiltered-devices} %t.out
 
@@ -12,7 +12,7 @@
 // clang++ -fsycl -o ndd.bin no_duplicate_devices.cpp
 
 #include <string>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 

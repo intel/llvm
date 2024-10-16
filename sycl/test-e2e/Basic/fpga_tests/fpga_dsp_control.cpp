@@ -61,7 +61,7 @@ int test_dsp_control(sycl::queue Queue) {
 }
 
 int main() {
-  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector{}};
+  sycl::queue Queue{sycl::ext::intel::fpga_emulator_selector_v};
 
   return test_dsp_control(Queue);
 }

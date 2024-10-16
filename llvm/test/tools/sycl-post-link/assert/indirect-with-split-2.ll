@@ -8,7 +8,7 @@
 ; __devicelib_assert_fail, then all kernels in the module are conservatively
 ; marked as using asserts.
 
-; RUN: sycl-post-link -split=auto -symbols -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop -check-prefixes=CHECK,CHECK0 \
 ; RUN:     --implicit-check-not TU1
 ; RUN: FileCheck %s -input-file=%t_1.prop -check-prefixes=CHECK,CHECK1 \

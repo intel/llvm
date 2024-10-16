@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/dims.hpp>

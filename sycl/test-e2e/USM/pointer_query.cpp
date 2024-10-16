@@ -90,7 +90,7 @@ int main() {
   }
   try {
     D = get_pointer_device(array, ctxt);
-  } catch (runtime_error) {
+  } catch (exception) {
     free(array);
     return 0;
   }

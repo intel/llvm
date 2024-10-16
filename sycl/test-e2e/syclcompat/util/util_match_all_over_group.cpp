@@ -30,10 +30,11 @@
 //
 // ===----------------------------------------------------------------------===//
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// REQUIRES: sg-32
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat.hpp>
 
 constexpr unsigned int NUM_TESTS = 3;

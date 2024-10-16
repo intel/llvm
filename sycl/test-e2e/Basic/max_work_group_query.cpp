@@ -2,7 +2,7 @@
 // REQUIRES: cuda || hip || level_zero
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <cassert>
 #include <iostream>

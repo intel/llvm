@@ -9,6 +9,16 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPISubGroupMask.cpp
   USMP2P.cpp
   CompositeDevice.cpp
+  OneAPIProd.cpp
+  EnqueueFunctionsEvents.cpp
+  DiscardEvent.cpp
+  ProfilingTag.cpp
+  KernelProperties.cpp
+  NoDeviceIPVersion.cpp
+  GetLastEvent.cpp
 )
 
 add_subdirectory(CommandGraph)
+
+# Disabled pending UR fix adding setDataAs to mock dummy handle.
+#add_subdirectory(VirtualFunctions)

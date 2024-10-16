@@ -1,6 +1,6 @@
 // REQUIRES: xptifw, opencl
 // RUN: %clangxx %s -DXPTI_COLLECTOR -DXPTI_CALLBACK_API_EXPORTS %xptifw_lib %shared_lib %fPIC %cxx_std_optionc++17 -o %t_collector.dll
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: env XPTI_TRACE_ENABLE=1 XPTI_FRAMEWORK_DISPATCHER=%xptifw_dispatcher XPTI_SUBSCRIBERS=%t_collector.dll %{run} %t.out | FileCheck %s
 
 #ifdef XPTI_COLLECTOR
@@ -9,7 +9,7 @@
 
 #else
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl::access;
 
@@ -45,12 +45,12 @@ int main() {
       (void)A6;
     });
   });
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID7:.*]]|2018|1024|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::read>(); }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID8:.*]]|2018|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::write>(); }
-  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID9:.*]]|2018|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
-  { auto HA = Buf.get_access<mode::read_write>(); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID7:.*]]|2018|1024|{{.*}}accessors.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::read_only); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID8:.*]]|2018|1025|{{.*}}accessors.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::write_only); }
+  // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID9:.*]]|2018|1026|{{.*}}accessors.cpp:[[# @LINE + 1]]:25
+  { sycl::host_accessor HA(Buf, sycl::read_write); }
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID10:.*]]|2018|1027|{{.*}}accessors.cpp:[[# @LINE + 1]]:15
   { auto HA = Buf.get_access<mode::discard_write>(); }
   // CHECK: {{[0-9]+}}|Construct accessor|[[BUFFERID]]|[[ACCID11:.*]]|2018|1028|{{.*}}accessors.cpp:[[# @LINE + 1]]:15

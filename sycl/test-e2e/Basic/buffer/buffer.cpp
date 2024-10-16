@@ -13,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 using namespace sycl;
 
@@ -656,17 +657,15 @@ int main() {
     sycl::buffer<char, 1> Buf_2(Size / 2);
 
     {
-      auto AccA = Buf_1.get_access<sycl::access::mode::read_write>(Size / 2);
-      auto AccB = Buf_2.get_access<sycl::access::mode::read_write>(Size / 2);
+      sycl::host_accessor AccA{Buf_1, Size / 2, sycl::read_write};
+      sycl::host_accessor AccB{Buf_2, Size / 2, sycl::read_write};
       assert(AccA.byte_size() == AccB.byte_size());
       assert(AccA.get_range() == AccB.get_range());
       assert(AccA.size() == AccB.size());
     }
 
-    auto AH0 = accessor<char, 0, access::mode::read_write,
-                        access::target::host_buffer>(Buf_1);
-    auto BH0 = accessor<char, 0, access::mode::read_write,
-                        access::target::host_buffer>(Buf_2);
+    auto AH0 = host_accessor<char, 0, access::mode::read_write>(Buf_1);
+    auto BH0 = host_accessor<char, 0, access::mode::read_write>(Buf_2);
     assert(AH0.byte_size() == sizeof(char));
     assert(BH0.byte_size() == sizeof(char));
     assert(AH0.size() == 1);

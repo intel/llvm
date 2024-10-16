@@ -1,23 +1,23 @@
 ; RUN: llvm-as < %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-100
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-debug-info-version=nonsemantic-shader-200
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis -o %t.ll
-; RUN: llc -mtriple=%triple -stop-after=livedebugvalues -o - %t.ll \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -stop-after=livedebugvalues -o - %t.ll \
 ; RUN:   | FileCheck %s --check-prefix=SANITY
-; RUN: llc -mtriple=%triple -march=x86-64 -o - %t.ll -filetype=obj \
+; RUN: llc -mtriple=x86_64-unknown-linux-gnu -march=x86-64 -o - %t.ll -filetype=obj \
 ; RUN:   | llvm-dwarfdump -v -all - | FileCheck %s
 ;
 ; CHECK: .debug_info contents:
@@ -46,7 +46,7 @@ target triple = "spir64-unknown-unknown"
 define void @f() #0 !dbg !4 {
 entry:
   tail call void @h(i32 0) #2, !dbg !14
-  %call = tail call i32 (...) @g() #2, !dbg !15
+  %call = tail call i32 @g() #2, !dbg !15
   tail call void @llvm.dbg.value(metadata i32 %call, metadata !8, metadata !16), !dbg !17
   tail call void @h(i32 %call) #2, !dbg !18
   ret void, !dbg !19
@@ -54,7 +54,7 @@ entry:
 
 declare void @h(i32)
 
-declare i32 @g(...)
+declare i32 @g()
 
 ; Function Attrs: nounwind readnone
 declare void @llvm.dbg.value(metadata, metadata, metadata) #1

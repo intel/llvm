@@ -5,18 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// RUN: %{build} -I%S/.. -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test checks that ESIMD program with big constant initializer list can
 // compile and run correctly.
 
-#include "esimd_test_utils.hpp"
-
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
+#include "../esimd_test_utils.hpp"
 
 #define SIMD_WIDTH 16
 
@@ -64,7 +59,7 @@ int main(int argc, char **argv) {
     std::cout << "*** EXCEPTION caught: " << e.what() << "\n";
     return 1;
   }
-  auto acc = r.template get_host_access(sycl::read_only);
+  auto acc = r.get_host_access(sycl::read_only);
   for (int i = 0; i < N_PRINT; i++) {
     std::cout << acc[i] << " ";
   }

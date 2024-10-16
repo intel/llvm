@@ -5,22 +5,16 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// SG size = 32 is not currently supported for SYCL Joint Matrix by IGC on DG2
+// UNSUPPORTED: gpu-intel-dg2
+// REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 #include "../common.hpp"
-#include <iostream>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
 
-using namespace sycl;
-using namespace sycl::ext::oneapi::experimental::matrix;
-using bfloat16 = sycl::ext::oneapi::bfloat16;
-
-constexpr size_t SG_SZ = 32;
-constexpr size_t TN = 16;
+#define SG_SZ 32
 
 #include "../joint_matrix_bfloat16_impl.hpp"

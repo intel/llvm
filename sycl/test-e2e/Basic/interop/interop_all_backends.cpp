@@ -1,7 +1,10 @@
 // REQUIRES: CUDA || HIP
 // RUN: %{build} %if hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %else %{ %if cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %else %{ %if level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} %} %} -o %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/backend.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/properties/all_properties.hpp>
+#include <sycl/usm.hpp>
 using namespace sycl;
 
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
@@ -78,6 +81,15 @@ int main() {
 
   auto Event3 = InteropQueue.memcpy(&vec[0], A, N * sizeof(int), Event2);
   Event3.wait();
+
+  if constexpr (BACKEND == backend::ext_oneapi_hip) {
+    try {
+      backend_traits<BACKEND>::return_type<context> NativeContext =
+            get_native<BACKEND>(Context);
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::feature_not_supported);
+    }
+  }
 
   free(A, InteropQueue);
 

@@ -3,7 +3,9 @@
 // RUN: env SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE=1 %{run} %t.out
 
 #include <numeric>
-#include <sycl/sycl.hpp>
+#include <sycl/atomic_ref.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/specialization_id.hpp>
 
 using namespace sycl;
 

@@ -1,11 +1,9 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -fsycl-device-code-split=per_kernel -o %t.out
 
 // REQUIRES: gpu
 
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
-
-// UNSUPPORTED: ze_debug
 
 //==- GroupSize.cpp - sub-group mask dependency on group size --*- C++ -*---==//
 //
@@ -15,8 +13,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/sub_group_mask.hpp>
+
 #include <iostream>
-#include <sycl/sycl.hpp>
+
 using namespace sycl;
 #ifdef SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 constexpr int global_size = 128;

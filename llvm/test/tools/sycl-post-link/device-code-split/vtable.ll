@@ -39,8 +39,11 @@
 ; variables storing vtable, are also included into the final module, even though
 ; they are not directly used in a kernel otherwise.
 ;
-; RUN: sycl-post-link -split=auto -S < %s -o %t.table
+; RUN: sycl-post-link -properties -split=auto -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.ll
+;
+; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: FileCheck %s -input-file=%t2_0.ll
 ;
 ; CHECK-DAG: @_ZTV8Derived1 = {{.*}} @_ZN8Derived17displayEv
 ; CHECK-DAG: @_ZTV8Derived2 = {{.*}} @_ZN8Derived27displayEv

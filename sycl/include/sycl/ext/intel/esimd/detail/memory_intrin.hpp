@@ -11,6 +11,13 @@
 
 /// @cond ESIMD_DETAIL
 
+/// **************************** WARNING ************************************
+/// When declaring new SPIR-V intrinsics (functions starting with __spirv),
+/// it is imperitive to exactly follow the pattern of the existing SPIR-V
+/// intrinsics. If not followed, the declaration may conflict with
+/// the Clang-generated functions and cause compilation errors.
+/// **************************** WARNING ************************************
+
 #pragma once
 
 #include <sycl/accessor.hpp>
@@ -1159,5 +1166,9 @@ __ESIMD_INTRIN void __esimd_nbarrier_init(uint8_t count) __ESIMD_INTRIN_END;
 __ESIMD_INTRIN void
 __esimd_nbarrier_arrive(uint8_t id, uint8_t thread_role, uint8_t num_producers,
                         uint8_t num_consumers) __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN uint32_t __esimd_slm_alloc(uint32_t size) __ESIMD_INTRIN_END;
+
+__ESIMD_INTRIN void __esimd_slm_free(uint32_t id) __ESIMD_INTRIN_END;
 
 /// @endcond ESIMD_DETAIL

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;

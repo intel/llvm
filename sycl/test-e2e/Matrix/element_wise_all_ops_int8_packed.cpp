@@ -5,23 +5,12 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: matrix
+// REQUIRES: aspect-ext_intel_matrix
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // This test stores the matrix B that is VNNIed (packed).
 
-#include <iostream>
-#include <random>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/matrix/matrix.hpp>
-
-using namespace sycl;
-using namespace sycl::ext::intel;
-using namespace sycl::ext::oneapi::experimental::matrix;
-
-#define SG_SZ 16
-constexpr size_t TN = 16;
-
+#include "common.hpp"
 #include "element_wise_all_ops_int8_packed_impl.hpp"

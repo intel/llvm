@@ -39,12 +39,13 @@
 // in this pass as a common functionality for both versions.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvtocl"
 
 #include "SPIRVToOCL.h"
 #include "llvm/IR/TypedPointerType.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/CommandLine.h"
+
+#define DEBUG_TYPE "spvtocl"
 
 namespace SPIRV {
 
@@ -208,6 +209,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
       visitCallSPIRVAnyAll(&CI, OC);
     else
       visitCallSPIRVRelational(&CI, OC);
+    return;
+  }
+  if (OC == OpReadClockKHR) {
+    visitCallSPIRVReadClockKHR(&CI);
     return;
   }
   if (OC == internal::OpConvertFToBF16INTEL ||
@@ -1019,6 +1024,33 @@ void SPIRVToOCLBase::visitCallSPIRVRelational(CallInst *CI, Op OC) {
       .changeReturnType(RetTy, [=](IRBuilder<> &Builder, CallInst *NewCI) {
         return Builder.CreateTruncOrBitCast(NewCI, CI->getType());
       });
+}
+
+void SPIRVToOCLBase::visitCallSPIRVReadClockKHR(CallInst *CI) {
+  std::ostringstream Name;
+  Name << "clock_read_";
+
+  if (CI->getType()->isVectorTy())
+    Name << "hilo_";
+
+  // Encode the scope (taken from the argument) in the function name.
+  ConstantInt *ScopeOp = cast<ConstantInt>(CI->getArgOperand(0));
+  switch (static_cast<Scope>(ScopeOp->getZExtValue())) {
+  case ScopeDevice:
+    Name << "device";
+    break;
+  case ScopeWorkgroup:
+    Name << "work_group";
+    break;
+  case ScopeSubgroup:
+    Name << "sub_group";
+    break;
+  default:
+    break;
+  }
+
+  auto Mutator = mutateCallInst(CI, Name.str());
+  Mutator.removeArg(0);
 }
 
 std::string SPIRVToOCLBase::getGroupBuiltinPrefix(CallInst *CI) {

@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/usm_pointers.hpp>
+
 #include <cassert>
 #include <iostream>
-#include <sycl.hpp>
 #include <type_traits>
 
 using namespace sycl;

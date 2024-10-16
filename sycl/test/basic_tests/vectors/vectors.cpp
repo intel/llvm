@@ -168,6 +168,26 @@ int main() {
   assert((!inputVec4.lo().as<sycl::vec<bool, 2>>()[0]));
   assert((inputVec4.lo().as<sycl::vec<bool, 2>>()[1]));
 
+  // Check assignment operator for swizzles.
+  {
+    sycl::vec<int8_t, 2> inputVec1 = sycl::vec<int8_t, 2>(0, 1);
+    sycl::vec<int8_t, 2> inputVec2 = sycl::vec<int8_t, 2>(2, 3);
+    auto swiz1 = inputVec1.template swizzle<sycl::elem::s1, sycl::elem::s0>();
+    auto swiz2 = inputVec2.template swizzle<sycl::elem::s0, sycl::elem::s1>();
+
+    // Assign swizzle to swizzle.
+    swiz1 = swiz2;
+    assert(inputVec1[0] == 3 && inputVec1[1] == 2);
+
+    // Assign vec to swizzle.
+    swiz1 = sycl::vec<int8_t, 2>(0, 1);
+    assert(inputVec1[0] == 1 && inputVec1[1] == 0);
+
+    // Assign single element to swizzle.
+    swiz1 = (int8_t)5;
+    assert(inputVec1[0] == 5 && inputVec1[1] == 5);
+  }
+
   // Check that [u]long[n] type aliases match vec<[u]int64_t, n> types.
   assert((std::is_same<sycl::vec<std::int64_t, 2>, sycl::long2>::value));
   assert((std::is_same<sycl::vec<std::int64_t, 3>, sycl::long3>::value));

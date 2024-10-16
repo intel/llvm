@@ -438,6 +438,24 @@ Level Zero:
 Future work will include exploring L0 API extensions to improve the mapping of
 UR command-buffer to L0 command-list.
 
+#### Copy Engine
+
+For performance considerations, the Unified Runtime Level Zero adapter uses
+different Level Zero command-queues to submit compute kernels and memory
+operations when the device has a dedicated copy engine. To take advantage of the
+copy engine when available, the graph workload can also be split between memory
+operations and compute kernels. To achieve this, two graph workload
+command-lists live simultaneously in a command-buffer.
+
+When the command-buffer is finalized, memory operations (e.g. buffer copy,
+buffer fill, ...) are enqueued in the *copy* command-list while the other
+commands are enqueued in the compute command-list. On submission, if not empty,
+the *copy* command-list is sent to the main copy command-queue while the compute
+command-list is sent to the compute command-queue.
+
+Both are executed concurrently. Synchronization between the command-lists is
+handled by Level Zero events.
+
 ### CUDA
 
 The SYCL Graph CUDA backend relies on the
@@ -462,6 +480,14 @@ An executable CUDA Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient graph
 resubmission.
 
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the CUDA UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
+
 ### HIP
 
 The HIP backend offers a graph management API very similar to CUDA Graph
@@ -483,6 +509,14 @@ operations.
 An executable HIP Graph, which contains all commands and synchronization
 information, is saved in the UR command-buffer to allow for efficient
 graph resubmission.
+
+#### Prefetch & Advise
+
+The `urCommandBufferAppendUSMPrefetchExp` and
+`urCommandBufferAppendUSMAdviseExp` UR entry-points used to implement
+`handler::prefetch` and `handler::mem_advise` are implemented in the HIP UR
+adapter as empty nodes enforcing the node dependencies. As such the
+optimization hints are a no-op.
 
 ### OpenCL
 
@@ -519,6 +553,8 @@ The types of commands which are unsupported, and lead to this exception are:
   This corresponds to a memory buffer write command.
 * `handler::copy(src, dest)` or `handler::memcpy(dest, src)` - Where both `src` and
    `dest` are USM pointers. This corresponds to a USM copy command.
+* `handler::fill(ptr, pattern, count)` - This corresponds to a USM memory
+  fill command.
 * `handler::memset(ptr, value, numBytes)` - This corresponds to a USM memory
   fill command.
 * `handler::prefetch()`.

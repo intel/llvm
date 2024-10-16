@@ -8,9 +8,9 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>           // for __spirv_ControlBarrier
-#include <CL/__spirv/spirv_types.hpp>         // for Scope
-#include <CL/__spirv/spirv_vars.hpp>          // for initLocalInvocationId
+#include <sycl/__spirv/spirv_ops.hpp>         // for __spirv_ControlBarrier
+#include <sycl/__spirv/spirv_types.hpp>       // for Scope
+#include <sycl/__spirv/spirv_vars.hpp>        // for initLocalInvocationId
 #include <sycl/access/access.hpp>             // for mode, fence_space
 #include <sycl/detail/defines.hpp>            // for __SYCL_ASSUME_INT
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED, __SY...
@@ -53,8 +53,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -86,8 +84,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initLocalInvocationId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -149,8 +145,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initNumWorkgroups<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -165,8 +159,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalSize<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -181,8 +173,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupSize<Dimensions, range<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -198,8 +188,6 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initGlobalOffset<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }
@@ -396,12 +384,12 @@ public:
     using QualSrcT =
         std::conditional_t<std::is_const_v<SrcT>, const uint8_t, uint8_t>;
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<uint8_t, DestS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<uint8_t, DestS,
+                                            access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -425,12 +413,12 @@ public:
     using QualSrcVecT =
         std::conditional_t<std::is_const_v<SrcT>, std::add_const_t<VecT>, VecT>;
     auto DestP = multi_ptr<VecT, DestS, access::decorated::yes>(
-        detail::cast_AS<
+        reinterpret_cast<
             typename multi_ptr<VecT, DestS, access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcVecT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcVecT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcVecT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -529,8 +517,6 @@ protected:
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv::initWorkgroupId<Dimensions, id<Dimensions>>();
 #else
-    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                          "nd_item methods can't be invoked on the host");
     return {};
 #endif
   }

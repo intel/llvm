@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -8,11 +8,10 @@
 
 // Test image-specific printers of the Plugin Interace
 //
-//CHECK: ---> piEnqueueMemBufferCopyRect(
-//CHECK:   pi_buff_rect_offset x_bytes/y/z : 64/5/0
-//CHECK:   pi_buff_rect_offset x_bytes/y/z : 0/0/0
-//CHECK:   pi_buff_rect_region width_bytes/height/depth : 64/5/1
-//CHECK:   pi_buff_rect_region width_bytes/height/depth : 64/5/1
+//CHECK: <--- urEnqueueMemBufferCopyRect(
+//CHECK-SAME: .srcOrigin = (struct ur_rect_offset_t){.x = 64, .y = 5, .z = 0}
+//CHECK-SAME: .dstOrigin = (struct ur_rect_offset_t){.x = 0, .y = 0, .z = 0}
+//CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
 
 using namespace sycl;
 
@@ -37,8 +36,8 @@ int main() {
     });
   }
 
-  // CHECK: ---> piMemBufferPartition(
-  // CHECK:   pi_buffer_region origin/size : 128/32
+  // CHECK: <--- urMemBufferPartition(
+  // CHECK-SAME: .origin = 128, .size = 32
 
   constexpr unsigned Size = 64;
   std::vector<int> Data(Size);

@@ -1,9 +1,14 @@
-// REQUIRES: gpu, gpu-intel-pvc
+// REQUIRES: arch-intel_gpu_pvc, ocloc
+
+// https://github.com/intel/llvm/issues/14826
+// XFAIL: arch-intel_gpu_pvc
+
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s -o %t.out
 // RUN: %{run} %t.out
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;

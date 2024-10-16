@@ -1,4 +1,4 @@
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 class KernelTest1;
 class KernelTest2;

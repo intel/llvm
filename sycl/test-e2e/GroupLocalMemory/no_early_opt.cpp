@@ -1,4 +1,4 @@
-// RUN: %{build} -fno-sycl-early-optimizations -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fno-sycl-early-optimizations -o %t.out
 // RUN: %{run} %t.out
 //
 // XFAIL: hip_nvidia

@@ -8,7 +8,7 @@
 // enabled/disabled.
 
 #include <array>
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 constexpr sycl::access::mode sycl_read = sycl::access::mode::read;
 constexpr sycl::access::mode sycl_write = sycl::access::mode::write;

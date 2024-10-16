@@ -201,6 +201,8 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
     std::vector<std::string_view> Pair =
         tokenize(Entry, ":", true /* ProhibitEmptyTokens */);
 
+    // Error handling. ONEAPI_DEVICE_SELECTOR terms should be in the
+    // format: <backend>:<devices>.
     if (Pair.empty()) {
       std::stringstream ss;
       ss << "Incomplete selector! Backend and device must be specified.";
@@ -210,8 +212,24 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
       ss << "Incomplete selector!  Try '" << Pair[0]
          << ":*' if all devices under the backend was original intention.";
       throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
-    } else if (Pair.size() == 2) {
-      backend be = Parse_ODS_Backend(Pair[0], Entry); // Pair[0] is backend.
+    } else if (Pair.size() > 2) {
+      std::stringstream ss;
+      ss << "Error parsing selector string \"" << Entry
+         << "\"  Too many colons (:)";
+      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
+    }
+
+    // Parse ONEAPI_DEVICE_SELECTOR terms for Pair.size() == 2.
+    else {
+
+      // Remove `!` from input backend string if it is present.
+      std::string_view input_be = Pair[0];
+      if (Pair[0][0] == '!')
+        input_be = Pair[0].substr(1);
+
+      backend be = Parse_ODS_Backend(input_be, Entry);
+
+      // For each backend, we can have multiple targets, seperated by ','.
       std::vector<std::string_view> Targets = tokenize(Pair[1], ",");
       for (auto TargetStr : Targets) {
         ods_target DeviceTarget(be);
@@ -233,11 +251,6 @@ Parse_ONEAPI_DEVICE_SELECTOR(const std::string &envString) {
         Parse_ODS_Device(DeviceTarget, TargetStr);
         Result.push_back(DeviceTarget);
       }
-    } else if (Pair.size() > 2) {
-      std::stringstream ss;
-      ss << "Error parsing selector string \"" << Entry
-         << "\"  Too many colons (:)";
-      throw sycl::exception(sycl::make_error_code(errc::invalid), ss.str());
     }
   }
 

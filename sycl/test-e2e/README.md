@@ -210,6 +210,11 @@ REQUIRES:sycl-ls specified, test will run only if sycl-ls tool is available.
 If UNSUPPORTED:sycl-ls specified, test will run only if sycl-ls tool is
 unavailable.
 
+### Auto-detected features
+
+The following features are automatically detected by `llvm-lit` by scanning the
+environment:
+
  * **windows**, **linux** - host OS;
  * **cpu**, **gpu**, **accelerator** - target device;
  * **cuda**, **hip**, **opencl**, **level_zero** - target backend;
@@ -221,18 +226,32 @@ unavailable.
  * **ocloc**, **opencl-aot** - Specific AOT tool availability;
  * **level_zero_dev_kit** - Level_Zero headers and libraries availability;
  * **cuda_dev_kit** - CUDA SDK headers and libraries availability;
- * **gpu-intel-gen9**  - Intel GPU Gen9  availability;
+ * **dump_ir**: - compiler can / cannot dump IR;
+ * **llvm-spirv** - llvm-spirv tool availability;
+ * **llvm-link** - llvm-link tool availability;
+ * **fusion**: - Runtime supports kernel fusion;
+ * **aspect-\<name\>**: - SYCL aspects supported by a device;
+ * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you
+   can pass into `-fsycl-targets` compiler flag);
+
+### Manually-set features
+
+The following features are only set if you pass an argument to `llvm-lit` (see
+section below). All these features are related to HW detection and they should
+be considered deprecated, because we have HW auto-detection functionality in
+place. No new tests should use these features:
+
  * **gpu-intel-gen11** - Intel GPU Gen11 availability;
  * **gpu-intel-gen12** - Intel GPU Gen12 availability;
  * **gpu-intel-dg1** - Intel GPU DG1 availability;
  * **gpu-intel-dg2** - Intel GPU DG2 availability;
  * **gpu-intel-pvc** - Intel GPU PVC availability;
  * **gpu-intel-pvc-vg** - Intel GPU PVC-VG availability;
- * **dump_ir**: - compiler can / cannot dump IR;
- * **llvm-spirv** - llvm-spirv tool availability;
- * **llvm-link** - llvm-link tool availability;
- * **fusion**: - Runtime supports kernel fusion;
- * **aspect-\<name\>**: - SYCL aspects supported by a device;
+
+Note: some of those features describing whole GPU families and auto-detection
+of HW does not provide this functionality at the moment. As an improvement, we
+could add those features even with auto-detection, because the only alternative
+at the moment is to explicitly list every architecture from a family.
 
 ## llvm-lit parameters
 
@@ -291,10 +310,37 @@ llvm-lit --param dpcpp_compiler=path/to/clang++ --param dump_ir=True \
 While SYCL specification dictates that the only user-visible interface is
 `<sycl/sycl.hpp>` header file we found out that as the implementation and
 multiple extensions grew, the compile time was getting worse and worse,
-negatively affecting our CI turnaround time. We are just starting some efforts
-to create a much smaller set of basic feature needed for every SYCL end-to-end
-test/program so that this issue could be somewhat mitigated. This activity is in
-its early stage and NO production code should rely on it. It WILL be changed as
-we go with our experiments. For any code outside of this project only the
-`<sycl/sycl.hpp>` must be used until we feel confident to propose an extension
-that can provide an alternative.
+negatively affecting our CI turnaround time. As such, we decided to use
+finer-grained includes for the end-to-end tests used in this project (under
+`sycl/test-e2e/` folder).
+
+At this moment all the tests have been updated to include a limited set of
+headers only. However, the work of eliminating unnecessary dependencies between
+implementation header files is still in progress and the final set of these
+"fine-grained" includes that might be officially documented and suggested for
+customers to use isn't determined yet. **Until then, code outside of this project
+must keep using `<sycl/sycl.hpp>` provided by the SYCL2020 specification.**
+
+## Marking tests as expected to fail
+
+Every test should be written in a way that it is either passed, or it is skipped
+(in case it is not compatible with an environment it was launched in).
+
+If for any reason you find yourself in need to temporary mark test as expected
+to fail under certain conditions, you need to submit an issue to the repo to
+analyze that failure and make test passed or skipped.
+
+Once the issue is created, you can update the test by adding `XFAIL` and
+`XFAIL-TRACKER` directive:
+```
+// GPU driver update caused failure
+// XFAIL: level_zero
+// XFAIL-TRACKER: PRJ-5324
+
+// Sporadically fails on CPU:
+// XFAIL: cpu
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+```
+
+If you add `XFAIL` without `XFAIL-TRACKER` directive,
+`no-xfail-without-tracker.cpp` test will fail, notifying you about that.

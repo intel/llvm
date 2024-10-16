@@ -31,7 +31,7 @@
 
 // REQUIRES: linux
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} -lpthread %s -o %t.out
+// RUN: %{build} -lpthread -o %t.out
 // RUN: %{run} %t.out
 
 #include <syclcompat/device.hpp>

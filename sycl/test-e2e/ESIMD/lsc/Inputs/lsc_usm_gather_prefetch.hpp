@@ -6,11 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/ext/intel/esimd.hpp>
-#include <sycl/sycl.hpp>
-
-#include <iostream>
-
 #include "../../esimd_test_utils.hpp"
 #include "common.hpp"
 

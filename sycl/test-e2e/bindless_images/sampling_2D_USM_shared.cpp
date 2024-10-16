@@ -1,9 +1,8 @@
-// REQUIRES: linux
 // REQUIRES: cuda
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <cmath>
 #include <iostream>
@@ -47,8 +46,7 @@ int main() {
 
     // Extension: image descriptor
     sycl::ext::oneapi::experimental::image_descriptor desc(
-        {width, height}, sycl::image_channel_order::r,
-        sycl::image_channel_type::fp32);
+        {width, height}, 1, sycl::image_channel_type::fp32);
 
     auto devicePitchAlign = dev.get_info<
         sycl::ext::oneapi::experimental::info::device::image_row_pitch_align>();

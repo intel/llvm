@@ -6,20 +6,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t1.out -DEXP
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t1.out -DEXP
 // RUN: %{run} %t1.out
 
 // This is a basic test to validate the ror/rol functions.
 
 #include "esimd_test_utils.hpp"
 #include <bit>
-#ifdef EXP
-#define NS sycl::ext::intel::experimental::esimd
-#else
 #define NS sycl::ext::intel::esimd
-#endif
+
+// https://stackoverflow.com/questions/776508
+template <typename T> T rotl(T n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT * sizeof(n) - 1);
+  c &= mask;
+  return (n << c) | (n >> ((-c) & mask));
+}
+
+template <typename T> T rotr(T n, unsigned int c) {
+  const unsigned int mask = (CHAR_BIT * sizeof(n) - 1);
+  c &= mask;
+  return (n >> c) | (n << ((-c) & mask));
+}
 
 using namespace sycl;
 using namespace sycl::ext::intel::esimd;
@@ -85,14 +94,14 @@ template <typename T> bool test_rotate(sycl::queue &Queue) {
 
   for (int I = 0; I < VL; I++) {
     using OpT = std::make_unsigned_t<T>;
-    ExpectedRorScalar[I] = std::rotr<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRorScalar[I]), ScalarRotateFactor);
-    ExpectedRolScalar[I] = std::rotl<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRolScalar[I]), ScalarRotateFactor);
-    ExpectedRorVector[I] = std::rotr<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRorVector[I]), VectorRotateFactor[I]);
-    ExpectedRolVector[I] = std::rotl<OpT>(
-        sycl::bit_cast<OpT>(ExpectedRolVector[I]), VectorRotateFactor[I]);
+    ExpectedRorScalar[I] = rotr<OpT>(sycl::bit_cast<OpT>(ExpectedRorScalar[I]),
+                                     ScalarRotateFactor);
+    ExpectedRolScalar[I] = rotl<OpT>(sycl::bit_cast<OpT>(ExpectedRolScalar[I]),
+                                     ScalarRotateFactor);
+    ExpectedRorVector[I] = rotr<OpT>(sycl::bit_cast<OpT>(ExpectedRorVector[I]),
+                                     VectorRotateFactor[I]);
+    ExpectedRolVector[I] = rotl<OpT>(sycl::bit_cast<OpT>(ExpectedRolVector[I]),
+                                     VectorRotateFactor[I]);
   }
   for (int I = 0; I < VL; I++) {
     if (ExpectedRorScalar[I] != OutputRorScalar[I]) {

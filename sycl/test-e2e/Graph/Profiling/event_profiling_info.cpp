@@ -4,78 +4,17 @@
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero && linux %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // This test checks the profiling of an event returned
 // from graph submission with event::get_profiling_info().
 // It first tests a graph made exclusively of memory operations,
 // then tests a graph made of kernels.
+#define GRAPH_TESTS_VERBOSE_PRINT 0
 
 #include "../graph_common.hpp"
 
-#define GRAPH_TESTS_VERBOSE_PRINT 0
-
-#if GRAPH_TESTS_VERBOSE_PRINT
-#include <chrono>
-#endif
-
-bool verifyProfiling(event Event) {
-  auto Submit =
-      Event.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto Start =
-      Event.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto End =
-      Event.get_profiling_info<sycl::info::event_profiling::command_end>();
-
-#if GRAPH_TESTS_VERBOSE_PRINT
-  std::cout << "Submit = " << Submit << std::endl;
-  std::cout << "Start = " << Start << std::endl;
-  std::cout << "End = " << End << " ( " << (End - Start) << " ) "
-            << " => full ( " << (End - Submit) << " ) " << std::endl;
-#endif
-
-  assert((Submit && Start && End) && "Profiling information failed.");
-  assert(Submit <= Start);
-  assert(Start < End);
-
-  bool Pass = sycl::info::event_command_status::complete ==
-              Event.get_info<sycl::info::event::command_execution_status>();
-
-  return Pass;
-}
-
-bool compareProfiling(event Event1, event Event2) {
-  assert(Event1 != Event2);
-
-  auto SubmitEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto StartEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto EndEvent1 =
-      Event1.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((SubmitEvent1 && StartEvent1 && EndEvent1) &&
-         "Profiling information failed.");
-
-  auto SubmitEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_submit>();
-  auto StartEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_start>();
-  auto EndEvent2 =
-      Event2.get_profiling_info<sycl::info::event_profiling::command_end>();
-  assert((SubmitEvent2 && StartEvent2 && EndEvent2) &&
-         "Profiling information failed.");
-
-  assert(SubmitEvent1 != SubmitEvent2);
-  assert(StartEvent1 != StartEvent2);
-  assert(EndEvent1 != EndEvent2);
-
-  bool Pass1 = sycl::info::event_command_status::complete ==
-               Event1.get_info<sycl::info::event::command_execution_status>();
-  bool Pass2 = sycl::info::event_command_status::complete ==
-               Event2.get_info<sycl::info::event::command_execution_status>();
-
-  return (Pass1 && Pass2);
-}
+#include <sycl/properties/all_properties.hpp>
 
 // The test checks that get_profiling_info waits for command associated with
 // event to complete execution.

@@ -7,7 +7,8 @@
 #include <iomanip>
 #include <iostream>
 
-#include <sycl.hpp>
+#include <sycl/builtins.hpp>
+#include <sycl/detail/core.hpp>
 
 template <typename T> T get_ulp_std(T x) {
   const T inf = std::numeric_limits<T>::infinity();
@@ -43,7 +44,8 @@ void testRemquo() {
     int quo = 0;
     float rem = sycl::remquo(
         86.0f, 10.0f,
-        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
+        sycl::address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no, int>(&quo));
     assert(quo == 9);
     assert(rem == -4);
   }
@@ -52,7 +54,8 @@ void testRemquo() {
     int quo = 0;
     float rem = sycl::remquo(
         -10.0, 3.0,
-        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
+        sycl::address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no, int>(&quo));
     assert(quo == -3);
     assert(rem == -1);
   }
@@ -61,7 +64,8 @@ void testRemquo() {
     int quo = 0;
     float rem = sycl::remquo(
         0.552879f, 0.219282f,
-        sycl::multi_ptr<int, sycl::access::address_space::global_space>{&quo});
+        sycl::address_space_cast<sycl::access::address_space::global_space,
+                                 sycl::access::decorated::no, int>(&quo));
     assert(quo == 3);
     assert(rem == -0.10496702790260315f);
   }

@@ -21,6 +21,8 @@ public:
   SYCLInstallationDetector(const Driver &D);
   void getSYCLDeviceLibPath(
       llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
+  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const;
   void print(llvm::raw_ostream &OS) const;
 
 private:
@@ -46,6 +48,11 @@ SmallVector<std::string, 8> getDeviceLibraries(const Compilation &C,
                                                const llvm::Triple &TargetTriple,
                                                bool IsSpirvAOT);
 
+// Populates the SYCL device traits macros.
+void populateSYCLDeviceTraitsMacrosArgs(Compilation &C,
+    const llvm::opt::ArgList &Args,
+    const SmallVectorImpl<std::pair<const ToolChain *, StringRef>> &Targets);
+
 bool shouldDoPerObjectFileLinking(const Compilation &C);
 // Runs llvm-spirv to convert spirv to bc, llvm-link, which links multiple LLVM
 // bitcode. Converts generated bc back to spirv using llvm-spirv, wraps with
@@ -69,9 +76,6 @@ private:
                              llvm::StringRef SubArchName,
                              llvm::StringRef OutputFilePrefix,
                              const InputInfoList &InputFiles) const;
-  void constructLlcCommand(Compilation &C, const JobAction &JA,
-                           const InputInfo &Output,
-                           const char *InputFile) const;
 };
 
 /// Directly call FPGA Compiler and Linker
@@ -173,15 +177,18 @@ public:
   void AddImpliedTargetArgs(const llvm::Triple &Triple,
                             const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs,
-                            const JobAction &JA, const ToolChain &HostTC) const;
+                            const JobAction &JA, const ToolChain &HostTC,
+                            StringRef Device = "") const;
   void TranslateBackendTargetArgs(const llvm::Triple &Triple,
                                   const llvm::opt::ArgList &Args,
                                   llvm::opt::ArgStringList &CmdArgs,
                                   StringRef Device = "") const;
   void TranslateLinkerTargetArgs(const llvm::Triple &Triple,
                                  const llvm::opt::ArgList &Args,
-                                 llvm::opt::ArgStringList &CmdArgs) const;
-  void TranslateTargetOpt(const llvm::opt::ArgList &Args,
+                                 llvm::opt::ArgStringList &CmdArgs,
+                                 StringRef Device = "") const;
+  void TranslateTargetOpt(const llvm::Triple &Triple,
+                          const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs,
                           llvm::opt::OptSpecifier Opt,
                           llvm::opt::OptSpecifier Opt_EQ,
@@ -206,9 +213,8 @@ public:
 
   void addClangWarningOptions(llvm::opt::ArgStringList &CC1Args) const override;
   CXXStdlibType GetCXXStdlibType(const llvm::opt::ArgList &Args) const override;
-  static void AddSYCLIncludeArgs(const clang::driver::Driver &Driver,
-                                 const llvm::opt::ArgList &DriverArgs,
-                                 llvm::opt::ArgStringList &CC1Args);
+  void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
+                          llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangSystemIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                             llvm::opt::ArgStringList &CC1Args) const override;
   void AddClangCXXStdlibIncludeArgs(
@@ -219,6 +225,8 @@ public:
 
   const ToolChain &HostTC;
   const bool IsSYCLNativeCPU;
+
+  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildBackendCompiler() const override;

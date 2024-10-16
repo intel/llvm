@@ -38,7 +38,6 @@
 // propagates the mapping to the uses of the kernel arguments.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "cltytospv"
 
 #include "OCLTypeToSPIRV.h"
 #include "OCLUtil.h"
@@ -49,6 +48,8 @@
 
 #include <iterator>
 #include <set>
+
+#define DEBUG_TYPE "cltytospv"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -195,7 +196,12 @@ void OCLTypeToSPIRVBase::adaptArgumentsBySamplerUse(Module &M) {
     StringRef DemangledName;
     if (!oclIsBuiltin(MangledName, DemangledName, false))
       continue;
-    if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos)
+    // Note: kSPIRVName::ConvertHandleToSampledImageINTEL contains
+    // kSPIRVName::SampledImage as a substring, but we still want to continue in
+    // this case.
+    if (DemangledName.find(kSPIRVName::SampledImage) == std::string::npos ||
+        DemangledName.find(kSPIRVName::ConvertHandleToSampledImageINTEL) !=
+            std::string::npos)
       continue;
 
     TraceArg(&F, 1);

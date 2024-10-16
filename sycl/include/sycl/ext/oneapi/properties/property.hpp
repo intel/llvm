@@ -192,16 +192,30 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
-  FPGACluster = 54,
-  Balanced = 55,
-  InvocationCapacity = 56,
-  ResponseCapacity = 57,
-  DataPlacement = 58,
-  ContiguousMemory = 59,
-  FullGroup = 60,
-  Naive = 61,
+  DataPlacement = 54,
+  ContiguousMemory = 55,
+  FullGroup = 56,
+  Naive = 57,
+  WorkGroupProgress = 58,
+  SubGroupProgress = 59,
+  WorkItemProgress = 60,
+  NDRangeKernel = 61,
+  SingleTaskKernel = 62,
+  IndirectlyCallable = 63,
+  CallsIndirectly = 64,
+  InputDataPlacement = 65,
+  OutputDataPlacement = 66,
+  IncludeFiles = 67,
+  RegisteredKernelNames = 68,
+  ClusterLaunch = 69,
+  FPGACluster = 70,
+  Balanced = 71,
+  InvocationCapacity = 72,
+  ResponseCapacity = 73,
+  MaxWorkGroupSize = 74,
+  MaxLinearWorkGroupSize = 75,
   // PropKindSize must always be the last value.
-  PropKindSize = 62,
+  PropKindSize = 76,
 };
 
 struct property_key_base_tag {};
@@ -257,6 +271,8 @@ template <typename PropertyT> struct PropertyMetaInfo {
   static constexpr const char *name = "";
   static constexpr std::nullptr_t value = nullptr;
 };
+
+template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 

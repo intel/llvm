@@ -1,6 +1,6 @@
 ; RUN: sycl-post-link -spec-const=native --ir-output-only < %s -S -o - \
 ; RUN: | FileCheck %s --implicit-check-not "call {{.*}} __sycl_getComposite2020SpecConstantValue"
-; RUN: %if asserts %{ sycl-post-link -spec-const=native -debug-only=SpecConst < %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
+; RUN: %if asserts %{ sycl-post-link -properties -spec-const=native -debug-only=SpecConst < %s -S 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
 ; This test is intended to check that sycl-post-link tool is capable of handling
 ; composite specialization constants by lowering them into a set of SPIR-V

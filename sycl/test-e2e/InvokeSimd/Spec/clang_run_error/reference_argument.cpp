@@ -1,16 +1,14 @@
-// RUN: not %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck
+// RUN: not %{build} -fno-sycl-device-code-split-esimd -Xclang -fsycl-allow-func-ptr %s -o %t.out 2>&1 | FileCheck %s
 //
-// TODO FIXME: Currently compile fail with "no or multiple invoke_simd targets
-// found"
-// XFAIL: gpu
 /*
  * Test case specification: Test and report errors if reference argument is
  * passed to invoked ESIMD function
  */
 
+#include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
-#include <sycl/sycl.hpp>
+#include <sycl/usm.hpp>
 
 #include <functional>
 #include <iostream>
@@ -78,7 +76,7 @@ int main(void) {
 
             float res = invoke_simd(sg, SIMD_CALLEE<int_ref>, uniform{A},
                                     B[wi_id], uniform{i});
-            // CHECK: TODO FIXME
+            // CHECK: invoke_simd does not support callables with reference arguments
             C[wi_id] = res;
           });
     });

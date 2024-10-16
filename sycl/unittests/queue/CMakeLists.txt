@@ -7,4 +7,6 @@ add_sycl_unittest(QueueTests OBJECT
   GetProfilingInfo.cpp
   ShortcutFunctions.cpp
   InOrderQueue.cpp
+  InteropRetain.cpp
+  Properties.cpp
 )

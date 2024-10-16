@@ -6,6 +6,7 @@
 
 #include <cstdlib>
 #include <sycl/detail/core.hpp>
+#include <sycl/types.hpp>
 
 template <typename T, typename ResultT>
 bool testAndOperator(const std::string &typeName) {
