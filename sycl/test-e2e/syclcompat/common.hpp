@@ -63,8 +63,14 @@ using value_type_list =
 #endif
 >;
 
-using fp_type_list =
-    std::tuple<float, double, sycl::half, sycl::ext::oneapi::bfloat16>;
+using fp_type_list_no_bfloat16 = std::tuple<float, double, sycl::half>;
+
+using fp_type_list = std::tuple<float, double, sycl::half
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+                ,sycl::ext::oneapi::bfloat16
+#endif
+>;
 
 using marray_type_list =
     std::tuple<char, signed char, short, int, long, long long, unsigned char,

@@ -375,7 +375,7 @@ int main() {
   test_syclcompat_pow<double, int>();
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_relu);
-  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_cbrt);
+  INSTANTIATE_ALL_TYPES(fp_type_list_no_bfloat16, test_syclcompat_cbrt);
 
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_isnan);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_isnan);
