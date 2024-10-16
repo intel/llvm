@@ -90,7 +90,7 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository }}/ubuntu2204_alldeps:latest-${{ github.sha }}
             ghcr.io/${{ github.repository }}/ubuntu2204_alldeps:latest
-          build_args: |
+          build-args: |
               base_image=ghcr.io/intel/llvm/ubuntu2204_build
               base_tag=latest
               use_latest=false
