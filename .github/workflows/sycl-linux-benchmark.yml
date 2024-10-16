@@ -112,14 +112,12 @@ on:
         required: false
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   check_build:
     name: Build (if no sycl artifact provided)
     uses: ./.github/workflows/sycl-linux-build.yml
-    permissions:
-      contents: read
     with:
       build_ref: ${{ github.sha }}
       merge_ref: ''
