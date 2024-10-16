@@ -254,8 +254,8 @@ inline constexpr RetT extend_vbinary4(AT a, BT b, RetT c,
 }
 
 template <typename ValueT> inline bool isnan(const ValueT a) {
-  if constexpr (detail::support_bfloat16_math &&
-                std::is_same_v<ValueT, sycl::ext::oneapi::bfloat16>) {
+  if constexpr (std::is_same_v<ValueT, sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
     return sycl::ext::oneapi::experimental::isnan(a);
   } else {
     return sycl::isnan(a);
@@ -747,9 +747,9 @@ inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
                             syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 min(ValueT a, ValueU b) {
-  if constexpr (detail::support_bfloat16_math &&
-                std::is_same_v<std::common_type_t<ValueT, ValueU>,
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
                                sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
     return sycl::ext::oneapi::experimental::fmin(
         static_cast<std::common_type_t<ValueT, ValueU>>(a),
         static_cast<std::common_type_t<ValueT, ValueU>>(b));
@@ -772,9 +772,9 @@ inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT> &&
                             syclcompat::is_floating_point_v<ValueU>,
                         std::common_type_t<ValueT, ValueU>>
 max(ValueT a, ValueU b) {
-  if constexpr (detail::support_bfloat16_math &&
-                std::is_same_v<std::common_type_t<ValueT, ValueU>,
+  if constexpr (std::is_same_v<std::common_type_t<ValueT, ValueU>,
                                sycl::ext::oneapi::bfloat16>) {
+    static_assert(detail::support_bfloat16_math);
     return sycl::ext::oneapi::experimental::fmax(
         static_cast<std::common_type_t<ValueT, ValueU>>(a),
         static_cast<std::common_type_t<ValueT, ValueU>>(b));
