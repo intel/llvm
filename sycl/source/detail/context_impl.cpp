@@ -110,15 +110,11 @@ context_impl::context_impl(ur_context_handle_t UrContext,
   //
   // TODO: Move this backend-specific retain of the context to SYCL-2020 style
   //       make_context<backend::opencl> interop, when that is created.
-  if (getBackend() == sycl::backend::opencl) {
-    getAdapter()->call<UrApiKind::urContextRetain>(MContext);
-  }
   MKernelProgramCache.setContextPtr(this);
 }
 
 cl_context context_impl::get() const {
   // TODO catch an exception and put it to list of asynchronous exceptions
-  getAdapter()->call<UrApiKind::urContextRetain>(MContext);
   ur_native_handle_t nativeHandle = 0;
   getAdapter()->call<UrApiKind::urContextGetNativeHandle>(MContext,
                                                           &nativeHandle);
@@ -303,8 +299,6 @@ context_impl::findMatchingDeviceImpl(ur_device_handle_t &DeviceUR) const {
 
 ur_native_handle_t context_impl::getNative() const {
   const auto &Adapter = getAdapter();
-  if (getBackend() == backend::opencl)
-    Adapter->call<UrApiKind::urContextRetain>(getHandleRef());
   ur_native_handle_t Handle;
   Adapter->call<UrApiKind::urContextGetNativeHandle>(getHandleRef(), &Handle);
   return Handle;

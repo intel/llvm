@@ -273,7 +273,6 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
     getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
                                                           &nativeHandle);

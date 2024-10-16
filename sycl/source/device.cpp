@@ -43,7 +43,6 @@ device::device(cl_device_id DeviceId) {
   auto Platform =
       detail::platform_impl::getPlatformFromUrDevice(Device, Adapter);
   impl = Platform->getOrMakeDeviceImpl(Device, Platform);
-  Adapter->call<detail::UrApiKind::urDeviceRetain>(impl->getHandleRef());
 }
 
 device::device(const device_selector &deviceSelector) {

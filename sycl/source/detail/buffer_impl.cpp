@@ -82,10 +82,6 @@ buffer_impl::getNativeVector(backend BackendName) const {
 
     auto Adapter = Platform->getAdapter();
 
-    if (Platform->getBackend() == backend::opencl) {
-      Adapter->call<UrApiKind::urMemRetain>(NativeMem);
-    }
-
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
