@@ -10,6 +10,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
+// XFAIL-TRACKER: CMPLRLLVM-62790
 
 #include "../common.hpp"
 
