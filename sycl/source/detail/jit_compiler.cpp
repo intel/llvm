@@ -18,9 +18,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
-#include <dlfcn.h>
-#include <link.h>
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
