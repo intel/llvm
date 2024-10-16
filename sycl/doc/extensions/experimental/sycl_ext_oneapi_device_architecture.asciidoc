@@ -551,6 +551,9 @@ a|
 amd_gpu_gfx700
 amd_gpu_gfx701
 amd_gpu_gfx702
+amd_gpu_gfx703
+amd_gpu_gfx704
+amd_gpu_gfx705
 ----
 |-
 |AMD GCN 2.0 architecture.

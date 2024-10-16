@@ -9,6 +9,15 @@
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx702 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx702 -DMAC_STR=GFX702
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx703 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx703 -DMAC_STR=GFX703
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx704 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx704 -DMAC_STR=GFX704
+// RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx705 \
+// RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
+// RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx705 -DMAC_STR=GFX705
 // RUN: %clangxx -fsycl -nogpulib -fsycl-targets=amd_gpu_gfx801 \
 // RUN:   -fsycl-libspirv-path=%S/Inputs/SYCL/libspirv.bc -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefixes=DEVICE_AMD,MACRO_AMD -DDEV_STR=gfx801 -DMAC_STR=GFX801

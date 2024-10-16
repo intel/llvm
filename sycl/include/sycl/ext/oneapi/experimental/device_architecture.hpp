@@ -203,6 +203,15 @@ static constexpr ext::oneapi::experimental::architecture
 #ifndef __SYCL_TARGET_AMD_GPU_GFX702__
 #define __SYCL_TARGET_AMD_GPU_GFX702__ 0
 #endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX703__
+#define __SYCL_TARGET_AMD_GPU_GFX703__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX704__
+#define __SYCL_TARGET_AMD_GPU_GFX704__ 0
+#endif
+#ifndef __SYCL_TARGET_AMD_GPU_GFX705__
+#define __SYCL_TARGET_AMD_GPU_GFX705__ 0
+#endif
 #ifndef __SYCL_TARGET_AMD_GPU_GFX801__
 #define __SYCL_TARGET_AMD_GPU_GFX801__ 0
 #endif
@@ -360,6 +369,9 @@ static constexpr bool is_allowable_aot_mode =
     (__SYCL_TARGET_AMD_GPU_GFX700__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX701__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX702__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX703__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX704__ == 1) ||
+    (__SYCL_TARGET_AMD_GPU_GFX705__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX801__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX802__ == 1) ||
     (__SYCL_TARGET_AMD_GPU_GFX803__ == 1) ||
@@ -537,6 +549,15 @@ get_current_architecture_aot() {
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX702__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx702;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX703__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx703;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX704__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx704;
+#endif
+#if __SYCL_TARGET_AMD_GPU_GFX705__
+  return ext::oneapi::experimental::architecture::amd_gpu_gfx705;
 #endif
 #if __SYCL_TARGET_AMD_GPU_GFX801__
   return ext::oneapi::experimental::architecture::amd_gpu_gfx801;
