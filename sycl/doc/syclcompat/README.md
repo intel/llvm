@@ -1585,6 +1585,10 @@ If a `std::runtime_error` exception is caught,
 `syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
 
+`get_error_string_dummy` is a dummy function introduced to assist auto
+migration. It needs to be replaced with a real error-handling function. SYCL
+reports errors using exceptions and does not use error codes.
+
 ``` c++
 namespace syclcompat {
 
@@ -1616,6 +1620,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 namespace syclcompat {
 enum error_code { success = 0, backend_error = 1, default_error = 999 };
+inline const char *get_error_string_dummy(int ec);
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
