@@ -17,23 +17,13 @@
 
 #include <llvm/IR/Module.h>
 
-#include <filesystem>
-
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
-
-static char X;
-static std::string getLoadedLibraryPath() {
-  Dl_info Info;
-  if (dladdr(&X, &Info)) {
-    return Info.dli_fname;
-  }
-  return {};
-}
+static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
 #endif // _GNU_SOURCE
 
 static constexpr auto InvalidDPCPPRoot = "<invalid>";
-static constexpr auto JITLibraryName = "libsycl-jit.so";
+static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
 
 static const std::string &getDPCPPRoot() {
   thread_local std::string DPCPPRoot;
@@ -44,13 +34,12 @@ static const std::string &getDPCPPRoot() {
   DPCPPRoot = InvalidDPCPPRoot;
 
 #ifdef _GNU_SOURCE
-  std::filesystem::path LoadedLibraryPath = getLoadedLibraryPath();
-  if (!LoadedLibraryPath.empty() && LoadedLibraryPath.is_absolute() &&
-      LoadedLibraryPath.filename() == JITLibraryName &&
-      LoadedLibraryPath.has_parent_path()) {
-    if (auto LibDirectoryPath = LoadedLibraryPath.parent_path();
-        LibDirectoryPath.filename() == "lib") {
-      DPCPPRoot = LibDirectoryPath.parent_path();
+  Dl_info Info;
+  if (dladdr(&X, &Info)) {
+    std::string LoadedLibraryPath = Info.dli_fname;
+    auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
+    if (Pos != std::string::npos) {
+      DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
     }
   }
 #endif // _GNU_SOURCE
