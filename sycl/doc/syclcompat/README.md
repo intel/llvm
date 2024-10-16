@@ -1108,6 +1108,7 @@ class device_ext : public sycl::device {
   int get_max_work_group_size() const;
   int get_mem_base_addr_align() const;
   size_t get_global_mem_size() const;
+  size_t get_local_mem_size() const;
   void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
