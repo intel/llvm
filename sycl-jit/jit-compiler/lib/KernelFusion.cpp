@@ -238,13 +238,13 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
 
 extern "C" JITResult compileSYCL(const char *SYCLSource,
                                  View<IncludePair> IncludePairs,
-                                 View<const char *> UserArgs,
-                                 const char *DPCPPRoot) {
-  std::unique_ptr<llvm::Module> Module =
-      compileDeviceCode(SYCLSource, IncludePairs, UserArgs, DPCPPRoot);
-  if (!Module) {
-    return JITResult{"Device code compilation failed"};
+                                 View<const char *> UserArgs) {
+  auto ModuleOrErr = compileDeviceCode(SYCLSource, IncludePairs, UserArgs);
+  if (!ModuleOrErr) {
+    return errorToFusionResult(ModuleOrErr.takeError(),
+                               "Device compilation failed");
   }
+  std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
 
   SYCLKernelInfo Kernel;
   auto Error = translation::KernelTranslator::translateKernel(

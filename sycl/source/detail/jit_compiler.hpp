@@ -94,7 +94,6 @@ private:
   CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
-  std::string DPCPPRoot;
 #endif // SYCL_EXT_JIT_ENABLE
 };
 

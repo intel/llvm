@@ -12,6 +12,8 @@
 #include "Kernel.h"
 #include "View.h"
 
+#include <llvm/Support/Error.h>
+
 #include <memory>
 
 namespace llvm {
@@ -20,10 +22,9 @@ class Module;
 
 namespace jit_compiler {
 
-std::unique_ptr<llvm::Module> compileDeviceCode(const char *SYCLSource,
-                                                View<IncludePair> IncludePairs,
-                                                View<const char *> UserArgs,
-                                                const char *DPCPPRoot);
+llvm::Expected<std::unique_ptr<llvm::Module>>
+compileDeviceCode(const char *SYCLSource, View<IncludePair> IncludePairs,
+                  View<const char *> UserArgs);
 
 } // namespace jit_compiler
 

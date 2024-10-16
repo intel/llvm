@@ -67,7 +67,7 @@ JITResult materializeSpecConstants(const char *KernelName,
                                    View<unsigned char> SpecConstBlob);
 
 JITResult compileSYCL(const char *SYCLSource, View<IncludePair> IncludePairs,
-                      View<const char *> UserArgs, const char *DPCPPRoot);
+                      View<const char *> UserArgs);
 
 /// Clear all previously set options.
 void resetJITConfiguration();

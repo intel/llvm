@@ -17,6 +17,50 @@
 
 #include <llvm/IR/Module.h>
 
+#include <filesystem>
+
+#ifdef _GNU_SOURCE
+#include <dlfcn.h>
+
+static char X;
+static std::string getLoadedLibraryPath() {
+  Dl_info Info;
+  if (dladdr(&X, &Info)) {
+    return Info.dli_fname;
+  }
+  return {};
+}
+#endif // _GNU_SOURCE
+
+static constexpr auto InvalidDPCPPRoot = "<invalid>";
+static constexpr auto JITLibraryName = "libsycl-jit.so";
+
+static const std::string &getDPCPPRoot() {
+  thread_local std::string DPCPPRoot;
+
+  if (!DPCPPRoot.empty()) {
+    return DPCPPRoot;
+  }
+  DPCPPRoot = InvalidDPCPPRoot;
+
+#ifdef _GNU_SOURCE
+  std::filesystem::path LoadedLibraryPath = getLoadedLibraryPath();
+  if (!LoadedLibraryPath.empty() && LoadedLibraryPath.is_absolute() &&
+      LoadedLibraryPath.filename() == JITLibraryName &&
+      LoadedLibraryPath.has_parent_path()) {
+    if (auto LibDirectoryPath = LoadedLibraryPath.parent_path();
+        LibDirectoryPath.filename() == "lib") {
+      DPCPPRoot = LibDirectoryPath.parent_path();
+    }
+  }
+#endif // _GNU_SOURCE
+
+  // TODO: Implemenent other means of determining the DPCPP root, e.g.
+  //       evaluating the `CMPLR_ROOT` env.
+
+  return DPCPPRoot;
+}
+
 namespace {
 using namespace clang;
 using namespace clang::tooling;
@@ -65,9 +109,14 @@ struct GetLLVMModuleAction : public ToolAction {
 
 } // anonymous namespace
 
-std::unique_ptr<llvm::Module> jit_compiler::compileDeviceCode(
-    const char *SYCLSource, View<IncludePair> IncludePairs,
-    View<const char *> UserArgs, const char *DPCPPRoot) {
+llvm::Expected<std::unique_ptr<llvm::Module>>
+jit_compiler::compileDeviceCode(const char *SYCLSource,
+                                View<IncludePair> IncludePairs,
+                                View<const char *> UserArgs) {
+  const std::string &DPCPPRoot = getDPCPPRoot();
+  if (DPCPPRoot == InvalidDPCPPRoot) {
+    return llvm::createStringError("Could not locate DPCPP root directory");
+  }
 
   SmallVector<std::string> CommandLine = {"-fsycl-device-only"};
   // TODO: Allow instrumentation again when device library linking is
@@ -107,5 +156,6 @@ std::unique_ptr<llvm::Module> jit_compiler::compileDeviceCode(
     return std::move(Action.Module);
   }
 
-  return {};
+  // TODO: Capture compiler errors from the ClangTool.
+  return llvm::createStringError("Unable to obtain LLVM module");
 }

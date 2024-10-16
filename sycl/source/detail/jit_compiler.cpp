@@ -85,23 +85,6 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
-    // TODO: Move this query to a more appropriate location (e.g. add
-    // `sycl::detail::ur::getOsLibraryPath`), and handle non-POSIX OSs. For now,
-    // it should be fine here because the JIT is not built on Windows.
-    link_map *Map = nullptr;
-    if (dlinfo(LibraryPtr, RTLD_DI_LINKMAP, &Map) == 0) {
-      std::string LoadedLibraryPath = Map->l_name;
-      std::string JITLibraryPathSuffix = "/lib/" + JITLibraryName;
-      auto Pos = LoadedLibraryPath.rfind(JITLibraryPathSuffix);
-      if (Pos != std::string::npos) {
-        this->DPCPPRoot = LoadedLibraryPath.substr(0, Pos);
-      }
-    }
-    if (this->DPCPPRoot.empty()) {
-      printPerformanceWarning("Cannot determine JIT library location");
-      return false;
-    }
-
     return true;
   };
   Available = checkJITLibrary();
@@ -1194,8 +1177,8 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
                  std::back_inserter(UserArgsView),
                  [](const auto &Arg) { return Arg.c_str(); });
 
-  auto Result = CompileSYCLHandle(SYCLSource.c_str(), IncludePairsView,
-                                  UserArgsView, DPCPPRoot.c_str());
+  auto Result =
+      CompileSYCLHandle(SYCLSource.c_str(), IncludePairsView, UserArgsView);
 
   if (Result.failed()) {
     throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
