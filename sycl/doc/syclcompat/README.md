@@ -1728,7 +1728,31 @@ signed otherwise.
 Various maths functions are defined operate on any floating point types.
 `syclcompat::is_floating_point_v` extends the standard library's
 `std::is_floating_point_v` to include `sycl::half` and, where available,
-`sycl::ext::oneapi::bfloat16`.
+`sycl::ext::oneapi::bfloat16`. The current version of SYCLcompat also provides
+a specialization of `std::common_type_t` for `sycl::ext::oneapi::bfloat16`,
+though this will be moved to the `sycl_ext_oneapi_bfloat16` extension in
+future.
+
+```cpp
+namespace std {
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+} // namespace std
+```
 
 ```cpp
 namespace syclcompat{
