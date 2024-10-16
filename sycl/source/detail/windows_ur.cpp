@@ -27,54 +27,6 @@ void *GetWinProcAddress(void *module, const char *funcName) {
 
 namespace ur {
 
-void *loadOsLibrary(const std::string &LibraryPath) {
-  // Tells the system to not display the critical-error-handler message box.
-  // Instead, the system sends the error to the calling process.
-  // This is crucial for graceful handling of shared libs that can't be
-  // loaded, e.g. due to missing native run-times.
-
-  UINT SavedMode = SetErrorMode(SEM_FAILCRITICALERRORS);
-  // Exclude current directory from DLL search path
-  if (!SetDllDirectoryA("")) {
-    assert(false && "Failed to update DLL search path");
-  }
-
-  auto Result = (void *)LoadLibraryExA(LibraryPath.c_str(), NULL, NULL);
-  (void)SetErrorMode(SavedMode);
-  if (!SetDllDirectoryA(nullptr)) {
-    assert(false && "Failed to restore DLL search path");
-  }
-
-  return Result;
-}
-
-int unloadOsLibrary(void *Library) {
-  return (int)FreeLibrary((HMODULE)Library);
-}
-
-void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
-  return reinterpret_cast<void *>(
-      GetProcAddress((HMODULE)Library, FunctionName.c_str()));
-}
-
-static std::filesystem::path getCurrentDSODirPath() {
-  wchar_t Path[MAX_PATH];
-  auto Handle =
-      getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODirPath));
-  DWORD Ret = GetModuleFileName(
-      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
-      MAX_PATH);
-  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
-  assert(Ret > 0 && "GetModuleFileName failed");
-  (void)Ret;
-
-  BOOL RetCode = PathRemoveFileSpec(Path);
-  assert(RetCode && "PathRemoveFileSpec failed");
-  (void)RetCode;
-
-  return std::filesystem::path(Path);
-}
-
 void *getURLoaderLibrary() { return getPreloadedURLib(); }
 
 } // namespace ur

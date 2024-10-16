@@ -13,6 +13,7 @@
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/load_library.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/ur.hpp>
@@ -32,15 +33,15 @@ jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     static const std::string JITLibraryName = "libsycl-jit.so";
 
-    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
+    void *LibraryPtr = sycl::detail::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
-                                                  "addToJITConfiguration"));
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr,
+                                              "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -48,8 +49,8 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
-                                                  "resetJITConfiguration"));
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr,
+                                              "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -57,7 +58,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
@@ -66,8 +67,8 @@ jit_compiler::jit_compiler() {
 
     this->MaterializeSpecConstHandle =
         reinterpret_cast<MaterializeSpecConstFuncT>(
-            sycl::detail::ur::getOsLibraryFuncAddress(
-                LibraryPtr, "materializeSpecConstants"));
+            sycl::detail::getOsLibraryFuncAddress(LibraryPtr,
+                                                  "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
