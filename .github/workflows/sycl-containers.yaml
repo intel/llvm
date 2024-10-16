@@ -51,6 +51,13 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: unstable
             build_args: "use_latest=true"
+          - name: All Dependencies Docker image
+            file: ubuntu2204_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2204_build
+              base_tag=latest
+              use_latest=false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -67,30 +74,3 @@ jobs:
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}-${{ github.sha }}
             ghcr.io/${{ github.repository }}/${{ matrix.file }}:${{ matrix.tag }}
           build-args: ${{ matrix.build_args }}
-
-  build_all_deps_image:
-    if: github.repository == 'intel/llvm'
-    name: Build and Push Docker Image - Build With Drivers
-    runs-on: ubuntu-22.04
-    permissions:
-      packages: write
-    needs: build_and_push_images
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - name: Build and Push Container
-        uses: ./devops/actions/build_container
-        with:
-          push: ${{ github.event_name != 'pull_request' }}
-          file: ubuntu2204_intel_drivers
-          username: ${{ github.repository_owner }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-          tags: |
-            ghcr.io/${{ github.repository }}/ubuntu2204_alldeps:latest-${{ github.sha }}
-            ghcr.io/${{ github.repository }}/ubuntu2204_alldeps:latest
-          build-args: |
-              base_image=ghcr.io/intel/llvm/ubuntu2204_build
-              base_tag=latest
-              use_latest=false
