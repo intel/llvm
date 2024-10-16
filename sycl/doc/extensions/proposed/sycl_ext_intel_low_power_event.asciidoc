@@ -69,11 +69,11 @@ On some backends, calling `wait()` on a `event` will synchronize using a
 busy-waiting implementation. Though this comes at a low latency for the
 synchronization of the event, it has the downside of consuming high amounts of
 CPU time for no meaningful work.  This extension introduces a new property for
-`sycl::ext::oneapi::experimental::barrier()` that will produce a "low-power"
-event. These new low-power events will, if possible, yield the thread that the
-`wait()` member function is called on and only wake up occasionally to check if
-the event has finished. This reduces the time the CPU spends checking finish
-condition of the wait, at the cost of latency.
+SYCL commands that will produce a "low-power" event. These new low-power events
+will, if possible, yield the thread that the `wait()` member function is called
+on and only wake up occasionally to check if the event has finished. This
+reduces the time the CPU spends checking finish condition of the wait, at the
+cost of latency.
 
 
 == Specification
@@ -101,14 +101,19 @@ supports.
 
 === Low-power event property
 
-This extension also adds a new property which can be used with the `barrier`
-and `partial_barrier` enqueue free functions from
+This extension adds a new property which can be used with the
+`submit_with_event` free function from
 link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions].
 Passing this property to either of these functions will act as a hint to the
 `event` created from the corresponding commands to do low-power synchronization.
 If the backend is able to handle low-power events, calling `event::wait()` or
 `event::wait_and_throw()` will cause the thread to yield and only do occasional
 wake-ups to check the event progress.
+
+[_Note:_ The property currently only has an effect on `barrier` and
+`partial_barrier` commands enqueued on queues that return
+`backend::ext_oneapi_level_zero` from `queue::get_backend()`.
+_{endnote}_]
 
 ```
 namespace sycl::ext::intel::experimental {
@@ -140,10 +145,10 @@ int main() {
   // Submit some work to the queue.
   oneapiex::submit(Q, [&](sycl::handler &CGH) {...});
 
-  // Submit a barrier with the low-power event property.
+  // Submit a command with the low-power event property.
   sycl::event E = oneapiex::submit_with_event(Q, [&](sycl::handler &CGH) {
-    oneapiex::barrier(CGH, oneapiex::properties{intelex::low_power_event});
-  });
+    ...
+  }, oneapiex::properties{intelex::low_power_event});
 
   // Waiting for the resulting event will use low-power waiting if possible.
   E.wait();

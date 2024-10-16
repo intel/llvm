@@ -95,18 +95,20 @@ void submit_impl(queue &Q, CommandGroupFunc &&CGF,
 }
 } // namespace detail
 
-template <typename CommandGroupFunc>
-void submit(queue Q, CommandGroupFunc &&CGF,
+template <typename CommandGroupFunc, typename PropertiesT = empty_properties_t>
+void submit(queue Q, CommandGroupFunc &&CGF, PropertiesT Props = {},
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
+  std::ignore = Props;
   sycl::ext::oneapi::experimental::detail::submit_impl(
       Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-template <typename CommandGroupFunc>
-event submit_with_event(queue Q, CommandGroupFunc &&CGF,
+template <typename CommandGroupFunc, typename PropertiesT = empty_properties_t>
+event submit_with_event(queue Q, CommandGroupFunc &&CGF, PropertiesT Props = {},
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
+  std::ignore = Props;
   return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
@@ -349,34 +351,21 @@ __SYCL_EXPORT void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
                               const sycl::detail::code_location &CodeLoc =
                                   sycl::detail::code_location::current());
 
-template <typename PropertiesT = empty_properties_t>
-inline void barrier(handler &CGH, PropertiesT Properties = {}) {
-  std::ignore = Properties;
-  CGH.ext_oneapi_barrier();
+inline void barrier(handler &CGH) { CGH.ext_oneapi_barrier(); }
+
+inline void barrier(queue Q, const sycl::detail::code_location &CodeLoc =
+                                 sycl::detail::code_location::current()) {
+  submit(Q, [&](handler &CGH) { barrier(CGH); }, CodeLoc);
 }
 
-template <typename PropertiesT = empty_properties_t>
-inline void barrier(queue Q, PropertiesT Properties = {},
-                    const sycl::detail::code_location &CodeLoc =
-                        sycl::detail::code_location::current()) {
-  submit(Q, [&](handler &CGH) { barrier(CGH, Properties); }, CodeLoc);
-}
-
-template <typename PropertiesT = empty_properties_t>
-inline void partial_barrier(handler &CGH, const std::vector<event> &Events,
-                            PropertiesT Properties = {}) {
-  std::ignore = Properties;
+inline void partial_barrier(handler &CGH, const std::vector<event> &Events) {
   CGH.ext_oneapi_barrier(Events);
 }
 
-template <typename PropertiesT = empty_properties_t>
 inline void partial_barrier(queue Q, const std::vector<event> &Events,
-                            PropertiesT Properties = {},
                             const sycl::detail::code_location &CodeLoc =
                                 sycl::detail::code_location::current()) {
-  submit(
-      Q, [&](handler &CGH) { partial_barrier(CGH, Events, Properties); },
-      CodeLoc);
+  submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
 
 } // namespace ext::oneapi::experimental
