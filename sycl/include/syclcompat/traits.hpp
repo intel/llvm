@@ -24,7 +24,7 @@
 
 #include <sycl/feature_test.hpp>
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-#include "sycl/ext/oneapi/bfloat16.hpp"
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #endif
 #include <cstddef>
 #include <sycl/ext/oneapi/properties/properties.hpp>
