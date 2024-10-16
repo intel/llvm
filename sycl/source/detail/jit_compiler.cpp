@@ -1160,9 +1160,13 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
 
-  // TODO: Handle situation.
-  assert(RegisteredKernelNames.empty() &&
-         "Instantiation of kernel templates NYI");
+  // TODO: Handle template instantiation.
+  if (!RegisteredKernelNames.empty()) {
+    throw sycl::exception(
+        sycl::errc::build,
+        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
+        "is not yet supported for the `sycl_jit` source language");
+  }
 
   std::string SYCLFileName = Id + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
