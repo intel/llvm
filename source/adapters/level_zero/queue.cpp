@@ -1187,7 +1187,7 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     return std::atoi(UrRet) != 0;
   }();
   this->CounterBasedEventsEnabled =
-      isInOrderQueue() && Device->useDriverInOrderLists() &&
+      UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
       useDriverCounterBasedEvents &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
 }
