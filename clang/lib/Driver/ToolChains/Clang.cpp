@@ -8537,9 +8537,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (IsCuda) {
+  if (IsCuda || (IsSYCLDevice && Triple.isNVPTX())) {
+    bool UseShortPtr = IsSYCLDevice && Triple.isNVPTX();
     if (Args.hasFlag(options::OPT_fcuda_short_ptr,
-                     options::OPT_fno_cuda_short_ptr, false))
+                     options::OPT_fno_cuda_short_ptr, UseShortPtr))
       CmdArgs.push_back("-fcuda-short-ptr");
   }
 
