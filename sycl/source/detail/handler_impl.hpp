@@ -13,7 +13,6 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <memory>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
-#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 
 namespace sycl {
 inline namespace _V1 {

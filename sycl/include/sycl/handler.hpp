@@ -163,6 +163,8 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
+template <typename, typename>
+class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -635,6 +637,8 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+
+  void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -1871,7 +1875,13 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
-  void set_arg(int ArgIndex, detail::work_group_memory_impl &Arg);
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int ArgIndex,
+      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
+    setArgHelper(ArgIndex, Arg);
+  }
 
   // set_arg for graph dynamic_parameters
   template <typename T>
