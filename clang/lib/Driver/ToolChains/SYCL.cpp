@@ -296,10 +296,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (TargetTriple.isNVPTX() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--cuda.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib-nvptx64-nvidia-cuda.bc"));
 
   if (TargetTriple.isAMDGCN() && IgnoreSingleLibs)
-    LibraryList.push_back(Args.MakeArgString("devicelib--amd.bc"));
+    LibraryList.push_back(Args.MakeArgString("devicelib-amdgcn-amd-amdhsa.bc"));
 
   if (IgnoreSingleLibs)
     return LibraryList;
@@ -1033,7 +1033,7 @@ static OclocInfo PVCDevices[] = {
 
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
-static bool hasPVCDevice(const ArgStringList &CmdArgs) {
+static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
   bool DeviceSeen = false;
   StringRef DeviceArg;
   for (StringRef Arg : CmdArgs) {
@@ -1074,16 +1074,22 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs) {
     // Check for device, version or hex (literal values)
     for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
       if (SingleArg.equals_insensitive(PVCDevices[I].DeviceName) ||
-          SingleArg.equals_insensitive(PVCDevices[I].Version))
+          SingleArg.equals_insensitive(PVCDevices[I].Version)) {
+        DevArg = SingleArg.str();
         return true;
+      }
       for (int HexVal : PVCDevices[I].HexValues) {
         int Value = 0;
-        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal)
+        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal) {
+          DevArg = SingleArg.str();
           return true;
+        }
       }
       if (CheckShortVersion &&
-          StringRef(PVCDevices[I].Version).starts_with(SingleArg))
+          StringRef(PVCDevices[I].Version).starts_with(SingleArg)) {
+        DevArg = SingleArg.str();
         return true;
+      }
     }
   }
   return false;
@@ -1659,8 +1665,13 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
+    std::string DevArg;
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
+      // The -device option passed in by the user may not be 'pvc'. Use the
+      // value provided by the user if it was specified.
       StringRef DeviceName = "pvc";
+      if (!DevArg.empty())
+        DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
         PerDeviceArgs.push_back(
