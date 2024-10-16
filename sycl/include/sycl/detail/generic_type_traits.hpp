@@ -32,17 +32,6 @@ inline constexpr bool is_svgenfloatf_v =
     is_contained_v<T, gtl::scalar_vector_float_list>;
 
 template <typename T>
-inline constexpr bool is_half_v = is_contained_v<T, gtl::scalar_half_list>;
-
-template <typename T>
-inline constexpr bool is_bfloat16_v =
-    is_contained_v<T, gtl::scalar_bfloat16_list>;
-
-template <typename T>
-inline constexpr bool is_half_or_bf16_v =
-    is_contained_v<T, gtl::half_bfloat16_list>;
-
-template <typename T>
 inline constexpr bool is_svgenfloath_v =
     is_contained_v<T, gtl::scalar_vector_half_list>;
 
@@ -56,9 +45,6 @@ inline constexpr bool is_sgenfloat_v =
 template <typename T>
 inline constexpr bool is_vgenfloat_v =
     is_contained_v<T, gtl::vector_floating_list>;
-
-template <typename T>
-inline constexpr bool is_genint_v = is_contained_v<T, gtl::signed_int_list>;
 
 template <typename T>
 inline constexpr bool is_geninteger_v = is_contained_v<T, gtl::integer_list>;
@@ -141,10 +127,11 @@ template <typename T> auto convertToOpenCLType(T &&x) {
     // sycl::half may convert to _Float16, and we would try to instantiate
     // vec class with _Float16 DataType, which is not expected there. As
     // such, leave vector<half, N> as-is.
-    using MatchingVec = vec<std::conditional_t<is_half_v<ElemTy>, ElemTy,
-                                               decltype(convertToOpenCLType(
-                                                   std::declval<ElemTy>()))>,
-                            no_ref::size()>;
+    using MatchingVec =
+        vec<std::conditional_t<std::is_same_v<ElemTy, half>, ElemTy,
+                               decltype(convertToOpenCLType(
+                                   std::declval<ElemTy>()))>,
+            no_ref::size()>;
 #ifdef __SYCL_DEVICE_ONLY__
     return sycl::bit_cast<typename MatchingVec::vector_t>(x);
 #else
@@ -160,11 +147,11 @@ template <typename T> auto convertToOpenCLType(T &&x) {
                                           fixed_width_unsigned<sizeof(no_ref)>>;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
-  } else if constexpr (is_half_v<no_ref>) {
+  } else if constexpr (std::is_same_v<no_ref, half>) {
     using OpenCLType = sycl::detail::half_impl::BIsRepresentationT;
     static_assert(sizeof(OpenCLType) == sizeof(T));
     return static_cast<OpenCLType>(x);
-  } else if constexpr (is_bfloat16_v<no_ref>) {
+  } else if constexpr (std::is_same_v<no_ref, ext::oneapi::bfloat16>) {
     // On host, don't interpret BF16 as uint16.
 #ifdef __SYCL_DEVICE_ONLY__
     using OpenCLType = sycl::ext::oneapi::detail::Bfloat16StorageT;
