@@ -1,0 +1,165 @@
+= sycl_ext_oneapi_throttled_wait
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.
+OpenCL(TM) is a trademark of Apple Inc. used by permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.
+All references below to the "core SYCL specification" or to section numbers in
+the SYCL specification refer to that revision.
+
+
+== Status
+
+This is an experimental extension specification, intended to provide early 
+access to features and gather community feedback. Interfaces defined in 
+this specification are implemented in DPC++, but they are not finalized 
+and may change incompatibly in future versions of DPC++ without prior notice. 
+*Shipping software products should not rely on APIs defined in 
+this specification.*
+
+
+== Overview
+
+This extension adds simple APIs for an alternate "sleeping" wait implementation.
+This is for scenarios (such as IoT) where one might want to trade a bit of
+performance in exchange for having the host CPU be more available, not burning
+cycles intently waiting.  
+
+== Specification
+
+=== Additional Inclusion
+
+As throttled_wait is presently an experimental extension, it requires an 
+additional inclusion to use.
+
+```c++
+#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/throttled_wait.hpp>  
+
+// now the extension API is available
+```
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.
+An implementation supporting this extension must predefine the macro
+`SYCL_EXT_ONEAPI_THROTTLED_WAIT`
+to one of the values defined in the table below.
+Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== API of the extension
+
+This extension adds the following free functions, where sleep is one 
+of the types supported by std::chrono::duration (e.g. 
+std::chrono::milliseconds, std::chrono::microseconds, etc)
+
+For each of these calls, while waiting for the sycl object to 
+complete, the host process sleeps for the sleep duration paramater.  
+
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+template <typename Rep, typename Period>
+void ext_oneapi_throttled_wait(sycl::event& e, const std::chrono::duration<Rep, Period>& sleep);
+
+template <typename Rep, typename Period>
+void ext_oneapi_throttled_wait((std::vector<sycl::event>& eventList, const std::chrono::duration<Rep, Period>& sleep)
+
+template <typename Rep, typename Period>
+void ext_oneapi_throttled_wait_and_throw(sycl::event& e, const std::chrono::duration<Rep, Period>& sleep)
+
+template <typename Rep, typename Period>
+void ext_oneapi_throttled_wait_and_throw((std::vector<sycl::event>& eventList, const std::chrono::duration<Rep, Period>& sleep)
+
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+
+== Example
+
+The following example demonstrates simple usage of this API.
+
+```
+#include <sycl/sycl.hpp>
+#include <sycl/ext/oneapi/experimental/throttled_wait.hpp> 
+namespace syclex = sycl::ext::oneapi::experimental;
+
+constexpr uint64_t N = 1000000000; // a very big N for looping.
+
+int main() {
+    sycl::queue q;
+    uint64_t a = 0;
+
+    {
+        sycl::buffer<uint64_t, 1> buf(&a, sycl::range<1>(1));
+        
+        sycl::event e = q.submit([&](sycl::handler &cgh) {
+            sycl::accessor acc(buf, cgh, sycl::read_write);
+            cgh.single_task<class hello_world>([=]() {
+                for(long i = 0; i < N; i++) {
+                    acc[0] = acc[0] + 1;
+                }
+            });
+        });
+#ifdef SYCL_EXT_ONEAPI_THROTTLED_WAIT
+    syclex::ext_oneapi_throttled_wait(e, std::chrono::milliseconds(100));
+#else
+    e.wait();
+#endif
+    } // buffer goes out of scope, data copied back to 'a'.
+
+    std::cout << "a: " << a << std::endl;
+    
+    return 0;
+}
+```
