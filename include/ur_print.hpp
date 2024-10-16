@@ -5631,6 +5631,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_mem_info_t value) {
     case UR_MEM_INFO_CONTEXT:
         os << "UR_MEM_INFO_CONTEXT";
         break;
+    case UR_MEM_INFO_REFERENCE_COUNT:
+        os << "UR_MEM_INFO_REFERENCE_COUNT";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -5669,6 +5672,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_mem_info_t 
 
         ur::details::printPtr(os,
                               *tptr);
+
+        os << ")";
+    } break;
+    case UR_MEM_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
 
         os << ")";
     } break;

@@ -1541,6 +1541,7 @@ ur_result_t UR_APICALL urContextSetExtendedDeleter(
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///         + `pImageDesc && pImageDesc->numMipLevel != 0`
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
@@ -1890,7 +1891,7 @@ ur_result_t UR_APICALL urMemImageCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_INFO_CONTEXT < propName`
+///         + `::UR_MEM_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
