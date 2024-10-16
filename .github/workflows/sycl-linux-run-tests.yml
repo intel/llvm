@@ -28,7 +28,7 @@ on:
         required: False
       tests_selector:
         description: |
-          Two options: "e2e", "cts"
+          Two possible options: "e2e" and "cts".
         type: string
         default: "e2e"
 
