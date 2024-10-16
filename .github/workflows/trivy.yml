@@ -35,6 +35,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-results.sarif'
           exit-code: 1  # Fail if issue found
+          skip-dirs: '**/_deps/**'
           # file with suppressions: .trivyignore (in root dir)
 
       - name: Print report and trivyignore file
