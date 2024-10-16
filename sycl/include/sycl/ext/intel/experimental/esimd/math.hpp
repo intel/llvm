@@ -32,11 +32,7 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 popcount(__ESIMD_NS::simd<T, N> vec) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return __spirv_ocl_popcount(vec.data());
-#else
-  return vec;
-#endif
+  return __spirv_ocl_popcount<T, N>(vec.data());
 }
 
 /// Count the number of leading zeros.
@@ -48,11 +44,7 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 clz(__ESIMD_NS::simd<T, N> vec) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return __spirv_ocl_clz(vec.data());
-#else
-  return vec;
-#endif
+  return __spirv_ocl_clz<T, N>(vec.data());
 }
 
 /// Count the number of trailing zeros.
@@ -63,11 +55,7 @@ template <typename T, int N>
 __ESIMD_API std::enable_if_t<std::is_integral_v<T> && sizeof(T) < 8,
                              __ESIMD_NS::simd<T, N>>
 ctz(__ESIMD_NS::simd<T, N> vec) {
-#ifdef __SYCL_DEVICE_ONLY__
-  return __spirv_ocl_ctz(vec.data());
-#else
-  return vec;
-#endif
+  return __spirv_ocl_ctz<T, N>(vec.data());
 }
 
 /// @} sycl_esimd_bitmanip
@@ -733,6 +721,18 @@ srnd(__ESIMD_NS::simd<float, N> src0, __ESIMD_NS::simd<uint16_t, N> src1) {
   return __esimd_srnd<N>(src0.data(), src1.data());
 }
 
+/// frem - compute the remainder from floating point division.
+/// \param src0 the first operand to be used for division.
+/// \param src1 the second operand to be used for division.
+/// \return the remainder from the division.
+template <typename T, int N>
+ESIMD_INLINE __ESIMD_NS::simd<T, N> frem(__ESIMD_NS::simd<T, N> src0,
+                                         __ESIMD_NS::simd<T, N> src1) {
+  static_assert(std::is_same_v<T, float> || std::is_same_v<T, double>,
+                "Element type must be float or double");
+  return __spirv_FRem<T, N>(src0.data(), src1.data());
+}
+
 /// @} sycl_esimd_math
 
 /// @addtogroup sycl_esimd_logical
@@ -752,7 +752,7 @@ ESIMD_INLINE __ESIMD_NS::simd<T, N> fma(__ESIMD_NS::simd<T, N> a,
   static_assert(__ESIMD_DNS::is_generic_floating_point_v<T>,
                 "fma only supports floating point types");
   using CppT = __ESIMD_DNS::element_type_traits<T>::EnclosingCppT;
-  auto Ret = __esimd_fmadd<__ESIMD_DNS::__raw_t<CppT>, N>(
+  auto Ret = __spirv_ocl_fma<__ESIMD_DNS::__raw_t<CppT>, N>(
       __ESIMD_DNS::convert_vector<CppT, T, N>(a.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(b.data()),
       __ESIMD_DNS::convert_vector<CppT, T, N>(c.data()));

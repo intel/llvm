@@ -31,10 +31,10 @@ def do_configure(args):
     libclc_amd_target_names = ";amdgcn--amdhsa"
     libclc_nvidia_target_names = ";nvptx64--nvidiacl"
 
-    sycl_enable_fusion = "OFF"
-    if not args.disable_fusion:
-        llvm_external_projects += ";sycl-fusion"
-        sycl_enable_fusion = "ON"
+    sycl_enable_jit = "OFF"
+    if not args.disable_jit:
+        llvm_external_projects += ";sycl-jit"
+        sycl_enable_jit = "ON"
 
     if args.llvm_external_projects:
         llvm_external_projects += ";" + args.llvm_external_projects.replace(",", ";")
@@ -45,7 +45,7 @@ def do_configure(args):
     xpti_dir = os.path.join(abs_src_dir, "xpti")
     xptifw_dir = os.path.join(abs_src_dir, "xptifw")
     libdevice_dir = os.path.join(abs_src_dir, "libdevice")
-    fusion_dir = os.path.join(abs_src_dir, "sycl-fusion")
+    jit_dir = os.path.join(abs_src_dir, "sycl-jit")
     llvm_targets_to_build = args.host_target
     llvm_enable_projects = "clang;" + llvm_external_projects
     libclc_build_native = "OFF"
@@ -59,14 +59,14 @@ def do_configure(args):
     llvm_enable_sphinx = "OFF"
     llvm_build_shared_libs = "OFF"
     llvm_enable_lld = "OFF"
-    sycl_enabled_plugins = ["opencl"]
+    sycl_enabled_backends = ["opencl"]
     sycl_preview_lib = "ON"
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
 
     if sys.platform != "darwin":
-        sycl_enabled_plugins.append("level_zero")
+        sycl_enabled_backends.append("level_zero")
 
     # lld is needed on Windows or for the HIP plugin on AMD
     if platform.system() == "Windows" or (args.hip and args.hip_platform == "AMD"):
@@ -80,7 +80,7 @@ def do_configure(args):
         llvm_targets_to_build += ";NVPTX"
         libclc_targets_to_build = libclc_nvidia_target_names
         libclc_gen_remangled_variants = "ON"
-        sycl_enabled_plugins.append("cuda")
+        sycl_enabled_backends.append("cuda")
 
     if args.hip:
         if args.hip_platform == "AMD":
@@ -93,7 +93,7 @@ def do_configure(args):
         libclc_gen_remangled_variants = "ON"
 
         sycl_build_pi_hip_platform = args.hip_platform
-        sycl_enabled_plugins.append("hip")
+        sycl_enabled_backends.append("hip")
 
     if args.native_cpu:
         if args.native_cpu_libclc_targets:
@@ -101,7 +101,7 @@ def do_configure(args):
         else:
             libclc_build_native = "ON"
         libclc_gen_remangled_variants = "ON"
-        sycl_enabled_plugins.append("native_cpu")
+        sycl_enabled_backends.append("native_cpu")
 
     # all llvm compiler targets don't require 3rd party dependencies, so can be
     # built/tested even if specific runtimes are not available
@@ -116,7 +116,6 @@ def do_configure(args):
         llvm_enable_assertions = "OFF"
 
     if args.docs:
-        llvm_enable_doxygen = "ON"
         llvm_enable_sphinx = "ON"
 
     if args.shared_libs:
@@ -153,7 +152,7 @@ def do_configure(args):
             libclc_gen_remangled_variants = "ON"
 
     if args.enable_plugin:
-        sycl_enabled_plugins += args.enable_plugin
+        sycl_enabled_backends += args.enable_plugin
 
     if args.disable_preview_lib:
         sycl_preview_lib = "OFF"
@@ -174,7 +173,7 @@ def do_configure(args):
         "-DXPTI_SOURCE_DIR={}".format(xpti_dir),
         "-DLLVM_EXTERNAL_XPTIFW_SOURCE_DIR={}".format(xptifw_dir),
         "-DLLVM_EXTERNAL_LIBDEVICE_SOURCE_DIR={}".format(libdevice_dir),
-        "-DLLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR={}".format(fusion_dir),
+        "-DLLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR={}".format(jit_dir),
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
@@ -188,8 +187,8 @@ def do_configure(args):
         "-DLLVM_ENABLE_LLD={}".format(llvm_enable_lld),
         "-DXPTI_ENABLE_WERROR={}".format(xpti_enable_werror),
         "-DSYCL_CLANG_EXTRA_FLAGS={}".format(sycl_clang_extra_flags),
-        "-DSYCL_ENABLE_PLUGINS={}".format(";".join(set(sycl_enabled_plugins))),
-        "-DSYCL_ENABLE_KERNEL_FUSION={}".format(sycl_enable_fusion),
+        "-DSYCL_ENABLE_BACKENDS={}".format(";".join(set(sycl_enabled_backends))),
+        "-DSYCL_ENABLE_EXTENSION_JIT={}".format(sycl_enable_jit),
         "-DSYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB={}".format(sycl_preview_lib),
         "-DBUG_REPORT_URL=https://github.com/intel/llvm/issues",
     ]
@@ -379,9 +378,9 @@ def main():
         help="Disable building of the SYCL runtime major release preview library",
     )
     parser.add_argument(
-        "--disable-fusion",
+        "--disable-jit",
         action="store_true",
-        help="Disable the kernel fusion JIT compiler",
+        help="Disable the kernel JIT compiler for AMD and Nvidia",
     )
     parser.add_argument(
         "--add_security_flags",

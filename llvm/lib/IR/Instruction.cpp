@@ -20,6 +20,7 @@
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/MemoryModelRelaxationAnnotations.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/Operator.h"
 #include "llvm/IR/ProfDataUtils.h"
 #include "llvm/IR/Type.h"
@@ -68,6 +69,10 @@ const Module *Instruction::getModule() const {
 
 const Function *Instruction::getFunction() const {
   return getParent()->getParent();
+}
+
+const DataLayout &Instruction::getDataLayout() const {
+  return getModule()->getDataLayout();
 }
 
 void Instruction::removeFromParent() {
@@ -1166,7 +1171,10 @@ Instruction::getNextNonDebugInstruction(bool SkipPseudoOp) const {
 const Instruction *
 Instruction::getPrevNonDebugInstruction(bool SkipPseudoOp) const {
   for (const Instruction *I = getPrevNode(); I; I = I->getPrevNode())
-    if (!isa<DbgInfoIntrinsic>(I) && !(SkipPseudoOp && isa<PseudoProbeInst>(I)))
+    if (!isa<DbgInfoIntrinsic>(I) &&
+        !(SkipPseudoOp && isa<PseudoProbeInst>(I)) &&
+        !(isa<IntrinsicInst>(I) &&
+          cast<IntrinsicInst>(I)->getIntrinsicID() == Intrinsic::fake_use))
       return I;
   return nullptr;
 }

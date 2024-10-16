@@ -107,18 +107,11 @@ static sycl::unittest::UrImage generateDefaultImage() {
 
   UrPropertySet PropSet;
   addESIMDFlag(PropSet);
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  UrImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
@@ -130,6 +123,7 @@ class EventImplProxyT : public sycl::detail::event_impl {
 public:
   using sycl::detail::event_impl::MPostCompleteEvents;
   using sycl::detail::event_impl::MState;
+  using sycl::detail::event_impl::MWeakPostCompleteEvents;
 };
 
 class QueueImplProxyT : public sycl::detail::queue_impl {
@@ -165,7 +159,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1u)
+    ASSERT_EQ(EventImplProxy->MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();
@@ -189,7 +183,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
-    EventImpl->getHandleRef() = UREvent;
+    EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
 

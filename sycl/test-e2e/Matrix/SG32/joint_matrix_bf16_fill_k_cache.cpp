@@ -10,8 +10,11 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out -ffp-model=precise
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t_vnni.out -DVNNI %fp-model-precise
+// RUN: %{run} %t_vnni.out
+
+// TODO: add row major compilation and run once Sub-group size 32
+// support becomes available in IGC for row major
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 

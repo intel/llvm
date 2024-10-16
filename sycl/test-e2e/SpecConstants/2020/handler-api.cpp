@@ -10,9 +10,6 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -o %t.out -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 
-// FIXME: ACC devices use emulation path, which is not yet supported
-// UNSUPPORTED: accelerator
-
 #include <cstdlib>
 #include <iostream>
 #include <sycl/detail/core.hpp>

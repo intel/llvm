@@ -592,6 +592,21 @@ public:
          {"lsc.xatomic.stateless",
           {ai1(0), t8(1), t8(2), t8(3), t16(4), t32(5), t8(6), t8(7), t8(8),
            c8(0), a(1), a(2), a(3), c32(0), u(-1)}}},
+        {"lsc_load2d_descriptor",
+         {"lsc.load.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transpose",
+         {"lsc.load.2d.ugm.desc.transpose",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_load2d_descriptor_transform",
+         {"lsc.load.2d.ugm.desc.vnni",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_prefetch_descriptor",
+         {"lsc.prefetch.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
+        {"lsc_store_descriptor",
+         {"lsc.store.2d.ugm.desc",
+          {ai1(0), a(3), t8(1), t16(2), t16(3), a(1), t32(4), t32(5), a(2)}}},
         {"lsc_fence", {"lsc.fence", {ai1(0), t8(0), t8(1), t8(2)}}},
         {"sat", {"sat", {a(0)}}},
         {"fptoui_sat", {"fptoui.sat", {a(0)}}},
@@ -1234,21 +1249,6 @@ static Instruction *addCastInstIfNeeded(Instruction *OldI, Instruction *NewI,
   return NewI;
 }
 
-// Translates the following intrinsics:
-//   %res = call float @llvm.fmuladd.f32(float %a, float %b, float %c)
-//   %res = call double @llvm.fmuladd.f64(double %a, double %b, double %c)
-// To
-//   %mul = fmul <type> %a, <type> %b
-//   %res = fadd <type> %mul, <type> %c
-// TODO: Remove when newer GPU driver is used in CI.
-void translateFmuladd(CallInst *CI) {
-  assert(CI->getIntrinsicID() == Intrinsic::fmuladd);
-  IRBuilder<> Bld(CI);
-  auto *Mul = Bld.CreateFMul(CI->getOperand(0), CI->getOperand(1));
-  auto *Res = Bld.CreateFAdd(Mul, CI->getOperand(2));
-  CI->replaceAllUsesWith(Res);
-}
-
 // Translates an LLVM intrinsic to a form, digestable by the BE.
 bool translateLLVMIntrinsic(CallInst *CI) {
   Function *F = CI->getCalledFunction();
@@ -1259,9 +1259,6 @@ bool translateLLVMIntrinsic(CallInst *CI) {
   case Intrinsic::assume:
     // no translation - it will be simply removed.
     // TODO: make use of 'assume' info in the BE
-    break;
-  case Intrinsic::fmuladd:
-    translateFmuladd(CI);
     break;
   default:
     return false; // "intrinsic wasn't translated, keep the original call"

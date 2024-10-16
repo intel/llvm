@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 // This test merely checks the use of the correct UR call. Its sister test
 // fill_accessor.cpp thoroughly checks the workings of the .fill() call.
@@ -129,19 +129,19 @@ int main() {
 }
 
 // CHECK: start testFill_Buffer1D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer1D -- OFFSET
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 
 // CHECK: start testFill_Buffer2D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer2D -- OFFSET
-// CHECK: urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 
 // CHECK: start testFill_Buffer3D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer3D -- OFFSET
-// CHECK: urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 
 // CHECK: start testFill_ZeroDim
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill

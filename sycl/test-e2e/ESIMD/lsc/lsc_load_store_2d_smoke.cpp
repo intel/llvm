@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: arch-intel_gpu_pvc
+// REQUIRES-INTEL-DRIVER: lin: 30508
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

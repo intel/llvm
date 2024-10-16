@@ -71,7 +71,8 @@ inline bool isAtomicOpCode(Op OpCode) {
 }
 inline bool isBinaryOpCode(Op OpCode) {
   return ((unsigned)OpCode >= OpIAdd && (unsigned)OpCode <= OpFMod) ||
-         OpCode == OpDot || OpCode == OpIAddCarry || OpCode == OpISubBorrow;
+         OpCode == OpDot || OpCode == OpIAddCarry || OpCode == OpISubBorrow ||
+         OpCode == OpUMulExtended || OpCode == OpSMulExtended;
 }
 
 inline bool isBinaryPtrOpCode(Op OpCode) {
@@ -226,7 +227,8 @@ inline bool isTypeOpCode(Op OpCode) {
          OC == internal::OpTypeJointMatrixINTEL ||
          OC == internal::OpTypeJointMatrixINTELv2 ||
          OC == OpTypeCooperativeMatrixKHR ||
-         OC == internal::OpTypeTaskSequenceINTEL;
+         OC == internal::OpTypeTaskSequenceINTEL ||
+         OC == OpTypeUntypedPointerKHR;
 }
 
 inline bool isSpecConstantOpCode(Op OpCode) {

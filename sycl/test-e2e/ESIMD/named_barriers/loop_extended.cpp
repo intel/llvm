@@ -10,7 +10,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-//
+// Disabled on PVC due to flaky failures.
+// https://github.com/intel/llvm/issues/14826
+// UNSUPPORTED: arch-intel_gpu_pvc
+
 // Test checks support of named barrier in a loop in ESIMD kernel.
 // First iteration has 1 barrier and 1 producer, second - 2 barriers and 2
 // producers. Producer stores data to SLM, then all threads read SLM and store

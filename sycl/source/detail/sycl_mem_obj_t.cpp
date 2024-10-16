@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/event_impl.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 
@@ -36,20 +36,21 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const PluginPtr &Plugin = getPlugin();
+  const AdapterPtr &Adapter = getAdapter();
 
   ur_mem_native_properties_t MemProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
-  Plugin->call(urMemBufferCreateWithNativeHandle, MemObject,
-               MInteropContext->getHandleRef(), &MemProperties,
-               &MInteropMemObject);
+  Adapter->call<UrApiKind::urMemBufferCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &MemProperties,
+      &MInteropMemObject);
 
   // Get the size of the buffer in bytes
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_SIZE,
-               sizeof(size_t), &MSizeInBytes, nullptr);
+  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_SIZE,
+                                         sizeof(size_t), &MSizeInBytes,
+                                         nullptr);
 
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
-               sizeof(Context), &Context, nullptr);
+  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                         sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
     throw sycl::exception(
@@ -57,7 +58,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call(urMemRetain, MInteropMemObject);
+    Adapter->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
 ur_mem_type_t getImageType(int Dimensions) {
@@ -82,7 +83,7 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
       MSharedPtrStorage(nullptr), MHostPtrProvided(true),
       MOwnNativeHandle(OwnNativeHandle) {
   ur_context_handle_t Context = nullptr;
-  const PluginPtr &Plugin = getPlugin();
+  const AdapterPtr &Adapter = getAdapter();
 
   ur_image_desc_t Desc = {};
   Desc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
@@ -99,19 +100,20 @@ SYCLMemObjT::SYCLMemObjT(ur_native_handle_t MemObject,
   ur_mem_native_properties_t NativeProperties = {
       UR_STRUCTURE_TYPE_MEM_NATIVE_PROPERTIES, nullptr, OwnNativeHandle};
 
-  Plugin->call(urMemImageCreateWithNativeHandle, MemObject,
-               MInteropContext->getHandleRef(), &Format, &Desc,
-               &NativeProperties, &MInteropMemObject);
+  Adapter->call<UrApiKind::urMemImageCreateWithNativeHandle>(
+      MemObject, MInteropContext->getHandleRef(), &Format, &Desc,
+      &NativeProperties, &MInteropMemObject);
 
-  Plugin->call(urMemGetInfo, MInteropMemObject, UR_MEM_INFO_CONTEXT,
-               sizeof(Context), &Context, nullptr);
+  Adapter->call<UrApiKind::urMemGetInfo>(MInteropMemObject, UR_MEM_INFO_CONTEXT,
+                                         sizeof(Context), &Context, nullptr);
 
   if (MInteropContext->getHandleRef() != Context)
-    throw sycl::exception(make_error_code(errc::invalid),
+    throw sycl::exception(
+        make_error_code(errc::invalid),
         "Input context must be the same as the context of cl_mem");
 
   if (MInteropContext->getBackend() == backend::opencl)
-    Plugin->call(urMemRetain, MInteropMemObject);
+    Adapter->call<UrApiKind::urMemRetain>(MInteropMemObject);
 }
 
 void SYCLMemObjT::releaseMem(ContextImplPtr Context, void *MemAllocation) {
@@ -153,29 +155,31 @@ void SYCLMemObjT::updateHostMemory() {
   releaseHostMem(MShadowCopy);
 
   if (MOpenCLInterop) {
-    const PluginPtr &Plugin = getPlugin();
-    Plugin->call(urMemRelease, MInteropMemObject);
+    const AdapterPtr &Adapter = getAdapter();
+    Adapter->call<UrApiKind::urMemRelease>(MInteropMemObject);
   }
 }
-const PluginPtr &SYCLMemObjT::getPlugin() const {
+const AdapterPtr &SYCLMemObjT::getAdapter() const {
   assert((MInteropContext != nullptr) &&
-         "Trying to get Plugin from SYCLMemObjT with nullptr ContextImpl.");
-  return (MInteropContext->getPlugin());
+         "Trying to get Adapter from SYCLMemObjT with nullptr ContextImpl.");
+  return (MInteropContext->getAdapter());
 }
 
 size_t SYCLMemObjT::getBufSizeForContext(const ContextImplPtr &Context,
                                          ur_native_handle_t MemObject) {
   size_t BufSize = 0;
-  const PluginPtr &Plugin = Context->getPlugin();
+  const AdapterPtr &Adapter = Context->getAdapter();
   // TODO is there something required to support non-OpenCL backends?
-  Plugin->call(urMemGetInfo, detail::ur::cast<ur_mem_handle_t>(MemObject),
-               UR_MEM_INFO_SIZE, sizeof(size_t), &BufSize, nullptr);
+  Adapter->call<UrApiKind::urMemGetInfo>(
+      detail::ur::cast<ur_mem_handle_t>(MemObject), UR_MEM_INFO_SIZE,
+      sizeof(size_t), &BufSize, nullptr);
   return BufSize;
 }
 
 bool SYCLMemObjT::isInterop() const { return MOpenCLInterop; }
 
-void SYCLMemObjT::determineHostPtr(bool InitFromUserData, void *&HostPtr,
+void SYCLMemObjT::determineHostPtr(const ContextImplPtr &Context,
+                                   bool InitFromUserData, void *&HostPtr,
                                    bool &HostPtrReadOnly) {
   // The data for the allocation can be provided via either the user pointer
   // (InitFromUserData, can be read-only) or a runtime-allocated read-write
@@ -186,6 +190,8 @@ void SYCLMemObjT::determineHostPtr(bool InitFromUserData, void *&HostPtr,
   // 2. The allocation is not the first one and not on host. InitFromUserData ==
   // false, HostPtr is provided if the command is linked. The host pointer is
   // guaranteed to be reused in this case.
+  if (!Context && !MOpenCLInterop && !MHostPtrReadOnly)
+    InitFromUserData = true;
 
   if (InitFromUserData) {
     assert(!HostPtr && "Cannot init from user data and reuse host ptr provided "
@@ -224,8 +230,11 @@ void SYCLMemObjT::detachMemoryObject(
 
 void SYCLMemObjT::handleWriteAccessorCreation() {
   const auto InitialUserPtr = MUserPtr;
-  MCreateShadowCopy();
-  MCreateShadowCopy = []() -> void {};
+  {
+    std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
+    MCreateShadowCopy();
+    MCreateShadowCopy = []() -> void {};
+  }
   if (MRecord != nullptr && MUserPtr != InitialUserPtr) {
     for (auto &it : MRecord->MAllocaCommands) {
       if (it->MMemAllocation == InitialUserPtr) {

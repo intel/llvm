@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
 
-// RUN: %{build} -o %t.out -DINIT_LIST -ffp-model=precise
+// RUN: %{build} -o %t.out -DINIT_LIST -DVNNI %fp-model-precise
 // RUN: %{run} %t.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
