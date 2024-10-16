@@ -73,12 +73,11 @@ To model this, we create a global graph for every application instantiation
 and all kernel executions in the applications are added as nodes in this
 global graph. In the SYCL runtime, there is no obvious location where the
 creation of the global graph can be inserted as many objects are
-instantiated statically. Currently, we embed the graph creation in the
-plugin interface (PI) layer `initialize()` call. In this call, we will
-perform two operations:
+instantiated statically. Currently, graph creation happens alongside UR
+initialization in `initializePlugins` ([here](https://github.com/intel/llvm/blob/2137ff0e2ae0b478d341c12466bed0ac4402f516/sycl/source/detail/ur.cpp#L96)).
+In this call, we will perform two operations:
 
 1. Initialize all listeners and create a trace event to represent the graph.
-This is done in `sycl/include/sycl/detail/pi.cpp`.
 2. Send a `graph_create` event to all subscribers. This notification
 will only be sent once.
 
@@ -238,6 +237,7 @@ by the SYCL runtime.
 | :------------------------: | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------- |
 | `function_with_args_begin` | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_with_args_begin` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `ur.call.debug` layer.</li> <li> **event**: `nullptr` if code location is not available or event ID with code location data.</li> <li> **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event. </li> <li> **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, and arguments. </li></div>                                                                                                                                         | None     |
 |  `function_with_args_end`  | <div style="text-align: left"><li>**trace_type**: `xpti::trace_point_type_t::function_with_args_end` that marks the beginning of a function</li> <li> **parent**: Event ID created for all functions in the `ur.call.debug` layer.</li> <li> **event**: `nullptr` if code location is not available or event ID with code location data.</li> <li> **instance**: Unique ID to allow the correlation of the `function_with_args_begin` event with the `function_with_args_end` event. This value is guaranteed to be the same value  received by the trace event for the corresponding `function_with_args_begin` </li> <li> **user_data**: A pointer to `function_with_args_t` object, that includes function ID, name, arguments, and return value. </li></div> | None     |
+>>>>>>> sycl
 
 ## SYCL Stream `"sycl"` Notification Signatures
 

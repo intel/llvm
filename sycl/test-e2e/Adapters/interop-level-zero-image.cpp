@@ -116,7 +116,7 @@ int main() {
       }
 
     } // ~image
-  }   // closure
+  } // closure
 
   {
     // ------ 2D ------
@@ -165,7 +165,7 @@ int main() {
       }
 
     } // ~image
-  }   // closure
+  } // closure
 
   {
     // ------ 3D ------
@@ -216,7 +216,7 @@ int main() {
       }
 
     } // ~image
-  }   // closure
+  } // closure
 
 #else
   std::cout << "Missing  Level-Zero backend. Test skipped." << std::endl;

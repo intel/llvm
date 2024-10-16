@@ -1,89 +1,42 @@
 // REQUIRES: gpu, level_zero
-
-// RUN: %{build} -o %t.ooo.out
-// RUN: %{build} -DUSING_INORDER -o %t.ino.out
-// RUN: %{build} -DUSING_DISCARD_EVENTS -o %t.discard_events.out
 // UNSUPPORTED: ze_debug
 
-// To test batching on out-of-order queue:
+// RUN: %{build} -o %t.out
+
 // Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
 
 // Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
 
 // Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
 
 // Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
 
 // Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
 
 // Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
 
 // Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ooo.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
 
-// To test batching on in-order queue:
-// Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
-
-// Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
-
-// Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
-
-// Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
-
-// Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
-
-// Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
-
-// Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.ino.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
-
-// To test batching on in-order queue with discard_events:
-// Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB4 %s
-
-// Set batching to 1 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB1 %s
-
-// Set batching to 3 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=3 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB3 %s
-
-// Set batching to 5 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=5 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB5 %s
-
-// Set batching to 7 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=7 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB7 %s
-
-// Set batching to 8 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=8 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB8 %s
-
-// Set batching to 9 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=9 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.discard_events.out 2>&1 | FileCheck --check-prefixes=CKALL,CKB9 %s
-
-// level_zero_batch_test.cpp
+// level_zero_batch_test_copy_with_compute.cpp
 //
-// This tests the level zero plugin's kernel batching code.  The default
+// This tests the level zero adapter's kernel batching code.  The default
 // batching is 4, and exact batch size can be controlled with environment
-// variable SYCL_PI_LEVEL_ZEOR+BATCH_SIZE=N.
+// variable SYCL_PI_LEVEL_ZERO_{COPY_}BATCH_SIZE=N.
 // This test enqueues 8 kernels and then does a wait. And it does this 3 times.
 // Expected output is that for batching =1 you will see zeCommandListClose,
 // and zeCommandQueueExecuteCommandLists after every urEnqueueKernelLaunch.
 // For batching=3 you will see that after 3rd and 6th enqueues, and then after
-// urQueueFinish. For 5, after 5th urEnqueue, and then after urQueueFinish.  For
+// urEventWait. For 5, after 5th urEnqueue, and then after urEventWait.  For
 // 4 you will see these after 4th and 8th Enqueue, and for 8, only after the
 // 8th enqueue.  And lastly for 9, you will see the Close and Execute calls
-// only after the urQueueFinish.
+// only after the urEventWait.
 // Since the test does this 3 times, this pattern will repeat 2 more times,
 // and then the test will print Test Passed 8 times, once for each kernel
 // validation check.
@@ -255,7 +208,15 @@
 // CKB7:  ZE ---> zeCommandQueueExecuteCommandLists(
 // CKB9:  ZE ---> zeCommandListClose(
 // CKB9:  ZE ---> zeCommandQueueExecuteCommandLists(
-// Now just check for 8 Test Pass kernel validations.
+// Now just check for 16 Test Pass kernel validations.
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
+// CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
 // CKALL: Test Pass
@@ -265,12 +226,11 @@
 // CKALL: Test Pass
 // CKALL: Test Pass
 
+#include "sycl/detail/core.hpp"
+#include "sycl/usm.hpp"
 #include <chrono>
 #include <cmath>
 #include <iostream>
-#include <sycl/detail/core.hpp>
-#include <sycl/properties/all_properties.hpp>
-#include <sycl/usm.hpp>
 
 void validate(uint32_t *result, uint32_t *expect, size_t n) {
   int error = 0;
@@ -286,20 +246,11 @@ void validate(uint32_t *result, uint32_t *expect, size_t n) {
 }
 
 int main(int argc, char *argv[]) {
-  size_t M = 65536;
-  size_t N = 512 / 4;
+  size_t M = 16;
+  size_t N = 4;
   size_t AL = M * N * sizeof(uint32_t);
 
-#ifdef USING_INORDER
-  sycl::property_list Props{sycl::property::queue::in_order{}};
-#elif USING_DISCARD_EVENTS
-  sycl::property_list Props{
-      sycl::property::queue::in_order{},
-      sycl::ext::oneapi::property::queue::discard_events{}};
-#else
-  sycl::property_list Props{};
-#endif
-  sycl::queue q(sycl::default_selector_v, Props);
+  sycl::queue q(sycl::default_selector_v);
   auto ctx = q.get_context();
   auto dev = q.get_device();
 
@@ -313,8 +264,18 @@ int main(int argc, char *argv[]) {
   uint32_t *Z7 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
   uint32_t *Z8 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
 
+  uint32_t *X1 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X2 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X3 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X4 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X5 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X6 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X7 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+  uint32_t *X8 = static_cast<uint32_t *>(sycl::malloc_shared(AL, dev, ctx));
+
   for (size_t i = 0; i < M * N; i++) {
     Y1[i] = i % 255;
+    X1[i] = X2[i] = X3[i] = X4[i] = X5[i] = X6[i] = X7[i] = X8[i] = 0;
   }
 
   memset(Z1, '\0', AL);
@@ -336,6 +297,8 @@ int main(int argc, char *argv[]) {
                                           Z1[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X1, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy2>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -344,6 +307,8 @@ int main(int argc, char *argv[]) {
                                           Z2[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X2, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy3>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -352,6 +317,8 @@ int main(int argc, char *argv[]) {
                                           Z3[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X3, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy4>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -360,6 +327,8 @@ int main(int argc, char *argv[]) {
                                           Z4[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X4, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy5>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -368,6 +337,8 @@ int main(int argc, char *argv[]) {
                                           Z5[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X5, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy6>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -376,6 +347,8 @@ int main(int argc, char *argv[]) {
                                           Z6[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X6, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy7>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -384,6 +357,8 @@ int main(int argc, char *argv[]) {
                                           Z7[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X7, Y1, sizeof(uint32_t) * M * N);
+
       q.submit([&](sycl::handler &h) {
         h.parallel_for<class u32_copy8>(sycl::range<2>{M, N},
                                         [=](sycl::id<2> it) {
@@ -392,6 +367,7 @@ int main(int argc, char *argv[]) {
                                           Z8[m * N + n] = Y1[m * N + n];
                                         });
       });
+      q.memcpy(X8, Y1, sizeof(uint32_t) * M * N);
 
       q.wait();
     }
@@ -405,6 +381,15 @@ int main(int argc, char *argv[]) {
   validate(Y1, Z7, M * N);
   validate(Y1, Z8, M * N);
 
+  validate(Y1, X1, M * N);
+  validate(Y1, X2, M * N);
+  validate(Y1, X3, M * N);
+  validate(Y1, X4, M * N);
+  validate(Y1, X5, M * N);
+  validate(Y1, X6, M * N);
+  validate(Y1, X7, M * N);
+  validate(Y1, X8, M * N);
+
   sycl::free(Y1, ctx);
   sycl::free(Z1, ctx);
   sycl::free(Z2, ctx);
@@ -414,6 +399,15 @@ int main(int argc, char *argv[]) {
   sycl::free(Z6, ctx);
   sycl::free(Z7, ctx);
   sycl::free(Z8, ctx);
+
+  sycl::free(X1, ctx);
+  sycl::free(X2, ctx);
+  sycl::free(X3, ctx);
+  sycl::free(X4, ctx);
+  sycl::free(X5, ctx);
+  sycl::free(X6, ctx);
+  sycl::free(X7, ctx);
+  sycl::free(X8, ctx);
 
   return 0;
 }

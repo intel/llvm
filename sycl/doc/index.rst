@@ -28,7 +28,7 @@ Design Documents for the oneAPI DPC++ Compiler
    Clang Documentation <https://intel.github.io/llvm-docs/clang>
    design/CompilerAndRuntimeDesign
    design/KernelParameterPassing
-   design/PluginInterface
+   design/UnifiedRuntime
    design/SYCL2020-SpecializationConstants
    design/KernelProgramCache
    design/GlobalObjectsInRuntime

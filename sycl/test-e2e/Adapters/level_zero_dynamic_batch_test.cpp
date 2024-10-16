@@ -12,7 +12,7 @@
 
 // level_zero_dynamic_batch_test.cpp
 //
-// This tests the level zero plugin's kernel dynamic batch size adjustment
+// This tests the level zero adapter's kernel dynamic batch size adjustment
 // code.
 // It starts out by enqueing 40 kernels before it does a wait, and it does
 // this 5 times.  That should cause the dynamic batch size adjustment to
