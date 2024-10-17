@@ -265,29 +265,40 @@ void PrintPPOutputPPCallbacks::WriteFooterContent(StringRef CodeFooter) {
   *OS << '\n';
 }
 
+static bool is_separator(char value) { return value == '\\'; }
+
 void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              const char *Extra,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
 
-  // Emit #line directives or GNU line markers depending on what mode we're in.
-  if (UseLineDirectives) {
-    *OS << "#line" << ' ' << LineNo << ' ' << '"';
-    OS->write_escaped(CurFilename);
-    *OS << '"';
-  } else {
-    *OS << '#' << ' ' << LineNo << ' ' << '"';
-    OS->write_escaped(CurFilename);
-    *OS << '"';
-
-    if (ExtraLen)
-      OS->write(Extra, ExtraLen);
-
-    if (FileType == SrcMgr::C_System)
-      OS->write(" 3", 2);
-    else if (FileType == SrcMgr::C_ExternCSystem)
-      OS->write(" 3 4", 4);
+  StringRef CurFilenameWithNoLeaningDotSlash =
+      llvm::sys::path::remove_leading_dotbackslash(CurFilename.str());
+  if ((CurFilenameWithNoLeaningDotSlash ==
+              PP.getPreprocessorOpts().IncludeFooter) ||
+      CurFilenameWithNoLeaningDotSlash ==
+              PP.getPreprocessorOpts().IncludeHeader) {
+    CurFilename = "<uninit>";
   }
+    // Emit #line directives or GNU line markers depending on what mode we're in.
+    if (UseLineDirectives) {
+      *OS << "#line" << ' ' << LineNo << ' ' << '"';
+      OS->write_escaped(CurFilename);
+      *OS << '"';
+    } else {
+      *OS << '#' << ' ' << LineNo << ' ' << '"';
+      OS->write_escaped(CurFilename);
+      *OS << '"';
+
+      if (ExtraLen)
+        OS->write(Extra, ExtraLen);
+
+      if (FileType == SrcMgr::C_System)
+        OS->write(" 3", 2);
+      else if (FileType == SrcMgr::C_ExternCSystem)
+        OS->write(" 3 4", 4);
+    }
+
   *OS << '\n';
 }
 
@@ -913,8 +924,6 @@ static void PrintIncludeFooter(Preprocessor &PP, SourceLocation Loc,
     return;
   FileID FooterFileID = SourceMgr.ComputeValidFooterFileID(Footer);
   StringRef FooterContentBuffer = SourceMgr.getBufferData(FooterFileID);
-  // print out the name of the integration footer.
-  Callbacks->WriteFooterInfo(Footer);
   SmallVector<StringRef, 8> FooterContentArr;
   FooterContentBuffer.split(FooterContentArr, '\r');
   // print out the content of the integration footer.
@@ -1184,15 +1193,6 @@ void clang::DoPrintPreprocessedInput(Preprocessor &PP, raw_ostream *OS,
   // Read all the preprocessed tokens, printing them out to the stream.
   PrintPreprocessedTokens(PP, Tok, Callbacks);
   *OS << '\n';
-
-  if (!PP.getPreprocessorOpts().IncludeFooter.empty() &&
-      !PP.IncludeFooterProcessed) {
-    assert(PP.getLangOpts().SYCLIsHost &&
-           "The 'include-footer' is expected in host compilation only");
-    SourceLocation Loc = Tok.getLocation();
-    PrintIncludeFooter(PP, Loc, PP.getPreprocessorOpts().IncludeFooter,
-                       Callbacks);
-  }
 
   // Remove the handlers we just added to leave the preprocessor in a sane state
   // so that it can be reused (for example by a clang::Parser instance).
