@@ -145,4 +145,3 @@
 {{OPT}}urProgramSetSpecializationConstantsTest.InvalidValuePtr/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urProgramSetMultipleSpecializationConstantsTest.SingleCall/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
-{{OPT}}{{Segmentation fault|Aborted}}

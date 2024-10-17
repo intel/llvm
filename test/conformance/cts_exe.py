@@ -120,16 +120,12 @@ if __name__ == "__main__":
     # Parse fails list
     _print_format("Loading fails from {}", args.failslist)
     fail_patterns = []
-    expected_fail = False
     with open(args.failslist) as f:
         for l in f:
             optional = "{{OPT}}" in l
             l = l.replace("{{OPT}}", "")
             l = l.replace("{{.*}}", "*")
 
-            if l.startswith("{{Segmentation fault"):
-                expected_fail = True
-                continue
             if l.startswith("#"):
                 continue
             if l.startswith("{{NONDETERMINISTIC}}"):
@@ -160,7 +156,7 @@ if __name__ == "__main__":
     gtest_filter = "-" + (":".join(map(lambda x: x["pattern"], fail_patterns)))
     if _check_filter(base_invocation, gtest_filter):
         result = _run_cmd(base_invocation, "known good tests", gtest_filter)
-        if result != 0 and not expected_fail:
+        if result != 0:
             _print_error("Tests we expected to pass have failed")
             final_result = result
     else:
