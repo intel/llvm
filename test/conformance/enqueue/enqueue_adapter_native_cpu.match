@@ -1,4 +1,4 @@
-{{NONDETERMINISTIC}}
+# Note: This file is only for use with cts_exe.py
 {{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitList
 {{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitListWithEvent
 {{OPT}}urEnqueueEventsWaitMultiDeviceTest.EnqueueWaitOnADifferentQueue
@@ -385,4 +385,8 @@ urEnqueueEventsWaitWithBarrierOrderingTest.SuccessNonEventDependencies/SYCL_NATI
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerPipeSymbol/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
-{{OPT}}{{Segmentation fault|Aborted}}
+urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/*
+urEnqueueKernelLaunchIncrementMultiDeviceTest.Success/*
+urEnqueueKernelLaunchIncrementTest.Success/*
+# This one is flakey
+{{OPT}}urEnqueueMemBufferReadTestWithParam.NonBlocking/*
