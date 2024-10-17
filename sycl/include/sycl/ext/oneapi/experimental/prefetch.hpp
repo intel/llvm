@@ -49,6 +49,8 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal>
     prefetch_hint_L4_nt;
 
 namespace detail {
+using namespace sycl::detail;
+
 template <> struct IsCompileTimeProperty<prefetch_hint_key> : std::true_type {};
 
 template <cache_level Level, typename Hint>
@@ -71,7 +73,10 @@ inline constexpr bool check_prefetch_acc_mode =
 template <typename T, typename Properties>
 void prefetch_impl(T *ptr, size_t bytes, Properties properties) {
 #ifdef __SYCL_DEVICE_ONLY__
-  auto *ptrGlobalAS = __SYCL_GenericCastToPtrExplicit_ToGlobal<const char>(ptr);
+  auto *ptrGlobalAS =
+      reinterpret_cast<__attribute__((opencl_global)) const char *>(
+          detail::static_address_cast<access::address_space::global_space>(
+              const_cast<const T *>(ptr)));
   const __attribute__((opencl_global)) char *ptrAnnotated = nullptr;
   if constexpr (!properties.template has_property<prefetch_hint_key>()) {
     ptrAnnotated = __builtin_intel_sycl_ptr_annotation(

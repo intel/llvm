@@ -455,6 +455,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents), &UREvent,
                   EventImpl);
         EventImpl->setHandle(UREvent);
+        EventImpl->setEnqueued();
       }
 
       if (isInOrder()) {
