@@ -108,7 +108,7 @@ template <typename CommandGroupFunc>
 void submit(queue Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  submit(Q, empty_properties_t{}, CGF, CodeLoc);
+  submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc, typename PropertiesT>
@@ -123,8 +123,8 @@ template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return submit_with_event(Q, std::forward<CommandGroupFunc>(CGF),
-                           empty_properties_t{}, CodeLoc);
+  return submit_with_event(Q, empty_properties_t{},
+                           std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
