@@ -106,16 +106,19 @@ This extension adds the following new free functions:
 a@
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::oneapi::experimental::this_thread {
 
 sycl::device get_current_device();
 
-} // namespace sycl::ext::oneapi::experimental
+} // namespace sycl::ext::oneapi::experimental::this_thread
 ----
 !====
 
-_Returns:_ The current default device. If `set_current_device()` has not been called, returns the device
-returned by the default device selector.
+_Returns:_ The current default device for the current host thread. If `set_current_device()` 
+has not been called by this thread, returns the device selected by the default device selector.
+
+_Remarks:_ Calling this method from within a host task or an asynchronous error handler is
+undefined behavior.
 '''
 
 '''
@@ -125,17 +128,20 @@ returned by the default device selector.
 a@
 [source,c++]
 ----
-namespace sycl::ext::oneapi::experimental {
+namespace sycl::ext::oneapi::experimental::this_thread {
 
 void set_current_device(sycl::device dev);
 
-} // namespace sycl::ext::oneapi::experimental
+} // namespace sycl::ext::oneapi::experimental::this_thread
 ----
 !====
 
 _Returns:_ Nothing
 
-_Effects:_ Sets the current default device to `dev`.
+_Effects:_ Sets the current default device to `dev` for the current host thread.
+
+_Remarks:_ Calling this method from within a host task or an asynchronous error handler is
+undefined behavior.
 
 '''
 
@@ -980,5 +986,6 @@ _{endnote}_]
 |====
 
 == Issues
-. [UNRESOLVED] Should the currrent device be global or should we also support a per-thread
-   device?
+. [RESOLVED] Should the currrent device be global or should we also support a per-thread
+   device? Answer: It should be per-thread to align with the behavior of other programming
+   models.
