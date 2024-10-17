@@ -8,6 +8,26 @@
 //
 //===----------------------------------------------------------------------===//
 
-struct ur_adapter_handle_t_;
+#include "CL/cl.h"
+#include "logger/ur_logger.hpp"
 
-extern ur_adapter_handle_t_ adapter;
+struct ur_adapter_handle_t_ {
+  ur_adapter_handle_t_();
+
+  std::atomic<uint32_t> RefCount = 0;
+  std::mutex Mutex;
+  logger::Logger &log = logger::get_logger("opencl");
+
+  // Function pointers to core OpenCL entry points which may not exist in older
+  // versions of the OpenCL-ICD-Loader are tracked here and initialized by
+  // dynamically loading the symbol by name.
+#define CL_CORE_FUNCTION(FUNC) decltype(::FUNC) *FUNC = nullptr;
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+};
+
+namespace ur {
+namespace cl {
+ur_adapter_handle_t getAdapter();
+} // namespace cl
+} // namespace ur

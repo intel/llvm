@@ -1,0 +1,14 @@
+// Introduced in OpenCL 2.0
+// TODO: clCreateCommandQueueWithProperties
+
+// Introduced in OpenCL 2.1
+// TODO: clGetKernelSubGroupInfo
+// TODO: clCreateProgramWithIL
+// TODO: clGetHostTimer
+// TODO: clGetDeviceAndHostTimer
+
+// Introduced in OpenCL 2.2
+CL_CORE_FUNCTION(clSetProgramSpecializationConstant)
+
+// Introduced in OpenCL 3.0
+CL_CORE_FUNCTION(clSetContextDestructorCallback)
