@@ -1,4 +1,4 @@
-// RUN: %{build} -std=c++17 -o %t.run -Wno-deprecated-declarations
+// RUN: %{build} %cxx_std_optionc++17 -o %t.run -Wno-deprecated-declarations
 // RUN: %{run} %t.run
 
 // Variant of group_asymc_copy.cpp using legacy multi_ptr and the corresponding

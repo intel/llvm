@@ -184,6 +184,15 @@ def sycl_module_split_mode_EQ :
   Flags<[WrapperOnlyOption]>,
   HelpText<"Option that turns on split library with the given split mode">;
 
+// TODO: Options will be removed when the sycl-post-link tool becomes removed.
+def use_sycl_post_link_tool : Flag<["--", "-"], "use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use the sycl-post-link tool. On by default">;
+
+def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
+
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,

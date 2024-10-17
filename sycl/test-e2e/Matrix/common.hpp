@@ -63,15 +63,17 @@ void matrix_multiply_ref(Ta *A, Tb *B, Tc *C, int M, int N, int K,
           if constexpr (std::is_same_v<Ta, bfloat16> &&
                         std::is_same_v<Tc, float>)
             acc += make_fp32(va[i]) * make_fp32(vb[i]);
-          else if constexpr (std::is_same_v<Ta, float> &&
-                                 std::is_same_v<Tc, float> ||
-                             std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
-                             (std::is_same_v<Ta, double> &&
-                              std::is_same_v<Tc, double>))
-            acc += va[i] * vb[i];
           else if constexpr (std::is_same_v<Ta, sycl::half> &&
                              std::is_same_v<Tc, float>)
             acc += (float)va[i] * (float)vb[i];
+          else if constexpr (std::is_same_v<Ta, float> &&
+                                 std::is_same_v<Tc, float> ||
+                             std::is_integral_v<Ta> && std::is_integral_v<Tc> ||
+                             (std::is_same_v<Ta, bfloat16> ||
+                              std::is_same_v<Ta, sycl::half>) ||
+                             (std::is_same_v<Ta, double> &&
+                              std::is_same_v<Tc, double>))
+            acc += va[i] * vb[i];
           else
             assert(false && "Unsupported type in matrix_multiply_ref.");
         }

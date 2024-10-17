@@ -117,13 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit eb63d1a21729f6928bb6cccc5f92856b0690aca6
-  # Merge: e26bba51 45a781f4
-  # Author: Omar Ahmed <omar.ahmed@codeplay.com>
-  # Date:   Tue Sep 10 12:08:57 2024 +0100
-  #   Merge pull request #1796 from GeorgeWeb/georgi/ur_kernel_max_active_wgs
-  #   [CUDA] Implement urKernelSuggestMaxCooperativeGroupCountExp for Cuda
-  set(UNIFIED_RUNTIME_TAG eb63d1a21729f6928bb6cccc5f92856b0690aca6)
+  # commit 80fdb0261d4a3623b05d1795f2f59ace9f718d76
+  # Merge: 568a96aa 77b6c4c7
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Wed Oct 16 13:53:51 2024 +0100
+  #     Merge pull request #2206 from oneapi-src/revert-2138-counter-based-3
+  #     Revert "[L0] Phase 2 of Counter-Based Event Implementation"
+  set(UNIFIED_RUNTIME_TAG 80fdb0261d4a3623b05d1795f2f59ace9f718d76)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -232,14 +232,10 @@ find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
   # Install the UR loader.
-  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its separate repo perhaps we should introduce new component,
-  # e.g. unified-runtime-sycl-dev.
-  # See github issue #14598
   install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
 endif()
 
@@ -303,8 +299,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
