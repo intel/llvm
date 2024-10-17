@@ -70,8 +70,6 @@ using scalar_vector_bfloat16_list =
 using bfloat16_list =
     tl_append<scalar_bfloat16_list, vector_bfloat16_list, marray_bfloat16_list>;
 
-using half_bfloat16_list = tl_append<scalar_half_list, scalar_bfloat16_list>;
-
 using scalar_float_list = type_list<float>;
 
 using vector_float_list =
@@ -473,42 +471,7 @@ using scalar_bool_list = type_list<bool>;
 
 using bool_list = tl_append<scalar_bool_list, marray_bool_list>;
 
-using vector_bool_list = type_list<vec<bool, 1>, vec<bool, 2>, vec<bool, 3>,
-                                   vec<bool, 4>, vec<bool, 8>, vec<bool, 16>>;
-
-// basic types
-using scalar_signed_basic_list =
-    tl_append<scalar_floating_list, scalar_signed_integer_list>;
-
-using vector_signed_basic_list =
-    tl_append<vector_floating_list, vector_signed_integer_list>;
-
-using marray_signed_basic_list =
-    tl_append<marray_floating_list, marray_signed_integer_list>;
-
-using signed_basic_list =
-    tl_append<scalar_signed_basic_list, vector_signed_basic_list,
-              marray_signed_basic_list>;
-
-using scalar_unsigned_basic_list = tl_append<scalar_unsigned_integer_list>;
-
-using unsigned_basic_list =
-    tl_append<scalar_unsigned_basic_list, vector_unsigned_integer_list,
-              marray_unsigned_integer_list>;
-
-using vector_basic_list =
-    tl_append<vector_signed_basic_list, vector_unsigned_integer_list>;
-
 } // namespace gtl
-namespace gvl {
-// address spaces
-using nonconst_address_space_list = address_space_list<
-    access::address_space::local_space, access::address_space::global_space,
-    access::address_space::private_space, access::address_space::generic_space,
-    access::address_space::ext_intel_global_device_space,
-    access::address_space::ext_intel_global_host_space>;
-
-} // namespace gvl
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

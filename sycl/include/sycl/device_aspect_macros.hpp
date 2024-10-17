@@ -395,6 +395,11 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_atomic16__ 0
 #endif
 
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_functions__
+//__SYCL_ASPECT(ext_oneapi_virtual_functions, 81)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_virtual_functions__ 0
+#endif
+
 #ifndef __SYCL_ANY_DEVICE_HAS_host__
 // __SYCL_ASPECT(host, 0)
 #define __SYCL_ANY_DEVICE_HAS_host__ 0
@@ -778,4 +783,9 @@
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_atomic16__
 //__SYCL_ASPECT(ext_oneapi_oneapi_atomic16, 80)
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_atomic16__ 0
+#endif
+
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_functions__
+//__SYCL_ASPECT(ext_oneapi_virtual_functions, 81)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_virtual_functions__ 0
 #endif

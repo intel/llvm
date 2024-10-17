@@ -1,4 +1,4 @@
-// REQUIRES: cuda || (windows && level_zero && gpu-intel-dg2)
+// REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
 
 // RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}

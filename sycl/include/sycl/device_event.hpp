@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {

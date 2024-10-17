@@ -1,11 +1,14 @@
 // Ensure -fsycl-allow-device-dependencies can work with free function kernels.
 
 // REQUIRES: aspect-usm_shared_allocations
-// RUN: %{build} -o %t.out -fsycl-allow-device-dependencies
+// RUN: %{build} -o %t.out -fsycl-allow-device-image-dependencies
 // RUN: %{run} %t.out
 
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
+
+// XFAIL: hip_amd
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15742
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
