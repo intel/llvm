@@ -508,7 +508,8 @@ public:
   std::string adjust_kernel_name(const std::string &Name,
                                  syclex::source_language Lang) {
     // Once name demangling support is in, we won't need this.
-    if (Lang != syclex::source_language::sycl)
+    if (Lang != syclex::source_language::sycl &&
+        Lang != syclex::source_language::sycl_jit)
       return Name;
 
     bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;

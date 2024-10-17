@@ -111,9 +111,8 @@ void test_build_and_run() {
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs, syclex::properties{syclex::build_options{flags}});
 
-  // extern "C" was used, so the name "ff_cp" is not mangled. Still need to add
-  // the `__sycl_kernel_` prefix.
-  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("__sycl_kernel_ff_cp");
+  // extern "C" was used, so the name "ff_cp" is not mangled.
+  sycl::kernel k = kbExe2.ext_oneapi_get_kernel("ff_cp");
 
   // Test the kernels.
   test_1(q, k, 37 + 5); // ff_cp seeds 37. AddEm will add 5 more.
