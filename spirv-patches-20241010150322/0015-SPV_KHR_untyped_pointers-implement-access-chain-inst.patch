@@ -1,0 +1,492 @@
+From a13e80b834d5a7d176a1288bfcfacf6e5415bd0f Mon Sep 17 00:00:00 2001
+From: Viktoria Maximova <viktoria.maksimova@intel.com>
+Date: Wed, 9 Oct 2024 16:39:07 +0200
+Subject: [PATCH 15/18] SPV_KHR_untyped_pointers - implement access chain
+ instructions (#2735)
+
+Spec:
+https://htmlpreview.github.io/?https://github.com/KhronosGroup/SPIRV-Registry/blob/main/extensions/KHR/SPV_KHR_untyped_pointers.html
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/a13e80b834d5a7d
+---
+ lib/SPIRV/SPIRVReader.cpp                     |  6 +-
+ lib/SPIRV/SPIRVWriter.cpp                     | 63 +++++++++++++------
+ lib/SPIRV/libSPIRV/SPIRVInstruction.cpp       |  4 ++
+ lib/SPIRV/libSPIRV/SPIRVInstruction.h         | 38 +++++++++--
+ lib/SPIRV/libSPIRV/SPIRVModule.cpp            | 19 +++---
+ lib/SPIRV/libSPIRV/SPIRVModule.h              |  4 +-
+ lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h          |  4 ++
+ .../KHR/SPV_KHR_untyped_pointers/globals.ll   | 32 +++++++++-
+ .../untyped_ptr_access_chain.ll               | 47 ++++++++++++++
+ test/llvm-intrinsics/lifetime.ll              |  7 +++
+ test/transcoding/multiple_user_semantic.ll    | 21 +++++--
+ 11 files changed, 207 insertions(+), 38 deletions(-)
+ create mode 100644 test/extensions/KHR/SPV_KHR_untyped_pointers/untyped_ptr_access_chain.ll
+
+diff --git a/lib/SPIRV/SPIRVReader.cpp b/lib/SPIRV/SPIRVReader.cpp
+index bd4d877c3a0a..6b9e49ed017d 100644
+--- a/lib/SPIRV/SPIRVReader.cpp
++++ b/lib/SPIRV/SPIRVReader.cpp
+@@ -2152,7 +2152,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
+   case OpAccessChain:
+   case OpInBoundsAccessChain:
+   case OpPtrAccessChain:
+-  case OpInBoundsPtrAccessChain: {
++  case OpInBoundsPtrAccessChain:
++  case OpUntypedAccessChainKHR:
++  case OpUntypedInBoundsAccessChainKHR:
++  case OpUntypedPtrAccessChainKHR:
++  case OpUntypedInBoundsPtrAccessChainKHR: {
+     auto *AC = static_cast<SPIRVAccessChainBase *>(BV);
+     auto *Base = transValue(AC->getBase(), F, BB);
+     SPIRVType *BaseSPVTy = AC->getBase()->getType();
+diff --git a/lib/SPIRV/SPIRVWriter.cpp b/lib/SPIRV/SPIRVWriter.cpp
+index 0f3562214081..2b87862bcbc5 100644
+--- a/lib/SPIRV/SPIRVWriter.cpp
++++ b/lib/SPIRV/SPIRVWriter.cpp
+@@ -1316,6 +1316,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
+   // mode, but the value may have a different "natural" type. If that is the
+   // case, we need to adjust the type of the constant.
+   SPIRVValue *Trans = transValue(C, nullptr, true, FuncTransMode::Pointer);
++  std::vector<SPIRVWord> Ops = {Trans->getId()};
+   if (Trans->getType() == ExpectedType || Trans->getType()->isTypePipeStorage())
+     return Trans;
+ 
+@@ -1327,9 +1328,18 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
+   if (auto *GV = dyn_cast<GlobalVariable>(C)) {
+     if (GV->getValueType()->isArrayTy() &&
+         GV->getValueType()->getArrayElementType()->isIntegerTy(8)) {
+-      SPIRVValue *Offset = transValue(getUInt32(M, 0), nullptr);
+-      return BM->addPtrAccessChainInst(ExpectedType, Trans, {Offset, Offset},
+-                                       nullptr, true);
++      SPIRVWord Offset = transValue(getUInt32(M, 0), nullptr)->getId();
++      Ops.push_back(Offset);
++      Ops.push_back(Offset);
++      if (ExpectedType->isTypeUntypedPointerKHR()) {
++        llvm::Type *Ty = Scavenger->getScavengedType(C);
++        SPIRVType *PtrTy = nullptr;
++        if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
++          PtrTy = transType(TPT->getElementType());
++          Ops = getVec(PtrTy->getId(), Ops);
++        }
++      }
++      return BM->addPtrAccessChainInst(ExpectedType, Ops, nullptr, true);
+     }
+   }
+ 
+@@ -1449,13 +1459,20 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
+ 
+   if (auto *ConstUE = dyn_cast<ConstantExpr>(V)) {
+     if (auto *GEP = dyn_cast<GEPOperator>(ConstUE)) {
+-      std::vector<SPIRVValue *> Indices;
+-      for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
+-        Indices.push_back(transValue(GEP->getOperand(I + 1), nullptr));
+       auto *TransPointerOperand = transValue(GEP->getPointerOperand(), nullptr);
++      std::vector<SPIRVWord> Ops = {TransPointerOperand->getId()};
++      for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
++        Ops.push_back(transValue(GEP->getOperand(I + 1), nullptr)->getId());
+       SPIRVType *TranslatedTy = transScavengedType(GEP);
+-      return BM->addPtrAccessChainInst(TranslatedTy, TransPointerOperand,
+-                                       Indices, nullptr, GEP->isInBounds());
++      if (TranslatedTy->isTypeUntypedPointerKHR()) {
++        llvm::Type *Ty = Scavenger->getScavengedType(GEP->getPointerOperand());
++        if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
++          SPIRVType *PtrTy = transType(TPT->getElementType());
++          Ops = getVec(PtrTy->getId(), Ops);
++        }
++      }
++      return BM->addPtrAccessChainInst(TranslatedTy, Ops, nullptr,
++                                       GEP->isInBounds());
+     }
+     auto *Inst = ConstUE->getAsInstruction();
+     SPIRVDBG(dbgs() << "ConstantExpr: " << *ConstUE << '\n';
+@@ -2469,18 +2486,17 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+   }
+ 
+   if (GetElementPtrInst *GEP = dyn_cast<GetElementPtrInst>(V)) {
+-    std::vector<SPIRVValue *> Indices;
+-    for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
+-      Indices.push_back(transValue(GEP->getOperand(I + 1), BB));
+     auto *PointerOperand = GEP->getPointerOperand();
+-    auto *TransPointerOperand = transValue(PointerOperand, BB);
++    std::vector<SPIRVWord> Ops = {transValue(PointerOperand, BB)->getId()};
++    for (unsigned I = 0, E = GEP->getNumIndices(); I != E; ++I)
++      Ops.push_back(transValue(GEP->getOperand(I + 1), BB)->getId());
+ 
+     // Certain array-related optimization hints can be expressed via
+     // LLVM metadata. For the purpose of linking this metadata with
+     // the accessed array variables, our GEP may have been marked into
+     // a so-called index group, an MDNode by itself.
+     if (MDNode *IndexGroup = GEP->getMetadata("llvm.index.group")) {
+-      SPIRVValue *ActualMemoryPtr = TransPointerOperand;
++      SPIRVValue *ActualMemoryPtr = BM->getValue(Ops[0]);
+       // If the source is a no-op bitcast (generated to fix up types), look
+       // through it to the underlying gep if possible.
+       if (auto *BC = dyn_cast<CastInst>(PointerOperand))
+@@ -2514,9 +2530,16 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
+     // GEP can return a vector of pointers, in this case GEP will calculate
+     // addresses for each pointer in the vector
+     SPIRVType *TranslatedTy = transScavengedType(GEP);
+-    return mapValue(V,
+-                    BM->addPtrAccessChainInst(TranslatedTy, TransPointerOperand,
+-                                              Indices, BB, GEP->isInBounds()));
++    if (TranslatedTy->isTypeUntypedPointerKHR()) {
++      llvm::Type *Ty = Scavenger->getScavengedType(PointerOperand);
++      SPIRVType *PtrTy = nullptr;
++      if (auto *TPT = dyn_cast<TypedPointerType>(Ty)) {
++        PtrTy = transType(TPT->getElementType());
++        Ops = getVec(PtrTy->getId(), Ops);
++      }
++    }
++    return mapValue(
++        V, BM->addPtrAccessChainInst(TranslatedTy, Ops, BB, GEP->isInBounds()));
+   }
+ 
+   if (auto *Ext = dyn_cast<ExtractElementInst>(V)) {
+@@ -4652,8 +4675,12 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
+         PtrAS == SPIRAS_Generic, SPIRVEC_InvalidInstruction, II,
+         "lifetime intrinsic pointer operand must be in private or generic AS");
+     auto *SrcTy = PtrOp->getType();
+-    auto *DstTy = BM->addPointerType(StorageClassFunction,
+-                                     SrcTy->getPointerElementType());
++    SPIRVType *DstTy = nullptr;
++    if (SrcTy->isTypeUntypedPointerKHR())
++      DstTy = BM->addUntypedPointerKHRType(StorageClassFunction);
++    else
++      DstTy = BM->addPointerType(StorageClassFunction,
++                                 SrcTy->getPointerElementType());
+     PtrOp = BM->addUnaryInst(OpGenericCastToPtr, DstTy, PtrOp, BB);
+     ValueMap[LLVMPtrOp] = PtrOp;
+     return BM->addLifetimeInst(OC, PtrOp, Size, BB);
+diff --git a/lib/SPIRV/libSPIRV/SPIRVInstruction.cpp b/lib/SPIRV/libSPIRV/SPIRVInstruction.cpp
+index 048722eb1ff6..8237baea10f6 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVInstruction.cpp
++++ b/lib/SPIRV/libSPIRV/SPIRVInstruction.cpp
+@@ -248,6 +248,10 @@ bool isSpecConstantOpAllowedOp(Op OC) {
+       OpInBoundsAccessChain,
+       OpPtrAccessChain,
+       OpInBoundsPtrAccessChain,
++      OpUntypedAccessChainKHR,
++      OpUntypedInBoundsAccessChainKHR,
++      OpUntypedPtrAccessChainKHR,
++      OpUntypedInBoundsPtrAccessChainKHR,
+   };
+   static std::unordered_set<SPIRVWord> Allow(std::begin(Table),
+                                              std::end(Table));
+diff --git a/lib/SPIRV/libSPIRV/SPIRVInstruction.h b/lib/SPIRV/libSPIRV/SPIRVInstruction.h
+index e1e9b98b52dd..67aaee4ba71a 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVInstruction.h
++++ b/lib/SPIRV/libSPIRV/SPIRVInstruction.h
+@@ -1704,17 +1704,38 @@ _SPIRV_OP_INTERNAL(ArithmeticFenceINTEL)
+ 
+ class SPIRVAccessChainBase : public SPIRVInstTemplateBase {
+ public:
+-  SPIRVValue *getBase() { return this->getValue(this->Ops[0]); }
++  SPIRVValue *getBase() {
++    if (this->isUntyped())
++      return this->getValue(this->Ops[1]);
++    return this->getValue(this->Ops[0]);
++  }
++  SPIRVType *getBaseType() {
++    if (this->isUntyped())
++      return get<SPIRVType>(this->Ops[0]);
++    return this->getValue(this->Ops[0])->getType();
++  }
+   std::vector<SPIRVValue *> getIndices() const {
+-    std::vector<SPIRVWord> IndexWords(this->Ops.begin() + 1, this->Ops.end());
++    unsigned IdxShift = this->isUntyped() ? 2 : 1;
++    std::vector<SPIRVWord> IndexWords(this->Ops.begin() + IdxShift,
++                                      this->Ops.end());
+     return this->getValues(IndexWords);
+   }
+   bool isInBounds() {
+     return OpCode == OpInBoundsAccessChain ||
+-           OpCode == OpInBoundsPtrAccessChain;
++           OpCode == OpInBoundsPtrAccessChain ||
++           OpCode == OpUntypedInBoundsAccessChainKHR ||
++           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+   }
+   bool hasPtrIndex() {
+-    return OpCode == OpPtrAccessChain || OpCode == OpInBoundsPtrAccessChain;
++    return OpCode == OpPtrAccessChain || OpCode == OpInBoundsPtrAccessChain ||
++           OpCode == OpUntypedPtrAccessChainKHR ||
++           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
++  }
++  bool isUntyped() const {
++    return OpCode == OpUntypedAccessChainKHR ||
++           OpCode == OpUntypedInBoundsAccessChainKHR ||
++           OpCode == OpUntypedPtrAccessChainKHR ||
++           OpCode == OpUntypedInBoundsPtrAccessChainKHR;
+   }
+ };
+ 
+@@ -1730,6 +1751,15 @@ typedef SPIRVAccessChainGeneric<OpPtrAccessChain, 5> SPIRVPtrAccessChain;
+ typedef SPIRVAccessChainGeneric<OpInBoundsPtrAccessChain, 5>
+     SPIRVInBoundsPtrAccessChain;
+ 
++typedef SPIRVAccessChainGeneric<OpUntypedAccessChainKHR, 5>
++    SPIRVUntypedAccessChainKHR;
++typedef SPIRVAccessChainGeneric<OpUntypedInBoundsAccessChainKHR, 5>
++    SPIRVUntypedInBoundsAccessChainKHR;
++typedef SPIRVAccessChainGeneric<OpUntypedPtrAccessChainKHR, 6>
++    SPIRVUntypedPtrAccessChainKHR;
++typedef SPIRVAccessChainGeneric<OpUntypedInBoundsPtrAccessChainKHR, 6>
++    SPIRVUntypedInBoundsPtrAccessChainKHR;
++
+ class SPIRVLoopControlINTEL : public SPIRVInstruction {
+ public:
+   static const Op OC = OpLoopControlINTEL;
+diff --git a/lib/SPIRV/libSPIRV/SPIRVModule.cpp b/lib/SPIRV/libSPIRV/SPIRVModule.cpp
+index 94d0818528f6..b2ea05d36a8e 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVModule.cpp
++++ b/lib/SPIRV/libSPIRV/SPIRVModule.cpp
+@@ -323,8 +323,7 @@ public:
+                                      SPIRVWord Capacity) override;
+ 
+   // Instruction creation functions
+-  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
+-                                          std::vector<SPIRVValue *>,
++  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, std::vector<SPIRVWord>,
+                                           SPIRVBasicBlock *, bool) override;
+   SPIRVInstruction *addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest,
+                                       SPIRVValue *Src, SPIRVValue *NumElems,
+@@ -1725,13 +1724,19 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
+ }
+ 
+ SPIRVInstruction *
+-SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
+-                                       std::vector<SPIRVValue *> Indices,
++SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type,
++                                       std::vector<SPIRVWord> TheOps,
+                                        SPIRVBasicBlock *BB, bool IsInBounds) {
++  if (Type->isTypeUntypedPointerKHR())
++    return addInstruction(SPIRVInstTemplateBase::create(
++                              IsInBounds ? OpUntypedInBoundsPtrAccessChainKHR
++                                         : OpUntypedPtrAccessChainKHR,
++                              Type, getId(), TheOps, BB, this),
++                          BB);
+   return addInstruction(
+-      SPIRVInstTemplateBase::create(
+-          IsInBounds ? OpInBoundsPtrAccessChain : OpPtrAccessChain, Type,
+-          getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
++      SPIRVInstTemplateBase::create(IsInBounds ? OpInBoundsPtrAccessChain
++                                               : OpPtrAccessChain,
++                                    Type, getId(), TheOps, BB, this),
+       BB);
+ }
+ 
+diff --git a/lib/SPIRV/libSPIRV/SPIRVModule.h b/lib/SPIRV/libSPIRV/SPIRVModule.h
+index e933b7a8f398..139ea2834bce 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVModule.h
++++ b/lib/SPIRV/libSPIRV/SPIRVModule.h
+@@ -313,8 +313,8 @@ public:
+                                              SPIRVWord Capacity) = 0;
+ 
+   // Instruction creation functions
+-  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
+-                                                  std::vector<SPIRVValue *>,
++  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *,
++                                                  std::vector<SPIRVWord>,
+                                                   SPIRVBasicBlock *, bool) = 0;
+   virtual SPIRVInstruction *
+   addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest, SPIRVValue *Src,
+diff --git a/lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h b/lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h
+index eda5b3a415a5..872d635044f0 100644
+--- a/lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h
++++ b/lib/SPIRV/libSPIRV/SPIRVOpCodeEnum.h
+@@ -335,6 +335,10 @@ _SPIRV_OP(PtrDiff, 403)
+ _SPIRV_OP(CopyLogical, 400)
+ _SPIRV_OP(TypeUntypedPointerKHR, 4417)
+ _SPIRV_OP(UntypedVariableKHR, 4418)
++_SPIRV_OP(UntypedAccessChainKHR, 4419)
++_SPIRV_OP(UntypedInBoundsAccessChainKHR, 4420)
++_SPIRV_OP(UntypedPtrAccessChainKHR, 4423)
++_SPIRV_OP(UntypedInBoundsPtrAccessChainKHR, 4424)
+ _SPIRV_OP(GroupNonUniformRotateKHR, 4431)
+ _SPIRV_OP(SDotKHR, 4450)
+ _SPIRV_OP(UDotKHR, 4451)
+diff --git a/test/extensions/KHR/SPV_KHR_untyped_pointers/globals.ll b/test/extensions/KHR/SPV_KHR_untyped_pointers/globals.ll
+index 55ca60176f19..fc77f07cfe00 100644
+--- a/test/extensions/KHR/SPV_KHR_untyped_pointers/globals.ll
++++ b/test/extensions/KHR/SPV_KHR_untyped_pointers/globals.ll
+@@ -1,6 +1,8 @@
++; This test validated untyped access chain and its use in SpecConstantOp.
++
+ ; RUN: llvm-as %s -o %t.bc
+ ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
+-; TODO: enable back once spirv-tools are updated.
++; TODO: enable back once spirv-tools are updated and allow untyped access chain as OpSpecConstantOp operand.
+ ; R/UN: spirv-val %t.spv
+ ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o %t.spt
+ ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+@@ -14,25 +16,51 @@ target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:2
+ target triple = "spir-unknown-unknown"
+ 
+ ; CHECK-SPIRV-DAG: TypeInt [[#I16:]] 16 0
+-; CHECK-SPIRV-DAG: Constant [[#I16]] [[#CONST0:]] 0
+ ; CHECK-SPIRV-DAG: TypeInt [[#I32:]] 32 0
++; CHECK-SPIRV-DAG: TypeInt [[#I64:]] 64 0
++; CHECK-SPIRV-DAG: Constant [[#I16]] [[#CONST0:]] 0
++; CHECK-SPIRV-DAG: Constant [[#I32]] [[#CONST2:]] 2
++; CHECK-SPIRV-DAG: Constant [[#I32]] [[#CONST3:]] 3
++; CHECK-SPIRV-DAG: Constant [[#I32]] [[#CONST4:]] 4
++; CHECK-SPIRV-DAG: Constant [[#I64]] [[#CONST0_I64:]] 0
++; CHECK-SPIRV-DAG: Constant [[#I64]] [[#CONST1_I64:]] 1
++; CHECK-SPIRV-DAG: Constant [[#I64]] [[#CONST2_I64:]] 2
++; CHECK-SPIRV-DAG: Constant [[#I64]] [[#CONST3_I64:]] 3
++
+ ; CHECK-SPIRV-DAG: TypeUntypedPointerKHR [[#PTRTY:]] 5
+ ; CHECK-SPIRV-DAG: TypeUntypedPointerKHR [[#LOCALPTRTY:]] 4
++; CHECK-SPIRV-DAG: TypeArray [[#ARRAYTY:]] [[#PTRTY]] [[#CONST2]]
++; CHECK-SPIRV-DAG: TypePointer [[#ARRAYPTRTY:]] 5 [[#ARRAYTY]]
++; CHECK-SPIRV-DAG: TypeArray [[#ARRAY1TY:]] [[#I32]] [[#CONST4]]
++; CHECK-SPIRV-DAG: TypeArray [[#ARRAY2TY:]] [[#ARRAY1TY]] [[#CONST3]]
++; CHECK-SPIRV-DAG: TypeArray [[#ARRAY3TY:]] [[#ARRAY2TY]] [[#CONST2]]
++; CHECK-SPIRV-DAG: TypePointer [[#ARRAY3PTRTY:]] 5 [[#ARRAY3TY]]
++
+ 
+ ; CHECK-SPIRV: UntypedVariableKHR [[#PTRTY]] [[#VARA:]] 5 [[#I16]] [[#CONST0]]
+ ; CHECK-SPIRV: UntypedVariableKHR [[#PTRTY]] [[#VARB:]] 5 [[#I32]]
+ ; CHECK-SPIRV: UntypedVariableKHR [[#PTRTY]] [[#VARC:]] 5 [[#PTRTY]] [[#VARA]]
+ ; CHECK-SPIRV: UntypedVariableKHR [[#LOCALPTRTY]] [[#VARD:]] 4 [[#PTRTY]]
++; CHECK-SPIRV: Variable [[#ARRAYPTRTY]] [[#VARE:]] 5
++; CHECK-SPIRV: Variable [[#ARRAY3PTRTY]] [[#VARF:]] 5
++; CHECK-SPIRV: SpecConstantOp [[#PTRTY]] [[#SPECCONST:]] 4424 [[#ARRAY3TY]] [[#VARF]] [[#CONST0_I64]] [[#CONST1_I64]] [[#CONST2_I64]] [[#CONST3_I64]]
++; CHECK-SPIRV: UntypedVariableKHR [[#PTRTY]] [[#VARG:]] 5 [[#PTRTY]] [[#SPECCONST]]
+ 
+ ; CHECK-LLVM: @a = addrspace(1) global i16 0
+ ; CHECK-LLVM: @b = external addrspace(1) global i32
+ ; CHECK-LLVM: @c = addrspace(1) global ptr addrspace(1) @a
+ ; CHECK-LLVM: @d = external addrspace(3) global ptr addrspace(1)
++; CHECK-LLVM: @e = addrspace(1) global [2 x ptr addrspace(1)] [ptr addrspace(1) @a, ptr addrspace(1) @b]
++; CHECK-LLVM: @f = addrspace(1) global [2 x [3 x [4 x i32]]]
++; CHECK-LLVM: @g = addrspace(1) global ptr addrspace(1) getelementptr inbounds ([2 x [3 x [4 x i32]]], ptr addrspace(1) @f, i64 0, i64 1, i64 2, i64 3)
+ 
+ @a = addrspace(1) global i16 0
+ @b = external addrspace(1) global i32
+ @c = addrspace(1) global ptr addrspace(1) @a
+ @d = external addrspace(3) global ptr addrspace(1)
++@e = addrspace(1) global [2 x ptr addrspace(1)] [ptr addrspace(1) @a, ptr addrspace(1) @b]
++@f = addrspace(1) global [2 x [3 x [4 x i32]]] [[3 x [4 x i32]] [[4 x i32] [i32 1, i32 2, i32 3, i32 4], [4 x i32] [i32 1, i32 2, i32 3, i32 4], [4 x i32] [i32 1, i32 2, i32 3, i32 4]], [3 x [4 x i32]] [[4 x i32] [i32 1, i32 2, i32 3, i32 4], [4 x i32] [i32 1, i32 2, i32 3, i32 4], [4 x i32] [i32 1, i32 2, i32 3, i32 4]]]
++@g = addrspace(1) global ptr addrspace(1) getelementptr inbounds ([2 x [3 x [4 x i32]]], ptr addrspace(1) @f, i64 0, i64 1, i64 2, i64 3)
+ 
+ ; Function Attrs: nounwind
+ define spir_func void @foo() {
+diff --git a/test/extensions/KHR/SPV_KHR_untyped_pointers/untyped_ptr_access_chain.ll b/test/extensions/KHR/SPV_KHR_untyped_pointers/untyped_ptr_access_chain.ll
+new file mode 100644
+index 000000000000..5fd5a37f583e
+--- /dev/null
++++ b/test/extensions/KHR/SPV_KHR_untyped_pointers/untyped_ptr_access_chain.ll
+@@ -0,0 +1,47 @@
++; Source:
++; struct Example { int a; int b; };
++; void test(int val) {
++;     Example obj;
++;     obj.b = val;
++; }
++
++; RUN: llvm-as %s -o %t.bc
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
++; TODO: enable back once spirv-tools are updated.
++; R/UN: spirv-val %t.spv
++
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -spirv-text -o %t.spt
++; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
++
++; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
++; RUN: llvm-dis %t.rev.bc -o %t.rev.ll
++; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
++
++; CHECK-SPIRV: Capability UntypedPointersKHR
++; CHECK-SPIRV: Extension "SPV_KHR_untyped_pointers"
++; CHECK-SPIRV: TypeInt [[#IntTy:]] 32
++; CHECK-SPIRV: Constant [[#IntTy]] [[#Const0:]] 0 
++; CHECK-SPIRV: Constant [[#IntTy]] [[#Const1:]] 1 
++; CHECK-SPIRV: TypeUntypedPointerKHR [[#UntypedPtrTy:]] 7
++; CHECK-SPIRV: TypeStruct [[#StructTy:]] [[#IntTy]] [[#IntTy]]
++; CHECK-SPIRV: TypePointer [[#PtrStructTy:]] 7 [[#StructTy]]
++
++; CHECK-SPIRV: Variable [[#PtrStructTy]] [[#StructVarId:]] 7
++; CHECK-SPIRV: UntypedInBoundsPtrAccessChainKHR [[#UntypedPtrTy]] [[#]] [[#StructTy]] [[#StructVarId]] [[#Const0]] [[#Const1]]
++
++target datalayout = "e-p:32:32-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
++target triple = "spir-unknown-unknown"
++
++%struct.Example = type { i32, i32 }
++
++define spir_func void @test(i32 noundef %0) {
++  %2 = alloca i32, align 4
++  %3 = alloca %struct.Example, align 4
++  store i32 %0, ptr %2, align 4
++  %4 = load i32, ptr %2, align 4
++; CHECK-LLVM: %[[#Str:]] = alloca %struct.Example, align 4
++; CHECK-LLVM: getelementptr inbounds %struct.Example, ptr %[[#Str]], i32 0, i32 1
++  %5 = getelementptr inbounds nuw %struct.Example, ptr %3, i32 0, i32 1
++  store i32 %4, ptr %5, align 4
++  ret void
++}
+diff --git a/test/llvm-intrinsics/lifetime.ll b/test/llvm-intrinsics/lifetime.ll
+index d1c0a4de60ee..02be01749bec 100644
+--- a/test/llvm-intrinsics/lifetime.ll
++++ b/test/llvm-intrinsics/lifetime.ll
+@@ -6,6 +6,13 @@
+ ; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
+ ; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
+ 
++; Verify that we have valid SPV and the same output LLVM IR when using untyped pointers.
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
++; TODO: enable back once spirv-tools are updated.
++; R/UN: spirv-val %t.spv
++; RUN: llvm-spirv -r %t.spv -o %t.spv.bc
++; RUN: llvm-dis < %t.spv.bc | FileCheck %s --check-prefix=CHECK-LLVM
++
+ ; CHECK-SPIRV-DAG: Name [[#SimpleF:]] "lifetime_simple"
+ ; CHECK-SPIRV-DAG: Name [[#SizedF:]] "lifetime_sized"
+ ; CHECK-SPIRV-DAG: Name [[#GenericF:]] "lifetime_generic"
+diff --git a/test/transcoding/multiple_user_semantic.ll b/test/transcoding/multiple_user_semantic.ll
+index 3a6c1b1101d2..2c8e0acf5053 100644
+--- a/test/transcoding/multiple_user_semantic.ll
++++ b/test/transcoding/multiple_user_semantic.ll
+@@ -1,21 +1,34 @@
+ ; RUN: llvm-as %s -o %t.bc
+-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
++; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
++; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spt
++; RUN: FileCheck < %t.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+ 
+ ; RUN: llvm-spirv %t.bc -o %t.spv
++; RUN: spirv-val %t.spv
++; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
++; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
++
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
++; TODO: enable back once spirv-tools are updated.
++; R/UN: spirv-val %t.spv
+ ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+ ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+ 
+ ; Check that even when FPGA memory extensions are enabled - yet we have
+ ; UserSemantic decoration be generated
+ ; RUN: llvm-as %s -o %t.bc
+-; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
++; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes,+SPV_KHR_untyped_pointers -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+ 
+ ; CHECK-SPIRV-DAG: Decorate [[#Var:]] UserSemantic "var_annotation_a"
+ ; CHECK-SPIRV-DAG: Decorate [[#Var]] UserSemantic "var_annotation_b2"
+ ; CHECK-SPIRV-DAG: Decorate [[#Gep:]] UserSemantic "class_annotation_a"
+ ; CHECK-SPIRV-DAG: Decorate [[#Gep]] UserSemantic "class_annotation_b2"
+-; CHECK-SPIRV: Variable [[#]] [[#Var]] [[#]]
+-; CHECK-SPIRV: InBoundsPtrAccessChain [[#]] [[#Gep]] [[#]]
++; CHECK-SPIRV-TYPED-PTR: Variable [[#]] [[#Var]] [[#]]
++; CHECK-SPIRV-TYPED-PTR: InBoundsPtrAccessChain [[#]] [[#Gep]] [[#]]
++; CHECK-SPIRV-UNTYPED-PTR: UntypedVariableKHR [[#]] [[#Var]] [[#]]
++; CHECK-SPIRV-UNTYPED-PTR: UntypedInBoundsPtrAccessChainKHR [[#]] [[#Gep]] [[#]]
++
+ 
+ ; CHECK-LLVM-DAG: @[[StrStructA:[0-9_.]+]] = {{.*}}"class_annotation_a\00"
+ ; CHECK-LLVM-DAG: @[[StrStructB:[0-9_.]+]] = {{.*}}"class_annotation_b2\00"
+-- 
+2.39.1
+

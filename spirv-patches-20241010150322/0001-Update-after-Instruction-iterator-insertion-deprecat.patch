@@ -1,0 +1,139 @@
+From 374eb9d8a4ee0ec584b38b36d6efcd7776c782b0 Mon Sep 17 00:00:00 2001
+From: Sven van Haastregt <sven.vanhaastregt@arm.com>
+Date: Tue, 24 Sep 2024 12:54:24 +0200
+Subject: [PATCH 01/18] Update after Instruction iterator-insertion deprecation
+ (#2724)
+
+Avoid deprecation warnings after LLVM commit 2f50b280dc8e
+("[DebugInfo] Enable deprecation of iterator-insertion methods
+(#102608)", 2024-09-20).
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/374eb9d8a4ee0ec
+---
+ lib/SPIRV/OCLToSPIRV.cpp  | 11 +++++++----
+ lib/SPIRV/SPIRVInternal.h |  9 +++++----
+ lib/SPIRV/SPIRVUtil.cpp   | 14 +++++++++-----
+ 3 files changed, 21 insertions(+), 13 deletions(-)
+
+diff --git a/lib/SPIRV/OCLToSPIRV.cpp b/lib/SPIRV/OCLToSPIRV.cpp
+index be04f0ad91f6..a8cc6d2311c8 100644
+--- a/lib/SPIRV/OCLToSPIRV.cpp
++++ b/lib/SPIRV/OCLToSPIRV.cpp
+@@ -444,12 +444,14 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
+   //   local work size
+   // The arguments need to add missing members.
+   for (size_t I = 1, E = CI->arg_size(); I != E; ++I)
+-    Mutator.mapArg(I, [=](Value *V) { return getScalarOrArray(V, Len, CI); });
++    Mutator.mapArg(I, [=](Value *V) {
++      return getScalarOrArray(V, Len, CI->getIterator());
++    });
+   switch (CI->arg_size()) {
+   case 2: {
+     // Has global work size.
+     auto *T = Mutator.getArg(1)->getType();
+-    auto *C = getScalarOrArrayConstantInt(CI, T, Len, 0);
++    auto *C = getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0);
+     Mutator.appendArg(C);
+     Mutator.appendArg(C);
+     break;
+@@ -457,7 +459,8 @@ void OCLToSPIRVBase::visitCallNDRange(CallInst *CI, StringRef DemangledName) {
+   case 3: {
+     // Has global and local work size.
+     auto *T = Mutator.getArg(1)->getType();
+-    Mutator.appendArg(getScalarOrArrayConstantInt(CI, T, Len, 0));
++    Mutator.appendArg(
++        getScalarOrArrayConstantInt(CI->getIterator(), T, Len, 0));
+     break;
+   }
+   case 4: {
+@@ -1158,7 +1161,7 @@ void OCLToSPIRVBase::visitCallToAddr(CallInst *CI, StringRef DemangledName) {
+         .mapArg(Mutator.arg_size() - 1,
+                 [&](Value *V) {
+                   return std::make_pair(
+-                      castToInt8Ptr(V, CI),
++                      castToInt8Ptr(V, CI->getIterator()),
+                       TypedPointerType::get(Type::getInt8Ty(V->getContext()),
+                                             SPIRAS_Generic));
+                 })
+diff --git a/lib/SPIRV/SPIRVInternal.h b/lib/SPIRV/SPIRVInternal.h
+index f8ae5afcc06a..8c313f0ef92c 100644
+--- a/lib/SPIRV/SPIRVInternal.h
++++ b/lib/SPIRV/SPIRVInternal.h
+@@ -801,13 +801,14 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V,
+ //  an integer pointer type.
+ /// \param Len is the length of the array.
+ /// \param V is the value to fill the array.
+-Value *getScalarOrArrayConstantInt(Instruction *P, Type *T, unsigned Len,
+-                                   uint64_t V, bool IsSigned = false);
++Value *getScalarOrArrayConstantInt(BasicBlock::iterator P, Type *T,
++                                   unsigned Len, uint64_t V,
++                                   bool IsSigned = false);
+ 
+ /// Get the array from GEP.
+ /// \param V is a GEP whose pointer operand is a pointer to an array of size
+ /// \param Size.
+-Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos);
++Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos);
+ 
+ void dumpUsers(Value *V, StringRef Prompt = "");
+ 
+@@ -920,7 +921,7 @@ std::string getSPIRVFriendlyIRFunctionName(const std::string &UniqName,
+ PointerType *getInt8PtrTy(PointerType *T);
+ 
+ /// Cast a value to a i8* by inserting a cast instruction.
+-Value *castToInt8Ptr(Value *V, Instruction *Pos);
++Value *castToInt8Ptr(Value *V, BasicBlock::iterator Pos);
+ 
+ template <> inline void SPIRVMap<std::string, Op, SPIRVOpaqueType>::init() {
+ #define _SPIRV_OP(x) add(#x, OpType##x);
+diff --git a/lib/SPIRV/SPIRVUtil.cpp b/lib/SPIRV/SPIRVUtil.cpp
+index ef94edfaab4d..04f8b9aff15b 100644
+--- a/lib/SPIRV/SPIRVUtil.cpp
++++ b/lib/SPIRV/SPIRVUtil.cpp
+@@ -1011,8 +1011,12 @@ CallInst *addCallInst(Module *M, StringRef FuncName, Type *RetTy,
+ 
+   auto *F = getOrCreateFunction(M, RetTy, getTypes(Args), FuncName, Mangle,
+                                Attrs, TakeFuncName);
++  InsertPosition InsertPos(nullptr);
++  if (Pos)
++    InsertPos = Pos->getIterator();
+   // Cannot assign a Name to void typed values
+-  auto *CI = CallInst::Create(F, Args, RetTy->isVoidTy() ? "" : InstName, Pos);
++  auto *CI =
++      CallInst::Create(F, Args, RetTy->isVoidTy() ? "" : InstName, InsertPos);
+   CI->setCallingConv(F->getCallingConv());
+   CI->setAttributes(F->getAttributes());
+   return CI;
+@@ -1061,7 +1065,7 @@ PointerType *getInt8PtrTy(PointerType *T) {
+   return PointerType::get(T->getContext(), T->getAddressSpace());
+ }
+ 
+-Value *castToInt8Ptr(Value *V, Instruction *Pos) {
++Value *castToInt8Ptr(Value *V, BasicBlock::iterator Pos) {
+   return CastInst::CreatePointerCast(
+       V, getInt8PtrTy(cast<PointerType>(V->getType())), "", Pos);
+ }
+@@ -1453,7 +1457,7 @@ static SPIR::RefParamType transTypeDesc(Type *Ty,
+   return SPIR::RefParamType(new SPIR::PrimitiveType(SPIR::PRIMITIVE_INT));
+ }
+ 
+-Value *getScalarOrArray(Value *V, unsigned Size, Instruction *Pos) {
++Value *getScalarOrArray(Value *V, unsigned Size, BasicBlock::iterator Pos) {
+   if (!V->getType()->isPointerTy())
+     return V;
+   Type *SourceTy;
+@@ -1492,8 +1496,8 @@ Constant *getScalarOrVectorConstantInt(Type *T, uint64_t V, bool IsSigned) {
+   return nullptr;
+ }
+ 
+-Value *getScalarOrArrayConstantInt(Instruction *Pos, Type *T, unsigned Len,
+-                                   uint64_t V, bool IsSigned) {
++Value *getScalarOrArrayConstantInt(BasicBlock::iterator Pos, Type *T,
++                                   unsigned Len, uint64_t V, bool IsSigned) {
+   if (auto *IT = dyn_cast<IntegerType>(T)) {
+     assert(Len == 1 && "Invalid length");
+     return ConstantInt::get(IT, V, IsSigned);
+-- 
+2.39.1
+
