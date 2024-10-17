@@ -47,7 +47,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
@@ -56,7 +56,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #endif
 
 #define SYCLCOMPAT_MAJOR_VERSION 0
-#define SYCLCOMPAT_MINOR_VERSION 1
+#define SYCLCOMPAT_MINOR_VERSION 2
 #define SYCLCOMPAT_PATCH_VERSION 0
 
 #define SYCLCOMPAT_MAKE_VERSION(_major, _minor, _patch)                        \
@@ -67,19 +67,19 @@ template <int Arg> class syclcompat_kernel_scalar;
                           SYCLCOMPAT_PATCH_VERSION)
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+enum error_code { success = 0, backend_error = 1, default_error = 999 };
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)                                           \
   [&]() {                                                                      \
     try {                                                                      \
       expr;                                                                    \
-      return syclcompat::error_code::SUCCESS;                                  \
+      return syclcompat::error_code::success;                                  \
     } catch (sycl::exception const &e) {                                       \
       std::cerr << e.what() << std::endl;                                      \
-      return syclcompat::error_code::BACKEND_ERROR;                            \
+      return syclcompat::error_code::backend_error;                            \
     } catch (std::runtime_error const &e) {                                    \
       std::cerr << e.what() << std::endl;                                      \
-      return syclcompat::error_code::DEFAULT_ERROR;                            \
+      return syclcompat::error_code::default_error;                            \
     }                                                                          \
   }()

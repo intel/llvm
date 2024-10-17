@@ -53,6 +53,7 @@
 
 #include <syclcompat/device.hpp>
 #include <syclcompat/traits.hpp>
+#include <syclcompat/defs.hpp>
 
 #if defined(__linux__)
 #include <sys/mman.h>
@@ -85,6 +86,23 @@ enum memcpy_direction {
   automatic
 };
 } // namespace detail
+
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
+  if constexpr (std::is_same_v<T, uint32_t>) {
+    return (intptr_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+  } else {
+    return (size_t)(sycl::decorated_local_ptr<const void>::pointer)ptr;
+  }
+#else
+  throw sycl::exception(make_error_code(sycl::errc::runtime),
+                        "ptr_to_int is only supported on Nvidia devices.");
+#endif
+}
 
 enum class memory_region {
   global = 0, // device global memory
@@ -991,6 +1009,9 @@ static inline void wait_and_free(void *ptr,
   }
 }
 
+// Anonymous namespace to disable ADL for functions which might clash (memcpy,
+// memset, free)
+namespace {
 /// Free the memory \p ptr on the default queue without synchronizing
 /// \param ptr Point to free.
 /// \returns no return value.
@@ -1000,6 +1021,7 @@ static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
 #endif
   detail::free(ptr, q);
 }
+} // namespace
 
 /// Enqueues the release of all pointers in /p pointers on the /p q.
 /// The command waits on all passed /p events and returns an event that
@@ -1025,6 +1047,7 @@ inline sycl::event enqueue_free(const std::vector<void *> &pointers,
   return event;
 }
 
+namespace {
 /// Synchronously copies \p size bytes from the address specified by \p from_ptr
 /// to the address specified by \p to_ptr. The function will
 /// return after the copy is completed.
@@ -1038,6 +1061,8 @@ static void memcpy(void *to_ptr, const void *from_ptr, size_t size,
                    sycl::queue q = get_default_queue()) {
   detail::memcpy(q, to_ptr, from_ptr, size).wait();
 }
+
+} // namespace
 
 /// Asynchronously copies \p size bytes from the address specified by \p
 /// from_ptr to the address specified by \p to_ptr. The return of the function
@@ -1071,6 +1096,7 @@ memcpy_async(type_identity_t<T> *to_ptr, const type_identity_t<T> *from_ptr,
                         static_cast<const void *>(from_ptr), count * sizeof(T));
 }
 
+namespace {
 /// Synchronously copies \p count T's from the address specified by \p from_ptr
 /// to the address specified by \p to_ptr. The function will
 /// return after the copy is completed.
@@ -1111,6 +1137,8 @@ static inline void memcpy(void *to_ptr, size_t to_pitch, const void *from_ptr,
       detail::memcpy(q, to_ptr, from_ptr, to_pitch, from_pitch, x, y));
 }
 
+} // namespace
+
 /// Asynchronously copies 2D matrix specified by \p x and \p y from the address
 /// specified by \p from_ptr to the address specified by \p to_ptr, while \p
 /// \p from_pitch and \p to_pitch are the range of dim x in bytes of the matrix
@@ -1133,6 +1161,7 @@ static inline sycl::event memcpy_async(void *to_ptr, size_t to_pitch,
   return detail::combine_events(events, q);
 }
 
+namespace {
 /// Synchronously copies a subset of a 3D matrix specified by \p to to another
 /// 3D matrix specified by \p from. The from and to position info are specified
 /// by \p from_pos and \p to_pos The copied matrix size is specified by \p size.
@@ -1151,6 +1180,7 @@ static inline void memcpy(pitched_data to, sycl::id<3> to_pos,
                           sycl::queue q = get_default_queue()) {
   sycl::event::wait(detail::memcpy(q, to, to_pos, from, from_pos, size));
 }
+} // namespace
 
 /// Asynchronously copies a subset of a 3D matrix specified by \p to to another
 /// 3D matrix specified by \p from. The from and to position info are specified
@@ -1172,6 +1202,7 @@ static inline sycl::event memcpy_async(pitched_data to, sycl::id<3> to_pos,
   return detail::combine_events(events, q);
 }
 
+namespace {
 /// Synchronously sets \p pattern to the first \p count elements starting from
 /// \p dev_ptr. The function will return after the fill operation is completed.
 ///
@@ -1186,6 +1217,7 @@ static void inline fill(void *dev_ptr, const T &pattern, size_t count,
                         sycl::queue q = get_default_queue()) {
   detail::fill(q, dev_ptr, pattern, count).wait();
 }
+} // namespace
 
 /// Asynchronously sets \p pattern to the first \p count elements starting from
 /// \p dev_ptr.
@@ -1230,6 +1262,7 @@ static inline void memcpy_async(const memcpy_parameter &param,
 }
 } // namespace experimental
 
+namespace {
 /// Synchronously sets \p value to the first \p size bytes starting from \p
 /// dev_ptr. The function will return after the memset operation is completed.
 ///
@@ -1242,6 +1275,7 @@ static void memset(void *dev_ptr, int value, size_t size,
                    sycl::queue q = get_default_queue()) {
   detail::memset(q, dev_ptr, value, size).wait();
 }
+} // namespace
 
 /// \brief Sets 2 bytes data \p value to the first \p size elements starting
 /// from \p dev_ptr in \p q synchronously.
@@ -1302,6 +1336,7 @@ memset_d32_async(void *dev_ptr, unsigned int value, size_t size,
   return detail::fill<unsigned int>(q, dev_ptr, value, size);
 }
 
+namespace {
 /// \brief Sets 1 byte data \p val to the pitched 2D memory region pointed by \p
 /// ptr in \p q synchronously.
 /// \param [in] ptr Pointer to the virtual device memory.
@@ -1314,6 +1349,7 @@ static inline void memset(void *ptr, size_t pitch, int val, size_t x, size_t y,
                           sycl::queue q = get_default_queue()) {
   sycl::event::wait(detail::memset<unsigned char>(q, ptr, pitch, val, x, y));
 }
+} // namespace
 
 /// \brief Sets 2 bytes data \p val to the pitched 2D memory region pointed by
 /// ptr in \p q synchronously.
@@ -1392,6 +1428,7 @@ memset_d32_async(void *ptr, size_t pitch, unsigned int val, size_t x, size_t y,
   return detail::combine_events(events, q);
 }
 
+namespace {
 /// Sets \p value to the 3D memory region specified by \p pitch in \p q. \p size
 /// specify the setted 3D memory size. The function will return after the
 /// memset operation is completed.
@@ -1405,6 +1442,7 @@ static inline void memset(pitched_data pitch, int val, sycl::range<3> size,
                           sycl::queue q = get_default_queue()) {
   sycl::event::wait(detail::memset<unsigned char>(q, pitch, val, size));
 }
+} // namespace
 
 /// Sets \p value to the 3D memory region specified by \p pitch in \p q. \p size
 /// specify the setted 3D memory size. The return of the function does NOT

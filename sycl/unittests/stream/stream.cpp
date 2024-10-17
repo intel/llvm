@@ -8,7 +8,6 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -58,4 +57,27 @@ TEST(Stream, TestStreamConstructorExceptionNoAllocation) {
   });
 
   ASSERT_EQ(GBufferCreateCounter, 0u) << "Buffers were unexpectedly created.";
+}
+
+TEST(Stream, Properties) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::queue Queue;
+  Queue
+      .submit([&](sycl::handler &CGH) {
+        try {
+          sycl::stream Stream{256, 256, CGH, sycl::property::queue::in_order{}};
+          FAIL() << "No exception was thrown.";
+        } catch (const sycl::exception &e) {
+          EXPECT_EQ(e.code(), sycl::errc::invalid);
+          EXPECT_STREQ(e.what(),
+                       "The property list contains property unsupported "
+                       "for the current object");
+          return;
+        } catch (...) {
+          FAIL() << "Unexpected exception was thrown.";
+        }
+
+        CGH.single_task<TestKernel<>>([=]() {});
+      })
+      .wait();
 }

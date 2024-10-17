@@ -47,8 +47,9 @@ using ldg_vector_types = sycl::detail::type_list<
 
 using ldg_types =
     sycl::detail::tl_append<ldg_vector_types,
-                            sycl::detail::gtl::scalar_signed_basic_list,
-                            sycl::detail::gtl::scalar_unsigned_basic_list>;
+                            sycl::detail::gtl::scalar_floating_list,
+                            sycl::detail::gtl::scalar_signed_integer_list,
+                            sycl::detail::gtl::scalar_unsigned_integer_list>;
 } // namespace detail
 
 template <typename T>
