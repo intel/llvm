@@ -1048,6 +1048,10 @@ static inline unsigned int get_device_id(const sycl::device &dev);
 // Util function to get the number of available devices
 static inline unsigned int device_count();
 
+// Util function to check whether a device supports some kinds of sycl::aspect.
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props);
 } // syclcompat
 ```
 
