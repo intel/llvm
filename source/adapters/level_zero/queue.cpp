@@ -104,7 +104,10 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
   assert(st == ACCUMULATING);
 
   if (!barrierEvent) {
-    UR_CALL(EventCreate(queue->Context, queue, false, true, &barrierEvent));
+    UR_CALL(EventCreate(queue->Context, queue, false /*IsMultiDevice*/,
+                        true /*HostVisible*/, &barrierEvent,
+                        false /*CounterBasedEventEnabled*/,
+                        false /*ForceDisableProfiling*/));
   }
 
   // Instead of collecting all the batched events, we simply issue a global
@@ -307,7 +310,9 @@ ur_result_t resetCommandLists(ur_queue_handle_t Queue) {
   // Handle immediate command lists here, they don't need to be reset and we
   // only need to cleanup events.
   if (Queue->UsingImmCmdLists) {
-    UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*locked*/));
+    UR_CALL(CleanupEventsInImmCmdLists(Queue, true /*QueueLocked*/,
+                                       false /*QueueSynced*/,
+                                       nullptr /*CompletedEvent*/));
     return UR_RESULT_SUCCESS;
   }
 
@@ -682,7 +687,8 @@ ur_result_t urQueueRelease(
       std::scoped_lock<ur_shared_mutex> EventLock(Event->Mutex);
       Event->Completed = true;
     }
-    UR_CALL(CleanupCompletedEvent(Event));
+    UR_CALL(CleanupCompletedEvent(Event, false /*QueueLocked*/,
+                                  false /*SetEventCompleted*/));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
     UR_CALL(urEventReleaseInternal(reinterpret_cast<ur_event_handle_t>(Event)));
@@ -1655,7 +1661,8 @@ ur_result_t CleanupEventListFromResetCmdList(
   for (auto &Event : EventListToCleanup) {
     // We don't need to synchronize the events since the fence associated with
     // the command list was synchronized.
-    UR_CALL(CleanupCompletedEvent(Event, QueueLocked, true));
+    UR_CALL(
+        CleanupCompletedEvent(Event, QueueLocked, true /*SetEventCompleted*/));
     // This event was removed from the command list, so decrement ref count
     // (it was incremented when they were added to the command list).
     UR_CALL(urEventReleaseInternal(Event));
@@ -1879,9 +1886,9 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
                       : nullptr;
 
   if (*Event == nullptr)
-    UR_CALL(EventCreate(Queue->Context, Queue, IsMultiDevice,
-                        HostVisible.value(), Event,
-                        Queue->CounterBasedEventsEnabled));
+    UR_CALL(EventCreate(
+        Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
+        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
@@ -1978,7 +1985,9 @@ ur_result_t ur_queue_handle_t_::executeOpenCommandList(bool IsCopy) {
   // queue, then close and execute that command list now.
   if (hasOpenCommandList(IsCopy)) {
     adjustBatchSizeForPartialBatch(IsCopy);
-    auto Res = executeCommandList(CommandBatch.OpenCommandList, false, false);
+    auto Res =
+        executeCommandList(CommandBatch.OpenCommandList, false /*IsBlocking*/,
+                           false /*OKToBatchCommand*/);
     CommandBatch.OpenCommandList = CommandListMap.end();
     return Res;
   }
@@ -2288,9 +2297,11 @@ ur_result_t ur_queue_handle_t_::createCommandList(
 
   std::tie(CommandList, std::ignore) = CommandListMap.insert(
       std::pair<ze_command_list_handle_t, ur_command_list_info_t>(
-          ZeCommandList, ur_command_list_info_t(
-                             ZeFence, false, false, ZeCommandQueue, ZeQueueDesc,
-                             useCompletionBatching(), true, IsInOrderList)));
+          ZeCommandList,
+          ur_command_list_info_t(
+              ZeFence, false /*ZeFenceInUse*/, false /*IsClosed*/,
+              ZeCommandQueue, ZeQueueDesc, useCompletionBatching(),
+              true /*CanReuse*/, IsInOrderList, false /*IsImmediate*/)));
 
   UR_CALL(insertStartBarrierIfDiscardEventsMode(CommandList));
   UR_CALL(insertActiveBarriers(CommandList, UseCopyEngine));
