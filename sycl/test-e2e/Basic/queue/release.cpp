@@ -13,7 +13,7 @@ int main() {
   return 0;
 }
 
-// CHECK: ---> urEnqueueKernelLaunch(
+// CHECK: <--- urEnqueueKernelLaunch(
 // FIXME the order of these 2 varies between adapters due to a Level Zero
 // specific queue workaround.
 // CHECK-DAG: <--- urEventRelease(
