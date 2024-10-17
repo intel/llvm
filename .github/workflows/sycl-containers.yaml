@@ -51,6 +51,13 @@ jobs:
             file: ubuntu2204_intel_drivers
             tag: unstable
             build_args: "use_latest=true"
+          - name: Build + Intel Drivers Ubuntu 22.04 Docker image
+            file: ubuntu2204_intel_drivers
+            tag: alldeps
+            build_args: |
+              base_image=ghcr.io/intel/llvm/ubuntu2204_build
+              base_tag=latest
+              use_latest=false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
