@@ -3720,6 +3720,7 @@
 ?build_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?cancel_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAAXXZ
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
+?checkNodePropertiesAndThrow@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEAAXAEBVproperty_list@67@@Z
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
