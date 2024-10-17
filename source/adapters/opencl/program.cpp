@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "adapter.hpp"
 #include "common.hpp"
 #include "context.hpp"
 #include "device.hpp"
@@ -392,50 +393,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramSetSpecializationConstants(
                                        sizeof(cl_platform_id), &CurPlatform,
                                        nullptr));
 
-  oclv::OpenCLVersion PlatVer;
-  cl_adapter::getPlatformVersion(CurPlatform, PlatVer);
-
-  bool UseExtensionLookup = false;
-  if (PlatVer < oclv::V2_2) {
-    UseExtensionLookup = true;
-  } else {
-    for (cl_device_id Dev : *DevicesInCtx) {
-      oclv::OpenCLVersion DevVer;
-
-      UR_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(Dev, DevVer));
-
-      if (DevVer < oclv::V2_2) {
-        UseExtensionLookup = true;
-        break;
-      }
-    }
-  }
-
-  if (UseExtensionLookup == false) {
+  if (ur::cl::getAdapter()->clSetProgramSpecializationConstant) {
     for (uint32_t i = 0; i < count; ++i) {
-      CL_RETURN_ON_FAILURE(clSetProgramSpecializationConstant(
-          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
-          pSpecConstants[i].pValue));
+      CL_RETURN_ON_FAILURE(
+          ur::cl::getAdapter()->clSetProgramSpecializationConstant(
+              CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
+              pSpecConstants[i].pValue));
     }
   } else {
-    cl_ext::clSetProgramSpecializationConstant_fn
-        SetProgramSpecializationConstant = nullptr;
-    const ur_result_t URResult = cl_ext::getExtFuncFromContext<
-        decltype(SetProgramSpecializationConstant)>(
-        Ctx, cl_ext::ExtFuncPtrCache->clSetProgramSpecializationConstantCache,
-        cl_ext::SetProgramSpecializationConstantName,
-        &SetProgramSpecializationConstant);
-
-    if (URResult != UR_RESULT_SUCCESS) {
-      return URResult;
-    }
-
-    for (uint32_t i = 0; i < count; ++i) {
-      CL_RETURN_ON_FAILURE(SetProgramSpecializationConstant(
-          CLProg, pSpecConstants[i].id, pSpecConstants[i].size,
-          pSpecConstants[i].pValue));
-    }
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
+
   return UR_RESULT_SUCCESS;
 }
 
