@@ -27,7 +27,7 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
 
     static constexpr char ProgramName[] = "increment";
     static constexpr size_t ArraySize = 100;
-    static constexpr size_t InitialValue = 1;
+    static constexpr uint32_t InitialValue = 1;
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
@@ -71,6 +71,7 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
             ASSERT_SUCCESS(
                 urUSMSharedAlloc(context, devices[i], nullptr, nullptr,
                                  ArraySize * sizeof(uint32_t), &SharedMem[i]));
+            ASSERT_NE(SharedMem[i], nullptr);
 
             ASSERT_SUCCESS(urEnqueueUSMFill(queues[i], SharedMem[i],
                                             sizeof(uint32_t), &InitialValue,

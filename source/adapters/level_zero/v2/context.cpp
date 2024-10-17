@@ -49,13 +49,12 @@ ur_context_handle_t_::ur_context_handle_t_(ze_context_handle_t hContext,
                                            bool ownZeContext)
     : commandListCache(hContext),
       eventPoolCache(phDevices[0]->Platform->getNumDevices(),
-                     [context = this,
-                      platform = phDevices[0]->Platform](DeviceId deviceId) {
+                     [context = this, platform = phDevices[0]->Platform](
+                         DeviceId deviceId, v2::event_flags_t flags) {
                        auto device = platform->getDeviceById(deviceId);
                        // TODO: just use per-context id?
                        return std::make_unique<v2::provider_normal>(
-                           context, device, v2::EVENT_COUNTER,
-                           v2::QUEUE_IMMEDIATE);
+                           context, device, v2::QUEUE_IMMEDIATE, flags);
                      }),
       hContext(hContext, ownZeContext),
       hDevices(phDevices, phDevices + numDevices),

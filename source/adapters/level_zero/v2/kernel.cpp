@@ -313,7 +313,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
 
   auto kernelDevices = hKernel->getDevices();
   if (kernelDevices.size() == 1) {
-    auto zePtr = hArgValue->getPtr(kernelDevices.front());
+    auto zePtr = hArgValue->getDevicePtr(
+        kernelDevices.front(), ur_mem_handle_t_::access_mode_t::read_write, 0,
+        hArgValue->getSize(), nullptr);
     return hKernel->setArgPointer(argIndex, nullptr, zePtr);
   } else {
     // TODO: if devices do not have p2p capabilities, we need to have allocation
@@ -324,7 +326,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
     // Get memory that is accessible by the first device.
     // If kernel is submitted to a different device the memory
     // will be accessed trough the link or migrated in enqueueKernelLaunch.
-    auto zePtr = hArgValue->getPtr(kernelDevices.front());
+    auto zePtr = hArgValue->getDevicePtr(
+        kernelDevices.front(), ur_mem_handle_t_::access_mode_t::read_write, 0,
+        hArgValue->getSize(), nullptr);
     return hKernel->setArgPointer(argIndex, nullptr, zePtr);
   }
 }

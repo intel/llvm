@@ -225,14 +225,6 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEventGetProfilingInfo(ur_event_handle_t hEvent,
-                                    ur_profiling_info_t propName,
-                                    size_t propSize, void *pPropValue,
-                                    size_t *pPropSizeRet) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
                                    ur_native_handle_t *phNativeEvent) {
   logger::error("{} function not implemented!", __FUNCTION__);

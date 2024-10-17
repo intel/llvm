@@ -42,15 +42,21 @@ static const char *provider_to_str(ProviderType p) {
     }
 }
 
-static const char *event_to_str(event_type e) {
-    switch (e) {
-    case EVENT_REGULAR:
-        return "EVENT_REGULAR";
-    case EVENT_COUNTER:
-        return "EVENT_COUNTER";
-    default:
-        return nullptr;
+static std::string flags_to_str(event_flags_t flags) {
+    std::string str;
+    if (flags & EVENT_FLAGS_COUNTER) {
+        str += "provider_counter";
+    } else {
+        str += "provider_normal";
     }
+
+    if (flags & EVENT_FLAGS_PROFILING_ENABLED) {
+        str += "_profiling";
+    } else {
+        str += "_no_profiling";
+    }
+
+    return str;
 }
 
 static const char *queue_to_str(queue_type e) {
@@ -66,7 +72,7 @@ static const char *queue_to_str(queue_type e) {
 
 struct ProviderParams {
     ProviderType provider;
-    v2::event_type event;
+    event_flags_t flags;
     v2::queue_type queue;
 };
 
@@ -81,7 +87,7 @@ printParams(const testing::TestParamInfo<typename T::ParamType> &info) {
     std::ostringstream params_stream;
     params_stream << platform_device_name << "__"
                   << provider_to_str(params.provider) << "_"
-                  << event_to_str(params.event) << "_"
+                  << flags_to_str(params.flags) << "_"
                   << queue_to_str(params.queue);
     return params_stream.str();
 }
@@ -94,7 +100,8 @@ struct EventPoolTest : public uur::urContextTestWithParam<ProviderParams> {
 
         cache = std::unique_ptr<event_pool_cache>(new event_pool_cache(
             MAX_DEVICES,
-            [this, params](DeviceId) -> std::unique_ptr<event_provider> {
+            [this, params](DeviceId, event_flags_t flags)
+                -> std::unique_ptr<event_provider> {
                 // normally id would be used to find the appropriate device to create the provider
                 switch (params.provider) {
                 case TEST_PROVIDER_COUNTER:
@@ -102,7 +109,7 @@ struct EventPoolTest : public uur::urContextTestWithParam<ProviderParams> {
                                                               device);
                 case TEST_PROVIDER_NORMAL:
                     return std::make_unique<provider_normal>(
-                        context, device, params.event, params.queue);
+                        context, device, params.queue, flags);
                 }
                 return nullptr;
             }));
@@ -116,9 +123,11 @@ struct EventPoolTest : public uur::urContextTestWithParam<ProviderParams> {
 };
 
 static ProviderParams test_cases[] = {
-    {TEST_PROVIDER_NORMAL, EVENT_REGULAR, QUEUE_REGULAR},
-    {TEST_PROVIDER_NORMAL, EVENT_COUNTER, QUEUE_REGULAR},
-    {TEST_PROVIDER_NORMAL, EVENT_COUNTER, QUEUE_IMMEDIATE},
+    {TEST_PROVIDER_NORMAL, 0, QUEUE_REGULAR},
+    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER, QUEUE_REGULAR},
+    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER, QUEUE_IMMEDIATE},
+    {TEST_PROVIDER_NORMAL, EVENT_FLAGS_COUNTER | EVENT_FLAGS_PROFILING_ENABLED,
+     QUEUE_IMMEDIATE},
     // TODO: counter provided is not fully unimplemented
     // counter-based provider ignores event and queue type
     //{TEST_PROVIDER_COUNTER, EVENT_COUNTER, QUEUE_IMMEDIATE},
@@ -128,9 +137,9 @@ UUR_TEST_SUITE_P(EventPoolTest, testing::ValuesIn(test_cases),
                  printParams<EventPoolTest>);
 
 TEST_P(EventPoolTest, InvalidDevice) {
-    auto pool = cache->borrow(MAX_DEVICES);
+    auto pool = cache->borrow(MAX_DEVICES, getParam().flags);
     ASSERT_EQ(pool, nullptr);
-    pool = cache->borrow(MAX_DEVICES + 10);
+    pool = cache->borrow(MAX_DEVICES + 10, getParam().flags);
     ASSERT_EQ(pool, nullptr);
 }
 
@@ -139,7 +148,7 @@ TEST_P(EventPoolTest, Basic) {
         ur_event_handle_t first;
         ze_event_handle_t zeFirst;
         {
-            auto pool = cache->borrow(device->Id.value());
+            auto pool = cache->borrow(device->Id.value(), getParam().flags);
 
             first = pool->allocate();
             zeFirst = first->getZeEvent();
@@ -149,7 +158,7 @@ TEST_P(EventPoolTest, Basic) {
         ur_event_handle_t second;
         ze_event_handle_t zeSecond;
         {
-            auto pool = cache->borrow(device->Id.value());
+            auto pool = cache->borrow(device->Id.value(), getParam().flags);
 
             second = pool->allocate();
             zeSecond = second->getZeEvent();
@@ -167,7 +176,7 @@ TEST_P(EventPoolTest, Threaded) {
     for (int iters = 0; iters < 3; ++iters) {
         for (int th = 0; th < 10; ++th) {
             threads.emplace_back([&] {
-                auto pool = cache->borrow(device->Id.value());
+                auto pool = cache->borrow(device->Id.value(), getParam().flags);
                 std::vector<ur_event_handle_t> events;
                 for (int i = 0; i < 100; ++i) {
                     events.push_back(pool->allocate());
@@ -185,7 +194,7 @@ TEST_P(EventPoolTest, Threaded) {
 }
 
 TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
-    auto pool = cache->borrow(device->Id.value());
+    auto pool = cache->borrow(device->Id.value(), getParam().flags);
     std::list<ur_event_handle_t> events;
     for (int i = 0; i < 128; ++i) {
         events.push_back(pool->allocate());
