@@ -1,5 +1,3 @@
-; REQUIRES: spirv-as
-
 ; RUN: cat %s > %t.spvasm
 ; RUN: llvm-spirv %t.spvasm --to-binary -o %t.spv
 ; RUN: llvm-spirv -r %t.spv -o - | llvm-dis | FileCheck %s
