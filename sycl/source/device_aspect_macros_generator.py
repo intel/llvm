@@ -32,7 +32,6 @@ def process_aspects(file_path, is_deprecated=False):
 
     return output
 
-
 header_output = """//==------------------- device_aspect_macros.hpp - SYCL device -------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -40,6 +39,11 @@ header_output = """//==------------------- device_aspect_macros.hpp - SYCL devic
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
+//
+// IMPORTANT: device_aspect_macros.hpp is a generated file - DO NOT EDIT
+//            original definitions are in aspects.def & aspects_deprecated.def
+//
 
 #pragma once\n
 """
