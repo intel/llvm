@@ -154,7 +154,7 @@ int main() {
                    TestForGroup(SG);
                    TestForGroup(NDI.get_group());
                    TestForGroup(syclex::get_ballot_group(SG, true));
-                   TestForGroup(syclex::get_fixed_size_group<8>(SG));
+                   TestForGroup(syclex::get_chunk<8>(SG));
                    TestForGroup(syclex::get_tangle_group(SG));
                    TestForGroup(syclex::this_kernel::get_opportunistic_group());
                  });

@@ -6,10 +6,10 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_fixed_size_group
+// REQUIRES: aspect-ext_oneapi_chunk
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
@@ -57,7 +57,7 @@ template <size_t PartitionSize> void test() {
           auto SG = item.get_sub_group();
 
           // Split into partitions of fixed size
-          auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
+          auto Partition = syclex::get_chunk<PartitionSize>(SG);
 
           // Check all other members' writes are visible after a barrier.
           TmpAcc[WI] = 1;

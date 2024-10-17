@@ -71,7 +71,7 @@ def AspectExt_oneapi_bindless_images_sample_1d_usm : Aspect<"ext_oneapi_bindless
 def AspectExt_oneapi_bindless_images_sample_2d_usm : Aspect<"ext_oneapi_bindless_images_sample_2d_usm">;
 def AspectExt_intel_esimd : Aspect<"ext_intel_esimd">;
 def AspectExt_oneapi_ballot_group : Aspect<"ext_oneapi_ballot_group">;
-def AspectExt_oneapi_fixed_size_group : Aspect<"ext_oneapi_fixed_size_group">;
+def AspectExt_oneapi_chunk : Aspect<"ext_oneapi_chunk">;
 def AspectExt_oneapi_opportunistic_group : Aspect<"ext_oneapi_opportunistic_group">;
 def AspectExt_oneapi_tangle_group : Aspect<"ext_oneapi_tangle_group">;
 def AspectExt_intel_matrix : Aspect<"ext_intel_matrix">;
@@ -144,7 +144,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
     AspectExt_oneapi_bindless_sampled_image_fetch_3d,
     AspectExt_intel_esimd,
-    AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_ballot_group, AspectExt_oneapi_chunk, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
@@ -163,7 +163,7 @@ defvar IntelCpuAspects = [
     AspectCpu, AspectFp16, AspectFp64, AspectQueue_profiling, AspectAtomic64,
     AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
     AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
-    AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_chunk, AspectExt_oneapi_opportunistic_group,
     AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
 ] # AllUSMAspects;
 
@@ -231,7 +231,7 @@ class CudaTargetInfo<string targetName, list<Aspect> aspectList, int subGroupSiz
 defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker,
     AspectQueue_profiling, AspectExt_intel_pci_address, AspectExt_intel_max_mem_bandwidth, AspectExt_intel_memory_bus_width,
     AspectExt_intel_device_info_uuid, AspectExt_oneapi_native_assert, AspectExt_intel_free_memory, AspectExt_intel_device_id,
-    AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group,
+    AspectExt_intel_memory_clock_rate, AspectExt_oneapi_ballot_group, AspectExt_oneapi_chunk,
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
 // Bindless images aspects are partially supported on CUDA and disabled by default at the moment.
 defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images, AspectExt_oneapi_bindless_images_shared_usm,

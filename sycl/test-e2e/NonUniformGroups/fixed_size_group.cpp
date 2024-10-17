@@ -9,7 +9,7 @@
 // REQUIRES: sg-32
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -40,7 +40,7 @@ template <size_t PartitionSize> void test() {
             auto SG = item.get_sub_group();
             auto SGS = SG.get_local_linear_range();
 
-            auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
+            auto Partition = syclex::get_chunk<PartitionSize>(SG);
 
             bool Match = true;
             Match &= (Partition.get_group_id() == (WI / PartitionSize));
