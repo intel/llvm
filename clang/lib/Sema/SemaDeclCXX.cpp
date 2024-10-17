@@ -7218,7 +7218,7 @@ void Sema::CheckCompletedCXXClass(Scope *S, CXXRecordDecl *Record) {
       checkCUDADeviceBuiltinTextureClassTemplate(*this, Record);
   }
   if (getLangOpts().SYCLIsDevice && Record->hasAttr<SYCLScopeAttr>()) {
-    SYCL().CheckSYCLScope(Record);
+    SYCL().CheckSYCLScopeAttr(Record);
   }
 }
 

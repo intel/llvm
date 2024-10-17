@@ -12466,6 +12466,8 @@ def warn_sycl_kernel_too_big_args : Warning<
 def err_sycl_wg_scope : Error<
   "SYCL work group scope only applies to class with a trivial "
   "%select{default constructor|destructor}0">;
+def err_sycl_field_with_wg_scope : Error<
+  "type with a SYCL work group scope attribute cannot be used with a non-static data members">;
 def err_sycl_virtual_types : Error<
   "no class with a vtable can be used in a SYCL kernel or any code included in the kernel">;
 def note_sycl_recursive_function_declared_here: Note<"function implemented using recursion declared here">;

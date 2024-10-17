@@ -5070,10 +5070,13 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
     KernelFunc->setInvalidDecl();
 }
 
-void SemaSYCL::CheckSYCLScope(CXXRecordDecl *Decl) {
+void SemaSYCL::CheckSYCLScopeAttr(CXXRecordDecl *Decl) {
   assert(Decl->hasAttr<SYCLScopeAttr>());
 
   bool HasError = false;
+
+  if (Decl->isDependentContext())
+    return;
 
   // We don't emit both diags at the time as note will only be emitted for the
   // first, which is confusing. So we check both cases but only report one.

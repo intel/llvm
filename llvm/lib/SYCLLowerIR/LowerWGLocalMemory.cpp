@@ -129,20 +129,17 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
 
   Value *GVPtr = [&]() -> Value * {
     IRBuilder<> Builder(CI);
-    if (TT.isSPIROrSPIRV()) {
-
+    if (TT.isSPIROrSPIRV())
       return Builder.CreateLoad(CI->getType(), LocalMemPlaceholder);
-    } else {
-      Value *ArgAlign = CI->getArgOperand(0);
-      Align RequestedAlignment{
-          cast<llvm::ConstantInt>(ArgAlign)->getZExtValue()};
-      MaybeAlign CurrentAlignment = LocalMemPlaceholder->getAlign();
-      if (!CurrentAlignment.has_value() ||
-          (CurrentAlignment.value() < RequestedAlignment))
-        LocalMemPlaceholder->setAlignment(RequestedAlignment);
+    Value *ArgAlign = CI->getArgOperand(0);
+    Align RequestedAlignment{
+        cast<llvm::ConstantInt>(ArgAlign)->getZExtValue()};
+    MaybeAlign CurrentAlignment = LocalMemPlaceholder->getAlign();
+    if (!CurrentAlignment.has_value() ||
+        (CurrentAlignment.value() < RequestedAlignment))
+      LocalMemPlaceholder->setAlignment(RequestedAlignment);
 
-      return Builder.CreatePointerCast(LocalMemPlaceholder, CI->getType());
-    }
+    return Builder.CreatePointerCast(LocalMemPlaceholder, CI->getType());
   }();
   CI->replaceAllUsesWith(GVPtr);
 }

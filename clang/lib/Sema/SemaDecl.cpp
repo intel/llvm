@@ -18520,6 +18520,14 @@ FieldDecl *Sema::CheckFieldDecl(DeclarationName Name, QualType T,
     InvalidDecl = true;
   }
 
+  if (LangOpts.SYCLIsDevice) {
+    const CXXRecordDecl *RD = T->getAsCXXRecordDecl();
+    if (RD && RD->hasAttr<SYCLScopeAttr>()) {
+      Diag(Loc, diag::err_sycl_field_with_wg_scope);
+      InvalidDecl = true;
+    }
+  }
+
   if (LangOpts.OpenCL) {
     // OpenCL v1.2 s6.9b,r & OpenCL v2.0 s6.12.5 - The following types cannot be
     // used as structure or union field: image, sampler, event or block types.

@@ -64,7 +64,7 @@ Device local memory is memory that is shared by all work-items in a work-group.
 The behavior is similar to the CUDA `+__shared__+` keyword, and the extension
 draws some inspiration from the {cpp} `thread_local` keyword.
 
-`work_group_static` variables can be allocated at namespace or block scope,
+`work_group_static` can only be used to declare variables at namespace, block or class scope,
 lifting many of the restrictions in the existing
 link:../supported/sycl_ext_oneapi_local_memory.asciidoc[sycl_ext_oneapi_local_memory]
 extension. Note, however, that `work_group_static` variables currently place
@@ -106,7 +106,7 @@ an object into device local memory.
 namespace sycl::ext::oneapi::experimental {
 
 template <typename T>
-class work_group_static {
+class work_group_static final {
 public:
 
   work_group_static() = default;
@@ -121,8 +121,7 @@ public:
   T* operator&() const noexcept;
 
 private:
-  T* ptr; // exposition only
-
+  T storage;
 };
 
 } // namespace sycl::ext::oneapi::experimental
@@ -133,6 +132,9 @@ private:
 The storage for the object is allocated in device local memory before
 calling the user's kernel lambda, and deallocated when all work-items
 in the work-group have completed execution of the kernel.
+
+Objects of type `work_group_static` must only be declared at namespace, block, lambda or class scope.
+If the object is declared in class scope, it must be declared as a static data member.
 
 SYCL implementations conforming to the full feature set treat
 `work_group_static` similarly to the `thread_local` keyword, and when
@@ -150,18 +152,11 @@ multiple times, developers must take care to avoid race conditions (e.g., by
 calling `group_barrier` before and after using the memory).
 ====
 
-Change to SYCL 2020 section `5.9.2 Common address space deduction rules`:
-Namespace scope: if the variable is `work_group_static` object,
-then the variable is assigned to the local address space.
-Otherwise normal rules applies.
-
 SYCL 2020 requires that all global variables accessed by a device function are
 `const` or `constexpr`. This extension lifts that restriction for
 `work_group_static` variables.
 
-When `T` is a class type or bounded array, the size of the allocation is known
-at compile-time, and a SYCL implementation embeds the size of the allocation
-directly within a kernel. Each instance of `work_group_static<T>` is associated
+Each instance of `work_group_static<T>` is associated
 with a unique allocation in device local memory.
 
 [source,c++]
@@ -173,7 +168,7 @@ associated with this instance of `work_group_static`.
 
 [source,c++]
 ----
-work_group_static<T>& operator=(const T& value) noexcept;
+work_group_static& operator=(const T& value) noexcept;
 ----
 _Constraints_: Available only if `std::is_array_v<T>` is false.
 
@@ -187,6 +182,11 @@ T* operator&() noexcept;
 ----
 _Returns_: A pointer to the device local memory associated with this
 instance of `work_group_static` (i.e., `ptr`).
+
+==== Interaction with common address space deduction rules
+
+Objects of type `work_group_static` are assigned to
+the local address space.
 
 === `get_dynamic_work_group_memory` function
 
@@ -213,15 +213,7 @@ in device local memory, regardless of `T`. For example, two call declared
 as `get_dynamic_work_group_memory<int>` and
 `get_dynamic_work_group_memory<float>` will be associated with the same shared allocation.
 
-If the total amount of device local memory requested (i.e., the sum of
-all memory requested by `local_accessor`, `group_local_memory`,
-`group_local_memory_for_overwrite` and `work_group_static`) exceeds a device's
-local memory capacity (as reported by `local_mem_size`) then the implementation
-must throw a synchronous `exception` with the `errc::memory_allocation` error
-code from the kernel invocation command (e.g. `parallel_for`).
-
-
-==== Kernel properties
+=== Kernel properties
 
 The `work_group_static_size` property must be passed to a kernel to determine
 the run-time size of the device local memory allocation associated with
@@ -252,6 +244,14 @@ device local memory required by the kernel in bytes.
 
 |===
 
+=== Total allocation check
+
+If the total amount of device local memory requested (i.e., the sum of
+all memory requested by `local_accessor`, `group_local_memory`,
+`group_local_memory_for_overwrite`, `work_group_static` and `work_group_static_size`) exceeds a device's
+local memory capacity (as reported by `local_mem_size`) then the implementation
+must throw a synchronous `exception` with the `errc::memory_allocation` error
+code from the kernel invocation command (e.g. `parallel_for`).
 
 ==== Usage examples
 

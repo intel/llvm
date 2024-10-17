@@ -31,13 +31,17 @@ namespace experimental {
 /// an object of type T. work_group_static object are implicitly treated as
 /// static.
 /// @tparam T must be a trivially constructible and destructible type
-template <typename T> class __SYCL_WG_SCOPE work_group_static {
+template <typename T> class __SYCL_WG_SCOPE work_group_static final {
 public:
+  static_assert(
+      std::is_trivially_destructible_v<T> &&
+          std::is_trivially_constructible_v<T>,
+      "Can only be used with trivially constructible and destructible types");
   __SYCL_ALWAYS_INLINE work_group_static() = default;
   work_group_static(const work_group_static &) = delete;
   work_group_static &operator=(const work_group_static &) = delete;
 
-  operator T &() noexcept { return *getDecorated(); }
+  operator T &() noexcept { return data; }
 
   template <class TArg = T>
   typename std::enable_if<!std::is_array_v<TArg>, work_group_static &>::type
@@ -46,21 +50,9 @@ public:
     return *this;
   }
 
-  T *operator&() noexcept { return *getDecorated(); }
+  T *operator&() noexcept { return &data; }
 
 private:
-  using decorated_pointer =
-#ifdef __SYCL_DEVICE_ONLY__
-      __attribute__((opencl_local)) T *;
-#else
-      T *;
-#endif
-
-  // Small trick, memcpy of the class is UB so assume this is in the local
-  // space. As the address space may get lost, explicitly cast it to this
-  // address space to help the optimizer.
-  decorated_pointer getDecorated() { return (decorated_pointer)&data; }
-
   T data;
 };
 
