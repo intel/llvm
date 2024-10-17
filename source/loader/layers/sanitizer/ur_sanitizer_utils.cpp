@@ -151,7 +151,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
         assert(Result == UR_RESULT_SUCCESS &&
                "getDeviceType() failed at allocating device USM");
         // FIXME: There's no API querying the address bits of device, so we guess it by the
-        // value of device USM pointer (see "USM Allocation Range" in asan_shadow_setup.cpp)
+        // value of device USM pointer (see "USM Allocation Range" in asan_shadow.cpp)
         auto Type = DeviceType::UNKNOWN;
         if (Ptr >> 48 == 0xff00U) {
             Type = DeviceType::GPU_PVC;
@@ -240,6 +240,17 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
             sizeof(Size), &Size, nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Size;
+}
+
+ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
+                                  char Value, size_t Size, uint32_t NumEvents,
+                                  const ur_event_handle_t *EventWaitList,
+                                  ur_event_handle_t *OutEvent) {
+    if (Size == 0) {
+        return UR_RESULT_SUCCESS;
+    }
+    return getContext()->urDdiTable.Enqueue.pfnUSMFill(
+        Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
 } // namespace ur_sanitizer_layer

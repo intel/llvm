@@ -36,7 +36,6 @@ struct AsanStats {
     // Quarantined memory
     std::atomic<uptr> UsmFreed;
 
-    std::atomic<uptr> ShadowMmaped;
     std::atomic<uptr> ShadowMalloced;
 
     double Overhead = 0.0;
@@ -76,13 +75,6 @@ void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
     UpdateOverhead();
 }
 
-void AsanStats::UpdateShadowMmaped(uptr ShadowSize) {
-    ShadowMmaped += ShadowSize;
-    getContext()->logger.debug("Stats: UpdateShadowMmaped(ShadowMmaped={})",
-                               ShadowMmaped);
-    UpdateOverhead();
-}
-
 void AsanStats::UpdateShadowMalloced(uptr ShadowSize) {
     ShadowMalloced += ShadowSize;
     getContext()->logger.debug("Stats: UpdateShadowMalloced(ShadowMalloced={})",
@@ -98,12 +90,12 @@ void AsanStats::UpdateShadowFreed(uptr ShadowSize) {
 }
 
 void AsanStats::UpdateOverhead() {
-    auto ShadowSize = ShadowMmaped + ShadowMalloced;
-    auto TotalSize = UsmMalloced + ShadowSize;
+    auto TotalSize = UsmMalloced + ShadowMalloced;
     if (TotalSize == 0) {
         return;
     }
-    auto NewOverhead = (ShadowSize + UsmMallocedRedzones) / (double)TotalSize;
+    auto NewOverhead =
+        (ShadowMalloced + UsmMallocedRedzones) / (double)TotalSize;
     Overhead = std::max(Overhead, NewOverhead);
 }
 
@@ -122,12 +114,6 @@ void AsanStatsWrapper::UpdateUSMFreed(uptr FreedSize) {
 void AsanStatsWrapper::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
     if (Stat) {
         Stat->UpdateUSMRealFreed(FreedSize, RedzoneSize);
-    }
-}
-
-void AsanStatsWrapper::UpdateShadowMmaped(uptr ShadowSize) {
-    if (Stat) {
-        Stat->UpdateShadowMmaped(ShadowSize);
     }
 }
 
