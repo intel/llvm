@@ -43,9 +43,9 @@ public:
 
   operator T &() noexcept { return data; }
 
-  template <class TArg = T>
-  typename std::enable_if<!std::is_array_v<TArg>, work_group_static &>::type
-  operator=(const T &value) noexcept {
+  template <class TArg = T,
+            typename = std::enable_if_t<!std::is_array_v<TArg>>>
+  work_group_static& operator=(const T &value) noexcept {
     data = value;
     return *this;
   }
@@ -88,8 +88,6 @@ struct work_group_static_size
 
 template <> struct is_property_key<work_group_static_size> : std::true_type {};
 
-template <typename T>
-struct is_property_key_of<work_group_static_size, T> : std::true_type {};
 template <>
 struct is_property_value<work_group_static_size>
     : is_property_key<work_group_static_size> {};
