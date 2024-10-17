@@ -1,17 +1,8 @@
-// REQUIRES-INTEL-DRIVER: lin: 26816, win: 101.4576
+// REQUIRES-INTEL-DRIVER: lin: 26816
 // REQUIRES: linux && level_zero
 
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // RUN: %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
-//
-// The test still fails after GPU driver update on Linux. Temporary marking it
-// as expected to fail, whilst it is being investigated, see intel/llvm#11359
-// FIXME: remove that XFAIL
-// XFAIL: linux
-//
-// Hanging on gen12, remove when internal tracker fixed
-// UNSUPPORTED: gpu-intel-gen12
-//
 
 #include "esimd_test_utils.hpp"
 
