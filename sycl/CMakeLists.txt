@@ -455,7 +455,8 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
-     level-zero-sycl-dev
+     unified-memory-framework
+     unified-runtime-loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )

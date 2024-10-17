@@ -2571,7 +2571,8 @@ ur_result_t enqueueImpCommandBufferKernel(
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
           &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
+          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
+          OutSyncPoint, nullptr,
           CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
   if (!SyclKernelImpl && !Kernel) {
