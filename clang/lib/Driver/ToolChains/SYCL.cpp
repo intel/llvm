@@ -1081,7 +1081,9 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
       for (int HexVal : PVCDevices[I].HexValues) {
         int Value = 0;
         if (!SingleArg.getAsInteger(0, Value) && Value == HexVal) {
-          DevArg = SingleArg.str();
+          // TODO: Pass back the hex string to use for -device_options when
+          // IGC is updated to allow.  Currently -device_options only accepts
+          // the device ID (i.e. pvc) or the version (12.60.7).
           return true;
         }
       }
