@@ -1,0 +1,31 @@
+From 362cc4c676d742e7b5abf62edbf151e3fd932118 Mon Sep 17 00:00:00 2001
+From: Sven van Haastregt <sven.vanhaastregt@arm.com>
+Date: Fri, 4 Oct 2024 12:38:43 +0200
+Subject: [PATCH 06/18] Update header.ll DebugInfo test after LLVM change
+ (#2740)
+
+Update a test after llvm commit e6bf48d11047 ("[X86] Don't request
+0x90 nop filling in p2align directives (#110134)", 2024-10-02).
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/362cc4c676d742e
+---
+ test/DebugInfo/X86/header.ll | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/test/DebugInfo/X86/header.ll b/test/DebugInfo/X86/header.ll
+index b609fa690ce4..f1f330e2221d 100644
+--- a/test/DebugInfo/X86/header.ll
++++ b/test/DebugInfo/X86/header.ll
+@@ -19,7 +19,7 @@ target triple = "spir64-unknown-unknown"
+ ; CHECK:       .text
+ ; CHECK-NEXT: .file	"<stdin>"
+ ; CHECK-NEXT: .globl	f
+-; CHECK-NEXT: .p2align	4, 0x90
++; CHECK-NEXT: .p2align	4
+ ; CHECK-NEXT: .type	f,@function
+ ; CHECK-NEXT: f:                                      # @f
+ 
+-- 
+2.39.1
+

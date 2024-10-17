@@ -1,0 +1,48 @@
+From 107dae0892707029685432e57e70ba0fa68a823a Mon Sep 17 00:00:00 2001
+From: Sven van Haastregt <sven.vanhaastregt@arm.com>
+Date: Tue, 24 Sep 2024 13:42:35 +0200
+Subject: [PATCH 02/18] [NFC] Replace deprecated CreateGlobalStringPtr (#2726)
+
+Update after llvm commit 04d8e364bbf7 ("[IRBuilder] Deprecate
+CreateGlobalStringPtr() (NFC)", 2024-09-23).
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/107dae089270702
+---
+ lib/SPIRV/SPIRVReader.cpp | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/lib/SPIRV/SPIRVReader.cpp b/lib/SPIRV/SPIRVReader.cpp
+index 08ed7e3a23dc..903ff95d43c0 100644
+--- a/lib/SPIRV/SPIRVReader.cpp
++++ b/lib/SPIRV/SPIRVReader.cpp
+@@ -2601,7 +2601,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
+     Value *UndefInt8Ptr = UndefValue::get(Int8PtrTyPrivate);
+     Value *UndefInt32 = UndefValue::get(Int32Ty);
+ 
+-    Constant *GS = Builder.CreateGlobalStringPtr(kOCLBuiltinName::FPGARegIntel);
++    Constant *GS = Builder.CreateGlobalString(kOCLBuiltinName::FPGARegIntel);
+ 
+     Type *Ty = transType(BC->getType());
+     Value *Val = transValue(BC->getOperand(0), F, BB);
+@@ -3751,7 +3751,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
+         generateIntelFPGAAnnotationForStructMember(ST, I, AnnotStrVec);
+         CallInst *AnnotationCall = nullptr;
+         for (const auto &AnnotStr : AnnotStrVec) {
+-          auto *GS = Builder.CreateGlobalStringPtr(AnnotStr);
++          auto *GS = Builder.CreateGlobalString(AnnotStr);
+ 
+           Instruction *PtrAnnFirstArg = nullptr;
+ 
+@@ -3802,7 +3802,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
+       if (AnnotItr != AnnotationsMap.end()) {
+         GS = AnnotItr->second;
+       } else {
+-        GS = Builder.CreateGlobalStringPtr(AnnotStr);
++        GS = Builder.CreateGlobalString(AnnotStr);
+         AnnotationsMap.emplace(std::move(StringAnnotStr), GS);
+       }
+ 
+-- 
+2.39.1
+
