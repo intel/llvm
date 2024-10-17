@@ -8,6 +8,15 @@
 
 #pragma once
 
+#include <array>
+#include <type_traits>
+#include <utility>
+#include <string_view>
+
+#include <sycl/detail/defines_elementary.hpp>
+
+
+// For old properties:
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/ext/oneapi/properties/property.hpp>       // for IsRuntimePr...
 #include <sycl/ext/oneapi/properties/property_utils.hpp> // for Sorted, Mer...
@@ -16,6 +25,151 @@
 #include <tuple>       // for tuple, tupl...
 #include <type_traits> // for enable_if_t
 #include <variant>     // for tuple
+
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace new_properties {
+namespace detail {
+template <typename... property_tys> struct properties_type_list;
+
+#if __has_builtin(__type_pack_element)
+template <int N, typename... Ts>
+using nth_type_t = __type_pack_element<N, Ts...>;
+#else
+template <int N, typename T, typename... Ts> struct nth_type {
+  using type = typename nth_type<N - 1, Ts...>::type;
+};
+
+template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
+  using type = T;
+};
+
+template <int N, typename... Ts>
+using nth_type_t = typename nth_type<N, Ts...>::type;
+#endif
+
+template <typename IdxSeq, typename... property_tys> struct properties_sorter;
+
+// Specialization to avoid zero-size array creation.
+template <> struct properties_sorter<std::integer_sequence<int>> {
+  using type = properties_type_list<>;
+};
+
+template <int... IdxSeq, typename... property_tys>
+struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
+                         property_tys...> {
+  static constexpr auto sorted_indices = []() constexpr {
+    int idx = 0;
+    int N = sizeof...(property_tys);
+    // TODO: Use C++20 constexpr std::sort if available.
+    std::array to_sort{std::pair{property_tys::sort_key, idx++}...};
+    auto swap_pair = [](auto &x, auto &y) constexpr {
+      auto tmp_first = x.first;
+      auto tmp_second = x.second;
+      x.first = y.first;
+      x.second = y.second;
+      y.first = tmp_first;
+      y.second = tmp_second;
+    };
+    for (int i = 0; i < N; ++i)
+      for (int j = i; j < N; ++j)
+        if (to_sort[j].first < to_sort[i].first)
+          swap_pair(to_sort[i], to_sort[j]);
+
+    std::array<int, sizeof...(property_tys)> sorted_indices{};
+    for (int i = 0; i < N; ++i)
+      sorted_indices[i] = to_sort[i].second;
+
+    return sorted_indices;
+  }();
+
+  using type = properties_type_list<
+      nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
+};
+
+struct property_key_tag_base {};
+
+template <typename property_key_t>
+struct property_key_tag : property_key_tag_base {};
+
+template <typename property_t, typename property_key_t = property_t>
+struct property_base : property_key_tag<property_key_t> {
+protected:
+  using key_t = property_key_t;
+  constexpr property_t get_property(property_key_tag<key_t>) const {
+    return *static_cast<const property_t *>(this);
+  }
+};
+} // namespace detail
+
+using property_sort_key_t = std::string_view;
+
+template <typename properties_type_list_ty> class properties;
+template <typename... property_tys>
+class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
+    : property_tys... {
+  static_assert(
+      []() constexpr {
+        if constexpr (sizeof...(property_tys) == 0) {
+          return true;
+        } else {
+          const std::array sort_keys = {property_tys::sort_key...};
+          // std::is_sorted isn't constexpr until C++20.
+          if (sort_keys.empty())
+            return true;
+          for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
+            if (sort_keys[idx - 1] >= sort_keys[idx])
+              return false;
+          return true;
+        }
+      }(),
+      "Properties must be sorted and non-repeating!");
+  static_assert(
+      (std::is_base_of_v<detail::property_key_tag_base, property_tys> && ...));
+  using property_tys::get_property...;
+
+public:
+  template <typename... unsorted_property_tys>
+  properties(unsorted_property_tys... props)
+      : unsorted_property_tys(props)... {}
+
+  // TODO: Do we need this? If so, is separate CTAD needed?
+  // template <typename... unsorted_property_tys>
+  // properties(unsorted_property_tys &&...props)
+  //     : unsorted_property_tys(std::forward<unsorted_property_tys>(props))...
+  //     {}
+
+  template <typename property_key_t> static constexpr bool has_property() {
+    return std::is_base_of_v<detail::property_key_tag<property_key_t>,
+                             properties>;
+  }
+
+  template <typename property_key_t> constexpr auto get_property() {
+    return get_property(detail::property_key_tag<property_key_t>{});
+  }
+};
+
+template <typename... unsorted_property_tys>
+properties(unsorted_property_tys...)
+    -> properties<typename detail::properties_sorter<
+        std::make_integer_sequence<int, sizeof...(unsorted_property_tys)>,
+        unsorted_property_tys...>::type>;
+
+using empty_properties_t = decltype(properties{});
+
+template <typename T> struct is_property_list : std::false_type {};
+template <typename PropListTy>
+struct is_property_list<properties<PropListTy>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_property_list_v = is_property_list<T>::value;
+
+template <typename, typename> struct is_property_key_of : std::false_type {};
+} // namespace new_properties
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl
 
 namespace sycl {
 inline namespace _V1 {
