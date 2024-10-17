@@ -1,3 +1,5 @@
+// REQUIRES: system-linux
+// -------
 // Generate .o file as SYCL device library file.
 //
 // RUN: touch %t.devicelib.cpp
