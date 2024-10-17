@@ -148,6 +148,15 @@ static void printDeviceInfo(const device &Device, bool Verbose,
       std::cout << std::endl;
     }
 
+    // Get and print device ID, if it is available.
+    if (Device.has(aspect::ext_intel_device_id)) {
+      auto DeviceID =
+          Device.get_info<sycl::ext::intel::info::device::device_id>();
+      std::cout << Prepend << "DeviceID          : " << DeviceID << std::endl;
+    } else {
+      std::cout << Prepend << "DeviceID          : " << "UNKNOWN" << std::endl;
+    }
+
     // Print sub and sub-sub devices.
     {
       auto DevCount = GetNumberOfSubAndSubSubDevices(Device);
