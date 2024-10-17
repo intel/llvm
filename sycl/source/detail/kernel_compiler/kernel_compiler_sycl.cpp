@@ -36,6 +36,15 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler does not support GCC<8");
 }
+
+std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
+  return std::accumulate(UserArguments.begin(), UserArguments.end(),
+                         std::string(""),
+                         [](const std::string &A, const std::string &B) {
+                           return A.empty() ? B : A + " " + B;
+                         });
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

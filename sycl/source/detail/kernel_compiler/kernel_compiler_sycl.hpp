@@ -31,6 +31,8 @@ SYCL_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
 
 bool SYCL_Compilation_Available();
 
+std::string userArgsAsString(const std::vector<std::string> &UserArguments);
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 
