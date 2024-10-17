@@ -41,7 +41,7 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
             DI->IsSupportSharedSystemUSM);
         getContext()->logger.info("Add {} into context {}", (void *)DI->Handle,
                                   (void *)Context);
-        if (!DI->ShadowOffset) {
+        if (!DI->Shadow) {
             UR_CALL(DI->allocShadowMemory(Context));
         }
         CI->DeviceList.emplace_back(hDevice);
@@ -176,6 +176,112 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithIL
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance
+    const void *pIL,              ///< [in] pointer to IL binary.
+    size_t length,                ///< [in] length of `pIL` in bytes.
+    const ur_program_properties_t *
+        pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of program object created.
+) {
+    auto pfnProgramCreateWithIL =
+        getContext()->urDdiTable.Program.pfnCreateWithIL;
+
+    if (nullptr == pfnProgramCreateWithIL) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urProgramCreateWithIL");
+
+    UR_CALL(
+        pfnProgramCreateWithIL(hContext, pIL, length, pProperties, phProgram));
+    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithBinary
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
+    ur_context_handle_t hContext, ///< [in] handle of the context instance
+    ur_device_handle_t
+        hDevice,            ///< [in] handle to device associated with binary.
+    size_t size,            ///< [in] size in bytes.
+    const uint8_t *pBinary, ///< [in] pointer to binary.
+    const ur_program_properties_t *
+        pProperties, ///< [in][optional] pointer to program creation properties.
+    ur_program_handle_t
+        *phProgram ///< [out] pointer to handle of Program object created.
+) {
+    auto pfnProgramCreateWithBinary =
+        getContext()->urDdiTable.Program.pfnCreateWithBinary;
+
+    if (nullptr == pfnProgramCreateWithBinary) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urProgramCreateWithBinary");
+
+    UR_CALL(pfnProgramCreateWithBinary(hContext, hDevice, size, pBinary,
+                                       pProperties, phProgram));
+    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramCreateWithNativeHandle
+__urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
+    ur_native_handle_t
+        hNativeProgram, ///< [in][nocheck] the native handle of the program.
+    ur_context_handle_t hContext, ///< [in] handle of the context instance
+    const ur_program_native_properties_t *
+        pProperties, ///< [in][optional] pointer to native program properties struct.
+    ur_program_handle_t *
+        phProgram ///< [out] pointer to the handle of the program object created.
+) {
+    auto pfnProgramCreateWithNativeHandle =
+        getContext()->urDdiTable.Program.pfnCreateWithNativeHandle;
+
+    if (nullptr == pfnProgramCreateWithNativeHandle) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urProgramCreateWithNativeHandle");
+
+    UR_CALL(pfnProgramCreateWithNativeHandle(hNativeProgram, hContext,
+                                             pProperties, phProgram));
+    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramRetain
+__urdlllocal ur_result_t UR_APICALL urProgramRetain(
+    ur_program_handle_t
+        hProgram ///< [in][retain] handle for the Program to retain
+) {
+    auto pfnRetain = getContext()->urDdiTable.Program.pfnRetain;
+
+    if (nullptr == pfnRetain) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urProgramRetain");
+
+    UR_CALL(pfnRetain(hProgram));
+
+    auto ProgramInfo = getContext()->interceptor->getProgramInfo(hProgram);
+    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    ProgramInfo->RefCount++;
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urProgramBuild
 __urdlllocal ur_result_t UR_APICALL urProgramBuild(
     ur_context_handle_t hContext, ///< [in] handle of the context object
@@ -192,8 +298,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 
     UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
 
-    UR_CALL(
-        getContext()->interceptor->registerDeviceGlobals(hContext, hProgram));
+    UR_CALL(getContext()->interceptor->registerProgram(hContext, hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -217,8 +322,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     getContext()->logger.debug("==== urProgramBuildExp");
 
     UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
-    UR_CALL(getContext()->interceptor->registerDeviceGlobals(
-        GetContext(hProgram), hProgram));
+    UR_CALL(getContext()->interceptor->registerProgram(GetContext(hProgram),
+                                                       hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -245,8 +350,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
-    UR_CALL(
-        getContext()->interceptor->registerDeviceGlobals(hContext, *phProgram));
+    UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -277,8 +381,33 @@ ur_result_t UR_APICALL urProgramLinkExp(
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
-    UR_CALL(
-        getContext()->interceptor->registerDeviceGlobals(hContext, *phProgram));
+    UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
+
+    return UR_RESULT_SUCCESS;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urProgramRelease
+ur_result_t UR_APICALL urProgramRelease(
+    ur_program_handle_t
+        hProgram ///< [in][release] handle for the Program to release
+) {
+    auto pfnProgramRelease = getContext()->urDdiTable.Program.pfnRelease;
+
+    if (nullptr == pfnProgramRelease) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    getContext()->logger.debug("==== urProgramRelease");
+
+    UR_CALL(pfnProgramRelease(hProgram));
+
+    auto ProgramInfo = getContext()->interceptor->getProgramInfo(hProgram);
+    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
+    if (--ProgramInfo->RefCount == 0) {
+        UR_CALL(getContext()->interceptor->unregisterProgram(hProgram));
+        UR_CALL(getContext()->interceptor->eraseProgram(hProgram));
+    }
 
     return UR_RESULT_SUCCESS;
 }
@@ -1485,8 +1614,15 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
+    pDdiTable->pfnCreateWithIL = ur_sanitizer_layer::urProgramCreateWithIL;
+    pDdiTable->pfnCreateWithBinary =
+        ur_sanitizer_layer::urProgramCreateWithBinary;
+    pDdiTable->pfnCreateWithNativeHandle =
+        ur_sanitizer_layer::urProgramCreateWithNativeHandle;
     pDdiTable->pfnBuild = ur_sanitizer_layer::urProgramBuild;
     pDdiTable->pfnLink = ur_sanitizer_layer::urProgramLink;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::urProgramRetain;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::urProgramRelease;
 
     return UR_RESULT_SUCCESS;
 }

@@ -27,7 +27,6 @@ struct AsanStatsWrapper {
     void UpdateUSMFreed(uptr FreedSize);
     void UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize);
 
-    void UpdateShadowMmaped(uptr ShadowSize);
     void UpdateShadowMalloced(uptr ShadowSize);
     void UpdateShadowFreed(uptr ShadowSize);
 
