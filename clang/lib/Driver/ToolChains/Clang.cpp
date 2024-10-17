@@ -10847,7 +10847,10 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
                      options::OPT_fsycl_esimd_force_stateless_mem, false))
     addArgs(PostLinkArgs, TCArgs, {"-lower-esimd-force-stateless-mem=false"});
 
-  if (allowDeviceImageDependencies(TCArgs))
+  if (allowDeviceImageDependencies(TCArgs) &&
+      // Native CPU backend does not support device image dependencies
+      // TODO: Remove check if CPU backend supports device image dependencies
+      !isSYCLNativeCPU(TC))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 }
 
@@ -10861,12 +10864,15 @@ static bool shouldEmitOnlyKernelsAsEntryPoints(const ToolChain &TC,
   if (TCArgs.hasFlag(options::OPT_fno_sycl_remove_unused_external_funcs,
                      options::OPT_fsycl_remove_unused_external_funcs, false))
     return false;
-  if (isSYCLNativeCPU(TC))
-    return true;
   // When supporting dynamic linking, non-kernels in a device image can be
   // called.
-  if (allowDeviceImageDependencies(TCArgs))
+  if (allowDeviceImageDependencies(TCArgs) &&
+      // Native CPU backend does not support device image dependencies
+      // TODO: Remove check if CPU backend supports device image dependencies
+      !isSYCLNativeCPU(TC))
     return false;
+  if (isSYCLNativeCPU(TC))
+    return true;
   if (Triple.isNVPTX() || Triple.isAMDGPU())
     return false;
   bool IsUsingLTO = TC.getDriver().isUsingOffloadLTO();
