@@ -101,7 +101,8 @@ void group_barrier(ext::oneapi::experimental::root_group<dimensions> G,
   // workaround that's not intended to reduce the bar for SPIR-V modules
   // acceptance, but rather make a pessimistic case work until we have full
   // support for the device barrier built-in from backends.
-  const auto ChildGroup = ext::oneapi::experimental::this_group<dimensions>();
+  const auto ChildGroup =
+      ext::oneapi::this_work_item::get_work_group<dimensions>();
   if (ChildGroup.get_group_linear_range() == 1) {
     group_barrier(ChildGroup);
   } else {

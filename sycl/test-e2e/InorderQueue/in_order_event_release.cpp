@@ -1,5 +1,5 @@
 //
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
 // RUN: %{run} %t.out
 
 // SYCL ordered queue event release shortcut test
