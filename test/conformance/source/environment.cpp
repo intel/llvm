@@ -34,7 +34,6 @@ constexpr std::pair<const char *, ur_platform_backend_t> backends[] = {
     {"HIP", UR_PLATFORM_BACKEND_HIP},
     {"NATIVE_CPU", UR_PLATFORM_BACKEND_NATIVE_CPU},
     {"UNKNOWN", UR_PLATFORM_BACKEND_UNKNOWN},
-    {"MOCK", UR_PLATFORM_BACKEND_UNKNOWN},
 };
 
 namespace {
