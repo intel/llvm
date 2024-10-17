@@ -32,17 +32,28 @@ using cache_borrowed_event_pool =
 
 class event_pool_cache {
 public:
-  using ProviderCreateFunc =
-      std::function<std::unique_ptr<event_provider>(DeviceId)>;
+  using ProviderCreateFunc = std::function<std::unique_ptr<event_provider>(
+      DeviceId, event_flags_t flags)>;
 
   event_pool_cache(size_t max_devices, ProviderCreateFunc);
   ~event_pool_cache();
 
-  raii::cache_borrowed_event_pool borrow(DeviceId);
+  raii::cache_borrowed_event_pool borrow(DeviceId, event_flags_t flags);
 
 private:
   ur_mutex mutex;
   ProviderCreateFunc providerCreate;
+
+  struct event_descriptor {
+    DeviceId device;
+    event_flags_t flags;
+
+    uint64_t index() {
+      return uint64_t(flags) | (uint64_t(device) << EVENT_FLAGS_USED_BITS);
+    }
+  };
+
+  // Indexed by event_descriptor::index()
   std::vector<std::vector<std::unique_ptr<event_pool>>> pools;
 };
 
