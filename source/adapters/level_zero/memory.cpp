@@ -1425,6 +1425,10 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
   auto [ZeImageFormatType, ZeImageFormatTypeSize] =
       getImageFormatTypeAndSize(ImageFormat);
 
+  if (ZeImageFormatTypeSize == 0) {
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
+
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->channelOrder) {
