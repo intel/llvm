@@ -123,7 +123,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Date:   Fri Sep 27 16:54:04 2024 +0100
   #     Merge pull request #2017 from nrspruit/new_sysman_init
   #     [L0] Use zesInit for SysMan API usage
-  set(UNIFIED_RUNTIME_TAG 508a4531367f57c9d0deb38f151423530a350e54)
+  set(UNIFIED_RUNTIME_TAG 504d3b6368e19990d57311c4bfab361c427b9054)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
