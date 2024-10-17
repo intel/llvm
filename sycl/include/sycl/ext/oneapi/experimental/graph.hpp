@@ -93,6 +93,7 @@ class node_impl;
 class graph_impl;
 class exec_graph_impl;
 class dynamic_parameter_impl;
+class dynamic_command_group_impl;
 } // namespace detail
 
 enum class node_type {
@@ -213,6 +214,23 @@ public:
 } // namespace node
 } // namespace property
 
+class __SYCL_EXPORT dynamic_command_group {
+public:
+  dynamic_command_group(
+      const command_graph<graph_state::modifiable> &Graph,
+      const std::vector<std::function<void(handler &)>> &CGFList);
+
+  size_t get_active_cgf() const;
+  void set_active_cgf(size_t Index);
+
+private:
+  template <class Obj>
+  friend const decltype(Obj::impl) &
+  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
+
+  std::shared_ptr<detail::dynamic_command_group_impl> impl;
+};
+
 namespace detail {
 // Templateless modifiable command-graph base class.
 class __SYCL_EXPORT modifiable_command_graph {
@@ -263,6 +281,28 @@ public:
       return Node;
     }
     node Node = addImpl(CGF, {});
+    if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+      addGraphLeafDependencies(Node);
+    }
+    return Node;
+  }
+
+  /// Add a Dynamic command-group node to the graph.
+  /// @param DynamicCG Dynamic command-group function to create node with.
+  /// @param PropList Property list used to pass [0..n] predecessor nodes.
+  /// @return Constructed node which has been added to the graph.
+  node add(dynamic_command_group &DynamicCG,
+           const property_list &PropList = {}) {
+    if (PropList.has_property<property::node::depends_on>()) {
+      auto Deps = PropList.get_property<property::node::depends_on>();
+      node Node = addImpl(DynamicCG, Deps.get_dependencies());
+      if (PropList.has_property<property::node::depends_on_all_leaves>()) {
+        addGraphLeafDependencies(Node);
+      }
+      return Node;
+    }
+
+    node Node = addImpl(DynamicCG, {});
     if (PropList.has_property<property::node::depends_on_all_leaves>()) {
       addGraphLeafDependencies(Node);
     }
@@ -327,6 +367,12 @@ protected:
   /// @param Impl Detail implementation class to construct object with.
   modifiable_command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : impl(Impl) {}
+
+  /// Template-less implementation of add() for dynamic command-group nodes.
+  /// @param DynCGF Dynamic Command-group function object to add.
+  /// @param Dep List of predecessor nodes.
+  /// @return Node added to the graph.
+  node addImpl(dynamic_command_group &DynCGF, const std::vector<node> &Dep);
 
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.

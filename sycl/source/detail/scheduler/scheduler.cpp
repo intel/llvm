@@ -97,7 +97,9 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
 EventImplPtr Scheduler::addCG(
     std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
     bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer,
-    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies) {
+    const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies,
+    const std::vector<detail::CGExecKernel *> &AlternativeKernels) {
+
   EventImplPtr NewEvent = nullptr;
   const CGType Type = CommandGroup->getType();
   std::vector<Command *> AuxiliaryCmds;
@@ -122,7 +124,8 @@ EventImplPtr Scheduler::addCG(
     default:
       NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue),
                                    AuxiliaryCmds, EventNeeded, CommandBuffer,
-                                   std::move(Dependencies));
+                                   std::move(Dependencies),
+                                   std::move(AlternativeKernels));
     }
     NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
