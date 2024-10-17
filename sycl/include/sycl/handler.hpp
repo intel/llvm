@@ -1646,7 +1646,7 @@ private:
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -3565,7 +3565,7 @@ private:
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
   template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() const {
+  void throwOnKernelParameterMisuse() const {
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
@@ -3576,6 +3576,12 @@ private:
           static_cast<access::target>(ParamDesc.info & AccessTargetMask);
       if ((Kind == detail::kernel_param_kind_t::kind_accessor) &&
           (AccTarget == target::local))
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A local accessor must not be used in a SYCL kernel function "
+            "that is invoked via single_task or via the simple form of "
+            "parallel_for that takes a range parameter.");
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
             "A local accessor must not be used in a SYCL kernel function "
