@@ -95,8 +95,8 @@ void submit_impl(queue &Q, CommandGroupFunc &&CGF,
 }
 } // namespace detail
 
-template <typename CommandGroupFunc, typename PropertiesT = empty_properties_t>
-void submit(queue Q, CommandGroupFunc &&CGF, PropertiesT Props = {},
+template <typename CommandGroupFunc, typename PropertiesT>
+void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
   std::ignore = Props;
@@ -104,12 +104,27 @@ void submit(queue Q, CommandGroupFunc &&CGF, PropertiesT Props = {},
       Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-template <typename CommandGroupFunc, typename PropertiesT = empty_properties_t>
-event submit_with_event(queue Q, CommandGroupFunc &&CGF, PropertiesT Props = {},
+template <typename CommandGroupFunc>
+void submit(queue Q, CommandGroupFunc &&CGF,
+            const sycl::detail::code_location &CodeLoc =
+                sycl::detail::code_location::current()) {
+  submit(Q, empty_properties_t{}, CGF, CodeLoc);
+}
+
+template <typename CommandGroupFunc, typename PropertiesT>
+event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
   std::ignore = Props;
   return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
+
+template <typename CommandGroupFunc>
+event submit_with_event(queue Q, CommandGroupFunc &&CGF,
+                        const sycl::detail::code_location &CodeLoc =
+                            sycl::detail::code_location::current()) {
+  return submit_with_event(Q, std::forward<CommandGroupFunc>(CGF),
+                           empty_properties_t{}, CodeLoc);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>

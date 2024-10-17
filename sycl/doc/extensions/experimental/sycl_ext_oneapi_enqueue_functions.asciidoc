@@ -230,8 +230,11 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename CommandGroupFunc, typename Properties = empty_properties_t>
-void submit(sycl::queue q, CommandGroupFunc&& cgf, Properties properties = {});
+template <typename CommandGroupFunc>
+void submit(sycl::queue q, CommandGroupFunc&& cgf);
+
+template <typename CommandGroupFunc, typename Properties>
+void submit(sycl::queue q, Properties properties, CommandGroupFunc&& cgf);
 
 }
 ----
@@ -247,9 +250,12 @@ a!
 ----
 namespace sycl::ext::oneapi::experimental {
 
-template <typename CommandGroupFunc, typename Properties = empty_properties_t>
-sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf,
-                              Properties properties = {});
+template <typename CommandGroupFunc>
+sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
+
+template <typename CommandGroupFunc, typename Properties>
+sycl::event submit_with_event(sycl::queue q, Properties properties,
+                              CommandGroupFunc&& cgf);
 
 }
 ----
