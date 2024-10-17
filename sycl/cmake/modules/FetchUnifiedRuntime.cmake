@@ -117,13 +117,11 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit b4539da9dfc9a350ec3a9bd5afa39ef8422b4ab9 (HEAD -> main, origin/main, origin/HEAD)
-  # Merge: e29828f4 e62e6770
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Wed Oct 16 16:13:27 2024 +0100
-  #     Merge pull request #2176 from PietroGhg/pietro/comp_link
-  #     [NATIVECPU] Report success for urProgramCompile and urProgramLink
-  set(UNIFIED_RUNTIME_TAG b4539da9dfc9a350ec3a9bd5afa39ef8422b4ab9)
+  # commit af7e275b509b41f54a66743ebf748dfb51668abf
+  # Author: Maosu Zhao <maosu.zhao@intel.com>
+  # Date:   Thu Oct 17 16:31:21 2024 +0800
+  #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
+  set(UNIFIED_RUNTIME_TAG af7e275b509b41f54a66743ebf748dfb51668abf)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
