@@ -117,11 +117,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit af7e275b509b41f54a66743ebf748dfb51668abf
-  # Author: Maosu Zhao <maosu.zhao@intel.com>
-  # Date:   Thu Oct 17 16:31:21 2024 +0800
-  #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
-  set(UNIFIED_RUNTIME_TAG af7e275b509b41f54a66743ebf748dfb51668abf)
+  # commit cfada6f1f7049fba54d282bde03b2fe3f4106475
+  # Merge: 7739fc9c 4854c2fc
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Thu Oct 17 14:10:24 2024 +0100
+  #     Merge pull request #2063 from nrspruit/refactor_l0_default_init
+  #     [L0] Refactor to remove default constructor inits
+  set(UNIFIED_RUNTIME_TAG cfada6f1f7049fba54d282bde03b2fe3f4106475)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
