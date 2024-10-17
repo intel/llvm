@@ -195,10 +195,7 @@ to a dynamically allocated buffer in the device local memory.
 
 [source,c++]
 ----
-template <typename T>
-sycl::multi_ptr<T, access::address_space::local_space,
-                           access::decorated::no>
-get_dynamic_work_group_memory()
+void* get_dynamic_work_group_memory()
 ----
 _Constraints_: `T` must be trivially constructible and trivially destructible.
 
@@ -209,9 +206,7 @@ The size of the allocation is unknown at compile-time,
 and must be communicated to the SYCL implementation via the
 `work_group_static_memory_size` property. Every call to
 `get_dynamic_work_group_memory` returns the same allocation
-in device local memory, regardless of `T`. For example, two call declared
-as `get_dynamic_work_group_memory<int>` and
-`get_dynamic_work_group_memory<float>` will be associated with the same shared allocation.
+in device local memory.
 
 === Kernel properties
 
@@ -290,8 +285,8 @@ using namespace syclex = sycl::ext::oneapi::experimental;
 q.parallel_for(sycl::nd_range<1>{N, M},
   syclex::properties{syclex::work_group_static_size(M * sizeof(int))},
   [=](sycl::nd_item<1> it) {
- auto ptr= get_dynamic_work_group_memory<int>();
- auto ptr2= get_dynamic_work_group_memory<float>();
+ auto ptr= get_dynamic_work_group_memory();
+ auto ptr2= get_dynamic_work_group_memory();
 });
 ----
 
@@ -302,13 +297,9 @@ This non-normative section provides information about one possible
 implementation of this extension.  It is not part of the specification of the
 extension's API.
 
-For class types and bounded arrays, the class can be implemented using
-the WG scope attribute used by hierarchical implementation.
-Note, however, that this requires to expose the attribute to the users.
-
 For `get_dynamic_work_group_memory`,
-and the implementation may need to generate some additional code to
-appropriately initialize the pointer(s) returns by the call.
+the implementation may need to generate some additional code to
+appropriately initialize the pointer(s) returned by the call.
 Alternatively, it may be possible to initialize the pointer to the beginning
 of the device's local memory region (if that value is known). Either way, the
 implementation must account for the existence of one or more `local_accessor`

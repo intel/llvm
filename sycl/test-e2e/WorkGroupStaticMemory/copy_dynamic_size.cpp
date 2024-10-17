@@ -17,7 +17,7 @@ void copy_via_smem(DataType *a, DataType *b, sycl::nd_item<1> it) {
   // And then puts in back into B
 
   DataType *smem_ptr =
-      sycl_ext::get_dynamic_work_group_memory<DataType>().get();
+      reinterpret_cast<DataType *>(sycl_ext::get_dynamic_work_group_memory());
   auto threadIdx_x = it.get_local_linear_id();
 
   smem_ptr[threadIdx_x] = a[threadIdx_x];

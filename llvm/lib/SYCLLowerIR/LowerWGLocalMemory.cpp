@@ -131,13 +131,6 @@ lowerDynamicLocalMemCallDirect(CallInst *CI, Triple TT,
     IRBuilder<> Builder(CI);
     if (TT.isSPIROrSPIRV())
       return Builder.CreateLoad(CI->getType(), LocalMemPlaceholder);
-    Value *ArgAlign = CI->getArgOperand(0);
-    Align RequestedAlignment{
-        cast<llvm::ConstantInt>(ArgAlign)->getZExtValue()};
-    MaybeAlign CurrentAlignment = LocalMemPlaceholder->getAlign();
-    if (!CurrentAlignment.has_value() ||
-        (CurrentAlignment.value() < RequestedAlignment))
-      LocalMemPlaceholder->setAlignment(RequestedAlignment);
 
     return Builder.CreatePointerCast(LocalMemPlaceholder, CI->getType());
   }();
@@ -211,6 +204,8 @@ static bool dynamicWGLocalMemory(Module &M) {
         GlobalVariable::NotThreadLocal, // ThreadLocalMode
         LocalAS                         // AddressSpace
     );
+    if (!TT.isSPIROrSPIRV())
+      LocalMemArrayGV->setAlignment(Align{128});
   }
   lowerLocalMemCall(DLMFunc, [&](CallInst *CI) {
     lowerDynamicLocalMemCallDirect(CI, TT, LocalMemArrayGV);

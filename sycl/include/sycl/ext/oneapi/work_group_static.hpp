@@ -46,7 +46,7 @@ public:
   template <class TArg = T>
   typename std::enable_if<!std::is_array_v<TArg>, work_group_static &>::type
   operator=(const T &value) noexcept {
-    *getDecorated() = value;
+    data = value;
     return *this;
   }
 
@@ -56,16 +56,10 @@ private:
   T data;
 };
 
-template <typename T>
-std::enable_if_t<
-    std::is_trivially_destructible_v<T> && std::is_trivially_constructible_v<T>,
-    multi_ptr<T, access::address_space::local_space, access::decorated::no>>
-    __SYCL_ALWAYS_INLINE get_dynamic_work_group_memory() {
+__SYCL_ALWAYS_INLINE
+inline void* get_dynamic_work_group_memory() {
 #ifdef __SYCL_DEVICE_ONLY__
-  return multi_ptr<T, access::address_space::local_space,
-                   access::decorated::no>{
-      reinterpret_cast<__attribute__((opencl_local)) T *>(
-          __sycl_dynamicLocalMemoryPlaceholder(alignof(T)))};
+  return __sycl_dynamicLocalMemoryPlaceholder();
 #else
   throw sycl::exception(
       sycl::errc::feature_not_supported,

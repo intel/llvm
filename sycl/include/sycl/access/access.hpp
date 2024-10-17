@@ -23,7 +23,7 @@ __sycl_allocateLocalMemory(std::size_t Size, std::size_t Alignment);
 // Request a placeholder for a dynamically-sized buffer in local address space
 // at kernel scope. Required for work_group_static.
 extern "C" __DPCPP_SYCL_EXTERNAL __attribute__((opencl_local)) std::uint8_t *
-__sycl_dynamicLocalMemoryPlaceholder(std::size_t Alignment);
+__sycl_dynamicLocalMemoryPlaceholder();
 #endif
 namespace sycl {
 inline namespace _V1 {

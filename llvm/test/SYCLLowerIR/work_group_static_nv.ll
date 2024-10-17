@@ -3,21 +3,17 @@
 
 ; CHECK-NOT: __sycl_dynamicLocalMemoryPlaceholder
 
-target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
-target triple = "spir64-unknown-unknown"
+target triple = "nvptx64-nvidia-cuda"
 
-; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = linkonce_odr addrspace(3) global ptr addrspace(3) undef
+; CHECK: @__sycl_dynamicLocalMemoryPlaceholder_GV = external addrspace(3) global [0 x i8], align 128
 
 ; Function Attrs: convergent norecurse
-; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0, ptr addrspace(3) noalias "sycl-implicit-local-arg" %[[IMPLICT_ARG:[a-zA-Z0-9]+]]{{.*}} !kernel_arg_addr_space ![[ADDR_SPACE_MD:[0-9]+]]
-define weak_odr dso_local spir_kernel void @_ZTS7KernelA(ptr addrspace(1) %0) local_unnamed_addr #0 !kernel_arg_addr_space !5 {
+; CHECK: @_ZTS7KernelA(ptr addrspace(1) %0)
+define void @_ZTS7KernelA(ptr addrspace(1) %0) local_unnamed_addr #0 !kernel_arg_addr_space !5 {
 entry:
-; CHECK: store ptr addrspace(3) %[[IMPLICT_ARG]], ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
-; CHECK: %[[LD1:[a-zA-Z0-9]+]] = load ptr addrspace(3), ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
+; CHECK: getelementptr inbounds i8, ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
   %1 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 128) #1
-; CHECK: getelementptr inbounds i8, ptr addrspace(3) %[[LD1]]
   %2 = getelementptr inbounds i8, ptr addrspace(3) %1, i64 4
-; CHECK: %[[LD2:[a-zA-Z0-9]+]] = load ptr addrspace(3), ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder_GV
   %3 = tail call spir_func ptr addrspace(3) @__sycl_dynamicLocalMemoryPlaceholder(i64 4) #1
   ret void
 }

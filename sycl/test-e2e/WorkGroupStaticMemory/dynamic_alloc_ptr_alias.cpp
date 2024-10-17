@@ -30,35 +30,32 @@ int main() {
     sycl_ext::work_group_static_size static_size(WgSize * RepeatWG *
                                                  sizeof(int));
     sycl_ext::properties properties{static_size};
-    Cgh.parallel_for(
-        nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
-        [=](nd_item<1> Item) {
-          multi_ptr<int, access::address_space::local_space,
-                    sycl::access::decorated::no>
-              Ptr = sycl::ext::oneapi::experimental::
-                  get_dynamic_work_group_memory<int>();
-          size_t GroupOffset = Item.get_group_linear_id() * ElemPerWG;
-          for (size_t I = 0; I < RepeatWG; ++I) {
-            Ptr[WgSize * I + Item.get_local_linear_id()] =
-                Item.get_local_linear_id();
-          }
+    Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
+                     [=](nd_item<1> Item) {
+                       int *Ptr = reinterpret_cast<int *>(
+                           sycl_ext::get_dynamic_work_group_memory());
+                       size_t GroupOffset =
+                           Item.get_group_linear_id() * ElemPerWG;
+                       for (size_t I = 0; I < RepeatWG; ++I) {
+                         Ptr[WgSize * I + Item.get_local_linear_id()] =
+                             Item.get_local_linear_id();
+                       }
 
-          Item.barrier();
-          // Check that multiple calls return the same pointer.
-          multi_ptr<unsigned int, access::address_space::local_space,
-                    sycl::access::decorated::no>
-              PtrAlias = sycl::ext::oneapi::experimental::
-                  get_dynamic_work_group_memory<unsigned int>();
+                       Item.barrier();
+                       // Check that multiple calls return the same pointer.
+                       unsigned int *PtrAlias =
+                           reinterpret_cast<unsigned int *>(
+                               sycl_ext::get_dynamic_work_group_memory());
 
-          for (size_t I = 0; I < RepeatWG; ++I) {
-            // Check that the memory is accessible from other
-            // work-items
-            size_t BaseIdx = GroupOffset + (I * WgSize);
-            size_t LocalIdx = Item.get_local_linear_id() ^ 1;
-            size_t GlobalIdx = BaseIdx + LocalIdx;
-            Acc[GlobalIdx] = PtrAlias[WgSize * I + LocalIdx];
-          }
-        });
+                       for (size_t I = 0; I < RepeatWG; ++I) {
+                         // Check that the memory is accessible from other
+                         // work-items
+                         size_t BaseIdx = GroupOffset + (I * WgSize);
+                         size_t LocalIdx = Item.get_local_linear_id() ^ 1;
+                         size_t GlobalIdx = BaseIdx + LocalIdx;
+                         Acc[GlobalIdx] = PtrAlias[WgSize * I + LocalIdx];
+                       }
+                     });
   });
 
   host_accessor Acc(Buf, read_only);

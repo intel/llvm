@@ -31,10 +31,8 @@ int main() {
     sycl_ext::properties properties{static_size};
     Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
                      [=](nd_item<1> Item) {
-                       multi_ptr<int, access::address_space::local_space,
-                                 sycl::access::decorated::no>
-                           Ptr = sycl::ext::oneapi::experimental::
-                               get_dynamic_work_group_memory<int>();
+                       int *Ptr = reinterpret_cast<int *>(
+                           sycl_ext::get_dynamic_work_group_memory());
                        size_t GroupOffset =
                            Item.get_group_linear_id() * ElemPerWG;
                        for (size_t I = 0; I < RepeatWG; ++I) {
