@@ -648,7 +648,7 @@ void setSyclFixedTargetsMD(const std::vector<Function *> &EntryPoints,
 }
 
 void collectVirtualFunctionSetInfo(
-    Function &F, StringMap<std::vector<Function *>> &VirtualFunctionSets) {
+    Function &F, StringMap<SmallVector<Function *, 4>> &VirtualFunctionSets) {
   if (!F.hasFnAttribute("indirectly-callable"))
     return;
   Attribute IndirectlyCallableAttr = F.getFnAttribute("indirectly-callable");
@@ -662,7 +662,7 @@ void collectVirtualFunctionSetInfo(
 void processDeclaredVirtualFunctionSets(
     Function *F, CallGraphTy &CG, FunctionToAspectsMapTy &AspectsMap,
     SmallPtrSet<const Function *, 16> &Visited,
-    StringMap<std::vector<Function *>> &VirtualFunctionSets) {
+    StringMap<SmallVector<Function *, 4>> &VirtualFunctionSets) {
   if (!F->hasFnAttribute("calls-indirectly"))
     return;
   Attribute CallsIndirectlyAttr = F->getFnAttribute("calls-indirectly");
@@ -687,7 +687,7 @@ buildFunctionsToAspectsMap(Module &M, TypeToAspectsMapTy &TypesWithAspects,
                            bool ValidateAspects, bool FP64ConvEmu) {
   FunctionToAspectsMapTy FunctionToUsedAspects;
   FunctionToAspectsMapTy FunctionToDeclaredAspects;
-  StringMap<std::vector<Function *>> VirtualFunctionSets;
+  StringMap<SmallVector<Function *, 4>> VirtualFunctionSets;
   CallGraphTy CG;
 
   for (Function &F : M.functions()) {
