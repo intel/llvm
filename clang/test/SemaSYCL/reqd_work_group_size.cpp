@@ -37,16 +37,14 @@ f4() {}
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
 struct TRIFuncObjGood1 {
-  // expected-note@+3 {{previous attribute is here}}
-  // expected-error@+2 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
-  // expected-warning@+1 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}} 
+  // expected-note@+2 {{previous attribute is here}}
+  // expected-error@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   [[sycl::reqd_work_group_size(64)]] [[sycl::reqd_work_group_size(128)]] void operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  // expected-note@+3 {{previous attribute is here}}
-  // expected-error@+2 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
-  // expected-warning@+1 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+  // expected-note@+2 {{previous attribute is here}}
+  // expected-error@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   [[sycl::reqd_work_group_size(64, 64)]] [[sycl::reqd_work_group_size(128, 128)]] void operator()() const {}
 };
 
@@ -55,8 +53,7 @@ struct TRIFuncObjGood3 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
-// expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_work_group_size(4, 4)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 void
 TRIFuncObjGood3::operator()() const {}
 
@@ -77,7 +74,7 @@ public:
 
 class Functor32 {
 public:
-  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}}
   [[sycl::reqd_work_group_size(1, 1, 32)]] void // expected-error{{attribute 'reqd_work_group_size' is already applied with different arguments}}
   operator()() const {}
 };
@@ -143,8 +140,7 @@ struct TRIFuncObjBad {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
-// expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 void
 TRIFuncObjBad::operator()() const {}
 
