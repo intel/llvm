@@ -116,12 +116,14 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit af7e275b509b41f54a66743ebf748dfb51668abf
-  # Author: Maosu Zhao <maosu.zhao@intel.com>
-  # Date:   Thu Oct 17 16:31:21 2024 +0800
-  #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
-  set(UNIFIED_RUNTIME_TAG af7e275b509b41f54a66743ebf748dfb51668abf)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/bensuo/unified-runtime.git")
+  # commit 22962057df1b9d538e08088a7b75d9d8e7c29f90 (HEAD, origin/main, origin/HEAD)
+  # Merge: e824ddc2 f0a1c433
+  # Author: aarongreig <aaron.greig@codeplay.com>
+  # Date:   Fri Sep 27 16:54:04 2024 +0100
+  #     Merge pull request #2017 from nrspruit/new_sysman_init
+  #     [L0] Use zesInit for SysMan API usage
+  set(UNIFIED_RUNTIME_TAG 504d3b6368e19990d57311c4bfab361c427b9054)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
