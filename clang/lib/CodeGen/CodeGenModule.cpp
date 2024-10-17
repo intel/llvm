@@ -5755,7 +5755,7 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
   }
 
   if (LangOpts.SYCLIsDevice && D) {
-    if (D->hasAttr<SYCLGlobalVarAttr>())
+    if (getTriple().isNVPTX() && D->hasAttr<SYCLGlobalVarAttr>())
       return LangAS::sycl_global;
 
     auto *Scope = D->getAttr<SYCLScopeAttr>();
