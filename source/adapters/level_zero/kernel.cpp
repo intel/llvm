@@ -139,7 +139,7 @@ ur_result_t urEnqueueKernelLaunch(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      true /* AllowBatching */));
+      true /* AllowBatching */, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent{};
@@ -202,7 +202,8 @@ ur_result_t urEnqueueKernelLaunch(
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList, false, true));
+  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                    true /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
 }
@@ -404,7 +405,7 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      true /* AllowBatching */));
+      true /* AllowBatching */, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent{};
@@ -467,7 +468,8 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
 
   // Execute command list asynchronously, as the event will be used
   // to track down its completion.
-  UR_CALL(Queue->executeCommandList(CommandList, false, true));
+  UR_CALL(Queue->executeCommandList(CommandList, false /*IsBlocking*/,
+                                    true /*OKToBatchCommand*/));
 
   return UR_RESULT_SUCCESS;
 }
