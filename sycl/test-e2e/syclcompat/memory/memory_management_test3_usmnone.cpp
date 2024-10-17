@@ -12,7 +12,7 @@
 // RUN: %{run} %t.out
 
 #define COMPAT_USM_LEVEL_NONE
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 #include <syclcompat/memory.hpp>
 #include "memory_common.hpp"
 
