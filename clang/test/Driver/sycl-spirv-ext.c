@@ -11,22 +11,19 @@
 // RUN:   -fsycl-targets=spir64-unknown-unknown -c %s -o %t_1.o
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t_1.devicelib.o \
 // RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
-// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" \
-// RUN:   HOST_LIB_PATH HOST_STAT_LIB %t_1.o --dry-run 2>&1 \
+// RUN:   "--" "-o" "a.out" %t_1.o --dry-run 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:   -fsycl-targets=spir64_gen-unknown-unknown -c %s -o %t_2.o
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t_2.devicelib.o \
 // RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
-// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" \
-// RUN:   HOST_LIB_PATH HOST_STAT_LIB %t_2.o --dry-run 2>&1 \
+// RUN:   "--" "-o" "a.out" %t_2.o --dry-run 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-DEFAULT %s
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:   -fsycl-targets=spir64_x86_64-unknown-unknown -c %s -o %t_3.o
 // RUN: clang-linker-wrapper -sycl-device-libraries=%t_3.devicelib.o \
 // RUN:   "--host-triple=x86_64-unknown-linux-gnu" "--linker-path=/usr/bin/ld" \
-// RUN:   "--" HOST_LINKER_FLAGS "-dynamic-linker" HOST_DYN_LIB "-o" "a.out" \
-// RUN:   HOST_LIB_PATH HOST_STAT_LIB %t_3.o --dry-run 2>&1 \
+// RUN:   "--" "-o" "a.out" %t_3.o --dry-run 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHECK-CPU %s
 
 // CHECK-DEFAULT: llvm-spirv{{.*}}-spirv-ext=-all
