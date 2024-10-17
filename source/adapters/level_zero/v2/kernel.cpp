@@ -395,16 +395,14 @@ ur_result_t urKernelGetGroupInfo(
     kernelProperties.pNext = &workGroupProperties;
 
     auto zeDevice = hKernel->getZeHandle(hDevice);
-    if (zeDevice) {
-      auto zeResult =
-          ZE_CALL_NOCHECK(zeKernelGetProperties, (zeDevice, &kernelProperties));
-      if (zeResult == ZE_RESULT_SUCCESS &&
-          workGroupProperties.maxGroupSize != 0) {
-        return returnValue(workGroupProperties.maxGroupSize);
-      }
-      return returnValue(
-          uint64_t{hDevice->ZeDeviceComputeProperties->maxTotalGroupSize});
+    auto zeResult =
+        ZE_CALL_NOCHECK(zeKernelGetProperties, (zeDevice, &kernelProperties));
+    if (zeResult == ZE_RESULT_SUCCESS &&
+        workGroupProperties.maxGroupSize != 0) {
+      return returnValue(workGroupProperties.maxGroupSize);
     }
+    return returnValue(
+        uint64_t{hDevice->ZeDeviceComputeProperties->maxTotalGroupSize});
   }
   case UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE: {
     auto props = hKernel->getProperties(hDevice);
