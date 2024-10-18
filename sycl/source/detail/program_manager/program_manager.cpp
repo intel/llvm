@@ -96,7 +96,8 @@ createBinaryProgram(const ContextImplPtr Context, const device &Device,
   Properties.count = Metadata.size();
   Properties.pMetadatas = Metadata.data();
   Adapter->call<UrApiKind::urProgramCreateWithBinary>(
-      Context->getHandleRef(), UrDevice, DataLen, Data, &Properties, &Program);
+      Context->getHandleRef(), 1, &UrDevice, &DataLen, &Data, &Properties,
+      &Program);
 
   if (BinaryStatus != UR_RESULT_SUCCESS) {
     throw detail::set_ur_error(
