@@ -19,6 +19,20 @@
 #include <sycl/detail/defines_elementary.hpp>
 
 #ifdef __SYCL_DEVICE_ONLY__
+// std::nan is an outlier with its string argument. We can't simply link to it.
+// Instead, we redefine both std::nan and sycl::nan as a macro.
+// NaN values are NEVER equal, so the actual value doesn't matter.
+// This is quite kludgy, and it means that nan() is not composable, but it's
+// not like anyone is doing that.  Forgiveness is easier to get than permission.
+namespace std {
+    constexpr double NanAbuse = std::numeric_limits<double>::quiet_NaN();
+}
+namespace sycl {
+    constexpr double NanAbuse =  std::numeric_limits<double>::quiet_NaN();
+}
+
+#define nan(x) NanAbuse
+
 extern "C" {
 extern __DPCPP_SYCL_EXTERNAL int abs(int x);
 extern __DPCPP_SYCL_EXTERNAL long int labs(long int x);
