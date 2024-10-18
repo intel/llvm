@@ -1,11 +1,8 @@
-; Test checks if spirv.CooperativeMatrixKHR type is extracted from
-; joint_matrix struct when it's used in AccessChain function call
+; The test checks, that unused call to __spirv_AccessChain is eliminated.
 
 ; RUN: opt -passes=sycl-joint-matrix-transform < %s -S | FileCheck %s
 
-; CHECK: %[[#Alloca:]] = alloca target("spirv.CooperativeMatrixKHR", i8, 3, 16, 64, 0)
-; CHECK: %[[#Cast:]] = addrspacecast ptr %[[#Alloca]] to ptr addrspace(4)
-; CHECK: call spir_func ptr addrspace(4) @_Z19__spirv_AccessChain{{.*}}(ptr addrspace(4) noundef %[[#Cast]], i64 noundef 0)
+; CHECK-NOT: call spir_func ptr addrspace(4) @_Z19__spirv_AccessChain
 
 ; ModuleID = 'test.bc'
 source_filename = "test.cpp"
@@ -19,7 +16,6 @@ entry:
   %0 = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
   %1 = addrspacecast ptr %0 to ptr addrspace(4)
   %2 = call spir_func ptr addrspace(4) @_Z19__spirv_AccessChainIiiLm16ELm16ELN5__spv9MatrixUseE2ELNS0_5Scope4FlagE3EEPT_PPNS0_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr addrspace(4) noundef %1, i64 noundef 0)
-  %3 = load i8, ptr addrspace(4) %2
   ret void
 }
 
