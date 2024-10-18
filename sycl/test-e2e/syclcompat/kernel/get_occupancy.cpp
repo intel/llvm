@@ -79,12 +79,12 @@ void test_max_active_work_groups_per_cu(sycl::queue q,
   std::cout << "compute_units: " << max_compute_units << std::endl;
 
   // We aren't interested in the launch here, it's here to define the kernel
-  sycl::range<RangeDim> global_range = wg_range;
-  global_range[0] = global_range[0] * max_per_cu * max_compute_units;
-  sycl::nd_range<RangeDim> my_range{global_range, wg_range};
-  sycl::buffer<value_type, RangeDim> buf{global_range};
-
   if (false) {
+    sycl::range<RangeDim> global_range = wg_range;
+    global_range[0] = global_range[0] * max_per_cu * max_compute_units;
+    sycl::nd_range<RangeDim> my_range{global_range, wg_range};
+    sycl::buffer<value_type, RangeDim> buf{global_range};
+
     q.submit([&](sycl::handler &cgh) {
       auto acc = buf.template get_access<sycl::access::mode::read_write>(cgh);
       if constexpr (KernelName<RangeDim>::has_local_mem) {
@@ -106,8 +106,8 @@ int main() {
       q, {32, 1, 1}, 32 * sizeof(value_type));
   test_max_active_work_groups_per_cu<MyLocalMemKernel, 2>(
       q, {32, 1}, 32 * 200 * sizeof(value_type));
-  // test_max_active_work_groups_per_cu<MyKernel<2>, 2>(q); //TODO: template arg
-  // here is a mess
+  // test_max_active_work_groups_per_cu<MyKernel<2>, 2>(q);
+
   // TODO: What tests cases do we want here?
   // Regular
   // Local mem
