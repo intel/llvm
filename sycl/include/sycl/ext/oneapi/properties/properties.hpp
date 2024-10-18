@@ -107,9 +107,22 @@ protected:
 using property_sort_key_t = std::string_view;
 
 template <typename properties_type_list_ty> class properties;
+
+template <typename T> struct is_property_list : std::false_type {};
+template <typename PropListTy>
+struct is_property_list<properties<PropListTy>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_property_list_v = is_property_list<T>::value;
+
+template <typename T>
+inline constexpr bool is_property_v =
+    std::is_base_of_v<detail::property_key_tag_base, T> &&
+    !is_property_list_v<T>;
+
 template <typename... property_tys>
 class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
-    : property_tys... {
+    : public property_tys... {
+  static_assert((is_property_v<property_tys> && ...));
   static_assert(
       []() constexpr {
         if constexpr (sizeof...(property_tys) == 0) {
@@ -131,9 +144,23 @@ class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
   using property_tys::get_property...;
 
 public:
-  template <typename... unsorted_property_tys>
-  properties(unsorted_property_tys... props)
+  template <typename... unsorted_property_tys,
+            typename = std::enable_if_t<
+                ((is_property_v<unsorted_property_tys> && ...))>>
+  constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
+
+  // TODO: add a unit-test for this.
+  template <
+      typename... other_property_list_tys, typename... other_property_tys,
+      typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
+  constexpr properties(
+      properties<detail::properties_type_list<other_property_list_tys...>>
+          other_properties,
+      other_property_tys... props)
+      : other_property_list_tys(
+            static_cast<other_property_list_tys &>(other_properties))...,
+        other_property_tys(props)... {}
 
   // TODO: Do we need this? If so, is separate CTAD needed?
   // template <typename... unsorted_property_tys>
@@ -149,21 +176,36 @@ public:
   template <typename property_key_t> constexpr auto get_property() {
     return get_property(detail::property_key_tag<property_key_t>{});
   }
+
+  template <typename property_key_t, typename default_property_t>
+  constexpr auto
+  get_property_or_default_to(default_property_t default_property) {
+    if constexpr (has_property<property_key_t>())
+      return get_property<property_key_t>();
+    else
+      return default_property;
+  }
 };
 
-template <typename... unsorted_property_tys>
+template <typename... unsorted_property_tys,
+          typename =
+              std::enable_if_t<((is_property_v<unsorted_property_tys> && ...))>>
 properties(unsorted_property_tys...)
     -> properties<typename detail::properties_sorter<
         std::make_integer_sequence<int, sizeof...(unsorted_property_tys)>,
         unsorted_property_tys...>::type>;
 
-using empty_properties_t = decltype(properties{});
+template <
+    typename... other_property_list_tys, typename... other_property_tys,
+    typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
+properties(properties<detail::properties_type_list<other_property_list_tys...>>,
+           other_property_tys...)
+    -> properties<typename detail::properties_sorter<
+        std::make_integer_sequence<int, sizeof...(other_property_list_tys) +
+                                            sizeof...(other_property_tys)>,
+        other_property_list_tys..., other_property_tys...>::type>;
 
-template <typename T> struct is_property_list : std::false_type {};
-template <typename PropListTy>
-struct is_property_list<properties<PropListTy>> : std::true_type {};
-template <typename T>
-inline constexpr bool is_property_list_v = is_property_list<T>::value;
+using empty_properties_t = decltype(properties{});
 
 template <typename, typename> struct is_property_key_of : std::false_type {};
 } // namespace new_properties
