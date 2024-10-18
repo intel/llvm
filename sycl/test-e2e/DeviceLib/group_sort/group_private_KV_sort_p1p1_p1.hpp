@@ -1132,7 +1132,6 @@ void test_work_group_KV_private_sort(sycl::queue &q, const KeyT keys[NUM],
        accessor ivals_acc{ivals_buf, h};
        accessor okeys_acc{okeys_buf, h};
        accessor ovals_acc{ovals_buf, h};
-       sycl::stream os(1024, 128, h);
        h.parallel_for(num_items, [=](nd_item<1> i) {
          KeyT pkeys[num_per_work_item];
          ValT pvals[num_per_work_item];
