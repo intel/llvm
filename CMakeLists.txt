@@ -225,6 +225,14 @@ if(UR_USE_MSAN)
     add_sanitizer_flag(memory)
 endif()
 
+if(NOT (UR_BUILD_ADAPTER_CUDA OR UR_BUILD_ADAPTER_HIP
+    OR UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_OPENCL
+    OR UR_BUILD_ADAPTER_NATIVE_CPU OR UR_BUILD_ADAPTER_L0_V2
+    OR UR_BUILD_ADAPTER_ALL))
+    message(WARNING "No adapters have been enabled; conformance tests will not be ran")
+    message(STATUS "Consider setting UR_BUILD_ADAPTER_*")
+endif()
+
 # Check if clang-format (in correct version) is available for Cpp code formatting.
 if(UR_FORMAT_CPP_STYLE)
     find_program(CLANG_FORMAT NAMES clang-format-15 clang-format-15.0 clang-format)
