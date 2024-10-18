@@ -220,7 +220,32 @@ public:
                              properties>;
   }
 
-  template <typename property_key_t> constexpr auto get_property() {
+  // Two methods below do the following (pseudocode):
+  //
+  // template <property_key_t>
+  // using ret_t = decltype(this->get_property(key_tag<property_key_t>{}));
+  // static constexpr auto get_property() requires(is_empty_v<ret_t>) {
+  //   return ret_t{};
+  // }
+  // constexpr auto get_property() requires(!is_empty_v<ret_t>) {
+  //   return get_property(key_tag<property_key_t>{});
+  // }
+  template <typename property_key_t>
+  static constexpr auto get_property() -> std::enable_if_t<
+      std::is_empty_v<decltype(std::declval<properties>().get_property(
+          detail::property_key_tag<property_key_t>{}))>,
+      decltype(std::declval<properties>().get_property(
+          detail::property_key_tag<property_key_t>{}))> {
+    return decltype(std::declval<properties>().get_property(
+        detail::property_key_tag<property_key_t>{})){};
+  }
+
+  template <typename property_key_t>
+  constexpr auto get_property() const -> std::enable_if_t<
+      !std::is_empty_v<decltype(std::declval<properties>().get_property(
+          detail::property_key_tag<property_key_t>{}))>,
+      decltype(std::declval<properties>().get_property(
+          detail::property_key_tag<property_key_t>{}))> {
     return get_property(detail::property_key_tag<property_key_t>{});
   }
 

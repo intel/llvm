@@ -159,6 +159,18 @@ void test() {
 }
 } // namespace test_compile_prop_in_runtime_list
 
+namespace test_static_get_property {
+  struct ct_prop : named_property_base<ct_prop> {};
+  struct rt_prop : named_property_base<rt_prop> {
+    int x;
+  };
+  void test() {
+    properties pl{ct_prop{}, rt_prop{}};
+    constexpr auto c = decltype(pl)::get_property<ct_prop>();
+    auto r = pl.get_property<rt_prop>();
+  }
+}
+
 int main() {
   test::test();
   bench::test(std::make_integer_sequence<int, 67>{});
