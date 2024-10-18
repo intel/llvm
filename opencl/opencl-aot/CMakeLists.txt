@@ -14,7 +14,7 @@ add_llvm_tool(${OPENCL_AOT_PROJECT_NAME} ${TARGET_SOURCES})
 
 if (WIN32)
   # 0x2000: exclude CWD from DLL loading path
-  target_link_options(${OPENCL_AOT_PROJECT_NAME} PRIVATE "/DEPENDENTLOADFLAG:0x2000")
+  target_link_options(${OPENCL_AOT_PROJECT_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000")
 endif()
 
 if(NOT MSVC)
