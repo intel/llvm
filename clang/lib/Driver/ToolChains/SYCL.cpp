@@ -1426,8 +1426,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
-      // Native CPU can support options unsupported by other targets,
-      // currently source-based code coverage
+      // Native CPU can support options unsupported by other targets.
       if (SupportedByNativeCPU(*this, Opt))
         continue;
       // All sanitizer options are not currently supported, except
