@@ -25,7 +25,7 @@
 
 #include <sycl/detail/core.hpp>
 #include "sycl/accessor.hpp"
-#include <syclcompat/kernel.hpp>
+#include <syclcompat/util.hpp>
 
 template <class T, size_t Dim>
 using sycl_global_accessor =
