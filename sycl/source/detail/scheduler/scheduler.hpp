@@ -372,13 +372,18 @@ public:
   /// \param EventNeeded Specifies whether an event is explicitly required.
   /// \param CommandBuffer Optional command buffer to enqueue to instead of
   /// directly to the queue.
-  /// \param Dependencies Optional list of dependency
-  /// sync points when enqueuing to a command buffer.
+  /// \param Dependencies Optional list of dependencies to other command-buffer
+  /// sync points when enqueuing to a command buffer. Only valid to pass when
+  /// \p CommandBuffer is not null.
+  /// \param AlternativeKernels Optional list of kernels that the command can
+  /// be dynamically updated to. Only valid to pass when \p CommandBuffer is
+  /// not null.
   /// \return an event object to wait on for command group completion.
   EventImplPtr addCG(
       std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
       bool EventNeeded, ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {});
+      const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies = {},
+      const std::vector<detail::CGExecKernel *> &AlternativeKernels = {});
 
   /// Registers a command group, that copies most recent memory to the memory
   /// pointed by the requirement.
@@ -548,18 +553,22 @@ protected:
     /// \sa queue::submit, Scheduler::addCG
     /// \param CommandBuffer Optional command buffer to enqueue to instead of
     /// directly to the queue.
-    /// \param Dependencies Optional list of dependency
-    /// sync points when enqueuing to a command buffer.
+    /// \param Dependencies Optional list of dependency sync points when
+    /// enqueuing to a command buffer.
+    /// \param AlternativeKernels Optional list of kernels that the command can
+    /// dynamically be updated to. Only valid to pass when CommandBuffer is not
+    /// null.
     ///
     /// \return a command that represents command group execution and a bool
     /// indicating whether this command should be enqueued to the graph
     /// processor right away or not.
-    Command *addCG(std::unique_ptr<detail::CG> CommandGroup,
-                   const QueueImplPtr &Queue, std::vector<Command *> &ToEnqueue,
-                   bool EventNeeded,
-                   ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
-                   const std::vector<ur_exp_command_buffer_sync_point_t>
-                       &Dependencies = {});
+    Command *
+    addCG(std::unique_ptr<detail::CG> CommandGroup, const QueueImplPtr &Queue,
+          std::vector<Command *> &ToEnqueue, bool EventNeeded,
+          ur_exp_command_buffer_handle_t CommandBuffer = nullptr,
+          const std::vector<ur_exp_command_buffer_sync_point_t> &Dependencies =
+              {},
+          const std::vector<detail::CGExecKernel *> &AlternativeKernels = {});
 
     /// Registers a \ref CG "command group" that updates host memory to the
     /// latest state.
