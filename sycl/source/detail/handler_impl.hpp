@@ -197,6 +197,9 @@ public:
 
   /// True if MCodeLoc is sycl entry point code location
   bool MIsTopCodeLoc = true;
+
+  /// List of work group memory objects associated with this handler
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
 };
 
 } // namespace detail
