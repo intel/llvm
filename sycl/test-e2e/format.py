@@ -104,6 +104,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         exceptions = {}
         exceptions["spir64"]={
                 "cuda":False, "hip":False, "hip_amd":False, "hip_nvidia":False,
+                "native_cpu":False,
                 }
         exceptions["system"]={
                 "linux":True, "windows":False, "system-windows":False,
