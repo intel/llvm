@@ -1470,8 +1470,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
-        // NativeCPU should allow most normal cpu options like
-        // for coverage testing and we enable them as we have tests.
+        // NativeCPU should allow most normal cpu options.
         if (SupportedByNativeCPU(*this, Opt.getID()))
           continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
