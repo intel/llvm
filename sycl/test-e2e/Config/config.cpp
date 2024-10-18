@@ -8,13 +8,13 @@
 // RUN: %{build} %debug_option %O0 -o %t.out
 // RUN: echo SYCL_PRINT_EXECUTION_GRAPH=always > %t.cfg
 // RUN: %{run-unfiltered-devices} env SYCL_CONFIG_FILE_NAME=%t.cfg %t.out
-// RUN: cat *.dot > /dev/null
-// RUN: rm *.dot
+// RUN: %if run-mode %{cat *.dot > /dev/null%}
+// RUN: %if run-mode %{rm *.dot%}
 // RUN: %{run-unfiltered-devices} env SYCL_PRINT_EXECUTION_GRAPH=always %t.out
-// RUN: cat *.dot > /dev/null
-// RUN: rm *.dot
+// RUN: %if run-mode %{cat *.dot > /dev/null%}
+// RUN: %if run-mode %{rm *.dot%}
 // RUN: %{run-unfiltered-devices} %t.out
-// RUN: not cat *.dot > /dev/null
+// RUN: %if run-mode %{not cat *.dot > /dev/null%}
 
 #include <sycl/detail/core.hpp>
 
