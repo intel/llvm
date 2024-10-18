@@ -54,6 +54,8 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 
+#include <syclcompat/device.hpp>
+
 namespace syclcompat {
 
 typedef void (*kernel_functor)(sycl::queue &, const sycl::nd_range<3> &,
