@@ -307,9 +307,8 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
-  auto PropSet = computeModuleProperties(MD.getModule(), MD.entries(),
-                                         GlobProps, MD.Props.SpecConstsMet,
-                                         MD.isSpecConstantDefault());
+  auto PropSet =
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
@@ -420,6 +419,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
                 module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
+  MD.saveSplitInformationAsMetadata();
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
     BaseTriple.Ir = IRFilename.str();
@@ -788,7 +788,7 @@ processInputModule(std::unique_ptr<Module> M) {
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (auto Triple = M->getTargetTriple().find("spir") != std::string::npos)
+  if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
   // Instrument each image scope device globals if the module has been

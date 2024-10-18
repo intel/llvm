@@ -324,7 +324,7 @@ bool ICF<ELFT>::equalsConstant(const InputSection *a, const InputSection *b) {
 
   const RelsOrRelas<ELFT> ra = a->template relsOrRelas<ELFT>();
   const RelsOrRelas<ELFT> rb = b->template relsOrRelas<ELFT>();
-  if (ra.areRelocsCrel())
+  if (ra.areRelocsCrel() || rb.areRelocsCrel())
     return constantEq(a, ra.crels, b, rb.crels);
   return ra.areRelocsRel() || rb.areRelocsRel()
              ? constantEq(a, ra.rels, b, rb.rels)
@@ -376,7 +376,7 @@ template <class ELFT>
 bool ICF<ELFT>::equalsVariable(const InputSection *a, const InputSection *b) {
   const RelsOrRelas<ELFT> ra = a->template relsOrRelas<ELFT>();
   const RelsOrRelas<ELFT> rb = b->template relsOrRelas<ELFT>();
-  if (ra.areRelocsCrel())
+  if (ra.areRelocsCrel() || rb.areRelocsCrel())
     return variableEq(a, ra.crels, b, rb.crels);
   return ra.areRelocsRel() || rb.areRelocsRel()
              ? variableEq(a, ra.rels, b, rb.rels)
@@ -480,7 +480,7 @@ template <class ELFT> void ICF<ELFT>::run() {
   // If two .gcc_except_table have identical semantics (usually identical
   // content with PC-relative encoding), we will lose folding opportunity.
   uint32_t uniqueId = 0;
-  for (Partition &part : partitions)
+  for (Partition &part : ctx.partitions)
     part.ehFrame->iterateFDEWithLSDA<ELFT>(
         [&](InputSection &s) { s.eqClass[0] = s.eqClass[1] = ++uniqueId; });
 
@@ -577,7 +577,7 @@ template <class ELFT> void ICF<ELFT>::run() {
 
   // InputSectionDescription::sections is populated by processSectionCommands().
   // ICF may fold some input sections assigned to output sections. Remove them.
-  for (SectionCommand *cmd : script->sectionCommands)
+  for (SectionCommand *cmd : ctx.script->sectionCommands)
     if (auto *osd = dyn_cast<OutputDesc>(cmd))
       for (SectionCommand *subCmd : osd->osec.commands)
         if (auto *isd = dyn_cast<InputSectionDescription>(subCmd))

@@ -307,12 +307,7 @@ struct AttachSchedulerWrapper {
 };
 
 // Check that stream buffers are released alongside graph cleanup.
-// https://github.com/intel/llvm/issues/15049
-#ifdef _WIN32
-TEST_F(SchedulerTest, DISABLED_StreamBufferDeallocation) {
-#else
 TEST_F(SchedulerTest, StreamBufferDeallocation) {
-#endif
   unittest::UrMock<> Mock;
   platform Plt = sycl::platform();
   context Ctx{Plt};

@@ -4,7 +4,7 @@
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -I %S/Inputs/ %S/uneven_kernel_split.cpp -c -o %t.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -I %S/Inputs/ %S/Inputs/gpu_kernel1.cpp -c -o %t1.o
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -I %S/Inputs/ %S/Inputs/gpu_kernel2.cpp -c -o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %t.o %t1.o %t2.o -o %t.out
+// RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts -Wno-unused-command-line-argument %t.o %t1.o %t2.o -o %t.out
 // RUN: %{run} %t.out
 
 // Test require the following device image structure: cpu target device image

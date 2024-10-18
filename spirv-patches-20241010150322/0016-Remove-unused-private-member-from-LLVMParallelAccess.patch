@@ -1,0 +1,47 @@
+From 9a23d54079204aeec0f16436c81debf7b64f77b9 Mon Sep 17 00:00:00 2001
+From: David Spickett <spickettdavid@googlemail.com>
+Date: Wed, 9 Oct 2024 15:39:27 +0100
+Subject: [PATCH 16/18] Remove unused private member from
+ LLVMParallelAccessIndices (#2747)
+
+```
+.../SPIRV-LLVM-Translator/lib/SPIRV/SPIRVWriter.cpp:1697:44: warning: private field 'IndexGroupArrayMap' is not used [-Wunused-private-field]
+ 1697 |   LLVMToSPIRVBase::LLVMToSPIRVMetadataMap &IndexGroupArrayMap;
+      |
+```
+IndexGroupArrayMap is used but only during the constructor to
+validate and build other things.
+
+This change happened in 4a7804bc45ada92b8365c82b99387726382b5d7d
+where code was moved from a separate method, into the constructor.
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/9a23d54079204ae
+---
+ lib/SPIRV/SPIRVWriter.cpp | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/lib/SPIRV/SPIRVWriter.cpp b/lib/SPIRV/SPIRVWriter.cpp
+index 2b87862bcbc5..687afffe73cf 100644
+--- a/lib/SPIRV/SPIRVWriter.cpp
++++ b/lib/SPIRV/SPIRVWriter.cpp
+@@ -1662,7 +1662,7 @@ class LLVMParallelAccessIndices {
+ public:
+   LLVMParallelAccessIndices(
+       MDNode *Node, LLVMToSPIRVBase::LLVMToSPIRVMetadataMap &IndexGroupArrayMap)
+-      : Node(Node), IndexGroupArrayMap(IndexGroupArrayMap) {
++      : Node(Node) {
+ 
+     assert(isValid() &&
+            "LLVMParallelAccessIndices initialized from an invalid MDNode");
+@@ -1706,7 +1706,6 @@ public:
+ 
+ private:
+   MDNode *Node;
+-  LLVMToSPIRVBase::LLVMToSPIRVMetadataMap &IndexGroupArrayMap;
+   const std::string ExpectedName = "llvm.loop.parallel_access_indices";
+   std::vector<SPIRVId> ArrayVariablesVec;
+   unsigned SafeLen;
+-- 
+2.39.1
+

@@ -146,7 +146,7 @@ public:
                                  ArrayRef<int> Mask,
                                  TTI::TargetCostKind CostKind, int Index,
                                  VectorType *SubTp,
-                                 ArrayRef<const Value *> Args = std::nullopt,
+                                 ArrayRef<const Value *> Args = {},
                                  const Instruction *CxtI = nullptr);
 
   InstructionCost getIntrinsicInstrCost(const IntrinsicCostAttributes &ICA,
@@ -210,8 +210,7 @@ public:
       unsigned Opcode, Type *Ty, TTI::TargetCostKind CostKind,
       TTI::OperandValueInfo Op1Info = {TTI::OK_AnyValue, TTI::OP_None},
       TTI::OperandValueInfo Op2Info = {TTI::OK_AnyValue, TTI::OP_None},
-      ArrayRef<const Value *> Args = std::nullopt,
-      const Instruction *CxtI = nullptr);
+      ArrayRef<const Value *> Args = {}, const Instruction *CxtI = nullptr);
 
   bool isElementTypeLegalForScalableVector(Type *Ty) const {
     return TLI->isLegalElementTypeForRVV(TLI->getValueType(DL, Ty));
@@ -250,6 +249,12 @@ public:
 
     // Only support fixed vectors if we know the minimum vector size.
     if (DataTypeVT.isFixedLengthVector() && !ST->useRVVForFixedLengthVectors())
+      return false;
+
+    // We also need to check if the vector of address is valid.
+    EVT PointerTypeVT = EVT(TLI->getPointerTy(DL));
+    if (DataTypeVT.isScalableVector() &&
+        !TLI->isLegalElementTypeForRVV(PointerTypeVT))
       return false;
 
     EVT ElemType = DataTypeVT.getScalarType();
@@ -394,10 +399,9 @@ public:
   bool isLSRCostLess(const TargetTransformInfo::LSRCost &C1,
                      const TargetTransformInfo::LSRCost &C2);
 
-  bool shouldFoldTerminatingConditionAfterLSR() const {
-    return true;
-  }
-
+  bool
+  shouldConsiderAddressTypePromotion(const Instruction &I,
+                                     bool &AllowPromotionWithoutCommonHeader);
   std::optional<unsigned> getMinPageSize() const { return 4096; }
 };
 

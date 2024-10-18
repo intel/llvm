@@ -2,7 +2,7 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images_shared_usm
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <cmath>
 #include <iostream>
