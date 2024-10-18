@@ -774,7 +774,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
                 .emplace(ZeCommandList,
                          ur_command_list_info_t(
                              ZeFence, true, false, ZeCommandQueue, ZeQueueDesc,
-                             Queue->useCompletionBatching(), true /*CanReuse */,
+                             Queue->useCompletionBatching(), true,
                              ZeCommandListIt->second.InOrderList,
                              ZeCommandListIt->second.IsImmediate))
                 .first;
