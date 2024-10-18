@@ -156,6 +156,10 @@ void SPIRVToOCLBase::visitCallInst(CallInst &CI) {
     visitCallBuildNDRangeBuiltIn(&CI, OC, DemangledName);
     return;
   }
+  if (OC == OpGenericCastToPtr) {
+    visitCallGenericCastToPtrBuiltIn(&CI, OC);
+    return;
+  }
   if (OC == OpGenericCastToPtrExplicit) {
     visitCallGenericCastToPtrExplicitBuiltIn(&CI, OC);
     return;
@@ -627,6 +631,18 @@ void SPIRVToOCLBase::visitCallBuildNDRangeBuiltIn(CallInst *CI, Op OC,
                          Split[1].substr(0, 3).str())
       // OpenCL built-in has another order of parameters.
       .moveArg(2, 0);
+}
+
+void SPIRVToOCLBase::visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC) {
+  assert(CI->getCalledFunction() && "Unexpected indirect call");
+  IRBuilder<> Builder(CI);
+  Value *PtrArg = CI->getArgOperand(0);
+  auto AddrSpace =
+      static_cast<SPIRAddressSpace>(CI->getType()->getPointerAddressSpace());
+  Type *NewTy = PointerType::get(PtrArg->getType(), AddrSpace);
+  Value *ASC = Builder.CreateAddrSpaceCast(PtrArg, NewTy);
+  CI->replaceAllUsesWith(ASC);
+  CI->eraseFromParent();
 }
 
 void SPIRVToOCLBase::visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI,

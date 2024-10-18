@@ -107,6 +107,10 @@ public:
   ///  intel_sub_group_media_block_write
   void visitCallSPIRVImageMediaBlockBuiltin(CallInst *CI, Op OC);
 
+  /// Transform __spirv_OpGenericCastToPtr_To{Global|Local|Private} to llvm
+  /// addrspacecast instruction.
+  void visitCallGenericCastToPtrBuiltIn(CallInst *CI, Op OC);
+
   /// Transform __spirv_OpGenericCastToPtrExplicit_To{Global|Local|Private} to
   /// to_{global|local|private} OCL builtin.
   void visitCallGenericCastToPtrExplicitBuiltIn(CallInst *CI, Op OC);
