@@ -125,17 +125,40 @@ constexpr auto merge_properties(
   return 42;
 }
 static_assert(merge_properties(pl3, naive{}) == 42);
-}
+} // namespace test_group_load_store
 
 namespace test_merge_ctor {
-  template <int N>
-  struct property : detail::property_base<property<N>> {
-    static constexpr int sort_key = N;
-  };
+template <int N> struct property : detail::property_base<property<N>> {
+  static constexpr int sort_key = N;
+};
 
-  constexpr properties pl1{property<1>{}, property<2>{}, property<3>{}};
-  constexpr properties pl2{pl1, property<4>{}};
+constexpr properties pl1{property<1>{}, property<2>{}, property<3>{}};
+constexpr properties pl2{pl1, property<4>{}};
+} // namespace test_merge_ctor
+
+namespace test_compile_prop_in_runtime_list {
+template <int N>
+struct ct_prop : detail::property_base<ct_prop<N>, struct ct_prop_key> {
+  static constexpr int sort_key = 1;
+
+  static constexpr auto value() { return N; }
+};
+struct rt_prop : detail::property_base<rt_prop> {
+  static constexpr int sort_key = 2;
+  rt_prop(int N) : x(N) {}
+
+  int x;
+
+  constexpr auto value() { return x; }
+};
+void test() {
+  int x = 42;
+  properties pl{ct_prop<42>{}, rt_prop{x}};
+  constexpr auto p = pl.get_property<struct ct_prop_key>();
+  static_assert(std::is_same_v<decltype(p), const ct_prop<42>>);
+  static_assert(p.value() == 42);
 }
+} // namespace test_compile_prop_in_runtime_list
 
 int main() {
   test::test();

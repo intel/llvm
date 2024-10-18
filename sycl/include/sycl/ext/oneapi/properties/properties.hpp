@@ -99,7 +99,13 @@ struct property_base : property_key_tag<property_key_t> {
 protected:
   using key_t = property_key_t;
   constexpr property_t get_property(property_key_tag<key_t>) const {
-    return *static_cast<const property_t *>(this);
+    // https://godbolt.org/z/MY6849jGh for a reduced test reflecting original
+    // implementation that worked with clang/msvc and failed with gcc.
+    if constexpr (std::is_empty_v<property_t>) {
+      return property_t{};
+    } else {
+      return *static_cast<const property_t *>(this);
+    }
   }
 };
 } // namespace detail
