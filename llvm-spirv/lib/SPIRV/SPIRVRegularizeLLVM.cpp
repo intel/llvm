@@ -462,7 +462,7 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   Type *Int32Ty = Type::getInt32Ty(GV->getContext());
   auto GetGep = [&](unsigned Offset,
                     std::optional<ConstantRange> InRange = std::nullopt) {
-    llvm::ConstantRange GepInRange(llvm::APInt(32, -Offset, true),
+    llvm::ConstantRange GepInRange(llvm::APInt(32, -((signed)Offset), true),
                                    llvm::APInt(32, Offset, true));
     if (InRange)
       GepInRange = *InRange;
