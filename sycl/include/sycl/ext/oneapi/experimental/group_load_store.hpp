@@ -26,7 +26,7 @@ template <data_placement_enum Placement>
 struct data_placement_property : new_properties::detail::property_base<
                                      data_placement_property<Placement>,
                                      struct data_placement_property_key> {
-  static constexpr new_properties::property_sort_key_t sort_key{
+  static constexpr std::string_view property_name{
       "sycl::ext::oneapi::experimental::data_placement_property_key"};
 
   static constexpr bool is_blocked() {
@@ -45,7 +45,7 @@ inline constexpr auto data_placement_striped =
 // Contiguous memory property
 struct contiguous_memory_property
     : new_properties::detail::property_base<contiguous_memory_property> {
-  static constexpr new_properties::property_sort_key_t sort_key{
+  static constexpr std::string_view property_name{
       "sycl::ext::oneapi::experimental::contiguous_memory_property"};
 };
 
@@ -54,7 +54,7 @@ inline constexpr contiguous_memory_property contiguous_memory;
 // Full group property
 struct full_group_property
     : new_properties::detail::property_base<full_group_property> {
-  static constexpr new_properties::property_sort_key_t sort_key{
+  static constexpr std::string_view property_name{
       "sycl::ext::oneapi::experimental::full_group_property"};
 };
 
@@ -64,7 +64,7 @@ namespace detail {
 // Naive implementation property
 struct naive_property
     : new_properties::detail::property_base<naive_property> {
-  static constexpr new_properties::property_sort_key_t sort_key{
+  static constexpr std::string_view property_name{
       "sycl::ext::oneapi::experimental::naive_property"};
 };
 

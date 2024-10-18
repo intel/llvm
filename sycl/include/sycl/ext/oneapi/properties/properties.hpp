@@ -64,7 +64,7 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
     int idx = 0;
     int N = sizeof...(property_tys);
     // TODO: Use C++20 constexpr std::sort if available.
-    std::array to_sort{std::pair{property_tys::sort_key, idx++}...};
+    std::array to_sort{std::pair{property_tys::property_name, idx++}...};
     auto swap_pair = [](auto &x, auto &y) constexpr {
       auto tmp_first = x.first;
       auto tmp_second = x.second;
@@ -110,8 +110,6 @@ protected:
 };
 } // namespace detail
 
-using property_sort_key_t = std::string_view;
-
 template <typename properties_type_list_ty> class properties;
 
 template <typename T> struct is_property_list : std::false_type {};
@@ -134,7 +132,7 @@ class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
         if constexpr (sizeof...(property_tys) == 0) {
           return true;
         } else {
-          const std::array sort_keys = {property_tys::sort_key...};
+          const std::array sort_keys = {property_tys::property_name...};
           // std::is_sorted isn't constexpr until C++20.
           if (sort_keys.empty())
             return true;

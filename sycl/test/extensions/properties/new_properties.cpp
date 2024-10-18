@@ -19,7 +19,7 @@ template <typename property_key_t> constexpr auto generate_property_key_name() {
 template <typename property_t, typename property_key_t = property_t>
 struct named_property_base
     : public detail::property_base<property_t, property_key_t> {
-  static constexpr std::string_view sort_key =
+  static constexpr std::string_view property_name =
       generate_property_key_name<property_key_t>();
 };
 
