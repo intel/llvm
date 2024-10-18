@@ -45,8 +45,10 @@ template <int SG_SIZE> void test(queue &q) {
 
           int data[elems_per_wi];
 
-          auto blocked = sycl_exp::properties{sycl_exp::data_placement_blocked};
-          auto striped = sycl_exp::properties{sycl_exp::data_placement_striped};
+          auto blocked = sycl_exp::new_properties::properties{
+              sycl_exp::data_placement_blocked};
+          auto striped = sycl_exp::new_properties::properties{
+              sycl_exp::data_placement_striped};
 
           // blocked
           sycl_exp::group_load(sg, input.begin() + offset, span{data}, blocked);

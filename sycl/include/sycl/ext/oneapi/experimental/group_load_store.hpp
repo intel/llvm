@@ -19,45 +19,56 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
+// Data placement property
 enum class data_placement_enum { blocked, striped };
 
-struct data_placement_key
-    : detail::compile_time_property_key<detail::PropKind::DataPlacement> {
-  template <data_placement_enum Placement>
-  using value_t =
-      property_value<data_placement_key,
-                     // TODO: Extension uses data_placement_enum directly here.
-                     std::integral_constant<int, static_cast<int>(Placement)>>;
+template <data_placement_enum Placement>
+struct data_placement_property : new_properties::detail::property_base<
+                                     data_placement_property<Placement>,
+                                     struct data_placement_property_key> {
+  static constexpr new_properties::property_sort_key_t sort_key{
+      "sycl::ext::oneapi::experimental::data_placement_property_key"};
+
+  static constexpr bool is_blocked() {
+    return Placement == data_placement_enum::blocked;
+  }
 };
 
 template <data_placement_enum Placement>
-inline constexpr data_placement_key::value_t<Placement> data_placement;
+inline constexpr data_placement_property<Placement> data_placement;
 
-inline constexpr data_placement_key::value_t<data_placement_enum::blocked>
-    data_placement_blocked;
-inline constexpr data_placement_key::value_t<data_placement_enum::striped>
-    data_placement_striped;
+inline constexpr auto data_placement_blocked =
+    data_placement<data_placement_enum::blocked>;
+inline constexpr auto data_placement_striped =
+    data_placement<data_placement_enum::striped>;
 
-struct contiguous_memory_key
-    : detail::compile_time_property_key<detail::PropKind::ContiguousMemory> {
-  using value_t = property_value<contiguous_memory_key>;
+// Contiguous memory property
+struct contiguous_memory_property
+    : new_properties::detail::property_base<contiguous_memory_property> {
+  static constexpr new_properties::property_sort_key_t sort_key{
+      "sycl::ext::oneapi::experimental::contiguous_memory_property"};
 };
 
-inline constexpr contiguous_memory_key::value_t contiguous_memory;
+inline constexpr contiguous_memory_property contiguous_memory;
 
-struct full_group_key
-    : detail::compile_time_property_key<detail::PropKind::FullGroup> {
-  using value_t = property_value<full_group_key>;
+// Full group property
+struct full_group_property
+    : new_properties::detail::property_base<full_group_property> {
+  static constexpr new_properties::property_sort_key_t sort_key{
+      "sycl::ext::oneapi::experimental::full_group_property"};
 };
 
-inline constexpr full_group_key::value_t full_group;
+inline constexpr full_group_property full_group;
 
 namespace detail {
-struct naive_key : detail::compile_time_property_key<detail::PropKind::Naive> {
-  using value_t = property_value<naive_key>;
+// Naive implementation property
+struct naive_property
+    : new_properties::detail::property_base<naive_property> {
+  static constexpr new_properties::property_sort_key_t sort_key{
+      "sycl::ext::oneapi::experimental::naive_property"};
 };
-inline constexpr naive_key::value_t naive;
+
+inline constexpr naive_property naive;
 using namespace sycl::detail;
 } // namespace detail
 
@@ -94,11 +105,10 @@ inline constexpr bool verify_store_types =
     std::is_default_constructible_v<InputElemT>;
 
 template <typename Properties> constexpr bool isBlocked(Properties properties) {
-  if constexpr (properties.template has_property<data_placement_key>())
-    return properties.template get_property<data_placement_key>() ==
-           data_placement_blocked;
-  else
-    return true;
+  return properties
+      .template get_property_or_default_to<struct data_placement_property_key>(
+          data_placement_blocked)
+      .is_blocked();
 }
 
 template <bool IsBlocked, int VEC_OR_ARRAY_SIZE, typename GroupTy>
@@ -191,13 +201,13 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
 
   if constexpr (!is_spir || !BlkInfo::has_builtin) {
     return nullptr;
-  } else if constexpr (!props.template has_property<full_group_key>()) {
+  } else if constexpr (!props.template has_property<full_group_property>()) {
     return nullptr;
   } else if constexpr (detail::is_multi_ptr_v<IteratorT>) {
     return get_block_op_ptr<RequiredAlign, ElementsPerWorkItem>(
         iter.get_decorated(), props);
   } else if constexpr (!std::is_pointer_v<iter_no_cv>) {
-    if constexpr (props.template has_property<contiguous_memory_key>())
+    if constexpr (props.template has_property<contiguous_memory_property>())
       return get_block_op_ptr<RequiredAlign, ElementsPerWorkItem>(&*iter,
                                                                   props);
     else
@@ -231,30 +241,29 @@ auto get_block_op_ptr(IteratorT iter, [[maybe_unused]] Properties props) {
 // Load API span overload.
 template <typename Group, typename InputIteratorT, typename OutputT,
           std::size_t ElementsPerWorkItem,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  detail::is_generic_group_v<Group>>
 group_load(Group g, InputIteratorT in_ptr,
            span<OutputT, ElementsPerWorkItem> out, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
-  using use_naive =
-      detail::merged_properties_t<Properties,
-                                  decltype(properties(detail::naive))>;
 
-  if constexpr (props.template has_property<detail::naive_key>()) {
+  if constexpr (props.template has_property<detail::naive_property>()) {
     group_barrier(g);
     for (int i = 0; i < out.size(); ++i)
       out[i] = in_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)];
     group_barrier(g);
     return;
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
-    return group_load(g, in_ptr, out, use_naive{});
+    return group_load(g, in_ptr, out,
+                      new_properties::properties{props, detail::naive});
   } else {
     auto ptr =
         detail::get_block_op_ptr<4 /* load align */, ElementsPerWorkItem>(
             in_ptr, props);
     if (!ptr)
-      return group_load(g, in_ptr, out, use_naive{});
+      return group_load(g, in_ptr, out,
+                        new_properties::properties{props, detail::naive});
 
     if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
       // Do optimized load.
@@ -303,30 +312,30 @@ group_load(Group g, InputIteratorT in_ptr,
 // Store API span overload.
 template <typename Group, typename InputT, std::size_t ElementsPerWorkItem,
           typename OutputIteratorT,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  detail::is_generic_group_v<Group>>
 group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
             OutputIteratorT out_ptr, Properties props = {}) {
   constexpr bool blocked = detail::isBlocked(props);
-  using use_naive =
-      detail::merged_properties_t<Properties,
-                                  decltype(properties(detail::naive))>;
 
-  if constexpr (props.template has_property<detail::naive_key>()) {
+
+  if constexpr (props.template has_property<detail::naive_property>()) {
     group_barrier(g);
     for (int i = 0; i < in.size(); ++i)
       out_ptr[detail::get_mem_idx<blocked, ElementsPerWorkItem>(g, i)] = in[i];
     group_barrier(g);
     return;
   } else if constexpr (!std::is_same_v<Group, sycl::sub_group>) {
-    return group_store(g, in, out_ptr, use_naive{});
+    return group_store(g, in, out_ptr,
+                       new_properties::properties{props, detail::naive});
   } else {
     auto ptr =
         detail::get_block_op_ptr<16 /* store align */, ElementsPerWorkItem>(
             out_ptr, props);
     if (!ptr)
-      return group_store(g, in, out_ptr, use_naive{});
+      return group_store(g, in, out_ptr,
+                         new_properties::properties{props, detail::naive});
 
     if constexpr (!std::is_same_v<std::nullptr_t, decltype(ptr)>) {
       // Do optimized store.
@@ -350,7 +359,7 @@ group_store(Group g, const span<InputT, ElementsPerWorkItem> in,
 
 // Load API scalar.
 template <typename Group, typename InputIteratorT, typename OutputT,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  detail::is_generic_group_v<Group>>
 group_load(Group g, InputIteratorT in_ptr, OutputT &out,
@@ -360,7 +369,7 @@ group_load(Group g, InputIteratorT in_ptr, OutputT &out,
 
 // Store API scalar.
 template <typename Group, typename InputT, typename OutputIteratorT,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  detail::is_generic_group_v<Group>>
 group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
@@ -370,7 +379,7 @@ group_store(Group g, const InputT &in, OutputIteratorT out_ptr,
 
 // Load API sycl::vec overload.
 template <typename Group, typename InputIteratorT, typename OutputT, int N,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_load_types<InputIteratorT, OutputT> &&
                  detail::is_generic_group_v<Group>>
 group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
@@ -380,7 +389,7 @@ group_load(Group g, InputIteratorT in_ptr, sycl::vec<OutputT, N> &out,
 
 // Store API sycl::vec overload.
 template <typename Group, typename InputT, int N, typename OutputIteratorT,
-          typename Properties = decltype(properties())>
+          typename Properties = decltype(new_properties::properties())>
 std::enable_if_t<detail::verify_store_types<InputT, OutputIteratorT> &&
                  detail::is_generic_group_v<Group>>
 group_store(Group g, const sycl::vec<InputT, N> &in, OutputIteratorT out_ptr,
