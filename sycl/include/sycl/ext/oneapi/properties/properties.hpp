@@ -63,7 +63,8 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
   static constexpr auto sorted_indices = []() constexpr {
     int idx = 0;
     int N = sizeof...(property_tys);
-    // TODO: Use C++20 constexpr std::sort if available.
+    // std::sort isn't constexpr until C++20. Also, it's possible there will be
+    // a compiler builtin to sort types, in which case we should start using it.
     std::array to_sort{std::pair{property_tys::property_name, idx++}...};
     auto swap_pair = [](auto &x, auto &y) constexpr {
       auto tmp_first = x.first;
@@ -89,8 +90,10 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
       nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
 };
 
+// Is used to implement `is_property_v`.
 struct property_key_tag_base {};
 
+// We support incomplete property_key_t, so need to wrap it.
 template <typename property_key_t>
 struct property_key_tag : property_key_tag_base {};
 
@@ -99,8 +102,10 @@ struct property_base : property_key_tag<property_key_t> {
 protected:
   using key_t = property_key_t;
   constexpr property_t get_property(property_key_tag<key_t>) const {
-    // https://godbolt.org/z/MY6849jGh for a reduced test reflecting original
-    // implementation that worked with clang/msvc and failed with gcc.
+    // In fact, `static_cast` below works just fine with clang/msvc but not with
+    // gcc, see https://godbolt.org/z/MY6849jGh for a reduced test. However, we
+    // need to support all ,so special case for compile-time properties (when
+    // `is_empty_v` is true).
     if constexpr (std::is_empty_v<property_t>) {
       return property_t{};
     } else {
@@ -132,6 +137,11 @@ inline constexpr bool properties_are_sorted = []() constexpr {
   } else {
     const std::array sort_keys = {property_tys::property_name...};
     // std::is_sorted isn't constexpr until C++20.
+    //
+    // Sorting is an implementation detail while uniqueness of the property_keys
+    // is an API restriction. This internal check actually combines both
+    // conditions as we expect that user error is handled before the internal
+    // `properties_are_sorted` assert is checked.
     for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
       if (sort_keys[idx - 1] >= sort_keys[idx])
         return false;
@@ -153,10 +163,14 @@ inline constexpr bool is_property_v =
     std::is_base_of_v<detail::property_key_tag_base, T> &&
     !is_property_list_v<T>;
 
+// Empty property list.
 template <> class properties<detail::properties_type_list<>, void> {
   template <typename> static constexpr bool has_property() { return false; }
 };
 
+// Base implementation to provide nice user error in case of mis-use. Without it
+// an error "base class '<property>' specified more than once as a direct base
+// class" is reported prior to static_assert's error.
 template <typename... property_tys>
 class properties<
     detail::properties_type_list<property_tys...>,
@@ -184,7 +198,6 @@ public:
   constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
 
-  // TODO: add a unit-test for this.
   template <
       typename... other_property_list_tys, typename... other_property_tys,
       typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
