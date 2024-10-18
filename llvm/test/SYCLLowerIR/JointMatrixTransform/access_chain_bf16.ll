@@ -1,4 +1,4 @@
-; Test checks if useless zero GEP to get i16 from sycl::bfloat16 is being removed
+; Test checks if useless zero GEP to get i16 from sycl::bfloat16 is being removed.
 
 ; RUN: opt -passes=sycl-joint-matrix-transform < %s -S | FileCheck %s
 

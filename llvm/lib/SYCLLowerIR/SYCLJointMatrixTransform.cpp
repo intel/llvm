@@ -37,19 +37,17 @@ bool transformAccessChain(Function *F) {
     // instruction, but a zero GEP. This zero GEP is no-op, but can confuse a
     // SPIR-V consumer, so lets remove it here.
     auto *Unique = CI->getUniqueUndroppableUser();
-    if (auto *CastCand = dyn_cast_or_null<Instruction>(Unique)) {
-      if (auto *GEP = dyn_cast<GetElementPtrInst>(CastCand)) {
-        if (GEP->hasAllZeroIndices()) {
-          GEP->replaceAllUsesWith(CI);
-          GEP->dropAllReferences();
-          GEP->eraseFromParent();
-        }
+    if (auto *GEP = dyn_cast_or_null<GetElementPtrInst>(Unique)) {
+      if (GEP->hasAllZeroIndices()) {
+        GEP->replaceAllUsesWith(CI);
+        GEP->dropAllReferences();
+        GEP->eraseFromParent();
       }
     }
 
     // It can happen that the optimizer can remove duplicated or dead uses
     // of CallInst to __spirv_AccessChain function. But it can't remove
-    // __spirv_AccessChain call inself as it's a call to external function.
+    // __spirv_AccessChain call itself as it's a call to external function.
     // Lets clean such calls.
     if (CI->getNumUses() == 0) {
       CI->dropAllReferences();

@@ -1,4 +1,4 @@
-; The test checks, that unused call to __spirv_AccessChain is eliminated
+; The test checks, that unused call to __spirv_AccessChain is eliminated.
 
 ; RUN: opt -passes=sycl-joint-matrix-transform < %s -S | FileCheck %s
 
