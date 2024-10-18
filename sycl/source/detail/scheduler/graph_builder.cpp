@@ -269,6 +269,32 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
     ++Cmd->MLeafCounter;
 }
 
+void Scheduler::GraphBuilder::detectDuplicates(
+    Command *DepCommand, const std::pmr::unordered_set<Command *> &DependentCmdsOfNewCmd,
+    std::vector<Command *> &ToCleanUp) {
+  if (!DepCommand->MLeafCounter || // already no leaves, can't be duplicate
+      DepCommand->MEnqueueStatus != EnqueueResultT::SyclEnqueueSuccess)
+    return;
+  // any dependence of DepCommand already covered by NewCmd
+  bool Duplicate = std::all_of(DepCommand->MDeps.begin(), DepCommand->MDeps.end(),
+    [&DependentCmdsOfNewCmd](const DepDesc &DepOfDep) {
+        return DependentCmdsOfNewCmd.count(DepOfDep.MDepCommand);
+    });
+  if (Duplicate)
+    commandToCleanup(DepCommand, ToCleanUp);
+}
+
+void Scheduler::GraphBuilder::commandToCleanup(
+    Command *DepCommand, std::vector<Command *> &ToCleanUp) {
+  for (const DepDesc &DepOfDep : DepCommand->MDeps) {
+          MemObjRecord *Record = getMemObjRecord(DepOfDep.MDepRequirement->MSYCLMemObj);
+          DepCommand->MLeafCounter -= Record->MReadLeaves.remove(DepCommand);
+          DepCommand->MLeafCounter -= Record->MWriteLeaves.remove(DepCommand);
+  }
+  assert(!DepCommand->MLeafCounter && "A command before cleanup must have no leaves.");
+  ToCleanUp.push_back(DepCommand);
+}
+
 UpdateHostRequirementCommand *Scheduler::GraphBuilder::insertUpdateHostReqCmd(
     MemObjRecord *Record, Requirement *Req, const QueueImplPtr &Queue,
     std::vector<Command *> &ToEnqueue) {
@@ -1015,18 +1041,39 @@ Command *Scheduler::GraphBuilder::addCG(
   // Node dependencies can be modified further when adding the node to leaves,
   // iterate over their copy.
   // FIXME employ a reference here to eliminate copying of a vector
+
+  std::array<std::byte, 16*1024> DependentCmdsOfNewCmdBuf;
+  std::pmr::monotonic_buffer_resource DependentCmdsOfNewCmdBufRes{DependentCmdsOfNewCmdBuf.data(),
+                                                                  DependentCmdsOfNewCmdBuf.size()};
+  std::pmr::unordered_set<Command *> DependentCmdsOfNewCmd{&DependentCmdsOfNewCmdBufRes};
+  for (const DepDesc &Dep : NewCmd->MDeps)
+    DependentCmdsOfNewCmd.insert(Dep.MAllocaCmd);
+
   std::vector<DepDesc> Deps = NewCmd->MDeps;
   for (DepDesc &Dep : Deps) {
     const Requirement *Req = Dep.MDepRequirement;
     MemObjRecord *Record = getMemObjRecord(Req->MSYCLMemObj);
     updateLeaves({Dep.MDepCommand}, Record, Req->MAccessMode, ToCleanUp);
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
+    // All dependences of a dependent cmd already covered by NewCmd,
+    // can move the dependent cmd in ToCleanUp
+    detectDuplicates(Dep.MDepCommand, DependentCmdsOfNewCmd, ToCleanUp);
+    // For in-order queue, we may cleanup all dependent command from our queue
+    if (Queue && Queue->isInOrder() && Dep.MDepCommand->getQueue() == Queue
+        && Dep.MDepCommand->getType() == Command::RUN_CG
+        && Dep.MDepCommand->MLeafCounter
+        && Dep.MDepCommand->MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
+      commandToCleanup(Dep.MDepCommand, ToCleanUp);
   }
 
-  // Register all the events as dependencies
   for (detail::EventImplPtr e : Events) {
+    // Register all the events as dependencies
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
+    // If NewCmd depends on another command, and all dependences of that command
+    // already covered by NewCmd, can move the cmd in ToCleanUp
+    if (auto *Cmd = static_cast<Command *>(e->getCommand()))
+      detectDuplicates(Cmd, DependentCmdsOfNewCmd, ToCleanUp);
   }
 
   if (MPrintOptionsArray[AfterAddCG])
