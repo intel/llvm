@@ -150,9 +150,10 @@ private:
 };
 
 ur_result_t resetCommandLists(ur_queue_handle_t Queue);
-ur_result_t CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue,
-                                       bool QueueLocked, bool QueueSynced,
-                                       ur_event_handle_t CompletedEvent);
+ur_result_t
+CleanupEventsInImmCmdLists(ur_queue_handle_t UrQueue, bool QueueLocked = false,
+                           bool QueueSynced = false,
+                           ur_event_handle_t CompletedEvent = nullptr);
 
 // Structure describing the specific use of a command-list in a queue.
 // This is because command-lists are re-used across multiple queues
@@ -161,8 +162,8 @@ struct ur_command_list_info_t {
   ur_command_list_info_t(ze_fence_handle_t ZeFence, bool ZeFenceInUse,
                          bool IsClosed, ze_command_queue_handle_t ZeQueue,
                          ZeStruct<ze_command_queue_desc_t> ZeQueueDesc,
-                         bool UseCompletionBatching, bool CanReuse,
-                         bool IsInOrderList, bool IsImmediate)
+                         bool UseCompletionBatching, bool CanReuse = true,
+                         bool IsInOrderList = false, bool IsImmediate = false)
       : ZeFence(ZeFence), ZeFenceInUse(ZeFenceInUse), IsClosed(IsClosed),
         ZeQueue(ZeQueue), ZeQueueDesc(ZeQueueDesc),
         IsInOrderList(IsInOrderList), CanReuse(CanReuse),
@@ -527,7 +528,8 @@ struct ur_queue_handle_t_ : _ur_object {
   //
   // For immediate commandlists, no close and execute is necessary.
   ur_result_t executeCommandList(ur_command_list_ptr_t CommandList,
-                                 bool IsBlocking, bool OKToBatchCommand);
+                                 bool IsBlocking = false,
+                                 bool OKToBatchCommand = false);
 
   // Helper method telling whether we need to reuse discarded event in this
   // queue.

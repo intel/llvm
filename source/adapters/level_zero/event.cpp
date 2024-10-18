@@ -88,8 +88,7 @@ ur_result_t urEnqueueEventsWait(
     // Get a new command list to be used on this call
     ur_command_list_ptr_t CommandList{};
     UR_CALL(Queue->Context->getAvailableCommandList(
-        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-        false /*AllowBatching*/, nullptr /*ForceCmdQueue*/));
+        Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList));
 
     ze_event_handle_t ZeEvent = nullptr;
     ur_event_handle_t InternalEvent;
@@ -110,8 +109,7 @@ ur_result_t urEnqueueEventsWait(
 
     // Execute command list asynchronously as the event will be used
     // to track down its completion.
-    return Queue->executeCommandList(CommandList, false /*IsBlocking*/,
-                                     false /*OKToBatchCommand*/);
+    return Queue->executeCommandList(CommandList);
   }
 
   {
@@ -281,14 +279,13 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
         Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
-        EventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+        EventWaitList, OkToBatch));
 
     // Insert the barrier into the command-list and execute.
     UR_CALL(insertBarrierIntoCmdList(CmdList, TmpWaitList, ResultEvent,
                                      IsInternal));
 
-    UR_CALL(
-        Queue->executeCommandList(CmdList, false /*IsBlocking*/, OkToBatch));
+    UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
 
     // Because of the dependency between commands in the in-order queue we don't
     // need to keep track of any active barriers if we have in-order queue.
@@ -357,7 +354,7 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     ur_command_list_ptr_t CmdList;
     UR_CALL(Queue->Context->getAvailableCommandList(
         Queue, CmdList, false /*UseCopyEngine=*/, NumEventsInWaitList,
-        EventWaitList, OkToBatch, nullptr /*ForcedCmdQueue*/));
+        EventWaitList, OkToBatch));
     CmdLists.push_back(CmdList);
   }
 
@@ -407,8 +404,7 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
     // Only batch if the matching CmdList is already open.
     OkToBatch = CommandBatch.OpenCommandList == CmdList;
 
-    UR_CALL(
-        Queue->executeCommandList(CmdList, false /*IsBlocking*/, OkToBatch));
+    UR_CALL(Queue->executeCommandList(CmdList, false, OkToBatch));
   }
 
   UR_CALL(Queue->ActiveBarriers.clear());
@@ -720,7 +716,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(Queue->Context->getAvailableCommandList(
       Queue, CommandList, UseCopyEngine, NumEventsInWaitList, EventWaitList,
-      /* AllowBatching */ false, nullptr /*ForcedCmdQueue*/));
+      /* AllowBatching */ false));
 
   UR_CALL(createEventAndAssociateQueue(
       Queue, OutEvent, UR_COMMAND_TIMESTAMP_RECORDING_EXP, CommandList,
@@ -744,7 +740,7 @@ ur_result_t urEnqueueTimestampRecordingExp(
               (*OutEvent)->WaitList.ZeEventList));
 
   UR_CALL(
-      Queue->executeCommandList(CommandList, Blocking, false /* OkToBatch */));
+      Queue->executeCommandList(CommandList, Blocking, /* OkToBatch */ false));
 
   return UR_RESULT_SUCCESS;
 }
@@ -820,9 +816,7 @@ urEventWait(uint32_t NumEvents, ///< [in] number of events in the event list
         else {
           // NOTE: we are cleaning up after the event here to free resources
           // sooner in case run-time is not calling urEventRelease soon enough.
-          CleanupCompletedEvent(reinterpret_cast<ur_event_handle_t>(Event),
-                                false /*QueueLocked*/,
-                                false /*SetEventCompleted*/);
+          CleanupCompletedEvent(reinterpret_cast<ur_event_handle_t>(Event));
           // For the case when we have out-of-order queue or regular command
           // lists its more efficient to check fences so put the queue in the
           // set to cleanup later.
@@ -890,10 +884,7 @@ ur_result_t urExtEventCreate(
     ur_event_handle_t
         *Event ///< [out] pointer to the handle of the event object created.
 ) {
-  UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                      true /*HostVisible*/, Event,
-                      false /*CounterBasedEventEnabled*/,
-                      false /*ForceDisableProfiling*/));
+  UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
   (*Event)->RefCountExternal++;
   if (!(*Event)->CounterBasedEventsEnabled)
@@ -912,10 +903,7 @@ ur_result_t urEventCreateWithNativeHandle(
   // we dont have urEventCreate, so use this check for now to know that
   // the call comes from urEventCreate()
   if (reinterpret_cast<ze_event_handle_t>(NativeEvent) == nullptr) {
-    UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                        true /*HostVisible*/, Event,
-                        false /*CounterBasedEventEnabled*/,
-                        false /*ForceDisableProfiling*/));
+    UR_CALL(EventCreate(Context, nullptr, false, true, Event));
 
     (*Event)->RefCountExternal++;
     if (!(*Event)->CounterBasedEventsEnabled)
@@ -995,8 +983,7 @@ ur_result_t ur_event_handle_t_::getOrCreateHostVisibleEvent(
 
     ur_command_list_ptr_t CommandList{};
     UR_CALL(UrQueue->Context->getAvailableCommandList(
-        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch,
-        nullptr /*ForcedCmdQueue*/))
+        UrQueue, CommandList, false /* UseCopyEngine */, 0, nullptr, OkToBatch))
 
     // Create a "proxy" host-visible event.
     UR_CALL(createEventAndAssociateQueue(
@@ -1542,8 +1529,7 @@ ur_result_t _ur_ze_event_list_t::createAndRetainUrZeEventList(
           // This prevents a potential deadlock with recursive
           // event locks.
           UR_CALL(Queue->Context->getAvailableCommandList(
-              Queue, CommandList, false /*UseCopyEngine*/, 0, nullptr,
-              true /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+              Queue, CommandList, false, 0, nullptr, true));
         }
 
         std::shared_lock<ur_shared_mutex> Lock(EventList[I]->Mutex);
