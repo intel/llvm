@@ -1,0 +1,40 @@
+From a52ef6da720962edd7e6128b8665c06117d02ea2 Mon Sep 17 00:00:00 2001
+From: David Spickett <spickettdavid@googlemail.com>
+Date: Wed, 9 Oct 2024 09:46:36 +0100
+Subject: [PATCH 14/18] Fix unannotated fall-through warning in SPIRVWriter.cpp
+ (#2745)
+
+By adding the missing `break`.
+
+SPIRV-LLVM-Translator/lib/SPIRV/SPIRVWriter.cpp:3718:5: warning: unannotated fall-through between switch labels [-Wimplicit-fallthrough]
+ 3718 |     default:
+      |     ^
+SPIRV-LLVM-Translator/lib/SPIRV/SPIRVWriter.cpp:3718:5: note: insert 'break;' to avoid fall-through
+ 3718 |     default:
+      |     ^
+      |     break;
+
+As the default case was just `break`, the behaviour is the same
+but this should prevent future mistakes here.
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/a52ef6da720962e
+---
+ lib/SPIRV/SPIRVWriter.cpp | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/lib/SPIRV/SPIRVWriter.cpp b/lib/SPIRV/SPIRVWriter.cpp
+index b18de646479e..0f3562214081 100644
+--- a/lib/SPIRV/SPIRVWriter.cpp
++++ b/lib/SPIRV/SPIRVWriter.cpp
+@@ -3705,6 +3705,7 @@ void addAnnotationDecorations(SPIRVEntry *E, DecorationsInfoVec &Decorations) {
+         E->addDecorate(new SPIRVDecorateCacheControlLoadINTEL(
+             E, CacheLevel, static_cast<LoadCacheControl>(CacheControl)));
+       }
++      break;
+     }
+ 
+     default:
+-- 
+2.39.1
+
