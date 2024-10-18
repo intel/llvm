@@ -14,6 +14,9 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/common.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -1680,8 +1683,15 @@ void modifiable_command_graph::end_recording(
   }
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
+#else
 void modifiable_command_graph::print_graph(std::string path,
+#endif
                                            bool verbose) const {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::string path{pathstr.data()};
+#endif
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);
