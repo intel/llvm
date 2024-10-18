@@ -857,8 +857,7 @@ pow(const ValueT a, const ValueU b) {
 /// \param [in] a The input value
 /// \returns the relu saturation result
 template <typename ValueT> inline ValueT relu(const ValueT a) {
-  if constexpr (syclcompat::is_floating_point_v<ValueT> ||
-                std::is_same_v<sycl::half, ValueT>)
+  if constexpr (syclcompat::is_floating_point_v<ValueT>)
     if (detail::isnan(a))
       return a;
   if (a < ValueT(0))
@@ -874,9 +873,7 @@ relu(const sycl::vec<ValueT, NumElements> a) {
   return ret;
 }
 template <class ValueT>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
-                        sycl::marray<ValueT, 2>>
-relu(const sycl::marray<ValueT, 2> a) {
+inline sycl::marray<ValueT, 2> relu(const sycl::marray<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 
@@ -1099,7 +1096,7 @@ inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
 /// Compute vectorized binary operation value with pred for two values, with
 /// each value treated as a 2 \p T type elements vector type.
 ///
-/// \tparam [in] T The type of elements type of the vector
+/// \tparam [in] VecT The type of the vector
 /// \tparam [in] BinaryOperation The binary operation class
 /// \param [in] a The first value
 /// \param [in] b The second value
@@ -1107,15 +1104,13 @@ inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
 /// \param [out] pred_hi The pred pointer that pass into high halfword operation
 /// \param [out] pred_lo The pred pointer that pass into low halfword operation
 /// \returns The vectorized binary operation value of the two values
-template <typename ValueT, typename BinaryOperation>
-inline unsigned vectorized_with_pred(unsigned a, unsigned b,
-                                     const BinaryOperation binary_op,
-                                     bool *pred_hi, bool *pred_lo) {
-  static_assert(std::is_same_v<BinaryOperation, maximum> ||
-                std::is_same_v<BinaryOperation, minimum>);
-  auto v1 = sycl::vec<unsigned, 1>(a).as<sycl::vec<ValueT, 2>>();
-  auto v2 = sycl::vec<unsigned, 1>(b).as<sycl::vec<ValueT, 2>>();
-  sycl::vec<ValueT, 2> ret;
+template <typename VecT, typename BinaryOperation>
+inline unsigned vectorized_binary_with_pred(unsigned a, unsigned b,
+                                            const BinaryOperation binary_op,
+                                            bool *pred_hi, bool *pred_lo) {
+  auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
+  auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
+  VecT ret;
   ret[0] = binary_op(v1[0], v2[0], pred_lo);
   ret[1] = binary_op(v1[1], v2[1], pred_hi);
   return ret.template as<sycl::vec<unsigned, 1>>();
