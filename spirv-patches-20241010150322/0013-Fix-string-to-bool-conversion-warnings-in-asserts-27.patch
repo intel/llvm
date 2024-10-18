@@ -1,0 +1,69 @@
+From 573e951a3207fe938a7534c7c6268efb1e581fa0 Mon Sep 17 00:00:00 2001
+From: David Spickett <spickettdavid@googlemail.com>
+Date: Wed, 9 Oct 2024 09:46:16 +0100
+Subject: [PATCH 13/18] Fix string to bool conversion warnings in asserts
+ (#2746)
+
+/SPIRV-LLVM-Translator/lib/SPIRV/SPIRVRegularizeLLVM.cpp:535:15: warning: implicit conversion turns string literal into bool: 'const char[39]' to 'bool' [-Wstring-conversion]
+  535 |       assert(!"Cache controls must decorate a pointer");
+      |              ~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/usr/include/assert.h:93:27: note: expanded from macro 'assert'
+   93 |      (static_cast <bool> (expr)                                         \
+      |                           ^~~~
+
+The original code is not wrong but `false &&` is only a few
+characters more and does the same thing without warning.
+
+Original commit:
+https://github.com/KhronosGroup/SPIRV-LLVM-Translator/commit/573e951a3207fe9
+---
+ lib/SPIRV/SPIRVRegularizeLLVM.cpp | 7 ++++---
+ lib/SPIRV/SPIRVWriter.cpp         | 2 +-
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/lib/SPIRV/SPIRVRegularizeLLVM.cpp b/lib/SPIRV/SPIRVRegularizeLLVM.cpp
+index b3a6dac802b4..7a7822e95cc3 100644
+--- a/lib/SPIRV/SPIRVRegularizeLLVM.cpp
++++ b/lib/SPIRV/SPIRVRegularizeLLVM.cpp
+@@ -513,13 +513,14 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
+   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
+     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
+     if (!DecoMD) {
+-      assert(!"Decoration does not name metadata");
++      assert(false && "Decoration does not name metadata");
+       return;
+     }
+ 
+     constexpr size_t CacheControlsNumOps = 4;
+     if (DecoMD->getNumOperands() != CacheControlsNumOps) {
+-      assert(!"Cache controls metadata on instruction must have 4 operands");
++      assert(false &&
++             "Cache controls metadata on instruction must have 4 operands");
+       return;
+     }
+ 
+@@ -532,7 +533,7 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
+             ->getZExtValue();
+     Value *PtrInstOp = Inst->getOperand(TargetArgNo);
+     if (!PtrInstOp->getType()->isPointerTy()) {
+-      assert(!"Cache controls must decorate a pointer");
++      assert(false && "Cache controls must decorate a pointer");
+       return;
+     }
+ 
+diff --git a/lib/SPIRV/SPIRVWriter.cpp b/lib/SPIRV/SPIRVWriter.cpp
+index 6b94cb0210d8..b18de646479e 100644
+--- a/lib/SPIRV/SPIRVWriter.cpp
++++ b/lib/SPIRV/SPIRVWriter.cpp
+@@ -5451,7 +5451,7 @@ void LLVMToSPIRVBase::transGlobalAnnotation(GlobalVariable *V) {
+ 
+     StringRef AnnotationString;
+     if (!getConstantStringInfo(GV, AnnotationString)) {
+-      assert(!"Annotation string missing");
++      assert(false && "Annotation string missing");
+       return;
+     }
+     DecorationsInfoVec Decorations =
+-- 
+2.39.1
+

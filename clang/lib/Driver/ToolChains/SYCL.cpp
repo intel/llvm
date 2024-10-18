@@ -1035,7 +1035,7 @@ static OclocInfo PVCDevices[] = {
 
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
-static bool hasPVCDevice(const ArgStringList &CmdArgs) {
+static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
   bool DeviceSeen = false;
   StringRef DeviceArg;
   for (StringRef Arg : CmdArgs) {
@@ -1076,16 +1076,24 @@ static bool hasPVCDevice(const ArgStringList &CmdArgs) {
     // Check for device, version or hex (literal values)
     for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
       if (SingleArg.equals_insensitive(PVCDevices[I].DeviceName) ||
-          SingleArg.equals_insensitive(PVCDevices[I].Version))
+          SingleArg.equals_insensitive(PVCDevices[I].Version)) {
+        DevArg = SingleArg.str();
         return true;
+      }
       for (int HexVal : PVCDevices[I].HexValues) {
         int Value = 0;
-        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal)
+        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal) {
+          // TODO: Pass back the hex string to use for -device_options when
+          // IGC is updated to allow.  Currently -device_options only accepts
+          // the device ID (i.e. pvc) or the version (12.60.7).
           return true;
+        }
       }
       if (CheckShortVersion &&
-          StringRef(PVCDevices[I].Version).starts_with(SingleArg))
+          StringRef(PVCDevices[I].Version).starts_with(SingleArg)) {
+        DevArg = SingleArg.str();
         return true;
+      }
     }
   }
   return false;
@@ -1661,8 +1669,13 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
     // Check for any -device settings.
-    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs)) {
+    std::string DevArg;
+    if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
+      // The -device option passed in by the user may not be 'pvc'. Use the
+      // value provided by the user if it was specified.
       StringRef DeviceName = "pvc";
+      if (!DevArg.empty())
+        DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
         PerDeviceArgs.push_back(
