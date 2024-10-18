@@ -468,4 +468,21 @@ static inline void invoke_kernel_function(kernel_function &function,
            local_mem_size, kernel_params, extra);
 }
 
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(KernelName kernel, sycl::queue q,
+                                     sycl::range<RangeDim> wg_range,
+                                     size_t local_mem_size) {
+  // TODO(joe) some kind of bounds/range checking here?
+  namespace syclex = sycl::ext::oneapi::experimental;
+  sycl::device dev = q.get_device();
+  size_t max_wgs = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(q, wg_range,
+                                                                local_mem_size);
+  size_t max_compute_units =
+      dev.get_info<sycl::info::device::max_compute_units>();
+  std::cout << "Max compute units: " << max_compute_units
+            << " max_wgs: " << max_wgs << std::endl;
+  return max_wgs / max_compute_units;
+}
+
 } // namespace syclcompat
