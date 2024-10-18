@@ -71,7 +71,7 @@ SYCL_EXTERNAL auto TestBFtoFDeviceRZ(vec<bfloat16, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i32> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECINS0_3EXT6ONEAPI8BFLOAT16ELI3EE7CONVERTIILNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i16> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -139,7 +139,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRNE(vec<float, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIFLI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x float> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -169,7 +169,7 @@ SYCL_EXTERNAL auto TestFtoBFDeviceRZ(vec<float, 3> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_SROA_0_0_I_I_I:%.*]] = phi <4 x i16> [ undef, [[ENTRY:%.*]] ], [ [[RETVAL1_SROA_0_0_VECBLEND_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 3
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECIILI3EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE2EEENS1_IT_LI3EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <3 x i32> [[EXTRACTVEC_I_I]], i32 [[I_0_I_I_I]]
@@ -211,7 +211,7 @@ SYCL_EXTERNAL auto TestLLtoBFDeviceRTP(vec<long long, 1> &inp) {
 // CHECK:       for.cond.i.i.i:
 // CHECK-NEXT:    [[RETVAL1_0_I_I_I:%.*]] = phi <2 x i16> [ undef, [[ENTRY:%.*]] ], [ [[VECINS_I_I_I:%.*]], [[FOR_BODY_I_I_I:%.*]] ]
 // CHECK-NEXT:    [[I_0_I_I_I:%.*]] = phi i32 [ 0, [[ENTRY]] ], [ [[INC_I_I_I:%.*]], [[FOR_BODY_I_I_I]] ]
-// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ult i32 [[I_0_I_I_I]], 2
+// CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp samesign ult i32 [[I_0_I_I_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I_I_I]], label [[FOR_BODY_I_I_I]], label [[_ZNK4SYCL3_V13VECISLI2EE7CONVERTINS0_3EXT6ONEAPI8BFLOAT16ELNS_13ROUNDING_MODEE4EEENS1_IT_LI2EEEV_EXIT:%.*]]
 // CHECK:       for.body.i.i.i:
 // CHECK-NEXT:    [[VECEXT_I_I_I:%.*]] = extractelement <2 x i16> [[TMP0]], i32 [[I_0_I_I_I]]

@@ -197,7 +197,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -218,7 +218,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA25:![0-9]+]]
@@ -260,7 +260,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -281,7 +281,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA25]]
@@ -314,7 +314,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 3
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -346,7 +346,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM4EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -377,7 +377,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 7
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 7
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM7EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -410,7 +410,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
@@ -450,7 +450,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -472,7 +472,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
@@ -513,7 +513,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -535,7 +535,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
@@ -575,7 +575,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -625,7 +625,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -647,7 +647,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
@@ -689,7 +689,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
 // CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -711,7 +711,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    [[TMP7:%.*]] = load <4 x i16>, ptr [[VALUES]], align 2, !tbaa [[TBAA25]]
@@ -744,7 +744,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 3
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 3
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -776,7 +776,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 16
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 16
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM16EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
@@ -808,7 +808,7 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 11
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 11
 // CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM11EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
