@@ -3602,8 +3602,12 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
     BodyStmts.insert(BodyStmts.end(), FinalizeStmts.begin(),
                      FinalizeStmts.end());
 
+    const auto *LDcl = NewBody;
+    SourceLocation LL = LDcl ? LDcl->getBeginLoc() : SourceLocation();
+    SourceLocation LR = LDcl ? LDcl->getEndLoc() : SourceLocation();
+
     return CompoundStmt::Create(SemaSYCLRef.getASTContext(), BodyStmts,
-                                FPOptionsOverride(), {}, {});
+                                FPOptionsOverride(), LL, LR);
   }
 
   void annotateHierarchicalParallelismAPICalls() {
