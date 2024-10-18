@@ -132,8 +132,6 @@ inline constexpr bool properties_are_sorted = []() constexpr {
   } else {
     const std::array sort_keys = {property_tys::property_name...};
     // std::is_sorted isn't constexpr until C++20.
-    if (sort_keys.empty())
-      return true;
     for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
       if (sort_keys[idx - 1] >= sort_keys[idx])
         return false;
