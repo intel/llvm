@@ -31,6 +31,10 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace new_properties {
+
+template <typename properties_type_list_ty, typename = void>
+class __SYCL_EBO properties;
+
 namespace detail {
 template <typename... property_tys> struct properties_type_list;
 
@@ -112,18 +116,22 @@ protected:
       return *static_cast<const property_t *>(this);
     }
   }
+
+  // For key_t access in error reporting specialization.
+  template <typename, typename>
+  friend class __SYCL_EBO new_properties::properties;
 };
 
 template <typename... property_tys>
-inline constexpr bool property_keys_are_unique = []() constexpr {
+inline constexpr bool property_names_are_unique = []() constexpr {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {
-    const std::array keys = {property_tys::property_name...};
-    auto N = keys.size();
+    const std::array names = {property_tys::property_name...};
+    auto N = names.size();
     for (int i = 0; i < N; ++i)
       for (int j = i + 1; j < N; ++j)
-        if (keys[i] == keys[j])
+        if (names[i] == names[j])
           return false;
 
     return true;
@@ -135,22 +143,20 @@ inline constexpr bool properties_are_sorted = []() constexpr {
   if constexpr (sizeof...(property_tys) == 0) {
     return true;
   } else {
-    const std::array sort_keys = {property_tys::property_name...};
+    const std::array sort_names = {property_tys::property_name...};
     // std::is_sorted isn't constexpr until C++20.
     //
-    // Sorting is an implementation detail while uniqueness of the property_keys
-    // is an API restriction. This internal check actually combines both
-    // conditions as we expect that user error is handled before the internal
-    // `properties_are_sorted` assert is checked.
-    for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
-      if (sort_keys[idx - 1] >= sort_keys[idx])
+    // Sorting is an implementation detail while uniqueness of the
+    // property_name's is an API restriction. This internal check actually
+    // combines both conditions as we expect that user error is handled before
+    // the internal `properties_are_sorted` assert is checked.
+    for (std::size_t idx = 1; idx < sort_names.size(); ++idx)
+      if (sort_names[idx - 1] >= sort_names[idx])
         return false;
     return true;
   }
 }();
 } // namespace detail
-
-template <typename properties_type_list_ty, typename = void> class properties;
 
 template <typename T> struct is_property_list : std::false_type {};
 template <typename PropListTy>
@@ -164,7 +170,7 @@ inline constexpr bool is_property_v =
     !is_property_list_v<T>;
 
 // Empty property list.
-template <> class properties<detail::properties_type_list<>, void> {
+template <> class __SYCL_EBO properties<detail::properties_type_list<>, void> {
   template <typename> static constexpr bool has_property() { return false; }
 };
 
@@ -172,12 +178,32 @@ template <> class properties<detail::properties_type_list<>, void> {
 // an error "base class '<property>' specified more than once as a direct base
 // class" is reported prior to static_assert's error.
 template <typename... property_tys>
-class properties<
+class __SYCL_EBO properties<
     detail::properties_type_list<property_tys...>,
-    std::enable_if_t<!detail::property_keys_are_unique<property_tys...>>> {
+    std::enable_if_t<!detail::property_names_are_unique<property_tys...>>> {
+
+  // This is a separate specialization to report an error, we can afford doing
+  // extra work to provide nice error message without sacrificing compile time
+  // on non-exceptional path. Let's find *a* pair of properties that failed the
+  // check. Note that there might be multiple duplicate names, we're only
+  // reporting one instance. Once user addresses that, the next pair will be
+  // reported.
+  static constexpr auto conflict = []() constexpr {
+    const std::array keys = {property_tys::property_name...};
+    auto N = keys.size();
+    for (int i = 0; i < N; ++i)
+      for (int j = i + 1; j < N; ++j)
+        if (keys[i] == keys[j])
+          return std::pair{i, j};
+  }();
+  using first_type = detail::nth_type_t<conflict.first, property_tys...>;
+  using second_type = detail::nth_type_t<conflict.second, property_tys...>;
+  static_assert(
+      !std::is_same_v<typename first_type::key_t, typename second_type::key_t>,
+      "Duplicate property!");
+  static_assert(first_type::property_name != second_type::property_name,
+                "Property name collision between different property keys!");
   static_assert((is_property_v<property_tys> && ...));
-  static_assert(detail::property_keys_are_unique<property_tys...>,
-                "Property keys must be unique");
 };
 
 template <typename... property_tys>
