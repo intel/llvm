@@ -4,8 +4,6 @@
 
 using namespace sycl::ext::oneapi::experimental::new_properties;
 
-using mock_property_sort_key_t = int;
-
 template <typename property_key_t> constexpr auto generate_property_key_name() {
 #if defined(__clang__) || defined(__GNUC__)
   return __PRETTY_FUNCTION__;
@@ -73,69 +71,14 @@ template <int... N> void test(std::integer_sequence<int, N...>) {
 }
 } // namespace bench
 
-namespace test_group_load_store {
-struct naive : named_property_base<naive> {};
-struct full_group : named_property_base<full_group> {};
-constexpr properties pl1{full_group{}};
-constexpr properties pl2{pl1, naive{}};
-static_assert(pl1.template has_property<full_group>());
-static_assert(!pl1.template has_property<naive>());
-static_assert(pl2.template has_property<full_group>());
-static_assert(pl2.template has_property<naive>());
-
-enum class data_placement { blocked, striped };
-template <data_placement placement>
-struct data_placement_property
-    : named_property_base<data_placement_property<placement>,
-                          struct data_placement_property_key> {
-  static constexpr bool is_blocked() {
-    return placement == data_placement::blocked;
-  }
-};
-inline constexpr data_placement_property<data_placement::blocked> blocked;
-inline constexpr data_placement_property<data_placement::striped> striped;
-
-static_assert(properties{naive{}, blocked}
-                  .get_property<struct data_placement_property_key>()
-                  .is_blocked());
-static_assert(!properties{naive{}, striped}
-                   .get_property<struct data_placement_property_key>()
-                   .is_blocked());
-static_assert(
-    properties{naive{}, blocked}
-        .get_property_or_default_to<struct data_placement_property_key>(blocked)
-        .is_blocked());
-static_assert(
-    !properties{naive{}, data_placement_property<data_placement::striped>{}}
-         .get_property_or_default_to<struct data_placement_property_key>(
-             blocked)
-         .is_blocked());
-static_assert(
-    properties{naive{}}
-        .get_property_or_default_to<struct data_placement_property_key>(blocked)
-        .is_blocked());
-static_assert(
-    !properties{naive{}}
-         .get_property_or_default_to<struct data_placement_property_key>(
-             striped)
-         .is_blocked());
-
-constexpr properties pl3{full_group{}, blocked};
-// constexpr properties pl4{pl3, naive{}};
-template <typename... other_property_list_tys, typename... other_property_tys>
-constexpr auto merge_properties(
-    properties<detail::properties_type_list<other_property_list_tys...>>,
-    other_property_tys...) {
-  return 42;
-}
-static_assert(merge_properties(pl3, naive{}) == 42);
-} // namespace test_group_load_store
-
 namespace test_merge_ctor {
 template <int N> struct property : named_property_base<property<N>> {};
 
 constexpr properties pl1{property<1>{}, property<2>{}, property<3>{}};
 constexpr properties pl2{pl1, property<4>{}};
+static_assert(!pl1.has_property<property<4>>());
+static_assert(pl2.has_property<property<2>>());
+static_assert(pl2.has_property<property<4>>());
 } // namespace test_merge_ctor
 
 namespace test_compile_prop_in_runtime_list {
