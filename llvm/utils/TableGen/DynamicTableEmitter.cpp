@@ -24,7 +24,7 @@ using namespace llvm;
 
 namespace {
 
-int getAsInt(Init *B) {
+int getAsInt(const Init *B) {
   return cast<IntInit>(
              B->convertInitializerTo(IntRecTy::get(B->getRecordKeeper())))
       ->getValue();
@@ -59,16 +59,16 @@ public:
 
 private:
   std::string primaryRepresentation(SMLoc Loc, const GenericField &Field,
-                                    Init *I) {
-    if (StringInit *SI = dyn_cast<StringInit>(I)) {
+                                    const Init *I) {
+    if (const StringInit *SI = dyn_cast<StringInit>(I)) {
       if (Field.IsCode || SI->hasCodeFormat())
         return std::string(SI->getValue());
 
       return SI->getAsString();
     }
-    if (BitsInit *BI = dyn_cast<BitsInit>(I))
+    if (const BitsInit *BI = dyn_cast<BitsInit>(I))
       return "0x" + utohexstr(getAsInt(BI));
-    if (BitInit *BI = dyn_cast<BitInit>(I))
+    if (const BitInit *BI = dyn_cast<BitInit>(I))
       return BI->getValue() ? "true" : "false";
     if (Field.IsList) {
       if (auto LI = dyn_cast<ListInit>(I)) {
@@ -104,7 +104,7 @@ private:
   void emitDynamicTable(const DynamicTable &Table, raw_ostream &OS);
   void emitIfdef(Twine Guard, raw_ostream &OS);
 
-  bool parseFieldType(GenericField &Field, Init *II);
+  bool parseFieldType(GenericField &Field, const Init *II);
   void collectTableEntries(DynamicTable &Table,
                            ArrayRef<const Record *> Items);
 };
@@ -153,7 +153,8 @@ void DynamicTableEmitter::emitDynamicTable(const DynamicTable &Table,
   OS << "#endif\n\n";
 }
 
-bool DynamicTableEmitter::parseFieldType(GenericField &Field, Init *TypeOf) {
+bool DynamicTableEmitter::parseFieldType(GenericField &Field,
+                                         const Init *TypeOf) {
   if (auto Type = dyn_cast<StringInit>(TypeOf)) {
     if (Type->getValue() == "code") {
       Field.IsCode = true;
