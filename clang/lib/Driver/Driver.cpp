@@ -1338,11 +1338,11 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Archs.insert(Arch);
     }
     for (StringRef Arch : Archs) {
-      if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArchSYCL(
+      if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArch(
                              getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
         DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
       } else if (AMDTriple &&
-                 IsSYCLSupportedAMDGPUArch(StringToOffloadArchSYCL(
+                 IsSYCLSupportedAMDGPUArch(StringToOffloadArch(
                      getProcessorFromTargetID(*AMDTriple, Arch)))) {
         DerivedArchs[AMDTriple->getTriple()].insert(Arch);
       } else if (IsSYCLSupportedIntelCPUArch(StringToOffloadArchSYCL(Arch))) {
