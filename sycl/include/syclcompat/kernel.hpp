@@ -55,6 +55,7 @@
 #include <sycl/queue.hpp>
 
 #include <syclcompat/device.hpp>
+#include <syclcompat/dims.hpp>
 
 namespace syclcompat {
 
@@ -468,21 +469,39 @@ static inline void invoke_kernel_function(kernel_function &function,
            local_mem_size, kernel_params, extra);
 }
 
+// Calculate the number of work-groups per compute unit
+// \param [in] kernel SYCL kernel to calculate for
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_dim3 dim3 representing work-group shape
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
+template <class KernelName>
+size_t max_active_work_groups_per_cu(KernelName kernel, sycl::queue q,
+                                     syclcompat::dim3 wg_dim3,
+                                     size_t local_mem_size) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  // max_num_work_groups only supports range<3>
+  sycl::range<3> wg_range_3d(wg_dim3);
+  size_t max_wgs = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(q, wg_range_3d,
+                                                                local_mem_size);
+  size_t max_compute_units =
+      q.get_device().get_info<sycl::info::device::max_compute_units>();
+  // Spec dictates max_compute_units > 0, so no need to catch div 0
+  return max_wgs / max_compute_units;
+}
+
+// Calculate the number of work-groups per compute unit
+// \param [in] kernel SYCL kernel to calculate for
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_range SYCL work-group range
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
 template <class KernelName, int RangeDim>
 size_t max_active_work_groups_per_cu(KernelName kernel, sycl::queue q,
                                      sycl::range<RangeDim> wg_range,
                                      size_t local_mem_size) {
-  // TODO(joe) some kind of bounds/range checking here?
-  namespace syclex = sycl::ext::oneapi::experimental;
-  sycl::device dev = q.get_device();
-  size_t max_wgs = kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_groups>(q, wg_range,
-                                                                local_mem_size);
-  size_t max_compute_units =
-      dev.get_info<sycl::info::device::max_compute_units>();
-  std::cout << "Max compute units: " << max_compute_units
-            << " max_wgs: " << max_wgs << std::endl;
-  return max_wgs / max_compute_units;
+  return max_active_work_groups_per_cu(kernel, q, syclcompat::dim3(wg_range),
+                                       local_mem_size);
 }
-
 } // namespace syclcompat
