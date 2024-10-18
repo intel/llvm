@@ -33,6 +33,7 @@ function(get_source_info path revision repository)
       else()
         set(remote "origin")
       endif()
+      message("CALLING execute_process ${GIT_EXECUTABLE} remote get-url ${remote} in ${path}")
       execute_process(COMMAND ${GIT_EXECUTABLE} remote get-url ${remote}
         WORKING_DIRECTORY ${path}
         RESULT_VARIABLE git_result
@@ -44,6 +45,7 @@ function(get_source_info path revision repository)
         # user the best practices.
         string(REGEX MATCH "https?://[^/]*:[^/]*@.*"
           http_password "${git_output}")
+        message("http_password is ${http_password}")
         if(http_password)
           message(SEND_ERROR "The git remote repository URL has an embedded \
 password. Remove the password from the URL or use \
