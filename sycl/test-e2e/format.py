@@ -103,7 +103,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         # TODO: Define elsewhere?
         exceptions = {}
         exceptions["spir64"]={
-                "cuda":False, "hip":False,
+                "cuda":False, "hip":False, "hip_amd":False, "hip_nvidia":False,
                 }
         exceptions["system"]={
                 "linux":True, "windows":False, "system-windows":False,
