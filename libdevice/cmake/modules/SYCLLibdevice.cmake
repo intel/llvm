@@ -203,7 +203,7 @@ set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC)
   set(sanitizer_obj_deps
     device.h atomic.hpp spirv_vars.h
-    include/asan_libdevice.hpp
+    ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
     include/sanitizer_utils.hpp
     include/spir_global_var.hpp
     sycl-compiler)
@@ -271,7 +271,7 @@ else()
   add_devicelibs(libsycl-sanitizer
     SRC sanitizer_utils.cpp
     DEPENDENCIES ${sanitizer_obj_deps}
-    EXTRA_OPTS -fno-sycl-instrument-device-code)
+    EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
 endif()
 
 add_devicelibs(libsycl-fallback-cassert

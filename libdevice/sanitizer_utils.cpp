@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "asan_libdevice.hpp"
 #include "atomic.hpp"
 #include "device.h"
 #include "spirv_vars.h"
 
-#include "include/asan_libdevice.hpp"
 #include "include/sanitizer_utils.hpp"
 
 using uptr = uintptr_t;
