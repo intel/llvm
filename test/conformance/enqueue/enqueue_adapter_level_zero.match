@@ -3,8 +3,6 @@
 {{OPT}}urEnqueueKernelLaunchTest.InvalidKernelArgs/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchKernelWgSizeTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchKernelSubGroupTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-{{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__UsePoolEnabled
-{{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__UsePoolDisabled
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___copy_2d_3d
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___copy_3d_2d
 {{OPT}}urEnqueueMemBufferReadRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___write_non_zero_offsets_2D
