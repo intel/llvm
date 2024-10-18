@@ -8,6 +8,16 @@ set(CMAKE_MODULE_PATH
   "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules"
   )
 
+if(EXISTS ${FETCHCONTENT_BASE_DIR}/unified-runtime-src)
+  set(UR_SANITIZER_INCLUDE_DIR
+      ${FETCHCONTENT_BASE_DIR}/unified-runtime-src/source/loader/layers/sanitizer)
+elseif(EXISTS ${SYCL_UR_SOURCE_DIR})
+  set(UR_SANITIZER_INCLUDE_DIR
+      ${SYCL_UR_SOURCE_DIR}/source/loader/layers/sanitizer)
+else()
+  message(FATAL_ERROR "Unified Runtime source directory is not provided")
+endif()
+
 # Build libdevice for SYCL.
 include(SYCLLibdevice)
 

@@ -116,14 +116,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit cfada6f1f7049fba54d282bde03b2fe3f4106475
-  # Merge: 7739fc9c 4854c2fc
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Thu Oct 17 14:10:24 2024 +0100
-  #     Merge pull request #2063 from nrspruit/refactor_l0_default_init
-  #     [L0] Refactor to remove default constructor inits
-  set(UNIFIED_RUNTIME_TAG cfada6f1f7049fba54d282bde03b2fe3f4106475)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
+  set(UNIFIED_RUNTIME_TAG devsan-add-report-flag)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
