@@ -177,8 +177,6 @@ class __SYCL_EBO
   static_assert(
       detail::properties_are_sorted<property_tys...>,
       "Properties must be sorted!");
-  static_assert(
-      (std::is_base_of_v<detail::property_key_tag_base, property_tys> && ...));
   using property_tys::get_property...;
 
 public:
