@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // Recursion is not supported in ESIMD (intel/llvm PR#3390)
-// REQUIRES: TEMPORARY_DISBLED
+// REQUIRES: TEMPORARY_DISABLED
 // RUN: %{build} -o %t.out
 // RUN: env IGC_FunctionControl=3 IGC_ForceInlineStackCallWithImplArg=1 %{run} %t.out
 //
