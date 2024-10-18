@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
-
+#include <iostream>
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
@@ -567,7 +567,7 @@ private:
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
   void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
-    set_arg(ArgIndex, std::forward<T>(Arg));
+set_arg(ArgIndex, std::forward<T>(Arg));
     setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
   }
 
@@ -606,7 +606,7 @@ private:
 #endif
   }
 
-  void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
+  void setWorkGroupMemoryArg(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -626,7 +626,6 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
-
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
@@ -1850,7 +1849,7 @@ public:
   void set_arg(
       int ArgIndex,
       ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
-    setArgHelper(ArgIndex, Arg);
+    setWorkGroupMemoryArg(ArgIndex, Arg);
   }
 
   // set_arg for graph dynamic_parameters
@@ -1871,7 +1870,7 @@ public:
   ///
   /// \param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&...Args) {
-    setArgsHelper(0, std::forward<Ts>(Args)...);
+  setArgsHelper(0, std::forward<Ts>(Args)...);
   }
   /// Defines and invokes a SYCL kernel function as a function object type.
   ///
