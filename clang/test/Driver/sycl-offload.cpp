@@ -107,4 +107,6 @@
 
 /// Compilation checks to make sure an early empty -fsycl-targets does not
 /// crash.
-// RUN: %clangxx -### -fsycl -fsycl-targets= -fsycl-targets=spir64 %s
+// RUN: %clangxx -### -fsycl -fsycl-targets= -fsycl-targets=spir64 %s 2>&1 \
+// RUN:  | FileCheck %s -check-prefix=CHECK_SPIR64
+// CHECK_SPIR64: clang{{.*}} "-cc1" "-triple" "spir64-unknown-unknown"{{.*}} "-fsycl-is-device"
