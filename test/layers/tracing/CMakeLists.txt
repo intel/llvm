@@ -38,7 +38,6 @@ add_test(NAME example-collected-hello-world
     -D TEST_FILE=$<TARGET_FILE:hello_world>
     -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/hello_world.out.match
     -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-    DEPENDS collector hello_world
 )
 
 set_tracing_test_props(example-collected-hello-world collector)
@@ -49,7 +48,6 @@ add_test(NAME example-logged-hello-world
     -D TEST_FILE=$<TARGET_FILE:hello_world>
     -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/hello_world.out.logged.match
     -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-    DEPENDS hello_world
 )
 set_tests_properties(example-logged-hello-world PROPERTIES LABELS "tracing")
 set_property(TEST example-logged-hello-world PROPERTY ENVIRONMENT
@@ -73,7 +71,6 @@ function(add_tracing_test name)
         -D TEST_FILE=$<TARGET_FILE:${TEST_TARGET_NAME}>
         -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}.out.match
         -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-        DEPENDS test_collector
         WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
     set_tracing_test_props(${name} test_collector)

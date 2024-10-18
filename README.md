@@ -155,6 +155,13 @@ List of options provided by CMake:
 
 ### Additional make targets
 
+To run tests, do the following:
+
+```bash
+$ make
+$ make test
+```
+
 To run automated code formatting, configure CMake with `UR_FORMAT_CPP_STYLE` option
 and then run a custom `cppformat` target:
 

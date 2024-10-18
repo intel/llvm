@@ -67,7 +67,6 @@ function(add_adapter_memcheck_test name)
                 -D MODE=stderr
                 -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_memcheck.match
                 -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-                DEPENDS ${TEST_TARGET_NAME}
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
 
