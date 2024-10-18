@@ -98,6 +98,46 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
+    def make_default_features_list(self, expr, triple, add_default=True):
+        ### EXCEPTIONS LIST
+        # TODO: Define elsewhere?
+        exceptions = {}
+        exceptions["spir64"]={
+                "cuda":False, "hip":False,
+                }
+        exceptions["system"]={
+                "linux":True, "windows":False, "system-windows":False,
+                "run-mode":False, "TEMPORARY_DISABLED":False,
+                }
+        queried_features = []
+        for f in expr:
+            queried_features = queried_features + re.findall("[-+=._a-zA-Z0-9]+", f)
+
+        features = []
+        for f in queried_features:
+            if (exceptions[triple].get(
+                f,exceptions["system"].get(f,add_default))):
+                features.append(f)
+        return features
+
+    def select_triples_for_test(self, test):
+        # Check Triples
+        triples = set()
+        possible_triples = ["spir64"]
+        for triple in possible_triples:
+            unsupported=self.make_default_features_list(test.unsupported,triple,False)
+            required=self.make_default_features_list(test.requires,triple)
+            xfails=self.make_default_features_list(test.xfails,triple,False)
+            if test.getMissingRequiredFeaturesFromList(required):
+                continue
+            if self.getMatchedFromList(unsupported, test.unsupported):
+                continue
+            #if "*" in test.xfails or self.getMatchedFromList(xfails, test.xfails):
+            #    continue
+            triples.add(triple)
+
+        return triples
+
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
@@ -157,8 +197,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if "run-mode" not in test.config.available_features:
-            # TODO: Use requires/unsupported to decide triples to build for
-            triples.add("spir64")
+            triples = self.select_triples_for_test(test)
+            if not triples:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported backend to build for"
+                )
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
