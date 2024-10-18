@@ -260,14 +260,14 @@ public:
   TernaryOpTestLauncher(const syclcompat::dim3 &grid,
                         const syclcompat::dim3 &threads,
                         const size_t data_size = 1)
-      : OpTestLauncher{
-            grid, threads, data_size,
-            should_skip<ValueT>()(syclcompat::get_current_device())} {
+      : OpTestLauncher{grid, threads, data_size,
+                       should_skip<ValueT, ValueU, ValueV, ResultT>()(
+                           syclcompat::get_current_device())} {
     if (skip_)
       return;
     op1_ = syclcompat::malloc<ValueT>(data_size);
     op2_ = syclcompat::malloc<ValueU>(data_size);
-    op3_ = syclcompat::malloc<ValueU>(data_size);
+    op3_ = syclcompat::malloc<ValueV>(data_size);
     res_ = syclcompat::malloc<ResultT>(data_size);
   };
 
@@ -281,13 +281,13 @@ public:
   }
 
   template <auto Kernel>
-  void launch_test(ValueT op1, ValueU op2, ValueU op3, ResultT expected,
+  void launch_test(ValueT op1, ValueU op2, ValueV op3, ResultT expected,
                    bool need_relu = false) {
     if (skip_)
       return;
     syclcompat::memcpy<ValueT>(op1_, &op1, data_size_);
     syclcompat::memcpy<ValueU>(op2_, &op2, data_size_);
-    syclcompat::memcpy<ValueU>(op3_, &op3, data_size_);
+    syclcompat::memcpy<ValueV>(op3_, &op3, data_size_);
     syclcompat::launch<Kernel>(grid_, threads_, op1_, op2_, op3_, res_,
                                need_relu);
     syclcompat::wait();
