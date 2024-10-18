@@ -25,7 +25,7 @@ enum class source_language : int {
   spirv = 1,
   sycl = 2,
   /* cuda */
-  sycl_jit /* temporary, alternative implementation for SYCL */
+  sycl_jit = 99 /* temporary, alternative implementation for SYCL */
 };
 
 // opencl versions
