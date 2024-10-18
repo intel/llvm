@@ -108,9 +108,41 @@ protected:
     }
   }
 };
+
+template <typename... property_tys>
+inline constexpr bool property_keys_are_unique = []() constexpr {
+  if constexpr (sizeof...(property_tys) == 0) {
+    return true;
+  } else {
+    const std::array keys = {property_tys::property_name...};
+    auto N = keys.size();
+    for (int i = 0; i < N; ++i)
+      for (int j = i + 1; j < N; ++j)
+        if (keys[i] == keys[j])
+          return false;
+
+    return true;
+  }
+}();
+
+template <typename... property_tys>
+inline constexpr bool properties_are_sorted = []() constexpr {
+  if constexpr (sizeof...(property_tys) == 0) {
+    return true;
+  } else {
+    const std::array sort_keys = {property_tys::property_name...};
+    // std::is_sorted isn't constexpr until C++20.
+    if (sort_keys.empty())
+      return true;
+    for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
+      if (sort_keys[idx - 1] >= sort_keys[idx])
+        return false;
+    return true;
+  }
+}();
 } // namespace detail
 
-template <typename properties_type_list_ty> class properties;
+template <typename properties_type_list_ty, typename = void> class properties;
 
 template <typename T> struct is_property_list : std::false_type {};
 template <typename PropListTy>
@@ -123,26 +155,28 @@ inline constexpr bool is_property_v =
     std::is_base_of_v<detail::property_key_tag_base, T> &&
     !is_property_list_v<T>;
 
+template <> class properties<detail::properties_type_list<>, void> {
+  template <typename> static constexpr bool has_property() { return false; }
+};
+
 template <typename... property_tys>
-class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
+class properties<
+    detail::properties_type_list<property_tys...>,
+    std::enable_if_t<!detail::property_keys_are_unique<property_tys...>>> {
+  static_assert((is_property_v<property_tys> && ...));
+  static_assert(detail::property_keys_are_unique<property_tys...>,
+                "Property keys must be unique");
+};
+
+template <typename... property_tys>
+class __SYCL_EBO
+    properties<detail::properties_type_list<property_tys...>,
+               std::enable_if_t<detail::properties_are_sorted<property_tys...>>>
     : public property_tys... {
   static_assert((is_property_v<property_tys> && ...));
   static_assert(
-      []() constexpr {
-        if constexpr (sizeof...(property_tys) == 0) {
-          return true;
-        } else {
-          const std::array sort_keys = {property_tys::property_name...};
-          // std::is_sorted isn't constexpr until C++20.
-          if (sort_keys.empty())
-            return true;
-          for (std::size_t idx = 1; idx < sort_keys.size(); ++idx)
-            if (sort_keys[idx - 1] >= sort_keys[idx])
-              return false;
-          return true;
-        }
-      }(),
-      "Properties must be sorted and non-repeating!");
+      detail::properties_are_sorted<property_tys...>,
+      "Properties must be sorted!");
   static_assert(
       (std::is_base_of_v<detail::property_key_tag_base, property_tys> && ...));
   using property_tys::get_property...;
