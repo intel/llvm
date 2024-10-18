@@ -1874,17 +1874,11 @@ template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
 pow(const ValueT a, const ValueU b);
 
-template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
-relu(const ValueT a);
+template <typename ValueT> inline ValueT relu(const ValueT a);
 
-template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        sycl::vec<ValueT, 2>>
-relu(const sycl::vec<ValueT, 2> a);
+template <class ValueT, int NumElements>
+inline sycl::vec<ValueT, NumElements>
+relu(const sycl::vec<ValueT, NumElements> a);
 
 template <class ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
@@ -1987,9 +1981,12 @@ inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
 with each value treated as a vector type. `vectorized_unary` offers the same
-interface for operations with a single operand.
+interface for operations with a single operand. `vectorized_ternary` offers the
+interface for three operands with two `BinaryOperation`.
 The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
 `maximum`, `minimum`, and `sub_sat`.
+And the `vectorized_with_pred` offers the `BinaryOperation` for two operands,
+meanwihle provides the pred of high/low halfword operation.
 
 ```cpp
 namespace syclcompat {
@@ -2004,7 +2001,19 @@ struct abs {
 
 template <typename VecT, class BinaryOperation>
 inline unsigned vectorized_binary(unsigned a, unsigned b,
-                                  const BinaryOperation binary_op);
+                                  const BinaryOperation binary_op,
+                                  bool need_relu = false);
+
+template <typename VecT, typename BinaryOperation1, typename BinaryOperation2>
+inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
+                                   const BinaryOperation1 binary_op1,
+                                   const BinaryOperation2 binary_op2,
+                                   bool need_relu = false);
+
+template <typename ValueT, typename BinaryOperation>
+inline unsigned vectorized_with_pred(unsigned a, unsigned b,
+                                     const BinaryOperation binary_op,
+                                     bool *pred_hi, bool *pred_lo);
 
 // A sycl::abs_diff wrapper functor.
 struct abs_diff {
@@ -2030,11 +2039,15 @@ struct hadd {
 struct maximum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::min wrapper functor.
 struct minimum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::sub_sat wrapper functor.
 struct sub_sat {
