@@ -24,6 +24,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include "sycl/accessor.hpp"
 #include <syclcompat/kernel.hpp>
 
 template <class T, size_t Dim>
@@ -33,57 +34,84 @@ using sycl_global_accessor =
 
 using value_type = int;
 
-struct MyKernel {
-  MyKernel(sycl_global_accessor<value_type, 1> acc) : acc_{acc} {}
-  void operator()(sycl::nd_item<3> item) const {
-    auto gid = item.get_global_linear_id();
-    acc_[gid] = gid;
+template <int RangeDim> struct MyKernel {
+  MyKernel(sycl_global_accessor<value_type, RangeDim> acc) : acc_{acc} {}
+  void operator()(sycl::nd_item<RangeDim> item) const {
+    auto gid = item.get_global_id();
+    acc_[gid] = item.get_global_linear_id();
   }
-  sycl_global_accessor<value_type, 1> acc_;
+  sycl_global_accessor<value_type, RangeDim> acc_;
+  static constexpr bool has_local_mem = false;
 };
 
-// struct MyLocalMemKernel {
-//   MyKernel(sycl_global_accessor<value_type, 1> acc) : acc_{acc} {}
-//   void operator()(sycl::nd_item<3> item) const {
-//     auto gid = item.get_global_linear_id();
-//     acc_[gid] = gid;
-//   }
-//   sycl_global_accessor<value_type, 1> acc_;
-// };
-// TODO: local mem kernel
+template <int RangeDim> struct MyLocalMemKernel {
+  MyLocalMemKernel(sycl_global_accessor<value_type, RangeDim> acc,
+                   sycl::local_accessor<value_type, RangeDim> lacc)
+      : acc_{acc}, lacc_{lacc} {}
+  void operator()(sycl::nd_item<RangeDim> item) const {
+    auto gid = item.get_global_id();
+    acc_[gid] = item.get_global_linear_id();
+    auto lid = item.get_local_id();
+    lacc_[lid] = item.get_global_linear_id();
+  }
+  sycl_global_accessor<value_type, RangeDim> acc_;
+  sycl::local_accessor<value_type, RangeDim> lacc_;
+  static constexpr bool has_local_mem = true;
+};
 
-template <class KernelName> void test_max_active_work_groups_per_cu(sycl::queue q) {
+template <template <int> class KernelName, int RangeDim>
+void test_max_active_work_groups_per_cu(sycl::queue q,
+                                        sycl::range<RangeDim> wg_range,
+                                        size_t local_mem_size = 0) {
+  if constexpr (!KernelName<RangeDim>::has_local_mem)
+    assert(local_mem_size == 0 && "Bad test setup");
+
   auto ctx = q.get_context();
   auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
-  auto kernel = bundle.template get_kernel<KernelName>();
+  auto kernel = bundle.template get_kernel<KernelName<RangeDim>>();
 
-  sycl::range<3> wg_range{1, 1, 32}; //TODO: do we need to support 1, 2 D?
-  size_t num_work_items = 32; // TODO(joe)
-  sycl::buffer<value_type, 1> buf{sycl::range<1>{num_work_items}};
-  
- //TODO: this is a test 
-  namespace syclex = sycl::ext::oneapi::experimental;
-  auto maxWGs = kernel.template ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_groups>(
-      q, sycl::range<1>{32}, 0);
-  std::cout << "maxWGs: " << maxWGs << std::endl;
-  size_t max_per_cu = syclcompat::max_active_work_groups_per_cu(kernel, q, wg_range, 0);
+  size_t max_per_cu = syclcompat::max_active_work_groups_per_cu(
+      kernel, q, wg_range, local_mem_size);
+  size_t max_compute_units =
+      q.get_device().get_info<sycl::info::device::max_compute_units>();
 
   std::cout << "max_per_cu: " << max_per_cu << std::endl;
-  assert(false);
-  sycl::nd_range<3> my_range{wg_range*20, wg_range};//TODO:
-  q.submit([&](sycl::handler &cgh) {
-    auto acc = buf.get_access<sycl::access::mode::read_write>(cgh);
-    cgh.parallel_for(my_range, MyKernel{acc});
-  });
+  std::cout << "compute_units: " << max_compute_units << std::endl;
+
+  // We aren't interested in the launch here, it's here to define the kernel
+  sycl::range<RangeDim> global_range = wg_range;
+  global_range[0] = global_range[0] * max_per_cu * max_compute_units;
+  sycl::nd_range<RangeDim> my_range{global_range, wg_range};
+  sycl::buffer<value_type, RangeDim> buf{global_range};
+
+  if (false) {
+    q.submit([&](sycl::handler &cgh) {
+      auto acc = buf.template get_access<sycl::access::mode::read_write>(cgh);
+      if constexpr (KernelName<RangeDim>::has_local_mem) {
+        sycl::local_accessor<value_type, RangeDim> lacc(
+            my_range.get_local_range(), cgh);
+        cgh.parallel_for(my_range, KernelName<RangeDim>{acc, lacc});
+      } else {
+        cgh.parallel_for(my_range, KernelName<RangeDim>{acc});
+      }
+    });
+  }
 }
 
 int main() {
   sycl::queue q{};
 
-  test_max_active_work_groups_per_cu<MyKernel>(q);
-  //TODO: What tests cases do we want here?
-  //Regular
-  //Local mem
-  //range dim
+  test_max_active_work_groups_per_cu<MyKernel, 3>(q, {32, 1, 1});
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 3>(
+      q, {32, 1, 1}, 32 * sizeof(value_type));
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 2>(
+      q, {32, 1}, 32 * 200 * sizeof(value_type));
+  // test_max_active_work_groups_per_cu<MyKernel<2>, 2>(q); //TODO: template arg
+  // here is a mess
+  // TODO: What tests cases do we want here?
+  // Regular
+  // Local mem
+  // range dim
+  assert(false);
+  return 0;
 }
