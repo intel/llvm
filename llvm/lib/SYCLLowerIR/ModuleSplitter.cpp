@@ -244,8 +244,7 @@ private:
         Graph[UFunc].insert(V);
       } else if (isa<const Constant>(U)) {
         if (const auto *GV = dyn_cast<const GlobalVariable>(U))
-          if (Graph[GV].insert(V).second == false)
-            continue;
+          Graph[GV].insert(V);
         // This could be a global variable or some constant expression (like
         // bitcast or gep). We trace users of this constant further to reach
         // global objects they are used by and add them to the graph.
