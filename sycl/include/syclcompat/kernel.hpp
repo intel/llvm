@@ -54,9 +54,6 @@
 #include <sycl/nd_range.hpp>
 #include <sycl/queue.hpp>
 
-#include <syclcompat/device.hpp>
-#include <syclcompat/dims.hpp>
-
 namespace syclcompat {
 
 typedef void (*kernel_functor)(sycl::queue &, const sycl::nd_range<3> &,
@@ -468,4 +465,5 @@ static inline void invoke_kernel_function(kernel_function &function,
   function(queue, sycl::nd_range<3>(group_range * local_range, local_range),
            local_mem_size, kernel_params, extra);
 }
+
 } // namespace syclcompat
