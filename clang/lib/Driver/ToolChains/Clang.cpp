@@ -5194,7 +5194,7 @@ void Clang::ConstructHostCompilerJob(Compilation &C, const JobAction &JA,
   if (HostCompilerDefArg) {
     ExecPath = HostCompilerDefArg->getValue();
     if (!ExecPath.empty() && ExecPath == llvm::sys::path::stem(ExecPath))
-      // Use PATH to find executable.
+      // Use PATH to find executable passed in from -fsycl-host-compiler.
       if (llvm::ErrorOr<std::string> Prog =
               llvm::sys::findProgramByName(ExecPath))
         ExecPath = *Prog;

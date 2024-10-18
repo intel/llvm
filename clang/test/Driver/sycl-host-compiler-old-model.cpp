@@ -94,7 +94,7 @@
 /// Test to verify binary from PATH is used
 // RUN: rm -rf %t && mkdir -p %t/test_path
 // RUN: touch %t/test_path/clang++ && chmod +x %t/test_path/clang++
-// RUN: env PATH=%t/test_path \
+// RUN: env "PATH=%t/test_path%{pathsep}%PATH%" \
 // RUN: %clangxx -### -fsycl -fsycl-host-compiler=clang++ \
 // RUN:   -fsycl-host-compiler-options=-DDUMMY_OPT --no-offload-new-driver \
 // RUN:   %s 2>&1 \
