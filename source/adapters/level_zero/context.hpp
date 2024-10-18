@@ -302,8 +302,8 @@ struct ur_context_handle_t_ : _ur_object {
   ur_result_t getAvailableCommandList(
       ur_queue_handle_t Queue, ur_command_list_ptr_t &CommandList,
       bool UseCopyEngine, uint32_t NumEventsInWaitList,
-      const ur_event_handle_t *EventWaitList, bool AllowBatching,
-      ze_command_queue_handle_t *ForcedCmdQueue);
+      const ur_event_handle_t *EventWaitList, bool AllowBatching = false,
+      ze_command_queue_handle_t *ForcedCmdQueue = nullptr);
 
   // Checks if Device is covered by this context.
   // For that the Device or its root devices need to be in the context.

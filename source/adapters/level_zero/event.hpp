@@ -32,8 +32,8 @@ ur_result_t urEventReleaseInternal(ur_event_handle_t Event);
 ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
                         ur_event_handle_t *RetEvent,
-                        bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling);
+                        bool CounterBasedEventEnabled = false,
+                        bool ForceDisableProfiling = false);
 } // extern "C"
 
 // This is an experimental option that allows to disable caching of events in
@@ -273,8 +273,9 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle);
 // the event, updates the last command event in the queue and cleans up all dep
 // events of the event.
 // If the caller locks queue mutex then it must pass 'true' to QueueLocked.
-ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
-                                  bool SetEventCompleted);
+ur_result_t CleanupCompletedEvent(ur_event_handle_t Event,
+                                  bool QueueLocked = false,
+                                  bool SetEventCompleted = false);
 
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {

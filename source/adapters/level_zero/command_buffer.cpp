@@ -147,10 +147,8 @@ ur_result_t createSyncPointAndGetZeEvents(
   UR_CALL(getEventsFromSyncPoints(CommandBuffer, NumSyncPointsInWaitList,
                                   SyncPointWaitList, ZeEventList));
   ur_event_handle_t LaunchEvent;
-  UR_CALL(EventCreate(CommandBuffer->Context, nullptr /*Queue*/,
-                      false /*IsMultiDevice*/, HostVisible, &LaunchEvent,
-                      false /*CounterBasedEventEnabled*/,
-                      !CommandBuffer->IsProfilingEnabled));
+  UR_CALL(EventCreate(CommandBuffer->Context, nullptr, false, HostVisible,
+                      &LaunchEvent, false, !CommandBuffer->IsProfilingEnabled));
   LaunchEvent->CommandType = CommandType;
   ZeLaunchEvent = LaunchEvent->ZeEvent;
 
@@ -328,26 +326,22 @@ void ur_exp_command_buffer_handle_t_::cleanupCommandBufferResources() {
 
   // Release additional signal and wait events used by command_buffer
   if (SignalEvent) {
-    CleanupCompletedEvent(SignalEvent, false /*QueueLocked*/,
-                          false /*SetEventCompleted*/);
+    CleanupCompletedEvent(SignalEvent, false);
     urEventReleaseInternal(SignalEvent);
   }
   if (WaitEvent) {
-    CleanupCompletedEvent(WaitEvent, false /*QueueLocked*/,
-                          false /*SetEventCompleted*/);
+    CleanupCompletedEvent(WaitEvent, false);
     urEventReleaseInternal(WaitEvent);
   }
   if (AllResetEvent) {
-    CleanupCompletedEvent(AllResetEvent, false /*QueueLocked*/,
-                          false /*SetEventCompleted*/);
+    CleanupCompletedEvent(AllResetEvent, false);
     urEventReleaseInternal(AllResetEvent);
   }
 
   // Release events added to the command_buffer
   for (auto &Sync : SyncPoints) {
     auto &Event = Sync.second;
-    CleanupCompletedEvent(Event, false /*QueueLocked*/,
-                          false /*SetEventCompleted*/);
+    CleanupCompletedEvent(Event, false);
     urEventReleaseInternal(Event);
   }
 
@@ -520,15 +514,12 @@ urCommandBufferCreateExp(ur_context_handle_t Context, ur_device_handle_t Device,
   ur_event_handle_t WaitEvent;
   ur_event_handle_t AllResetEvent;
 
-  UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                      false /*HostVisible*/, &SignalEvent,
-                      false /*CounterBasedEventEnabled*/, !EnableProfiling));
-  UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                      false /*HostVisible*/, &WaitEvent,
-                      false /*CounterBasedEventEnabled*/, !EnableProfiling));
-  UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
-                      false /*HostVisible*/, &AllResetEvent,
-                      false /*CounterBasedEventEnabled*/, !EnableProfiling));
+  UR_CALL(EventCreate(Context, nullptr, false, false, &SignalEvent, false,
+                      !EnableProfiling));
+  UR_CALL(EventCreate(Context, nullptr, false, false, &WaitEvent, false,
+                      !EnableProfiling));
+  UR_CALL(EventCreate(Context, nullptr, false, false, &AllResetEvent, false,
+                      !EnableProfiling));
   std::vector<ze_event_handle_t> PrecondEvents = {WaitEvent->ZeEvent,
                                                   AllResetEvent->ZeEvent};
 
@@ -1228,15 +1219,14 @@ ur_result_t waitForDependencies(ur_exp_command_buffer_handle_t CommandBuffer,
       // when `EventWaitList` dependencies are complete.
       ur_command_list_ptr_t WaitCommandList{};
       UR_CALL(Queue->Context->getAvailableCommandList(
-          Queue, WaitCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
-          EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+          Queue, WaitCommandList, false, NumEventsInWaitList, EventWaitList,
+          false));
 
       ZE2UR_CALL(zeCommandListAppendBarrier,
                  (WaitCommandList->first, CommandBuffer->WaitEvent->ZeEvent,
                   CommandBuffer->WaitEvent->WaitList.Length,
                   CommandBuffer->WaitEvent->WaitList.ZeEventList));
-      Queue->executeCommandList(WaitCommandList, false /*IsBlocking*/,
-                                false /*OKToBatchCommand*/);
+      Queue->executeCommandList(WaitCommandList, false, false);
       MustSignalWaitEvent = false;
     }
   }
@@ -1348,9 +1338,9 @@ urCommandBufferEnqueueExp(ur_exp_command_buffer_handle_t CommandBuffer,
 
   // Create a command-list to signal the Event on completion
   ur_command_list_ptr_t SignalCommandList{};
-  UR_CALL(Queue->Context->getAvailableCommandList(
-      Queue, SignalCommandList, false /*UseCopyEngine*/, NumEventsInWaitList,
-      EventWaitList, false /*AllowBatching*/, nullptr /*ForcedCmdQueue*/));
+  UR_CALL(Queue->Context->getAvailableCommandList(Queue, SignalCommandList,
+                                                  false, NumEventsInWaitList,
+                                                  EventWaitList, false));
 
   // Reset the wait-event for the UR command-buffer that is signaled when its
   // submission dependencies have been satisfied.
@@ -1365,8 +1355,7 @@ urCommandBufferEnqueueExp(ur_exp_command_buffer_handle_t CommandBuffer,
   // parameter with signal command-list completing.
   UR_CALL(createUserEvent(CommandBuffer, Queue, SignalCommandList, Event));
 
-  UR_CALL(Queue->executeCommandList(SignalCommandList, false /*IsBlocking*/,
-                                    false /*OKToBatchCommand*/));
+  UR_CALL(Queue->executeCommandList(SignalCommandList, false, false));
 
   return UR_RESULT_SUCCESS;
 }
