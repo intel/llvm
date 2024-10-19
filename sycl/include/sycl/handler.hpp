@@ -606,7 +606,7 @@ private:
 #endif
   }
 
-  void setWorkGroupMemoryArg(int ArgIndex, detail::work_group_memory_impl &Arg);
+  void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -1850,7 +1850,7 @@ public:
   void set_arg(
       int ArgIndex,
       ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
-    setWorkGroupMemoryArg(ArgIndex, Arg);
+    setArgHelper(ArgIndex, Arg);
   }
 
   // set_arg for graph dynamic_parameters

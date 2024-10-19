@@ -819,8 +819,7 @@ void handler::processArg(void *Ptr, const detail::kernel_param_kind_t &Kind,
   }
 }
 
-void handler::setWorkGroupMemoryArg(int ArgIndex,
-                                    detail::work_group_memory_impl &Arg) {
+void handler::setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg) {
   impl->MWorkGroupMemoryObjects.push_back(
       std::make_shared<detail::work_group_memory_impl>(Arg));
   addArg(detail::kernel_param_kind_t::kind_work_group_memory,
