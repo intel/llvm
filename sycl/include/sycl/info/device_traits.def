@@ -208,27 +208,6 @@ __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_srgb, bool,
 __SYCL_PARAM_TRAITS_SPEC(device, ext_intel_mem_channel, bool,
                          UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT)
 
-//Deprecated oneapi/intel extension
-//TODO:Remove when possible
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_pci_address, std::string,
-                         UR_DEVICE_INFO_PCI_ADDRESS)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count, uint32_t,
-                         UR_DEVICE_INFO_GPU_EU_COUNT)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_simd_width, uint32_t,
-                         UR_DEVICE_INFO_GPU_EU_SIMD_WIDTH)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_slices, uint32_t,
-                         UR_DEVICE_INFO_GPU_EU_SLICES)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_subslices_per_slice, uint32_t,
-                         UR_DEVICE_INFO_GPU_SUBSLICES_PER_SLICE)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_eu_count_per_subslice, uint32_t,
-                         UR_DEVICE_INFO_GPU_EU_COUNT_PER_SUBSLICE)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_gpu_hw_threads_per_eu, uint32_t,
-                         UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_device_info_uuid, detail::uuid_type,
-                         UR_DEVICE_INFO_UUID)
-__SYCL_PARAM_TRAITS_SPEC(device, ext_intel_max_mem_bandwidth, uint64_t,
-                         UR_DEVICE_INFO_MAX_MEMORY_BANDWIDTH)
-
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_1d, id<1>, __SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_2d, id<2>, __SYCL_TRAIT_HANDLED_IN_RT)
 __SYCL_PARAM_TRAITS_SPEC(device, ext_oneapi_max_work_groups_3d, id<3>,
