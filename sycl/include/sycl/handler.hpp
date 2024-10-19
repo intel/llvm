@@ -3584,9 +3584,9 @@ private:
       if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
-            "A local accessor must not be used in a SYCL kernel function "
-            "that is invoked via single_task or via the simple form of "
-            "parallel_for that takes a range parameter.");
+            "A work group memory object must not be used in a SYCL kernel "
+            "function that is invoked via single_task or via the simple form "
+            "of parallel_for that takes a range parameter.");
     }
   }
 
