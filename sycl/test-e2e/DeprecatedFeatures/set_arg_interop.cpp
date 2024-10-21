@@ -10,6 +10,7 @@
 #include <sycl/usm.hpp>
 
 #include <cassert>
+#include <thread>
 
 using namespace sycl;
 
@@ -19,7 +20,7 @@ int main() {
 
   cl_context ClContext = Context.get();
 
-  const size_t CountSources = 3;
+  const size_t CountSources = 4;
   const char *Sources[CountSources] = {
       "kernel void foo1(global float* Array, global int* Value) { *Array = "
       "42; *Value = 1; }\n",
@@ -27,6 +28,7 @@ int main() {
       "Array[id] = id; }\n",
       "kernel void foo3(global float* Array, local float* LocalArray) { "
       "(void)LocalArray; (void)Array; }\n",
+      "kernel void foo4(global int* Value) {}\n",
   };
 
   cl_int Err;
@@ -46,12 +48,16 @@ int main() {
   cl_kernel ThirdCLKernel = clCreateKernel(ClProgram, "foo3", &Err);
   assert(Err == CL_SUCCESS);
 
+  cl_kernel FourthCLKernel = clCreateKernel(ClProgram, "foo4", &Err);
+  assert(Err == CL_SUCCESS);
+
   const size_t Count = 100;
   float Array[Count];
 
   kernel FirstKernel(FirstCLKernel, Context);
   kernel SecondKernel(SecondCLKernel, Context);
   kernel ThirdKernel(ThirdCLKernel, Context);
+  kernel FourthKernel(FourthCLKernel, Context);
   int Value;
   {
     buffer<float, 1> FirstBuffer(Array, range<1>(1));
@@ -114,10 +120,37 @@ int main() {
   }
   Queue.wait_and_throw();
 
+  // Enqueuing an interop kernel while avoid calls to piKernelSetArg from
+  // different threads on the same kernel.
+  {
+    constexpr std::size_t NArgs = 16;
+    constexpr std::size_t ThreadCount = 4;
+    constexpr std::size_t LaunchCount = 8;
+    auto TestLambda = [&](int ThreadId) {
+      Queue
+          .submit([&](sycl::handler &CGH) {
+            for (std::size_t I = 0; I < NArgs; ++I)
+              CGH.set_arg(I, &ThreadId);
+          })
+          .wait();
+    };
+
+    std::vector<std::thread> threadPool;
+    threadPool.reserve(ThreadCount);
+    for (size_t tid = 0; tid < ThreadCount; ++tid) {
+      threadPool.push_back(std::thread(TestLambda, tid));
+    }
+
+    for (auto &currentThread : threadPool) {
+      currentThread.join();
+    }
+  }
+
   clReleaseContext(ClContext);
   clReleaseKernel(FirstCLKernel);
   clReleaseKernel(SecondCLKernel);
   clReleaseKernel(ThirdCLKernel);
+  clReleaseKernel(FourthCLKernel);
   clReleaseProgram(ClProgram);
   return 0;
 }
