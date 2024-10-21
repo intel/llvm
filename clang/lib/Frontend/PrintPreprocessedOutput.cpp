@@ -272,32 +272,35 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
                                              unsigned ExtraLen) {
   startNewLineIfNeeded();
 
-  StringRef CurFilenameWithNoLeaningDotSlash =
+  if (PP.getLangOpts().isSYCL()) {
+  StringRef CurFilenameWithNoLeadingDotSlash =
       llvm::sys::path::remove_leading_dotbackslash(CurFilename.str());
-  if ((CurFilenameWithNoLeaningDotSlash ==
-              PP.getPreprocessorOpts().IncludeFooter) ||
-      CurFilenameWithNoLeaningDotSlash ==
-              PP.getPreprocessorOpts().IncludeHeader) {
-    CurFilename = "<uninit>";
-  }
-    // Emit #line directives or GNU line markers depending on what mode we're in.
-    if (UseLineDirectives) {
-      *OS << "#line" << ' ' << LineNo << ' ' << '"';
-      OS->write_escaped(CurFilename);
-      *OS << '"';
-    } else {
-      *OS << '#' << ' ' << LineNo << ' ' << '"';
-      OS->write_escaped(CurFilename);
-      *OS << '"';
-
-      if (ExtraLen)
-        OS->write(Extra, ExtraLen);
-
-      if (FileType == SrcMgr::C_System)
-        OS->write(" 3", 2);
-      else if (FileType == SrcMgr::C_ExternCSystem)
-        OS->write(" 3 4", 4);
+    if ((CurFilenameWithNoLeadingDotSlash ==
+         PP.getPreprocessorOpts().IncludeFooter) ||
+        CurFilenameWithNoLeadingDotSlash ==
+            PP.getPreprocessorOpts().IncludeHeader) {
+      CurFilename = "<uninit>";
     }
+  }
+
+  // Emit #line directives or GNU line markers depending on what mode we're in.
+  if (UseLineDirectives) {
+    *OS << "#line" << ' ' << LineNo << ' ' << '"';
+    OS->write_escaped(CurFilename);
+    *OS << '"';
+  } else {
+    *OS << '#' << ' ' << LineNo << ' ' << '"';
+    OS->write_escaped(CurFilename);
+    *OS << '"';
+
+    if (ExtraLen)
+      OS->write(Extra, ExtraLen);
+
+    if (FileType == SrcMgr::C_System)
+      OS->write(" 3", 2);
+    else if (FileType == SrcMgr::C_ExternCSystem)
+      OS->write(" 3 4", 4);
+  }
 
   *OS << '\n';
 }
