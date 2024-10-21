@@ -67,6 +67,11 @@ constexpr CUDAContextT DefaultContextType = CUDAContextT::custom;
 
 enum QueueOrder { Ordered, OOO };
 
+// Implementation of the submission information storage.
+struct SubmissionInfoImpl {
+  std::optional<detail::SubmitPostProcessF> MPostProcessorFunc = nullptr;
+};
+
 class queue_impl {
 public:
   // \return a default context for the platform if it includes the device
@@ -319,8 +324,6 @@ public:
     }
   }
 
-  using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
-
   /// Submits a command group function object to the queue, in order to be
   /// scheduled for execution on the device.
   ///
@@ -340,14 +343,17 @@ public:
                const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
+    SubmissionInfo SI{};
+    if (PostProcess)
+      SI.SetPostProcessing(*PostProcess);
     try {
       ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
                              /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                             PostProcess);
+                             SI);
     } catch (...) {
       ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
                                           /*CallerNeedsEvent=*/true, Loc,
-                                          IsTopCodeLoc, PostProcess);
+                                          IsTopCodeLoc, SI);
     }
     return discard_or_return(ResEvent);
   }
@@ -357,25 +363,27 @@ public:
   ///
   /// \param CGF is a function object containing command group.
   /// \param Self is a shared_ptr to this queue.
+  /// \param SubmitInfo is additional optional information for the submission.
   /// \param Loc is the code location of the submit call (default argument)
   /// \param StoreAdditionalInfo makes additional info be stored in event_impl
   /// \return a SYCL event object for the submitted command group.
-  event submit(const std::function<void(handler &)> &CGF,
-               const std::shared_ptr<queue_impl> &Self,
-               const detail::code_location &Loc, bool IsTopCodeLoc,
-               const SubmitPostProcessF *PostProcess = nullptr) {
+  event submit_with_event(const std::function<void(handler &)> &CGF,
+                          const std::shared_ptr<queue_impl> &Self,
+                          const SubmissionInfo &SubmitInfo,
+                          const detail::code_location &Loc, bool IsTopCodeLoc) {
     auto ResEvent =
         submit_impl(CGF, Self, Self, nullptr,
-                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, PostProcess);
+                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
   }
 
   void submit_without_event(const std::function<void(handler &)> &CGF,
                             const std::shared_ptr<queue_impl> &Self,
-                            const detail::code_location &Loc, bool IsTopCodeLoc,
-                            const SubmitPostProcessF *PostProcess = nullptr) {
+                            const SubmissionInfo &SubmitInfo,
+                            const detail::code_location &Loc,
+                            bool IsTopCodeLoc) {
     submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                IsTopCodeLoc, PostProcess);
+                IsTopCodeLoc, SubmitInfo);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -822,13 +830,14 @@ protected:
   /// \param CallerNeedsEvent is a boolean indicating whether the event is
   ///        required by the user after the call.
   /// \param Loc is the code location of the submit call (default argument)
+  /// \param SubmitInfo is additional optional information for the submission.
   /// \return a SYCL event representing submitted command group.
   event submit_impl(const std::function<void(handler &)> &CGF,
                     const std::shared_ptr<queue_impl> &Self,
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
-                    bool IsTopCodeLoc, const SubmitPostProcessF *PostProcess);
+                    bool IsTopCodeLoc, const SubmissionInfo &SubmitInfo);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
