@@ -67,4 +67,13 @@
 
 // MISSING: error: must pass in an explicit cpu or gpu architecture to '--offload-arch'
 
+// Tests for handling a incorrect architecture.
+//
+// RUN: not %clangxx --offload-new-driver -fsycl --offload-arch=badArch %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=BAD-ARCH %s
+// RUN: not %clang_cl --offload-new-driver -fsycl --offload-arch=badArch %s -### 2>&1 \
+// RUN:   | FileCheck -check-prefix=BAD-ARCH %s
+
+// BAD-ARCH: error: SYCL target is invalid: 'badArch'
+
 
