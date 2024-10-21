@@ -114,6 +114,16 @@ namespace test_static_get_property {
   }
 }
 
+namespace test_trait {
+struct prop : named_property_base<prop> {};
+struct prop2 : named_property_base<prop2> {};
+constexpr properties pl{prop{}};
+using ty = std::remove_const_t<decltype(pl)>;
+static_assert(all_properties_in_v<ty, prop>);
+static_assert(all_properties_in_v<empty_properties_t, prop>);
+static_assert(!all_properties_in_v<ty, prop2>);
+} // namespace test_trait
+
 int main() {
   test::test();
   bench::test(std::make_integer_sequence<int, 67>{});

@@ -892,16 +892,14 @@ build(const kernel_bundle<bundle_state::input> &InputBundle,
 
 namespace ext::oneapi::experimental {
 
-namespace detail {
-struct create_bundle_from_source_props;
-struct build_source_bundle_props;
-} // namespace detail
-
 /////////////////////////
 // PropertyT syclex::include_files
 /////////////////////////
 struct include_files
-    : detail::run_time_property_key<detail::PropKind::IncludeFiles> {
+  : new_properties::detail::property_base<include_files> {
+  static constexpr std::string_view property_name{
+      "sycl::ext::oneapi::experimental::include_files"};
+
   include_files();
   include_files(const std::string &name, const std::string &content) {
     record.emplace_back(std::make_pair(name, content));
@@ -911,46 +909,35 @@ struct include_files
   }
   std::vector<std::pair<std::string, std::string>> record;
 };
-using include_files_key = include_files;
-
-template <>
-struct is_property_key_of<include_files_key,
-                          detail::create_bundle_from_source_props>
-    : std::true_type {};
 
 /////////////////////////
 // PropertyT syclex::build_options
 /////////////////////////
-struct build_options
-    : detail::run_time_property_key<detail::PropKind::BuildOptions> {
+struct build_options : new_properties::detail::property_base<build_options> {
+  static constexpr std::string_view property_name{
+      "sycl::ext::oneapi::experimental::build_options"};
   std::vector<std::string> opts;
   build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
 };
-using build_options_key = build_options;
-
-template <>
-struct is_property_key_of<build_options_key, detail::build_source_bundle_props>
-    : std::true_type {};
 
 /////////////////////////
 // PropertyT syclex::save_log
 /////////////////////////
-struct save_log : detail::run_time_property_key<detail::PropKind::BuildLog> {
+struct save_log : new_properties::detail::property_base<save_log> {
+  static constexpr std::string_view property_name{
+      "sycl::ext::oneapi::experimental::save_log"};
   std::string *log;
   save_log(std::string *logArg) : log(logArg) {}
 };
-using save_log_key = save_log;
-
-template <>
-struct is_property_key_of<save_log_key, detail::build_source_bundle_props>
-    : std::true_type {};
 
 /////////////////////////
 // PropertyT syclex::registered_kernel_names
 /////////////////////////
 struct registered_kernel_names
-    : detail::run_time_property_key<detail::PropKind::RegisteredKernelNames> {
+    : new_properties::detail::property_base<registered_kernel_names> {
+  static constexpr std::string_view property_name{
+      "sycl::ext::oneapi::experimental::registered_kernel_names"};
   std::vector<std::string> kernel_names;
   registered_kernel_names() {}
   registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}
@@ -958,14 +945,17 @@ struct registered_kernel_names
       : kernel_names(knsArg) {}
   void add(const std::string &name) { kernel_names.push_back(name); }
 };
-using registered_kernel_names_key = registered_kernel_names;
-
-template <>
-struct is_property_key_of<registered_kernel_names_key,
-                          detail::build_source_bundle_props> : std::true_type {
-};
 
 namespace detail {
+template <typename property_list_ty>
+inline constexpr bool are_properties_valid_for_create_bundle_from_source =
+    new_properties::all_properties_in_v<property_list_ty, include_files>;
+
+template <typename property_list_ty>
+inline constexpr bool are_properties_valid_for_build_source_bundle =
+    new_properties::all_properties_in_v<property_list_ty, build_options,
+                                        save_log, registered_kernel_names>;
+
 // forward decls
 __SYCL_EXPORT bool is_source_kernel_bundle_supported(backend BE,
                                                      source_language Language);
@@ -1054,12 +1044,10 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = new_properties::empty_properties_t,
+          typename = std::enable_if_t<
+              detail::are_properties_valid_for_create_bundle_from_source<
+                  PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::string &Source, PropertyListT props = {}) {
@@ -1073,12 +1061,10 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = new_properties::empty_properties_t,
+          typename = std::enable_if_t<
+              detail::are_properties_valid_for_create_bundle_from_source<
+                  PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
@@ -1096,12 +1082,10 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 // syclex::build(source_kb) => exe_kb
 /////////////////////////
 
-template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
-
+template <
+    typename PropertyListT = new_properties::empty_properties_t,
+    typename = std::enable_if_t<
+        detail::are_properties_valid_for_build_source_bundle<PropertyListT>>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       const std::vector<device> &Devices, PropertyListT props = {}) {
@@ -1122,11 +1106,10 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
                                    RegisteredKernelNamesVec);
 }
 
-template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
+template <
+    typename PropertyListT = new_properties::empty_properties_t,
+    typename = std::enable_if_t<
+        detail::are_properties_valid_for_build_source_bundle<PropertyListT>>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {

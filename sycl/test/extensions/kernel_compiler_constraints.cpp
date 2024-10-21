@@ -8,15 +8,20 @@
 
 // RUN: %clangxx  -fsyntax-only -fsycl -Xclang -verify -Xclang -verify-ignore-unexpected=note %s
 
-// kernel_bundles sporting the new bundle_state::ext_oneapi_source should NOT
+// kernel_bundles supporting the new bundle_state::ext_oneapi_source should NOT
 // support several member functions. This test confirms that.
 
 #include <sycl/sycl.hpp>
 
+namespace syclex = sycl::ext::oneapi::experimental;
+
+struct some_property : syclex::new_properties::detail::property_base<some_property> {
+  static constexpr std::string_view property_name{"::some_property"};
+};
+
 int main() {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
 
-  namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
 
   sycl::queue q;
@@ -75,34 +80,33 @@ int main() {
   syclex::build(kbSrc);
 
   // expected-error@+1 {{no matching function for call to 'build'}}
-  syclex::build(kbSrc,
-                syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
+  syclex::build(kbSrc, syclex::new_properties::properties{some_property{}});
 
   // OK
-  syclex::build(kbSrc, syclex::properties{syclex::build_options{flags},
+  syclex::build(kbSrc, syclex::new_properties::properties{syclex::build_options{flags},
                                           syclex::save_log{&log}});
 
   // expected-error@+1 {{no matching function for call to 'build'}}
-  syclex::build(kbSrc, syclex::properties{
+  syclex::build(kbSrc, syclex::new_properties::properties{
                            syclex::build_options{flags}, syclex::save_log{&log},
-                           syclex::usm_kind<sycl::usm::alloc::host>});
+                           some_property{}});
   // OK
   syclex::build(kbSrc, devices);
 
   // expected-error@+1 {{no matching function for call to 'build'}}
   syclex::build(kbSrc, devices,
-                syclex::properties{syclex::usm_kind<sycl::usm::alloc::host>});
+                syclex::new_properties::properties{some_property{}});
 
   // OK
   syclex::build(
       kbSrc, devices,
-      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
+      syclex::new_properties::properties{syclex::build_options{flags}, syclex::save_log{&log}});
 
   // expected-error@+1 {{no matching function for call to 'build'}}
   syclex::build(kbSrc, devices,
-                syclex::properties{syclex::build_options{flags},
-                                   syclex::save_log{&log},
-                                   syclex::usm_kind<sycl::usm::alloc::host>});
+                syclex::new_properties::properties{syclex::build_options{flags},
+                                                   syclex::save_log{&log},
+                                                   some_property{}});
 
 #endif
 }

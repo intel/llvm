@@ -129,8 +129,8 @@ int main(int argc, char *argv[]) {
   // Flags with and without space, inner quotes.
   std::vector<std::string> flags{"-Xs '-doubleGRF'",
                                  "-Xs'-Xfinalizer \"-printregusage\"'"};
-  exe_kb kbExe =
-      syclex::build(kbSrc, syclex::properties{syclex::build_options{flags}});
+  exe_kb kbExe = syclex::build(
+      kbSrc, syclex::new_properties::properties{syclex::build_options{flags}});
 
   sycl::kernel k = kbExe.ext_oneapi_get_kernel("add_thirty");
 

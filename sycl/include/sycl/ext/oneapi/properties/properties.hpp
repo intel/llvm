@@ -14,7 +14,7 @@
 #include <string_view>
 
 #include <sycl/detail/defines_elementary.hpp>
-
+#include <sycl/detail/type_traits.hpp>
 
 // For old properties:
 #include <sycl/detail/is_device_copyable.hpp>
@@ -171,6 +171,7 @@ inline constexpr bool is_property_v =
 
 // Empty property list.
 template <> class __SYCL_EBO properties<detail::properties_type_list<>, void> {
+public:
   template <typename> static constexpr bool has_property() { return false; }
 };
 
@@ -312,7 +313,20 @@ properties(properties<detail::properties_type_list<other_property_list_tys...>>,
 
 using empty_properties_t = decltype(properties{});
 
-template <typename, typename> struct is_property_of : std::false_type {};
+template <typename property_list_ty, typename... allowed_property_keys>
+struct all_properties_in : std::false_type{};
+template <typename... property_tys, typename... allowed_property_keys>
+struct all_properties_in<
+    properties<detail::properties_type_list<property_tys...>>,
+    allowed_property_keys...>
+    : std::bool_constant<((sycl::detail::check_type_in_v<
+                               property_tys, allowed_property_keys...> &&
+                           ...))> {};
+
+template <typename property_list_ty, typename... allowed_property_keys>
+inline constexpr bool all_properties_in_v =
+    all_properties_in<std::remove_const_t<property_list_ty>,
+                      allowed_property_keys...>::value;
 } // namespace new_properties
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -138,7 +138,7 @@ void test_build_and_run() {
   incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource,
-      syclex::properties{incFiles});
+      syclex::new_properties::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().
   sycl::context ctxRes = kbSrc.get_context();
@@ -153,10 +153,11 @@ void test_build_and_run() {
   std::string log;
   std::vector<std::string> flags{"-g", "-fno-fast-math"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
-  exe_kb kbExe2 = syclex::build(
-      kbSrc, devs,
-      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
-                         syclex::registered_kernel_names{"ff_templated<int>"}});
+  exe_kb kbExe2 =
+      syclex::build(kbSrc, devs,
+                    syclex::new_properties::properties{
+                        syclex::build_options{flags}, syclex::save_log{&log},
+                        syclex::registered_kernel_names{"ff_templated<int>"}});
   assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
          std::string::npos);
 
@@ -231,8 +232,8 @@ void test_esimd() {
 
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, ESIMDSource);
-  exe_kb kbExe =
-      syclex::build(kbSrc, syclex::properties{syclex::save_log{&log}});
+  exe_kb kbExe = syclex::build(
+      kbSrc, syclex::new_properties::properties{syclex::save_log{&log}});
 
   // extern "C" was used, so the name "vector_add_esimd" is not mangled and can
   // be used directly.

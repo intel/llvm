@@ -105,9 +105,10 @@ void test_build_and_run() {
   sycl::backend beRes = kbSrc.get_backend();
   assert(beRes == ctx.get_backend());
 
-  exe_kb kbExe2 = syclex::build(
-      kbSrc, devs,
-      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log}});
+  exe_kb kbExe2 =
+      syclex::build(kbSrc, devs,
+                    syclex::new_properties::properties{
+                        syclex::build_options{flags}, syclex::save_log{&log}});
 
   bool hasMyKernel = kbExe2.ext_oneapi_has_kernel("my_kernel");
   bool hasHerKernel = kbExe2.ext_oneapi_has_kernel("her_kernel");
