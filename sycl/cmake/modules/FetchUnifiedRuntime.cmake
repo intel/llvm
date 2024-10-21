@@ -117,13 +117,11 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 5ade7fc44d453d86dc7440595dbea37c29ce54dc
-  # Merge: 66ea35dc 0b5b89f0
-  # Author: aarongreig <aaron.greig@codeplay.com>
-  # Date:   Mon Oct 14 12:17:07 2024 +0100
-  #     Merge pull request #1823 from Bensuo/ewan/ur_dyn_events
-  #     Add event update to command-buffers
-  set(UNIFIED_RUNTIME_TAG 5ade7fc44d453d86dc7440595dbea37c29ce54dc)
+  # commit af7e275b509b41f54a66743ebf748dfb51668abf
+  # Author: Maosu Zhao <maosu.zhao@intel.com>
+  # Date:   Thu Oct 17 16:31:21 2024 +0800
+  #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
+  set(UNIFIED_RUNTIME_TAG af7e275b509b41f54a66743ebf748dfb51668abf)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -232,14 +230,10 @@ find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
   # Install the UR loader.
-  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its separate repo perhaps we should introduce new component,
-  # e.g. unified-runtime-sycl-dev.
-  # See github issue #14598
   install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
 endif()
 
@@ -303,8 +297,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)
