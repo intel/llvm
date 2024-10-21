@@ -850,103 +850,204 @@ void WG_PS_SD(p1f16_u32_p3i8)(_Float16 *first, uint32_t n, uint8_t *scratch) {
 
 //============= default sub group private sort for signed integer =============
 DEVICE_EXTERN_C_INLINE
-int8_t SG_PS_A(i8)(int8_t value, uint8_t *scratch) {
+int8_t SG_PS_A(i8_p1i8)(int8_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<int8_t>{});
+}
+
+int8_t SG_PS_A(i8_p3i8)(int8_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<int8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int16_t SG_PS_A(i16)(int16_t value, uint8_t *scratch) {
+int16_t SG_PS_A(i16_p1i8)(int16_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<int16_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int32_t SG_PS_A(i32)(int32_t value, uint8_t *scratch) {
+int16_t SG_PS_A(i16_p3i8)(int16_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+int32_t SG_PS_A(i32_p1i8)(int32_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<int32_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int64_t SG_PS_A(i64)(int64_t value, uint8_t *scratch) {
+int32_t SG_PS_A(i32_p3i8)(int32_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+int64_t SG_PS_A(i64_p1i8)(int64_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<int64_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint8_t SG_PS_A(u8)(uint8_t value, uint8_t *scratch) {
+int64_t SG_PS_A(i64_p3i8)(int64_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint8_t SG_PS_A(u8_p1i8)(uint8_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<uint8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint16_t SG_PS_A(u16)(uint16_t value, uint8_t *scratch) {
+uint8_t SG_PS_A(u8_p3i8)(uint8_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint16_t SG_PS_A(u16_p1i8)(uint16_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<uint16_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint32_t SG_PS_A(u32)(uint32_t value, uint8_t *scratch) {
+uint16_t SG_PS_A(u16_p3i8)(uint16_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint32_t SG_PS_A(u32_p1i8)(uint32_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<uint32_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint64_t SG_PS_A(u64)(uint64_t value, uint8_t *scratch) {
+uint32_t SG_PS_A(u32_p3i8)(uint32_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint64_t SG_PS_A(u64_p1i8)(uint64_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<uint64_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-float SG_PS_A(f32)(float value, uint8_t *scratch) {
+uint64_t SG_PS_A(u64_p3i8)(uint64_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+float SG_PS_A(f32_p1i8)(float value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::less<float>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-_Float16 SG_PS_A(f16)(_Float16 value, uint8_t *scratch) {
+float SG_PS_A(f32_p3i8)(float value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::less<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+_Float16 SG_PS_A(f16_p1i8)(_Float16 value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch,
                               [](_Float16 a, _Float16 b) { return (a < b); });
 }
 
 DEVICE_EXTERN_C_INLINE
-int8_t SG_PS_D(i8)(int8_t value, uint8_t *scratch) {
+_Float16 SG_PS_A(f16_p3i8)(_Float16 value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch,
+                              [](_Float16 a, _Float16 b) { return (a < b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+int8_t SG_PS_D(i8_p1i8)(int8_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<int8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int16_t SG_PS_D(i16)(int16_t value, uint8_t *scratch) {
+int8_t SG_PS_D(i8_p3i8)(int8_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<int8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+int16_t SG_PS_D(i16_p1i8)(int16_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<int16_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int32_t SG_PS_D(i32)(int32_t value, uint8_t *scratch) {
+int16_t SG_PS_D(i16_p3i8)(int16_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<int16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+int32_t SG_PS_D(i32_p1i8)(int32_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<int32_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-int64_t SG_PS_D(i64)(int64_t value, uint8_t *scratch) {
+int32_t SG_PS_D(i32_p3i8)(int32_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<int32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+int64_t SG_PS_D(i64_p1i8)(int64_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<int64_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint8_t SG_PS_D(u8)(uint8_t value, uint8_t *scratch) {
+int64_t SG_PS_D(i64_p3i8)(int64_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<int64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint8_t SG_PS_D(u8_p1i8)(uint8_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<uint8_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint16_t SG_PS_D(u16)(uint16_t value, uint8_t *scratch) {
+uint8_t SG_PS_D(u8_p3i8)(uint8_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<uint8_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint16_t SG_PS_D(u16_p1i8)(uint16_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<uint16_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint32_t SG_PS_D(u32)(uint32_t value, uint8_t *scratch) {
+uint16_t SG_PS_D(u16_p3i8)(uint16_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<uint16_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint32_t SG_PS_D(u32_p1i8)(uint32_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<uint32_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-uint64_t SG_PS_D(u64)(uint64_t value, uint8_t *scratch) {
+uint32_t SG_PS_D(u32_p3i8)(uint32_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<uint32_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+uint64_t SG_PS_D(u64_p1i8)(uint64_t value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<uint64_t>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-float SG_PS_D(f32)(float value, uint8_t *scratch) {
+uint64_t SG_PS_D(u64_p3i8)(uint64_t value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<uint64_t>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+float SG_PS_D(f32_p1i8)(float value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch, std::greater<float>{});
 }
 
 DEVICE_EXTERN_C_INLINE
-_Float16 SG_PS_D(f16)(_Float16 value, uint8_t *scratch) {
+float SG_PS_D(f32_p3i8)(float value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch, std::greater<float>{});
+}
+
+DEVICE_EXTERN_C_INLINE
+_Float16 SG_PS_D(f16_p1i8)(_Float16 value, uint8_t *scratch) {
+  return sub_group_merge_sort(value, scratch,
+                              [](_Float16 a, _Float16 b) { return (a > b); });
+}
+
+DEVICE_EXTERN_C_INLINE
+_Float16 SG_PS_D(f16_p3i8)(_Float16 value, uint8_t *scratch) {
   return sub_group_merge_sort(value, scratch,
                               [](_Float16 a, _Float16 b) { return (a > b); });
 }
