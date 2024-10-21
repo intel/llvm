@@ -38,7 +38,7 @@
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
-#include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group.hpp>
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
@@ -920,9 +920,9 @@ private:
 
     if constexpr (PropertiesT::template has_property<
                       sycl::ext::oneapi::experimental::
-                          work_group_static_size>()) {
+                          work_group_scratch_size>()) {
       auto WorkGroupMemSize = Props.template get_property<
-          sycl::ext::oneapi::experimental::work_group_static_size>();
+          sycl::ext::oneapi::experimental::work_group_scratch_size>();
       setKernelWorkGroupMem(WorkGroupMemSize.size);
     }
 

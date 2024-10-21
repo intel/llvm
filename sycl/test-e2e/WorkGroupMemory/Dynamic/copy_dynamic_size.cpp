@@ -3,7 +3,7 @@
 //
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/work_group_static.hpp>
+#include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
 
@@ -17,7 +17,7 @@ void copy_via_smem(DataType *a, DataType *b, sycl::nd_item<1> it) {
   // And then puts in back into B
 
   DataType *smem_ptr =
-      reinterpret_cast<DataType *>(sycl_ext::get_dynamic_work_group_memory());
+      reinterpret_cast<DataType *>(sycl_ext::get_work_group_scratch_memory());
   auto threadIdx_x = it.get_local_linear_id();
 
   smem_ptr[threadIdx_x] = a[threadIdx_x];
@@ -38,7 +38,7 @@ int main() {
   queue
       .submit([&](sycl::handler &cgh) {
         cgh.parallel_for(sycl::nd_range<1>({Size}, {Size}),
-                         sycl_ext::properties{sycl_ext::work_group_static_size(
+                         sycl_ext::properties{sycl_ext::work_group_scratch_size(
                              Size * sizeof(DataType))},
                          [=](sycl::nd_item<1> it) { copy_via_smem(a, b, it); });
       })
@@ -48,4 +48,6 @@ int main() {
   for (size_t i = 0; i < b_host.size(); i++) {
     assert(b_host[i] == a_host[i]);
   }
+  sycl::free(a, queue);
+  sycl::free(b, queue);
 }

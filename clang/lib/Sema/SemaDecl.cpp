@@ -7851,6 +7851,8 @@ NamedDecl *Sema::ActOnVariableDeclarator(
     // attribute.
     if (SCSpec == DeclSpec::SCS_static && !R.isConstant(Context) &&
         !SYCL().isTypeDecoratedWithDeclAttribute<SYCLGlobalVariableAllowedAttr>(
+            NewVD->getType()) &&
+        !SYCL().isTypeDecoratedWithDeclAttribute<SYCLScopeAttr>(
             NewVD->getType()))
       SYCL().DiagIfDeviceCode(D.getIdentifierLoc(), diag::err_sycl_restrict)
           << SemaSYCL::KernelNonConstStaticDataVariable;

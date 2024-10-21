@@ -75,3 +75,19 @@ template <typename T> class B15 {
 // expected-error@#B15-field {{type with a SYCL work group scope attribute cannot be used with a non-static data members}}
 // expected-note@+1 {{in instantiation of template class 'B15<G1>' requested here}}
 B15<G1> b15;
+
+G1 g16;
+static G1 g17;
+
+struct Wrap {
+  static G1 g18;
+};
+
+__attribute__((sycl_device)) void ref_func() {
+  G1 g19;
+  static G1 g20;
+
+  (void)g16;
+  (void)g17;
+  (void)Wrap::g18;
+}

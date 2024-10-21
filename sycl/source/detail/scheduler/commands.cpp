@@ -2399,7 +2399,7 @@ static ur_result_t SetKernelParamsAndLaunch(
   std::optional<int> ImplicitLocalArg =
       ProgramManager::getInstance().kernelImplicitLocalArgPos(KernelName);
   // Set the implicit local memory buffer to support
-  // get_dynamic_work_group_memory. This is for backend not supporting
+  // get_work_group_scratch_memory. This is for backend not supporting
   // CUDA-style local memory setting. Note that we may have -1 as a position,
   // this indicates the buffer is actually unused and was elided.
   if (ImplicitLocalArg.has_value() && ImplicitLocalArg.value() != -1) {

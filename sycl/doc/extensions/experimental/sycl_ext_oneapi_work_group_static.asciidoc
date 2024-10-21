@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2023 Intel Corporation.  All rights reserved.
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -40,16 +40,10 @@ This extension is written against the SYCL 2020 revision 8 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
-The following extensions are required only for dynamic allocations:
-
-- link:../experimental/sycl_ext_oneapi_properties.asciidoc[sycl_ext_oneapi_properties]
-
-- link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[sycl_ext_oneapi_kernel_properties]
-
 
 == Status
 
-This is a proposed extension specification, intended to gather community
+This is an experimental extension specification, intended to gather community
 feedback.  Interfaces defined in this specification may not be implemented yet
 or may be in a preliminary state.  The specification itself may also change in
 incompatible ways before it is finalized.  *Shipping software products should
@@ -58,8 +52,8 @@ not rely on APIs defined in this specification.*
 
 == Overview
 
-This extension adds 2 ways to allocate device local memory, without passing a
-kernel argument: `work_group_static` and `get_dynamic_work_group_memory`.
+This extension adds a ways to allocate device local memory, without passing a
+kernel argument: `work_group_static`.
 Device local memory is memory that is shared by all work-items in a work-group.
 The behavior is similar to the CUDA `+__shared__+` keyword, and the extension
 draws some inspiration from the {cpp} `thread_local` keyword.
@@ -71,15 +65,13 @@ extension. Note, however, that `work_group_static` variables currently place
 additional limits on the types that can be allocated, owing to differences in
 constructor behavior.
 
-`get_dynamic_work_group_memory` provides access to a dynamically sized buffer.
-
 == Specification
 
 === Feature test macro
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_ONEAPI_WORK_GROUP_SPECIFIC` to one of the values defined in the
+macro `SYCL_EXT_ONEAPI_WORK_GROUP_STATIC` to one of the values defined in the
 table below.  Applications can test for the existence of this macro to
 determine if the implementation supports this feature, or applications can test
 the macro's value to determine which of the extension's features the
@@ -188,62 +180,12 @@ instance of `work_group_static` (i.e., `ptr`).
 Objects of type `work_group_static` are assigned to
 the local address space.
 
-=== `get_dynamic_work_group_memory` function
-
-The `get_dynamic_work_group_memory` function provides access
-to a dynamically allocated buffer in the device local memory.
-
-[source,c++]
-----
-void* get_dynamic_work_group_memory()
-----
-_Constraints_: `T` must be trivially constructible and trivially destructible.
-
-_Returns_: A pointer to a dynamically allocated buffer
-           in the device local memory.
-
-The size of the allocation is unknown at compile-time,
-and must be communicated to the SYCL implementation via the
-`work_group_static_memory_size` property. Every call to
-`get_dynamic_work_group_memory` returns the same allocation
-in device local memory.
-
-=== Kernel properties
-
-The `work_group_static_size` property must be passed to a kernel to determine
-the run-time size of the device local memory allocation associated with
-all `get_dynamic_work_group_memory` calls.
-
-[source,c++]
-----
-namespace sycl::ext::oneapi::experimental {
-
-struct work_group_static_size {
-  constexpr work_group_static_size(size_t bytes) : value(bytes) {}
-  size_t value;
-}; // work_group_static_size
-
-using work_group_static_size_key = work_group_static_size;
-
-template <> struct is_property_key<work_group_static_size_key> : std::true_type {};
-
-} // namespace sycl::ext::oneapi::experimental
-----
-
-|===
-|Property|Description
-
-|`work_group_static_size`
-|The `work_group_static_size` property describes the amount of dynamic
-device local memory required by the kernel in bytes.
-
-|===
 
 === Total allocation check
 
 If the total amount of device local memory requested (i.e., the sum of
 all memory requested by `local_accessor`, `group_local_memory`,
-`group_local_memory_for_overwrite`, `work_group_static` and `work_group_static_size`) exceeds a device's
+`group_local_memory_for_overwrite`, `work_group_static` and `work_group_scratch_size`) exceeds a device's
 local memory capacity (as reported by `local_mem_size`) then the implementation
 must throw a synchronous `exception` with the `errc::memory_allocation` error
 code from the kernel invocation command (e.g. `parallel_for`).
@@ -273,39 +215,6 @@ void bar() {
 }
 ----
 
-===== Allocations with size unknown at compile-time
-
-[source,c++]
-----
-using namespace syclex = sycl::ext::oneapi::experimental;
-
-
-...
-
-q.parallel_for(sycl::nd_range<1>{N, M},
-  syclex::properties{syclex::work_group_static_size(M * sizeof(int))},
-  [=](sycl::nd_item<1> it) {
- auto ptr= get_dynamic_work_group_memory();
- auto ptr2= get_dynamic_work_group_memory();
-});
-----
-
-
-== Implementation notes
-
-This non-normative section provides information about one possible
-implementation of this extension.  It is not part of the specification of the
-extension's API.
-
-For `get_dynamic_work_group_memory`,
-the implementation may need to generate some additional code to
-appropriately initialize the pointer(s) returned by the call.
-Alternatively, it may be possible to initialize the pointer to the beginning
-of the device's local memory region (if that value is known). Either way, the
-implementation must account for the existence of one or more `local_accessor`
-objects (which themselves may allocate a dynamic amount of device local
-memory).
-
 
 == Issues
 
@@ -319,3 +228,6 @@ memory).
   Are we intentionally omitting those, or is that an oversight?
   Are there any scopes where a `work_group_static` variable may not be declared?
   If not, we should just say that they may be allocated at any scope.
+** Extension changed to use namespace, block, class and lambda scopes
+** Require `work_group_static` objects to be declared as static data members if used in a class scope
+** `Are there any scopes where a `work_group_static` variable may not be declared?` yes, function parameter scope and non-static data members (just like for `thread_storage`)
