@@ -12,6 +12,7 @@
 
 #pragma once
 
+#include "asan_libdevice.hpp"
 #include "ur/ur.hpp"
 #include "ur_ddi.h"
 
@@ -136,8 +137,6 @@ struct SourceInfo {
     int line = 0;
     int column = 0;
 };
-
-enum class DeviceType : uint64_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
 inline const char *ToString(DeviceType Type) {
     switch (Type) {
