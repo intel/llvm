@@ -200,7 +200,7 @@ set(cmath_obj_deps device_math.h device.h sycl-compiler)
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
-if (NOT MSVC)
+if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(sanitizer_obj_deps
     device.h atomic.hpp spirv_vars.h
     ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
@@ -268,10 +268,12 @@ if(MSVC)
     SRC msvc_math.cpp
     DEPENDENCIES ${cmath_obj_deps})
 else()
-  add_devicelibs(libsycl-sanitizer
-    SRC sanitizer_utils.cpp
-    DEPENDENCIES ${sanitizer_obj_deps}
-    EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+  if(UR_SANITIZER_INCLUDE_DIR)
+    add_devicelibs(libsycl-sanitizer
+      SRC sanitizer_utils.cpp
+      DEPENDENCIES ${sanitizer_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+  endif()
 endif()
 
 add_devicelibs(libsycl-fallback-cassert

@@ -15,7 +15,8 @@ elseif(EXISTS ${SYCL_UR_SOURCE_DIR})
   set(UR_SANITIZER_INCLUDE_DIR
       ${SYCL_UR_SOURCE_DIR}/source/loader/layers/sanitizer)
 else()
-  message(FATAL_ERROR "Unified Runtime source directory is not provided")
+  message(WARNING "Unified Runtime source directory is not provided, \
+                   will not build libdevice sanitizer")
 endif()
 
 # Build libdevice for SYCL.
