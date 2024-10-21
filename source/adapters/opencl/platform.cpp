@@ -96,6 +96,11 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
     }
   }
 
+  /* INVALID_VALUE is returned when the size is invalid, special case it here */
+  if (Result == CL_INVALID_VALUE && phPlatforms != nullptr && NumEntries == 0) {
+    return UR_RESULT_ERROR_INVALID_SIZE;
+  }
+
   return mapCLErrorToUR(Result);
 }
 
