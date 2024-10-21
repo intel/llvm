@@ -31,7 +31,7 @@ loader:
 opencl:
   - changed-files:
     - any-glob-to-any-file:
-      - source/adapter/opencl/**
+      - source/adapters/opencl/**
 
 level-zero:
   - changed-files:
