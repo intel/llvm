@@ -2510,8 +2510,11 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpExtInst: {
     auto *ExtInst = static_cast<SPIRVExtInst *>(BV);
     switch (ExtInst->getExtSetKind()) {
-    case SPIRVEIS_OpenCL:
-      return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
+    case SPIRVEIS_OpenCL: {
+      auto *V = mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
+      applyFPFastMathModeDecorations(BV, static_cast<Instruction *>(V));
+      return V;
+    }
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
