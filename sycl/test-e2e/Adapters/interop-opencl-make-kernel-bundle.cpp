@@ -48,5 +48,8 @@ int main() {
   std::cerr << "Make kernel." << std::endl;
   make_kernel<backend::opencl>(k, q.get_context());
 
+  clReleaseProgram(p);
+  clReleaseKernel(k);
+
   return 0;
 }

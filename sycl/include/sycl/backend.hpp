@@ -430,7 +430,7 @@ make_kernel_bundle(const typename backend_traits<Backend>::template input_type<
   std::shared_ptr<detail::kernel_bundle_impl> KBImpl =
       detail::make_kernel_bundle(
           detail::ur::cast<ur_native_handle_t>(BackendObject), TargetContext,
-          false, State, Backend);
+          true /* KeepOwnership */, State, Backend);
   return detail::createSyclObjFromImpl<kernel_bundle<State>>(KBImpl);
 }
 } // namespace _V1
