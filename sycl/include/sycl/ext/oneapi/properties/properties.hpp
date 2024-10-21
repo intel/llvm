@@ -181,6 +181,7 @@ template <typename... property_tys>
 class __SYCL_EBO properties<
     detail::properties_type_list<property_tys...>,
     std::enable_if_t<!detail::property_names_are_unique<property_tys...>>> {
+  static_assert((is_property_v<property_tys> && ...));
 
   // This is a separate specialization to report an error, we can afford doing
   // extra work to provide nice error message without sacrificing compile time
@@ -206,10 +207,14 @@ class __SYCL_EBO properties<
   static_assert((is_property_v<property_tys> && ...));
 };
 
+// NOTE: Meta-function to implement CTAD rules isn't allowed to return
+// `properties<something>` and it's impossible to return a pack as well. As
+// such, we're forced to have an extra level of `detail::properties_type_list`
+// for the purpose of providing CTAD rules.
 template <typename... property_tys>
-class __SYCL_EBO
-    properties<detail::properties_type_list<property_tys...>,
-               std::enable_if_t<detail::properties_are_sorted<property_tys...>>>
+class __SYCL_EBO properties<
+    detail::properties_type_list<property_tys...>,
+    std::enable_if_t<detail::property_names_are_unique<property_tys...>>>
     : public property_tys... {
   static_assert((is_property_v<property_tys> && ...));
   static_assert(
@@ -253,7 +258,7 @@ public:
   // static constexpr auto get_property() requires(is_empty_v<ret_t>) {
   //   return ret_t{};
   // }
-  // constexpr auto get_property() requires(!is_empty_v<ret_t>) {
+  // constexpr auto get_property() const requires(!is_empty_v<ret_t>) {
   //   return get_property(key_tag<property_key_t>{});
   // }
   template <typename property_key_t>
@@ -275,6 +280,8 @@ public:
     return get_property(detail::property_key_tag<property_key_t>{});
   }
 
+  // TODO: Do we need separate `static` overload if we decide to keep this
+  // interface?
   template <typename property_key_t, typename default_property_t>
   constexpr auto
   get_property_or_default_to(default_property_t default_property) {
@@ -305,7 +312,7 @@ properties(properties<detail::properties_type_list<other_property_list_tys...>>,
 
 using empty_properties_t = decltype(properties{});
 
-template <typename, typename> struct is_property_key_of : std::false_type {};
+template <typename, typename> struct is_property_of : std::false_type {};
 } // namespace new_properties
 } // namespace ext::oneapi::experimental
 } // namespace _V1
