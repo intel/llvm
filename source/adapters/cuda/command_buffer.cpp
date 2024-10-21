@@ -432,6 +432,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t *phCommand) {
   // Preconditions
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommand && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
   UR_ASSERT(hCommandBuffer->Context == hKernel->getContext(),
             UR_RESULT_ERROR_INVALID_KERNEL);
   UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
@@ -1479,6 +1482,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
     return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+  case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
+    ur_exp_command_buffer_desc_t Descriptor{};
+    Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+    Descriptor.pNext = nullptr;
+    Descriptor.isUpdatable = hCommandBuffer->IsUpdatable;
+    Descriptor.isInOrder = false;
+    Descriptor.enableProfiling = false;
+
+    return ReturnValue(Descriptor);
+  }
   default:
     assert(!"Command-buffer info request not implemented");
   }

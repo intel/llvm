@@ -119,12 +119,16 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
     EXPECT_NE(test_cmd_buf_handle, nullptr);
 
     // Append a kernel commands to command-buffer and close command-buffer
+    // Should be an error because we are trying to get command handle but
+    // command buffer is not updatable.
     ur_exp_command_buffer_command_handle_t test_command_handle = nullptr;
-    EXPECT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
-        test_cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
-        &test_command_handle));
-    EXPECT_NE(test_command_handle, nullptr);
+    ASSERT_EQ_RESULT(urCommandBufferAppendKernelLaunchExp(
+                         test_cmd_buf_handle, kernel, n_dimensions,
+                         &global_offset, &global_size, &local_size, 0, nullptr,
+                         0, nullptr, 0, nullptr, nullptr, nullptr,
+                         &test_command_handle),
+                     UR_RESULT_ERROR_INVALID_OPERATION);
+    ASSERT_EQ(test_command_handle, nullptr);
 
     EXPECT_SUCCESS(urCommandBufferFinalizeExp(test_cmd_buf_handle));
     finalized = true;
@@ -156,11 +160,11 @@ TEST_P(InvalidUpdateTest, NotUpdatableCommandBuffer) {
         nullptr,         // pNewLocalWorkSize
     };
 
-    // Update command to command-buffer that doesn't have updatable set should
-    // be an error
+    // Since no command handle was returned Update command to command-buffer
+    // should also be an error.
     ur_result_t result =
         urCommandBufferUpdateKernelLaunchExp(test_command_handle, &update_desc);
-    EXPECT_EQ(UR_RESULT_ERROR_INVALID_OPERATION, result);
+    EXPECT_EQ(UR_RESULT_ERROR_INVALID_NULL_HANDLE, result);
 
     if (test_command_handle) {
         EXPECT_SUCCESS(urCommandBufferReleaseCommandExp(test_command_handle));

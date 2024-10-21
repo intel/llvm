@@ -447,6 +447,7 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
 * ${x}_exp_command_buffer_info_t
     * ${X}_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT
+    * ${X}_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR
 * ${x}_exp_command_buffer_command_info_t
     * ${X}_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT
 

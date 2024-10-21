@@ -9847,6 +9847,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_exp_command_buffer_inf
     case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
         os << "UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT";
         break;
+    case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR:
+        os << "UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -9867,6 +9870,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_command
         const uint32_t *tptr = (const uint32_t *)ptr;
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
+        const ur_exp_command_buffer_desc_t *tptr = (const ur_exp_command_buffer_desc_t *)ptr;
+        if (sizeof(ur_exp_command_buffer_desc_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_exp_command_buffer_desc_t) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
