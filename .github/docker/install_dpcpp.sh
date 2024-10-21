@@ -16,5 +16,5 @@ if [ "${SKIP_DPCPP_BUILD}" ]; then
 fi
 
 mkdir -p ${DPCPP_PATH}/dpcpp_compiler
-wget -O ${DPCPP_PATH}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-09-27/sycl_linux.tar.gz
+wget -O ${DPCPP_PATH}/dpcpp_compiler.tar.gz https://github.com/intel/llvm/releases/download/nightly-2024-10-23/sycl_linux.tar.gz
 tar -xvf ${DPCPP_PATH}/dpcpp_compiler.tar.gz -C ${DPCPP_PATH}/dpcpp_compiler
