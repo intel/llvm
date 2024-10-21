@@ -268,9 +268,9 @@
 #define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_ballot_group__ 0
 #endif
 
-#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_fixed_size_group__
-// __SYCL_ASPECT(ext_oneapi_fixed_size_group, 55)
-#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_fixed_size_group__ 0
+#ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_chunk__
+// __SYCL_ASPECT(ext_oneapi_chunk, 55)
+#define __SYCL_ALL_DEVICES_HAVE_ext_oneapi_chunk__ 0
 #endif
 
 #ifndef __SYCL_ALL_DEVICES_HAVE_ext_oneapi_opportunistic_group__
@@ -660,9 +660,9 @@
 #define __SYCL_ANY_DEVICE_HAS_ext_oneapi_ballot_group__ 0
 #endif
 
-#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_fixed_size_group__
-// __SYCL_ASPECT(ext_oneapi_fixed_size_group, 55)
-#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_fixed_size_group__ 0
+#ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_chunk__
+// __SYCL_ASPECT(ext_oneapi_chunk, 55)
+#define __SYCL_ANY_DEVICE_HAS_ext_oneapi_chunk__ 0
 #endif
 
 #ifndef __SYCL_ANY_DEVICE_HAS_ext_oneapi_opportunistic_group__
