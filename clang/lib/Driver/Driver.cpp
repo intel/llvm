@@ -5433,8 +5433,11 @@ class OffloadingActionBuilder final {
               if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
                 OWA->setOffloadKind(Action::OFK_Host);
               Action *CompiledDeviceAction =
-                  C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
-                                                        types::TY_Object);
+                  C.MakeAction<OffloadWrapperJobAction>(FPGAAOTAction,
+                                                        types::TY_Tempfilelist);
+              if (auto *OWA =
+                      dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
+                OWA->setIndividualWrap(true);
               addDeps(CompiledDeviceAction, TC, BoundArch);
             }
             addDeps(DeviceAction, TC, BoundArch);
@@ -5708,6 +5711,9 @@ class OffloadingActionBuilder final {
           };
 
           Action *ExtractIRFilesAction = createExtractIRFilesAction();
+          // Device binaries that are individually wrapped when creating an
+          // FPGA Archive.
+          ActionList FPGAArchiveWrapperInputs;
 
           if (IsNVPTX || IsAMDGCN) {
             JobAction *FinAction =
@@ -5793,6 +5799,7 @@ class OffloadingActionBuilder final {
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
             WrapperInputs.push_back(ReplaceFilesAction);
+            FPGAArchiveWrapperInputs.push_back(BuildCodeAction);
           }
           if (SkipWrapper) {
             // Wrapper step not requested.
@@ -5827,8 +5834,11 @@ class OffloadingActionBuilder final {
                 if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
                   OWA->setOffloadKind(Action::OFK_Host);
                 Action *CompiledDeviceAction =
-                    C.MakeAction<OffloadWrapperJobAction>(WrapperInputs,
-                                                          types::TY_Object);
+                    C.MakeAction<OffloadWrapperJobAction>(
+                        FPGAArchiveWrapperInputs, types::TY_Tempfilelist);
+                if (auto *OWA =
+                        dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
+                  OWA->setIndividualWrap(true);
                 addDeps(CompiledDeviceAction, TC, nullptr);
               }
               addDeps(DeviceAction, TC, nullptr);
