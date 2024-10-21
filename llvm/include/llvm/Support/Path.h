@@ -201,11 +201,11 @@ bool replace_path_prefix(SmallVectorImpl<char> &Path, StringRef OldPrefix,
 /// @result The cleaned-up \a path.
 StringRef remove_leading_dotslash(StringRef path, Style style = Style::native);
 
-/// Remove redundant leading ".\" pieces and consecutive separators.
+/// Remove redundant leading ".\\" pieces and consecutive separators.
 ///
 /// @param path Input path.
 /// @result The cleaned-up \a path.
-StringRef remove_leading_dotbackslash(StringRef path);
+StringRef remove_leading_dotbackslash_only(StringRef path);
 
 /// In-place remove any './' and optionally '../' components from a path.
 ///
