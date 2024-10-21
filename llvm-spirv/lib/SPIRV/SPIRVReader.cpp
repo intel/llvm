@@ -2477,6 +2477,36 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, Builder.CreateIntrinsic(Intrinsic::expect, RetTy, {Val, ExpVal}));
   }
 
+  case OpUntypedPrefetchKHR: {
+    // Do the same as transOCLBuiltinFromExtInst() but for OpUntypedPrefetchKHR.
+    auto *BC = static_cast<SPIRVUntypedPrefetchKHR *>(BV);
+
+    std::vector<Type *> ArgTypes =
+        transTypeVector(BC->getValueTypes(BC->getArguments()), true);
+    Type *RetTy = Type::getVoidTy(*Context);
+
+    std::string MangledName =
+        getSPIRVFriendlyIRFunctionName(OpenCLLIB::Prefetch, ArgTypes, RetTy);
+    opaquifyTypedPointers(ArgTypes);
+
+    FunctionType *FT = FunctionType::get(RetTy, ArgTypes, false);
+    Function *F = M->getFunction(MangledName);
+    if (!F) {
+      F = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
+      F->setCallingConv(CallingConv::SPIR_FUNC);
+      if (isFuncNoUnwind())
+        F->addFnAttr(Attribute::NoUnwind);
+      if (isFuncReadNone(OCLExtOpMap::map(OpenCLLIB::Prefetch)))
+        F->setDoesNotAccessMemory();
+    }
+
+    auto Args = transValue(BC->getValues(BC->getArguments()), F, BB);
+    CallInst *CI = CallInst::Create(F, Args, BC->getName(), BB);
+    setCallingConv(CI);
+    addFnAttr(CI, Attribute::NoUnwind);
+
+    return mapValue(BV, CI);
+  }
   case OpExtInst: {
     auto *ExtInst = static_cast<SPIRVExtInst *>(BV);
     switch (ExtInst->getExtSetKind()) {

@@ -5336,6 +5336,12 @@ SPIRVValue *LLVMToSPIRVBase::transDirectCallInst(CallInst *CI,
         BM->addExtension(
             ExtensionID::SPV_EXT_relaxed_printf_string_address_space);
       }
+    } else if (DemangledName.find("__spirv_ocl_prefetch") != StringRef::npos) {
+      if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
+        return BM->addUntypedPrefetchKHRInst(
+            transScavengedType(CI),
+            BM->getIds(transValue(getArguments(CI), BB)), BB);
+      }
     }
 
     return addDecorations(
