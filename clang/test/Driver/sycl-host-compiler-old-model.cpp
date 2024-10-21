@@ -90,3 +90,13 @@
 // CHECK_SAVE_TEMPS-NEXT: g++{{.*}} "[[APPEND_CPP]]" "-c"
 // CHECK_SAVE_TEMPS-SAME: "-o" "[[HOST_OBJ:.+\.o]]"
 // CHECK_SAVE_TEMPS-NEXT: clang-offload-bundler{{.*}} "-input=[[DEVICE_BC]]" "-input=[[HOST_OBJ]]"
+
+/// Test to verify binary from PATH is used
+// RUN: rm -rf %t && mkdir -p %t/test_path
+// RUN: touch %t/test_path/clang++ && chmod +x %t/test_path/clang++
+// RUN: env "PATH=%t/test_path%{pathsep}%PATH%" \
+// RUN: %clangxx -### -fsycl -fsycl-host-compiler=clang++ \
+// RUN:   -fsycl-host-compiler-options=-DDUMMY_OPT --no-offload-new-driver \
+// RUN:   %s 2>&1 \
+// RUN: | FileCheck -check-prefix=PATH_CHECK %s
+// PATH_CHECK: {{(/|\\\\)}}test_path{{(/|\\\\)}}clang++{{.*}} "-DDUMMY_OPT"
