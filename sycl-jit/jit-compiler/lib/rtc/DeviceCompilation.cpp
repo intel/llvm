@@ -15,6 +15,11 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
+using namespace clang;
+using namespace clang::tooling;
+using namespace clang::driver;
+using namespace llvm;
+
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
 static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
@@ -49,9 +54,6 @@ static const std::string &getDPCPPRoot() {
 }
 
 namespace {
-using namespace clang;
-using namespace clang::tooling;
-using namespace clang::driver;
 
 struct GetLLVMModuleAction : public ToolAction {
   // Code adapted from `FrontendActionFactory::runInvocation`.
@@ -96,13 +98,13 @@ struct GetLLVMModuleAction : public ToolAction {
 
 } // anonymous namespace
 
-llvm::Expected<std::unique_ptr<llvm::Module>>
+Expected<std::unique_ptr<llvm::Module>>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
                                 View<InMemoryFile> IncludeFiles,
                                 View<const char *> UserArgs) {
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
-    return llvm::createStringError("Could not locate DPCPP root directory");
+    return createStringError("Could not locate DPCPP root directory");
   }
 
   SmallVector<std::string> CommandLine = {"-fsycl-device-only"};
@@ -110,9 +112,9 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   //       implemented.
   CommandLine.push_back("-fno-sycl-instrument-device-code");
   CommandLine.append(UserArgs.begin(), UserArgs.end());
-  clang::tooling::FixedCompilationDatabase DB{".", CommandLine};
+  FixedCompilationDatabase DB{".", CommandLine};
 
-  clang::tooling::ClangTool Tool{DB, {SourceFile.Path}};
+  ClangTool Tool{DB, {SourceFile.Path}};
 
   // Set up in-memory filesystem.
   Tool.mapVirtualFile(SourceFile.Path, SourceFile.Contents);
@@ -143,5 +145,5 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   }
 
   // TODO: Capture compiler errors from the ClangTool.
-  return llvm::createStringError("Unable to obtain LLVM module");
+  return createStringError("Unable to obtain LLVM module");
 }
