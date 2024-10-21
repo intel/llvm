@@ -8399,8 +8399,9 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
         phEvent, ///< [out][optional] return an event object that will be signaled by the
                  ///< completion of this command in the next execution of the
                  ///< command-buffer.
-    ur_exp_command_buffer_command_handle_t
-        *phCommand ///< [out][optional] Handle to this command.
+    ur_exp_command_buffer_command_handle_t *
+        phCommand ///< [out][optional] Handle to this command. Only available if the
+                  ///< command-buffer is updatable.
     ) try {
     ur_result_t result = UR_RESULT_SUCCESS;
 

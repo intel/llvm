@@ -111,6 +111,12 @@ etors:
             [uint32_t] Reference count of the command-buffer object.
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: DESCRIPTOR
+      desc: |
+            [$x_exp_command_buffer_desc_t] Returns a $x_exp_command_buffer_desc_t
+            with the properties of the command-buffer. Returned values may differ
+            from those passed on construction if the property was ignored by the
+            adapter.
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Command-buffer command query information type"
@@ -380,7 +386,8 @@ params:
       desc: "[out][optional] return an event object that will be signaled by the completion of this command in the next execution of the command-buffer."
     - type: "$x_exp_command_buffer_command_handle_t*"
       name: phCommand
-      desc: "[out][optional] Handle to this command."
+      desc: "[out][optional] Handle to this command. Only available if the
+      command-buffer is updatable."
 returns:
     - $X_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -403,6 +410,8 @@ returns:
         - "If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL."
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
+    - $X_RESULT_ERROR_INVALID_OPERATION
+        - "phCommand is not NULL and hCommandBuffer is not updatable."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Append a USM memcpy command to a command-buffer object."
