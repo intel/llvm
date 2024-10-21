@@ -282,7 +282,7 @@ If the constructor is unable to allocate the required memory on `syclDevice`,
 the call throws an exception with `errc::memory_allocation`.
 
 |`physical_mem(const queue &syclQueue, size_t numBytes)` |
-Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context, numBytes)`.
+Same as `physical_mem(syclQueue.get_device(), syclQueue.get_context(), numBytes)`.
 
 |`void *map(uintptr_t ptr, size_t numBytes, address_access_mode mode, size_t offset = 0)` |
 Maps a virtual memory range, specified by `ptr` and `numBytes`, to the physical
@@ -301,7 +301,7 @@ result in undefined behavior.
 The returned pointer is equivalent to `reinterpret_cast<void *>(ptr)`.
 
 Writing to any address in the virtual memory range with access mode set to
-`access_mode::read` results in undefined behavior.
+`address_access_mode::read` results in undefined behavior.
 
 An accessible pointer behaves the same as a pointer to device USM memory and can
 be used in place of a device USM pointer in any interface accepting one.
@@ -317,7 +317,7 @@ Returns the SYCL context associated with the instance of `physical_mem`.
 |`device get_device() const` |
 Returns the SYCL device associated with the instance of `physical_mem`.
 
-|`size_t size() const` |
+|`size_t size() const noexcept` |
 Returns the size of the corresponding physical memory in bytes.
 
 |============================
@@ -380,7 +380,7 @@ the range is mapped to.
 |`void unmap(const void *ptr, size_t numBytes, const device &syclDevice, const context &syclContext)` |
 Unmaps the range specified by `ptr` and `numBytes`. The range must have been
 mapped through a call to `physical_mem::map()` prior to calling this. The range
-must not be a proper sub-range of a previously mapped range. `syclContext` must
+must be a proper sub-range of a previously mapped range. `syclContext` must
 be the same as the context returned by the `get_context()` member function on
 the `physical_mem` the address range is currently mapped to.
 
