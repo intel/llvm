@@ -12,13 +12,10 @@
 #include "Kernel.h"
 #include "View.h"
 
+#include <llvm/IR/Module.h>
 #include <llvm/Support/Error.h>
 
 #include <memory>
-
-namespace llvm {
-class Module;
-} // namespace llvm
 
 namespace jit_compiler {
 

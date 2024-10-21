@@ -15,8 +15,6 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
-#include <llvm/IR/Module.h>
-
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
 static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
