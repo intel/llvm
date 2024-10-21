@@ -1122,18 +1122,14 @@ getKernelInvocationKind(FunctionDecl *KernelCallerFunc) {
 
 // The SYCL kernel's 'object type' used for diagnostics and naming/mangling is
 // the first parameter to a function template using the sycl_kernel
-// attribute. In SYCL 1.2.1, this was passed by value,
-// and in SYCL 2020, it is passed by reference.
+// attribute. In SYCL 2020, this is passed by reference.
 static QualType GetSYCLKernelObjectType(const FunctionDecl *KernelCaller) {
   assert(KernelCaller->getNumParams() > 0 && "Insufficient kernel parameters");
   QualType KernelParamTy = KernelCaller->getParamDecl(0)->getType();
 
   // SYCL 2020 kernels are passed by reference.
-  if (KernelParamTy->isReferenceType())
-    KernelParamTy = KernelParamTy->getPointeeType();
-
-  // SYCL 1.2.1
-  return KernelParamTy.getUnqualifiedType();
+  assert(KernelParamTy->isReferenceType() && "Since SYCL 2020 kernels must be passed by reference.");
+  return KernelParamTy = KernelParamTy->getPointeeType();
 }
 
 /// \return the target of given SYCL accessor type
@@ -5038,7 +5034,7 @@ void SemaSYCL::CheckSYCLKernelCall(FunctionDecl *KernelFunc,
 
   // check that calling kernel conforms to spec
   QualType KernelParamTy = KernelFunc->getParamDecl(0)->getType();
-  if (not KernelParamTy->isReferenceType()) {
+  if (! KernelParamTy->isReferenceType()) {
     // passing by value.  emit warning if using SYCL 2020 or greater
     if (SemaRef.LangOpts.getSYCLVersion() >= LangOptions::SYCL_2020)
       Diag(KernelFunc->getLocation(), diag::warn_sycl_pass_by_value_deprecated);
