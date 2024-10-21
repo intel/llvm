@@ -27,6 +27,13 @@ void SubmissionInfo::SetPostProcessing(
     impl = std::make_shared<SubmissionInfoImpl>();
   impl->MPostProcessorFunc = std::move(PostProcessorFunc);
 }
+
+void SubmissionInfo::SetSecondaryQueue(
+    const std::shared_ptr<detail::queue_impl> &SecondaryQueue) {
+  if (!impl)
+    impl = std::make_shared<SubmissionInfoImpl>();
+  impl->MSecondaryQueue = SecondaryQueue;
+}
 }
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,

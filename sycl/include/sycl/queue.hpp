@@ -90,13 +90,15 @@ inline event submitAssertCapture(queue &, event &, queue *,
 // event &Event - event after which post processing should be executed
 using SubmitPostProcessF = std::function<void(bool, bool, event &)>;
 
-class SubmissionInfoImpl;
+struct SubmissionInfoImpl;
 
-class SubmissionInfo {
+class __SYCL_EXPORT SubmissionInfo {
 public:
   SubmissionInfo() = default;
 
   void SetPostProcessing(const SubmitPostProcessF &PostProcessorFunc);
+  void
+  SetSecondaryQueue(const std::shared_ptr<detail::queue_impl> &SecondaryQueue);
 
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
@@ -359,8 +361,7 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(
-        CGF, /*SecondaryQueuePtr=*/nullptr, CodeLoc);
+    return submit_with_event(CGF, /*SecondaryQueuePtr=*/nullptr, CodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -378,8 +379,7 @@ public:
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event> submit(
       T CGF, queue &SecondaryQueue,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
-    return submit_with_event(
-        CGF, &SecondaryQueue, CodeLoc);
+    return submit_with_event(CGF, &SecondaryQueue, CodeLoc);
   }
 
   /// Prevents any commands submitted afterward to this queue from executing
@@ -2799,13 +2799,15 @@ private:
   template <typename T>
   std::enable_if_t<std::is_invocable_r_v<void, T, handler &>, event>
   submit_with_event(
-      T CGF, [[maybe_unused]] queue *SecondaryQueuePtr,
+      T CGF, queue *SecondaryQueuePtr,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
+    if (SecondaryQueuePtr)
+      SI.SetSecondaryQueue(detail::getSyclObjImpl(*SecondaryQueuePtr));
 #if __SYCL_USE_FALLBACK_ASSERT
-    auto PostProcess = [this, &SecondaryQueuePtr, &TlsCodeLocCapture](
-                           bool IsKernel, bool KernelUsesAssert, event &E) {
+    SI.SetPostProcessing([this, &SecondaryQueuePtr, &TlsCodeLocCapture](
+                             bool IsKernel, bool KernelUsesAssert, event &E) {
       if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert && !device_has(aspect::accelerator)) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
@@ -2815,8 +2817,7 @@ private:
         submitAssertCapture(*this, E, SecondaryQueuePtr,
                             TlsCodeLocCapture.query());
       }
-    };
-    SI.SetPostProcessing(std::move(PostProcess));
+    });
 #endif // __SYCL_USE_FALLBACK_ASSERT
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
@@ -3063,10 +3064,8 @@ event submitAssertCapture(queue &Self, event &Event, queue *SecondaryQueue,
     });
   };
 
-  CopierEv = Self.submit_with_event(
-      CopierCGF, SecondaryQueue, CodeLoc);
-  CheckerEv = Self.submit_with_event(
-      CheckerCGF, SecondaryQueue, CodeLoc);
+  CopierEv = Self.submit_with_event(CopierCGF, SecondaryQueue, CodeLoc);
+  CheckerEv = Self.submit_with_event(CheckerCGF, SecondaryQueue, CodeLoc);
 
   return CheckerEv;
 }

@@ -69,7 +69,8 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-  std::optional<detail::SubmitPostProcessF> MPostProcessorFunc = nullptr;
+  std::optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+  std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
 };
 
 class queue_impl {
@@ -344,18 +345,10 @@ public:
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     SubmissionInfo SI{};
+    SI.SetSecondaryQueue(SecondQueue);
     if (PostProcess)
       SI.SetPostProcessing(*PostProcess);
-    try {
-      ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                             /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                             SI);
-    } catch (...) {
-      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                          /*CallerNeedsEvent=*/true, Loc,
-                                          IsTopCodeLoc, SI);
-    }
-    return discard_or_return(ResEvent);
+    return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
   }
 
   /// Submits a command group function object to the queue, in order to be
@@ -371,7 +364,22 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    auto ResEvent =
+    if (SubmitInfo.impl && SubmitInfo.impl->MSecondaryQueue) {
+      event ResEvent;
+      const std::shared_ptr<queue_impl> SecondQueue =
+          SubmitInfo.impl->MSecondaryQueue;
+      try {
+        ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
+                              /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
+                              SubmitInfo);
+      } catch (...) {
+        ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                            /*CallerNeedsEvent=*/true, Loc,
+                                            IsTopCodeLoc, SubmitInfo);
+      }
+      return ResEvent;
+    }
+    event ResEvent =
         submit_impl(CGF, Self, Self, nullptr,
                     /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, SubmitInfo);
     return discard_or_return(ResEvent);
@@ -382,8 +390,21 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                IsTopCodeLoc, SubmitInfo);
+    if (SubmitInfo.impl && SubmitInfo.impl->MSecondaryQueue) {
+      const std::shared_ptr<queue_impl> SecondQueue =
+          SubmitInfo.impl->MSecondaryQueue;
+      try {
+        submit_impl(CGF, Self, Self, SecondQueue,
+                    /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);
+      } catch (...) {
+        SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                 /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc,
+                                 SubmitInfo);
+      }
+    } else {
+      submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
+                  IsTopCodeLoc, SubmitInfo);
+    }
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
