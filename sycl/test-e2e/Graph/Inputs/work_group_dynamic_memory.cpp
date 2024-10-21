@@ -1,0 +1,65 @@
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+//
+
+// Test work_group_static extension with allocation size specified at runtime.
+
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/work_group_static.hpp>
+#include "../graph_common.hpp"
+
+#include <vector>
+
+constexpr size_t WgSize = 32;
+constexpr size_t WgCount = 4;
+constexpr size_t RepeatWG = 16;
+constexpr size_t ElemPerWG = WgSize * RepeatWG;
+constexpr size_t Size = WgSize * WgCount * RepeatWG;
+
+using namespace sycl;
+
+namespace exp_ext = sycl::ext::oneapi::experimental;
+
+int main() {
+  queue Q;
+  exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  std::vector<int> Vec(Size, 0);
+  buffer<int, 1> Buf{Vec.data(), range<1>(Size)};
+
+  auto NodeA = Graph.add([&](handler &Cgh) {
+    auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
+    exp_ext::work_group_static_size static_size(WgSize * RepeatWG *
+                                                 sizeof(int));
+    exp_ext::properties properties{static_size};
+    Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
+                     [=](nd_item<1> Item) {
+                       int *Ptr = reinterpret_cast<int *>(
+                           exp_ext::get_dynamic_work_group_memory());
+                       size_t GroupOffset =
+                           Item.get_group_linear_id() * ElemPerWG;
+                       for (size_t I = 0; I < RepeatWG; ++I) {
+                         Ptr[WgSize * I + Item.get_local_linear_id()] =
+                             Item.get_local_linear_id();
+                       }
+
+                       Item.barrier();
+                       for (size_t I = 0; I < RepeatWG; ++I) {
+                         // Check that the memory is accessible from other
+                         // work-items
+                         size_t BaseIdx = GroupOffset + (I * WgSize);
+                         size_t LocalIdx = Item.get_local_linear_id() ^ 1;
+                         size_t GlobalIdx = BaseIdx + LocalIdx;
+                         Acc[GlobalIdx] = Ptr[WgSize * I + LocalIdx];
+                       }
+                     });
+  });
+  auto ExecGraph = Graph.finalize();
+
+  Queue.ext_oneapi_graph(ExecGraph).wait();
+
+  host_accessor Acc(Buf, read_only);
+  for (size_t I = 0; I < Size; ++I) {
+    assert(Acc[I] == I % WgSize);
+  }
+}
