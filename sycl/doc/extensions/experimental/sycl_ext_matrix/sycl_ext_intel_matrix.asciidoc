@@ -113,7 +113,7 @@ an application can use to indicate that the matrix data is loaded or
 stored in VNNI "packed" format.
 
 ```c++
-namespace sycl::ext::oneapi::experimental::matrix::layout {
+namespace sycl::ext::oneapi::experimental::matrix {
 
 enum class layout {
   ext_intel_packed
