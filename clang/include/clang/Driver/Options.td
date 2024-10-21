@@ -6877,6 +6877,11 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
   NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not enforce using "
           "stateless memory accesses.">,
   BothFlags<[], [ClangOption, CLOption, CC1Option], "">>;
+defm sycl_rtc_mode: BoolFOption<"sycl-rtc-mode",
+  LangOpts<"SYCLRTCMode">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption], "RTC Mode On">,
+  NegFlag<SetFalse, [], [ClangOption], "RTC Mode Off">,
+  BothFlags<[HelpHidden], [ClangOption, CC1Option], " RTC mode in SYCL.">>;
 // TODO: Remove this option once ESIMD headers are updated to
 // guard vectors to be device only.
 def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,

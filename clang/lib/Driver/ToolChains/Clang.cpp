@@ -5583,6 +5583,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-fsycl-allow-func-ptr");
     }
 
+    if (Args.hasFlag(options::OPT_fsycl_rtc_mode,
+                     options::OPT_fno_sycl_rtc_mode, false)) {
+      CmdArgs.push_back("-fsycl-rtc-mode");
+    }
+
     Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
                     options::OPT_fno_sycl_decompose_functor);
 
