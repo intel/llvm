@@ -4,7 +4,7 @@
 ; RUN: spirv-val %t.spv
 
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
-; CHECK-SPIRV: Constant [[Int]] [[MemScope_Device:[0-9]+]] 1
+; CHECK-SPIRV: Constant [[Int]] [[MemScope_CrossDevice:[0-9]+]] 0
 ; CHECK-SPIRV: Constant [[Int]] [[MemSemEqual_SeqCst:[0-9]+]] 16
 ; CHECK-SPIRV: Constant [[Int]] [[MemSemUnequal_Acquire:[0-9]+]] 2
 ; CHECK-SPIRV: Constant [[Int]] [[Constant_456:[0-9]+]] 456
@@ -18,7 +18,7 @@
 ; CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[Comparator:[0-9]+]]
 
 ; CHECK-SPIRV: Load [[Int]] [[Value:[0-9]+]] [[Value_ptr]]
-; CHECK-SPIRV: AtomicCompareExchange [[Int]] [[Res:[0-9]+]] [[Pointer]] [[MemScope_Device]]
+; CHECK-SPIRV: AtomicCompareExchange [[Int]] [[Res:[0-9]+]] [[Pointer]] [[MemScope_CrossDevice]]
 ; CHECK-SPIRV-SAME:                  [[MemSemEqual_SeqCst]] [[MemSemUnequal_Acquire]] [[Value]] [[Comparator]]
 ; CHECK-SPIRV: IEqual {{[0-9]+}} [[Success:[0-9]+]] [[Res]] [[Comparator]]
 ; CHECK-SPIRV: CompositeInsert [[Struct]] [[Composite_0:[0-9]+]] [[Res]] [[UndefStruct]] 0
@@ -48,7 +48,7 @@ cmpxchg.continue:                                 ; preds = %cmpxchg.store_expec
 ; CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[Ptr:[0-9]+]]
 ; CHECK-SPIRV: FunctionParameter {{[0-9]+}} [[Store_ptr:[0-9]+]]
 
-; CHECK-SPIRV: AtomicCompareExchange [[Int]] [[Res_1:[0-9]+]] [[Ptr]] [[MemScope_Device]]
+; CHECK-SPIRV: AtomicCompareExchange [[Int]] [[Res_1:[0-9]+]] [[Ptr]] [[MemScope_CrossDevice]]
 ; CHECK-SPIRV-SAME:                  [[MemSemEqual_SeqCst]] [[MemSemUnequal_Acquire]] [[Constant_456]] [[Constant_128]]
 ; CHECK-SPIRV: IEqual {{[0-9]+}} [[Success_1:[0-9]+]] [[Res_1]] [[Constant_128]]
 ; CHECK-SPIRV: CompositeInsert [[Struct]] [[Composite:[0-9]+]] [[Res_1]] [[UndefStruct]] 0
