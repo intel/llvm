@@ -11,7 +11,7 @@ TEST(HostAccessor, ZeroDimAccessor) {
   AccT acc = {data_buf};
 
   ASSERT_EQ(acc.get_size(), sizeof(DataT));
-  ASSERT_EQ(acc.size(), 1);
+  ASSERT_EQ(acc.size(), static_cast<size_t>(1));
 
   DataT &ref = acc;
   ASSERT_EQ(ref, data);
