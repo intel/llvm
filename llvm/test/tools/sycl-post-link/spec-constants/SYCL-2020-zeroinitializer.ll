@@ -31,16 +31,16 @@ entry:
   %ref.tmp.i = alloca %struct._ZTS9composite.composite, align 8
   %ref.tmp.ascast.i = addrspacecast %struct._ZTS9composite.composite* %ref.tmp.i to %struct._ZTS9composite.composite addrspace(4)*
   %call.i.i.i = tail call spir_func i32 @_Z37__sycl_getScalar2020SpecConstantValueIiET_PKcPKvS4_(i8 addrspace(4)* getelementptr inbounds ([70 x i8], [70 x i8] addrspace(4)* addrspacecast ([70 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL6int_idEiLPv0EEET0_v to [70 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idIiEE.cl::sycl::specialization_id" addrspace(1)* @_ZL6int_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-; CHECK: call i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID0:]], i32 0)
+; CHECK: call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#SCID0:]], i32 0)
 
   %call.i.i23.i = tail call spir_func double @_Z37__sycl_getScalar2020SpecConstantValueIdET_PKcPKvS4_(i8 addrspace(4)* getelementptr inbounds ([73 x i8], [73 x i8] addrspace(4)* addrspacecast ([73 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL9double_idEdLPv0EEET0_v to [73 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idIdEE.cl::sycl::specialization_id" addrspace(1)* @_ZL9double_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-; CHECK: call double @_Z20__spirv_SpecConstantid(i32 [[#SCID1:]], double 0.000000e+00)
+; CHECK: call spir_func double @_Z20__spirv_SpecConstantid(i32 [[#SCID1:]], double 0.000000e+00)
 
   call spir_func void @_Z40__sycl_getComposite2020SpecConstantValueI9compositeET_PKcPKvS5_(%struct._ZTS9composite.composite addrspace(4)* sret(%struct._ZTS9composite.composite) align 8 %ref.tmp.ascast.i, i8 addrspace(4)* getelementptr inbounds ([77 x i8], [77 x i8] addrspace(4)* addrspacecast ([77 x i8] addrspace(1)* @__builtin_unique_stable_name._ZN2cl4sycl14kernel_handler33getSpecializationConstantOnDeviceIL_ZL12composite_idE9compositeLPv0EEET0_v to [77 x i8] addrspace(4)*), i64 0, i64 0), i8 addrspace(4)* addrspacecast (i8 addrspace(1)* bitcast (%"class._ZTSN2cl4sycl17specialization_idI9compositeEE.cl::sycl::specialization_id" addrspace(1)* @_ZL12composite_id to i8 addrspace(1)*) to i8 addrspace(4)*), i8 addrspace(4)* null) #3
-; CHECK: call float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
-; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID3:]], i8 0)
-; CHECK: call i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 0)
-; CHECK: call i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID5:]], i64 0)
+; CHECK: call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#SCID2:]], float 0.000000e+00)
+; CHECK: call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID3:]], i8 0)
+; CHECK: call spir_func i8 @_Z20__spirv_SpecConstantia(i32 [[#SCID4:]], i8 0)
+; CHECK: call spir_func i64 @_Z20__spirv_SpecConstantix(i32 [[#SCID5:]], i64 0)
 
 ; CHECK-LOG: sycl.specialization-constants
 ; CHECK-LOG:[[UNIQUE_PREFIX:[0-9a-zA-Z]+]]={0, 0, 4}
