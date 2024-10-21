@@ -414,42 +414,6 @@ ur_result_t SanitizerInterceptor::registerProgram(ur_context_handle_t Context,
 
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);
-        auto DeviceInfo = getDeviceInfo(Device);
-
-        // Write global variable to program
-        auto EnqueueWriteGlobal = [&Queue, &Program](
-                                      const char *Name, const void *Value,
-                                      size_t Size, bool ReportWarning = true) {
-            auto Result =
-                getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableWrite(
-                    Queue, Program, Name, false, Size, 0, Value, 0, nullptr,
-                    nullptr);
-            if (ReportWarning && Result != UR_RESULT_SUCCESS) {
-                getContext()->logger.warning(
-                    "Failed to write device global \"{}\": {}", Name, Result);
-                return false;
-            }
-            return true;
-        };
-
-        // Write debug
-        // We use "uint64_t" here because EnqueueWriteGlobal will fail when it's "uint32_t"
-        // Because EnqueueWriteGlobal is a async write, so
-        // we need to extend its lifetime
-        static uint64_t Debug = getOptions().Debug ? 1 : 0;
-        EnqueueWriteGlobal(kSPIR_AsanDebug, &Debug, sizeof(Debug), false);
-
-        // Write shadow memory offset for global memory
-        EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalStart,
-                           &DeviceInfo->Shadow->ShadowBegin,
-                           sizeof(DeviceInfo->Shadow->ShadowBegin));
-        EnqueueWriteGlobal(kSPIR_AsanShadowMemoryGlobalEnd,
-                           &DeviceInfo->Shadow->ShadowEnd,
-                           sizeof(DeviceInfo->Shadow->ShadowEnd));
-
-        // Write device type
-        EnqueueWriteGlobal(kSPIR_DeviceType, &DeviceInfo->Type,
-                           sizeof(DeviceInfo->Type));
 
         uint64_t NumOfDeviceGlobal;
         auto Result =
@@ -686,6 +650,11 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                 return URes;
             }
         }
+
+        LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
+        LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+        LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
+        LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
 
         if (LaunchInfo.LocalWorkSize.empty()) {
             LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
