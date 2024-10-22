@@ -1016,9 +1016,6 @@ namespace {
 /// \param ptr Point to free.
 /// \returns no return value.
 static inline void free(void *ptr, sycl::queue q = get_default_queue()) {
-#ifndef SYCLCOMPAT_USM_LEVEL_NONE
-  get_device(get_device_id(q.get_device())).queues_wait_and_throw();
-#endif
   detail::free(ptr, q);
 }
 } // namespace
