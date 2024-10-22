@@ -150,7 +150,7 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   return createStringError("Unable to obtain LLVM module");
 }
 
-Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module *Module,
+Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module &Module,
                                                View<const char *> UserArgs) {
   // This function mimics the device library selection process
   // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
@@ -195,13 +195,13 @@ Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module *Module,
       "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
       "libsycl-itt-stubs"};
 
-  LLVMContext &Ctx = Module->getContext();
+  LLVMContext &Context = Module.getContext();
   auto Link = [&](ArrayRef<llvm::StringLiteral> LibNames) -> Error {
     for (const auto &LibName : LibNames) {
       std::string LibPath = (DPCPPRoot + "/lib/" + LibName + ".bc").str();
 
       SMDiagnostic Diag;
-      std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Ctx);
+      std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
       if (!Lib) {
         std::string DiagMsg;
         raw_string_ostream SOS(DiagMsg);
@@ -209,8 +209,7 @@ Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module *Module,
         return createStringError(DiagMsg);
       }
 
-      if (Linker::linkModules(*Module, std::move(Lib),
-                              Linker::LinkOnlyNeeded)) {
+      if (Linker::linkModules(Module, std::move(Lib), Linker::LinkOnlyNeeded)) {
         // TODO: `linkModules` always prints errors to the console.
         return createStringError("Unable to link device library: %s",
                                  LibPath.c_str());
