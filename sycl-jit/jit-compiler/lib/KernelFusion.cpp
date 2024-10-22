@@ -246,18 +246,25 @@ extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
   }
   std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
 
+  auto FreeModuleAndContext = [&Module]() {
+    auto *LLVMCtx = &Module->getContext();
+    Module.reset();
+    delete LLVMCtx;
+  };
+
+  if (auto Error = linkDefaultDeviceLibraries(Module.get(), UserArgs)) {
+    FreeModuleAndContext();
+    return errorToFusionResult(std::move(Error), "Device linking failed");
+  }
+
   SYCLKernelInfo Kernel;
-  auto Error = translation::KernelTranslator::translateKernel(
-      Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
-
-  auto *LLVMCtx = &Module->getContext();
-  Module.reset();
-  delete LLVMCtx;
-
-  if (Error) {
+  if (auto Error = translation::KernelTranslator::translateKernel(
+          Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV)) {
+    FreeModuleAndContext();
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }
 
+  FreeModuleAndContext();
   return JITResult{Kernel};
 }
 

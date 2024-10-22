@@ -23,6 +23,7 @@ add_llvm_library(sycl-jit
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
