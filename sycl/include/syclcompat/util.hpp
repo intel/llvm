@@ -161,6 +161,11 @@ inline double cast_ints_to_double(int high32, int low32) {
 template <typename T> inline T reverse_bits(T a) {
   static_assert(std::is_unsigned<T>::value && std::is_integral<T>::value,
                 "unsigned integer required");
+#if defined(__NVPTX__)
+  unsigned result;
+  asm volatile("brev.b32 %0, %1;" : "=r"(result) : "r"(a));
+  return result;
+#endif // __NVPTX__
   if (!a)
     return 0;
   T mask = 0;
