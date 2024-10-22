@@ -34,8 +34,9 @@ int main() {
     {
         sycl::buffer<int> CheckBuffer(ResultHostData);
         Q.submit([&](sycl::handler &Handle) {
-            sycl::accessor A(CheckBuffer, Handle, sycl::write_only);
-            Handle.parallel_for(NumItems, [=](sycl::id<1> Idx) { A[Idx] =  DataPtr[Idx]; });
+          sycl::accessor A(CheckBuffer, Handle, sycl::write_only);
+          Handle.parallel_for(NumItems,
+                              [=](sycl::id<1> Idx) { A[Idx] = DataPtr[Idx]; });
         });
     }
     
@@ -46,20 +47,21 @@ int main() {
             ++Failed;
         }
     }
-        
+
     Q.parallel_for(NumItems, [=](sycl::id<1> Idx) {
-        DataPtr[Idx] = Idx;
-    }).wait_and_throw();
-        
+       DataPtr[Idx] = Idx;
+     }).wait_and_throw();
+
     syclext::set_access_mode(DataPtr,UsedGranularityInBytes, syclext::address_access_mode::read, Context);
 
     
     {
     sycl::buffer<int> ResultBuffer(ResultHostData);
-    
+
     Q.submit([&](sycl::handler &Handle) {
-        sycl::accessor A(ResultBuffer, Handle, sycl::write_only);
-        Handle.parallel_for(NumItems, [=](sycl::id<1> Idx) { A[Idx] =  DataPtr[Idx]; });
+      sycl::accessor A(ResultBuffer, Handle, sycl::write_only);
+      Handle.parallel_for(NumItems,
+                          [=](sycl::id<1> Idx) { A[Idx] = DataPtr[Idx]; });
     });
     }
     
