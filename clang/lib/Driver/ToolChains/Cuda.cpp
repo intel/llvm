@@ -17,6 +17,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -722,8 +723,6 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (StringRef Feature : Features)
     CmdArgs.append({"--feature", Args.MakeArgString(Feature)});
 
-  addGPULibraries(getToolChain(), Args, CmdArgs);
-
   // Add paths for the default clang library path.
   SmallString<256> DefaultLibPath =
       llvm::sys::path::parent_path(TC.getDriver().Dir);
@@ -900,7 +899,7 @@ NVPTXToolChain::getSystemGPUArchs(const ArgList &Args) const {
   else
     Program = GetProgramPath("nvptx-arch");
 
-  auto StdoutOrErr = executeToolChainProgram(Program, /*SecondsToWait=*/10);
+  auto StdoutOrErr = executeToolChainProgram(Program);
   if (!StdoutOrErr)
     return StdoutOrErr.takeError();
 
@@ -924,7 +923,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -938,7 +937,23 @@ void CudaToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_Cuda) &&
          "Only OpenMP, SYCL or CUDA offloading kinds are supported for NVIDIA GPUs.");
 
-  if (DeviceOffloadingKind == Action::OFK_Cuda) {
+  // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
+  // device code compatability, hence we do not set Cuda mode in that instance.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
+      CC1Args.push_back("-fcuda-prec-sqrt");
+
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    if (FastRelaxedMath || UnsafeMathOpt)
+      CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
+                      "--nvptx-prec-sqrtf32=0"});
+  } else {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
 
@@ -949,19 +964,10 @@ void CudaToolChain::addClangTargetOptions(
     if (CudaInstallation.version() >= CudaVersion::CUDA_90)
       CC1Args.push_back("-fcuda-allow-variadic-functions");
 
-    if (DriverArgs.hasArg(options::OPT_fsycl)) {
-      // Add these flags for .cu SYCL compilation.
+    // Add these flags for .cu SYCL compilation.
+    if (DeviceOffloadingKind == Action::OFK_Cuda &&
+        DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-    }
-  }
-
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
-
-    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
-      CC1Args.push_back("-fcuda-prec-sqrt");
-    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
@@ -1027,6 +1033,13 @@ void CudaToolChain::addClangTargetOptions(
   CC1Args.push_back("-mlink-builtin-bitcode");
   CC1Args.push_back(DriverArgs.MakeArgString(LibDeviceFile));
 
+  // For now, we don't use any Offload/OpenMP device runtime when we offload
+  // CUDA via LLVM/Offload. We should split the Offload/OpenMP device runtime
+  // and include the "generic" (or CUDA-specific) parts.
+  if (DriverArgs.hasFlag(options::OPT_foffload_via_llvm,
+                         options::OPT_fno_offload_via_llvm, false))
+    return;
+
   clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
 
   if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
@@ -1047,7 +1060,7 @@ void CudaToolChain::addClangTargetOptions(
     }
 
     // Link the bitcode library late if we're using device LTO.
-    if (getDriver().isUsingLTO(/* IsOffload */ true))
+    if (getDriver().isUsingOffloadLTO())
       return;
 
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, GpuArch.str(),
@@ -1190,8 +1203,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

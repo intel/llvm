@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
@@ -16,7 +17,6 @@
 #include <detail/global_handler.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
 #include <detail/thread_pool.hpp>
@@ -113,6 +113,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     if (has_property<property::queue::enable_profiling>()) {
       if (has_property<ext::oneapi::property::queue::discard_events>())
         throw sycl::exception(make_error_code(errc::invalid),
@@ -185,9 +186,9 @@ private:
     MQueues.push_back(UrQueue);
 
     ur_device_handle_t DeviceUr{};
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     // TODO catch an exception and put it to list of asynchronous exceptions
-    Plugin->call<UrApiKind::urQueueGetInfo>(
+    Adapter->call<UrApiKind::urQueueGetInfo>(
         MQueues[0], UR_QUEUE_INFO_DEVICE, sizeof(DeviceUr), &DeviceUr, nullptr);
     MDevice = MContext->findMatchingDeviceImpl(DeviceUr);
     if (MDevice == nullptr) {
@@ -208,7 +209,7 @@ private:
   }
 
 public:
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -226,7 +227,7 @@ public:
     queue_impl_interop(UrQueue);
   }
 
-  /// Constructs a SYCL queue from plugin interoperability handle.
+  /// Constructs a SYCL queue from adapter interoperability handle.
   ///
   /// \param UrQueue is a raw UR queue handle.
   /// \param Context is a SYCL context to associate with the queue being
@@ -242,6 +243,7 @@ public:
         MIsProfilingEnabled(has_property<property::queue::enable_profiling>()),
         MQueueID{
             MNextAvailableQueueID.fetch_add(1, std::memory_order_relaxed)} {
+    verifyProps(PropList);
     queue_impl_interop(UrQueue);
   }
 
@@ -254,7 +256,7 @@ public:
       destructorNotification();
 #endif
       throw_asynchronous();
-      getPlugin()->call<UrApiKind::urQueueRelease>(MQueues[0]);
+      getAdapter()->call<UrApiKind::urQueueRelease>(MQueues[0]);
     } catch (std::exception &e) {
       __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~queue_impl", e);
     }
@@ -263,10 +265,10 @@ public:
   /// \return an OpenCL interoperability queue handle.
 
   cl_command_queue get() {
-    getPlugin()->call<UrApiKind::urQueueRetain>(MQueues[0]);
+    getAdapter()->call<UrApiKind::urQueueRetain>(MQueues[0]);
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
-                                                         &nativeHandle);
+    getAdapter()->call<UrApiKind::urQueueGetNativeHandle>(MQueues[0], nullptr,
+                                                          &nativeHandle);
     return ur::cast<cl_command_queue>(nativeHandle);
   }
 
@@ -275,7 +277,7 @@ public:
     return createSyclObjFromImpl<context>(MContext);
   }
 
-  const PluginPtr &getPlugin() const { return MContext->getPlugin(); }
+  const AdapterPtr &getAdapter() const { return MContext->getAdapter(); }
 
   const ContextImplPtr &getContextImplPtr() const { return MContext; }
 
@@ -313,7 +315,7 @@ public:
                             "recording to a command graph.");
     }
     for (const auto &queue : MQueues) {
-      getPlugin()->call<UrApiKind::urQueueFlush>(queue);
+      getAdapter()->call<UrApiKind::urQueueFlush>(queue);
     }
   }
 
@@ -335,16 +337,17 @@ public:
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
                const std::shared_ptr<queue_impl> &SecondQueue,
-               const detail::code_location &Loc,
+               const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     try {
       ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                             /*CallerNeedsEvent=*/true, Loc, PostProcess);
+                             /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
+                             PostProcess);
     } catch (...) {
-      ResEvent =
-          SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
-                                   /*CallerNeedsEvent=*/true, Loc, PostProcess);
+      ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
+                                          /*CallerNeedsEvent=*/true, Loc,
+                                          IsTopCodeLoc, PostProcess);
     }
     return discard_or_return(ResEvent);
   }
@@ -359,19 +362,20 @@ public:
   /// \return a SYCL event object for the submitted command group.
   event submit(const std::function<void(handler &)> &CGF,
                const std::shared_ptr<queue_impl> &Self,
-               const detail::code_location &Loc,
+               const detail::code_location &Loc, bool IsTopCodeLoc,
                const SubmitPostProcessF *PostProcess = nullptr) {
-    auto ResEvent = submit_impl(CGF, Self, Self, nullptr,
-                                /*CallerNeedsEvent=*/true, Loc, PostProcess);
+    auto ResEvent =
+        submit_impl(CGF, Self, Self, nullptr,
+                    /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc, PostProcess);
     return discard_or_return(ResEvent);
   }
 
   void submit_without_event(const std::function<void(handler &)> &CGF,
                             const std::shared_ptr<queue_impl> &Self,
-                            const detail::code_location &Loc,
+                            const detail::code_location &Loc, bool IsTopCodeLoc,
                             const SubmitPostProcessF *PostProcess = nullptr) {
     submit_impl(CGF, Self, Self, nullptr, /*CallerNeedsEvent=*/false, Loc,
-                PostProcess);
+                IsTopCodeLoc, PostProcess);
   }
 
   /// Performs a blocking wait for the completion of all enqueued tasks in the
@@ -433,7 +437,7 @@ public:
       CreationFlags |= UR_QUEUE_FLAG_USE_DEFAULT_STREAM;
     }
     if (PropList.has_property<ext::oneapi::property::queue::discard_events>()) {
-      // Pass this flag to the Level Zero plugin to be able to check it from
+      // Pass this flag to the Level Zero adapter to be able to check it from
       // queue property.
       CreationFlags |= UR_QUEUE_FLAG_DISCARD_EVENTS;
     }
@@ -489,7 +493,7 @@ public:
     ur_queue_handle_t Queue{};
     ur_context_handle_t Context = MContext->getHandleRef();
     ur_device_handle_t Device = MDevice->getHandleRef();
-    const PluginPtr &Plugin = getPlugin();
+    const AdapterPtr &Adapter = getAdapter();
     /*
         sycl::detail::pi::PiQueueProperties Properties[] = {
             PI_QUEUE_FLAGS, createPiQueueProperties(MPropList, Order), 0, 0, 0};
@@ -505,7 +509,7 @@ public:
               .get_index();
       Properties.pNext = &IndexProperties;
     }
-    ur_result_t Error = Plugin->call_nocheck<UrApiKind::urQueueCreate>(
+    ur_result_t Error = Adapter->call_nocheck<UrApiKind::urQueueCreate>(
         Context, Device, &Properties, &Queue);
 
     // If creating out-of-order queue failed and this property is not
@@ -516,7 +520,7 @@ public:
       MEmulateOOO = true;
       Queue = createQueue(QueueOrder::Ordered);
     } else {
-      Plugin->checkUrResult(Error);
+      Adapter->checkUrResult(Error);
     }
 
     return Queue;
@@ -548,7 +552,7 @@ public:
     if (!ReuseQueue)
       *PIQ = createQueue(QueueOrder::Ordered);
     else
-      getPlugin()->call<UrApiKind::urQueueFinish>(*PIQ);
+      getAdapter()->call<UrApiKind::urQueueFinish>(*PIQ);
 
     return *PIQ;
   }
@@ -689,15 +693,9 @@ public:
                           std::vector<event> &MutableVec,
                           std::unique_lock<std::mutex> &QueueLock);
 
-  // Helps to manage host tasks presence in scenario with barrier usage.
-  // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. No-op
-  // for in order ones.
-  void tryToResetEnqueuedBarrierDep(const EventImplPtr &EnqueuedBarrierEvent);
-
   // Called on host task completion that could block some kernels from enqueue.
   // Approach that tracks almost all tasks to provide barrier sync for both ur
-  // tasks and host tasks is applicable for out of order queues only. Not neede
+  // tasks and host tasks is applicable for out of order queues only. Not needed
   // for in order ones.
   void revisitUnenqueuedCommandsState(const EventImplPtr &CompletedHostTask);
 
@@ -712,6 +710,18 @@ public:
 
   const property_list &getPropList() const { return MPropList; }
 
+  /// Inserts a marker event at the end of the queue. Waiting for this marker
+  /// will wait for the completion of all work in the queue at the time of the
+  /// insertion, but will not act as a barrier unless the queue is in-order.
+  EventImplPtr insertMarkerEvent(const std::shared_ptr<queue_impl> &Self) {
+    auto ResEvent = std::make_shared<detail::event_impl>(Self);
+    ur_event_handle_t UREvent = nullptr;
+    getAdapter()->call<UrApiKind::urEnqueueEventsWait>(getHandleRef(), 0,
+                                                       nullptr, &UREvent);
+    ResEvent->setHandle(UREvent);
+    return ResEvent;
+  }
+
 protected:
   event discard_or_return(const event &Event);
 
@@ -719,7 +729,7 @@ protected:
   EventImplPtr insertHelperBarrier(const HandlerType &Handler) {
     auto ResEvent = std::make_shared<detail::event_impl>(Handler.MQueue);
     ur_event_handle_t UREvent = nullptr;
-    getPlugin()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+    getAdapter()->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
         Handler.MQueue->getHandleRef(), 0, nullptr, &UREvent);
     ResEvent->setHandle(UREvent);
     return ResEvent;
@@ -818,7 +828,7 @@ protected:
                     const std::shared_ptr<queue_impl> &PrimaryQueue,
                     const std::shared_ptr<queue_impl> &SecondaryQueue,
                     bool CallerNeedsEvent, const detail::code_location &Loc,
-                    const SubmitPostProcessF *PostProcess);
+                    bool IsTopCodeLoc, const SubmitPostProcessF *PostProcess);
 
   /// Helper function for submitting a memory operation with a handler.
   /// \param Self is a shared_ptr to this queue.
@@ -966,6 +976,8 @@ protected:
   std::mutex MMissedCleanupRequestsMtx;
 
   friend class sycl::ext::oneapi::experimental::detail::node_impl;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

@@ -251,6 +251,13 @@ if (NOT TARGET FortranFloat128Math)
       APPEND PROPERTY COMPILE_DEFINITIONS
       ${f128_defs}
       )
+    get_target_property(f128_include_dirs
+      FortranFloat128MathILib INTERFACE_INCLUDE_DIRECTORIES
+      )
+    set_property(SOURCE ${f128_sources}
+      APPEND PROPERTY INCLUDE_DIRECTORIES
+      ${f128_include_dirs}
+      )
     list(APPEND sources ${f128_sources})
   endif()
 endif()
@@ -309,3 +316,6 @@ if (TARGET flang-new AND TARGET module_files)
   add_dependencies(FortranRuntime flang-new module_files)
 endif()
 
+if (FLANG_CUF_RUNTIME)
+  add_subdirectory(CUDA)
+endif()

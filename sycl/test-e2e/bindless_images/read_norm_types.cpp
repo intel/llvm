@@ -1,11 +1,12 @@
-// REQUIRES: cuda || (level_zero && gpu-intel-dg2)
+// REQUIRES: aspect-ext_oneapi_bindless_images
 
 // RUN: %{build} -o %t.out
-// RUN: env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
+// RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 #include <iostream>
 #include <limits>
 #include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 #include "helpers/common.hpp"
 #include <sycl/ext/oneapi/bindless_images.hpp>
@@ -29,7 +30,7 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
 
   std::vector<InputType> dataIn(numElems, InputType((DType)dtypeMaxVal));
   std::vector<OutputType> dataOut(numElems);
-  std::vector<OutputType> expected(numElems, OutputType(1.f));
+  std::vector<OutputType> expected(numElems, OutputType(2.f));
 
   try {
 
@@ -47,8 +48,29 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
         sycl::coordinate_normalization_mode::normalized,
         sycl::filtering_mode::nearest};
 
-    auto imgIn = syclexp::create_image(imgMemIn, sampler, descIn, q);
+    auto imgIn1 = syclexp::create_image(imgMemIn, sampler, descIn, q);
     auto imgOut = syclexp::create_image(imgMemOut, descOut, q);
+
+    void *allocUSM = nullptr;
+    syclexp::image_mem_handle allocMem;
+    syclexp::sampled_image_handle imgIn2;
+
+    if constexpr (NDims == 2) {
+      size_t pitch = 0;
+      allocUSM = syclexp::pitched_alloc_device(&pitch, descIn, q);
+
+      if (allocUSM == nullptr) {
+        std::cerr << "Error allocating 2D USM memory!" << std::endl;
+        return false;
+      }
+      imgIn2 = syclexp::create_image(allocUSM, pitch, sampler, descIn, q);
+      q.ext_oneapi_copy(dataIn.data(), allocUSM, descIn, pitch);
+
+    } else {
+      allocMem = syclexp::alloc_image_mem(descIn, q);
+      imgIn2 = syclexp::create_image(allocMem, sampler, descIn, q);
+      q.ext_oneapi_copy(dataIn.data(), allocMem, descIn);
+    }
 
     q.ext_oneapi_copy(dataIn.data(), imgMemIn, descIn);
     q.wait_and_throw();
@@ -60,17 +82,22 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
             if constexpr (NDims == 1) {
               size_t dim0 = it.get_global_id(0);
               float fdim0 = dim0 / globalSize[0];
-              OutputType pixel =
-                  syclexp::sample_image<OutputType>(imgIn, fdim0);
-              syclexp::write_image(imgOut, int(dim0), pixel);
+              OutputType pixel1 =
+                  syclexp::sample_image<OutputType>(imgIn1, fdim0);
+              OutputType pixel2 =
+                  syclexp::sample_image<OutputType>(imgIn2, fdim0);
+              syclexp::write_image(imgOut, int(dim0), pixel1 + pixel2);
             } else if constexpr (NDims == 2) {
               size_t dim0 = it.get_global_id(0);
               size_t dim1 = it.get_global_id(1);
               float fdim0 = dim0 / globalSize[0];
               float fdim1 = dim1 / globalSize[1];
-              OutputType pixel = syclexp::sample_image<OutputType>(
-                  imgIn, sycl::float2(fdim0, fdim1));
-              syclexp::write_image(imgOut, sycl::int2(dim0, dim1), pixel);
+              OutputType pixel1 = syclexp::sample_image<OutputType>(
+                  imgIn1, sycl::float2(fdim0, fdim1));
+              OutputType pixel2 = syclexp::sample_image<OutputType>(
+                  imgIn2, sycl::float2(fdim0, fdim1));
+              syclexp::write_image(imgOut, sycl::int2(dim0, dim1),
+                                   pixel1 + pixel2);
             } else if constexpr (NDims == 3) {
               size_t dim0 = it.get_global_id(0);
               size_t dim1 = it.get_global_id(1);
@@ -78,9 +105,12 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
               float fdim0 = dim0 / globalSize[0];
               float fdim1 = dim1 / globalSize[1];
               float fdim2 = dim2 / globalSize[2];
-              OutputType pixel = syclexp::sample_image<OutputType>(
-                  imgIn, sycl::float3(fdim0, fdim1, fdim2));
-              syclexp::write_image(imgOut, sycl::int3(dim0, dim1, dim2), pixel);
+              OutputType pixel1 = syclexp::sample_image<OutputType>(
+                  imgIn1, sycl::float3(fdim0, fdim1, fdim2));
+              OutputType pixel2 = syclexp::sample_image<OutputType>(
+                  imgIn2, sycl::float3(fdim0, fdim1, fdim2));
+              syclexp::write_image(imgOut, sycl::int3(dim0, dim1, dim2),
+                                   pixel1 + pixel2);
             }
           });
     });
@@ -89,12 +119,20 @@ bool run_test(sycl::range<NDims> globalSize, sycl::range<NDims> localSize) {
     q.ext_oneapi_copy(imgMemOut, dataOut.data(), descOut);
     q.wait_and_throw();
 
-    syclexp::destroy_image_handle(imgIn, q);
+    syclexp::destroy_image_handle(imgIn1, q);
+    syclexp::destroy_image_handle(imgIn2, q);
     syclexp::destroy_image_handle(imgOut, q);
 
     syclexp::free_image_mem(imgMemIn, syclexp::image_type::standard, dev, ctxt);
     syclexp::free_image_mem(imgMemOut, syclexp::image_type::standard, dev,
                             ctxt);
+
+    if constexpr (NDims == 2) {
+      sycl::free(allocUSM, ctxt);
+    } else {
+      syclexp::free_image_mem(allocMem, syclexp::image_type::standard, dev,
+                              ctxt);
+    }
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return false;

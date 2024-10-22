@@ -28,14 +28,21 @@
 // RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
 // RUN:    | FileCheck %s --check-prefixes=CHECK,LIBDEVICE10
 
+// Check also that -nocudalib is obeyed
+// RUN: %clang -### -fsycl -fsycl-targets=nvptx64-nvidia-cuda -nocudalib \
+// RUN:    -Xsycl-target-backend --cuda-gpu-arch=sm_35 \
+// RUN:    --sysroot=%S/Inputs/SYCL --cuda-path=%S/Inputs/CUDA_90/usr/local/cuda %s 2>&1 \
+// RUN:    | FileCheck %s --check-prefixes=CHECK,NOLIBDEVICE
+
 // First link command: ignored
 // CHECK: llvm-link
 
 // CHECK: llvm-link
 // CHECK-SAME: -only-needed
-// CHECK-SAME: devicelib--cuda.bc
+// CHECK-SAME: devicelib-nvptx64-nvidia-cuda.bc
 // CHECK-SAME: libspirv-nvptx64-nvidia-cuda.bc
 // LIBDEVICE10-SAME: libdevice.10.bc
 // LIBDEVICE30-SAME: libdevice.compute_30.10.bc
 // LIBDEVICE35-SAME: libdevice.compute_35.10.bc
 // LIBDEVICE50-SAME: libdevice.compute_50.10.bc
+// NOLIBDEVICE-NOT: libdevice.{{.*}}.10.bc
