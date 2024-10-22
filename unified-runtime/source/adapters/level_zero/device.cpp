@@ -260,8 +260,6 @@ ur_result_t urDeviceGetInfo(
     //   for performance.
     // cl_intel_required_subgroup_size - Extension to allow programmers to
     //   optionally specify the required subgroup size for a kernel function.
-    // cl_khr_fp16 - Optional half floating-point support.
-    // cl_khr_fp64 - Support for double floating-point precision.
     // cl_khr_int64_base_atomics, cl_khr_int64_extended_atomics - Optional
     //   extensions that implement atomic operations on 64-bit signed and
     //   unsigned integers to locations in __global and __local memory.
@@ -271,10 +269,6 @@ ur_result_t urDeviceGetInfo(
     // Hardcoding some extensions we know are supported by all Level Zero
     // devices.
     SupportedExtensions += (ZE_SUPPORTED_EXTENSIONS);
-    if (Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP16)
-      SupportedExtensions += ("cl_khr_fp16 ");
-    if (Device->ZeDeviceModuleProperties->flags & ZE_DEVICE_MODULE_FLAG_FP64)
-      SupportedExtensions += ("cl_khr_fp64 ");
     if (Device->ZeDeviceModuleProperties->flags &
         ZE_DEVICE_MODULE_FLAG_INT64_ATOMICS)
       // int64AtomicsSupported indicates support for both.
