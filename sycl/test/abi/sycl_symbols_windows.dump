@@ -4254,6 +4254,7 @@
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXAEBVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?storeRawArg@handler@_V1@sycl@@AEAAPEAXPEBX_K@Z
 ?stringifyErrorCode@detail@_V1@sycl@@YAPEBDH@Z
+?submit@experimental@oneapi@ext@_V1@sycl@@YAXVqueue@45@V?$command_graph@$00@12345@AEBUcode_location@detail@45@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
 ?submit_impl@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@@Z
@@ -4264,6 +4265,7 @@
 ?submit_impl_and_postprocess@queue@_V1@sycl@@AEAA?AVevent@23@V?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@V123@AEBUcode_location@detail@23@AEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@6@_N@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEAAXV?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@@Z
 ?submit_without_event_impl@queue@_V1@sycl@@AEAAXV?$function@$$A6AXAEAVhandler@_V1@sycl@@@Z@std@@AEBUcode_location@detail@23@_N@Z
+?submit_with_event@experimental@oneapi@ext@_V1@sycl@@YA?AVevent@45@Vqueue@45@V?$command_graph@$00@12345@AEBUcode_location@detail@45@@Z
 ?supportsUSMFill2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemcpy2D@handler@_V1@sycl@@AEAA_NXZ
 ?supportsUSMMemset2D@handler@_V1@sycl@@AEAA_NXZ
