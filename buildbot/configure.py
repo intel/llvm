@@ -177,6 +177,8 @@ def do_configure(args):
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
+        "-DLLVM_ENABLE_ZSTD=ON",
+        "-DLLVM_USE_STATIC_ZSTD=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
         "-DSYCL_INCLUDE_TESTS=ON",  # Explicitly include all kinds of SYCL tests.
