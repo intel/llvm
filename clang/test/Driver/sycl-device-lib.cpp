@@ -33,6 +33,7 @@
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-gsort.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_DEFAULT-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
@@ -70,11 +71,12 @@
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-cmath.new.o
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-gsort.new.o
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_WITH_FP64-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
-/// ###########################################################################
 
+/// ###########################################################################
 /// test behavior of -fno-sycl-device-lib=libc
 // RUN: %clangxx -fsycl --offload-new-driver %s -fno-sycl-device-lib=libc --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_LIBC
@@ -93,11 +95,12 @@
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-cmath.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-gsort.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBC-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
-/// ###########################################################################
 
+/// ###########################################################################
 /// test behavior of -fno-sycl-device-lib=libm-fp32,libm-fp64
 // RUN: %clangxx -fsycl --offload-new-driver %s -fno-sycl-device-lib=libm-fp32,libm-fp64 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_LIBM
@@ -116,11 +119,12 @@
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-NOT: {{.*}}libsycl-fallback-complex-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-NOT: {{.*}}libsycl-fallback-cmath.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-NOT: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: {{.*}}libsycl-fallback-gsort.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_LINK_NO_LIBM-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
-/// ###########################################################################
 
+/// ###########################################################################
 /// test behavior of disabling all device libraries
 // RUN: %clangxx -fsycl --offload-new-driver %s -fno-sycl-device-lib=libc,libm-fp32 --sysroot=%S/Inputs/SYCL -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_LINK_NO_DEVICE_LIB
@@ -152,6 +156,7 @@
 // SYCL_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option '-fsycl-device-lib='
 // SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option '-fno-sycl-device-lib='
 
+
 /// ###########################################################################
 /// test behavior of libsycl-sanitizer.o linking when -fsanitize=address is available
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=address -### 2>&1 \
@@ -181,6 +186,7 @@
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-complex-fp64.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-cmath.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-cmath-fp64.new.o
+// SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-gsort.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
