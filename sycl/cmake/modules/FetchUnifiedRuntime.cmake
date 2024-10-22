@@ -116,8 +116,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG aaron/clBatch)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/lukaszstolarczuk/unified-runtime")
+  # commit 7fa9d44660047ea5941d992ec1f74a59966e0550
+  # Author: Łukasz Stolarczuk <lukasz.stolarczuk@intel.com>
+  # Date:   Mon Oct 14 16:32:32 2024 +0200
+  #     Bump UMF version to the latest
+  #     it includes the fix for missing/optional symbols.
+  set(UNIFIED_RUNTIME_TAG 7fa9d44660047ea5941d992ec1f74a59966e0550)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
