@@ -16,33 +16,35 @@ int main() {
   sycl::queue Q;
   sycl::context Context = Q.get_context();
   int Failed = 0;
-
-  size_t UsedGranularityInBytes = syclext::get_mem_granularity(
+  constexpr size_t NumberOfElements = 1000;
+  size_t BytesRequired = NumberOfElements*sizeof(int);
+  
+  size_t CtxGranularity = syclext::get_mem_granularity(
       Context, syclext::granularity_mode::recommended);
 
+  size_t AlignedByteSize = ((BytesRequired + CtxGranularity - 1) / CtxGranularity) * CtxGranularity;
+
   syclext::physical_mem NewPhysicalMem{Q.get_device(), Context,
-                                       UsedGranularityInBytes};
+                                       AlignedByteSize};
   uintptr_t VirtualMemoryPtr =
-      syclext::reserve_virtual_mem(0, UsedGranularityInBytes, Context);
+      syclext::reserve_virtual_mem(0, AlignedByteSize, Context);
 
   void *MappedPtr =
-      NewPhysicalMem.map(VirtualMemoryPtr, UsedGranularityInBytes,
+      NewPhysicalMem.map(VirtualMemoryPtr, AlignedByteSize,
                          syclext::address_access_mode::read_write);
 
   int *DataPtr = reinterpret_cast<int *>(MappedPtr);
 
-  sycl::range NumItems{UsedGranularityInBytes / sizeof(int)};
-
-  std::vector<int> ResultHostData(NumItems.size());
+  std::vector<int> ResultHostData(NumberOfElements);
 
   constexpr int ExpectedValueAfterFill = 1;
 
-  Q.fill(DataPtr, ExpectedValueAfterFill, NumItems.size()).wait_and_throw();
+  Q.fill(DataPtr, ExpectedValueAfterFill, NumberOfElements).wait_and_throw();
   {
     sycl::buffer<int> CheckBuffer(ResultHostData);
     Q.submit([&](sycl::handler &Handle) {
       sycl::accessor A(CheckBuffer, Handle, sycl::write_only);
-      Handle.parallel_for(NumItems,
+      Handle.parallel_for(NumberOfElements,
                           [=](sycl::id<1> Idx) { A[Idx] = DataPtr[Idx]; });
     });
   }
@@ -56,11 +58,11 @@ int main() {
     }
   }
 
-  Q.parallel_for(NumItems, [=](sycl::id<1> Idx) {
+  Q.parallel_for(NumberOfElements, [=](sycl::id<1> Idx) {
      DataPtr[Idx] = Idx;
    }).wait_and_throw();
 
-  syclext::set_access_mode(DataPtr, UsedGranularityInBytes,
+  syclext::set_access_mode(DataPtr, AlignedByteSize,
                            syclext::address_access_mode::read, Context);
 
   {
@@ -68,12 +70,12 @@ int main() {
 
     Q.submit([&](sycl::handler &Handle) {
       sycl::accessor A(ResultBuffer, Handle, sycl::write_only);
-      Handle.parallel_for(NumItems,
+      Handle.parallel_for(NumberOfElements,
                           [=](sycl::id<1> Idx) { A[Idx] = DataPtr[Idx]; });
     });
   }
 
-  for (size_t i = 0; i < NumItems.size(); i++) {
+  for (size_t i = 0; i < NumberOfElements; i++) {
     const int ExpectedValue = static_cast<int>(i);
     if (ResultHostData[i] != ExpectedValue) {
       std::cout << "Comparison failed at index " << i << ": "
@@ -82,8 +84,8 @@ int main() {
     }
   }
 
-  syclext::unmap(MappedPtr, UsedGranularityInBytes, Context);
-  syclext::free_virtual_mem(VirtualMemoryPtr, UsedGranularityInBytes, Context);
+  syclext::unmap(MappedPtr, AlignedByteSize, Context);
+  syclext::free_virtual_mem(VirtualMemoryPtr, AlignedByteSize, Context);
 
   return Failed;
 }
