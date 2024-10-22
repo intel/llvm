@@ -23,6 +23,9 @@ llvm::Expected<std::unique_ptr<llvm::Module>>
 compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
                   View<const char *> UserArgs);
 
+llvm::Error linkDefaultDeviceLibraries(llvm::Module *Module,
+                                       View<const char *> UserArgs);
+
 } // namespace jit_compiler
 
 #endif // SYCL_JIT_COMPILER_RTC_DEVICE_COMPILATION_H

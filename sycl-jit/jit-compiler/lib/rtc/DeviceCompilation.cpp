@@ -15,6 +15,11 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Linker/Linker.h>
+
+#include <array>
+
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
@@ -108,9 +113,6 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   }
 
   SmallVector<std::string> CommandLine = {"-fsycl-device-only"};
-  // TODO: Allow instrumentation again when device library linking is
-  //       implemented.
-  CommandLine.push_back("-fno-sycl-instrument-device-code");
   CommandLine.append(UserArgs.begin(), UserArgs.end());
   FixedCompilationDatabase DB{".", CommandLine};
 
@@ -146,4 +148,85 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
 
   // TODO: Capture compiler errors from the ClangTool.
   return createStringError("Unable to obtain LLVM module");
+}
+
+Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module *Module,
+                                               View<const char *> UserArgs) {
+  // This function mimics the device library selection process
+  // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
+  // (no AoT, no third-party GPUs, no native CPU).
+
+  bool DeviceInstrumentationEnabled = true;
+  for (StringRef UA : UserArgs) {
+    if (UA == "-fno-sycl-instrument-device-code") {
+      DeviceInstrumentationEnabled = false;
+      continue;
+    }
+
+    // Issue warning for `-fsycl-device-lib` or `-fno-sycl-device-lib`.
+    // TODO: Is it worth supporting these flags? We're using `LinkOnlyNeeded`
+    //       mode anyways!
+    // TODO: If we keep the warning, it must go into the build log, not onto the
+    //       console.
+    // TODO: The FrontendAction emits a warning that these flags are unused. We
+    //       should probably silence that by removing the argument occurence for
+    //       the compilation step.
+    if (UA.contains("sycl-device-lib")) {
+      errs() << "warning: device library selection with '" << UA
+             << "' is ignored\n";
+    }
+
+    // TODO: Presence of `-fsanitize=address` would require linking
+    //       `libsycl-sanitizer`, but currently compilation fails earlier.
+    assert(!UA.contains("-fsanitize=address") && "Device ASAN unsupported");
+  }
+
+  const std::string &DPCPPRoot = getDPCPPRoot();
+  if (DPCPPRoot == InvalidDPCPPRoot) {
+    return createStringError("Could not locate DPCPP root directory");
+  }
+
+  constexpr std::array<llvm::StringLiteral, 8> SYCLDeviceWrapperLibs = {
+      "libsycl-crt",      "libsycl-complex",    "libsycl-complex-fp64",
+      "libsycl-cmath",    "libsycl-cmath-fp64", "libsycl-imf",
+      "libsycl-imf-fp64", "libsycl-imf-bf16"};
+
+  constexpr std::array<llvm::StringLiteral, 3> SYCLDeviceAnnotationLibs = {
+      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
+      "libsycl-itt-stubs"};
+
+  LLVMContext &Ctx = Module->getContext();
+  auto Link = [&](ArrayRef<llvm::StringLiteral> LibNames) -> Error {
+    for (const auto &LibName : LibNames) {
+      std::string LibPath = (DPCPPRoot + "/lib/" + LibName + ".bc").str();
+
+      SMDiagnostic Diag;
+      std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Ctx);
+      if (!Lib) {
+        std::string DiagMsg;
+        raw_string_ostream SOS(DiagMsg);
+        Diag.print(/*ProgName=*/nullptr, SOS);
+        return createStringError(DiagMsg);
+      }
+
+      if (Linker::linkModules(*Module, std::move(Lib),
+                              Linker::LinkOnlyNeeded)) {
+        // TODO: `linkModules` always prints errors to the console.
+        return createStringError("Unable to link device library: %s",
+                                 LibPath.c_str());
+      }
+    }
+
+    return Error::success();
+  };
+
+  if (auto Error = Link(SYCLDeviceWrapperLibs)) {
+    return Error;
+  }
+  if (DeviceInstrumentationEnabled) {
+    if (auto Error = Link(SYCLDeviceAnnotationLibs)) {
+      return Error;
+    }
+  }
+  return Error::success();
 }
