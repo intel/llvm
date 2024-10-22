@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem, usm_shared_allocations
+// REQUIRES: aspect-ext_oneapi_virtual_mem, aspect-usm_shared_allocations
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -16,8 +16,8 @@ namespace syclext = sycl::ext::oneapi::experimental;
 // value can be used for aligning both physical memory allocations and for
 // reserving virtual memory ranges.
 size_t GetLCMGranularity(const sycl::device &Dev, const sycl::context &Ctx) {
-  size_t CtxGranularity = syclext::get_mem_granularity(MContext);
-  size_t DevGranularity = syclext::get_mem_granularity(MDevice, MContext);
+  size_t CtxGranularity = syclext::get_mem_granularity(Ctx);
+  size_t DevGranularity = syclext::get_mem_granularity(Dev, Ctx);
 
   size_t GCD = CtxGranularity;
   size_t Rem = DevGranularity % GCD;
@@ -25,7 +25,7 @@ size_t GetLCMGranularity(const sycl::device &Dev, const sycl::context &Ctx) {
     std::swap(GCD, Rem);
     Rem %= GCD;
   }
-  return (DevGranularity / GCD) * LCMGranularity;
+  return (DevGranularity / GCD) * CtxGranularity;
 }
 
 template <typename T> class VirtualVector {
