@@ -10174,6 +10174,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SmallString<128> TargetTripleOpt = TT.getArchName();
     bool WrapFPGADevice = false;
     bool FPGAEarly = false;
+
+    // Validate and propogate CLI options related to device image compression.
+    // -offload-compress
+    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+      WrapperArgs.push_back(
+          C.getArgs().MakeArgString(Twine("-offload-compress")));
+      // -offload-compression-level=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_offload_compression_level_EQ))
+        WrapperArgs.push_back(C.getArgs().MakeArgString(
+            Twine("-offload-compression-level=") + A->getValue()));
+    }
+
     if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
       WrapFPGADevice = true;
       FPGAEarly = (A->getValue() == StringRef("early"));
