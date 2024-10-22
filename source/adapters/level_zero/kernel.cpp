@@ -96,14 +96,8 @@ ur_result_t urEnqueueKernelLaunch(
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    if (!Queue->Device->Platform->ZeDriverGlobalOffsetExtensionFound) {
-      logger::error("No global offset extension found on this driver");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-
-    ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
-               (ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
-                GlobalWorkOffset[2]));
+    UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
+                                  GlobalWorkOffset));
   }
 
   // If there are any pending arguments set them now.
@@ -257,14 +251,8 @@ ur_result_t urEnqueueCooperativeKernelLaunchExp(
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
       Queue->Mutex, Kernel->Mutex, Kernel->Program->Mutex);
   if (GlobalWorkOffset != NULL) {
-    if (!Queue->Device->Platform->ZeDriverGlobalOffsetExtensionFound) {
-      logger::error("No global offset extension found on this driver");
-      return UR_RESULT_ERROR_INVALID_VALUE;
-    }
-
-    ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
-               (ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
-                GlobalWorkOffset[2]));
+    UR_CALL(setKernelGlobalOffset(Queue->Context, ZeKernel, WorkDim,
+                                  GlobalWorkOffset));
   }
 
   // If there are any pending arguments set them now.

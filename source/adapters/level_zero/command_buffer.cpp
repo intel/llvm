@@ -628,32 +628,6 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t CommandBuffer) {
 }
 
 /**
- * Sets the global offset for a kernel command that will be appended to the
- * command buffer.
- * @param[in] CommandBuffer The CommandBuffer where the command will be
- * appended.
- * @param[in] Kernel The handle to the kernel that will be appended.
- * @param[in] GlobalWorkOffset The global offset value.
- * @return UR_RESULT_SUCCESS or an error code on failure
- */
-ur_result_t setKernelGlobalOffset(ur_exp_command_buffer_handle_t CommandBuffer,
-                                  ur_kernel_handle_t Kernel,
-                                  const size_t *GlobalWorkOffset) {
-
-  if (!CommandBuffer->Context->getPlatform()
-           ->ZeDriverGlobalOffsetExtensionFound) {
-    logger::debug("No global offset extension found on this driver");
-    return UR_RESULT_ERROR_INVALID_VALUE;
-  }
-
-  ZE2UR_CALL(zeKernelSetGlobalOffsetExp,
-             (Kernel->ZeKernel, GlobalWorkOffset[0], GlobalWorkOffset[1],
-              GlobalWorkOffset[2]));
-
-  return UR_RESULT_SUCCESS;
-}
-
-/**
  * Sets the kernel arguments for a kernel command that will be appended to the
  * command buffer.
  * @param[in] CommandBuffer The CommandBuffer where the command will be
@@ -754,7 +728,8 @@ ur_result_t urCommandBufferAppendKernelLaunchExp(
       Kernel->Mutex, Kernel->Program->Mutex, CommandBuffer->Mutex);
 
   if (GlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(CommandBuffer, Kernel, GlobalWorkOffset));
+    UR_CALL(setKernelGlobalOffset(CommandBuffer->Context, Kernel->ZeKernel,
+                                  WorkDim, GlobalWorkOffset));
   }
 
   // If there are any pending arguments set them now.
