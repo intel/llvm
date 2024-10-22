@@ -17,12 +17,13 @@ int main() {
   sycl::context Context = Q.get_context();
   int Failed = 0;
   constexpr size_t NumberOfElements = 1000;
-  size_t BytesRequired = NumberOfElements*sizeof(int);
-  
+  size_t BytesRequired = NumberOfElements * sizeof(int);
+
   size_t CtxGranularity = syclext::get_mem_granularity(
       Context, syclext::granularity_mode::recommended);
 
-  size_t AlignedByteSize = ((BytesRequired + CtxGranularity - 1) / CtxGranularity) * CtxGranularity;
+  size_t AlignedByteSize =
+      ((BytesRequired + CtxGranularity - 1) / CtxGranularity) * CtxGranularity;
 
   syclext::physical_mem NewPhysicalMem{Q.get_device(), Context,
                                        AlignedByteSize};
