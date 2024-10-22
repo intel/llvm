@@ -39,7 +39,7 @@ namespace ext::oneapi::experimental {
 
 template <typename DataT, typename PropertyListT>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
-    : sycl::detail::work_group_memory_impl {
+    : public sycl::detail::work_group_memory_impl {
 public:
   using value_type = std::remove_all_extents_t<DataT>;
 
