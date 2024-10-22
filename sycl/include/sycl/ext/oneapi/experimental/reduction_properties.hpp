@@ -11,6 +11,7 @@
 
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
+#include <sycl/reduction.hpp>
 
 namespace sycl {
 inline namespace _V1 {

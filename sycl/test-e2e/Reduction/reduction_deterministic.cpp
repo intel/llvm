@@ -1,8 +1,12 @@
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 #include <cstdio>
 #include <cstdlib>
 #include <random>
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
+#include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
