@@ -52,7 +52,6 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bindless_images
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_task_sequence
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
@@ -118,7 +117,6 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-CPU-SAME:,+SPV_INTEL_task_sequence
-// CHECK-CPU-SAME:,+SPV_INTEL_token_type
 // CHECK-CPU-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_hw_thread_queries
