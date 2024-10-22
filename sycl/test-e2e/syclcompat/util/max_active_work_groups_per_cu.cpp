@@ -73,6 +73,12 @@ void test_max_active_work_groups_per_cu(sycl::queue q,
   size_t max_per_cu = syclcompat::max_active_work_groups_per_cu(
       kernel, q, wg_range, local_mem_size);
 
+  // Check we get the same result passing equivalent dim3
+  syclcompat::dim3 wg_dim3{wg_range};
+  size_t max_per_cu_dim3 = syclcompat::max_active_work_groups_per_cu(
+      kernel, q, wg_dim3, local_mem_size);
+  assert(max_per_cu == max_per_cu_dim3);
+
   // Compare w/ reference impl
   size_t max_compute_units =
       q.get_device().get_info<sycl::info::device::max_compute_units>();
@@ -125,6 +131,5 @@ int main() {
                                                           lmem_size_large);
   test_max_active_work_groups_per_cu<MyLocalMemKernel, 1>(q, range_1d,
                                                           lmem_size_large);
-//TODO(joe): dim3 test here
   return 0;
 }
