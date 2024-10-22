@@ -2928,6 +2928,24 @@ public:
       assert(this->getModule()->getSPIRVVersion() < VersionNumber::SPIRV_1_4 &&
              "OpAtomicCompareExchangeWeak is removed starting from SPIR-V 1.4");
   }
+
+  // This method is needed for correct translation of atomic instructions when
+  // SPV_KHR_untyped_pointers is enabled.
+  // The interpreted data type for untyped pointers is specified by the Result
+  // Type if it exists, or from the type of the object being stored in other
+  // case.
+  SPIRVType *getSemanticType() {
+    switch (OpCode) {
+    case OpAtomicStore:
+      // Get type of Value operand
+      return getOperand(3)->getType();
+    default: {
+      if (hasType())
+        return getType();
+      return nullptr;
+    }
+    }
+  }
 };
 
 class SPIRVAtomicStoreInst : public SPIRVAtomicInstBase {
