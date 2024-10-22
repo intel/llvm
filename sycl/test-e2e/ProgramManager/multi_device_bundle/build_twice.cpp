@@ -24,14 +24,14 @@ int main() {
   sycl::kernel_id kid = sycl::get_kernel_id<Kernel>();
   sycl::kernel_bundle kernelBundleInput =
       sycl::get_kernel_bundle<sycl::bundle_state::input>(ctx, {kid});
-  // CHECK: urProgramCreateWithIL
-  // CHECK: urProgramBuildExp
+  // CHECK: urProgramCreateWithIL(
+  // CHECK: urProgramBuildExp(
   auto KernelBundleExe1 = build(kernelBundleInput, {dev1, dev2});
-  // CHECK: urProgramCreateWithIL
-  // CHECK: urProgramBuildExp
+  // CHECK: urProgramCreateWithIL(
+  // CHECK: urProgramBuildExp(
   auto KernelBundleExe2 = build(kernelBundleInput, {dev2, dev3});
   // No other program creation calls are expected.
-  // CHECK-NOT: urProgramCreateWithIL
+  // CHECK-NOT: urProgramCreateWithIL(
   auto KernelObj1 = KernelBundleExe1.get_kernel(kid);
   auto KernelObj2 = KernelBundleExe2.get_kernel(kid);
   queues[0].submit([=](sycl::handler &cgh) {

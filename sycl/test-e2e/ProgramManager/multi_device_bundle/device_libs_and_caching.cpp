@@ -17,8 +17,7 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-SPIRV-JIT-LINK-TRACE
 
 // Check the case when in-memory caching of the programs is disabled.
-// RUNL env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4
-// %{run} %t.out
+// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
 // Test AOT next.
 // RUN: %{build} -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen "-device *" -o %t.out
@@ -27,8 +26,7 @@
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=4 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s --check-prefixes=CHECK-AOT-TRACE
 
 // Check the case when in-memory caching of the programs is disabled.
-// RUNL env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4
-// %{run} %t.out
+// RUN: env SYCL_CACHE_IN_MEM=0 NEOReadDebugKeys=1 CreateMultipleRootDevices=4 %{run} %t.out
 
 #include <cmath>
 #include <complex>
@@ -62,23 +60,23 @@ int main() {
   {
     sycl::kernel_id kid = sycl::get_kernel_id<Kernel>();
     // Create the main program containing the kernel.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
 
     // Create and compile the program for required device libraries (2 of them
     // in this case).
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
 
     // Compile the main program
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
 
     // Link main program and device libraries.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp(
 
-    // CHECK-AOT-TRACE: urProgramCreateWithBinary
-    // CHECK-AOT-TRACE: urProgramBuildExp
+    // CHECK-AOT-TRACE: urProgramCreateWithBinary(
+    // CHECK-AOT-TRACE: urProgramBuildExp(
     sycl::kernel_bundle kernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             ctx, {dev1, dev2, dev3}, {kid});
@@ -119,22 +117,22 @@ int main() {
 
     // Here we create a bundle with a different set of devices which includes
     // dev4, so we expect new UR program creation.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCreateWithIL(
 
     // Device libraries will be additionally compiled for dev4, but no program
     // creation is expected for device libraries as program handle already
     // exists in the per-context cache.
-    // CHECK-SPIRV-JIT-LINK-TRACE-NOT: urProgramCreateWithIL
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp
+    // CHECK-SPIRV-JIT-LINK-TRACE-NOT: urProgramCreateWithIL(
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
 
     // Main program will be compiled for new set of devices.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramCompileExp(
 
     // Main program will be linked with device libraries.
-    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp
+    // CHECK-SPIRV-JIT-LINK-TRACE: urProgramLinkExp(
 
-    // CHECK-AOT-TRACE: urProgramCreateWithBinary
-    // CHECK-AOT-TRACE: urProgramBuildExp
+    // CHECK-AOT-TRACE: urProgramCreateWithBinary(
+    // CHECK-AOT-TRACE: urProgramBuildExp(
     sycl::kernel_bundle kernelBundleExecutableNewSet =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(
             ctx, {dev2, dev3, dev4}, {kid});
