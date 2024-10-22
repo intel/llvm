@@ -399,3 +399,14 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   GraphExec.update(UpdateGraph);
 }
+
+TEST_F(CommandGraphTest, CheckFinalizeBehaviour) {
+  // Check that both finalize with and without updatable property work as
+  // expected
+  auto Node = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+
+  ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
+
+  ASSERT_NO_THROW(Graph.finalize());
+}
