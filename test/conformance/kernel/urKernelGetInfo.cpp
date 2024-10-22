@@ -46,6 +46,22 @@ TEST_P(urKernelGetInfoTest, Success) {
         ASSERT_GT(*returned_reference_count, 0U);
         break;
     }
+    case UR_KERNEL_INFO_ATTRIBUTES: {
+        auto returned_attributes = std::string(property_value.data());
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        if (backend == UR_PLATFORM_BACKEND_OPENCL ||
+            backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+            // Older intel drivers don't attach any default attributes and newer ones force walk order to X/Y/Z using special attribute.
+            ASSERT_TRUE(returned_attributes.empty() ||
+                        returned_attributes ==
+                            "intel_reqd_workgroup_walk_order(0,1,2)");
+        } else {
+            ASSERT_TRUE(returned_attributes.empty());
+        }
+        break;
+    }
     default:
         break;
     }
