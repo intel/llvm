@@ -273,8 +273,8 @@ void PrintPPOutputPPCallbacks::WriteLineInfo(unsigned LineNo,
   startNewLineIfNeeded();
 
   if (PP.getLangOpts().isSYCL()) {
-  StringRef CurFilenameWithNoLeadingDotSlash =
-      llvm::sys::path::remove_leading_dotbackslash_only(CurFilename.str());
+    StringRef CurFilenameWithNoLeadingDotSlash =
+        llvm::sys::path::remove_leading_dotbackslash_only(CurFilename.str());
     if ((CurFilenameWithNoLeadingDotSlash ==
          PP.getPreprocessorOpts().IncludeFooter) ||
         CurFilenameWithNoLeadingDotSlash ==
