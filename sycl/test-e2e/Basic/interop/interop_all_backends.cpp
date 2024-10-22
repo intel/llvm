@@ -1,3 +1,5 @@
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15819
 // RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
 // RUN: %if any-device-is-level_zero %{ %{build} -DBUILD_FOR_L0 -o %t-l0.out %}
 // RUN: %if any-device-is-cuda %{ %{build} -DBUILD_FOR_CUDA -o %t-cuda.out %}
