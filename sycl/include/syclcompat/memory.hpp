@@ -1005,7 +1005,7 @@ static inline void wait_and_free(void *ptr,
   get_current_device().queues_wait_and_throw();
   q.wait();
   if (ptr) {
-    sycl::free(ptr, q);
+    detail::free(ptr, q);
   }
 }
 

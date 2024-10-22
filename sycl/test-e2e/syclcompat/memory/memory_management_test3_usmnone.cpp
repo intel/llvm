@@ -52,9 +52,7 @@ void test_mempcy_async() {
   syclcompat::memcpy_async((void*) (d_A + N1), (void*) h_B, (Num-N1) * sizeof(float));
   syclcompat::memcpy_async((void*) h_C, (void*) d_A, Num * sizeof(float));
 
-  syclcompat::get_default_queue().wait_and_throw();
-
-  syclcompat::free((void*)d_A);
+  syclcompat::wait_and_free((void*)d_A);
 
   syclcompat::free(0);
   syclcompat::free(NULL);
@@ -465,8 +463,7 @@ void test_memset_async(sycl::queue &q) {
 
   // deviceA -> hostA
   syclcompat::memcpy_async((void*) h_A, (void*) d_A, Num * sizeof(int), q);
-  q.wait_and_throw();
-  syclcompat::free((void*)d_A, q);
+  syclcompat::wait_and_free((void*)d_A, q);
 
   // check d_A[0,..., 6] = 0
   for (int i = 0; i < Num - 3; i++) {
