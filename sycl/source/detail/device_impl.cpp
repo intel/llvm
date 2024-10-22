@@ -367,9 +367,9 @@ bool device_impl::has(aspect Aspect) const {
   case aspect::host_debuggable:
     return false;
   case aspect::fp16:
-    return has_extension("cl_khr_fp16");
+    return isFp16Supported();
   case aspect::fp64:
-    return has_extension("cl_khr_fp64");
+    return isFp64Supported();
   case aspect::int64_base_atomics:
     return has_extension("cl_khr_int64_base_atomics");
   case aspect::int64_extended_atomics:
@@ -798,6 +798,20 @@ ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
   });
 
   return MDeviceArch;
+}
+
+bool device_impl::isFp16Supported() const {
+  auto Fp16Config = get_info<info::device::half_fp_config>();
+  // If we don't get anything back from this we can assume the device doesn't
+  // support fp16.
+  return Fp16Config.empty() ? false : true;
+}
+
+bool device_impl::isFp64Supported() const {
+  auto Fp64Config = get_info<info::device::double_fp_config>();
+  // If we don't get anything back from this we can assume the device doesn't
+  // support fp64.
+  return Fp64Config.empty() ? false : true;
 }
 
 // On the first call this function queries for device timestamp
