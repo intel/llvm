@@ -1,4 +1,4 @@
-= sycl_ext_intel_low_power_event
+= sycl_ext_intel_event_mode
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -65,11 +65,12 @@ On some backends, calling `wait()` on an `event` will synchronize using a
 busy-waiting implementation. Though this comes at a low latency for the
 synchronization of the event, it has the downside of consuming high amounts of
 CPU time for no meaningful work.  This extension introduces a new property for
-SYCL commands that will produce a "low-power" event. These new low-power events
-will, if possible, yield the thread that the `wait()` member function is called
-on and only wake up occasionally to check if the event has finished. This
-reduces the time the CPU spends checking finish condition of the wait, at the
-cost of latency.
+SYCL commands that allow users to pick modes for the associated events, one of
+these modes being a "low-power" event. These new low-power events will, if
+possible, yield the thread that the `wait()` member function is called on and
+only wake up occasionally to check if the event has finished. This reduces the
+time the CPU spends checking finish condition of the wait, at the cost of
+latency.
 
 
 == Specification
@@ -78,7 +79,7 @@ cost of latency.
 
 This extension provides a feature-test macro as described in the core SYCL
 specification.  An implementation supporting this extension must predefine the
-macro `SYCL_EXT_INTEL_LOW_POWER_EVENT` to one of the values defined in the table
+macro `SYCL_EXT_INTEL_EVENT_MODE` to one of the values defined in the table
 below.  Applications can test for the existence of this macro to determine if
 the implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -95,34 +96,45 @@ supports.
 |===
 
 
-=== Low-power event property
+=== Event mode property
 
-This extension adds a new property which can be used with the
+This extension adds a new property `event_mode` which can be used with the
 `submit_with_event` free function from
-link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions].
-Passing this property to this function will act as a hint to the `event` created
-from the corresponding commands to do low-power synchronization. If the backend
-is able to handle low-power events, calling `event::wait()` or
-`event::wait_and_throw()` will cause the thread to yield and only do occasional
-wake-ups to check the event progress.
-
-[_Note:_ The property currently only has an effect on `barrier` and
-`partial_barrier` commands enqueued on queues that return
-`backend::ext_oneapi_level_zero` from `queue::get_backend()`.
-_{endnote}_]
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions],
+allowing the user some control over how the resulting event is created and
+managed.
 
 ```
 namespace sycl::ext::intel::experimental {
 
-struct low_power_event_key {
-  using value_t = 
-      oneapi::experimental::property_value<low_power_event_key>;
+enum class event_modes { none, low_power };
+
+struct event_mode {
+  event_mode(event_modes mode);
+
+  event_modes value;
 };
 
-inline constexpr low_power_event_key::value_t low_power_event;
+using event_mode_key = event_mode;
 
 } // namespace sycl::ext::intel::experimental
 ```
+
+
+=== Low power event mode
+
+Passing the `event_mode` property with `event_modes::low_power` to
+`submit_with_event` will act as a hint to the `event` created from the
+corresponding commands to do low-power synchronization. If the backend is able
+to handle low-power events, calling `event::wait()` or `event::wait_and_throw()`
+will cause the thread to yield and only do occasional wake-ups to check the
+event progress.
+
+[_Note:_ The low-power event mode currently only has an effect on `barrier` and
+`partial_barrier` commands enqueued on queues that return
+`backend::ext_oneapi_level_zero` from `queue::get_backend()`.
+_{endnote}_]
+
 
 === New property usage example
 
