@@ -1,5 +1,7 @@
-// REQUIRES: cuda || hip
-// RUN: %{build} %if any-device-is-hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %else %{ %if any-device-is-cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %else %{ %if any-device-is-level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} %} %} -o %t.out
+// REQUIRES: cuda || hip || level_zero
+// RUN: %if any-device-is-hip %{ %{build} -DSYCL_EXT_ONEAPI_BACKEND_HIP -o %t-hip.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL  -o %t-cuda.out %}
+// RUN: %if any-device-is-level_zero %{ %{build} -DSYCL_EXT_ONEAPI_BACKEND_L0  -o %t-l0.out %}
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
