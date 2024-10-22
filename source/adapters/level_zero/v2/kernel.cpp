@@ -40,7 +40,14 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
       deviceKernels(hProgram->Context->getPlatform()->getNumDevices()) {
   ur::level_zero::urProgramRetain(hProgram);
 
-  for (auto [zeDevice, zeModule] : hProgram->ZeModuleMap) {
+  for (auto &Dev : hProgram->AssociatedDevices) {
+    auto zeDevice = Dev->ZeDevice;
+    // Program may be associated with all devices from the context but built
+    // only for subset of devices.
+    if (hProgram->getState(zeDevice) != ur_program_handle_t_::state::Exe)
+      continue;
+
+    auto zeModule = hProgram->getZeModuleHandle(zeDevice);
     ZeStruct<ze_kernel_desc_t> zeKernelDesc;
     zeKernelDesc.pKernelName = kernelName;
 

@@ -2563,10 +2563,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
-    ur_device_handle_t
-        hDevice,            ///< [in] handle to device associated with binary.
-    size_t size,            ///< [in] size in bytes.
-    const uint8_t *pBinary, ///< [in] pointer to binary.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                   ///< binaries are loaded for devices specified in this list.
+    size_t *
+        pLengths, ///< [in][range(0, numDevices)] array of sizes of program binaries
+                  ///< specified by `pBinaries` (in bytes).
+    const uint8_t **
+        ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                    ///< for devices specified by `phDevices`.
     const ur_program_properties_t *
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
@@ -2586,12 +2592,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
-    // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    // convert loader handles to platform handles
+    auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
+    for (size_t i = 0; i < numDevices; ++i) {
+        phDevicesLocal[i] =
+            reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
+    }
 
     // forward to device-platform
-    result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties,
-                                 phProgram);
+    result = pfnCreateWithBinary(hContext, numDevices, phDevicesLocal.data(),
+                                 pLengths, ppBinaries, pProperties, phProgram);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;

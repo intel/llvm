@@ -11179,21 +11179,44 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
                           *(params->phContext));
 
     os << ", ";
-    os << ".hDevice = ";
+    os << ".numDevices = ";
 
-    ur::details::printPtr(os,
-                          *(params->phDevice));
-
-    os << ", ";
-    os << ".size = ";
-
-    os << *(params->psize);
+    os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".pBinary = ";
+    os << ".phDevices = {";
+    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
 
-    ur::details::printPtr(os,
-                          *(params->ppBinary));
+        ur::details::printPtr(os,
+                              (*(params->pphDevices))[i]);
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".pLengths = {";
+    for (size_t i = 0; *(params->ppLengths) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        os << (*(params->ppLengths))[i];
+    }
+    os << "}";
+
+    os << ", ";
+    os << ".ppBinaries = {";
+    for (size_t i = 0; *(params->pppBinaries) != NULL && i < *params->pnumDevices; ++i) {
+        if (i != 0) {
+            os << ", ";
+        }
+
+        ur::details::printPtr(os,
+                              (*(params->pppBinaries))[i]);
+    }
+    os << "}";
 
     os << ", ";
     os << ".pProperties = ";

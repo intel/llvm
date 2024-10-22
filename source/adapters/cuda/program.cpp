@@ -493,12 +493,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  if (numDevices > 1)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  UR_CHECK_ERROR(
-      createProgram(hContext, hDevice, size, pBinary, pProperties, phProgram));
+  UR_CHECK_ERROR(createProgram(hContext, phDevices[0], pLengths[0],
+                               ppBinaries[0], pProperties, phProgram));
   (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
   return UR_RESULT_SUCCESS;
