@@ -25,54 +25,67 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+// Forward declaration for deterministic reductions.
+template <typename BinaryOperation> struct DeterministicOperatorWrapper;
+
+template <typename T, typename U> struct is_like : public std::is_same<T, U> {};
+
+template <typename T, typename U>
+constexpr bool is_like_v = is_like<T, U>::value;
+
+template <typename T, typename U>
+struct is_like<DeterministicOperatorWrapper<T>, U> : std::is_same<T, U> {};
+
+template <typename T, typename U>
+struct is_like<T, DeterministicOperatorWrapper<U>> : std::is_same<T, U> {};
+
 template <typename T, class BinaryOperation>
-using IsPlus =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::plus<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::plus<void>>>;
+using IsPlus = std::bool_constant<is_like_v<BinaryOperation, sycl::plus<T>> ||
+                                  is_like_v<BinaryOperation, sycl::plus<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMultiplies =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::multiplies<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::multiplies<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::multiplies<T>> ||
+                       is_like_v<BinaryOperation, sycl::multiplies<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMinimum =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::minimum<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::minimum<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::minimum<T>> ||
+                       is_like_v<BinaryOperation, sycl::minimum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsMaximum =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::maximum<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::maximum<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::maximum<T>> ||
+                       is_like_v<BinaryOperation, sycl::maximum<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitAND =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_and<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_and<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::bit_and<T>> ||
+                       is_like_v<BinaryOperation, sycl::bit_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_or<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_or<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::bit_or<T>> ||
+                       is_like_v<BinaryOperation, sycl::bit_or<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsBitXOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, sycl::bit_xor<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::bit_xor<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, sycl::bit_xor<T>> ||
+                       is_like_v<BinaryOperation, sycl::bit_xor<void>>>;
 
 template <typename T, class BinaryOperation>
-using IsLogicalAND = std::bool_constant<
-    std::is_same_v<BinaryOperation, std::logical_and<T>> ||
-    std::is_same_v<BinaryOperation, std::logical_and<void>> ||
-    std::is_same_v<BinaryOperation, sycl::logical_and<T>> ||
-    std::is_same_v<BinaryOperation, sycl::logical_and<void>>>;
+using IsLogicalAND =
+    std::bool_constant<is_like_v<BinaryOperation, std::logical_and<T>> ||
+                       is_like_v<BinaryOperation, std::logical_and<void>> ||
+                       is_like_v<BinaryOperation, sycl::logical_and<T>> ||
+                       is_like_v<BinaryOperation, sycl::logical_and<void>>>;
 
 template <typename T, class BinaryOperation>
 using IsLogicalOR =
-    std::bool_constant<std::is_same_v<BinaryOperation, std::logical_or<T>> ||
-                       std::is_same_v<BinaryOperation, std::logical_or<void>> ||
-                       std::is_same_v<BinaryOperation, sycl::logical_or<T>> ||
-                       std::is_same_v<BinaryOperation, sycl::logical_or<void>>>;
+    std::bool_constant<is_like_v<BinaryOperation, std::logical_or<T>> ||
+                       is_like_v<BinaryOperation, std::logical_or<void>> ||
+                       is_like_v<BinaryOperation, sycl::logical_or<T>> ||
+                       is_like_v<BinaryOperation, sycl::logical_or<void>>>;
 
 // Use SFINAE so that the "true" branch could be implemented in
 // include/sycl/stl_wrappers/complex that would only be available if STL's

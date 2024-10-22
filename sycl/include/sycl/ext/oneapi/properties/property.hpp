@@ -214,8 +214,10 @@ enum PropKind : uint32_t {
   ResponseCapacity = 73,
   MaxWorkGroupSize = 74,
   MaxLinearWorkGroupSize = 75,
+  Deterministic = 76,
+  InitializeToIdentity = 77,
   // PropKindSize must always be the last value.
-  PropKindSize = 76,
+  PropKindSize = 78,
 };
 
 struct property_key_base_tag {};
