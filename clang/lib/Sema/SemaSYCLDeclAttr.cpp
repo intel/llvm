@@ -132,9 +132,9 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
-  // Additionally, diagnose deprecated [[sycl::reqd_sub_group_size]] spelling
+  // Additionally, diagnose deprecated [[intel::reqd_sub_group_size]] spelling
   if (A.getKind() == ParsedAttr::AT_IntelReqdSubGroupSize &&
-      A.getAttrName()->isStr("reqd_sub_group_size") && A.getScopeName()->isStr("intel")) {
+      A.getScopeName()->isStr("intel")) {
     diagnoseDeprecatedAttribute(A, "sycl", "reqd_sub_group_size");
     return;
   }

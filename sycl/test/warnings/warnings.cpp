@@ -6,12 +6,6 @@
 using namespace sycl;
 
 
-class FunctorModern {
-public:
-  [[sycl::reqd_sub_group_size(16)]] void operator()() const {}
-};
-
-
 int main() {
   vec<long, 4> newVec;
   queue myQueue;
@@ -21,8 +15,6 @@ int main() {
     cgh.single_task<class kernel_name>([=]() {
       writeResult[0] = (vec<int, 4>{1, 2, 3, 4}).template convert<long>();
     });
-    FunctorModern fModern;
-    cgh.single_task<class kernel_name2>(fModern);
   });
   (void)event;
   return 0;
