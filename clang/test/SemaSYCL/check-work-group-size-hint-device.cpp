@@ -101,7 +101,7 @@ public:
 
 class Functor4x4x4 {
 public:
-  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {}; // expected-warning {{'work_group_size_hint' attribute can only be applied to a SYCL kernel function}}
+  [[sycl::work_group_size_hint(4, 4, 4)]] void operator()() const {};
 };
 
 // Checking whether propagation of the attribute happens or not, according to the SYCL version.
