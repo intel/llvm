@@ -13,7 +13,5 @@
 // Treat this header as system one to workaround frontend's restriction
 #pragma clang system_header
 
-enum DeviceType : uint64_t { UNKNOWN, CPU, GPU_PVC, GPU_DG2 };
-
 extern SPIR_GLOBAL_VAR __SYCL_GLOBAL__ uint64_t *__SYCL_LOCAL__
     __AsanLaunchInfo;

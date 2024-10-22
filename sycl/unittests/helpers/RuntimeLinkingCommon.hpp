@@ -40,7 +40,7 @@ static ur_result_t redefined_urProgramCreateWithIL(void *pParams) {
 
 static ur_result_t redefined_urProgramCreateWithBinary(void *pParams) {
   auto Params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
-  auto *Magic = reinterpret_cast<const unsigned char *>(*Params.ppBinary);
+  auto *Magic = reinterpret_cast<const unsigned char *>(*Params.pppBinaries[0]);
   ur_program_handle_t *res = *Params.pphProgram;
   *res = mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
   reinterpret_cast<mock::dummy_handle_t>(*res)->setDataAs<unsigned>(*Magic);
