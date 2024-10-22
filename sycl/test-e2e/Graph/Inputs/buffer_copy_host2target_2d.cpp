@@ -3,22 +3,26 @@
 
 #include "../graph_common.hpp"
 
+#include <cmath>
+
 int main() {
   queue Queue{};
 
   using T = int;
 
-  std::vector<T> DataA(Size * Size), DataB(Size * Size);
+  const size_t SizeX = std::sqrt(Size);
+  const size_t SizeY = SizeX;
+  std::vector<T> DataA(Size), DataB(Size);
   std::iota(DataA.begin(), DataA.end(), 1);
   std::iota(DataB.begin(), DataB.end(), 1000);
 
   std::vector<T> ReferenceA(DataA);
-  for (size_t i = 0; i < Size * Size; i++) {
+  for (size_t i = 0; i < Size; i++) {
     ReferenceA[i] = DataB[i];
   }
 
   // Make the buffers 2D so we can test the rect write path
-  buffer BufferA{DataA.data(), range<2>(Size, Size)};
+  buffer BufferA{DataA.data(), range<2>(SizeX, SizeY)};
   BufferA.set_write_back(false);
 
   {
@@ -37,9 +41,9 @@ int main() {
   }
   host_accessor HostAccA(BufferA);
 
-  for (size_t i = 0; i < Size; i++) {
-    for (size_t j = 0; j < Size; j++) {
-      const size_t index = i * Size + j;
+  for (size_t i = 0; i < SizeX; i++) {
+    for (size_t j = 0; j < SizeY; j++) {
+      const size_t index = i * SizeY + j;
       assert(check_value(index, ReferenceA[index], HostAccA[i][j], "HostAccA"));
     }
   }
