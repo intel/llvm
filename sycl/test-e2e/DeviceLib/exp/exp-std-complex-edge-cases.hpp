@@ -222,7 +222,8 @@ template <typename T> bool test() {
     for (unsigned i = 0; i < N; ++i) {
       std::complex<T> r = acc[i];
       // If z is (+/-0, +0), the result is (1, +0)
-      if (testcases[i].real() == 0 && testcases[i].imag() == 0) {
+      if (testcases[i].real() == 0 && testcases[i].imag() == 0 &&
+          !std::signbit(testcases[i].imag())) {
         CHECK(r.real() == 1.0, passed, i);
         CHECK(r.imag() == 0, passed, i);
         CHECK(std::signbit(testcases[i].imag()) == std::signbit(r.imag()),
