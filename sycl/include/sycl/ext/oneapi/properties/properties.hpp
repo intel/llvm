@@ -120,6 +120,10 @@ protected:
   // For key_t access in error reporting specialization.
   template <typename, typename>
   friend class __SYCL_EBO new_properties::properties;
+
+public:
+  static constexpr const char *ir_attribute_name = "";
+  static constexpr std::nullptr_t ir_attribute_value = nullptr;
 };
 
 template <typename... property_tys>
