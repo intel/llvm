@@ -1,4 +1,7 @@
 {{NONDETERMINISTIC}}
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitList
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitListWithEvent
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EnqueueWaitOnADifferentQueue
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleQueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
@@ -16,6 +19,12 @@
 {{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitTest.InvalidNullPtrEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitSingleQueueMultiOps/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitSingleQueueMultiOps/NoMultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueues/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueues/NoMultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueuesCommonDependency/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueuesCommonDependency/NoMultiThread
 {{OPT}}urEnqueueEventsWaitWithBarrierTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitWithBarrierTest.InvalidNullPtrEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesBarrierOnly/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}_
