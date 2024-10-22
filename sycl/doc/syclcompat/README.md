@@ -1575,8 +1575,8 @@ public:
 
 SYCLcompat provides a wrapper API `max_active_work_groups_per_cu` providing
 'work-groups per compute unit' semantics. It is templated on the kernel
-functor, and takes a `sycl::queue`, a work-groups size represented by either
-`sycl::range<Dim>` or `syclcompat::dim3`, and the local memory size in bytes.
+functor, and takes a work-group size represented by either `sycl::range<Dim>`
+or `syclcompat::dim3`, the local memory size in bytes, and an optional queue.
 The function returns the maximum number of work-groups which can be executed
 per compute unit. May return *zero* even when below resource limits (i.e.
 returning `0` does not imply the kernel cannot execute).
