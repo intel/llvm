@@ -147,6 +147,24 @@ static_assert(std::is_same_v<pl, decltype(+prop2{} + prop{})>);
 static_assert(std::is_same_v<decltype(properties{prop{}} + prop2{}), pl>);
 }
 
+namespace test_inheritance_visibility {
+template <int N> struct prop : named_property_base<prop<N>> {
+  static constexpr int value = N;
+};
+
+template <typename T, typename = void> struct has_value : std::false_type {};
+template <typename T>
+struct has_value<T, std::void_t<decltype(T::value)>> : std::true_type {};
+template <typename T> inline constexpr bool has_value_v = has_value<T>::value;
+
+constexpr properties pl1{prop<1>{}};
+constexpr properties pl2{prop<1>{}, prop<2>{}};
+
+static_assert(has_value_v<prop<1>>);
+static_assert(!has_value_v<decltype(pl1)>);
+static_assert(!has_value_v<decltype(pl2)>);
+}
+
 int main() {
   test::test();
   bench::test(std::make_integer_sequence<int, 67>{});

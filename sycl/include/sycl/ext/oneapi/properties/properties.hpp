@@ -252,12 +252,14 @@ template <typename... property_tys>
 class __SYCL_EBO properties<
     detail::properties_type_list<property_tys...>,
     std::enable_if_t<detail::property_names_are_unique<property_tys...>>>
-    : public property_tys... {
+    : private property_tys... {
   static_assert((is_property_v<property_tys> && ...));
   static_assert(
       detail::properties_are_sorted<property_tys...>,
       "Properties must be sorted!");
   using property_tys::get_property...;
+
+  template <typename, typename> friend class __SYCL_EBO properties;
 
 public:
   template <typename... unsorted_property_tys,
