@@ -124,6 +124,29 @@ static_assert(all_properties_in_v<empty_properties_t, prop>);
 static_assert(!all_properties_in_v<ty, prop2>);
 } // namespace test_trait
 
+namespace test_combine_op {
+struct prop : named_property_base<prop> {};
+struct prop2 : named_property_base<prop2> {};
+using pl = decltype(properties{prop{}, prop2{}});
+
+static_assert(std::is_same_v<pl, decltype(prop{} + prop2{})>);
+static_assert(std::is_same_v<pl, decltype(prop2{} + prop{})>);
+static_assert(std::is_same_v<decltype(properties{prop{}}),
+                             decltype(empty_properties_t{} + prop{})>);
+static_assert(
+    std::is_same_v<pl, decltype(empty_properties_t{} + prop{} + prop2{})>);
+static_assert(
+    std::is_same_v<pl, decltype(empty_properties_t{} + prop2{} + prop{})>);
+
+static_assert(std::is_same_v<decltype(properties{prop{}}), decltype(+prop{})>);
+static_assert(std::is_same_v<decltype(properties{prop2{}}), decltype(+prop2{})>);
+
+static_assert(std::is_same_v<pl, decltype(+prop{} + prop2{})>);
+static_assert(std::is_same_v<pl, decltype(+prop2{} + prop{})>);
+
+static_assert(std::is_same_v<decltype(properties{prop{}} + prop2{}), pl>);
+}
+
 int main() {
   test::test();
   bench::test(std::make_integer_sequence<int, 67>{});

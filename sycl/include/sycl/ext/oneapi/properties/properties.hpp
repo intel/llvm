@@ -31,12 +31,28 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace new_properties {
+namespace detail {
+template <typename... property_tys> struct properties_type_list;
+
+// Is used to implement `is_property_v`.
+struct property_key_tag_base {};
+}
 
 template <typename properties_type_list_ty, typename = void>
 class __SYCL_EBO properties;
 
+template <typename T> struct is_property_list : std::false_type {};
+template <typename PropListTy>
+struct is_property_list<properties<PropListTy>> : std::true_type {};
+template <typename T>
+inline constexpr bool is_property_list_v = is_property_list<T>::value;
+
+template <typename T>
+inline constexpr bool is_property_v =
+    std::is_base_of_v<detail::property_key_tag_base, T> &&
+    !is_property_list_v<T>;
+
 namespace detail {
-template <typename... property_tys> struct properties_type_list;
 
 #if __has_builtin(__type_pack_element)
 template <int N, typename... Ts>
@@ -94,9 +110,6 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
       nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
 };
 
-// Is used to implement `is_property_v`.
-struct property_key_tag_base {};
-
 // We support incomplete property_key_t, so need to wrap it.
 template <typename property_key_t>
 struct property_key_tag : property_key_tag_base {};
@@ -124,6 +137,27 @@ protected:
 public:
   static constexpr const char *ir_attribute_name = "";
   static constexpr std::nullptr_t ir_attribute_value = nullptr;
+
+  // this_property_t is to disable ADL - properties{property{}} is inherited
+  // from property.
+
+  template <typename this_property_t, typename other_property_t>
+  friend constexpr std::enable_if_t<
+      std::is_same_v<this_property_t, property_t> &&
+          is_property_v<other_property_t>,
+      decltype(properties{std::declval<const this_property_t>(),
+                          std::declval<const other_property_t>()})>
+  operator+(const this_property_t &lhs, const other_property_t &rhs) {
+    return properties{lhs, rhs};
+  }
+
+  template <typename this_property_t>
+  friend constexpr std::enable_if_t<
+      std::is_same_v<this_property_t, property_t>,
+      properties<properties_type_list<this_property_t>>>
+  operator+(const this_property_t &lhs) {
+    return properties<properties_type_list<property_t>>{lhs};
+  }
 };
 
 template <typename... property_tys>
@@ -162,21 +196,19 @@ inline constexpr bool properties_are_sorted = []() constexpr {
 }();
 } // namespace detail
 
-template <typename T> struct is_property_list : std::false_type {};
-template <typename PropListTy>
-struct is_property_list<properties<PropListTy>> : std::true_type {};
-template <typename T>
-inline constexpr bool is_property_list_v = is_property_list<T>::value;
-
-template <typename T>
-inline constexpr bool is_property_v =
-    std::is_base_of_v<detail::property_key_tag_base, T> &&
-    !is_property_list_v<T>;
-
 // Empty property list.
 template <> class __SYCL_EBO properties<detail::properties_type_list<>, void> {
 public:
   template <typename> static constexpr bool has_property() { return false; }
+
+  // TODO: How does this work without qualified name?
+  template <typename other_property_t>
+  friend constexpr std::enable_if_t<
+      is_property_v<other_property_t>,
+      properties<detail::properties_type_list<other_property_t>>>
+  operator+(const properties &, const other_property_t &rhs) {
+    return properties{rhs};
+  }
 };
 
 // Base implementation to provide nice user error in case of mis-use. Without it
@@ -230,10 +262,13 @@ class __SYCL_EBO properties<
 public:
   template <typename... unsorted_property_tys,
             typename = std::enable_if_t<
-                ((is_property_v<unsorted_property_tys> && ...))>>
+                ((is_property_v<unsorted_property_tys> && ...)) &&
+                sizeof...(unsorted_property_tys) == sizeof...(property_tys)>>
   constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
 
+  // TODO: not sure if that is needed if we'd have operator| or operator+.
+  // TODO: sizeof... check.
   template <
       typename... other_property_list_tys, typename... other_property_tys,
       typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
@@ -294,6 +329,20 @@ public:
       return get_property<property_key_t>();
     else
       return default_property;
+  }
+
+  // TODO: Use more effective insert sort for single-property insertion.
+
+  // Need to use qualified type to force CTAD instead of using *current*
+  // properties instantiation.
+  template <typename other_property_t>
+  friend constexpr std::enable_if_t<
+      is_property_v<other_property_t>,
+      decltype(ext::oneapi::experimental::new_properties::properties{
+          std::declval<property_tys>()..., std::declval<other_property_t>()})>
+  operator+(const properties &lhs, const other_property_t &rhs) {
+    return ext::oneapi::experimental::new_properties::properties{
+        static_cast<const property_tys &>(lhs)..., rhs};
   }
 };
 
