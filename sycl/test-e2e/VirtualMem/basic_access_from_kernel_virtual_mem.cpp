@@ -3,6 +3,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include "sycl/handler.hpp"
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
@@ -12,6 +13,7 @@ namespace syclext = sycl::ext::oneapi::experimental;
 int main() {
     sycl::queue Q;
     sycl::context Context = Q.get_context();
+    int Failed = 0;
 
     size_t UsedGranularityInBytes = syclext::get_mem_granularity(Context, syclext::granularity_mode::recommended);
        
@@ -31,9 +33,9 @@ int main() {
     Q.fill(DataPtr,ExpectedValueAfterFill , NumItems.size()).wait_and_throw();
     {
         sycl::buffer<int> CheckBuffer(ResultHostData);
-        Q.submit([&](auto &handle) {
-            sycl::accessor A(CheckBuffer, handle, sycl::write_only);
-            handle.parallel_for(NumItems, [=](auto i) { A[i] =  DataPtr[i]; });
+        Q.submit([&](sycl::handler &Handle) {
+            sycl::accessor A(CheckBuffer, Handle, sycl::write_only);
+            Handle.parallel_for(NumItems, [=](sycl::id<1> Idx) { A[Idx] =  DataPtr[Idx]; });
         });
     }
     
@@ -41,14 +43,12 @@ int main() {
         if (ResultHostData[i] != ExpectedValueAfterFill) {
             std::cout << "Comparison failed after fill operation at index " << i << ": " << ResultHostData[i]
                   << " != " <<ExpectedValueAfterFill << std::endl;
-            return 1;
+            ++Failed;
         }
     }
         
-    Q.submit([&](auto &handle) {
-        handle.parallel_for(NumItems, [=](auto i) {
-           DataPtr[i] = i; 
-        });
+    Q.parallel_for(NumItems, [=](sycl::id<1> Idx) {
+        DataPtr[Idx] = Idx;
     }).wait_and_throw();
         
     syclext::set_access_mode(DataPtr,UsedGranularityInBytes, syclext::address_access_mode::read, Context);
@@ -57,9 +57,9 @@ int main() {
     {
     sycl::buffer<int> ResultBuffer(ResultHostData);
     
-    Q.submit([&](auto &handle) {
-        sycl::accessor A(ResultBuffer, handle, sycl::write_only);
-        handle.parallel_for(NumItems, [=](auto i) { A[i] =  DataPtr[i]; });
+    Q.submit([&](sycl::handler &Handle) {
+        sycl::accessor A(ResultBuffer, Handle, sycl::write_only);
+        Handle.parallel_for(NumItems, [=](sycl::id<1> Idx) { A[Idx] =  DataPtr[Idx]; });
     });
     }
     
@@ -68,12 +68,12 @@ int main() {
         if (ResultHostData[i] != ExpectedValue) {
             std::cout << "Comparison failed at index " << i << ": " << ResultHostData[i]
                   << " != " << ExpectedValue<< std::endl;
-            return 1;
+            ++Failed;
         }
     }
     
     syclext::unmap(MappedPtr, UsedGranularityInBytes, Context);
     syclext::free_virtual_mem(VirtualMemoryPtr, UsedGranularityInBytes, Context);
 
-    return 0;
+    return Failed;
 }
