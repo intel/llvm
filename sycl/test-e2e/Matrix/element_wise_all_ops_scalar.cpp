@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix, gpu
+// REQUIRES-INTEL-DRIVER: lin: 30049
 
 // RUN: %{build} -o %t.out
 // RUN: env IGC_JointMatrixLoadStoreOpt=0 %{run} %t.out

@@ -13,6 +13,17 @@ set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INS
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+# TEST_INCLUDE_PATH is used for syntax-only verification of type information.
+list(APPEND test_includes ${SYCL_INCLUDE})
+list(APPEND test_includes ${SYCL_INCLUDE}/sycl)
+list(APPEND test_includes ${SYCL_SOURCE_DIR}/source)
+list(APPEND test_includes ${BOOST_UNORDERED_INCLUDE_DIRS})
+if(SYCL_ENABLE_EXTENSION_JIT)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include)
+endif(SYCL_ENABLE_EXTENSION_JIT)
+list(JOIN test_includes ":" TEST_INCLUDE_PATH)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py

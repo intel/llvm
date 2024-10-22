@@ -75,20 +75,11 @@ int main() {
 
   test_predicate<d::is_type_size_equal, int8_t, s::opencl::cl_char>();
   test_predicate<d::is_type_size_equal, int16_t, s::opencl::cl_char, false>();
-  test_predicate<d::is_type_size_double_of, int8_t, s::opencl::cl_char,
-                 false>();
-  test_predicate<d::is_type_size_double_of, int16_t, s::opencl::cl_char>();
-  test_predicate<d::is_type_size_double_of, int32_t, s::opencl::cl_char,
-                 false>();
 
   // if void is found, the required type is not found
   test_trait<d::find_same_size_type_t, d::type_list<int8_t>, s::opencl::cl_char,
              int8_t>();
   test_trait<d::find_same_size_type_t, d::type_list<int16_t>,
-             s::opencl::cl_char, void>();
-  test_trait<d::find_twice_as_large_type_t, d::type_list<int8_t, int16_t>,
-             s::opencl::cl_char, int16_t>();
-  test_trait<d::find_twice_as_large_type_t, d::type_list<int8_t, int32_t>,
              s::opencl::cl_char, void>();
 
   return 0;

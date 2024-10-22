@@ -383,6 +383,9 @@ FileManager *CompilerInstance::createFileManager(
                   : createVFSFromCompilerInvocation(getInvocation(),
                                                     getDiagnostics());
   assert(VFS && "FileManager has no VFS?");
+  if (getFrontendOpts().ShowStats)
+    VFS =
+        llvm::makeIntrusiveRefCnt<llvm::vfs::TracingFileSystem>(std::move(VFS));
   FileMgr = new FileManager(getFileSystemOpts(), std::move(VFS));
   return FileMgr.get();
 }
@@ -1382,7 +1385,6 @@ static bool compileModule(CompilerInstance &ImportingInstance,
     std::string InferredModuleMapContent;
     llvm::raw_string_ostream OS(InferredModuleMapContent);
     Module->print(OS);
-    OS.flush();
 
     Result = compileModuleImpl(
         ImportingInstance, ImportLoc, Module->getTopLevelModuleName(),
@@ -1661,9 +1663,8 @@ static void pruneModuleCache(const HeaderSearchOptions &HSOpts) {
   // Walk the entire module cache, looking for unused module files and module
   // indices.
   std::error_code EC;
-  SmallString<128> ModuleCachePathNative;
-  llvm::sys::path::native(HSOpts.ModuleCachePath, ModuleCachePathNative);
-  for (llvm::sys::fs::directory_iterator Dir(ModuleCachePathNative, EC), DirEnd;
+  for (llvm::sys::fs::directory_iterator Dir(HSOpts.ModuleCachePath, EC),
+       DirEnd;
        Dir != DirEnd && !EC; Dir.increment(EC)) {
     // If we don't have a directory, there's nothing to look into.
     if (!llvm::sys::fs::is_directory(Dir->path()))

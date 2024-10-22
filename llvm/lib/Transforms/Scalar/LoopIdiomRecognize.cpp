@@ -40,7 +40,6 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AliasAnalysis.h"
 #include "llvm/Analysis/CmpInstAnalysis.h"
-#include "llvm/Analysis/LoopAccessAnalysis.h"
 #include "llvm/Analysis/LoopInfo.h"
 #include "llvm/Analysis/LoopPass.h"
 #include "llvm/Analysis/MemoryLocation.h"
@@ -297,10 +296,6 @@ bool LoopIdiomRecognize::runOnLoop(Loop *L) {
   // Disable loop idiom recognition if the function's name is a common idiom.
   StringRef Name = L->getHeader()->getParent()->getName();
   if (Name == "memset" || Name == "memcpy")
-    return false;
-
-  // Prevent from asan interception in kernel
-  if (Name == "__asan_set_shadow_local_memory")
     return false;
 
   // Determine if code size heuristics need to be applied.

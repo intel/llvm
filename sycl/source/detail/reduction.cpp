@@ -172,9 +172,28 @@ addCounterInit(handler &CGH, std::shared_ptr<sycl::detail::queue_impl> &Queue,
   auto EventImpl = std::make_shared<detail::event_impl>(Queue);
   EventImpl->setContextImpl(detail::getSyclObjImpl(Queue->get_context()));
   EventImpl->setStateIncomplete();
-  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {},
-                          &EventImpl->getHandleRef(), EventImpl);
+  ur_event_handle_t UREvent = nullptr;
+  MemoryManager::fill_usm(Counter.get(), Queue, sizeof(int), {0}, {}, &UREvent,
+                          EventImpl);
+  EventImpl->setHandle(UREvent);
   CGH.depends_on(createSyclObjFromImpl<event>(EventImpl));
+}
+
+__SYCL_EXPORT void verifyReductionProps(const property_list &Props) {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/reduction_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail

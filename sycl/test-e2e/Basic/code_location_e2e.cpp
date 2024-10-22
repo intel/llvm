@@ -1,10 +1,10 @@
 // UNSUPPORTED: cuda
 
-// RUN: %{build} -DNDEBUG -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %{build} -DNDEBUG -o %t1.out
+// RUN: %{run} %t1.out | FileCheck %s
 
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out | FileCheck %s
+// RUN: %{build} -o %t2.out
+// RUN: %{run} %t2.out | FileCheck %s
 
 /*
     clang++ -fsycl -DNDEBUG -o smyl.bin code_location_e2e.cpp   // <<--- NDEBUG

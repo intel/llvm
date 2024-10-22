@@ -19,7 +19,7 @@
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-instrumentation-with-call-threshold=0"
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-stack=0"
 // SYCL_XARCH_DEVICE_OPTION-SAME: "-mllvm" "-asan-globals=0"
-// SYCL_XARCH_DEVICE_ONLY: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_DEVICE_ONLY: clang{{.*}} "-c"
 // SYCL_XARCH_DEVICE_ONLY-NOT: fsanitize=address
 
 /// test behavior of -Xarch_device with multiple options for SYCL compiler, the
@@ -154,12 +154,12 @@
 // SYCL_XARCH_NO_DEVICE_MULTIPLE1: clang{{.*}} "-fsycl-is-device"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE1-NOT: -fsanitize=address
 // SYCL_XARCH_NO_DEVICE_MULTIPLE1: clang{{.*}} "-fsycl-is-host"
-// SYCL_XARCH_NO_DEVICE_MULTIPLE1: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE1: clang{{.*}} "-c"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE2: clang{{.*}} "-fsycl-is-device"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE2-NOT: "-mllvm" "-enable-merge-functions"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE2: clang{{.*}} "-fsycl-is-host"
-// SYCL_XARCH_NO_DEVICE_MULTIPLE2: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE2: clang{{.*}} "-c"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE3: clang{{.*}} "-fsycl-is-device"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE3-NOT: "FOO"
 // SYCL_XARCH_NO_DEVICE_MULTIPLE3: clang{{.*}} "-fsycl-is-host"
-// SYCL_XARCH_NO_DEVICE_MULTIPLE3: llc{{.*}} "-filetype=obj"
+// SYCL_XARCH_NO_DEVICE_MULTIPLE3: clang{{.*}} "-c"

@@ -1,10 +1,8 @@
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -o %t1.out -Wno-deprecated-declarations
+// RUN: %{run} %t1.out
 //
-// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t.out
-// RUN: %{run} %t.out
-//
-// UNSUPPORTED: ze_debug
+// RUN: %{build} -DUSE_DEPRECATED_LOCAL_ACC -o %t2.out -Wno-deprecated-declarations
+// RUN: %{run} %t2.out
 
 #include "helper.hpp"
 #include <cassert>

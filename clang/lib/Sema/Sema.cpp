@@ -22,6 +22,7 @@
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/StmtCXX.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/DarwinSDKInfo.h"
 #include "clang/Basic/DiagnosticOptions.h"
 #include "clang/Basic/PartialDiagnostic.h"
@@ -124,7 +125,6 @@ IdentifierInfo *Sema::InventAbbreviatedTemplateParameterTypeName(
   else
     OS << ParamName->getName() << ":auto";
 
-  OS.flush();
   return &Context.Idents.get(OS.str());
 }
 
@@ -310,6 +310,13 @@ void Sema::addImplicitTypedef(StringRef Name, QualType T) {
 }
 
 void Sema::Initialize() {
+  // Create BuiltinVaListDecl *before* ExternalSemaSource::InitializeSema(this)
+  // because during initialization ASTReader can emit globals that require
+  // name mangling. And the name mangling uses BuiltinVaListDecl.
+  if (Context.getTargetInfo().hasBuiltinMSVaList())
+    (void)Context.getBuiltinMSVaListDecl();
+  (void)Context.getBuiltinVaListDecl();
+
   if (SemaConsumer *SC = dyn_cast<SemaConsumer>(&Consumer))
     SC->InitializeSema(*this);
 
@@ -496,7 +503,9 @@ void Sema::Initialize() {
 #include "clang/Basic/OpenCLExtensionTypes.def"
   }
 
-  if (Context.getTargetInfo().hasAArch64SVETypes()) {
+  if (Context.getTargetInfo().hasAArch64SVETypes() ||
+      (Context.getAuxTargetInfo() &&
+       Context.getAuxTargetInfo()->hasAArch64SVETypes())) {
 #define SVE_TYPE(Name, Id, SingletonId) \
     addImplicitTypedef(Name, Context.SingletonId);
 #include "clang/Basic/AArch64SVEACLETypes.def"
@@ -1245,6 +1254,7 @@ void Sema::ActOnEndOfTranslationUnit() {
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
+  DiagnosePrecisionLossInComplexDivision();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1305,6 +1315,18 @@ void Sema::ActOnEndOfTranslationUnit() {
                                    Module::ExplicitGlobalModuleFragment) {
     Diag(ModuleScopes.back().BeginLoc,
          diag::err_module_declaration_missing_after_global_module_introducer);
+  } else if (getLangOpts().getCompilingModule() ==
+                 LangOptions::CMK_ModuleInterface &&
+             // We can't use ModuleScopes here since ModuleScopes is always
+             // empty if we're compiling the BMI.
+             !getASTContext().getCurrentNamedModule()) {
+    // If we are building a module interface unit, we should have seen the
+    // module declaration.
+    //
+    // FIXME: Make a better guess as to where to put the module declaration.
+    Diag(getSourceManager().getLocForStartOfFile(
+             getSourceManager().getMainFileID()),
+         diag::err_module_declaration_missing);
   }
 
   // Now we can decide whether the modules we're building need an initializer.
@@ -1609,7 +1631,7 @@ LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   return LangAS::Default;
 }
 
-void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
+void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
   // FIXME: It doesn't make sense to me that DiagID is an incoming argument here
   // and yet we also use the current diag ID on the DiagnosticsEngine. This has
   // been made more painfully obvious by the refactor that introduced this
@@ -1617,9 +1639,9 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   // eliminated. If it truly cannot be (for example, there is some reentrancy
   // issue I am not seeing yet), then there should at least be a clarifying
   // comment somewhere.
+  Diagnostic DiagInfo(&Diags, DB);
   if (std::optional<TemplateDeductionInfo *> Info = isSFINAEContext()) {
-    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(
-              Diags.getCurrentDiagID())) {
+    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(DiagInfo.getID())) {
     case DiagnosticIDs::SFINAE_Report:
       // We'll report the diagnostic below.
       break;
@@ -1632,13 +1654,11 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
       return;
 
     case DiagnosticIDs::SFINAE_AccessControl: {
@@ -1649,7 +1669,7 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       if (!AccessCheckingSFINAE && !getLangOpts().CPlusPlus11)
         break;
 
-      SourceLocation Loc = Diags.getCurrentDiagLoc();
+      SourceLocation Loc = DiagInfo.getLocation();
 
       // Suppress this diagnostic.
       ++NumSFINAEErrors;
@@ -1657,16 +1677,13 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
 
-      // Now the diagnostic state is clear, produce a C++98 compatibility
-      // warning.
+      // Now produce a C++98 compatibility warning.
       Diag(Loc, diag::warn_cxx98_compat_sfinae_access_control);
 
       // The last diagnostic which Sema produced was ignored. Suppress any
@@ -1679,14 +1696,12 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information;
       if (*Info) {
-        Diagnostic DiagInfo(&Diags);
         (*Info)->addSuppressedDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       // Suppress this diagnostic.
       Diags.setLastDiagnosticIgnored(true);
-      Diags.Clear();
       return;
     }
   }
@@ -1696,14 +1711,14 @@ void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   Context.setPrintingPolicy(getPrintingPolicy());
 
   // Emit the diagnostic.
-  if (!Diags.EmitCurrentDiagnostic())
+  if (!Diags.EmitDiagnostic(DB))
     return;
 
   // If this is not a note, and we're in a template instantiation
   // that is different from the last template instantiation where
   // we emitted an error, print a template instantiation
   // backtrace.
-  if (!DiagnosticIDs::isBuiltinNote(DiagID))
+  if (!Diags.getDiagnosticIDs()->isNote(DiagID))
     PrintContextStack();
 }
 
@@ -1717,7 +1732,7 @@ bool Sema::hasUncompilableErrorOccurred() const {
   if (Loc == DeviceDeferredDiags.end())
     return false;
   for (auto PDAt : Loc->second) {
-    if (DiagnosticIDs::isDefaultMappingAsError(
+    if (Diags.getDiagnosticIDs()->isDefaultMappingAsError(
             PDAt.getDiag().second.getDiagID()))
       return true;
   }
@@ -1806,6 +1821,33 @@ public:
     --InOMPDeviceContext;
   }
 
+  void VisitDeclStmt(DeclStmt *DS) {
+    if (S.getLangOpts().SYCLIsDevice) {
+      if (DS->isSingleDecl()) {
+        Decl *D = DS->getSingleDecl();
+        if (auto *VD = dyn_cast<VarDecl>(D))
+          if (VD->isUsableInConstantExpressions(S.Context))
+            return;
+      } else {
+        for (auto *D : DS->getDeclGroup()) {
+          if (auto *VD = dyn_cast<VarDecl>(D)) {
+            if (VD->isUsableInConstantExpressions(S.Context))
+              return;
+          } else {
+            this->visitUsedDecl(DS->getBeginLoc(), D);
+          }
+        }
+      }
+    }
+    this->VisitStmt(DS);
+  }
+
+  void VisitConstantExpr(ConstantExpr *E) {
+    if (S.getLangOpts().SYCLIsDevice)
+      return;
+    this->VisitStmt(E);
+  }
+
   void visitUsedDecl(SourceLocation Loc, Decl *D) {
     if (S.LangOpts.SYCLIsDevice && ShouldEmitRootNode) {
       if (auto *VD = dyn_cast<VarDecl>(D)) {
@@ -1860,6 +1902,10 @@ public:
   void checkFunc(SourceLocation Loc, FunctionDecl *FD) {
     auto &Done = DoneMap[InOMPDeviceContext > 0 ? 1 : 0];
     FunctionDecl *Caller = UsePath.empty() ? nullptr : UsePath.back();
+
+    if (!Caller && S.LangOpts.SYCLIsDevice)
+      S.SYCL().performSYCLDelayedAttributesAnalaysis(FD);
+
     if ((!ShouldEmitRootNode && !S.getLangOpts().OpenMP && !Caller) ||
         S.shouldIgnoreInHostDeviceCheck(FD) || InUsePath.count(FD))
       return;
@@ -2003,7 +2049,7 @@ Sema::SemaDiagnosticBuilder::SemaDiagnosticBuilder(Kind K, SourceLocation Loc,
     break;
   case K_Deferred:
     assert(Fn && "Must have a function to attach the deferred diag to.");
-    auto &Diags = S.DeviceDeferredDiags[Fn];
+    auto &Diags = getDeviceDeferredDiags()[Fn];
     PartialDiagId.emplace(Diags.size());
     Diags.emplace_back(Loc, S.PDiag(DiagID), R);
     break;
@@ -2210,13 +2256,17 @@ void Sema::checkTypeSupport(QualType Ty, SourceLocation Loc, ValueDecl *D) {
   };
 
   CheckType(Ty);
-  if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
-    for (const auto &ParamTy : FPTy->param_types())
-      CheckType(ParamTy);
-    CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+  if (const auto *FD = dyn_cast_if_present<FunctionDecl>(D)) {
+    if (LangOpts.SYCLIsDevice && FD->isConsteval())
+      return;
+    if (const auto *FPTy = dyn_cast<FunctionProtoType>(Ty)) {
+      for (const auto &ParamTy : FPTy->param_types())
+        CheckType(ParamTy);
+      CheckType(FPTy->getReturnType(), /*IsRetTy=*/true);
+    }
+    if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
+      CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
   }
-  if (const auto *FNPTy = dyn_cast<FunctionNoProtoType>(Ty))
-    CheckType(FNPTy->getReturnType(), /*IsRetTy=*/true);
 }
 
 bool Sema::findMacroSpelling(SourceLocation &locref, StringRef name) {
@@ -2939,6 +2989,7 @@ bool FunctionEffectDiff::shouldDiagnoseConversion(
       // matching is better.
       return true;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -2964,6 +3015,7 @@ bool FunctionEffectDiff::shouldDiagnoseRedeclaration(
       // All these forms of mismatches are diagnosed.
       return true;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -2995,6 +3047,7 @@ FunctionEffectDiff::shouldDiagnoseMethodOverride(
     case Kind::ConditionMismatch:
       return OverrideResult::Warn;
     }
+    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
 
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:

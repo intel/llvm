@@ -8,16 +8,13 @@
 // REQUIRES: aspect-ext_intel_matrix
 // UNSUPPORTED: gpu-intel-dg2
 
-// RUN: %{build} -o %t_vnni.out -DPREFETCH -DVNNI -ffp-model=precise
+// RUN: %{build} -o %t_vnni.out -DPREFETCH -DVNNI %fp-model-precise
 // RUN: %{run} %t_vnni.out
 
-// RUN: %{build} -o %t.out -DPREFETCH -ffp-model=precise
+// RUN: %{build} -o %t.out -DPREFETCH %fp-model-precise
 // RUN: %{run} %t.out
 
 // -ffp-model=precise is added to not depend on compiler defaults.
-
-// This test will be adjusted to run on the CPU
-// XFAIL:cpu
 
 #include "common.hpp"
 #include "joint_matrix_bf16_fill_k_cache_impl.hpp"

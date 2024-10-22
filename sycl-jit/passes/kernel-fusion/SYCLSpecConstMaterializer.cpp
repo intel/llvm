@@ -10,7 +10,7 @@
 
 #include "llvm/IR/Constant.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/SYCLLowerIR/TargetHelpers.h"
+#include "llvm/TargetParser/Triple.h"
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Support/CommandLine.h>
 #include <llvm/Support/Debug.h>

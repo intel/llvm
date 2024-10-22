@@ -5,7 +5,7 @@
 // device image is statically linked against fallback libdevice.
 // RUN: %{build} %if cpu %{ -DSYCL_DISABLE_FALLBACK_ASSERT=1 %} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}
-// RUN: %if cpu %{ env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -150,26 +150,26 @@ int main() {
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject1 =
         sycl::compile(KernelBundleInput1, KernelBundleInput1.get_devices());
-    // CHECK:---> urProgramCreate
+    // CHECK:<--- urProgramCreate
     // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE1:[0-9a-fA-Fx]+]])
     // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urProgramCompile
+    // CHECK:<--- urProgramCompile
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE1]]
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject2 =
         sycl::compile(KernelBundleInput2, KernelBundleInput2.get_devices());
-    // CHECK:---> urProgramCreate
+    // CHECK:<--- urProgramCreate
     // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE2:[0-9a-fA-Fx]+]])
     // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urProgramCompile(
+    // CHECK:<--- urProgramCompile(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE2]]
 
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
         sycl::link({KernelBundleObject1, KernelBundleObject2},
                    KernelBundleObject1.get_devices());
-    // CHECK:---> urProgramLink{{.*}} -> UR_RESULT_SUCCESS;
+    // CHECK:<--- urProgramLink{{.*}} -> UR_RESULT_SUCCESS;
     // UR tracing doesn't allow checking for all input programs so far.
 
     assert(KernelBundleExecutable.has_kernel(Kernel1ID));
@@ -179,14 +179,14 @@ int main() {
         KernelBundleExecutable2 =
             sycl::build(KernelBundleInput1, KernelBundleInput1.get_devices());
 
-    // CHECK:---> urProgramCreate
+    // CHECK:<--- urProgramCreate
     // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE3:[0-9a-fA-Fx]+]])
     // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urProgramBuild(
+    // CHECK:<--- urProgramBuild(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE3]]
     //
-    // CHECK:---> urProgramRetain(
+    // CHECK:<--- urProgramRetain(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE3]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
 
@@ -204,31 +204,31 @@ int main() {
     sycl::kernel_bundle KernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
                                                                 {Kernel3ID});
-    // CHECK:---> urProgramCreate
+    // CHECK:<--- urProgramCreate
     // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE4:[0-9a-fA-Fx]+]])
     // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urProgramBuild(
+    // CHECK:<--- urProgramBuild(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
     //
-    // CHECK:---> urProgramRetain(
+    // CHECK:<--- urProgramRetain(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urKernelCreate(
+    // CHECK:<--- urKernelCreate(
     // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
     // CHECK-SAME: .pKernelName = {{[0-9a-fA-Fx]+}} (_ZTS11Kernel3Name)
     // CHECK-SAME: .phKernel = {{[0-9a-fA-Fx]+}}  ([[KERNEL_HANDLE:[0-9a-fA-Fx]+]])
     // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urKernelRetain(
+    // CHECK:<--- urKernelRetain(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> urEnqueueKernelLaunch(
+    // CHECK:<--- urEnqueueKernelLaunch(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
-    // CHECK:---> urKernelRelease(
+    // CHECK:<--- urKernelRelease(
     // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     // CHECK-SAME:-> UR_RESULT_SUCCESS;
 

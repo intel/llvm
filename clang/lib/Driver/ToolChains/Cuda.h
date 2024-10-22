@@ -182,6 +182,7 @@ public:
   bool isPIEDefault(const llvm::opt::ArgList &Args) const override {
     return false;
   }
+  bool HasNativeLLVMSupport() const override { return true; }
   bool isPICDefaultForced() const override { return false; }
   bool SupportsProfiling() const override { return false; }
 
@@ -220,6 +221,8 @@ public:
     return &HostTC.getTriple();
   }
 
+  bool HasNativeLLVMSupport() const override { return false; }
+
   std::string getInputFilename(const InputInfo &Input) const override;
 
   llvm::opt::DerivedArgList *
@@ -256,6 +259,8 @@ public:
 
   Tool *SelectTool(const JobAction &JA) const override;
   const ToolChain &HostTC;
+
+  SYCLInstallationDetector SYCLInstallation;
 
 protected:
   Tool *buildAssembler() const override; // ptxas

@@ -65,11 +65,11 @@ public:
   ///
   /// \param UrContext is an instance of a valid plug-in context handle.
   /// \param AsyncHandler is an instance of async_handler.
-  /// \param Plugin is the reference to the underlying Plugin that this
+  /// \param Adapter is the reference to the underlying Adapter that this
   /// \param OwnedByRuntime is the flag if ownership is kept by user or
   /// transferred to runtime
   context_impl(ur_context_handle_t UrContext, async_handler AsyncHandler,
-               const PluginPtr &Plugin,
+               const AdapterPtr &Adapter,
                const std::vector<sycl::device> &DeviceList = {},
                bool OwnedByRuntime = true);
 
@@ -85,8 +85,8 @@ public:
   /// \return an instance of SYCL async_handler.
   const async_handler &get_async_handler() const;
 
-  /// \return the Plugin associated with the platform of this context.
-  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
+  /// \return the Adapter associated with the platform of this context.
+  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// \return the PlatformImpl associated with this context.
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
@@ -269,7 +269,7 @@ private:
     }
 
     /// Clears all events of the initializer. This will not acquire the lock.
-    void ClearEvents(const PluginPtr &Plugin);
+    void ClearEvents(const AdapterPtr &Adapter);
 
     /// The binary image of the program.
     const RTDeviceBinaryImage *MBinImage = nullptr;
@@ -305,6 +305,8 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 template <typename T, typename Capabilities>

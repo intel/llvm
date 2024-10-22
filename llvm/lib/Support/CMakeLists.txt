@@ -168,6 +168,7 @@ add_llvm_component_library(LLVMSupport
   Debug.cpp
   DebugCounter.cpp
   DeltaAlgorithm.cpp
+  DeltaTree.cpp
   DivisionByConstantInfo.cpp
   DAGDeltaAlgorithm.cpp
   DJB.cpp
@@ -204,12 +205,14 @@ add_llvm_component_library(LLVMSupport
   MemAlloc.cpp
   MemoryBuffer.cpp
   MemoryBufferRef.cpp
+  ModRef.cpp
   MD5.cpp
   MSP430Attributes.cpp
   MSP430AttributeParser.cpp
   NativeFormatting.cpp
   OptimizedStructLayout.cpp
   Optional.cpp
+  OptionStrCmp.cpp
   PGOOptions.cpp
   Parallel.cpp
   PluginLoader.cpp
@@ -217,6 +220,8 @@ add_llvm_component_library(LLVMSupport
   PropertySetIO.cpp
   RandomNumberGenerator.cpp
   Regex.cpp
+  RewriteBuffer.cpp
+  RewriteRope.cpp
   RISCVAttributes.cpp
   RISCVAttributeParser.cpp
   RISCVISAUtils.cpp

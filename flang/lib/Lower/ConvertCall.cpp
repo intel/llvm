@@ -366,24 +366,15 @@ std::pair<fir::ExtendedValue, bool> Fortran::lower::genCallOpAndResult(
       resultLengths = lengths;
     }
 
-    if (!extents.empty() || !lengths.empty()) {
+    if ((!extents.empty() || !lengths.empty()) && !isElemental) {
+      // Note: in the elemental context, the alloca ownership inside the
+      // elemental region is implicit, and later pass in lowering (stack
+      // reclaim) fir.do_loop will be in charge of emitting any stack
+      // save/restore if needed.
       auto *bldr = &converter.getFirOpBuilder();
-      auto stackSaveFn = fir::factory::getLlvmStackSave(builder);
-      auto stackSaveSymbol = bldr->getSymbolRefAttr(stackSaveFn.getName());
-      mlir::Value sp;
-      fir::CallOp call = bldr->create<fir::CallOp>(
-          loc, stackSaveFn.getFunctionType().getResults(), stackSaveSymbol,
-          mlir::ValueRange{});
-      if (call.getNumResults() != 0)
-        sp = call.getResult(0);
-      stmtCtx.attachCleanup([bldr, loc, sp]() {
-        auto stackRestoreFn = fir::factory::getLlvmStackRestore(*bldr);
-        auto stackRestoreSymbol =
-            bldr->getSymbolRefAttr(stackRestoreFn.getName());
-        bldr->create<fir::CallOp>(loc,
-                                  stackRestoreFn.getFunctionType().getResults(),
-                                  stackRestoreSymbol, mlir::ValueRange{sp});
-      });
+      mlir::Value sp = bldr->genStackSave(loc);
+      stmtCtx.attachCleanup(
+          [bldr, loc, sp]() { bldr->genStackRestore(loc, sp); });
     }
     mlir::Value temp =
         builder.createTemporary(loc, type, ".result", extents, resultLengths);
@@ -640,11 +631,15 @@ std::pair<fir::ExtendedValue, bool> Fortran::lower::genCallOpAndResult(
     if (callNumResults != 0)
       callResult = dispatch.getResult(0);
   } else {
-    // Standard procedure call with fir.call.
-    auto call = builder.create<fir::CallOp>(loc, funcType.getResults(),
-                                            funcSymbolAttr, operands);
+    // TODO: gather other procedure attributes.
+    fir::FortranProcedureFlagsEnumAttr procAttrs;
     if (caller.characterize().IsBindC())
-      call.setIsBindC(true);
+      procAttrs = fir::FortranProcedureFlagsEnumAttr::get(
+          builder.getContext(), fir::FortranProcedureFlagsEnum::bind_c);
+
+    // Standard procedure call with fir.call.
+    auto call = builder.create<fir::CallOp>(
+        loc, funcType.getResults(), funcSymbolAttr, operands, procAttrs);
 
     callNumResults = call.getNumResults();
     if (callNumResults != 0)
@@ -1202,10 +1197,26 @@ static PreparedDummyArgument preparePresentUserCallActualArgument(
   // is set (descriptors must be created with the actual type in this case, and
   // copy-in/copy-out should be driven by the contiguity with regard to the
   // actual type).
-  if (ignoreTKRtype)
-    dummyTypeWithActualRank = fir::changeElementType(
-        dummyTypeWithActualRank, actual.getFortranElementType(),
-        actual.isPolymorphic());
+  if (ignoreTKRtype) {
+    if (auto boxCharType =
+            mlir::dyn_cast<fir::BoxCharType>(dummyTypeWithActualRank)) {
+      auto maybeActualCharType =
+          mlir::dyn_cast<fir::CharacterType>(actual.getFortranElementType());
+      if (!maybeActualCharType ||
+          maybeActualCharType.getFKind() != boxCharType.getKind()) {
+        // When passing to a fir.boxchar with ignore(tk), prepare the argument
+        // as if only the raw address must be passed.
+        dummyTypeWithActualRank =
+            fir::ReferenceType::get(actual.getElementOrSequenceType());
+      }
+      // Otherwise, the actual is already a character with the same kind as the
+      // dummy and can be passed normally.
+    } else {
+      dummyTypeWithActualRank = fir::changeElementType(
+          dummyTypeWithActualRank, actual.getFortranElementType(),
+          actual.isPolymorphic());
+    }
+  }
 
   PreparedDummyArgument preparedDummy;
 
@@ -1227,26 +1238,32 @@ static PreparedDummyArgument preparePresentUserCallActualArgument(
     return hlfir::Entity{copyIn.getCopiedIn()};
   };
 
+  auto genSetDynamicTypeToDummyType = [&](hlfir::Entity var) -> hlfir::Entity {
+    fir::BaseBoxType boxType = fir::BoxType::get(
+        hlfir::getFortranElementOrSequenceType(dummyTypeWithActualRank));
+    if (actualIsAssumedRank)
+      return hlfir::Entity{builder.create<fir::ReboxAssumedRankOp>(
+          loc, boxType, var, fir::LowerBoundModifierAttribute::SetToOnes)};
+    // Use actual shape when creating descriptor with dummy type, the dummy
+    // shape may be unknown in case of sequence association.
+    mlir::Type actualTy =
+        hlfir::getFortranElementOrSequenceType(actual.getType());
+    boxType = boxType.getBoxTypeWithNewShape(actualTy);
+    return hlfir::Entity{builder.create<fir::ReboxOp>(loc, boxType, var,
+                                                      /*shape=*/mlir::Value{},
+                                                      /*slice=*/mlir::Value{})};
+  };
+
   // Step 2: prepare the storage for the dummy arguments, ensuring that it
   // matches the dummy requirements (e.g., must be contiguous or must be
   // a temporary).
   hlfir::Entity entity =
       hlfir::derefPointersAndAllocatables(loc, builder, actual);
   if (entity.isVariable()) {
-    if (mustSetDynamicTypeToDummyType) {
-      // Note: this is important to do this before any copy-in or copy so
-      // that the dummy is contiguous according to the dummy type.
-      mlir::Type boxType = fir::BoxType::get(
-          hlfir::getFortranElementOrSequenceType(dummyTypeWithActualRank));
-      if (actualIsAssumedRank) {
-        entity = hlfir::Entity{builder.create<fir::ReboxAssumedRankOp>(
-            loc, boxType, entity, fir::LowerBoundModifierAttribute::SetToOnes)};
-      } else {
-        entity = hlfir::Entity{builder.create<fir::ReboxOp>(
-            loc, boxType, entity, /*shape=*/mlir::Value{},
-            /*slice=*/mlir::Value{})};
-      }
-    }
+    // Set dynamic type if needed before any copy-in or copy so that the dummy
+    // is contiguous according to the dummy type.
+    if (mustSetDynamicTypeToDummyType)
+      entity = genSetDynamicTypeToDummyType(entity);
     if (arg.hasValueAttribute() ||
         // Constant expressions might be lowered as variables with
         // 'parameter' attribute. Even though the constant expressions
@@ -1285,20 +1302,14 @@ static PreparedDummyArgument preparePresentUserCallActualArgument(
         loc, builder, entity, storageType, "", byRefAttr);
     entity = hlfir::Entity{associate.getBase()};
     preparedDummy.pushExprAssociateCleanUp(associate);
+    // Rebox the actual argument to the dummy argument's type, and make sure
+    // that we pass a contiguous entity (i.e. make copy-in, if needed).
+    //
+    // TODO: this can probably be optimized by associating the expression with
+    // properly typed temporary, but this needs either a new operation or
+    // making the hlfir.associate more complex.
     if (mustSetDynamicTypeToDummyType) {
-      // Rebox the actual argument to the dummy argument's type, and make
-      // sure that we pass a contiguous entity (i.e. make copy-in,
-      // if needed).
-      //
-      // TODO: this can probably be optimized by associating the expression
-      // with properly typed temporary, but this needs either a new operation
-      // or making the hlfir.associate more complex.
-      assert(!actualIsAssumedRank && "only variables are assumed-rank");
-      mlir::Type boxType = fir::BoxType::get(
-          hlfir::getFortranElementOrSequenceType(dummyTypeWithActualRank));
-      entity = hlfir::Entity{builder.create<fir::ReboxOp>(
-          loc, boxType, entity, /*shape=*/mlir::Value{},
-          /*slice=*/mlir::Value{})};
+      entity = genSetDynamicTypeToDummyType(entity);
       entity = genCopyIn(entity, /*doCopyOut=*/false);
     }
   }

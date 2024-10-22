@@ -73,9 +73,9 @@
 #include "llvm/Transforms/IPO/SampleContextTracker.h"
 #include "llvm/Transforms/IPO/SampleProfileMatcher.h"
 #include "llvm/Transforms/IPO/SampleProfileProbe.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Utils/CallPromotionUtils.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/MisExpect.h"
 #include "llvm/Transforms/Utils/SampleProfileLoaderBaseImpl.h"
 #include "llvm/Transforms/Utils/SampleProfileLoaderBaseUtil.h"
@@ -439,7 +439,10 @@ struct CandidateComparer {
 
     const FunctionSamples *LCS = LHS.CalleeSamples;
     const FunctionSamples *RCS = RHS.CalleeSamples;
-    assert(LCS && RCS && "Expect non-null FunctionSamples");
+    // In inline replay mode, CalleeSamples may be null and the order doesn't
+    // matter.
+    if (!LCS || !RCS)
+      return LCS;
 
     // Tie breaker using number of samples try to favor smaller functions first
     if (LCS->getBodySamples().size() != RCS->getBodySamples().size())

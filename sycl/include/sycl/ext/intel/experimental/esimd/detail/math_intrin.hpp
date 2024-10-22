@@ -138,6 +138,12 @@ template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_clz(__ESIMD_raw_vec_t(T, N) src0) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_FRem(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_FRem(__ESIMD_raw_vec_t(T, N) src0,
+                 __ESIMD_raw_vec_t(T, N) src1) __ESIMD_INTRIN_END;
+
 #undef __ESIMD_raw_vec_t
 #undef __ESIMD_cpp_vec_t
 
