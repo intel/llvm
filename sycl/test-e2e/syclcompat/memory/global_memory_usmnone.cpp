@@ -116,7 +116,7 @@ void test1(volatile int *acc_d1, int *acc_d2, int const *c1, int c2) {
   test2(*acc_d1);
 }
 
-int main() try {
+int main() {
   syclcompat::get_default_queue().submit(
     [&](sycl::handler &cgh) {
       d1_a.init();
@@ -167,9 +167,9 @@ int main() try {
 
   if (verify()) {
     printf("Init Constant Memory Success!\n");
+    return 0;
   } else {
     printf("Init Constant Memory Fail!\n");
+    return 1;
   }
-  return 0;
 }
-catch(sycl::exception const &exc){}
