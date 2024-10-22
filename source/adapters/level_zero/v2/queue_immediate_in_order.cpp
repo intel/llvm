@@ -252,7 +252,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
       hKernel->Mutex, hKernel->getProgramHandle()->Mutex, this->Mutex);
 
   if (pGlobalWorkOffset != NULL) {
-    UR_CALL(setKernelGlobalOffset(hContext, hZeKernel, pGlobalWorkOffset));
+    UR_CALL(
+        setKernelGlobalOffset(hContext, hZeKernel, workDim, pGlobalWorkOffset));
   }
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
