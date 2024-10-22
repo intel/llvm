@@ -2174,32 +2174,6 @@ bool SemaHLSL::CheckBuiltinFunctionCall(unsigned BuiltinID, CallExpr *TheCall) {
   return false;
 }
 
-bool SemaHLSL::IsIntangibleType(clang::QualType QT) {
-  if (QT.isNull())
-    return false;
-
-  const Type *Ty = QT->getUnqualifiedDesugaredType();
-
-  // check if it's a builtin type first (simple check, no need to cache it)
-  if (Ty->isBuiltinType())
-    return Ty->isHLSLIntangibleType();
-
-  // unwrap arrays
-  while (isa<ConstantArrayType>(Ty))
-    Ty = Ty->getArrayElementTypeNoTypeQual();
-
-  const RecordType *RT =
-      dyn_cast<RecordType>(Ty->getUnqualifiedDesugaredType());
-  if (!RT)
-    return false;
-
-  CXXRecordDecl *RD = RT->getAsCXXRecordDecl();
-  assert(RD != nullptr &&
-         "all HLSL struct and classes should be CXXRecordDecl");
-  assert(RD->isCompleteDefinition() && "expecting complete type");
-  return RD->isHLSLIntangible();
-}
-
 static void BuildFlattenedTypeList(QualType BaseTy,
                                    llvm::SmallVectorImpl<QualType> &List) {
   llvm::SmallVector<QualType, 16> WorkList;
@@ -2395,7 +2369,7 @@ void SemaHLSL::ActOnVariableDeclarator(VarDecl *VD) {
     }
 
     // find all resources on decl
-    if (IsIntangibleType(VD->getType()))
+    if (VD->getType()->isHLSLIntangibleType())
       collectResourcesOnVarDecl(VD);
 
     // process explicit bindings
@@ -2406,7 +2380,7 @@ void SemaHLSL::ActOnVariableDeclarator(VarDecl *VD) {
 // Walks though the global variable declaration, collects all resource binding
 // requirements and adds them to Bindings
 void SemaHLSL::collectResourcesOnVarDecl(VarDecl *VD) {
-  assert(VD->hasGlobalStorage() && IsIntangibleType(VD->getType()) &&
+  assert(VD->hasGlobalStorage() && VD->getType()->isHLSLIntangibleType() &&
          "expected global variable that contains HLSL resource");
 
   // Cbuffers and Tbuffers are HLSLBufferDecl types
