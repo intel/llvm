@@ -160,6 +160,10 @@ cleanup() {
     [ ! -z "$_exit_after_cleanup" ] && exit
 }
 
+_sanitize_configs() {
+    echo "$1" | sed 's/[^a-zA-Z0-9_-.:/]//g'
+}
+
 load_configs() {
     # This script needs to know where the "BENCHMARKING_ROOT" directory is,
     # containing all the configuration files and the compare script.
@@ -180,7 +184,45 @@ load_configs() {
         fi
     done
 
-    . $BENCHMARK_CI_CONFIG
+    # Strict loading of configuration options:
+    while IFS='=' read -r key value; do
+        sanitized_value=$(_sanitize_configs "$value")
+        case "$key" in
+            'PERF_RES_GIT_REPO') export PERF_RES_GIT_REPO="$sanitized_value" ;;
+            'PERF_RES_BRANCH') export PERF_RES_BRANCH="$sanitized_value" ;;
+            'PERF_RES_PATH') export PERF_RES_PATH="$sanitized_value" ;;
+            'COMPUTE_BENCH_GIT_REPO') export COMPUTE_BENCH_GIT_REPO="$sanitized_value" ;;
+            'COMPUTE_BENCH_BRANCH') export COMPUTE_BENCH_BRANCH="$sanitized_value" ;;
+            'COMPUTE_BENCH_PATH') export COMPUTE_BENCH_PATH="$sanitized_value" ;;
+            'COMPUTE_BENCH_COMPILE_FLAGS') export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
+            'OUTPUT_PATH') export OUTPUT_PATH="$sanitized_value" ;;
+            # 'METRICS_VARIANCE') export METRICS_VARIANCE="$sanitized_value" ;;
+            # 'METRICS_RECORDED') export METRICS_RECORDED="$sanitized_value" ;;
+            'AVERAGE_THRESHOLD') export AVERAGE_THRESHOLD="$sanitized_value" ;;
+            'AVERAGE_CUTOFF_RANGE') export AVERAGE_CUTOFF_RANGE="$sanitized_value" ;;
+            'TIMESTAMP_FORMAT') export TIMESTAMP_FORMAT="$sanitized_value" ;;
+            'BENCHMARK_SLOW_LOG') export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
+            'BENCHMARK_ERROR_LOG') export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
+            *) echo "Unknown key: $sanitized_key" ;;
+        esac
+    done < "$BENCHMARK_CI_CONFIG"
+
+    # Debug
+    echo "PERF_RES_GIT_REPO: $PERF_RES_GIT_REPO"
+    echo "PERF_RES_BRANCH: $PERF_RES_BRANCH"
+    echo "PERF_RES_PATH: $PERF_RES_PATH"
+    echo "COMPUTE_BENCH_GIT_REPO: $COMPUTE_BENCH_GIT_REPO"
+    echo "COMPUTE_BENCH_BRANCH: $COMPUTE_BENCH_BRANCH"
+    echo "COMPUTE_BENCH_PATH: $COMPUTE_BENCH_PATH"
+    echo "COMPUTE_BENCH_COMPILE_FLAGS: $COMPUTE_BENCH_COMPILE_FLAGS"
+    echo "OUTPUT_PATH: $OUTPUT_PATH"
+    echo "METRICS_VARIANCE: $METRICS_VARIANCE"
+    echo "METRICS_RECORDED: $METRICS_RECORDED"
+    echo "AVERAGE_THRESHOLD: $AVERAGE_THRESHOLD"
+    echo "AVERAGE_CUTOFF_RANGE: $AVERAGE_CUTOFF_RANGE"
+    echo "TIMESTAMP_FORMAT: $TIMESTAMP_FORMAT"
+    echo "BENCHMARK_SLOW_LOG: $BENCHMARK_SLOW_LOG"
+    echo "BENCHMARK_ERROR_LOG: $BENCHMARK_ERROR_LOG"
 }
 
 load_configs
