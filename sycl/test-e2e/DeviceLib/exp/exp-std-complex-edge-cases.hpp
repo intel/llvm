@@ -290,13 +290,8 @@ template <typename T> bool test() {
       } else if (std::isfinite(testcases[i].imag()) &&
                  std::abs(testcases[i].imag()) <= 1) {
         CHECK(!std::signbit(r.real()), passed, i);
-// TODO: This case fails on win. Need to investigate and remove this macro
-// check.
-// CMPLRLLVM-62905
-#ifndef _WIN32
         CHECK(std::signbit(r.imag()) == std::signbit(testcases[i].imag()),
               passed, i);
-#endif
         // Those tests were taken from oneDPL, not sure what is the corner case
         // they are covering here
       } else if (std::isinf(r.real()) && testcases[i].imag() == 0) {
