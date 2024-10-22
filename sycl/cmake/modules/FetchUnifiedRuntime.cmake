@@ -116,8 +116,15 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/zhaomaosu/unified-runtime.git")
-  set(UNIFIED_RUNTIME_TAG refactor-launch-info)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  # Merge: c742ca49 55d5d01c
+  # Author: Piotr Balcer <piotr.balcer@intel.com>
+  # Date:   Tue Oct 22 10:51:59 2024 +0200
+  #
+  #     Merge pull request #2224 from zhaomaosu/refactor-launch-info
+  #
+  #     [DeviceASAN] Move GlobalShadowOffset, DeviceType, Debug into LaunchInfo
+  set(UNIFIED_RUNTIME_TAG e3eeb4ee03531adc95880b734af419ae91eb2325)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
