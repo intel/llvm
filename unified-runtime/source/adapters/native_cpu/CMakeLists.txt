@@ -50,6 +50,37 @@ set_target_properties(${TARGET_NAME} PROPERTIES
         SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
+option(NATIVECPU_WITH_TBB "Use TBB as backend for Native CPU" ON)
+if(NATIVECPU_WITH_TBB)
+  message(STATUS "Building Native CPU adapter with TBB backend.")
+
+  include(FetchContent)
+  FetchContent_Declare(
+    tbb
+    GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
+    GIT_TAG 42b833fe806606d05a5cad064b8b87365818d716
+    CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
+    GIT_SHALLOW ON
+    OVERRIDE_FIND_PACKAGE
+  )
+  set(TBB_TEST OFF CACHE INTERNAL "" FORCE)
+  set(TBB_EXAMPLES OFF CACHE INTERNAL "" FORCE)
+  set(TBB_BENCH OFF CACHE INTERNAL "" FORCE)
+  set(TBB_BUILD ON CACHE INTERNAL "" FORCE)
+  set(TBB_FIND_PACKAGE OFF CACHE INTERNAL "" FORCE)
+  set(TBB_FUZZ_TESTING OFF CACHE INTERNAL "" FORCE)
+  set(TBB_INSTALL ON CACHE INTERNAL "" FORCE)
+  FetchContent_MakeAvailable(tbb)
+
+  FetchContent_GetProperties(tbb)
+
+  if(NOT tbb_POPULATED)
+    FetchContent_Populate(tbb)
+  endif()
+  set(TBB_SOURCE_DIR_INTERNAL ${tbb_SOURCE_DIR}/include)
+  set(TBB_BINARY_DIR_INTERNAL ${tbb_BINARY_DIR})
+endif()
+
 find_package(Threads REQUIRED)
 
 target_link_libraries(${TARGET_NAME} PRIVATE
@@ -62,3 +93,13 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 target_include_directories(${TARGET_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
+
+if(NATIVECPU_WITH_TBB)
+  target_link_libraries(${TARGET_NAME} PRIVATE
+        TBB::tbb
+  )
+  target_include_directories(${TARGET_NAME} PRIVATE
+        "${TBB_SOURCE_DIR_INTERNAL}"
+  )
+  target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
+endif()

@@ -208,6 +208,53 @@ public:
   }
 };
 
-using threadpool_t = threadpool_interface<detail::simple_thread_pool>;
+template <class TP> class Scheduler {
+  std::vector<std::future<void>> futures;
+  TP &TPref;
+
+public:
+  Scheduler(TP &ref) : TPref(ref) {}
+
+  template <class T> void schedule(T &&task) {
+    futures.emplace_back(TPref.schedule_task(std::forward<T>(task)));
+  }
+  inline void wait() {
+    for (auto &f : futures)
+      f.get();
+  }
+};
+
+using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
+inline Scheduler<simple_threadpool_t> getScheduler(simple_threadpool_t &tp) {
+  return Scheduler(tp);
+}
+
+using threadpool_t = simple_threadpool_t;
 
 } // namespace native_cpu
+
+#ifdef NATIVECPU_USE_TBB
+// Simple TBB backend
+#include "oneapi/tbb.h"
+namespace native_cpu {
+
+struct TBB_threadpool {
+  inline size_t num_threads() const noexcept { return 32; }
+};
+template <> class Scheduler<TBB_threadpool> {
+  oneapi::tbb::task_group tasks;
+
+public:
+  inline void schedule(worker_task_t &&task) {
+    tasks.run([&]() { task(0); });
+  }
+  inline void wait() { tasks.wait(); }
+};
+
+inline Scheduler<TBB_threadpool> getScheduler(TBB_threadpool &tp) {
+  return Scheduler<TBB_threadpool>();
+}
+
+} // namespace native_cpu
+
+#endif

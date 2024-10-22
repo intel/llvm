@@ -106,8 +106,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                            pLocalWorkSize);
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
-  std::vector<std::future<void>> futures;
+//<<<<<<< HEAD:unified-runtime/source/adapters/native_cpu/enqueue.cpp
+//  std::vector<std::future<void>> futures;
   std::vector<std::function<void(size_t, ur_kernel_handle_t_ &)>> groups;
+//=======
+  auto Tasks = native_cpu::getScheduler(tp);
+//>>>>>>> 5406b39f26c6 ([NATIVECPU] Simple TBB backend):source/adapters/native_cpu/enqueue.cpp
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
@@ -161,13 +165,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (unsigned g2 = 0; g2 < numWG2; g2++) {
       for (unsigned g1 = 0; g1 < numWG1; g1++) {
         for (unsigned g0 = 0; g0 < new_num_work_groups_0; g0 += 1) {
-          futures.emplace_back(tp.schedule_task(
+          Tasks.schedule(
               [ndr, itemsPerThread, &kernel = *kernel, g0, g1, g2](size_t) {
                 native_cpu::state resized_state =
                     getResizedState(ndr, itemsPerThread);
                 resized_state.update(g0, g1, g2);
                 kernel._subhandler(kernel.getArgs().data(), &resized_state);
-              }));
+              });
         }
         // Peel the remaining work items. Since the local size is 1, we iterate
         // over the work groups.
@@ -186,8 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // Dimensions 1 and 2 have enough work, split them across the threadpool
       for (unsigned g2 = 0; g2 < numWG2; g2++) {
         for (unsigned g1 = 0; g1 < numWG1; g1++) {
-          futures.emplace_back(
-              tp.schedule_task([state, &kernel = *kernel, numWG0, g1, g2,
+          Tasks.schedule([state, &kernel = *kernel, numWG0, g1, g2,
                                 numParallelThreads](size_t threadId) mutable {
                 for (unsigned g0 = 0; g0 < numWG0; g0++) {
                   state.update(g0, g1, g2);
@@ -195,7 +198,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                       kernel.getArgs(numParallelThreads, threadId).data(),
                       &state);
                 }
-              }));
+              });
         }
       }
     } else {
@@ -220,35 +223,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       auto groupsPerThread = numGroups / numParallelThreads;
       if (groupsPerThread) {
         for (unsigned thread = 0; thread < numParallelThreads; thread++) {
-          futures.emplace_back(
-              tp.schedule_task([groups, thread, groupsPerThread,
+          Tasks.schedule([groups, thread, groupsPerThread,
                                 &kernel = *kernel](size_t threadId) {
                 for (unsigned i = 0; i < groupsPerThread; i++) {
                   auto index = thread * groupsPerThread + i;
                   groups[index](threadId, kernel);
                 }
-              }));
+              });
         }
       }
 
       // schedule the remaining tasks
       auto remainder = numGroups % numParallelThreads;
       if (remainder) {
-        futures.emplace_back(
-            tp.schedule_task([groups, remainder,
+        Tasks.schedule([groups, remainder,
                               scheduled = numParallelThreads * groupsPerThread,
                               &kernel = *kernel](size_t threadId) {
               for (unsigned i = 0; i < remainder; i++) {
                 auto index = scheduled + i;
                 groups[index](threadId, kernel);
               }
-            }));
+            });
       }
     }
   }
 
+  Tasks.wait();
 #endif // NATIVECPU_USE_OCK
-  event->set_futures(futures);
 
   if (phEvent) {
     *phEvent = event;
