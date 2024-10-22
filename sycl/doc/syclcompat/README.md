@@ -1573,6 +1573,27 @@ public:
 } // namespace syclcompat
 ```
 
+SYCLcompat provides a wrapper API `max_active_work_groups_per_cu` providing
+'work-groups per compute unit' semantics. It takes a `sycl::kernel` object, a
+`sycl::queue`, a work-groups size represented by either `sycl::range<Dim>` or
+`syclcompat::dim3`, and the local memory size in bytes. The function returns
+the maximum number of work-groups which can be executed per compute unit. May
+return *zero* even when below resource limits (i.e. returning `0` does not
+imply the kernel cannot execute).
+```cpp
+namespace syclcompat{
+template <class KernelName>
+size_t max_active_work_groups_per_cu(KernelName kernel, sycl::queue q,
+                                     syclcompat::dim3 wg_dim3,
+                                     size_t local_mem_size);
+
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(KernelName kernel, sycl::queue q,
+                                     sycl::range<RangeDim> wg_range,
+                                     size_t local_mem_size);
+}
+```
+
 To assist machine translation, helper aliases are provided for inlining and
 alignment attributes. The class template declarations `sycl_compat_kernel_name`
 and `sycl_compat_kernel_scalar` are used to assist automatic generation of
