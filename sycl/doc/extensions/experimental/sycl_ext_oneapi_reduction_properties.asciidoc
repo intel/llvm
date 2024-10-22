@@ -111,7 +111,7 @@ template <typename T, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(T* var, BinaryOperation combiner,
                           PropertyList properties);
 
-template <typename T, typename Extent, typename BinaryOperation, typename PropertyList>
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(span<T, Extent> vars, BinaryOperation combiner,
                           PropertyList properties);
 
@@ -124,7 +124,7 @@ template <typename T, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(T* var, const T& identity, BinaryOperation combiner,
                           PropertyList properties);
 
-template <typename T, typename Extent, typename BinaryOperation, typename PropertyList>
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(span<T, Extent> vars, const T& identity,
                           BinaryOperation combiner,
                           PropertyList properties);
@@ -192,7 +192,7 @@ use of atomic operations, etc. _{endnote}_]
 
 [source,c++]
 ----
-using syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 float sum(sycl::queue q, float* input, size_t N) {
 
@@ -205,10 +205,10 @@ float sum(sycl::queue q, float* input, size_t N) {
       h.parallel_for(N, reduction, [=](size_t i, auto& reducer) {
         reducer += input[i];
       });
-    }
+    });
   }
   return result;
-  
+
 }
 
 ...
