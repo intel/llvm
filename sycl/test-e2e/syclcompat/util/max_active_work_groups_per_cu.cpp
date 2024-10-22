@@ -23,8 +23,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/detail/core.hpp>
 #include "sycl/accessor.hpp"
+#include <sycl/detail/core.hpp>
 #include <syclcompat/util.hpp>
 
 template <class T, size_t Dim>
@@ -72,16 +72,21 @@ void test_max_active_work_groups_per_cu(sycl::queue q,
 
   size_t max_per_cu = syclcompat::max_active_work_groups_per_cu(
       kernel, q, wg_range, local_mem_size);
+
+  // Compare w/ reference impl
   size_t max_compute_units =
       q.get_device().get_info<sycl::info::device::max_compute_units>();
+  namespace syclex = sycl::ext::oneapi::experimental;
+  size_t max_wgs = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(
+      q, sycl::range<3>{syclcompat::dim3{wg_range}}, local_mem_size);
+  assert(max_per_cu == max_wgs / max_compute_units);
 
-  std::cout << "max_per_cu: " << max_per_cu << std::endl;
-  std::cout << "compute_units: " << max_compute_units << std::endl;
-
-  // We aren't interested in the launch here, it's here to define the kernel
+  // We aren't interested in the launch, it's here to define the kernel
   if (false) {
     sycl::range<RangeDim> global_range = wg_range;
-    global_range[0] = global_range[0] * max_per_cu * max_compute_units;
+    if(max_per_cu > 0)
+      global_range[0] = global_range[0] * max_per_cu * max_compute_units;
     sycl::nd_range<RangeDim> my_range{global_range, wg_range};
     sycl::buffer<value_type, RangeDim> buf{global_range};
 
@@ -100,18 +105,26 @@ void test_max_active_work_groups_per_cu(sycl::queue q,
 
 int main() {
   sycl::queue q{};
+  sycl::range<1> range_1d{32};
+  sycl::range<2> range_2d{1, 32};
+  sycl::range<3> range_3d{1, 1, 32};
+  syclcompat::dim3 wg_dim3{32, 1, 1};
 
-  test_max_active_work_groups_per_cu<MyKernel, 3>(q, {32, 1, 1});
-  test_max_active_work_groups_per_cu<MyLocalMemKernel, 3>(
-      q, {32, 1, 1}, 32 * sizeof(value_type));
-  test_max_active_work_groups_per_cu<MyLocalMemKernel, 2>(
-      q, {32, 1}, 32 * 200 * sizeof(value_type));
-  // test_max_active_work_groups_per_cu<MyKernel<2>, 2>(q);
+  size_t lmem_size_small = sizeof(value_type) * 32;
+  size_t lmem_size_medium = lmem_size_small * 32;
+  size_t lmem_size_large = lmem_size_medium * 32;
 
-  // TODO: What tests cases do we want here?
-  // Regular
-  // Local mem
-  // range dim
-  assert(false);
+  test_max_active_work_groups_per_cu<MyKernel, 3>(q, range_3d);
+  test_max_active_work_groups_per_cu<MyKernel, 2>(q, range_2d);
+  test_max_active_work_groups_per_cu<MyKernel, 1>(q, range_1d);
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 3>(q, range_3d,
+                                                          lmem_size_small);
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 3>(q, range_3d,
+                                                          lmem_size_medium);
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 3>(q, range_3d,
+                                                          lmem_size_large);
+  test_max_active_work_groups_per_cu<MyLocalMemKernel, 1>(q, range_1d,
+                                                          lmem_size_large);
+//TODO(joe): dim3 test here
   return 0;
 }
