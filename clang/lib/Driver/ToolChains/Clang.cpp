@@ -5590,7 +5590,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     // only be used for SPIR/SPIR-V based targets.
     if (Triple.isSPIROrSPIRV())
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                       options::OPT_fno_sycl_instrument_device_code, true))
+                       options::OPT_fno_sycl_instrument_device_code, false))
         CmdArgs.push_back("-fsycl-instrument-device-code");
 
     if (!SYCLStdArg) {
