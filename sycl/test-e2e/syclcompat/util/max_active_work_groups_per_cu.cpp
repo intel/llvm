@@ -1,4 +1,3 @@
-
 /***************************************************************************
  *
  *  Copyright (C) Codeplay Software Ltd.
@@ -66,23 +65,22 @@ void test_max_active_work_groups_per_cu(sycl::queue q,
   if constexpr (!KernelName<RangeDim>::has_local_mem)
     assert(local_mem_size == 0 && "Bad test setup");
 
-  auto ctx = q.get_context();
-  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
-  auto kernel = bundle.template get_kernel<KernelName<RangeDim>>();
-
-  size_t max_per_cu = syclcompat::max_active_work_groups_per_cu(
-      kernel, q, wg_range, local_mem_size);
-
+  size_t max_per_cu = syclcompat::max_active_work_groups_per_cu<KernelName<RangeDim>>(
+      wg_range, local_mem_size, q);
+ 
   // Check we get the same result passing equivalent dim3
   syclcompat::dim3 wg_dim3{wg_range};
-  size_t max_per_cu_dim3 = syclcompat::max_active_work_groups_per_cu(
-      kernel, q, wg_dim3, local_mem_size);
+  size_t max_per_cu_dim3 = syclcompat::max_active_work_groups_per_cu<KernelName<RangeDim>>(
+      wg_dim3, local_mem_size, q);
   assert(max_per_cu == max_per_cu_dim3);
 
   // Compare w/ reference impl
   size_t max_compute_units =
       q.get_device().get_info<sycl::info::device::max_compute_units>();
   namespace syclex = sycl::ext::oneapi::experimental;
+  auto ctx = q.get_context();
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
+  auto kernel = bundle.template get_kernel<KernelName<RangeDim>>();
   size_t max_wgs = kernel.template ext_oneapi_get_info<
       syclex::info::kernel_queue_specific::max_num_work_groups>(
       q, sycl::range<3>{syclcompat::dim3{wg_range}}, local_mem_size);
