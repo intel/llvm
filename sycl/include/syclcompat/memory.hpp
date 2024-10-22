@@ -228,12 +228,12 @@ public:
           "[SYCLcompat] malloc: out of memory for virtual memory pool");
     }
     // Allocation
-    sycl::range<1> r(size);
-    buffer_t buf(r);
-    allocation A{buf, next_free, size};
+    sycl::range<1> buffer_range(size);
+    buffer_t buf(buffer_range);
+    allocation alloc{buf, next_free, size};
     // Map allocation to device pointer
     void *result = next_free;
-    m_map.emplace(next_free + size, A);
+    m_map.emplace(next_free + size, alloc);
     // Update pointer to the next free space.
     next_free += (size + extra_padding + alignment - 1) & ~(alignment - 1);
 
