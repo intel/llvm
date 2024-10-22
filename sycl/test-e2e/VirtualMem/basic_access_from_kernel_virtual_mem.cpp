@@ -1,6 +1,7 @@
 // REQUIRES: aspect-ext_oneapi_virtual_mem
 
-// This test checks whether data can be correctly written to and read from virtual memory.
+// This test checks whether data can be correctly written to and read from
+// virtual memory.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
