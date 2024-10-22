@@ -29,6 +29,7 @@ private:
 
   ZSTDCompressor(const ZSTDCompressor &) = delete;
   ZSTDCompressor &operator=(const ZSTDCompressor &) = delete;
+  ~ZSTDCompressor() {}
 
   // Get the singleton instance of the ZSTDCompressor class.
   static ZSTDCompressor &GetSingletonInstance() {
