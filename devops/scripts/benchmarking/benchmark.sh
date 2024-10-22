@@ -161,7 +161,7 @@ cleanup() {
 }
 
 _sanitize_configs() {
-    echo "$1" | sed 's/[^a-zA-Z0-9_-.:/]//g'
+    echo "$1" | sed 's/[^a-zA-Z0-9_.:/-]//g'
 }
 
 load_configs() {
