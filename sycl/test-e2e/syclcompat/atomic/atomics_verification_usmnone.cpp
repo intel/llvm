@@ -21,7 +21,7 @@
 #define min(a, b) (a) < (b) ? (a) : (b)
 #define max(a, b) (a) > (b) ? (a) : (b)
 
-#define LOOP_NUM 50
+#define LOOP_NUM 5
 
 void atomicKernel(int *atom_arr, sycl::nd_item<3> item_ct1) {
   unsigned int tid = item_ct1.get_local_range().get(2) * item_ct1.get_group(2) +
@@ -271,11 +271,6 @@ int main(int argc, char **argv) {
                    .get_info<sycl::info::device::name>()
             << "\n";
 
-  std::chrono::time_point<std::chrono::steady_clock> start_ct1;
-  std::chrono::time_point<std::chrono::steady_clock> stop_ct1;
-
-  start_ct1 = std::chrono::steady_clock::now();
-
   {
     std::pair<syclcompat::buffer_t, size_t> atom_arr_buf_ct0 =
         syclcompat::get_buffer_and_offset(atom_arr);
@@ -295,17 +290,6 @@ int main(int argc, char **argv) {
                        });
     });
   }
-
-  stop_ct1 = std::chrono::steady_clock::now();
-
-  float elapsed_time = 0;
-  // calculate elapsed time
-  elapsed_time =
-      std::chrono::duration<float, std::milli>(stop_ct1 - start_ct1).count();
-
-  printf("Measured time for parallel execution with "
-         "std::chrono::steady_clock = %.3f ms\n",
-         elapsed_time);
 
   atomicKernel_CPU(syclcompat::get_host_ptr<int>(atom_arr), numBlocks * numThreads);
 
