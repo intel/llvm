@@ -93,7 +93,7 @@ template <typename T> struct IsDeterministicOperator : std::false_type {};
 // and on same device.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastAtomicFetch =
-    std::bool_constant<not IsDeterministicOperator<BinaryOperation>::value &&
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
                        ((is_sgenfloat_v<T> && sizeof(T) == 4) ||
                         is_sgeninteger_v<T>) &&
                        IsValidAtomicType<T>::value &&
@@ -112,7 +112,7 @@ using IsReduOptForFastAtomicFetch =
 // IsReduOptForFastReduce.
 template <typename T, class BinaryOperation>
 using IsReduOptForAtomic64Op =
-    std::bool_constant<not IsDeterministicOperator<BinaryOperation>::value &&
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
                        (IsPlus<T, BinaryOperation>::value ||
                         IsMinimum<T, BinaryOperation>::value ||
                         IsMaximum<T, BinaryOperation>::value) &&
@@ -123,7 +123,7 @@ using IsReduOptForAtomic64Op =
 // for using in reduction.
 template <typename T, class BinaryOperation>
 using IsReduOptForFastReduce =
-    std::bool_constant<not IsDeterministicOperator<BinaryOperation>::value &&
+    std::bool_constant<!IsDeterministicOperator<BinaryOperation>::value &&
                        ((is_sgeninteger_v<T> &&
                          (sizeof(T) == 4 || sizeof(T) == 8)) ||
                         is_sgenfloat_v<T>) &&
