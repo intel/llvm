@@ -801,17 +801,15 @@ ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
 }
 
 bool device_impl::isFp16Supported() const {
-  auto Fp16Config = get_info<info::device::half_fp_config>();
   // If we don't get anything back from this we can assume the device doesn't
   // support fp16.
-  return Fp16Config.empty() ? false : true;
+  return !get_info<info::device::half_fp_config>().empty();
 }
 
 bool device_impl::isFp64Supported() const {
-  auto Fp64Config = get_info<info::device::double_fp_config>();
   // If we don't get anything back from this we can assume the device doesn't
   // support fp64.
-  return Fp64Config.empty() ? false : true;
+  return !get_info<info::device::double_fp_config>().empty();
 }
 
 // On the first call this function queries for device timestamp
