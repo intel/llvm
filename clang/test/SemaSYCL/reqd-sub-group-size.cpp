@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -Wno-error=deprecated-declarations -internal-isystem %S/Inputs -fsyntax-only -verify -pedantic %s
 
 // The test checks functionality of [[intel::reqd_sub_group_size()]] attribute on SYCL kernel.
 
@@ -62,17 +62,17 @@ int main() {
 // Diagnostic is emitted because the arguments mismatch.
 [[intel::reqd_sub_group_size(12)]] void quux();  // expected-note {{previous attribute is here}}
 [[intel::reqd_sub_group_size(100)]] void quux(); // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}} expected-note {{previous attribute is here}}
-[[intel::reqd_sub_group_size(200)]] void quux();  // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
+[[sycl::reqd_sub_group_size(200)]] void quux();  // expected-warning {{attribute 'reqd_sub_group_size' is already applied with different arguments}}
 
 // Make sure there's at least one argument passed.
-[[intel::reqd_sub_group_size]] void quibble(); // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
+[[sycl::reqd_sub_group_size]] void quibble(); // expected-error {{'reqd_sub_group_size' attribute takes one argument}}
 
 // No diagnostic is emitted because the arguments match.
 [[intel::reqd_sub_group_size(12)]] void same();
 [[intel::reqd_sub_group_size(12)]] void same() {} // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 
 // No diagnostic because the attributes are synonyms with identical behavior.
-[[intel::reqd_sub_group_size(12)]] void same(); // OK
+[[sycl::reqd_sub_group_size(12)]] void same(); // OK
 
 // Test that checks wrong function template instantiation and ensures that the type
 // is checked properly when instantiating from the template definition.

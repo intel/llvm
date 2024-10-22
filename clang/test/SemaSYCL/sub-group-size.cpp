@@ -1,6 +1,6 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary,integer %s
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=primary -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,integer %s
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -Wno-error=deprecated-declarations -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
 
 // Validate the semantic analysis checks for the interaction betwen the
 // named_sub_group_size and sub_group_size attributes. These are not able to be
@@ -153,7 +153,7 @@ void calls_kernel_5() {
 
 // Don't diag with the old sub-group-size.
 void calls_kernel_6() {
-  sycl::kernel_single_task<class Kernel6>([]() [[sycl::reqd_sub_group_size(10)]] { // #Kernel6
+  sycl::kernel_single_task<class Kernel6>([]() [[intel::reqd_sub_group_size(10)]] { // #Kernel6
     NoAttrExternalNotDefined();
   });
 }
