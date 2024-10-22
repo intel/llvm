@@ -116,8 +116,13 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/againull/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG 44a2f0234f9270aab0c8633c07da81e96fc5e214)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime")
+  # commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
+  # Author: Artur Gainullin <artur.gainullin@intel.com>
+  # Date:   Tue Oct 22 03:30:08 2024 -0700
+  #
+  #     Support UR program creation from multiple device binaries (#2147)
+  set(UNIFIED_RUNTIME_TAG 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
