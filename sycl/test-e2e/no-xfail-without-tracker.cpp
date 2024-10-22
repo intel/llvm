@@ -25,12 +25,12 @@
 //   verify that against the reference
 // - ...and check if the list of improperly "xfailed" tests needs to be updated.
 //
-// RUN: grep -rI "XFAIL:" %S -A 1 --exclude=%s:basename --include=*.c --include=*.cpp \
-// RUN:      --no-group-separator | \
+// RUN: grep -rI "XFAIL:" %S -A 1 --include=*.c --include=*.cpp \
+// RUN:      --exclude=no-xfail-without-tracker.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
 // RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t | \
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
-// RUN: cat %t | FileCheck %s --check-prefix CHECK-NEXT
+// RUN: cat %t | FileCheck %s
 //
 // The number below is a number of tests which are *improperly* XFAIL-ed, i.e.
 // we either don't have a tracker associated with a failure listed in those
@@ -50,7 +50,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 162
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 160
 //
 // List of improperly "xfailed" tests.
 // Remove the CHECK once the test has been propely "xfailed".
