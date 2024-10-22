@@ -1,3 +1,5 @@
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15819
 // REQUIRES: ocloc, any-device-is-level_zero, any-device-is-gpu, any-device-is-cpu
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_fpga,spir64_gen -Xsycl-target-backend "-device *" %S/Inputs/is_compatible_with_env.cpp -o %t.out
