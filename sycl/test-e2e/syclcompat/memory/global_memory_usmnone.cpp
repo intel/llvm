@@ -56,7 +56,7 @@ syclcompat::constant_memory<int, 1> c_1d(sycl::range<1>(15),
                                    {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100,
                                     110, 120, 130, 140});
 
-bool verify_init(int *data) {  
+bool verify_init(int *data) {
   for(auto i = 0; i < 15; ++i) {
     if (data[i] != i * 10)
       return false;

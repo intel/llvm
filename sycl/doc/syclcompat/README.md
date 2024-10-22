@@ -61,7 +61,7 @@ If available, the following extensions extend SYCLcompat functionality:
 
 ### Hardware Requirements
 
-Some of the functionality provided by SYCLcompat relies on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer-support) below.
+Some of the functionalities provided by SYCLcompat rely on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer-support) below.
 
 ## Usage
 
@@ -847,6 +847,7 @@ public:
 
 } // syclcompat
 ```
+
 #### Buffer Support
 
 Although SYCLcompat is primarily designed around the Unified Shared Memory

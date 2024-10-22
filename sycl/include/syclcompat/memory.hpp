@@ -225,7 +225,7 @@ public:
     std::lock_guard<std::mutex> lock(m_mutex);
     if (next_free + size > mapped_address_space + mapped_region_size) {
       throw std::runtime_error(
-          "syclcompat malloc: out of memory for virtual memory pool");
+          "[SYCLcompat] malloc: out of memory for virtual memory pool");
     }
     // Allocation
     sycl::range<1> r(size);
@@ -284,14 +284,14 @@ private:
     auto it = m_map.upper_bound((byte_t *)ptr);
     if (it == m_map.end()) {
       // Not a virtual pointer.
-      throw std::runtime_error("can not get buffer from non-virtual pointer");
+      throw std::runtime_error("[SYCLcompat] can not get buffer from non-virtual pointer");
     }
     const allocation &alloc = it->second;
     if (ptr < alloc.alloc_ptr) {
       // Out of bound.
       // This may happen if there's a gap between allocations due to alignment
       // or extra padding and pointer points to this gap.
-      throw std::runtime_error("invalid virtual pointer");
+      throw std::runtime_error("[SYCLcompat] invalid virtual pointer");
     }
     return it;
   }
@@ -558,7 +558,7 @@ static sycl::event memcpy(sycl::queue q, void *to_ptr, const void *from_ptr,
     });
   }
   default:
-    throw std::runtime_error("syclcompat memcpy: invalid direction value");
+    throw std::runtime_error("[SYCLcompat] memcpy: invalid direction value");
   }
 #else
   return q.memcpy(to_ptr, from_ptr, size, dep_events);
@@ -778,7 +778,7 @@ static std::pair<buffer_t, size_t> get_buffer_and_offset(const void *ptr) {
     return std::make_pair(alloc.buffer, offset);
   } else {
     throw std::runtime_error(
-        "NULL pointer argument in get_buffer_and_offset function is invalid");
+        "[SYCLcompat] NULL pointer argument in get_buffer_and_offset function is invalid");
   }
 }
 
@@ -846,7 +846,7 @@ static sycl::accessor<byte_t, 1, accessMode> get_access(const void *ptr,
     return alloc.buffer.get_access<accessMode>(cgh);
   } else {
     throw std::runtime_error(
-        "NULL pointer argument in get_access function is invalid");
+        "[SYCLcompat] NULL pointer argument in get_access function is invalid");
   }
 }
 
@@ -1727,7 +1727,7 @@ public:
   void init(const void *ptr, sycl::queue q = get_default_queue()) {
 #ifdef COMPAT_USM_LEVEL_NONE
     throw std::runtime_error(
-        "syclcompat::pointer_attributes: only works for USM pointer.");
+        "[SYCLcompat] pointer_attributes: only works for USM pointer.");
 #else
     memory_type = sycl::get_pointer_type(ptr, q.get_context());
     device_pointer = (memory_type != sycl::usm::alloc::unknown) ? ptr : nullptr;
