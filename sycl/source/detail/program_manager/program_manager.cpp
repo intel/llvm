@@ -173,6 +173,8 @@ static bool isDeviceBinaryTypeSupported(const context &C,
     return "SPIR-V";
   case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return "LLVM IR";
+  case SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE:
+    return "compressed none";
   }
   assert(false && "Unknown device image format");
   return "unknown";
@@ -732,6 +734,14 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
+static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+  if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
+    if (CompImg->IsCompressed())
+      CompImg->Decompress();
+#endif
+}
+
 // When caching is enabled, the returned UrProgram will already have
 // its ref count incremented.
 ur_program_handle_t ProgramManager::getBuiltURProgram(
@@ -783,6 +793,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   std::set<RTDeviceBinaryImage *> ImageDeps =
       collectDeviceImageDepsForImportedSymbols(Img, Device);
   DeviceImagesToLink.insert(ImageDeps.begin(), ImageDeps.end());
+
+  // Decompress all DeviceImagesToLink
+  for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink)
+    CheckAndDecompressImage(BinImg);
 
   std::vector<const RTDeviceBinaryImage *> AllImages;
   AllImages.reserve(ImageDeps.size() + 1);
@@ -1390,6 +1404,10 @@ ProgramManager::getDeviceImage(const std::string &KernelName,
                                     Device);
     }
   }
+
+  // Decompress the image if it is compressed.
+  CheckAndDecompressImage(Img);
+
   if (Img) {
     CheckJITCompilationForImage(Img, JITCompilationIsRequired);
 
@@ -1531,6 +1549,13 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
+// Check if device image is compressed.
+static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
+
+  auto currFormat = static_cast<ur::DeviceBinaryType>(Bin->Format);
+  return currFormat == SYCL_DEVICE_BINARY_TYPE_COMPRESSED_NONE;
+}
+
 ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
@@ -1660,7 +1685,19 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     if (EntriesB == EntriesE)
       continue;
 
-    auto Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+    std::unique_ptr<RTDeviceBinaryImage> Img;
+    if (isDeviceImageCompressed(RawImg))
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+      Img = std::make_unique<CompressedRTDeviceBinaryImage>(RawImg);
+#else
+      throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                            "Recieved a compressed device image, but "
+                            "SYCL RT was built without ZSTD support."
+                            "Aborting. ");
+#endif
+    else
+      Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+
     static uint32_t SequenceID = 0;
 
     // Fill the kernel argument mask map
@@ -1697,6 +1734,10 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
           [&](auto &CurrentImg) {
             return CurrentImg.first->getFormat() == Img->getFormat();
           });
+
+      // Check if image is compressed, and decompress it before dumping.
+      CheckAndDecompressImage(Img.get());
+
       dumpImage(*Img, NeedsSequenceID ? ++SequenceID : 0);
     }
 
@@ -2173,6 +2214,9 @@ ProgramManager::getSYCLDeviceImagesWithCompatibleState(
           StateImagesPair = &KernelImageMap[KernelID];
 
         auto &[KernelImagesState, KernelImages] = *StateImagesPair;
+
+        // Check if device image is compressed and decompress it if needed
+        CheckAndDecompressImage(BinImage);
 
         if (KernelImages.empty()) {
           KernelImagesState = ImgState;
