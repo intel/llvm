@@ -855,6 +855,41 @@ public:
 } // syclcompat
 ```
 
+### ptr_to_int
+
+The following cuda backend specific function is introduced in order to
+translate from local memory pointers to `uint32_t` or `size_t` variables that
+contain a byte address to the local (local refers to`.shared` in nvptx) memory
+state space.
+
+``` c++
+namespace syclcompat {
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr)
+} // namespace syclcompat
+```
+
+These variables can be used in inline PTX instructions that take address
+operands. Such inline PTX instructions are commonly used in optimized
+libraries. A simplified example usage of the above functions is as follows:
+
+``` c++
+  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
+  // ...
+  // ...
+  T addr =
+      syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
+  uint32_t fragment;
+#if defined(__NVPTX__)
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
+               : "=r"(fragment)
+               : "r"(addr));
+#endif
+```
+
 ### Device Information
 
 `sycl::device` properties are encapsulated using the `device_info` helper class.
@@ -1013,6 +1048,10 @@ static inline unsigned int get_device_id(const sycl::device &dev);
 // Util function to get the number of available devices
 static inline unsigned int device_count();
 
+// Util function to check whether a device supports some kinds of sycl::aspect.
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props);
 } // syclcompat
 ```
 
@@ -1073,6 +1112,7 @@ class device_ext : public sycl::device {
   int get_max_work_group_size() const;
   int get_mem_base_addr_align() const;
   size_t get_global_mem_size() const;
+  size_t get_local_mem_size() const;
   void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
@@ -1544,11 +1584,15 @@ SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
 expressions that might throw `sycl::exception` and `std::runtime_error`. If no
-exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
-`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+exceptions are thrown, it returns `syclcompat::error_code::success`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::backend_error`.
 If a `std::runtime_error` exception is caught,
-`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+`syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
+
+`get_error_string_dummy` is a dummy function introduced to assist auto
+migration. The SYCLomatic user should replace it with a real error-handling 
+function. SYCL reports errors using exceptions and does not use error codes.
 
 ``` c++
 namespace syclcompat {
@@ -1570,7 +1614,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
@@ -1580,7 +1624,8 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+enum error_code { success = 0, backend_error = 1, default_error = 999 };
+inline const char *get_error_string_dummy(int ec);
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
@@ -1690,7 +1735,51 @@ second operand, respectively. These three APIs return a single 32-bit value with
 the accumulated result, which is unsigned if both operands are `uint32_t` and
 signed otherwise.
 
+Various maths functions are defined operate on any floating point types.
+`syclcompat::is_floating_point_v` extends the standard library's
+`std::is_floating_point_v` to include `sycl::half` and, where available,
+`sycl::ext::oneapi::bfloat16`. The current version of SYCLcompat also provides
+a specialization of `std::common_type_t` for `sycl::ext::oneapi::bfloat16`,
+though this will be moved to the `sycl_ext_oneapi_bfloat16` extension in
+future.
+
 ```cpp
+namespace std {
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+} // namespace std
+```
+
+```cpp
+namespace syclcompat{
+
+// Trait for extended floating point definition
+template <typename T>
+struct is_floating_point : std::is_floating_point<T>{};
+
+template <> struct is_floating_point<sycl::half> : std::true_type {};
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <> struct is_floating_point<sycl::ext::oneapi::bfloat16> : std::true_type {};
+#endif
+template <typename T>
+
+inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
 
@@ -1717,11 +1806,9 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
 // cbrt function wrapper.
 template <typename ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+                            std::is_same_v<ValueT, sycl::half>,
                         ValueT>
-cbrt(ValueT val) {
-  return sycl::cbrt(static_cast<ValueT>(val));
-}
+cbrt(ValueT val);
 
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
@@ -1759,6 +1846,10 @@ template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
 
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
+
 // Performs 2 elements comparison and returns the smaller one. If either of
 // inputs is NaN, then return NaN.
 template <typename ValueT, typename ValueU>
@@ -1767,6 +1858,10 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
 
 inline float pow(const float a, const int b) { return sycl::pown(a, b); }
 inline double pow(const double a, const int b) { return sycl::pown(a, b); }
@@ -1828,14 +1923,13 @@ unordered_compare_both(const ValueT a, const ValueT b,
                        const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
-                             const sycl::vec<ValueT, 2> b,
-                             const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
-                                       const sycl::vec<ValueT, 2> b,
-                                       const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+unordered_compare_mask(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1889,6 +1983,7 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
 template <typename T1, typename T2>
 inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
                                       dot_product_acc_t<T1, T2> c);
+} // namespace syclcompat
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,

@@ -33,6 +33,7 @@ context_impl::context_impl(const device &Device, async_handler AsyncHandler,
       MContext(nullptr),
       MPlatform(detail::getSyclObjImpl(Device.get_platform())),
       MPropList(PropList), MSupportBufferLocationByDevices(NotChecked) {
+  verifyProps(PropList);
   MKernelProgramCache.setContextPtr(this);
 }
 
@@ -42,6 +43,7 @@ context_impl::context_impl(const std::vector<sycl::device> Devices,
     : MOwnedByRuntime(true), MAsyncHandler(AsyncHandler), MDevices(Devices),
       MContext(nullptr), MPlatform(), MPropList(PropList),
       MSupportBufferLocationByDevices(NotChecked) {
+  verifyProps(PropList);
   MPlatform = detail::getSyclObjImpl(MDevices[0].get_platform());
   std::vector<ur_device_handle_t> DeviceIds;
   for (const auto &D : MDevices) {
@@ -536,6 +538,12 @@ context_impl::getProgramForHostPipe(const device &Device,
   std::set<std::uintptr_t> ImgIdentifiers;
   ImgIdentifiers.insert(HostPipeEntry->getDevBinImage()->getImageID());
   return getProgramForDevImgs(Device, ImgIdentifiers, "host_pipe");
+}
+
+void context_impl::verifyProps(const property_list &Props) const {
+  auto NoAllowedPropertiesCheck = [](int) { return false; };
+  detail::PropertyValidator::checkPropsAndThrow(Props, NoAllowedPropertiesCheck,
+                                                NoAllowedPropertiesCheck);
 }
 
 } // namespace detail

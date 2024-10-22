@@ -1,10 +1,10 @@
 // REQUIRES: linux
-// RUN: %{build} %device_asan_flags -O0 -g -o %t.out
-// RUN: %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O1 -g -o %t.out
-// RUN: %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -O2 -g -o %t.out
-// RUN: %{run} not %t.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O1 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
