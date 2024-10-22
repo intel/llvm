@@ -8,7 +8,7 @@
 #include <string>
 
 namespace {
-// Helper to convert the expected bits to float value to compare with the result
+// Helper to convert the expected bits to float value to compare with the result.
 typedef union {
   float Value;
   struct {
