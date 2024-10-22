@@ -2996,17 +2996,19 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create a program object from device native binary.
+/// @brief Create a program object from native binaries for the specified
+///        devices.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
 ///     - Following a successful call to this entry point, `phProgram` will
-///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
-///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
-///     - The device specified by `hDevice` must be device associated with
+///       contain binaries of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
+///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for the specified devices in
+///       `phDevices`.
+///     - The devices specified by `phDevices` must be associated with the
 ///       context.
 ///     - The adapter may (but is not required to) perform validation of the
-///       provided module during this call.
+///       provided modules during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -3019,21 +3021,29 @@ ur_result_t UR_APICALL urProgramCreateWithIL(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pBinary`
+///         + `NULL == phDevices`
+///         + `NULL == pLengths`
+///         + `NULL == ppBinaries`
 ///         + `NULL == phProgram`
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///         + `numDevices == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_NATIVE_BINARY
-///         + If `pBinary` isn't a valid binary for `hDevice.`
+///         + If any binary in `ppBinaries` isn't a valid binary for the corresponding device in `phDevices.`
 ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
-    ur_device_handle_t
-        hDevice,            ///< [in] handle to device associated with binary.
-    size_t size,            ///< [in] size in bytes.
-    const uint8_t *pBinary, ///< [in] pointer to binary.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                   ///< binaries are loaded for devices specified in this list.
+    size_t *
+        pLengths, ///< [in][range(0, numDevices)] array of sizes of program binaries
+                  ///< specified by `pBinaries` (in bytes).
+    const uint8_t **
+        ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                    ///< for devices specified by `phDevices`.
     const ur_program_properties_t *
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
@@ -3045,8 +3055,8 @@ ur_result_t UR_APICALL urProgramCreateWithBinary(
         return UR_RESULT_ERROR_UNINITIALIZED;
     }
 
-    return pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties,
-                               phProgram);
+    return pfnCreateWithBinary(hContext, numDevices, phDevices, pLengths,
+                               ppBinaries, pProperties, phProgram);
 } catch (...) {
     return exceptionToResult(std::current_exception());
 }

@@ -2721,10 +2721,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
-    ur_device_handle_t
-        hDevice,            ///< [in] handle to device associated with binary.
-    size_t size,            ///< [in] size in bytes.
-    const uint8_t *pBinary, ///< [in] pointer to binary.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                   ///< binaries are loaded for devices specified in this list.
+    size_t *
+        pLengths, ///< [in][range(0, numDevices)] array of sizes of program binaries
+                  ///< specified by `pBinaries` (in bytes).
+    const uint8_t **
+        ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                    ///< for devices specified by `phDevices`.
     const ur_program_properties_t *
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
@@ -2742,11 +2748,15 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
             return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
         }
 
-        if (NULL == hDevice) {
-            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        if (NULL == phDevices) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (NULL == pBinary) {
+        if (NULL == pLengths) {
+            return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+        }
+
+        if (NULL == ppBinaries) {
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
@@ -2763,6 +2773,10 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
             pProperties->count == 0) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (numDevices == 0) {
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
     }
 
     if (getContext()->enableLifetimeValidation &&
@@ -2770,13 +2784,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
         getContext()->refCountContext->logInvalidReference(hContext);
     }
 
-    if (getContext()->enableLifetimeValidation &&
-        !getContext()->refCountContext->isReferenceValid(hDevice)) {
-        getContext()->refCountContext->logInvalidReference(hDevice);
-    }
-
-    ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
-                                             pProperties, phProgram);
+    ur_result_t result =
+        pfnCreateWithBinary(hContext, numDevices, phDevices, pLengths,
+                            ppBinaries, pProperties, phProgram);
 
     if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
         getContext()->refCountContext->createRefCount(*phProgram);

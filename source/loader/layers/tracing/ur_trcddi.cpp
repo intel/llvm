@@ -2650,10 +2650,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
-    ur_device_handle_t
-        hDevice,            ///< [in] handle to device associated with binary.
-    size_t size,            ///< [in] size in bytes.
-    const uint8_t *pBinary, ///< [in] pointer to binary.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                   ///< binaries are loaded for devices specified in this list.
+    size_t *
+        pLengths, ///< [in][range(0, numDevices)] array of sizes of program binaries
+                  ///< specified by `pBinaries` (in bytes).
+    const uint8_t **
+        ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                    ///< for devices specified by `phDevices`.
     const ur_program_properties_t *
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
@@ -2667,7 +2673,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     }
 
     ur_program_create_with_binary_params_t params = {
-        &hContext, &hDevice, &size, &pBinary, &pProperties, &phProgram};
+        &hContext,   &numDevices,  &phDevices, &pLengths,
+        &ppBinaries, &pProperties, &phProgram};
     uint64_t instance =
         getContext()->notify_begin(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
                                    "urProgramCreateWithBinary", &params);
@@ -2675,8 +2682,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     auto &logger = getContext()->logger;
     logger.info("   ---> urProgramCreateWithBinary\n");
 
-    ur_result_t result = pfnCreateWithBinary(hContext, hDevice, size, pBinary,
-                                             pProperties, phProgram);
+    ur_result_t result =
+        pfnCreateWithBinary(hContext, numDevices, phDevices, pLengths,
+                            ppBinaries, pProperties, phProgram);
 
     getContext()->notify_end(UR_FUNCTION_PROGRAM_CREATE_WITH_BINARY,
                              "urProgramCreateWithBinary", &params, &result,

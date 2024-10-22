@@ -1560,6 +1560,45 @@ struct urMultiDeviceQueueTest : urMultiDeviceContextTest {
     std::vector<ur_queue_handle_t> queues;
 };
 
+struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Multi-device programs are not supported for AMD and CUDA
+        if (backend == UR_PLATFORM_BACKEND_HIP ||
+            backend == UR_PLATFORM_BACKEND_CUDA) {
+            GTEST_SKIP();
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
+                                                          il_binary));
+
+        const ur_program_properties_t properties = {
+            UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+            static_cast<uint32_t>(metadatas.size()),
+            metadatas.empty() ? nullptr : metadatas.data()};
+
+        ASSERT_SUCCESS(urProgramCreateWithIL(context, (*il_binary).data(),
+                                             (*il_binary).size(), &properties,
+                                             &program));
+    }
+
+    void TearDown() override {
+        if (program) {
+            EXPECT_SUCCESS(urProgramRelease(program));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    std::string program_name = "foo";
+    ur_program_handle_t program = nullptr;
+    std::vector<ur_program_metadata_t> metadatas{};
+};
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_FIXTURES_H_INCLUDED

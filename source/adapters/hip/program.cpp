@@ -480,9 +480,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 ///
 /// Note: Only supports one device
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  if (numDevices > 1)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto hDevice = phDevices[0];
+  auto pBinary = ppBinaries[0];
+  auto size = pLengths[0];
   UR_ASSERT(std::find(hContext->getDevices().begin(),
                       hContext->getDevices().end(),
                       hDevice) != hContext->getDevices().end(),

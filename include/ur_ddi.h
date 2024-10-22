@@ -284,9 +284,10 @@ typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithIL_t)(
 /// @brief Function-pointer for urProgramCreateWithBinary
 typedef ur_result_t(UR_APICALL *ur_pfnProgramCreateWithBinary_t)(
     ur_context_handle_t,
-    ur_device_handle_t,
-    size_t,
-    const uint8_t *,
+    uint32_t,
+    ur_device_handle_t *,
+    size_t *,
+    const uint8_t **,
     const ur_program_properties_t *,
     ur_program_handle_t *);
 
