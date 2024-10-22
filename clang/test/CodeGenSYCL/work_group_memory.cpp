@@ -22,7 +22,7 @@
 // CHECK-INT-HEADER-NEXT: { kernel_param_kind_t::kind_work_group_memory, {{[4,8]}}, 0 },
 // CHECK-INT-HEADER-EMPTY:
 // CHECK-INT-HEADER-NEXT: { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
-// CHECK-INT-HEADER-NEXT: }
+// CHECK-INT-HEADER-NEXT: };
 
 #include "Inputs/sycl.hpp"
 
