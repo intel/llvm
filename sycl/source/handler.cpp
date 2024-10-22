@@ -289,7 +289,8 @@ event handler::finalize() {
                          KernelBundleImpPtr, MKernel, MKernelName.c_str(),
                          RawEvents, NewEvent, nullptr, impl->MKernelCacheConfig,
                          impl->MKernelIsCooperative,
-                         impl->MKernelUsesClusterLaunch, BinImage);
+                         impl->MKernelUsesClusterLaunch,
+                         impl->MKernelWorkGroupMemorySize, BinImage);
 #ifdef XPTI_ENABLE_INSTRUMENTATION
         // Emit signal only when event is created
         if (NewEvent != nullptr) {
@@ -348,7 +349,8 @@ event handler::finalize() {
         std::move(impl->MArgs), MKernelName.c_str(), std::move(MStreamStorage),
         std::move(impl->MAuxiliaryResources), getType(),
         impl->MKernelCacheConfig, impl->MKernelIsCooperative,
-        impl->MKernelUsesClusterLaunch, MCodeLoc));
+        impl->MKernelUsesClusterLaunch, impl->MKernelWorkGroupMemorySize,
+        MCodeLoc));
     break;
   }
   case detail::CGType::CopyAccToPtr:
@@ -1946,6 +1948,10 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
           sycl_ext_oneapi_experimental_cuda_cluster_launch>();
   impl->MKernelUsesClusterLaunch = true;
   impl->MNDRDesc.setClusterDimensions(ClusterSize, Dims);
+}
+
+void handler::setKernelWorkGroupMem(size_t Size) {
+  impl->MKernelWorkGroupMemorySize = Size;
 }
 
 void handler::ext_oneapi_graph(

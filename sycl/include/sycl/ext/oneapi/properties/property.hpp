@@ -214,14 +214,17 @@ enum PropKind : uint32_t {
   ResponseCapacity = 73,
   MaxWorkGroupSize = 74,
   MaxLinearWorkGroupSize = 75,
+  WorkGroupStaticMem = 76,
   // PropKindSize must always be the last value.
-  PropKindSize = 76,
+  PropKindSize = 77,
 };
 
 struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
+struct run_time_property_key_base_tag : property_key_base_tag {};
 
-template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+template <PropKind Kind_>
+struct run_time_property_key : run_time_property_key_base_tag {
 protected:
   static constexpr PropKind Kind = Kind_;
 
@@ -255,7 +258,7 @@ template <typename PropertyT>
 struct IsRuntimeProperty
     : std::bool_constant<
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
+          std::is_base_of_v<run_time_property_key_base_tag, PropertyT>> {};
 
 // Trait for identifying compile-time properties.
 template <typename PropertyT>
