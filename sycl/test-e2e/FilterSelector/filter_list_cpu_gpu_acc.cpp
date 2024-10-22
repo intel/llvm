@@ -6,7 +6,7 @@
 //
 //===---------------------------------------------------------------------===//
 
-// REQUIRES: cpu, gpu, accelerator
+// REQUIRES: any-device-is-cpu, any-device-is-gpu, any-device-is-accelerator
 
 // RUN: %clangxx -fsycl %S/Inputs/filter_list_queries.cpp -o %t.out
 

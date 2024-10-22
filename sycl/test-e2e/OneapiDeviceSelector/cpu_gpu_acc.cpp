@@ -1,4 +1,4 @@
-// REQUIRES: cpu, gpu, accelerator, opencl
+// REQUIRES: any-device-is-cpu, any-device-is-gpu, any-device-is-accelerator, any-device-is-opencl
 
 // RUN: %{build} -o %t.out
 
