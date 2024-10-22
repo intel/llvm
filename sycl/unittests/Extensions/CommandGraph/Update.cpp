@@ -400,7 +400,7 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
   GraphExec.update(UpdateGraph);
 }
 
-TEST_F(CommandGraphTest, CheckFinalizeBehaviour) {
+TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
   // Check that both finalize with and without updatable property work as
   // expected
   auto Node = Graph.add(
