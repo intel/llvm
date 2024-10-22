@@ -120,9 +120,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Merge: c742ca49 55d5d01c
   # Author: Piotr Balcer <piotr.balcer@intel.com>
   # Date:   Tue Oct 22 10:51:59 2024 +0200
-  #
   #     Merge pull request #2224 from zhaomaosu/refactor-launch-info
-  #
   #     [DeviceASAN] Move GlobalShadowOffset, DeviceType, Debug into LaunchInfo
   set(UNIFIED_RUNTIME_TAG e3eeb4ee03531adc95880b734af419ae91eb2325)
 
