@@ -51,13 +51,13 @@ public:
     auto &dd_A = d_A_;
     auto &dd_B = d_B_;
     auto &dd_C = d_C_;
-#ifdef COMPAT_USM_LEVEL_NONE
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
     syclcompat::buffer_t buffer_A = syclcompat::get_buffer(d_A_);
     syclcompat::buffer_t buffer_B = syclcompat::get_buffer(d_B_);
     syclcompat::buffer_t buffer_C = syclcompat::get_buffer(d_C_);
 #endif
     return q_.submit([&](sycl::handler &cgh) {
-#ifdef COMPAT_USM_LEVEL_NONE
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
       auto A = buffer_A.get_access<sycl::access::mode::read_write>(cgh);
       auto B = buffer_B.get_access<sycl::access::mode::read_write>(cgh);
       auto C = buffer_C.get_access<sycl::access::mode::read_write>(cgh);

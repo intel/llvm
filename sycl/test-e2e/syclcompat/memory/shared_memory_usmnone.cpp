@@ -9,7 +9,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#define COMPAT_USM_LEVEL_NONE
+#define SYCLCOMPAT_USM_LEVEL_NONE
 #include <sycl/detail/core.hpp>
 #include <syclcompat/syclcompat.hpp>
 #include <stdio.h>
