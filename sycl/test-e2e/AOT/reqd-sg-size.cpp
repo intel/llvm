@@ -43,7 +43,7 @@ private:
           accessor acc{buf, cgh};
           cgh.parallel_for<kernel_name<size>>(
               nd_range<1>(1, 1),
-              [=](auto item) [[intel::reqd_sub_group_size(size)]] {
+              [=](auto item) [[sycl::reqd_sub_group_size(size)]] {
                 acc[0] = item.get_sub_group().get_max_local_range()[0];
               });
         });

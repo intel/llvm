@@ -117,7 +117,7 @@ void matrix_sum_cols(big_matrix<T, Rows, Cols> &B,
      cgh.parallel_for<add_cols<TileRows, TileCols>>(
          r, [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-                [[intel::reqd_sub_group_size(SG_SZ)]]
+                [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);

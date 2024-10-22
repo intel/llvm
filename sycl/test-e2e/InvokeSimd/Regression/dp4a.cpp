@@ -28,7 +28,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(SIZE)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(SIZE)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;

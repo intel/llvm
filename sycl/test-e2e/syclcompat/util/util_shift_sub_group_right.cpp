@@ -108,7 +108,7 @@ void test_shift_sub_group_right() {
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             shift_sub_group_right1(dev_data_u, item_ct1);
                           });
 
@@ -135,7 +135,7 @@ void test_shift_sub_group_right() {
 
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             shift_sub_group_right2(dev_data_u, item_ct1);
                           });
 

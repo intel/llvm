@@ -7,17 +7,17 @@ queue q;
 
 class Functor16 {
 public:
-  [[intel::reqd_sub_group_size(16)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(16)]] void operator()() const {}
 };
 
 template <int SIZE>
 class Functor2 {
 public:
-  [[intel::reqd_sub_group_size(SIZE)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(SIZE)]] void operator()() const {}
 };
 
 template <int N>
-[[intel::reqd_sub_group_size(N)]] void func() {}
+[[sycl::reqd_sub_group_size(N)]] void func() {}
 
 int main() {
   q.submit([&](handler &h) {
@@ -25,7 +25,7 @@ int main() {
     h.single_task<class kernel_name1>(f16);
 
     h.single_task<class kernel_name3>(
-        []() [[intel::reqd_sub_group_size(4)]]{});
+        []() [[sycl::reqd_sub_group_size(4)]]{});
 
     Functor2<2> f2;
     h.single_task<class kernel_name4>(f2);

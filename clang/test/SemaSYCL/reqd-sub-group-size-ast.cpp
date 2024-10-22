@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -Wno-error=deprecated-declarations -internal-isystem %S/Inputs -ast-dump %s | FileCheck %s
 
 // The test checks AST of [[intel::reqd_sub_group_size()]] attribute.
 

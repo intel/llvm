@@ -25,7 +25,7 @@ SYCL_EXTERNAL
 int main() {
   queue Q;
   nd_range<1> NDR{range<1>{2}, range<1>{2}};
-  Q.parallel_for(NDR, [=](nd_item<1> NDI) [[intel::reqd_sub_group_size(16)]] {
+  Q.parallel_for(NDR, [=](nd_item<1> NDI) [[sycl::reqd_sub_group_size(16)]] {
      sub_group sg = NDI.get_sub_group();
      invoke_simd(sg, SIMD_CALLEE_VOID);
    }).wait();
