@@ -116,8 +116,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
       CACHE PATH "Path to external '${name}' adapter source dir" FORCE)
   endfunction()
 
-  set(UNIFIED_RUNTIME_REPO "https://github.com/againull/unified-runtime")
-  set(UNIFIED_RUNTIME_TAG 44a2f0234f9270aab0c8633c07da81e96fc5e214)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/aarongreig/unified-runtime")
+  set(UNIFIED_RUNTIME_TAG aaron/clBatch)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
