@@ -27,7 +27,8 @@ void my_kernel(float* array, float* result,
 {
 
 
-  array[item_ct1.get_local_id(2)] = item_ct1.get_local_id(2);
+  if(item_ct1.get_group_linear_id() == 0)
+    array[item_ct1.get_local_id(2)] = item_ct1.get_local_id(2);
   resultInGroup[item_ct1.get_local_id(2)] = item_ct1.get_group(2);
 
   item_ct1.barrier();
@@ -66,11 +67,11 @@ int main () {
   syclcompat::get_current_device().queues_wait_and_throw();
   for(int j = 0; j < M; j++) {
     for (int i = 0; i < N; i++) {
-      printf("%f ", result[j*N + i]);
+      assert(result[j*N + i] == static_cast<float>(j));
     }
-    printf("\n");
   }
-
+  for(int j = 0; j < N; j++)
+      assert(array[j] == static_cast<float>(j));
   return 0;
 }
 
