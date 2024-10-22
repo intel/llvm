@@ -326,6 +326,86 @@ of `sycl::multi_ptr`. The property list associated with the
 `annotated_ptr` argument represents the compile-time constant
 properties for cache control included in the SYCL extenion link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls]
 
+
+==== Offset Load
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    multi_ptr<T2, Space, IsDecorated> base_src, size_t row_index,
+    size_t col_index, size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    multi_ptr<T2, Space, IsDecorated> base_src, size_t row_index,
+    size_t col_index size_t stride);
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    annotated_ptr<T2, PropertyListT> base_src, size_t row_index, size_t
+    col_index, size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols, use Use, layout Layout,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    annotated_ptr<T2, PropertyListT> base_src, size_t row_index, size_t
+    col_index, size_t stride);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+These overloads of `joint_matrix_load` takes the pointer `base_src` to
+designate the base pointer of the global memory matrix. The
+coordinates `row_index` and `col_index` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+
+==== Offset Store
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+// T1 must be the same as T2
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   multi_ptr<T2, Space, IsDecorated> base_dest, size_t row_index,
+   size_t col_index, size_t stride, layout Layout);
+
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_store(Group g,
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   annotated_ptr<T2, PropertyListT> base_dest, size_t row_index, size_t
+          col_index, size_t stride, layout Layout);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+These overloads of `joint_matrix_store` takes the pointer `base_dest` to
+designate the base pointer of the global memory matrix. The
+coordinates `row_index` and `col_index` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+
 ==== Multiply and Add
 
 ```c++
@@ -562,7 +642,7 @@ float *buf = malloc_shared<float>(M*K, q);
 auto pBuf = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(buf);
 
-joint_matrix_load(sg, tA, pBuf + Offset, Stride);
+joint_matrix_load(sg, tA, pBuf + Offset, stride);
 ```
 
 ==== store
@@ -576,7 +656,7 @@ float *buf = malloc_shared<float>(M*K, q);
 auto pBuf = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(buf);
 
-joint_matrix_store(sg, tA, pBuf + Offset, Stride, layout::row_major);
+joint_matrix_store(sg, tA, pBuf + Offset, stride, layout::row_major);
 ```
 
 ==== fill
@@ -979,7 +1059,7 @@ for (int i = 0; sizeof(combinations); i++) {
 }
 ```
 
-=== Appendix: Supported Combinations Per Hardware
+=== Appendix: Supported Combinations and Restrictions Per Hardware
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
@@ -1115,6 +1195,27 @@ architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
 `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
 `architecture::intel_gpu_lnl_m`
 |======================
+
+===== Restrictions on `architecture::intel_gpu_pvc`
+
+- The `stride` parameter to `joint_matrix_load` and
+  `joint_matrix_store` has the following restrictions:
+
+* The value `stride * sizeof(T1)` must be a multiple of 8, and
+* The value of `stride * sizeof(T1)` must not exceed `2^24^`.
+
+- The base pointer argument to `joint_matrix_load` and
+`joint_matrix_store` must be 4 bytes aligned.
+
+- In the case of the offset overloads of `joint_matrix_load` and
+`joint_matrix_store`, for 8 bits data type, `row_index` must be a
+multiple of 4. For 16 bits data type, `row_index` must be a multiple
+of 2. So `row_index` must be a multiple of 4 divided by size of the
+element type (`4/sizeof(T)`).
+
+- If these restrictions are not satisfied, users can switch to slower
+implementations of `joint_matrix_load` and `joint_matrix_store` by
+setting the driver flag `IGC_JointMatrixLoadStoreOpt=1`.
 
 ==== Nvidia Tensor Cores Supported Combinations
 The complete set of matrix data types and shapes that are supported by
