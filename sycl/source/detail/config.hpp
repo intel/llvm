@@ -698,6 +698,57 @@ private:
   }
 };
 
+// SYCL_CACHE_TRACE accepts the following values:
+// 0 - no tracing
+// 1 - trace disk cache
+// 2 - trace in-memory cache
+// 3 - trace disk and in-memory cache
+// 4 - trace kernel_compiler
+// 5 - trace disk and kernel_compiler
+// 6 - trace in-memory and kernel_compiler
+// 7 - trace disk, in-memory and kernel_compiler
+// <Any other non-null value> - trace disk cache (Legacy behavior)
+template <> class SYCLConfig<SYCL_CACHE_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_TRACE>;
+
+public:
+  static unsigned int get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+  static bool isTraceDiskCache() { return getCachedValue() & 1; }
+  static bool isTraceInMemCache() { return getCachedValue() & 2; }
+  static bool isTraceKernelCompiler() { return getCachedValue() & 4; }
+
+private:
+  static unsigned int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      int intVal = 0;
+
+      if (ValStr) {
+        try {
+          intVal = std::stoi(ValStr);
+        } catch (...) {
+          // If the value is not null and not a number, it is considered
+          // to enable disk cache tracing. This is the legacy behavior.
+          intVal = 1;
+        }
+      }
+
+      // Legacy behavior.
+      if (intVal > 7)
+        intVal = 1;
+
+      return intVal;
+    };
+
+    static unsigned int Level = Parser();
+    if (ResetCache)
+      Level = Parser();
+
+    return Level;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail

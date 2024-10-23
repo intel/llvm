@@ -16,6 +16,8 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
+
+#include <unistd.h>
 #include <sys/stat.h>
 #include <thread>
 #include <vector>
@@ -190,9 +192,9 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
-    static const char *TraceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::get();
-    if (TraceEnabled)
-      std::cerr << "*** Code caching: " << msg << std::endl;
+    static const bool traceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
+    if (traceEnabled)
+      std::cerr << "[Persistent Cache]: " << msg << std::endl;
   }
 };
 } // namespace detail

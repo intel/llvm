@@ -232,3 +232,96 @@ TEST(ConfigTests, CheckConfigProcessing) {
             sycl::detail::SYCLConfig<
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 }
+
+// Unit test for SYCL_CACHE_TRACE environment variable.
+// SYCL_CACHE_TRACE accepts the following values:
+// 0 - no tracing
+// 1 - trace disk cache
+// 2 - trace in-memory cache
+// 3 - trace disk and in-memory cache
+// 4 - trace kernel_compiler
+// 5 - trace disk and kernel_compiler
+// 6 - trace in-memory and kernel_compiler
+// 7 - trace disk, in-memory and kernel_compiler
+// <Any other non-null value> - trace disk cache (Legacy behavior)
+using namespace sycl::detail;
+TEST(ConfigTests, CheckSyclCacheTraceTest) {
+
+  // Lambda to test parsing of SYCL_CACHE_TRACE
+  auto TestConfig = [](int expectedValue, int expectedDiskCache,
+                       int expectedInMemCache, int expectedKernelCompiler) {
+    EXPECT_EQ(static_cast<unsigned int>(expectedValue),
+              SYCLConfig<SYCL_CACHE_TRACE>::get());
+
+    EXPECT_EQ(
+        expectedDiskCache,
+        static_cast<int>(
+            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache()));
+    EXPECT_EQ(
+        expectedInMemCache,
+        static_cast<int>(
+            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()));
+    EXPECT_EQ(expectedKernelCompiler,
+              static_cast<int>(sycl::detail::SYCLConfig<
+                               SYCL_CACHE_TRACE>::isTraceKernelCompiler()));
+  };
+
+  // Lambda to set SYCL_CACHE_TRACE
+  auto SetSyclCacheTraceEnv = [](const char *value) {
+#ifdef _WIN32
+    _putenv_s("SYCL_CACHE_TRACE", value);
+#else
+    setenv("SYCL_CACHE_TRACE", value, 1);
+#endif
+  };
+
+  SetSyclCacheTraceEnv("0");
+  sycl::detail::readConfig(true);
+  TestConfig(0, 0, 0, 0);
+
+  SetSyclCacheTraceEnv("1");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  SetSyclCacheTraceEnv("2");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(2, 0, 1, 0);
+
+  SetSyclCacheTraceEnv("3");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(3, 1, 1, 0);
+
+  SetSyclCacheTraceEnv("4");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(4, 0, 0, 1);
+
+  SetSyclCacheTraceEnv("5");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(5, 1, 0, 1);
+
+  SetSyclCacheTraceEnv("6");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(6, 0, 1, 1);
+
+  SetSyclCacheTraceEnv("7");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(7, 1, 1, 1);
+
+  SetSyclCacheTraceEnv("8");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  // Set random non-null value. It should default to 1.
+  SetSyclCacheTraceEnv("random");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  // When SYCL_CACHE_TRACE is not set, it should default to 0.
+#ifdef _WIN32
+  _putenv_s("SYCL_CACHE_TRACE", "");
+#else
+  unsetenv("SYCL_CACHE_TRACE");
+#endif
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(0, 0, 0, 0);
+}
