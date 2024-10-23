@@ -876,8 +876,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_bindless_images"
       ",+SPV_INTEL_task_sequence";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  ExtArg += ",+SPV_INTEL_token_type"
-            ",+SPV_INTEL_bfloat16_conversion"
+  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
             ",+SPV_INTEL_joint_matrix"
             ",+SPV_INTEL_hw_thread_queries"
             ",+SPV_KHR_uniform_group_instructions"
