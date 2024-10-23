@@ -51,6 +51,7 @@ urEnqueueMemImageWriteTest.InvalidOrigin3D/*
 urEnqueueMemImageWriteTest.InvalidRegion1D/*
 urEnqueueMemImageWriteTest.InvalidRegion2D/*
 urEnqueueMemImageWriteTest.InvalidRegion3D/*
+{{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/*
 urEnqueueReadHostPipeTest.InvalidEventWaitList/*
 urEnqueueReadHostPipeTest.InvalidNullHandleProgram/*
 urEnqueueReadHostPipeTest.InvalidNullHandleQueue/*
