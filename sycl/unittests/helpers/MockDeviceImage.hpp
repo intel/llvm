@@ -236,11 +236,12 @@ class MockDeviceImage {
 private:
   /// Constructs an arbitrary device image.
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
-          const std::string &DeviceTargetSpec,
-          const std::string &CompileOptions, const std::string &LinkOptions,
-          std::vector<char> &&Manifest, std::vector<unsigned char> &&Binary,
-          internal::LifetimeExtender<MockOffloadEntry> OffloadEntries,
-          MockPropertySet PropertySet)
+                  const std::string &DeviceTargetSpec,
+                  const std::string &CompileOptions,
+                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  std::vector<unsigned char> &&Binary,
+                  internal::LifetimeExtender<MockOffloadEntry> OffloadEntries,
+                  MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
@@ -280,7 +281,7 @@ public:
   /// - empty compile and link options
   /// - placeholder binary data
   MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries,
-          MockPropertySet PropertySet)
+                  MockPropertySet PropertySet)
       : MockDeviceImage(
             SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
             SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,

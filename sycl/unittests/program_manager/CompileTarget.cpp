@@ -25,7 +25,7 @@ generateImageWithCompileTarget(std::string KernelName,
   std::vector<char> Data(8 + CompileTarget.size());
   std::copy(CompileTarget.begin(), CompileTarget.end(), Data.data() + 8);
   MockProperty CompileTargetProperty("compile_target", Data,
-                                   SYCL_PROPERTY_TYPE_BYTE_ARRAY);
+                                     SYCL_PROPERTY_TYPE_BYTE_ARRAY);
   MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
                  std::move(CompileTargetProperty));
