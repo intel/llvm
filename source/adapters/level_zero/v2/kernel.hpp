@@ -27,6 +27,11 @@ struct ur_single_device_kernel_t {
 struct ur_kernel_handle_t_ : _ur_object {
 private:
 public:
+  struct common_properties_t {
+    std::string name;
+    uint32_t numKernelArgs;
+  };
+
   ur_kernel_handle_t_(ur_program_handle_t hProgram, const char *kernelName);
 
   // From native handle
@@ -44,7 +49,7 @@ public:
   std::vector<ur_device_handle_t> getDevices() const;
 
   // Get name of the kernel.
-  const std::string &getName() const;
+  common_properties_t getCommonProperties() const;
 
   // Get properties of the kernel.
   const ze_kernel_properties_t &getProperties(ur_device_handle_t hDevice) const;
@@ -64,6 +69,8 @@ public:
   ur_result_t setExecInfo(ur_kernel_exec_info_t propName,
                           const void *pPropValue);
 
+  std::vector<char> getSourceAttributes() const;
+
   // Perform cleanup.
   ur_result_t release();
 
@@ -74,8 +81,11 @@ private:
   // Vector of ur_single_device_kernel_t indexed by device->Id
   std::vector<std::optional<ur_single_device_kernel_t>> deviceKernels;
 
-  // Cache of the kernel name.
-  mutable ZeCache<std::string> zeKernelName;
+  // Cache of the common kernel properties.
+  mutable ZeCache<common_properties_t> zeCommonProperties;
 
   void completeInitialization();
+
+  // pointer to any non-null kernel in deviceKernels
+  ur_single_device_kernel_t *nonEmptyKernel;
 };

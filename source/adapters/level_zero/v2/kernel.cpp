@@ -98,17 +98,19 @@ ur_result_t ur_kernel_handle_t_::release() {
 void ur_kernel_handle_t_::completeInitialization() {
   // Cache kernel name. Should be the same for all devices
   assert(deviceKernels.size() > 0);
-  auto nonEmptyKernel =
-      std::find_if(deviceKernels.begin(), deviceKernels.end(),
-                   [](const auto &kernel) { return kernel.has_value(); });
+  nonEmptyKernel =
+      &std::find_if(deviceKernels.begin(), deviceKernels.end(),
+                    [](const auto &kernel) { return kernel.has_value(); })
+           ->value();
 
-  zeKernelName.Compute = [kernel =
-                              &nonEmptyKernel->value()](std::string &name) {
+  zeCommonProperties.Compute = [kernel = nonEmptyKernel](
+                                   common_properties_t &props) {
     size_t size = 0;
     ZE_CALL_NOCHECK(zeKernelGetName, (kernel->hKernel.get(), &size, nullptr));
-    name.resize(size);
+    props.name.resize(size);
     ZE_CALL_NOCHECK(zeKernelGetName,
-                    (kernel->hKernel.get(), &size, name.data()));
+                    (kernel->hKernel.get(), &size, props.name.data()));
+    props.numKernelArgs = kernel->zeKernelProperties->numKernelArgs;
   };
 }
 
@@ -142,8 +144,9 @@ ur_kernel_handle_t_::getZeHandle(ur_device_handle_t hDevice) {
   return deviceKernels[hDevice->Id.value()].value().hKernel.get();
 }
 
-const std::string &ur_kernel_handle_t_::getName() const {
-  return *zeKernelName.operator->();
+ur_kernel_handle_t_::common_properties_t
+ur_kernel_handle_t_::getCommonProperties() const {
+  return zeCommonProperties.get();
 }
 
 const ze_kernel_properties_t &
@@ -154,10 +157,7 @@ ur_kernel_handle_t_::getProperties(ur_device_handle_t hDevice) const {
 
   assert(deviceKernels[hDevice->Id.value()].value().hKernel.get());
 
-  return *deviceKernels[hDevice->Id.value()]
-              .value()
-              .zeKernelProperties.
-              operator->();
+  return deviceKernels[hDevice->Id.value()].value().zeKernelProperties.get();
 }
 
 ur_result_t ur_kernel_handle_t_::setArgValue(
@@ -178,6 +178,10 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
     pArgValue = nullptr;
   }
 
+  if (argIndex > zeCommonProperties->numKernelArgs - 1) {
+    return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
+  }
+
   std::scoped_lock<ur_shared_mutex> guard(Mutex);
 
   for (auto &singleDeviceKernel : deviceKernels) {
@@ -185,9 +189,15 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
       continue;
     }
 
-    ZE2UR_CALL(zeKernelSetArgumentValue,
-               (singleDeviceKernel.value().hKernel.get(), argIndex, argSize,
-                pArgValue));
+    auto zeResult = ZE_CALL_NOCHECK(zeKernelSetArgumentValue,
+                                    (singleDeviceKernel.value().hKernel.get(),
+                                     argIndex, argSize, pArgValue));
+
+    if (zeResult == ZE_RESULT_ERROR_INVALID_ARGUMENT) {
+      return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE;
+    } else if (zeResult != ZE_RESULT_SUCCESS) {
+      return ze2urResult(zeResult);
+    }
   }
   return UR_RESULT_SUCCESS;
 }
@@ -255,6 +265,17 @@ std::vector<ur_device_handle_t> ur_kernel_handle_t_::getDevices() const {
     }
   }
   return devices;
+}
+
+std::vector<char> ur_kernel_handle_t_::getSourceAttributes() const {
+  uint32_t size;
+  ZE2UR_CALL_THROWS(zeKernelGetSourceAttributes,
+                    (nonEmptyKernel->hKernel.get(), &size, nullptr));
+  std::vector<char> attributes(size);
+  char *dataPtr = attributes.data();
+  ZE2UR_CALL_THROWS(zeKernelGetSourceAttributes,
+                    (nonEmptyKernel->hKernel.get(), &size, &dataPtr));
+  return attributes;
 }
 
 namespace ur::level_zero {
@@ -475,6 +496,42 @@ ur_result_t urKernelGetSubGroupInfo(
     die("urKernelGetSubGroupInfo: parameter not implemented");
     return {};
   }
+  return UR_RESULT_SUCCESS;
+}
+
+ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
+                            ur_kernel_info_t paramName, size_t propSize,
+                            void *pKernelInfo, size_t *pPropSizeRet) {
+
+  UrReturnHelper ReturnValue(propSize, pKernelInfo, pPropSizeRet);
+
+  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  switch (paramName) {
+  case UR_KERNEL_INFO_CONTEXT:
+    return ReturnValue(
+        ur_context_handle_t{hKernel->getProgramHandle()->Context});
+  case UR_KERNEL_INFO_PROGRAM:
+    return ReturnValue(ur_program_handle_t{hKernel->getProgramHandle()});
+  case UR_KERNEL_INFO_FUNCTION_NAME: {
+    auto kernelName = hKernel->getCommonProperties().name;
+    return ReturnValue(static_cast<const char *>(kernelName.c_str()));
+  }
+  case UR_KERNEL_INFO_NUM_REGS:
+  case UR_KERNEL_INFO_NUM_ARGS:
+    return ReturnValue(uint32_t{hKernel->getCommonProperties().numKernelArgs});
+  case UR_KERNEL_INFO_REFERENCE_COUNT:
+    return ReturnValue(uint32_t{hKernel->RefCount.load()});
+  case UR_KERNEL_INFO_ATTRIBUTES: {
+    auto attributes = hKernel->getSourceAttributes();
+    return ReturnValue(static_cast<const char *>(attributes.data()));
+  }
+  default:
+    logger::error(
+        "Unsupported ParamName in urKernelGetInfo: ParamName={}(0x{})",
+        paramName, logger::toHex(paramName));
+    return UR_RESULT_ERROR_INVALID_VALUE;
+  }
+
   return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero
