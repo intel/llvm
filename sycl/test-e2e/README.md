@@ -344,3 +344,38 @@ Once the issue is created, you can update the test by adding `XFAIL` and
 
 If you add `XFAIL` without `XFAIL-TRACKER` directive,
 `no-xfail-without-tracker.cpp` test will fail, notifying you about that.
+
+## Marking tests as unsupported
+
+Some tests may be considered unsupported, e.g.:
+* the test checks the feature that is not supported by some
+  backend / device / OS / etc.
+* the test is flaky or hangs, so it can't be marked with `XFAIL`.
+
+In these cases the test can be marked with `UNSUPPORTED`. This mark should be
+followed by `UNSUPPORTED-TRACKER`. There are two options:
+```
+UNSUPPORTED-TRACKER: INTENDED - <Free-text with reason why it's not intended to be supported on the given feature.>
+UNSUPPORTED-TRACKER: <github issue link / internal number>
+```
+
+In the first case it should look like:
+```
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-TRACKER: INTENDED - only supported by backends with SPIR-V IR
+
+// UNSUPPORTED: gpu
+// UNSUPPORTED-TRACKER: INTENDED - the feature works only on CPU & FPGA
+```
+
+For the second case the tracker should be provided:
+```
+// Sporadically fails on DG2.
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+// *OR*
+// UNSUPPORTED-TRACKER: PRJ-1234
+```
+
+If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` directive,
+`no-unsupported-without-tracker.cpp` test will fail, notifying you about that.
