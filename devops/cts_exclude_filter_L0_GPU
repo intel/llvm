@@ -1,5 +1,7 @@
 # These two take too much time
 kernel_bundle
 marray
-# Fix: https://github.com/intel/llvm/pull/14622
-optional_kernel_features
+# fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
+accessor_legacy
+# CMPLRLLVM-62822
+multi_ptr

@@ -187,9 +187,15 @@ bool AMDGPUTargetInfo::initFeatureMap(
     return false;
 
   // TODO: Should move this logic into TargetParser
-  std::string ErrorMsg;
-  if (!insertWaveSizeFeature(CPU, getTriple(), Features, ErrorMsg)) {
-    Diags.Report(diag::err_invalid_feature_combination) << ErrorMsg;
+  auto HasError = insertWaveSizeFeature(CPU, getTriple(), Features);
+  switch (HasError.first) {
+  default:
+    break;
+  case llvm::AMDGPU::INVALID_FEATURE_COMBINATION:
+    Diags.Report(diag::err_invalid_feature_combination) << HasError.second;
+    return false;
+  case llvm::AMDGPU::UNSUPPORTED_TARGET_FEATURE:
+    Diags.Report(diag::err_opt_not_valid_on_target) << HasError.second;
     return false;
   }
 
@@ -303,7 +309,6 @@ void AMDGPUTargetInfo::getTargetDefines(const LangOptions &Opts,
                         Twine("\"") + Twine(CanonName) + Twine("\""));
     Builder.defineMacro("__amdgcn_target_id__",
                         Twine("\"") + Twine(*getTargetID()) + Twine("\""));
-    Builder.defineMacro("__CUDA_ARCH__", "0");
     for (auto F : getAllPossibleTargetIDFeatures(getTriple(), CanonName)) {
       auto Loc = OffloadArchFeatures.find(F);
       if (Loc != OffloadArchFeatures.end()) {

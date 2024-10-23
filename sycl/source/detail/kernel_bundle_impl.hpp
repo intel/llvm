@@ -406,7 +406,7 @@ public:
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
@@ -424,9 +424,9 @@ public:
         std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
                        [&](ur_device_handle_t d) {
                          uint32_t ipVersion = 0;
-                         Plugin->call(urDeviceGetInfo, d,
-                                      UR_DEVICE_INFO_IP_VERSION,
-                                      sizeof(uint32_t), &ipVersion, nullptr);
+                         Adapter->call<UrApiKind::urDeviceGetInfo>(
+                             d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+                             &ipVersion, nullptr);
                          return ipVersion;
                        });
         return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
@@ -452,34 +452,40 @@ public:
     }();
 
     ur_program_handle_t UrProgram = nullptr;
-    Plugin->call(urProgramCreateWithIL, ContextImpl->getHandleRef(),
-                 spirv.data(), spirv.size(), nullptr, &UrProgram);
+    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
+                                                    spirv.data(), spirv.size(),
+                                                    nullptr, &UrProgram);
     // program created by urProgramCreateWithIL is implicitly retained.
+    if (UrProgram == nullptr)
+      throw sycl::exception(
+          sycl::make_error_code(errc::invalid),
+          "urProgramCreateWithIL resulted in a null program handle.");
 
     std::string XsFlags = extractXsFlags(BuildOptions);
-    auto Res =
-        Plugin->call_nocheck(urProgramBuildExp, UrProgram, DeviceVec.size(),
-                             DeviceVec.data(), XsFlags.c_str());
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
     if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Plugin->call_nocheck(urProgramBuild, ContextImpl->getHandleRef(),
-                                 UrProgram, XsFlags.c_str());
+      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
     }
-    Plugin->checkUrResult<errc::build>(Res);
+    Adapter->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
-    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_NUM_KERNELS,
-                 sizeof(size_t), &NumKernels, nullptr);
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
+        nullptr);
 
     // Get the kernel names.
     size_t KernelNamesSize;
-    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0,
-                 nullptr, &KernelNamesSize);
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');
-    Plugin->call(urProgramGetInfo, UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES,
-                 KernelNamesStr.size(), &KernelNamesStr[0], nullptr);
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+        &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
 
@@ -529,9 +535,10 @@ public:
         detail::getSyclObjImpl(MDeviceImages[0]);
     ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
     ur_kernel_handle_t UrKernel = nullptr;
-    Plugin->call(urKernelCreate, UrProgram, AdjustedName.c_str(), &UrKernel);
+    Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
+                                             &UrKernel);
     // Kernel created by urKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(

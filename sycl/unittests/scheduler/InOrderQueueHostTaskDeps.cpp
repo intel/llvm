@@ -10,7 +10,6 @@
 #include "SchedulerTestUtils.hpp"
 
 #include <helpers/TestKernel.hpp>
-#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <detail/event_impl.hpp>

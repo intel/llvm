@@ -46,7 +46,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
   static unsigned char NImage = 0;
   std::vector<unsigned char> Bin{NImage++};
 
-  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{BinaryType, // Format
                       DeviceTargetSpec,
@@ -105,7 +105,8 @@ ur_result_t redefinedUrProgramCreate(void *pParams) {
 
 ur_result_t redefinedUrProgramCreateWithBinary(void *pParams) {
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
-  redefinedUrProgramCreateCommon(*params.ppBinary);
+  for (uint32_t i = 0; i < *params.pnumDevices; ++i)
+    redefinedUrProgramCreateCommon(*params.pppBinaries[i]);
   return UR_RESULT_SUCCESS;
 }
 
@@ -155,7 +156,6 @@ TEST(KernelBundle, DeviceImageStateFiltering) {
                                           &redefinedUrProgramCreate);
   mock::getCallbacks().set_after_callback("urProgramCreateWithBinary",
                                           &redefinedUrProgramCreateWithBinary);
-
   // No kernel ids specified.
   {
     const sycl::device Dev = sycl::platform().get_devices()[0];

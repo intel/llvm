@@ -326,18 +326,6 @@ void Preprocessor::diagnoseMissingHeaderInUmbrellaDir(const Module &Mod) {
   }
 }
 
-static FileID ComputeValidFooterFileID(SourceManager &SM, StringRef Footer) {
-  FileID FooterFileID;
-  llvm::Expected<FileEntryRef> ExpectedFileRef =
-      SM.getFileManager().getFileRef(Footer);
-  if (ExpectedFileRef) {
-    FooterFileID = SM.getOrCreateFileID(ExpectedFileRef.get(),
-                                        SrcMgr::CharacteristicKind::C_User);
-  }
-  assert(FooterFileID.isValid() && "expecting a valid footer FileID");
-  return FooterFileID;
-}
-
 /// HandleEndOfFile - This callback is invoked when the lexer hits the end of
 /// the current file.  This either returns the EOF token or pops a level off
 /// the include stack and keeps going.
@@ -552,8 +540,8 @@ bool Preprocessor::HandleEndOfFile(Token &Result, bool isEndOfMacro) {
     SourceManager &SourceMgr = getSourceManager();
     SourceLocation Loc = CurLexer->getFileLoc();
 
-    FileID FooterFileID = ComputeValidFooterFileID(
-        SourceMgr, getPreprocessorOpts().IncludeFooter);
+    FileID FooterFileID =
+        SourceMgr.ComputeValidFooterFileID(getPreprocessorOpts().IncludeFooter);
     if (!FooterFileID.isInvalid() && !IncludeFooterProcessed) {
       IncludeFooterProcessed = true;
       // Mark the footer file as included

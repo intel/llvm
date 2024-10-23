@@ -114,39 +114,34 @@ private:
   NativeType MNative;
 };
 
-/// Generic array of Mock entries.
-template <typename T> class Array {
+namespace internal {
+// Content from this namespace shouldn't be used anywhere outside of this file
+
+/// "native" data structures used by SYCL RT do not hold the data, but only
+/// point to it. The data itself is embedded into the binary data sections in
+/// real applications.
+/// In unit-tests we mock those data structures and therefore we need to ensure
+/// that the lifetime of the underlying data is correct and we won't perform
+/// any illegal memory accesses in unit-tests.
+template <typename T> class LifetimeExtender {
 public:
-  explicit Array(std::vector<T> Entries) : MMockEntries(std::move(Entries)) {
-    updateEntries();
+  explicit LifetimeExtender(std::vector<T> Entries)
+      : MMockEntries(std::move(Entries)) {
+    MEntries.clear();
+    std::transform(MMockEntries.begin(), MMockEntries.end(),
+                   std::back_inserter(MEntries),
+                   [](const T &Entry) { return Entry.convertToNativeType(); });
   }
 
-  Array(std::initializer_list<T> Entries) : MMockEntries(std::move(Entries)) {
-    updateEntries();
-  }
-
-  Array() = default;
-
-  void push_back(const T &Entry) {
-    MMockEntries.push_back(Entry);
-    MEntriesNeedUpdate = true;
-  }
+  LifetimeExtender() = default;
 
   typename T::NativeType *begin() {
-    if (MEntriesNeedUpdate) {
-      updateEntries();
-    }
-
     if (MEntries.empty())
       return nullptr;
 
     return &*MEntries.begin();
   }
   typename T::NativeType *end() {
-    if (MEntriesNeedUpdate) {
-      updateEntries();
-    }
-
     if (MEntries.empty())
       return nullptr;
 
@@ -154,22 +149,14 @@ public:
   }
 
 private:
-  void updateEntries() {
-    MEntries.clear();
-    std::transform(MMockEntries.begin(), MMockEntries.end(),
-                   std::back_inserter(MEntries),
-                   [](const T &Entry) { return Entry.convertToNativeType(); });
-  }
   std::vector<T> MMockEntries;
   std::vector<typename T::NativeType> MEntries;
-  bool MEntriesNeedUpdate = false;
 };
 
 #ifdef __cpp_deduction_guides
-template <typename T> Array(std::vector<T>) -> Array<T>;
-
-template <typename T> Array(std::initializer_list<T>) -> Array<T>;
+template <typename T> LifetimeExtender(std::vector<T>) -> LifetimeExtender<T>;
 #endif // __cpp_deduction_guides
+} // namespace internal
 
 /// Convenience wrapper for sycl_device_binary_property_set.
 class MockPropertySet {
@@ -192,7 +179,15 @@ public:
     // Value must be an all-zero 32-bit mask, which would mean that no fallback
     // libraries are needed to be loaded.
     MockProperty DeviceLibReqMask("", Data, SYCL_PROPERTY_TYPE_UINT32);
-    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, Array{DeviceLibReqMask});
+    insert(__SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK, std::move(DeviceLibReqMask));
+  }
+
+  /// Adds a new property to the set.
+  ///
+  /// \param Name is a property name. See ur.hpp for list of known names.
+  /// \param Prop is a property value.
+  void insert(const std::string &Name, MockProperty &&Props) {
+    insert(Name, internal::LifetimeExtender{std::vector{std::move(Props)}});
   }
 
   /// Adds a new array of properties to the set.
@@ -200,12 +195,8 @@ public:
   /// \param Name is a property array name. See compiler.hpp for list of known
   /// names.
   /// \param Props is an array of property values.
-  void insert(const std::string &Name, Array<MockProperty> Props) {
-    MNames.push_back(Name);
-    MMockProperties.push_back(std::move(Props));
-    MProperties.push_back(_sycl_device_binary_property_set_struct{
-        MNames.back().data(), MMockProperties.back().begin(),
-        MMockProperties.back().end()});
+  void insert(const std::string &Name, std::vector<MockProperty> &&Props) {
+    insert(Name, internal::LifetimeExtender{std::move(Props)});
   }
 
   _sycl_device_binary_property_set_struct *begin() {
@@ -221,41 +212,90 @@ public:
   }
 
 private:
+  /// Adds a new array of properties to the set.
+  ///
+  /// \param Name is a property array name. See ur.hpp for list of known names.
+  /// \param Props is an array of property values.
+  void insert(const std::string &Name,
+              internal::LifetimeExtender<MockProperty> Props) {
+    MNames.push_back(Name);
+    MMockProperties.push_back(std::move(Props));
+    MProperties.push_back(_sycl_device_binary_property_set_struct{
+        MNames.back().data(), MMockProperties.back().begin(),
+        MMockProperties.back().end()});
+  }
+
   std::vector<std::string> MNames;
-  std::vector<Array<MockProperty>> MMockProperties;
+  std::vector<internal::LifetimeExtender<MockProperty>> MMockProperties;
   std::vector<_sycl_device_binary_property_set_struct> MProperties;
 };
 
 /// Convenience wrapper around internal structures, that manages binary
 /// image data lifecycle.
 class MockDeviceImage {
-public:
+private:
   /// Constructs an arbitrary device image.
   MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
-                  const std::string &DeviceTargetSpec,
-                  const std::string &CompileOptions,
-                  const std::string &LinkOptions, std::vector<char> Manifest,
-                  std::vector<unsigned char> Binary,
-                  Array<MockOffloadEntry> OffloadEntries,
-                  MockPropertySet PropertySet)
+          const std::string &DeviceTargetSpec,
+          const std::string &CompileOptions, const std::string &LinkOptions,
+          std::vector<char> &&Manifest, std::vector<unsigned char> &&Binary,
+          internal::LifetimeExtender<MockOffloadEntry> OffloadEntries,
+          MockPropertySet PropertySet)
       : MVersion(Version), MKind(Kind), MFormat(Format),
         MDeviceTargetSpec(DeviceTargetSpec), MCompileOptions(CompileOptions),
         MLinkOptions(LinkOptions), MManifest(std::move(Manifest)),
         MBinary(std::move(Binary)), MOffloadEntries(std::move(OffloadEntries)),
         MPropertySet(std::move(PropertySet)) {}
 
-  /// Constructs a SYCL device image of the latest version.
+public:
+  /// Constructs an arbitrary device image.
+  MockDeviceImage(uint16_t Version, uint8_t Kind, uint8_t Format,
+                  const std::string &DeviceTargetSpec,
+                  const std::string &CompileOptions,
+                  const std::string &LinkOptions, std::vector<char> &&Manifest,
+                  std::vector<unsigned char> &&Binary,
+                  std::vector<MockOffloadEntry> &&OffloadEntries,
+                  MockPropertySet PropertySet)
+      : MockDeviceImage(Version, Kind, Format, DeviceTargetSpec, CompileOptions,
+                        LinkOptions, std::move(Manifest), std::move(Binary),
+                        internal::LifetimeExtender(std::move(OffloadEntries)),
+                        std::move(PropertySet)) {}
+
   MockDeviceImage(uint8_t Format, const std::string &DeviceTargetSpec,
                   const std::string &CompileOptions,
                   const std::string &LinkOptions,
-                  std::vector<unsigned char> Binary,
-                  Array<MockOffloadEntry> OffloadEntries,
+                  std::vector<unsigned char> &&Binary,
+                  std::vector<MockOffloadEntry> &&OffloadEntries,
                   MockPropertySet PropertySet)
       : MockDeviceImage(SYCL_DEVICE_BINARY_VERSION,
                         SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL, Format,
                         DeviceTargetSpec, CompileOptions, LinkOptions, {},
-                        std::move(Binary), std::move(OffloadEntries),
+                        std::move(Binary),
+                        internal::LifetimeExtender(std::move(OffloadEntries)),
                         std::move(PropertySet)) {}
+
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries,
+          MockPropertySet PropertySet)
+      : MockDeviceImage(
+            SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+            SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
+            "", "", {}, std::vector<unsigned char>{1, 2, 3, 4, 5},
+            internal::LifetimeExtender(std::move(OffloadEntries)),
+            std::move(PropertySet)) {}
+
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  /// - no properties
+  MockDeviceImage(std::vector<MockOffloadEntry> &&OffloadEntries)
+      : MockDeviceImage(std::move(OffloadEntries), {}) {}
 
   sycl_device_binary_struct convertToNativeType() {
     return sycl_device_binary_struct{
@@ -286,7 +326,7 @@ private:
   std::string MLinkOptions;
   std::vector<char> MManifest;
   std::vector<unsigned char> MBinary;
-  Array<MockOffloadEntry> MOffloadEntries;
+  internal::LifetimeExtender<MockOffloadEntry> MOffloadEntries;
   MockPropertySet MPropertySet;
 };
 
@@ -403,7 +443,7 @@ inline MockProperty makeSpecConstant(std::vector<char> &ValData,
 /// Utility function to mark kernel as the one using assert
 inline void setKernelUsesAssert(const std::vector<std::string> &Names,
                                 MockPropertySet &Set) {
-  Array<MockProperty> Value;
+  std::vector<MockProperty> Value;
   for (const std::string &N : Names)
     Value.push_back({N, {0, 0, 0, 0}, SYCL_PROPERTY_TYPE_UINT32});
   Set.insert(__SYCL_PROPERTY_SET_SYCL_ASSERT_USED, std::move(Value));
@@ -412,17 +452,14 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 /// Utility function to add specialization constants to property set.
 ///
 /// This function overrides the default spec constant values.
-inline void addSpecConstants(Array<MockProperty> SpecConstants,
-                             std::vector<char> ValData,
-                             MockPropertySet &Props) {
+inline void addSpecConstants(std::vector<MockProperty> &&SpecConstants,
+                             std::vector<char> ValData, MockPropertySet &Props) {
   Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   MockProperty Prop{"all", std::move(ValData), SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
-  Array<MockProperty> DefaultValues{std::move(Prop)};
-
   Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP,
-               std::move(DefaultValues));
+               std::move(Prop));
 }
 
 /// Utility function to add ESIMD kernel flag to property set.
@@ -431,15 +468,13 @@ inline void addESIMDFlag(MockPropertySet &Props) {
   ValData[0] = 1;
   MockProperty Prop{"isEsimdImage", ValData, SYCL_PROPERTY_TYPE_UINT32};
 
-  Array<MockProperty> Value{std::move(Prop)};
-
-  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Value));
+  Props.insert(__SYCL_PROPERTY_SET_SYCL_MISC_PROP, std::move(Prop));
 }
 
 /// Utility function to generate offload entries for kernels without arguments.
-inline Array<MockOffloadEntry>
+inline std::vector<MockOffloadEntry>
 makeEmptyKernels(std::initializer_list<std::string> KernelNames) {
-  Array<MockOffloadEntry> Entries;
+  std::vector<MockOffloadEntry> Entries;
 
   for (const auto &Name : KernelNames) {
     MockOffloadEntry E{Name, {}, 0};
@@ -543,7 +578,7 @@ inline void
 addDeviceRequirementsProps(MockPropertySet &Props,
                            const std::vector<sycl::aspect> &Aspects,
                            const std::vector<int> &ReqdWGSize = {}) {
-  Array<MockProperty> Value{makeAspectsProp(Aspects)};
+  std::vector<MockProperty> Value{makeAspectsProp(Aspects)};
   if (!ReqdWGSize.empty())
     Value.push_back(makeReqdWGSizeProp(ReqdWGSize));
   Props.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS, std::move(Value));
@@ -553,9 +588,16 @@ inline MockDeviceImage
 generateDefaultImage(std::initializer_list<std::string> KernelNames) {
   MockPropertySet PropSet;
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::string Combined;
+  for (auto it = KernelNames.begin(); it != KernelNames.end(); ++it) {
+    if (it != KernelNames.begin())
+      Combined += ", ";
+    Combined += *it;
+  }
+  std::vector<unsigned char> Bin(Combined.begin(), Combined.end());
+  Bin.push_back(0);
 
-  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
@@ -564,7 +606,6 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
                       std::move(Bin),
                       std::move(Entries),
                       std::move(PropSet)};
-
   return Img;
 }
 

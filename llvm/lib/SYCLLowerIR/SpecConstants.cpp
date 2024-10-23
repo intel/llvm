@@ -475,6 +475,7 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   auto *FT = FunctionType::get(RetTy, ArgTys, false /*isVarArg*/);
   std::string FunctionName = mangleFuncItanium(BaseFunctionName, FT);
   Module *M = InsertBefore->getFunction()->getParent();
+  bool IsSPIROrSPIRV = llvm::Triple(M->getTargetTriple()).isSPIROrSPIRV();
 
   if (RetTy->isIntegerTy(1)) {
     assert(ArgTys.size() == 2 && "Expected a scalar spec constant");
@@ -500,6 +501,11 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
 
       auto *Call =
           CallInst::Create(NewFT, NewFC.getCallee(), Args, "", InsertBefore);
+      if (IsSPIROrSPIRV) {
+        cast<Function>(NewFC.getCallee())
+            ->setCallingConv(CallingConv::SPIR_FUNC);
+        Call->setCallingConv(CallingConv::SPIR_FUNC);
+      }
       return CastInst::CreateTruncOrBitCast(Call, RetTy, "tobool",
                                             InsertBefore);
     }
@@ -520,7 +526,12 @@ Instruction *emitCall(Type *RetTy, StringRef BaseFunctionName,
   // types? Is it necessary?
 
   FunctionCallee FC = M->getOrInsertFunction(FunctionName, FT);
-  return CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  auto *Call = CallInst::Create(FT, FC.getCallee(), Args, "", InsertBefore);
+  if (IsSPIROrSPIRV) {
+    cast<Function>(FC.getCallee())->setCallingConv(CallingConv::SPIR_FUNC);
+    Call->setCallingConv(CallingConv::SPIR_FUNC);
+  }
+  return Call;
 }
 
 Instruction *emitSpecConstant(unsigned NumericID, Type *Ty,
@@ -951,8 +962,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
             updatePaddingInLastMDNode(Ctx, SCMetadata, Padding);
           }
 
+          auto *DefValTy = DefaultValue->getType();
           SCMetadata[SymID] = generateSpecConstantMetadata(
-              M, SymID, SCTy, NextID, /* is native spec constant */ false);
+              M, SymID, DefValTy, NextID, /* is native spec constant */ false);
 
           ++NextID.ID;
           NextOffset += Size;

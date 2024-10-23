@@ -33,9 +33,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// TODO: Reenable, see https://github.com/intel/llvm/issues/14659
-// UNSUPPORTED: windows, linux
-
 #include <sycl/detail/core.hpp>
 
 #include <syclcompat/memory.hpp>
@@ -190,16 +187,10 @@ void test_global_memory() {
       auto g_B_acc = g_B.get_access(cgh);
       auto g_C_acc = g_C.get_access(cgh);
       cgh.parallel_for(sycl::range<2>(DataW, DataH), [=](sycl::id<2> id) {
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> A(
             g_A_acc);
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> B(
             g_B_acc);
-        // test_feature:accessor
-        // test_feature:memory_region
         syclcompat::accessor<float, syclcompat::memory_region::global, 2> C(
             g_C_acc);
         int i = id[0], j = id[1];

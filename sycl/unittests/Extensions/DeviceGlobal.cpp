@@ -65,20 +65,12 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 Array<MockProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
-
-  Array<MockOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
@@ -96,20 +88,12 @@ static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 Array<MockProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
-
-  Array<MockOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }

@@ -33,6 +33,8 @@ enum DataLessPropKind {
   UseDefaultStream = 8,
   DiscardEvents = 9,
   DeviceReadOnly = 10,
+  // TODO(#15184): Remove the following fusion-related entries in the next
+  // ABI-breaking window.
   FusionPromotePrivate = 11,
   FusionPromoteLocal = 12,
   FusionNoBarrier = 13,
@@ -88,6 +90,7 @@ public:
   PropertyWithDataBase(int ID) : MID(ID) {}
   bool isSame(int ID) const { return ID == MID; }
   virtual ~PropertyWithDataBase() = default;
+  int getKind() const { return MID; }
 
 private:
   int MID = -1;
@@ -99,7 +102,7 @@ private:
 template <int ID> class PropertyWithData : public PropertyWithDataBase {
 public:
   PropertyWithData() : PropertyWithDataBase(ID) {}
-  static int getKind() { return ID; }
+  static constexpr int getKind() { return ID; }
 };
 
 } // namespace detail

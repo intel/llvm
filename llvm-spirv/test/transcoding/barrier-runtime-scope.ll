@@ -23,6 +23,7 @@
 
 ; CHECK-LLVM: define private spir_func i32 @__translate_spirv_memory_scope(i32 %key) {
 ; CHECK-LLVM: entry:
+; CHECK-LLVM: %result = alloca i32, align 4
 ; CHECK-LLVM: switch i32 %key, label %default [
 ; CHECK-LLVM: i32 4, label %case.4
 ; CHECK-LLVM: i32 2, label %case.2
@@ -33,15 +34,23 @@
 ; CHECK-LLVM: default:                                          ; preds = %entry
 ; CHECK-LLVM: unreachable
 ; CHECK-LLVM: case.4:                                           ; preds = %entry
-; CHECK-LLVM: ret i32 0
+; CHECK-LLVM: store i32 0, ptr %result, align 4
+; CHECK-LLVM: br label %exit
 ; CHECK-LLVM: case.2:                                           ; preds = %entry
-; CHECK-LLVM: ret i32 1
+; CHECK-LLVM: store i32 1, ptr %result, align 4
+; CHECK-LLVM: br label %exit
 ; CHECK-LLVM: case.1:                                           ; preds = %entry
-; CHECK-LLVM: ret i32 2
+; CHECK-LLVM: store i32 2, ptr %result, align 4
+; CHECK-LLVM: br label %exit
 ; CHECK-LLVM: case.0:                                           ; preds = %entry
-; CHECK-LLVM: ret i32 3
+; CHECK-LLVM: store i32 3, ptr %result, align 4
+; CHECK-LLVM: br label %exit
 ; CHECK-LLVM: case.3:                                           ; preds = %entry
-; CHECK-LLVM: ret i32 4
+; CHECK-LLVM: store i32 4, ptr %result, align 4
+; CHECK-LLVM: br label %exit
+; CHECK-LLVM: exit:                                             ; preds = %case.3, %case.0, %case.1, %case.2, %case.4
+; CHECK-LLVM: %retVal = load i32, ptr %result, align 4
+; CHECK-LLVM: ret i32 %retVal
 ; CHECK-LLVM: }
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

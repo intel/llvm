@@ -125,30 +125,10 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::MockDeviceImage generateMemopsImage() {
-  using namespace sycl::unittest;
-
-  MockPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
-
-  Array<MockOffloadEntry> Entries = makeEmptyKernels(
-      {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
-       USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
-
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
-
-  return Img;
-}
-
 namespace {
-sycl::unittest::MockDeviceImage Imgs[] = {generateMemopsImage()};
+sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage(
+    {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
+     USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar})};
 sycl::unittest::MockDeviceImageArray<1> ImgArray{Imgs};
 
 ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;

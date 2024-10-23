@@ -11,7 +11,6 @@
 #include <sycl/bit_cast.hpp>              // for bit_cast
 #include <sycl/detail/export.hpp>         // for __SYCL_EXPORT
 #include <sycl/detail/iostream_proxy.hpp> // for istream, ostream
-#include <sycl/detail/vector_traits.hpp>  // for vector_alignment
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/aspects.hpp>

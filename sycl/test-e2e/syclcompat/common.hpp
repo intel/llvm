@@ -22,29 +22,68 @@
 
 #pragma once
 
+#include <sycl/feature_test.hpp>
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+#include <sycl/ext/oneapi/bfloat16.hpp>
+#endif
 #include <sycl/half_type.hpp>
 #include <tuple>
 
 constexpr double ERROR_TOLERANCE = 1e-5;
 
-// Typed call helper
-// Iterates over all types and calls Functor f for each of them
-template <typename Functor, template <typename...> class Container,
-          typename... Ts>
-void for_each_type_call(Functor &&f, Container<Ts...> *) {
-  (f.template operator()<Ts>(), ...);
+template <typename Tuple, typename Func, std::size_t... Is>
+void for_each_type_call(Func &&f, std::index_sequence<Is...>) {
+  (f(std::integral_constant<std::size_t, Is>{}), ...);
 }
 
-template <typename tuple, typename Functor>
-void instantiate_all_types(Functor &&f) {
-  for_each_type_call(f, static_cast<tuple *>(nullptr));
+template <typename Tuple, typename Func> void instantiate_all_types(Func &&f) {
+  for_each_type_call<Tuple>(
+      std::forward<Func>(f),
+      std::make_index_sequence<std::tuple_size_v<Tuple>>{});
 }
 
 #define INSTANTIATE_ALL_TYPES(tuple, f)                                        \
-  instantiate_all_types<tuple>([]<typename T>() { f<T>(); });
+  instantiate_all_types<tuple>([](auto index) {                                \
+    using T = std::tuple_element_t<decltype(index)::value, tuple>;             \
+    f<T>();                                                                    \
+  });
+
+#define INSTANTIATE_ALL_CONTAINER_TYPES(tuple, container, f)                   \
+  instantiate_all_types<tuple>([](auto index) {                                \
+    using T = std::tuple_element_t<decltype(index)::value, tuple>;             \
+    f<container, T>();                                                         \
+  });
 
 using value_type_list =
-    std::tuple<int, unsigned int, short, unsigned short, long, unsigned long,
-               long long, unsigned long long, float, double, sycl::half>;
+    std::tuple<char, signed char, unsigned char, int, unsigned int, short,
+               unsigned short, long, unsigned long, long long,
+               unsigned long long, float, double, sycl::half
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+               ,sycl::ext::oneapi::bfloat16
+#endif
+>;
 
-using fp_type_list = std::tuple<float, double, sycl::half>;
+using fp_type_list_no_bfloat16 = std::tuple<float, double, sycl::half>;
+
+using fp_type_list = std::tuple<float, double, sycl::half
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+                ,sycl::ext::oneapi::bfloat16
+#endif
+>;
+
+using marray_type_list =
+    std::tuple<char, signed char, short, int, long, long long, unsigned char,
+               unsigned short, unsigned int, unsigned long, unsigned long long,
+               float, double, sycl::half
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+              , sycl::ext::oneapi::bfloat16
+#endif
+>;
+using vec_type_list = std::tuple<int8_t, int16_t, int32_t, int64_t, uint8_t,
+                                 uint16_t, uint32_t, uint64_t, float, double,
+                                 sycl::half
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+              , sycl::ext::oneapi::bfloat16
+#endif
+>;

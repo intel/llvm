@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/helpers.hpp>
+
 #include <detail/scheduler/commands.hpp>
 #include <sycl/detail/helpers.hpp>
 
@@ -30,7 +32,8 @@ void waitEvents(std::vector<sycl::event> DepEvents) {
   }
 }
 
-void markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
+__SYCL_EXPORT void
+markBufferAsInternal(const std::shared_ptr<buffer_impl> &BufImpl) {
   BufImpl->markAsInternal();
 }
 
@@ -62,8 +65,8 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     auto DeviceImpl = Queue->getDeviceImplPtr();
     auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
     ur_program_handle_t Program =
-        detail::ProgramManager::getInstance().createURProgram(**DeviceImage,
-                                                              Context, Device);
+        detail::ProgramManager::getInstance().createURProgram(
+            **DeviceImage, Context, {Device});
     return {*DeviceImage, Program};
   }
 
@@ -91,7 +94,7 @@ retrieveKernelBinary(const QueueImplPtr &Queue, const char *KernelName,
     DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
         KernelName, Context, Device);
     Program = detail::ProgramManager::getInstance().createURProgram(
-        *DeviceImage, Context, Device);
+        *DeviceImage, Context, {Device});
   }
   return {DeviceImage, Program};
 }

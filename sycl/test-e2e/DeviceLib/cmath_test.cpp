@@ -1,20 +1,20 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// UNSUPPORTED: hip
-// RUN: %{build} -fno-builtin %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
+// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
+// RUN: %if !gpu %{ %{run} %t2.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
-// RUN: %if cuda %{ %{build} -fno-builtin %{mathflags} -o %t.out -ffast-math -DSYCL_E2E_FASTMATH %}
-// RUN: %if cuda %{ %{run} %t.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if cuda %{ %{run} %t3.out %}
 
 #include "math_utils.hpp"
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <std/experimental/simd.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
@@ -154,15 +154,15 @@ template <class T> void device_cmath_test_1(s::queue &deviceQueue) {
   assert(quo == 0);
 }
 
-// MSVC implements std::ldexp<float>, std::fabs<float> and std::frexp<float> by
-// invoking the 'double' version of corresponding C math functions(ldexp, fabs
-// and frexp). Those functions can only work on Windows with fp64 extension
-// support from underlying device.
+// MSVC implements std::scalbln<float>, std::ldexp<float>, std::fabs<float> and
+// std::frexp<float> by invoking the 'double' version of corresponding C math
+// functions(scalbln, ldexp, fabs and frexp). Those functions can only work on
+// Windows with fp64 extension support from underlying device.
 #ifndef _WIN32
 template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
-  constexpr int NumOfTestItems = 3;
+  constexpr int NumOfTestItems = 4;
   T result[NumOfTestItems] = {-1};
-  T ref[NumOfTestItems] = {0, 2, 1};
+  T ref[NumOfTestItems] = {6, 0, 2, 1};
   // Variable exponent is an integer value to store the exponent in frexp
   // function
   int exponent = -1;
@@ -175,6 +175,7 @@ template <class T> void device_cmath_test_2(s::queue &deviceQueue) {
       auto exp_access = buffer2.template get_access<sycl_write>(cgh);
       cgh.single_task<class DeviceMathTest2>([=]() {
         int i = 0;
+        res_access[i++] = std::scalbln(1.5f, 2);
         res_access[i++] = std::frexp(0.0f, &exp_access[0]);
         res_access[i++] = std::ldexp(1.0f, 1);
         res_access[i++] = std::fabs(-1.0f);

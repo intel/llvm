@@ -64,14 +64,14 @@ generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   MockProperty EAMKernelPOI =
       makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
                              EAMTestKernelNumArgs1, KernelEAM1);
-  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<MockOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
   MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format

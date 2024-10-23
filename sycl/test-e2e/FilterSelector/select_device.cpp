@@ -15,47 +15,43 @@
 
 #include <iostream>
 
+#include "../helpers.hpp"
 #include <sycl/detail/core.hpp>
 
 using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = std::getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   std::string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("level_zero:gpu") != std::string::npos) {
-    default_selector ds;
-    device d = ds.select_device();
+    device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("Level-Zero") != string::npos);
   }
-  if (envVal && forcedPIs != "*" &&
+  if (envVal.empty() && forcedPIs != "*" &&
       forcedPIs.find("opencl:gpu") != std::string::npos) {
-    gpu_selector gs;
-    device d = gs.select_device();
+    device d(gpu_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos);
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("cpu") != std::string::npos) {
-    cpu_selector cs;
-    device d = cs.select_device();
+    device d(cpu_selector_v);
   }
-  if (!envVal || forcedPIs == "*" ||
+  if (!envVal.empty() || forcedPIs == "*" ||
       forcedPIs.find("fpga") != std::string::npos) {
-    accelerator_selector as;
-    device d = as.select_device();
+    device d(accelerator_selector_v);
   }
-  if (envVal && (forcedPIs.find("cpu") == std::string::npos &&
-                 forcedPIs.find("opencl") == std::string::npos &&
-                 forcedPIs.find("*") == std::string::npos)) {
+  if (envVal.empty() && (forcedPIs.find("cpu") == std::string::npos &&
+                         forcedPIs.find("opencl") == std::string::npos &&
+                         forcedPIs.find("*") == std::string::npos)) {
     try {
-      cpu_selector cs;
-      device d = cs.select_device();
+      device d(cpu_selector_v);
     } catch (...) {
       return 0; // expected
     }

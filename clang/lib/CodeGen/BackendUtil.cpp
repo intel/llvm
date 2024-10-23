@@ -65,6 +65,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/PrettyStackTrace.h"
+#include "llvm/Support/Program.h"
 #include "llvm/Support/TimeProfiler.h"
 #include "llvm/Support/Timer.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -80,7 +81,6 @@
 #include "llvm/Transforms/IPO/LowerTypeTests.h"
 #include "llvm/Transforms/IPO/ThinLTOBitcodeWriter.h"
 #include "llvm/Transforms/InstCombine/InstCombine.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizer.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include "llvm/Transforms/Instrumentation/BoundsChecking.h"
@@ -92,7 +92,9 @@
 #include "llvm/Transforms/Instrumentation/LowerAllowCheckPass.h"
 #include "llvm/Transforms/Instrumentation/MemProfiler.h"
 #include "llvm/Transforms/Instrumentation/MemorySanitizer.h"
+#include "llvm/Transforms/Instrumentation/NumericalStabilitySanitizer.h"
 #include "llvm/Transforms/Instrumentation/PGOInstrumentation.h"
+#include "llvm/Transforms/Instrumentation/RealtimeSanitizer.h"
 #include "llvm/Transforms/Instrumentation/SPIRITTAnnotations.h"
 #include "llvm/Transforms/Instrumentation/SanitizerBinaryMetadata.h"
 #include "llvm/Transforms/Instrumentation/SanitizerCoverage.h"
@@ -362,6 +364,39 @@ static bool actionRequiresCodeGen(BackendAction Action) {
          Action != Backend_EmitLL;
 }
 
+static std::string flattenClangCommandLine(ArrayRef<std::string> Args,
+                                           StringRef MainFilename) {
+  if (Args.empty())
+    return std::string{};
+
+  std::string FlatCmdLine;
+  raw_string_ostream OS(FlatCmdLine);
+  bool PrintedOneArg = false;
+  if (!StringRef(Args[0]).contains("-cc1")) {
+    llvm::sys::printArg(OS, "-cc1", /*Quote=*/true);
+    PrintedOneArg = true;
+  }
+  for (unsigned i = 0; i < Args.size(); i++) {
+    StringRef Arg = Args[i];
+    if (Arg.empty())
+      continue;
+    if (Arg == "-main-file-name" || Arg == "-o") {
+      i++; // Skip this argument and next one.
+      continue;
+    }
+    if (Arg.starts_with("-object-file-name") || Arg == MainFilename)
+      continue;
+    // Skip fmessage-length for reproducibility.
+    if (Arg.starts_with("-fmessage-length"))
+      continue;
+    if (PrintedOneArg)
+      OS << " ";
+    llvm::sys::printArg(OS, Arg, /*Quote=*/true);
+    PrintedOneArg = true;
+  }
+  return FlatCmdLine;
+}
+
 static bool initTargetOptions(DiagnosticsEngine &Diags,
                               llvm::TargetOptions &Options,
                               const CodeGenOptions &CodeGenOpts,
@@ -511,7 +546,9 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
   Options.MCOptions.AsmVerbose = CodeGenOpts.AsmVerbose;
   Options.MCOptions.Dwarf64 = CodeGenOpts.Dwarf64;
   Options.MCOptions.PreserveAsmComments = CodeGenOpts.PreserveAsmComments;
-  Options.MCOptions.X86RelaxRelocations = CodeGenOpts.RelaxELFRelocations;
+  Options.MCOptions.Crel = CodeGenOpts.Crel;
+  Options.MCOptions.ImplicitMapSyms = CodeGenOpts.ImplicitMapSyms;
+  Options.MCOptions.X86RelaxRelocations = CodeGenOpts.X86RelaxRelocations;
   Options.MCOptions.CompressDebugSections =
       CodeGenOpts.getCompressDebugSections();
   Options.MCOptions.ABIName = TargetOpts.ABI;
@@ -522,8 +559,9 @@ static bool initTargetOptions(DiagnosticsEngine &Diags,
          Entry.Group == frontend::IncludeDirGroup::System))
       Options.MCOptions.IASSearchPaths.push_back(
           Entry.IgnoreSysRoot ? Entry.Path : HSOpts.Sysroot + Entry.Path);
-  Options.MCOptions.Argv0 = CodeGenOpts.Argv0;
-  Options.MCOptions.CommandLineArgs = CodeGenOpts.CommandLineArgs;
+  Options.MCOptions.Argv0 = CodeGenOpts.Argv0 ? CodeGenOpts.Argv0 : "";
+  Options.MCOptions.CommandlineArgs = flattenClangCommandLine(
+      CodeGenOpts.CommandLineArgs, CodeGenOpts.MainFileName);
   Options.MCOptions.AsSecureLogFile = CodeGenOpts.AsSecureLogFile;
   Options.MCOptions.PPCUseFullRegisterNames =
       CodeGenOpts.PPCUseFullRegisterNames;
@@ -627,12 +665,6 @@ bool EmitAssemblyHelper::AddEmitPasses(legacy::PassManager &CodeGenPasses,
   // Normal mode, emit a .s or .o file by running the code generator. Note,
   // this also adds codegenerator level optimization passes.
   CodeGenFileType CGFT = getCodeGenFileType(Action);
-
-  // Add ObjC ARC final-cleanup optimizations. This is done as part of the
-  // "codegen" passes so that it isn't run multiple times when there is
-  // inlining happening.
-  if (CodeGenOpts.OptimizationLevel > 0)
-    CodeGenPasses.add(createObjCARCContractPass());
 
   if (TM->addPassesToEmitFile(CodeGenPasses, OS, DwoOS, CGFT,
                               /*DisableVerify=*/!CodeGenOpts.VerifyModule)) {
@@ -748,6 +780,9 @@ static void addSanitizers(const Triple &TargetTriple,
       MPM.addPass(ModuleThreadSanitizerPass());
       MPM.addPass(createModuleToFunctionPassAdaptor(ThreadSanitizerPass()));
     }
+
+    if (LangOpts.Sanitize.has(SanitizerKind::NumericalStability))
+      MPM.addPass(NumericalStabilitySanitizerPass());
 
     auto ASanPass = [&](SanitizerMask Mask, bool CompileKernel) {
       if (LangOpts.Sanitize.has(Mask)) {
@@ -1065,6 +1100,13 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             FPM.addPass(BoundsCheckingPass());
           });
 
+    if (LangOpts.Sanitize.has(SanitizerKind::Realtime))
+      PB.registerScalarOptimizerLateEPCallback(
+          [](FunctionPassManager &FPM, OptimizationLevel Level) {
+            RealtimeSanitizerOptions Opts;
+            FPM.addPass(RealtimeSanitizerPass(Opts));
+          });
+
     // Don't add sanitizers if we are here from ThinLTO PostLink. That already
     // done on PreLink stage.
     if (!IsThinLTOPostLink) {
@@ -1163,7 +1205,7 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
 
   // Link against bitcodes supplied via the -mlink-builtin-bitcode option
   if (CodeGenOpts.LinkBitcodePostopt)
-    MPM.addPass(LinkInModulesPass(BC, false));
+    MPM.addPass(LinkInModulesPass(BC));
 
   // Add a verifier pass if requested. We don't have to do this if the action
   // requires code generation because there will already be a verifier pass in
@@ -1215,6 +1257,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       TheModule->addModuleFlag(llvm::Module::Error, "UnifiedLTO", uint32_t(1));
   }
 
+  // FIXME: This should eventually be replaced by a first-class driver option.
+  // This should be done for both clang and flang simultaneously.
   // Print a textual, '-passes=' compatible, representation of pipeline if
   // requested.
   if (PrintPipelinePasses) {
@@ -1324,7 +1368,8 @@ static void runThinLTOBackend(
   // We can simply import the values mentioned in the combined index, since
   // we should only invoke this using the individual indexes written out
   // via a WriteIndexesThinBackend.
-  FunctionImporter::ImportMapTy ImportList;
+  FunctionImporter::ImportIDTable ImportIDs;
+  FunctionImporter::ImportMapTy ImportList(ImportIDs);
   if (!lto::initImportList(*M, *CombinedIndex, ImportList))
     return;
 

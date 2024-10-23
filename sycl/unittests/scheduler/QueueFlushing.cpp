@@ -54,7 +54,7 @@ static void addDepAndEnqueue(detail::Command *Cmd,
 
   ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-  DepCmd.getEvent()->getHandleRef() = UREvent;
+  DepCmd.getEvent()->setHandle(UREvent);
   (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
 
   detail::EnqueueResultT Res;
@@ -154,7 +154,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepEvent->getHandleRef() = UREvent;
+    DepEvent->setHandle(UREvent);
     (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_TRUE(QueueFlushed);
@@ -174,7 +174,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
       ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-      DepEvent->getHandleRef() = UREvent;
+      DepEvent->setHandle(UREvent);
     }
     (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
@@ -198,13 +198,13 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmdA.getEvent()->getHandleRef() = UREvent;
+    DepCmdA.getEvent()->setHandle(UREvent);
     (void)Cmd.addDep(detail::DepDesc{&DepCmdA, &MockReq, nullptr}, ToCleanUp);
     MockCommand DepCmdB(QueueImplB);
 
     UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmdB.getEvent()->getHandleRef() = UREvent;
+    DepCmdB.getEvent()->setHandle(UREvent);
     (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr}, ToCleanUp);
     // The check is performed in redefinedQueueFlush
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
@@ -219,7 +219,7 @@ TEST_F(SchedulerTest, QueueFlushing) {
 
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmd.getEvent()->getHandleRef() = UREvent;
+    DepCmd.getEvent()->setHandle(UREvent);
     (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
     MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
 

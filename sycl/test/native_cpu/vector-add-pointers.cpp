@@ -2,7 +2,7 @@
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-// REQUIRES: native_cpu_be
+// REQUIRES: native_cpu
 // RUN: %clangxx -fsycl -fsycl-targets=native_cpu %s -o %t
 // RUN: env ONEAPI_DEVICE_SELECTOR="native_cpu:cpu" %t
 

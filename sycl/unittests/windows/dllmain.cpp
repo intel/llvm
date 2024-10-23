@@ -12,7 +12,6 @@
  * distinct binary executable.
  */
 
-#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 

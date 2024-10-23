@@ -30,18 +30,9 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   MockPropertySet PropSet;
   addDeviceRequirementsProps(PropSet, Aspects, ReqdWGSize);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
-
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }

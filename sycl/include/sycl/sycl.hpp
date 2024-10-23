@@ -100,9 +100,11 @@
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>

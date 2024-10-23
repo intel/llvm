@@ -58,42 +58,14 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   std::vector<unsigned char> KernelEAM{0b00000101};
   MockProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernelName, EAMTestKernelNumArgs, KernelEAM);
-  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
-
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
-
-  return Img;
-}
-
-static sycl::unittest::MockDeviceImage generateEAMTestKernel2Image() {
-  using namespace sycl::unittest;
-
-  MockPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
-
-  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
-
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
+  MockDeviceImage Img{std::move(Entries), std::move(PropSet)};
 
   return Img;
 }
@@ -105,28 +77,22 @@ static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   std::vector<unsigned char> KernelEAM{0b00001010};
   MockProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernel3Name, EAMTestKernelNumArgs, KernelEAM);
-  Array<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
   MockPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries =
+      makeEmptyKernels({EAMTestKernel3Name});
 
-  Array<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel3Name});
-
-  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-                      "",                                  // Compile options
-                      "",                                  // Link options
-                      std::move(Bin),
-                      std::move(Entries),
-                      std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
 static sycl::unittest::MockDeviceImage EAMImg = generateEAMTestKernelImage();
-static sycl::unittest::MockDeviceImage EAM2Img = generateEAMTestKernel2Image();
+static sycl::unittest::MockDeviceImage EAM2Img =
+    sycl::unittest::generateDefaultImage({EAMTestKernel2Name});
 static sycl::unittest::MockDeviceImage EAM3Img = generateEAMTestKernel3Image();
 static sycl::unittest::MockDeviceImageArray<1> EAMImgArray{&EAMImg};
 static sycl::unittest::MockDeviceImageArray<1> EAM2ImgArray{&EAM2Img};

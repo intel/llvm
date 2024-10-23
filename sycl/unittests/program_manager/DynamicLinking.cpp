@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::Array<sycl::unittest::MockProperty>
+std::vector<sycl::unittest::MockProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
   sycl::unittest::MockPropertySet PropSet;
-  sycl::unittest::Array<sycl::unittest::MockProperty> Props;
+  std::vector<sycl::unittest::MockProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -71,7 +71,7 @@ sycl::unittest::MockDeviceImage generateImage(
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::Array<sycl::unittest::MockOffloadEntry> Entries =
+  std::vector<sycl::unittest::MockOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::MockDeviceImage Img{BinType,

@@ -11,16 +11,12 @@
 // CHECK: define {{.*}}KInt{{.*}} #[[#ATTR_SET_INT:]]
 // CHECK: define {{.*}}KVoid{{.*}} #[[#ATTR_SET_DEFAULT]]
 // CHECK: define {{.*}}KUserDefined{{.*}} #[[#ATTR_SET_USER_DEFINED:]]
-// TODO: update the check below
-// As of now calls_indirectly_property takes into account only the first
-// template argument ignoring the rest. This will be fixed in a follow-up
-// patches and the test should be updated to reflect that, because current
-// behavior is not correct.
-// CHECK: define {{.*}}KMultiple{{.*}} #[[#ATTR_SET_INT]]
+// CHECK: define {{.*}}KMultiple{{.*}} #[[#ATTR_SET_MULTIPLE:]]
 //
 // CHECK-DAG: attributes #[[#ATTR_SET_DEFAULT]] {{.*}} "calls-indirectly"="_ZTSv"
 // CHECK-DAG: attributes #[[#ATTR_SET_INT]] {{.*}} "calls-indirectly"="_ZTSi"
 // CHECK-DAG: attributes #[[#ATTR_SET_USER_DEFINED]] {{.*}} "calls-indirectly"="_ZTS12user_defined"
+// CHECK-DAG: attributes #[[#ATTR_SET_MULTIPLE]] {{.*}} "calls-indirectly"="_ZTSi,_ZTS12user_defined"
 
 #include <sycl/sycl.hpp>
 
@@ -40,12 +36,13 @@ class KMultiple;
 int main() {
   sycl::queue q;
 
-  oneapi::properties props_empty{oneapi::calls_indirectly<>};
-  oneapi::properties props_int{oneapi::calls_indirectly<int>};
-  oneapi::properties props_void{oneapi::calls_indirectly<void>};
-  oneapi::properties props_user_defined{oneapi::calls_indirectly<user_defined>};
+  oneapi::properties props_empty{oneapi::assume_indirect_calls};
+  oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};
+  oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
+  oneapi::properties props_user_defined{
+      oneapi::assume_indirect_calls_to<user_defined>};
   oneapi::properties props_multiple{
-      oneapi::calls_indirectly<int, user_defined>};
+     oneapi::assume_indirect_calls_to<int, user_defined>};
 
   q.single_task<KEmpty>(props_empty, [=]() {});
   q.single_task<KInt>(props_int, [=]() {});

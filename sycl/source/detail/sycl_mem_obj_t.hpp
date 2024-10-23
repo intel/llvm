@@ -23,6 +23,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 
 namespace sycl {
@@ -32,7 +33,8 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class plugin;
+class Adapter;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
@@ -89,7 +91,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const PluginPtr &getPlugin() const;
+  const AdapterPtr &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -196,6 +198,7 @@ public:
         MUserPtr = HostPtr;
       } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -229,6 +232,7 @@ public:
         MUserPtr = HostPtr.get();
       } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
         MUserPtr = HostPtr.get();
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -327,8 +331,8 @@ public:
  
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(bool InitFromUserData, void *&HostPtr,
-                        bool &HostPtrReadOnly);
+  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+                        void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
   std::unique_ptr<SYCLMemObjAllocator> MAllocator;
@@ -350,7 +354,7 @@ protected:
   // Indicates if memory object should write memory to the host on destruction.
   bool MNeedWriteBack;
   // Size of memory.
-  size_t MSizeInBytes;
+  size_t MSizeInBytes = 0;
   // User's pointer passed to constructor.
   void *MUserPtr;
   // Copy of memory passed by user to constructor.
@@ -375,6 +379,7 @@ protected:
   // defer the memory allocation and copying to the point where a writable
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
+  std::mutex MCreateShadowCopyMtx;
   bool MOwnNativeHandle = true;
 };
 } // namespace detail

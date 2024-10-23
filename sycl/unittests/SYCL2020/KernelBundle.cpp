@@ -37,7 +37,7 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames,
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  Array<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels(KernelNames);
 
   MockDeviceImage Img{BinaryType, // Format
                       DeviceTargetSpec,
@@ -488,8 +488,8 @@ ur_result_t redefinedDevicePartitionAfter(void *pParams) {
 }
 
 TEST(KernelBundle, DescendentDevice) {
-  // Mock a non-OpenCL plugin since use of descendent devices of context members
-  // is not supported there yet.
+  // Mock a non-OpenCL adapter since use of descendent devices of context
+  // members is not supported there yet.
   sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
 
   sycl::platform Plt = sycl::platform();

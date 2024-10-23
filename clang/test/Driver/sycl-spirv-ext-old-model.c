@@ -52,7 +52,6 @@
 // CHECK-DEFAULT-SAME:,+SPV_KHR_shader_clock
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bindless_images
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_task_sequence
-// CHECK-DEFAULT-SAME:,+SPV_INTEL_token_type
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_hw_thread_queries
@@ -61,7 +60,8 @@
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_tensor_float32_conversion
 // CHECK-DEFAULT-SAME:,+SPV_INTEL_optnone
 // CHECK-DEFAULT-SAME:,+SPV_KHR_non_semantic_info
-// CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix"
+// CHECK-DEFAULT-SAME:,+SPV_KHR_cooperative_matrix
+// CHECK-DEFAULT-SAME:,+SPV_EXT_shader_atomic_float16_add"
 // CHECK-FPGA-HW: llvm-spirv{{.*}}"-spirv-ext=-all
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_add
 // CHECK-FPGA-HW-SAME:,+SPV_EXT_shader_atomic_float_min_max
@@ -117,7 +117,6 @@
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_invocation_pipelining_attributes
 // CHECK-CPU-SAME:,+SPV_INTEL_fpga_latency_control
 // CHECK-CPU-SAME:,+SPV_INTEL_task_sequence
-// CHECK-CPU-SAME:,+SPV_INTEL_token_type
 // CHECK-CPU-SAME:,+SPV_INTEL_bfloat16_conversion
 // CHECK-CPU-SAME:,+SPV_INTEL_joint_matrix
 // CHECK-CPU-SAME:,+SPV_INTEL_hw_thread_queries

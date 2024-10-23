@@ -1,6 +1,6 @@
 // UNSUPPORTED: hip_nvidia
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 
@@ -408,23 +408,23 @@ int main() {
 // ----------- BUFFERS
 
 // CHECK-LABEL: start copyD2H-buffer
-// CHECK: ---> urEnqueueMemBufferRead({{.*}} .size = 64,
-// CHECK: ---> urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64,
-// CHECK: ---> urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320,
+// CHECK: <--- urEnqueueMemBufferRead({{.*}} .size = 64,
+// CHECK: <--- urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64,
+// CHECK: <--- urEnqueueMemBufferReadRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320,
 // CHECK: end copyD2H-buffer
 
 // CHECK-LABEL: start copyH2D-buffer
-// CHECK: ---> urEnqueueMemBufferWrite({{.*}} .size = 64,
-// CHECK: ---> urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64, 
-// CHECK: ---> urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320, .hostRowPitch = 64, .hostSlicePitch = 320,
+// CHECK: <--- urEnqueueMemBufferWrite({{.*}} .size = 64,
+// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64, 
+// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320, .hostRowPitch = 64, .hostSlicePitch = 320,
 // CHECK: end copyH2D-buffer
 
 // CHECK-LABEL: start copyD2D-buffer
-// CHECK: ---> urEnqueueMemBufferCopy({{.*}} .size = 64
-// CHECK: ---> urEnqueueMemBufferCopyRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
+// CHECK: <--- urEnqueueMemBufferCopy({{.*}} .size = 64
+// CHECK: <--- urEnqueueMemBufferCopyRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
 // CHECK: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .srcRowPitch = 64, .srcSlicePitch = 320, .dstRowPitch = 64, .dstSlicePitch = 320
 // CHECK: end copyD2D-buffer
 
 // CHECK-LABEL: start testFill Buffer
-// CHECK :---> urEnqueueMemBufferFill({{.*}} .patternSize = 4, .offset = 0, .size = 64,
+// CHECK: <--- urEnqueueMemBufferFill({{.*}} .patternSize = 4, .offset = 0, .size = 64,
 // CHECK: end testFill Buffer

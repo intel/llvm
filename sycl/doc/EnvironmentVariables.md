@@ -8,7 +8,7 @@ compiler and runtime.
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`, `fpga`, or `acc`. `fpga` and `acc` are handled in the same manner. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
@@ -196,7 +196,7 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_UR_TRACE` | Integer | If non-0 then enable Unified Runtime tracing. Default is 0. |
+| `SYCL_UR_TRACE` | Integer | Described [below](#sycl_ur_trace-options)  | Enable specified level of tracing for UR. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
@@ -230,6 +230,21 @@ variables in production code.</span>
 | before_addHostAcc | print graph before addHostAccessor method |
 | after_addHostAcc | print graph after addHostAccessor method |
 | always | print graph before and after each of the above methods |
+
+
+### `SYCL_UR_TRACE` Options
+
+`SYCL_UR_TRACE` accepts a bit-mask, so individual tracing types can be enabled.
+Setting a value of `-1` will enable all tracing types.
+
+Supported tracing levels are in the table below
+
+| Option | Description |
+| ------ | ----------- |
+| 1 | Enable basic tracing, which is tracing of UR adapters/devices discovery |
+| 2 | Enable tracing of the UR calls |
+| -1 | Enable all levels of tracing |
+
 
 ## Debugging variables for Level Zero Plugin
 
