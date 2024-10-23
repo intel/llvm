@@ -19,34 +19,19 @@ namespace ext {
 namespace oneapi {
 namespace experimental {
 
-struct deterministic_key {
+struct deterministic_key
+    : detail::compile_time_property_key<detail::PropKind::Deterministic> {
   using value_t = property_value<deterministic_key>;
 };
 inline constexpr deterministic_key::value_t deterministic;
 
-struct initialize_to_identity_key {
+struct initialize_to_identity_key
+    : detail::compile_time_property_key<
+          detail::PropKind::InitializeToIdentity> {
   using value_t = property_value<initialize_to_identity_key>;
 };
 inline constexpr initialize_to_identity_key::value_t initialize_to_identity;
 
-template <> struct is_property_key<deterministic_key> : std::true_type {};
-template <>
-struct is_property_key<initialize_to_identity_key> : std::true_type {};
-
-namespace detail {
-
-template <> struct IsCompileTimeProperty<deterministic_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<initialize_to_identity_key> : std::true_type {};
-
-template <> struct PropertyToKind<deterministic_key> {
-  static constexpr PropKind Kind = PropKind::Deterministic;
-};
-template <> struct PropertyToKind<initialize_to_identity_key> {
-  static constexpr PropKind Kind = PropKind::InitializeToIdentity;
-};
-
-} // namespace detail
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
