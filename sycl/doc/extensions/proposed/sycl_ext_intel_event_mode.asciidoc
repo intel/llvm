@@ -138,8 +138,8 @@ _{endnote}_]
 
 === New property usage example
 
-As an example of how to use the new `low_power_event` property, see the
-following code:
+As an example of how to use the new `event_mode` property using the
+`event_modes::low_power` mode, see the following code:
 
 ```
 #include <sycl/sycl.hpp>
@@ -153,8 +153,8 @@ int main() {
   // Submit some work to the queue.
   oneapiex::submit(Q, [&](sycl::handler &CGH) {...});
 
-  // Submit a command with the low-power event property.
-  oneapiex::properties Props{intelex::low_power_event};
+  // Submit a command with the low-power event mode.
+  oneapiex::properties Props{intelex::event_mode{intelex::event_modes::low_power}};
   sycl::event E = oneapiex::submit_with_event(Q, Props, [&](sycl::handler &CGH) {
     ...
   });
