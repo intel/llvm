@@ -3,9 +3,6 @@
 // ZES_ENABLE_SYSMAN=1 is set, but also is sysman init is supported, 
 // so this test is missed if it requires aspect-ext_intel_free_memory.
 
-// https://github.com/intel/llvm/issues/15648
-// XFAIL: gpu-intel-dg2 && linux
-
 // Since gen9 and get12 don't support this query,
 // so requiring DG2. There may be more devices in our CI supporting this aspect.
 // REQUIRES: gpu-intel-dg2
