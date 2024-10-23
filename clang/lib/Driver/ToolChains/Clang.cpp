@@ -5600,8 +5600,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       CmdArgs.push_back("-Wno-sycl-strict");
     }
 
-    // Set O2 optimization level by default
-    if (!Args.getLastArg(options::OPT_O_Group))
+    // '-g' option turns off optimization -O2 and makes -O0 the default.
+    if (Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+      if (A->getOption().matches(options::OPT_g_Flag))
+              CmdArgs.push_back("-O0");
+    }
+    // Set O2 optimization level by default if no -g option is passed.
+    if (!Args.getLastArg(options::OPT_O_Group) && !Args.getLastArg(options::OPT_g_Group))
       CmdArgs.push_back("-O2");
 
     // Add the integration header option to generate the header.
@@ -10806,6 +10811,13 @@ void SPIRVTranslator::ConstructJob(Compilation &C, const JobAction &JA,
 
 // Partially copied from clang/lib/Frontend/CompilerInvocation.cpp
 static std::string getSYCLPostLinkOptimizationLevel(const ArgList &Args) {
+
+// '-g' option turns off optimization -O2 and makes -O0 the default.
+  if(Arg *A = Args.getLastArg(options::OPT_g_Group)) {
+    if (A->getOption().matches(options::OPT_g_Flag))
+        return "-O0";
+  }
+
   if (Arg *A = Args.getLastArg(options::OPT_O_Group)) {
     // Pass -O2 when the user passes -O0 due to IGC
     // debugging limitation. Note this only effects
