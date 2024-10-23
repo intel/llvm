@@ -86,6 +86,7 @@ urEnqueueKernelLaunchWithVirtualMemory.Success/Intel_R__oneAPI_Unified_Runtime_o
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion1D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion2D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueMemImageWriteTest.InvalidRegion3D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urEnqueueKernelLaunchMultiDeviceTest.KernelLaunchReadDifferentQueues/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueUSMFill2DNegativeTest.OutOfBounds/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueUSMAdviseTest.InvalidSizeTooLarge/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urEnqueueUSMPrefetchTest.InvalidSizeTooLarge/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_

@@ -472,6 +472,8 @@ struct urEnqueueKernelLaunchMultiDeviceTest : public urEnqueueKernelLaunchTest {
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchMultiDeviceTest);
 
+// TODO: rewrite this test, right now it only works for a single queue
+// (the context is only created for one device)
 TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
     ur_mem_handle_t buffer = nullptr;
     AddBuffer1DArg(sizeof(val) * global_size, &buffer);
