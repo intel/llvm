@@ -32,17 +32,13 @@
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{build} -DSYCLCOMPAT_USM_LEVEL_NONE -o %t.out
+// RUN: %{run} %t.out
 // Tests for the sycl::events returned from syclcompat::*Async API calls
 
-// TODO: Re-enable, see https://github.com/intel/llvm/issues/13636
-// and possibly related: https://github.com/intel/llvm/issues/14623
-// UNSUPPORTED: true
 #include <stdio.h>
-
 #include <sycl/detail/core.hpp>
-
 #include <syclcompat/memory.hpp>
-
 #include "memory_fixt.hpp"
 
 // enqueue_free is just a host task, so we are really testing the event
@@ -193,6 +189,11 @@ void test_combine_events() {
 }
 
 int main() {
+#ifdef SYCLCOMPAT_USM_LEVEL_NONE
+  std::cout << "Running SYCLCOMPAT_USM_LEVEL_NONE tests" << std::endl;
+#else
+  std::cout << "Running USM tests" << std::endl;
+#endif
   test_free_async();
 
   test_memcpy_async1();

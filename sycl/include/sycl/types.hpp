@@ -12,7 +12,6 @@
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/type_list.hpp>           // for is_contained

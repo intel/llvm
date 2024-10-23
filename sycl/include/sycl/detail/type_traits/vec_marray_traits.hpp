@@ -99,6 +99,10 @@ struct element_type<T __attribute__((ext_vector_type(N)))> {
 #endif
 template <typename T> using element_type_t = typename element_type<T>::type;
 
+template <int N>
+inline constexpr bool is_allowed_vec_size_v =
+    N == 1 || N == 2 || N == 3 || N == 4 || N == 8 || N == 16;
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

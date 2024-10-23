@@ -11,7 +11,6 @@
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 
 #include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/detail/generic_type_lists.hpp> // for vec, marray, integer_list
 #include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
 
 #include <array>       // for array
