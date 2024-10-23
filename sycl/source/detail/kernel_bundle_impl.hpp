@@ -410,24 +410,31 @@ public:
     auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
         Devices[0], UserArgs, SourceStr);
     if (!BinProg.empty()) {
-      ur_device_handle_t UrDevice = getSyclObjImpl(Devices[0])->getHandleRef();
-      ur_result_t BinaryStatus = UR_RESULT_SUCCESS;
+      std::vector<ur_device_handle_t> DeviceHandles;
+      std::transform(Devices.begin(), Devices.end(),
+                     std::back_inserter(DeviceHandles), [](const device &Dev) {
+                       return getSyclObjImpl(Dev)->getHandleRef();
+                     });
+
+      std::vector<const uint8_t *> Binaries;
+      std::vector<size_t> Lengths;
+      for (size_t i = 0; i < Devices.size(); i++) {
+        auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+            Devices[i], UserArgs, SourceStr);
+        Binaries.push_back((uint8_t *)(BinProg.data()));
+        Lengths.push_back(BinProg.size());
+      }
+
       ur_program_properties_t Properties = {};
       Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
       Properties.pNext = nullptr;
       Properties.count = 0;
       Properties.pMetadatas = nullptr;
-      BinaryStatus = Adapter->call_nocheck<UrApiKind::urProgramCreateWithBinary>(
-          ContextImpl->getHandleRef(), UrDevice, BinProg[0].size(),
-          (const unsigned char *)BinProg[0].data(), &Properties, &UrProgram);
 
-      if (BinaryStatus == UR_RESULT_SUCCESS) {
-        ur_result_t Error = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
-            UrProgram,
-            /*num devices =*/1, &UrDevice, UserArgs.c_str());
-
-        return (Error == UR_RESULT_SUCCESS);
-      }
+      Adapter->call<UrApiKind::urProgramCreateWithBinary>(
+          ContextImpl->getHandleRef(), DeviceHandles.size(),
+          DeviceHandles.data(), Lengths.data(), Binaries.data(), &Properties,
+          &UrProgram);
     }
     return false;
   }
@@ -546,9 +553,11 @@ public:
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
         SourceStrPtr) {
-      PersistentDeviceCodeCache::putCompiledKernelToDisc(
-          Devices[0], syclex::detail::userArgsAsString(BuildOptions),
-          *SourceStrPtr, UrProgram);
+      for (const auto &Device : Devices) {
+        PersistentDeviceCodeCache::putCompiledKernelToDisc(
+            Device, syclex::detail::userArgsAsString(BuildOptions),
+            *SourceStrPtr, UrProgram);
+      }
     }
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
