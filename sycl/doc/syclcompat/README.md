@@ -59,6 +59,10 @@ If available, the following extensions extend SYCLcompat functionality:
   https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
   \[Optional\]
 
+### Hardware Requirements
+
+Some of the functionalities provided by SYCLcompat rely on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer-support) below.
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -606,14 +610,6 @@ namespace syclcompat {
 namespace experimental {
 // Forward declarations for types relating to unsupported memcpy_parameter API:
 
-enum memcpy_direction {
-  host_to_host,
-  host_to_device,
-  device_to_host,
-  device_to_device,
-  automatic
-};
-
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
 #endif
@@ -632,7 +628,6 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
 };
 
 /// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
@@ -709,18 +704,16 @@ enum class memory_region {
 
 using byte_t = uint8_t;
 
-enum class target { device, local };
-
 template <memory_region Memory, class T = byte_t> class memory_traits {
 public:
   static constexpr sycl::access::address_space asp =
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr target target =
+  static constexpr sycl::target target =
       (Memory == memory_region::local)
-          ? target::local
-          : target::device;
+          ? sycl::target::local
+          : sycl::target::device;
   static constexpr sycl::access_mode mode =
       (Memory == memory_region::constant)
           ? sycl::access_mode::read
@@ -731,7 +724,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t = typename std::conditional_t<
-      target == target::local,
+      target == sycl::target::local,
       sycl::local_accessor<T, Dimension>,
       sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
@@ -854,6 +847,23 @@ public:
 
 } // syclcompat
 ```
+
+#### Buffer Support
+
+Although SYCLcompat is primarily designed around the Unified Shared Memory
+model, there is (limited) support for the buffer/accessor model. This can be
+enabled by setting the compiler define `SYCLCOMPAT_USM_LEVEL_NONE`. This macro
+instructs SYCLcompat to effectively provide emulated USM pointers via a Memory
+Manager singleton.
+
+Note that in `SYCLCOMPAT_USM_LEVEL_NONE` mode, the pointers returned by e.g.
+`syclcompat::malloc`, and passed to `syclcompat::memcpy` can *only* interact
+with `syclcompat` APIs. It is legal to perform pointer arithmetic on these
+virtual pointers, but attempting to dereference them, passing them to `sycl`
+APIs, or passing them into kernels will result in an error.
+
+The SYCLcompat tests with the suffix `_usmnone.cpp` provide examples of how to
+use `SYCLCOMPAT_USM_LEVEL_NONE`.
 
 ### ptr_to_int
 
