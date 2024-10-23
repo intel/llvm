@@ -703,11 +703,17 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABI64)
           Target.setEnvironment(llvm::Triple::GNUABIN32);
+        else if (Target.getEnvironment() == llvm::Triple::Musl ||
+                 Target.getEnvironment() == llvm::Triple::MuslABI64)
+          Target.setEnvironment(llvm::Triple::MuslABIN32);
       } else if (ABIName == "64") {
         Target = Target.get64BitArchVariant();
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABIN32)
           Target.setEnvironment(llvm::Triple::GNUABI64);
+        else if (Target.getEnvironment() == llvm::Triple::Musl ||
+                 Target.getEnvironment() == llvm::Triple::MuslABIN32)
+          Target.setEnvironment(llvm::Triple::MuslABI64);
       }
     }
   }
@@ -2791,7 +2797,8 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
 
   if (C.getArgs().hasArg(options::OPT_print_multi_lib)) {
     for (const Multilib &Multilib : TC.getMultilibs())
-      llvm::outs() << Multilib << "\n";
+      if (!Multilib.isFatalError())
+        llvm::outs() << Multilib << "\n";
     return false;
   }
 
@@ -3957,12 +3964,6 @@ class OffloadingActionBuilder final {
         // Set the flag to true, so that the builder acts on the current input.
         IsActive = true;
 
-        if (CompileHostOnly)
-          return ABRT_Success;
-
-        // Replicate inputs for each GPU architecture.
-        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
-                                                 : types::TY_CUDA_DEVICE;
         std::string CUID = FixedCUID.str();
         if (CUID.empty()) {
           if (UseCUID == CUID_Random)
@@ -3986,6 +3987,12 @@ class OffloadingActionBuilder final {
         }
         IA->setId(CUID);
 
+        if (CompileHostOnly)
+          return ABRT_Success;
+
+        // Replicate inputs for each GPU architecture.
+        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
+                                                 : types::TY_CUDA_DEVICE;
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           CudaDeviceActions.push_back(
               C.MakeAction<InputAction>(IA->getInputArg(), Ty, IA->getId()));
@@ -7446,8 +7453,30 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
           Args.hasArg(options::OPT_fintelfpga)) {
         // Wrap the object when creating an FPGA AOCX or AOCR binary.
-        auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
-        auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
+        // When the input file is an AOCR (early) archive, the unbundled host
+        // binary consists of a list of objects. We cannot directly wrap that
+        // binary to be consumed later - this has to go through each listed
+        // object.
+        bool FPGAEarly = true;
+        if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
+          FPGAEarly = A->getValue() == StringRef("early");
+
+        Action *WrapperAction;
+        if ((LI->getType() == types::TY_FPGA_AOCR ||
+             LI->getType() == types::TY_FPGA_AOCR_EMU) &&
+            !FPGAEarly) {
+          auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+              LI, types::TY_Tempfilelist, types::TY_Tempfilelist);
+          RenameAction->addRenameColumnTform(FileTableTformJobAction::COL_ZERO,
+                                             FileTableTformJobAction::COL_CODE);
+          ActionList WrapperItems({RenameAction});
+          WrapperAction = C.MakeAction<OffloadWrapperJobAction>(
+              WrapperItems, types::TY_LLVM_BC);
+        } else
+          WrapperAction =
+              C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
+        auto *ASM =
+            C.MakeAction<BackendJobAction>(WrapperAction, types::TY_PP_Asm);
         auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
         OffloadAction::HostDependence HDep(
             *OBJ, *C.getSingleOffloadToolChain<Action::OFK_Host>(),

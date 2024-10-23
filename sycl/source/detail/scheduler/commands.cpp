@@ -2297,6 +2297,8 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_work_group_memory:
+    break;
   case kernel_param_kind_t::kind_stream:
     break;
   case kernel_param_kind_t::kind_accessor: {
@@ -2558,12 +2560,22 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
+  // Command-buffers which are not updatable cannot return command handles, so
+  // we query the descriptor here to check if a handle is required.
+  ur_exp_command_buffer_desc_t CommandBufferDesc{};
+
+  Adapter->call<UrApiKind::urCommandBufferGetInfoExp>(
+      CommandBuffer,
+      ur_exp_command_buffer_info_t::UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR,
+      sizeof(ur_exp_command_buffer_desc_t), &CommandBufferDesc, nullptr);
+
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
           &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
-          OutCommand);
+          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
+          OutSyncPoint, nullptr,
+          CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
   if (!SyclKernelImpl && !Kernel) {
     Adapter->call<UrApiKind::urKernelRelease>(UrKernel);

@@ -127,7 +127,7 @@ ToolChain::executeToolChainProgram(StringRef Executable) const {
                                      "CLANG_TOOLCHAIN_PROGRAM_TIMEOUT expected "
                                      "an integer, got '" +
                                          *Str + "'");
-    SecondsToWait = std::min(SecondsToWait, 0); // infinite
+    SecondsToWait = std::max(SecondsToWait, 0); // infinite
   }
   if (llvm::sys::ExecuteAndWait(Executable, {}, {}, Redirects, SecondsToWait,
                                 /*MemoryLimit=*/0, &ErrorMessage))
@@ -1518,6 +1518,9 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
+
+void ToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                                   ArgStringList &CC1Args) const {}
 
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getDeviceLibs(

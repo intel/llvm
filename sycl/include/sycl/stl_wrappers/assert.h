@@ -18,7 +18,7 @@
 
 extern "C++" {
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_vars.hpp>
+#include <sycl/__spirv/spirv_vars.hpp>
 
 // Device assertions on Windows do not work properly so we define these wrappers
 // around the STL assertion headers cassert and assert.h where we redefine

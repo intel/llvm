@@ -59,6 +59,10 @@ If available, the following extensions extend SYCLcompat functionality:
   https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
   \[Optional\]
 
+### Hardware Requirements
+
+Some of the functionalities provided by SYCLcompat rely on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer-support) below.
+
 ## Usage
 
 All functionality is available under the `syclcompat::` namespace, imported
@@ -606,14 +610,6 @@ namespace syclcompat {
 namespace experimental {
 // Forward declarations for types relating to unsupported memcpy_parameter API:
 
-enum memcpy_direction {
-  host_to_host,
-  host_to_device,
-  device_to_host,
-  device_to_device,
-  automatic
-};
-
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
 #endif
@@ -632,7 +628,6 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
 };
 
 /// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
@@ -709,18 +704,16 @@ enum class memory_region {
 
 using byte_t = uint8_t;
 
-enum class target { device, local };
-
 template <memory_region Memory, class T = byte_t> class memory_traits {
 public:
   static constexpr sycl::access::address_space asp =
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr target target =
+  static constexpr sycl::target target =
       (Memory == memory_region::local)
-          ? target::local
-          : target::device;
+          ? sycl::target::local
+          : sycl::target::device;
   static constexpr sycl::access_mode mode =
       (Memory == memory_region::constant)
           ? sycl::access_mode::read
@@ -731,7 +724,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t = typename std::conditional_t<
-      target == target::local,
+      target == sycl::target::local,
       sycl::local_accessor<T, Dimension>,
       sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
@@ -854,6 +847,23 @@ public:
 
 } // syclcompat
 ```
+
+#### Buffer Support
+
+Although SYCLcompat is primarily designed around the Unified Shared Memory
+model, there is (limited) support for the buffer/accessor model. This can be
+enabled by setting the compiler define `SYCLCOMPAT_USM_LEVEL_NONE`. This macro
+instructs SYCLcompat to effectively provide emulated USM pointers via a Memory
+Manager singleton.
+
+Note that in `SYCLCOMPAT_USM_LEVEL_NONE` mode, the pointers returned by e.g.
+`syclcompat::malloc`, and passed to `syclcompat::memcpy` can *only* interact
+with `syclcompat` APIs. It is legal to perform pointer arithmetic on these
+virtual pointers, but attempting to dereference them, passing them to `sycl`
+APIs, or passing them into kernels will result in an error.
+
+The SYCLcompat tests with the suffix `_usmnone.cpp` provide examples of how to
+use `SYCLCOMPAT_USM_LEVEL_NONE`.
 
 ### ptr_to_int
 
@@ -1048,6 +1058,10 @@ static inline unsigned int get_device_id(const sycl::device &dev);
 // Util function to get the number of available devices
 static inline unsigned int device_count();
 
+// Util function to check whether a device supports some kinds of sycl::aspect.
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props);
 } // syclcompat
 ```
 
@@ -1108,6 +1122,7 @@ class device_ext : public sycl::device {
   int get_max_work_group_size() const;
   int get_mem_base_addr_align() const;
   size_t get_global_mem_size() const;
+  size_t get_local_mem_size() const;
   void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
@@ -1569,6 +1584,27 @@ public:
 } // namespace syclcompat
 ```
 
+SYCLcompat provides a wrapper API `max_active_work_groups_per_cu` providing
+'work-groups per compute unit' semantics. It is templated on the kernel
+functor, and takes a work-group size represented by either `sycl::range<Dim>`
+or `syclcompat::dim3`, the local memory size in bytes, and an optional queue.
+The function returns the maximum number of work-groups which can be executed
+per compute unit. May return *zero* even when below resource limits (i.e.
+returning `0` does not imply the kernel cannot execute).
+```cpp
+namespace syclcompat{
+template <class KernelName>
+size_t max_active_work_groups_per_cu(
+    syclcompat::dim3 wg_dim3, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue());
+
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(
+    sycl::range<RangeDim> wg_range, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue());
+}
+```
+
 To assist machine translation, helper aliases are provided for inlining and
 alignment attributes. The class template declarations `sycl_compat_kernel_name`
 and `sycl_compat_kernel_scalar` are used to assist automatic generation of
@@ -1584,6 +1620,10 @@ exceptions are thrown, it returns `syclcompat::error_code::success`. If a
 If a `std::runtime_error` exception is caught,
 `syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
+
+`get_error_string_dummy` is a dummy function introduced to assist auto
+migration. The SYCLomatic user should replace it with a real error-handling 
+function. SYCL reports errors using exceptions and does not use error codes.
 
 ``` c++
 namespace syclcompat {
@@ -1605,7 +1645,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
@@ -1616,6 +1656,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 namespace syclcompat {
 enum error_code { success = 0, backend_error = 1, default_error = 999 };
+inline const char *get_error_string_dummy(int ec);
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
@@ -1725,7 +1766,51 @@ second operand, respectively. These three APIs return a single 32-bit value with
 the accumulated result, which is unsigned if both operands are `uint32_t` and
 signed otherwise.
 
+Various maths functions are defined operate on any floating point types.
+`syclcompat::is_floating_point_v` extends the standard library's
+`std::is_floating_point_v` to include `sycl::half` and, where available,
+`sycl::ext::oneapi::bfloat16`. The current version of SYCLcompat also provides
+a specialization of `std::common_type_t` for `sycl::ext::oneapi::bfloat16`,
+though this will be moved to the `sycl_ext_oneapi_bfloat16` extension in
+future.
+
 ```cpp
+namespace std {
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+} // namespace std
+```
+
+```cpp
+namespace syclcompat{
+
+// Trait for extended floating point definition
+template <typename T>
+struct is_floating_point : std::is_floating_point<T>{};
+
+template <> struct is_floating_point<sycl::half> : std::true_type {};
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <> struct is_floating_point<sycl::ext::oneapi::bfloat16> : std::true_type {};
+#endif
+template <typename T>
+
+inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
 
@@ -1752,11 +1837,9 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
 // cbrt function wrapper.
 template <typename ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+                            std::is_same_v<ValueT, sycl::half>,
                         ValueT>
-cbrt(ValueT val) {
-  return sycl::cbrt(static_cast<ValueT>(val));
-}
+cbrt(ValueT val);
 
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
@@ -1794,6 +1877,10 @@ template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
 
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
+
 // Performs 2 elements comparison and returns the smaller one. If either of
 // inputs is NaN, then return NaN.
 template <typename ValueT, typename ValueU>
@@ -1802,6 +1889,10 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
 
 inline float pow(const float a, const int b) { return sycl::pown(a, b); }
 inline double pow(const double a, const int b) { return sycl::pown(a, b); }
@@ -1815,17 +1906,11 @@ template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
 pow(const ValueT a, const ValueU b);
 
-template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
-relu(const ValueT a);
+template <typename ValueT> inline ValueT relu(const ValueT a);
 
-template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        sycl::vec<ValueT, 2>>
-relu(const sycl::vec<ValueT, 2> a);
+template <class ValueT, int NumElements>
+inline sycl::vec<ValueT, NumElements>
+relu(const sycl::vec<ValueT, NumElements> a);
 
 template <class ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
@@ -1863,14 +1948,13 @@ unordered_compare_both(const ValueT a, const ValueT b,
                        const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
-                             const sycl::vec<ValueT, 2> b,
-                             const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
-                                       const sycl::vec<ValueT, 2> b,
-                                       const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+unordered_compare_mask(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1924,13 +2008,17 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
 template <typename T1, typename T2>
 inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
                                       dot_product_acc_t<T1, T2> c);
+} // namespace syclcompat
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
 with each value treated as a vector type. `vectorized_unary` offers the same
-interface for operations with a single operand.
+interface for operations with a single operand. `vectorized_ternary` offers the
+interface for three operands with two `BinaryOperation`.
 The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
 `maximum`, `minimum`, and `sub_sat`.
+And the `vectorized_with_pred` offers the `BinaryOperation` for two operands,
+meanwihle provides the pred of high/low halfword operation.
 
 ```cpp
 namespace syclcompat {
@@ -1945,7 +2033,19 @@ struct abs {
 
 template <typename VecT, class BinaryOperation>
 inline unsigned vectorized_binary(unsigned a, unsigned b,
-                                  const BinaryOperation binary_op);
+                                  const BinaryOperation binary_op,
+                                  bool need_relu = false);
+
+template <typename VecT, typename BinaryOperation1, typename BinaryOperation2>
+inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
+                                   const BinaryOperation1 binary_op1,
+                                   const BinaryOperation2 binary_op2,
+                                   bool need_relu = false);
+
+template <typename ValueT, typename BinaryOperation>
+inline unsigned vectorized_with_pred(unsigned a, unsigned b,
+                                     const BinaryOperation binary_op,
+                                     bool *pred_hi, bool *pred_lo);
 
 // A sycl::abs_diff wrapper functor.
 struct abs_diff {
@@ -1971,11 +2071,15 @@ struct hadd {
 struct maximum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::min wrapper functor.
 struct minimum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::sub_sat wrapper functor.
 struct sub_sat {
