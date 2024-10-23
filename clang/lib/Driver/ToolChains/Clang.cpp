@@ -2942,12 +2942,28 @@ static void EmitComplexRangeDiag(const Driver &D, std::string str1,
   }
 }
 
+static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
+                             StringRef AccuracValStr, StringRef TargetPrecStr) {
+  if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    D.Diag(clang::diag::warn_acuracy_conflicts_with_explicit_target_prec_option)
+        << AccuracValStr << TargetPrecStr;
+  }
+}
+
 static std::string
 RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
   std::string ComplexRangeStr = ComplexRangeKindToStr(Range);
   if (!ComplexRangeStr.empty())
     return "-complex-range=" + ComplexRangeStr;
   return ComplexRangeStr;
+}
+
+static bool shouldUsePreciseDivision(const ArgList &Args) {
+  return Args.hasArg(options::OPT_ftarget_prec_div);
+}
+
+static bool shouldUsePreciseSqrt(const ArgList &Args) {
+  return Args.hasArg(options::OPT_ftarget_prec_sqrt);
 }
 
 static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
@@ -2998,6 +3014,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
+  bool NoTargetPrecDiv = false;
+  bool NoTargetPrecSqrt = false;
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&]() {
@@ -3060,6 +3078,19 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     // If this isn't an FP option skip the claim below
     default: continue;
 
+    case options::OPT_ftarget_prec_div:
+    case options::OPT_ftarget_prec_sqrt:
+      break;
+    case options::OPT_fno_target_prec_sqrt:
+        if (!FPAccuracy.empty())
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-sqrt");
+        NoTargetPrecSqrt = true;
+      break;
+    case options::OPT_fno_target_prec_div:
+      if (!FPAccuracy.empty())
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-div");
+      NoTargetPrecDiv = true;
+      break;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
         if (Range != LangOptions::ComplexRangeKind::CX_Basic)
@@ -3144,6 +3175,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_ffp_accuracy_EQ: {
       StringRef Val = A->getValue();
       FPAccuracy = Val;
+      if (NoTargetPrecDiv)
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-div");
+      if (NoTargetPrecSqrt)
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-sqrt");
       break;
     }
     case options::OPT_ffp_model_EQ: {
@@ -3176,6 +3211,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         applyFastMath();
         // applyFastMath sets fp-contract="fast"
         LastFpContractOverrideOption = "-ffp-model=fast";
+        if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+          // when fp-model=fast is used the default precision for division and
+          // sqrt is not precise.
+          NoTargetPrecDiv = shouldUsePreciseDivision(Args);
+          NoTargetPrecSqrt = shouldUsePreciseSqrt(Args);
+        }
       } else if (Val == "precise") {
         FPModel = Val;
         FPContract = "on";
@@ -3557,6 +3598,16 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-fno-cx-limited-range");
   if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
+  if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+    if (NoTargetPrecDiv)
+      CmdArgs.push_back("-fno-target-prec-div");
+    else
+      CmdArgs.push_back("-ftarget-prec-div");
+    if (NoTargetPrecSqrt)
+      CmdArgs.push_back("-fno-target-prec-sqrt");
+    else
+      CmdArgs.push_back("-ftarget-prec-sqrt");
+  }
 }
 
 static void RenderAnalyzerOptions(const ArgList &Args, ArgStringList &CmdArgs,

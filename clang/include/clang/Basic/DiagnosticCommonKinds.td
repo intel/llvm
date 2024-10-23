@@ -379,6 +379,11 @@ def err_ppc_impossible_musttail: Error<
 def err_aix_musttail_unsupported: Error<
   "'musttail' attribute is not supported on AIX">;
 
+def warn_acuracy_conflicts_with_explicit_target_prec_option : Warning<
+  "floating point accuracy control '%0' conflicts with explicit target "
+  "precision option '%1'">,
+  InGroup<DiagGroup<"accuracy-conflicts-with-explicit-target-prec-option">>;
+
 // Source manager
 def err_cannot_open_file : Error<"cannot open file '%0': %1">, DefaultFatal;
 def err_file_modified : Error<

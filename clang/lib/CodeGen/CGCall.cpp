@@ -1889,15 +1889,23 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
           Int32Ty, convertFPAccuracyToAspect(FuncMapIt->second)));
     }
   }
-  if (FuncAttrs.attrs().size() == 0)
+  if (FuncAttrs.attrs().size() == 0) {
+    StringRef FPAccuracyVal;
     if (!getLangOpts().FPAccuracyVal.empty()) {
-      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+      FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
           ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
     }
+    if (Name == "sqrt" && !getLangOpts().TargetPrecSqrt)
+      FPAccuracyVal = "3.0";
+    if (Name == "fdiv" && !getLangOpts().TargetPrecDiv)
+      FPAccuracyVal = "2.5";
+    if (!FPAccuracyVal.empty())
+      FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
+  }
 }
 
 /// Add denormal-fp-math and denormal-fp-math-f32 as appropriate for the
@@ -5790,10 +5798,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   // Emit the actual call/invoke instruction.
   llvm::CallBase *CI;
   if (!InvokeDest) {
-    if (!getLangOpts().FPAccuracyFuncMap.empty() ||
-        !getLangOpts().FPAccuracyVal.empty()) {
-      const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
-      if (FD && FD->getNameInfo().getName().isIdentifier()) {
+    const auto *FD = dyn_cast_if_present<FunctionDecl>(TargetDecl);
+    if (FD && FD->getNameInfo().getName().isIdentifier()) {
+      StringRef FuncName = FD->getName();
+      const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
+      if (!getLangOpts().FPAccuracyFuncMap.empty() ||
+          !getLangOpts().FPAccuracyVal.empty() ||
+          (FuncName == "sqrt" && !getLangOpts().TargetPrecSqrt &&
+           IsFloat32Type) ||
+          (FuncName == "fdiv" && !getLangOpts().TargetPrecDiv &&
+           IsFloat32Type)) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());
         if (CI)

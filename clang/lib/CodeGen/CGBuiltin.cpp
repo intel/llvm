@@ -24099,6 +24099,7 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
             .Case("sincos", llvm::Intrinsic::fpbuiltin_sincos)
             .Case("exp10", llvm::Intrinsic::fpbuiltin_exp10)
             .Case("rsqrt", llvm::Intrinsic::fpbuiltin_rsqrt)
+            .Case("sqrt", llvm::Intrinsic::fpbuiltin_sqrt)
             .Default(0);
   } else {
     // The function has a clang builtin. Create an attribute for it
@@ -24200,7 +24201,8 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
   // a TU fp-accuracy requested.
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
-      !LangOpts.FPAccuracyVal.empty()) {
+      !LangOpts.FPAccuracyVal.empty() || !LangOpts.TargetPrecDiv ||
+      !LangOpts.TargetPrecSqrt) {
     llvm::Function *Func =
         CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
