@@ -1,6 +1,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <numeric>
@@ -32,12 +33,10 @@ int sum(sycl::queue q, int *array, size_t N) {
 int main(int argc, char *argv[]) {
 
   constexpr size_t N = 32;
-  int *array = new int[N];
-  std::iota(array, array + N, 1);
+  std::array<int, N> array;
+  std::iota(array.begin(), array.end(), 1);
 
   sycl::queue q;
-  int x = sum(q, array, N);
+  int x = sum(q, array.data(), N);
   assert(x == 528);
-
-  delete[] array;
 }
