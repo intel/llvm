@@ -17,7 +17,6 @@
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
 
-#include <unistd.h>
 #include <sys/stat.h>
 #include <thread>
 #include <vector>
