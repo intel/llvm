@@ -12,7 +12,7 @@
 
 #pragma once
 
-#include "asan/asan_allocator.hpp"
+#include "asan_allocator.hpp"
 #include "sanitizer_common/sanitizer_libdevice.hpp"
 
 #include <unordered_set>
@@ -134,7 +134,7 @@ struct ShadowMemoryPVC final : public ShadowMemoryGPU {
     size_t GetShadowSize() override { return 0x180000000000ULL; }
 };
 
-/// Shadow Memory layout of GPU PVC device
+/// Shadow Memory layout of GPU DG2 device
 ///
 /// USM Allocation Range (48 bits)
 ///   Host/Shared USM : 0x0000_0000_0000_0000 ~ 0x0000_7fff_ffff_ffff
