@@ -10,6 +10,8 @@
 
 #include "Inputs/sycl.hpp"
 
+// expected-note@+4 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+3 {{attribute 'intel::sub_group_size' is deprecated}}
 // expected-error@+2 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
@@ -17,6 +19,8 @@
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] [[intel::sub_group_size(1)]] void f2();
 
+// expected-note@+3 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+2 {{attribute 'intel::sub_group_size' is deprecated}}
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::sub_group_size(1)]] void f3();
 // expected-error@+1 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
@@ -24,6 +28,8 @@
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] void f4();
+// expected-note@+3 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+2 {{attribute 'intel::sub_group_size' is deprecated}}
 // expected-error@+1 {{'sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
 [[intel::sub_group_size(1)]] void f4();
 
@@ -115,8 +121,14 @@ void calls_kernel_3() {
   });
 }
 
+// expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+1{{attribute 'intel::sub_group_size' is deprecated}}
 [[intel::sub_group_size(10)]] void AttrFunc2() {}                           // #AttrFunc2
+// expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+1{{attribute 'intel::sub_group_size' is deprecated}}
 [[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalDefined2() {}  // #AttrExternalDefined2
+// expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
+// expected-warning@+1{{attribute 'intel::sub_group_size' is deprecated}}
 [[intel::sub_group_size(10)]] SYCL_EXTERNAL void AttrExternalNotDefined2(); // #AttrExternalNotDefined2
 
 void calls_kernel_4() {
@@ -153,7 +165,7 @@ void calls_kernel_5() {
 
 // Don't diag with the old sub-group-size.
 void calls_kernel_6() {
-  // expected-note@+2 {{did you mean to use 'intel::reqd_sub_group_size' instead?}}
+  // expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
   // expected-warning@+1{{attribute 'intel::reqd_sub_group_size' is deprecated}}
   sycl::kernel_single_task<class Kernel6>([]() [[intel::reqd_sub_group_size(10)]] { // #Kernel6
     NoAttrExternalNotDefined();

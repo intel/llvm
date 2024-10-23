@@ -2859,6 +2859,25 @@ static void handleWorkGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
                  WorkGroupAttr(S.Context, AL, WGSize[0], WGSize[1], WGSize[2]));
 }
 
+// Handles reqd_sub_group_size and sub_group_size.
+static void handleSubGroupSize(Sema &S, Decl *D, const ParsedAttr &AL) {
+  if (!AL.checkExactlyNumArgs(S, 1))
+    return;
+
+  uint32_t WGSize[1];
+  Expr *E = AL.getArgAsExpr(0);
+  if (!S.checkUInt32Argument(AL, E, WGSize[0], 0,
+                             /*StrictlyUnsigned=*/true))
+    return;
+  if (WGSize[0] == 0) {
+    S.Diag(AL.getLoc(), diag::err_attribute_argument_is_zero)
+        << AL << E->getSourceRange();
+    return;
+  }
+  D->addAttr(::new (S.Context)
+                 IntelReqdSubGroupSizeAttr(S.Context, AL, E));
+}
+
 static void handleVecTypeHint(Sema &S, Decl *D, const ParsedAttr &AL) {
   // Given attribute is deprecated without replacement in SYCL 2020 mode.
   // Ignore the attribute in SYCL 2020.
@@ -6801,7 +6820,11 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     S.SYCL().handleSYCLIntelMaxWorkGroupsPerMultiprocessor(D, AL);
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
-    S.SYCL().handleIntelReqdSubGroupSizeAttr(D, AL);
+    // TODO: deprecate other spellings and change if to assert
+    if (S.getLangOpts().SYCLIsDevice || S.getLangOpts().SYCLIsHost)
+      S.SYCL().handleIntelReqdSubGroupSizeAttr(D, AL);
+    else
+      handleSubGroupSize(S, D, AL);
     break;
   case ParsedAttr::AT_IntelNamedSubGroupSize:
     S.SYCL().handleIntelNamedSubGroupSizeAttr(D, AL);
