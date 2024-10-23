@@ -118,7 +118,7 @@ template <typename property_t, typename property_key_t = property_t>
 struct property_base : property_key_tag<property_key_t> {
 protected:
   using key_t = property_key_t;
-  constexpr property_t get_property(property_key_tag<key_t>) const {
+  constexpr property_t get_property_impl(property_key_tag<key_t>) const {
     // In fact, `static_cast` below works just fine with clang/msvc but not with
     // gcc, see https://godbolt.org/z/MY6849jGh for a reduced test. However, we
     // need to support all ,so special case for compile-time properties (when
@@ -257,7 +257,7 @@ class __SYCL_EBO properties<
   static_assert(
       detail::properties_are_sorted<property_tys...>,
       "Properties must be sorted!");
-  using property_tys::get_property...;
+  using property_tys::get_property_impl...;
 
   template <typename, typename> friend class __SYCL_EBO properties;
 
@@ -296,30 +296,30 @@ public:
   // Two methods below do the following (pseudocode):
   //
   // template <property_key_t>
-  // using ret_t = decltype(this->get_property(key_tag<property_key_t>{}));
+  // using ret_t = decltype(this->get_property_impl(key_tag<property_key_t>{}));
   // static constexpr auto get_property() requires(is_empty_v<ret_t>) {
   //   return ret_t{};
   // }
   // constexpr auto get_property() const requires(!is_empty_v<ret_t>) {
-  //   return get_property(key_tag<property_key_t>{});
+  //   return get_property_impl(key_tag<property_key_t>{});
   // }
   template <typename property_key_t>
   static constexpr auto get_property() -> std::enable_if_t<
-      std::is_empty_v<decltype(std::declval<properties>().get_property(
+      std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
           detail::property_key_tag<property_key_t>{}))>,
-      decltype(std::declval<properties>().get_property(
+      decltype(std::declval<properties>().get_property_impl(
           detail::property_key_tag<property_key_t>{}))> {
-    return decltype(std::declval<properties>().get_property(
+    return decltype(std::declval<properties>().get_property_impl(
         detail::property_key_tag<property_key_t>{})){};
   }
 
   template <typename property_key_t>
   constexpr auto get_property() const -> std::enable_if_t<
-      !std::is_empty_v<decltype(std::declval<properties>().get_property(
+      !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
           detail::property_key_tag<property_key_t>{}))>,
-      decltype(std::declval<properties>().get_property(
+      decltype(std::declval<properties>().get_property_impl(
           detail::property_key_tag<property_key_t>{}))> {
-    return get_property(detail::property_key_tag<property_key_t>{});
+    return get_property_impl(detail::property_key_tag<property_key_t>{});
   }
 
   // TODO: Do we need separate `static` overload if we decide to keep this
@@ -345,6 +345,16 @@ public:
   operator+(const properties &lhs, const other_property_t &rhs) {
     return ext::oneapi::experimental::new_properties::properties{
         static_cast<const property_tys &>(lhs)..., rhs};
+  }
+
+  template <typename... other_property_tys>
+  friend constexpr auto
+  operator+(const properties &lhs,
+            const ext::oneapi::experimental::new_properties::properties<
+                detail::properties_type_list<other_property_tys...>> &rhs) {
+    return ext::oneapi::experimental::new_properties::properties{
+        static_cast<const property_tys &>(lhs)...,
+        static_cast<const other_property_tys &>(rhs)...};
   }
 };
 
