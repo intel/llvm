@@ -50,13 +50,12 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 159
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 158
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
 //
-// CHECK: AOT/fpga-aoc-archive-split-per-kernel.cpp
-// CHECK-NEXT: AddressSanitizer/nullpointer/private_nullptr.cpp
+// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/accessor/accessor.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
