@@ -12,6 +12,7 @@
 
 #include "ur_sanitizer_layer.hpp"
 #include "asan/asan_ddi.hpp"
+#include "msan/msan_ddi.hpp"
 
 namespace ur_sanitizer_layer {
 context_t *getContext() { return context_t::get_direct(); }
@@ -25,6 +26,9 @@ ur_result_t context_t::tearDown() {
     switch (enabledType) {
     case SanitizerType::AddressSanitizer:
         destroyAsanInterceptor();
+        break;
+    case SanitizerType::MemorySanitizer:
+        destroyMsanInterceptor();
         break;
     default:
         break;

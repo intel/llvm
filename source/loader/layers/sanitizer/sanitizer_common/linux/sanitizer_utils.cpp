@@ -26,6 +26,15 @@ namespace ur_sanitizer_layer {
 
 bool IsInASanContext() { return (void *)__asan_init != nullptr; }
 
+uptr MmapFixedNoReserve(uptr Addr, uptr Size) {
+    Size = RoundUpTo(Size, EXEC_PAGESIZE);
+    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+    void *P =
+        mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
+             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+    return (uptr)P;
+}
+
 uptr MmapNoReserve(uptr Addr, uptr Size) {
     Size = RoundUpTo(Size, EXEC_PAGESIZE);
     Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
@@ -35,6 +44,15 @@ uptr MmapNoReserve(uptr Addr, uptr Size) {
 }
 
 bool Munmap(uptr Addr, uptr Size) { return munmap((void *)Addr, Size) == 0; }
+
+uptr ProtectMemoryRange(uptr Addr, uptr Size) {
+    Size = RoundUpTo(Size, EXEC_PAGESIZE);
+    Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
+    void *P =
+        mmap((void *)Addr, Size, PROT_NONE,
+             MAP_PRIVATE | MAP_FIXED | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+    return (uptr)P;
+}
 
 bool DontCoredumpRange(uptr Addr, uptr Size) {
     Size = RoundUpTo(Size, EXEC_PAGESIZE);

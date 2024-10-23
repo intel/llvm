@@ -6,7 +6,7 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file asan_ddi.hpp
+ * @file msan_ddi.hpp
  *
  */
 
@@ -14,9 +14,9 @@
 
 namespace ur_sanitizer_layer {
 
-void initAsanInterceptor();
-void destroyAsanInterceptor();
+void initMsanInterceptor();
+void destroyMsanInterceptor();
 
-ur_result_t initAsanDDITable(ur_dditable_t *dditable);
+ur_result_t initMsanDDITable(ur_dditable_t *dditable);
 
 } // namespace ur_sanitizer_layer
