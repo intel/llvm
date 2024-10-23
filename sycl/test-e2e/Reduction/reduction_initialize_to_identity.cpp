@@ -10,15 +10,17 @@
 
 namespace syclex = sycl::ext::oneapi::experimental;
 
-int sum(sycl::queue q, int *input, size_t N) {
+int sum(sycl::queue q, int *array, size_t N) {
 
   int result = 42;
   {
-    sycl::buffer<int> buf{&result, 1};
+    sycl::buffer<int> input_buf{array, N};
+    sycl::buffer<int> result_buf{&result, 1};
 
     q.submit([&](sycl::handler &h) {
+      auto input = sycl::accessor(input_buf, h, sycl::read_only);
       auto reduction =
-          sycl::reduction(buf, h, sycl::plus<>(),
+          sycl::reduction(result_buf, h, sycl::plus<>(),
                           syclex::properties(syclex::initialize_to_identity));
       h.parallel_for(N, reduction,
                      [=](size_t i, auto &reducer) { reducer += input[i]; });
