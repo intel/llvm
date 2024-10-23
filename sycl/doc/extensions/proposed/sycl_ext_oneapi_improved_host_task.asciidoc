@@ -1,0 +1,318 @@
+= sycl_ext_oneapi_improved_host_task
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2023-2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+The host task facility that is currently provided in SYCL has a significant
+limitation, this being that when a host task is used for backend
+interoperability, there is no way to connect an asynchronous backend API call
+with the SYCL dependency graph which is executing the host task function. This
+includes both asynchronous commands executing before the the host task which the
+host task  depends on, and asynchornous commands executing after the host task
+which are dependent on the host task. This means any asynchronous work within a
+host task function must synchronize with any asynchronous API calls before it
+returns, effectively making the host task function blocking.
+
+This extension removes these limitations by introducing an interface which
+allows incoming native event(s) to be retrieved and outgoing native event(s) to
+be propagated out from a host task function to the event returned when the host
+task is submitted.
+
+Incoming native event(s), those which the host task is dependent on, would
+ordinarily be synchronized with by the SYCL runtime, before the host task
+function is invoked. This extension introduces a property which allows these
+events to be passed to the host task function instead, allowing the host task
+function to be invoked without requiring full completion of said incoming
+events. This extension also introduces an interface which allows those native
+vents to be retrieved from within the host task function.
+
+Outgoing native event(s), those which represent dependencies created by the host
+task, previously could not be returned from a host task function, so the only
+measure of completion of interop work enqueued within a host task function was
+the completion of the host task function itself. This extension introduces a new interface which allows native events created within the host task function to be propagated out, and encapsulated in the SYCL event returned by the submission of
+the host task, such that waiting on this event will now wait on the completion
+of the host task function and any additional native events produced by it.
+
+Collectively these two additions allow host tasks to be executed entirely
+asynchronously, without any unnecessary synchronization with the host or within
+the host task function.
+
+[NOTE]
+====
+If the new interfaces are not used the behavior of the host task remains
+unchanged.
+====
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_IMPROVED_HOST_TASK` to one of the values defined in the
+table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== Host task properties
+
+A new host task property is introduced which instructs the SYCL runtime to
+pass dependent native events to the host task function instead of synchronizing
+with them as it normally would.
+
+[source,c++]
+----
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+namespace property {
+namespace host_task {
+
+class manual_interop_sync {
+ public:
+  manual_interop_sync() = default;
+};
+
+} // namespace host_task
+} // namespace property
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+----
+
+|===
+|Property|Description
+
+|The `manual_interop_sync` property instructs the SYCL runtime that the user
+assumes responsibility with the native events that a host task command depends
+on. This means that rather than synchronizing with dependent events before
+invoking the host task function, the host task lambda can execute once it has a
+full view of the native events that it depends on. Other dependencies such as
+native events for other backends or any host-side dependency not tied to a
+native event, such as the invocation of another host task, are synchronized with
+as normal.
+|===
+
+
+=== Enqueuing a host task with properties
+
+A new overload of `host_task` is introduced to allow passing properties when
+enqueueing a host task command.
+
+[source,c++]
+----
+namespace sycl {
+class handler {
+ public: 
+
+  host_task(T&& hostTaskCallable, const property_list& propList);
+
+}
+} // namespace sycl
+----
+
+Enqueues a host task command to the SYCL runtime to invoke the function
+`hostTaskCallable` once any dependent actions have completed executing. Zero or
+more properties can be provided to the enqueuing of the host task command via an
+instance of `property_list`.
+
+[NOTE]
+====
+Normally a `property_list` parameter would be added with a default argument,
+however as `host_task` did not originally take a `property_list` parameter doing
+this would cause an ambiguity.
+====
+
+
+=== Retrieving or adding events in a host task
+
+New member functions are added to the `interop_handle` class for retrieving
+dependent native events when the `property::host_task::manual_interop_sync`
+property is used when submitting the host task.
+
+Additionally new member functions are added to the `interop_handle` class for
+adding native events created within the host task. These member functions add
+native events as dependencies to the SYCL `event` returned from the submission
+of the host task as dependent events.
+
+[source,c++]
+----
+template <backend Backend>
+std::vector<backend_return_t<Backend, event>> ext_oneapi_get_native_events();
+----
+
+_Effects_: Returns a `std::vector` of the native events for the backend
+`Backend` for the dependencies for the dependencies to the host task command if
+the host task command was enqueued with the
+`property::host_task::manual_interop_sync` property, otherwise returns an
+empty `std::vector`.
+
+[source,c++]
+----
+template <backend Backend>
+void ext_oneapi_add_native_events(
+  backend_return_t<Backend, event> hostTaskEvent);
+
+template <backend Backend>
+void ext_oneapi_add_native_events(
+  const std::vector<backend_return_t<Backend, event>> &hostTaskEvents)
+----
+
+_Effects_: Adds the native event(s) `hostTaskEvent`/`hostTaskEvents` as an 
+additional dependency to the host task command completion, that will be waited
+on after waiting on the invocation of the host task function any time where the
+host task function would be waited on including `event::wait`, `queue:wait` and
+`queue::wait_and_throw`. If the function is called multiple times all native
+events provided will be waited on collectively.
+
+[NOTE]
+====
+The `std::vector` returned may also be empty if there are no dependencies for
+which there is a native event for the backend.
+====
+
+
+== Example
+
+Below is an example of using the new interfaces using the OpenCL backend.
+
+[source,c++]
+----
+int pattern = 42;
+
+auto e1 = queue.submit([=](sycl::handler &cgh) {
+  accessor acc{bufA, cgh};
+ 
+  cgh.parallel_for<kernelA>([=](sycl::id<1> idx) {
+    acc[0] = 2;
+  });
+});
+
+auto e2 = queue.submit([&](sycl::handler &cgh) {
+  accessor acc{bufB, cgh};
+
+  // creates a dependency on the previous kernel execution
+  cgh.depends_on(e1);
+
+  auto manualInteropSync =
+    ext::oneapi::experimental::property::host_task::manual_interop_sync;
+
+  cgh.host_task([&](sycl::interop_handle &ih, {ext::oneapi::experimental}) {
+    // Dependent events are returned to be synchronized with.
+    auto nativeEvents = ih.get_native_events<backend::opencl>();
+
+    auto queue = ih.get_native_queue<backend::opencl>();
+    auto mem = ih.get_native_mem<backend::opencl>(acc);
+
+    cl_event ne1;
+    clEnqueueFillBuffer(queue, mem, &pattern, sizeof(int), 1 * sizeof(int),
+      1 * sizeof(int), nativeEvents.size(), nativeEvents.data(), &ne1);
+
+    cl_event ne2;
+    clEnqueueReadBuffer(queue, mem, CL_FALSE, 0, sizeof(int), &pattern, 1,
+      &nativeEvent1, &ne2);
+
+    // The event returned by the host task function are waiting on by the event
+    // returned by submit
+    ih.ext_oneapi_add_native_events<backend::opencl>(ne2);
+
+  }, {manualInteropSync]);
+});
+
+e2.wait();
+----
+
+In this example host task interop is used to enqueue native OpenCL commands
+to an OpenCL command queue asynchronously. The OpenCL event which results from
+enqueueing these commands is then converted to a SYCL `event` via the backend
+interop interface. Then the created SYCL `event` is passed to the host task via
+`interop_handle::ext_oneapi_add_event`.
+
+
+== Implementation notes
+
+This non-normative section provides information about one possible
+implementation of this extension. It is not part of the specification of the
+extension's API.
+
+As the SYCL `event` that is returned from the submission of the host task is
+created before the host task function is executed, it is necessary for the
+SYCL `event`(s) passed to `ext_oneapi_add_native_events` be stored in a place
+accessible to the `event`, and access to this location must be provided to the
+`interop_handle` so that SYCL `events` added from the host task function can be
+propagated to the returned `SYCL` event after it's construction.
+
+Additionally the location which the native events are stored must be accessible
+to both the returned SYCL `event` and it's associated SYCL `queue` so that both
+waiting on the SYCL `event` or a SYCL `queue` will both wait on the stored SYCL
+`event`s.
+
+
+== Issues
+
+* We may want to extend this extension to allow host tasks to return SYCL events
+more generally.
+* We may want to extend this extension to have the option for invoking the host
+task function when the host task is submitted rather than at DAG execution.
+* We may want to update this extension to use compile-time properties.
