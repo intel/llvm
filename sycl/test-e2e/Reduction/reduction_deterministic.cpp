@@ -12,21 +12,20 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 float sum(sycl::queue q, float *array, size_t N) {
 
-  float result = 0;
-  {
-    sycl::buffer<float> input_buf{array, N};
-    sycl::buffer<float> result_buf{&result, 1};
+  sycl::buffer<float> input_buf{array, N};
+  sycl::buffer<float> result_buf{1};
 
-    q.submit([&](sycl::handler &h) {
-      auto input = sycl::accessor(input_buf, h, sycl::read_only);
-      auto reduction =
-          sycl::reduction(result_buf, h, sycl::plus<>(),
-                          syclex::properties(syclex::deterministic));
-      h.parallel_for(N, reduction,
-                     [=](size_t i, auto &reducer) { reducer += input[i]; });
-    });
-  }
-  return result;
+  sycl::host_accessor{result_buf}[0] = 0;
+
+  q.submit([&](sycl::handler &h) {
+    auto input = sycl::accessor(input_buf, h, sycl::read_only);
+    auto reduction = sycl::reduction(result_buf, h, sycl::plus<>(),
+                                     syclex::properties(syclex::deterministic));
+    h.parallel_for(N, reduction,
+                   [=](size_t i, auto &reducer) { reducer += input[i]; });
+  });
+
+  return sycl::host_accessor{result_buf}[0];
 }
 
 int main(int argc, char *argv[]) {

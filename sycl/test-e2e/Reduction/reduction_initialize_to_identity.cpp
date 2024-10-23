@@ -12,21 +12,21 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 int sum(sycl::queue q, int *array, size_t N) {
 
-  int result = 42;
-  {
-    sycl::buffer<int> input_buf{array, N};
-    sycl::buffer<int> result_buf{&result, 1};
+  sycl::buffer<int> input_buf{array, N};
+  sycl::buffer<int> result_buf{1};
 
-    q.submit([&](sycl::handler &h) {
-      auto input = sycl::accessor(input_buf, h, sycl::read_only);
-      auto reduction =
-          sycl::reduction(result_buf, h, sycl::plus<>(),
-                          syclex::properties(syclex::initialize_to_identity));
-      h.parallel_for(N, reduction,
-                     [=](size_t i, auto &reducer) { reducer += input[i]; });
-    });
-  }
-  return result;
+  sycl::host_accessor{result_buf}[0] = 42;
+
+  q.submit([&](sycl::handler &h) {
+    auto input = sycl::accessor(input_buf, h, sycl::read_only);
+    auto reduction =
+        sycl::reduction(result_buf, h, sycl::plus<>(),
+                        syclex::properties(syclex::initialize_to_identity));
+    h.parallel_for(N, reduction,
+                   [=](size_t i, auto &reducer) { reducer += input[i]; });
+  });
+
+  return sycl::host_accessor{result_buf}[0];
 }
 
 int main(int argc, char *argv[]) {
