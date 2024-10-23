@@ -68,8 +68,7 @@ ur_exp_image_copy_flags_t getUrImageCopyFlags(sycl::usm::alloc SrcPtrType,
       return UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
     if (SrcPtrType == sycl::usm::alloc::host ||
         SrcPtrType == sycl::usm::alloc::unknown)
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Cannot copy image from host to host");
+      return UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST;
     throw sycl::exception(make_error_code(errc::invalid),
                           "Unknown copy source location");
   }
@@ -81,6 +80,218 @@ void *getValueFromDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base
         &DynamicParamBase) {
   return sycl::detail::getSyclObjImpl(DynamicParamBase)->getValue();
+}
+
+// Bindless image helpers
+
+// Fill image type and return depth or array_size
+unsigned int
+fill_image_type(const ext::oneapi::experimental::image_descriptor &Desc,
+                ur_image_desc_t &UrDesc) {
+  if (Desc.array_size > 1) {
+    // Image Array.
+    UrDesc.type =
+        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
+
+    // Cubemap.
+    UrDesc.type =
+        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
+            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
+            : UrDesc.type;
+
+    return Desc.array_size;
+  } else {
+    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
+                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
+                                                    : UR_MEM_TYPE_IMAGE1D);
+    return Desc.depth;
+  }
+}
+
+// Fill image format
+ur_image_format_t
+fill_format(const ext::oneapi::experimental::image_descriptor &Desc) {
+  ur_image_format_t PiFormat;
+
+  PiFormat.channelType =
+      sycl::_V1::detail::convertChannelType(Desc.channel_type);
+  PiFormat.channelOrder = sycl::detail::convertChannelOrder(
+      sycl::_V1::ext::oneapi::experimental::detail::
+          get_image_default_channel_order(Desc.num_channels));
+
+  return PiFormat;
+}
+
+void verify_copy(
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
+
+  if (SrcImgDesc.width != DestImgDesc.width ||
+      SrcImgDesc.height != DestImgDesc.height ||
+      SrcImgDesc.depth != DestImgDesc.depth) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have equal dimensions!");
+  }
+
+  if (SrcImgDesc.num_channels != DestImgDesc.num_channels) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have the same number of channels!");
+  }
+}
+
+void verify_sub_copy(
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    sycl::range<3> DestOffset, sycl::range<3> CopyExtent) {
+
+  auto isOutOfRange = [](const sycl::range<3> &range,
+                         const sycl::range<3> &offset,
+                         const sycl::range<3> &copyExtent) {
+    sycl::range<3> result = (range > 0UL && ((offset + copyExtent) > range));
+
+    return (static_cast<bool>(result[0]) || static_cast<bool>(result[1]) ||
+            static_cast<bool>(result[2]));
+  };
+
+  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
+                                 SrcImgDesc.depth};
+  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
+                                  DestImgDesc.depth};
+
+  if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
+      isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
+    throw sycl::exception(
+        make_error_code(errc::invalid),
+        "Copy Error: Image copy attempted to access out of bounds memory!");
+  }
+
+  if (SrcImgDesc.num_channels != DestImgDesc.num_channels) {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: The source image and the destination "
+                          "image must have the same number of channels!");
+  }
+}
+
+ur_image_desc_t
+fill_image_desc(const ext::oneapi::experimental::image_descriptor &ImgDesc) {
+  ur_image_desc_t UrDesc = {};
+  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
+  UrDesc.width = ImgDesc.width;
+  UrDesc.height = ImgDesc.height;
+  UrDesc.depth = ImgDesc.depth;
+  UrDesc.arraySize = ImgDesc.array_size;
+  return UrDesc;
+}
+
+void fill_copy_args(
+    std::shared_ptr<detail::handler_impl> impl,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch, size_t DestPitch,
+    sycl::range<3> SrcOffset = {0, 0, 0}, sycl::range<3> SrcExtent = {0, 0, 0},
+    sycl::range<3> DestOffset = {0, 0, 0},
+    sycl::range<3> DestExtent = {0, 0, 0},
+    sycl::range<3> CopyExtent = {0, 0, 0}) {
+  SrcImgDesc.verify();
+  DestImgDesc.verify();
+
+  // CopyExtent.size() should only be greater than 0 when sub-copy is occurring.
+  if (CopyExtent.size() == 0) {
+    detail::verify_copy(SrcImgDesc, DestImgDesc);
+  } else {
+    detail::verify_sub_copy(SrcImgDesc, SrcOffset, DestImgDesc, DestOffset,
+                            CopyExtent);
+  }
+
+  ur_image_desc_t UrSrcDesc = detail::fill_image_desc(SrcImgDesc);
+  ur_image_desc_t UrDestDesc = detail::fill_image_desc(DestImgDesc);
+  ur_image_format_t UrSrcFormat = detail::fill_format(SrcImgDesc);
+  ur_image_format_t UrDestFormat = detail::fill_format(DestImgDesc);
+  auto ZCopyExtentComponent = detail::fill_image_type(SrcImgDesc, UrSrcDesc);
+  detail::fill_image_type(DestImgDesc, UrDestDesc);
+
+  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
+  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
+  impl->MSrcImageDesc = UrSrcDesc;
+  impl->MDstImageDesc = UrDestDesc;
+  impl->MSrcImageFormat = UrSrcFormat;
+  impl->MDstImageFormat = UrDestFormat;
+  impl->MImageCopyFlags = ImageCopyFlags;
+
+  if (CopyExtent.size() != 0) {
+    impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
+  } else {
+    impl->MCopyExtent = {SrcImgDesc.width, SrcImgDesc.height,
+                         ZCopyExtentComponent};
+  }
+
+  if (SrcExtent.size() != 0) {
+    impl->MSrcImageDesc.width = SrcExtent[0];
+    impl->MSrcImageDesc.height = SrcExtent[1];
+    impl->MSrcImageDesc.depth = SrcExtent[2];
+  }
+
+  if (DestExtent.size() != 0) {
+    impl->MDstImageDesc.width = DestExtent[0];
+    impl->MDstImageDesc.height = DestExtent[1];
+    impl->MDstImageDesc.depth = DestExtent[2];
+  }
+
+  if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    impl->MSrcImageDesc.rowPitch = 0;
+    impl->MDstImageDesc.rowPitch = DestPitch;
+  } else if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+    impl->MDstImageDesc.rowPitch = 0;
+  } else {
+    impl->MSrcImageDesc.rowPitch = SrcPitch;
+    impl->MDstImageDesc.rowPitch = DestPitch;
+  }
+}
+
+void fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+                    const ext::oneapi::experimental::image_descriptor &Desc,
+                    ur_exp_image_copy_flags_t ImageCopyFlags,
+                    sycl::range<3> SrcOffset = {0, 0, 0},
+                    sycl::range<3> SrcExtent = {0, 0, 0},
+                    sycl::range<3> DestOffset = {0, 0, 0},
+                    sycl::range<3> DestExtent = {0, 0, 0},
+                    sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, 0 /*SrcPitch*/,
+                 0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
+                 CopyExtent);
+}
+
+void fill_copy_args(std::shared_ptr<detail::handler_impl> impl,
+                    const ext::oneapi::experimental::image_descriptor &Desc,
+                    ur_exp_image_copy_flags_t ImageCopyFlags, size_t SrcPitch,
+                    size_t DestPitch, sycl::range<3> SrcOffset = {0, 0, 0},
+                    sycl::range<3> SrcExtent = {0, 0, 0},
+                    sycl::range<3> DestOffset = {0, 0, 0},
+                    sycl::range<3> DestExtent = {0, 0, 0},
+                    sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  fill_copy_args(impl, Desc, Desc, ImageCopyFlags, SrcPitch, DestPitch,
+                 SrcOffset, SrcExtent, DestOffset, DestExtent, CopyExtent);
+}
+
+void fill_copy_args(
+    std::shared_ptr<detail::handler_impl> impl,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    ur_exp_image_copy_flags_t ImageCopyFlags,
+    sycl::range<3> SrcOffset = {0, 0, 0}, sycl::range<3> SrcExtent = {0, 0, 0},
+    sycl::range<3> DestOffset = {0, 0, 0},
+    sycl::range<3> DestExtent = {0, 0, 0},
+    sycl::range<3> CopyExtent = {0, 0, 0}) {
+
+  fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags, 0 /*SrcPitch*/,
+                 0 /*DestPitch*/, SrcOffset, SrcExtent, DestOffset, DestExtent,
+                 CopyExtent);
 }
 
 } // namespace detail
@@ -1026,62 +1237,23 @@ void handler::ext_oneapi_memset2d_impl(void *Dest, size_t DestPitch, int Value,
   setType(detail::CGType::Memset2DUSM);
 }
 
+// Simple host to device copy
 void handler::ext_oneapi_copy(
     const void *Src, ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc) {
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(impl, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Host to device copy with offsets and extent
 void handler::ext_oneapi_copy(
     const void *Src, sycl::range<3> SrcOffset, sycl::range<3> SrcExtent,
     ext::oneapi::experimental::image_mem_handle Dest, sycl::range<3> DestOffset,
@@ -1090,170 +1262,134 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  DestImgDesc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = DestImgDesc.width;
-  UrDesc.height = DestImgDesc.height;
-  UrDesc.depth = DestImgDesc.depth;
-  UrDesc.arraySize = DestImgDesc.array_size;
+  detail::fill_copy_args(impl, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE, SrcOffset,
+                         SrcExtent, DestOffset, {0, 0, 0}, CopyExtent);
 
-  if (DestImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                         : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        DestImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-  } else {
-    UrDesc.type = DestImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (DestImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                : UR_MEM_TYPE_IMAGE1D);
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(DestImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(DestImgDesc.num_channels));
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MSrcImageDesc.width = SrcExtent[0];
-  impl->MSrcImageDesc.height = SrcExtent[1];
-  impl->MSrcImageDesc.depth = SrcExtent[2];
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Simple device to host copy
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src, void *Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc) {
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(impl, SrcImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
 
+// Device to host copy with offsets and extent
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    const ext::oneapi::experimental::image_descriptor &ImageDesc) {
+    sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
+    sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  ImageDesc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
-  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
+  MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = ImageDesc.width;
-  UrDesc.height = ImageDesc.height;
-  UrDesc.depth = ImageDesc.depth;
-  UrDesc.arraySize = ImageDesc.array_size;
-  if (ImageDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                       : UR_MEM_TYPE_IMAGE1D_ARRAY;
+  detail::fill_copy_args(impl, SrcImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST, SrcOffset,
+                         {0, 0, 0}, DestOffset, DestExtent, CopyExtent);
 
-    // Cubemap.
-    UrDesc.type =
-        ImageDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height,
-                         ImageDesc.array_size};
-  } else {
-    UrDesc.type = ImageDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (ImageDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                              : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {ImageDesc.width, ImageDesc.height, ImageDesc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(ImageDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(ImageDesc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// Simple HtoD or DtoH copy with USM device memory
+void handler::ext_oneapi_copy(
+    const void *Src, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &Desc,
+    size_t DeviceRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    detail::fill_copy_args(impl, Desc, ImageCopyFlags, DeviceRowPitch,
+                           DeviceRowPitch);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs host "
+                          "to device or device to host copies!");
+  }
+
+  setType(detail::CGType::CopyImage);
+}
+
+// HtoD or DtoH copy with USM device memory, using offsets, extent
+void handler::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
+    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    sycl::range<3> CopyExtent) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+
+  // Fill the host extent based on the type of copy.
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
+    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
+                           DeviceRowPitch, SrcOffset, HostExtent, DestOffset,
+                           {0, 0, 0}, CopyExtent);
+  } else if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
+    detail::fill_copy_args(impl, DeviceImgDesc, ImageCopyFlags, DeviceRowPitch,
+                           DeviceRowPitch, SrcOffset, {0, 0, 0}, DestOffset,
+                           HostExtent, CopyExtent);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs host "
+                          "to device or device to host copies!");
+  }
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Simple device to device copy
+void handler::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
+
+  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Device to device copy with offsets and extent
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
@@ -1264,286 +1400,149 @@ void handler::ext_oneapi_copy(
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  SrcImgDesc.verify();
-  DestImgDesc.verify();
-
-  auto isOutOfRange = [](const sycl::range<3> &range,
-                         const sycl::range<3> &offset,
-                         const sycl::range<3> &copyExtent) {
-    sycl::range<3> result = (range > 0UL && ((offset + copyExtent) > range));
-
-    return (static_cast<bool>(result[0]) || static_cast<bool>(result[1]) ||
-            static_cast<bool>(result[2]));
-  };
-
-  sycl::range<3> SrcImageSize = {SrcImgDesc.width, SrcImgDesc.height,
-                                 SrcImgDesc.depth};
-  sycl::range<3> DestImageSize = {DestImgDesc.width, DestImgDesc.height,
-                                  DestImgDesc.depth};
-
-  if (isOutOfRange(SrcImageSize, SrcOffset, CopyExtent) ||
-      isOutOfRange(DestImageSize, DestOffset, CopyExtent)) {
-    throw sycl::exception(
-        make_error_code(errc::invalid),
-        "Image copy attempted to access out of bounds memory!");
-  }
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrSrcDesc = {};
-  UrSrcDesc.width = SrcImgDesc.width;
-  UrSrcDesc.height = SrcImgDesc.height;
-  UrSrcDesc.depth = SrcImgDesc.depth;
-  UrSrcDesc.arraySize = SrcImgDesc.array_size;
+  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcOffset,
+                         {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
-  ur_image_desc_t UrDestDesc = {};
-  UrDestDesc.width = DestImgDesc.width;
-  UrDestDesc.height = DestImgDesc.height;
-  UrDestDesc.depth = DestImgDesc.depth;
-  UrDestDesc.arraySize = DestImgDesc.array_size;
-
-  auto fill_image_type =
-      [](const ext::oneapi::experimental::image_descriptor &Desc,
-         ur_image_desc_t &UrDesc) {
-        if (Desc.array_size > 1) {
-          // Image Array.
-          UrDesc.type = Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-          // Cubemap.
-          UrDesc.type =
-              Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-                  ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-                  : UrDesc.type;
-        } else {
-          UrDesc.type = Desc.depth > 0
-                            ? UR_MEM_TYPE_IMAGE3D
-                            : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                               : UR_MEM_TYPE_IMAGE1D);
-        }
-      };
-
-  fill_image_type(SrcImgDesc, UrSrcDesc);
-  fill_image_type(DestImgDesc, UrDestDesc);
-
-  auto fill_format = [](const ext::oneapi::experimental::image_descriptor &Desc,
-                        ur_image_format_t &UrFormat) {
-    UrFormat.channelType =
-        sycl::_V1::detail::convertChannelType(Desc.channel_type);
-    UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-        sycl::_V1::ext::oneapi::experimental::detail::
-            get_image_default_channel_order(Desc.num_channels));
-  };
-
-  ur_image_format_t UrSrcFormat;
-  ur_image_format_t UrDestFormat;
-
-  fill_format(SrcImgDesc, UrSrcFormat);
-  fill_format(DestImgDesc, UrDestFormat);
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrSrcDesc;
-  impl->MDstImageDesc = UrDestDesc;
-  impl->MSrcImageFormat = UrSrcFormat;
-  impl->MDstImageFormat = UrDestFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE;
   setType(detail::CGType::CopyImage);
 }
 
+// device to device image_mem_handle to usm
+void handler::ext_oneapi_copy(
+    const ext::oneapi::experimental::image_mem_handle Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
+  MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
+  MDstPtr = Dest;
+
+  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+                         DestRowPitch);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// device to device image_mem_handle to usm sub copy
 void handler::ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
     const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
-    sycl::range<3> DestOffset, sycl::range<3> DestExtent,
-    sycl::range<3> CopyExtent) {
+    sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  SrcImgDesc.verify();
-
   MSrcPtr = reinterpret_cast<void *>(Src.raw_handle);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = SrcImgDesc.width;
-  UrDesc.height = SrcImgDesc.height;
-  UrDesc.depth = SrcImgDesc.depth;
-  UrDesc.arraySize = SrcImgDesc.array_size;
+  detail::fill_copy_args(
+      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, 0,
+      DestRowPitch, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
 
-  if (SrcImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                        : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        SrcImgDesc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-  } else {
-    UrDesc.type = SrcImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (SrcImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                               : UR_MEM_TYPE_IMAGE1D);
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(SrcImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(SrcImgDesc.num_channels));
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MDstImageDesc.width = DestExtent[0];
-  impl->MDstImageDesc.height = DestExtent[1];
-  impl->MDstImageDesc.depth = DestExtent[2];
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST;
   setType(detail::CGType::CopyImage);
 }
 
+// device to device usm to image_mem_handle
 void handler::ext_oneapi_copy(
-    const void *Src, void *Dest,
-    const ext::oneapi::experimental::image_descriptor &Desc, size_t Pitch) {
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  Desc.verify();
-
   MSrcPtr = const_cast<void *>(Src);
-  MDstPtr = Dest;
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = Desc.width;
-  UrDesc.height = Desc.height;
-  UrDesc.depth = Desc.depth;
-  UrDesc.arraySize = Desc.array_size;
+  detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc,
+                         UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE, SrcRowPitch,
+                         0);
 
-  if (Desc.array_size > 1) {
-    // Image Array.
-    UrDesc.type =
-        Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type =
-        Desc.type == sycl::ext::oneapi::experimental::image_type::cubemap
-            ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-            : UrDesc.type;
-
-    // Array size is depth extent.
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.array_size};
-  } else {
-    UrDesc.type = Desc.depth > 0 ? UR_MEM_TYPE_IMAGE3D
-                                 : (Desc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                    : UR_MEM_TYPE_IMAGE1D);
-
-    impl->MCopyExtent = {Desc.width, Desc.height, Desc.depth};
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(Desc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(Desc.num_channels));
-
-  impl->MSrcOffset = {0, 0, 0};
-  impl->MDestOffset = {0, 0, 0};
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MSrcImageDesc.rowPitch = Pitch;
-  impl->MDstImageDesc.rowPitch = Pitch;
-  impl->MImageCopyFlags = detail::getUrImageCopyFlags(
-      get_pointer_type(Src, MQueue->get_context()),
-      get_pointer_type(Dest, MQueue->get_context()));
   setType(detail::CGType::CopyImage);
 }
 
+// device to device usm to image_mem_handle sub copy
 void handler::ext_oneapi_copy(
-    const void *Src, sycl::range<3> SrcOffset, void *Dest,
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
     sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
-    size_t DeviceRowPitch, sycl::range<3> HostExtent,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
     sycl::range<3> CopyExtent) {
   throwIfGraphAssociated<
       ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
           sycl_ext_oneapi_bindless_images>();
-  DeviceImgDesc.verify();
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = reinterpret_cast<void *>(Dest.raw_handle);
 
+  detail::fill_copy_args(
+      impl, SrcImgDesc, DestImgDesc, UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE,
+      SrcRowPitch, 0, SrcOffset, {0, 0, 0}, DestOffset, {0, 0, 0}, CopyExtent);
+
+  setType(detail::CGType::CopyImage);
+}
+
+// Simple DtoD or HtoH USM to USM copy
+void handler::ext_oneapi_copy(
+    const void *Src,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch) {
+  throwIfGraphAssociated<
+      ext::oneapi::experimental::detail::UnsupportedGraphFeatures::
+          sycl_ext_oneapi_bindless_images>();
   MSrcPtr = const_cast<void *>(Src);
   MDstPtr = Dest;
 
-  ur_image_desc_t UrDesc = {};
-  UrDesc.stype = UR_STRUCTURE_TYPE_IMAGE_DESC;
-  UrDesc.width = DeviceImgDesc.width;
-  UrDesc.height = DeviceImgDesc.height;
-  UrDesc.depth = DeviceImgDesc.depth;
-  UrDesc.arraySize = DeviceImgDesc.array_size;
-
-  if (DeviceImgDesc.array_size > 1) {
-    // Image Array.
-    UrDesc.type = DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D_ARRAY
-                                           : UR_MEM_TYPE_IMAGE1D_ARRAY;
-
-    // Cubemap.
-    UrDesc.type = DeviceImgDesc.type ==
-                          sycl::ext::oneapi::experimental::image_type::cubemap
-                      ? UR_MEM_TYPE_IMAGE_CUBEMAP_EXP
-                      : UrDesc.type;
-  } else {
-    UrDesc.type = DeviceImgDesc.depth > 0
-                      ? UR_MEM_TYPE_IMAGE3D
-                      : (DeviceImgDesc.height > 0 ? UR_MEM_TYPE_IMAGE2D
-                                                  : UR_MEM_TYPE_IMAGE1D);
-  }
-
-  ur_image_format_t UrFormat;
-  UrFormat.channelType =
-      sycl::_V1::detail::convertChannelType(DeviceImgDesc.channel_type);
-  UrFormat.channelOrder = sycl::detail::convertChannelOrder(
-      sycl::_V1::ext::oneapi::experimental::detail::
-          get_image_default_channel_order(DeviceImgDesc.num_channels));
-
-  impl->MSrcOffset = {SrcOffset[0], SrcOffset[1], SrcOffset[2]};
-  impl->MDestOffset = {DestOffset[0], DestOffset[1], DestOffset[2]};
-  impl->MCopyExtent = {CopyExtent[0], CopyExtent[1], CopyExtent[2]};
-  impl->MSrcImageFormat = UrFormat;
-  impl->MDstImageFormat = UrFormat;
-  impl->MImageCopyFlags = detail::getUrImageCopyFlags(
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
       get_pointer_type(Src, MQueue->get_context()),
       get_pointer_type(Dest, MQueue->get_context()));
-  impl->MSrcImageDesc = UrDesc;
-  impl->MDstImageDesc = UrDesc;
 
-  // Fill the descriptor row pitch and host extent based on the type of copy.
-  if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_DEVICE) {
-    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
-    impl->MSrcImageDesc.rowPitch = 0;
-    impl->MSrcImageDesc.width = HostExtent[0];
-    impl->MSrcImageDesc.height = HostExtent[1];
-    impl->MSrcImageDesc.depth = HostExtent[2];
-  } else if (impl->MImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_HOST) {
-    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
-    impl->MDstImageDesc.rowPitch = 0;
-    impl->MDstImageDesc.width = HostExtent[0];
-    impl->MDstImageDesc.height = HostExtent[1];
-    impl->MDstImageDesc.depth = HostExtent[2];
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           SrcRowPitch, DestRowPitch);
   } else {
-    impl->MDstImageDesc.rowPitch = DeviceRowPitch;
-    impl->MSrcImageDesc.rowPitch = DeviceRowPitch;
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
+  }
+
+  setType(detail::CGType::CopyImage);
+}
+
+// DtoD or HtoH USM to USM copy with offsets and extent
+void handler::ext_oneapi_copy(
+    const void *Src, sycl::range<3> SrcOffset,
+    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+    size_t SrcRowPitch, void *Dest, sycl::range<3> DestOffset,
+    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+    size_t DestRowPitch, sycl::range<3> CopyExtent) {
+  MSrcPtr = const_cast<void *>(Src);
+  MDstPtr = Dest;
+
+  ur_exp_image_copy_flags_t ImageCopyFlags = detail::getUrImageCopyFlags(
+      get_pointer_type(Src, MQueue->get_context()),
+      get_pointer_type(Dest, MQueue->get_context()));
+
+  if (ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_DEVICE_TO_DEVICE ||
+      ImageCopyFlags == UR_EXP_IMAGE_COPY_FLAG_HOST_TO_HOST) {
+    detail::fill_copy_args(impl, SrcImgDesc, DestImgDesc, ImageCopyFlags,
+                           SrcRowPitch, DestRowPitch, SrcOffset, {0, 0, 0},
+                           DestOffset, {0, 0, 0}, CopyExtent);
+  } else {
+    throw sycl::exception(make_error_code(errc::invalid),
+                          "Copy Error: This copy function only performs device "
+                          "to device or host to host copies!");
   }
 
   setType(detail::CGType::CopyImage);

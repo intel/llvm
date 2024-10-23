@@ -796,10 +796,11 @@ public:
   // Simple HtoD or DtoH copy with USM device memory
   void ext_oneapi_copy(const void *Src,
                        void *Dest,
-                       const ext::oneapi::experimental::image_descriptor &Desc,
+                       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
                        size_t DeviceRowPitch);
 
-  // HtoD or DtoH copy with USM device memory, using offsets, extent
+  // Host to device or device to host copy with USM device memory with offsets
+  // and extent
   void ext_oneapi_copy(
     const void *Src,
     sycl::range<3> SrcOffset,
@@ -810,13 +811,15 @@ public:
     sycl::range<3> HostExtent,
     sycl::range<3> CopyExtent);
 
-  // Simple device to device copy
+  // Simple device to device opaque memory to opaque memory copy
   void ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
 
-  // Device to device copy with offsets and extent
+  // Device to device opaque memory to opaque memory copy with offsets and
+  // extent
   void ext_oneapi_copy(
     const ext::oneapi::experimental::image_mem_handle Src,
     sycl::range<3> SrcOffset,
@@ -824,7 +827,62 @@ public:
     ext::oneapi::experimental::image_mem_handle Dest,
     sycl::range<3> DestOffset,
     const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent)
+    sycl::range<3> CopyExtent);
+
+  // Simple device to device opaque memory to USM copy
+  void ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+
+  // Device to device opaque memory to USM copy with offsets and extent
+  void ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+
+  // Simple device to device USM to opaque memory copy
+  void ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+
+  // Device to device USM to opaque memory copy with offsets and extent
+  void ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+
+  // Simple device to device or host to host USM to USM copy
+  void ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+
+  // Device to device or host to host USM to USM copy with offsets and extent
+  void ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
 };
 
 class queue {
@@ -873,16 +931,16 @@ public:
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc);
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       event DepEvent);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
       void *Dest,
-      const ext::oneapi::experimental::image_descriptor &Desc,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       const std::vector<event> &DepEvents);
 
   // Device to host copy with offsets and extent
@@ -911,7 +969,7 @@ public:
       range<3> DestExtent,
       range<3> CopyExtent, const std::vector<event> &DepEvents);
 
-  // Host to device OR device to host using USM device memory
+  // Simple host to device or device to host copy with USM device memory
   event ext_oneapi_copy(
       const void *Src, void *Dest,
       const ext::oneapi::experimental::image_descriptor &DeviceImgDesc,
@@ -927,8 +985,8 @@ public:
       size_t DeviceRowPitch,
       const std::vector<event> &DepEvents);
 
-  // Host to device OR device to host using USM device memory, 
-  // with control over sub-region
+  // Host to device or device to host copy with USM device memory with offsets
+  // and extent
   event ext_oneapi_copy(
       const void *Src, sycl::range<3> SrcOffset,
       void *Dest, sycl::range<3> DestOffset,
@@ -951,49 +1009,215 @@ public:
       sycl::range<3> HostExtent,
       sycl::range<3> CopyExtent);
   
-  // Simple device to device copy
+  // Simple device to device opaque memory to opaque memory copy
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc);
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       event DepEvent);
   event ext_oneapi_copy(
       const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
       ext::oneapi::experimental::image_mem_handle Dest,
-      const ext::oneapi::experimental::image_descriptor &ImageDesc,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
       const std::vector<event> &DepEvents);
 
-  // Device to device copy with offsets and extent
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent)
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent
-    event DepEvent)
-  void ext_oneapi_copy(
-    const ext::oneapi::experimental::image_mem_handle Src,
-    sycl::range<3> SrcOffset,
-    const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
-    ext::oneapi::experimental::image_mem_handle Dest,
-    sycl::range<3> DestOffset,
-    const ext::oneapi::experimental::image_descriptor &DestImgDesc,
-    sycl::range<3> CopyExtent
-    const std::vector<event> &DepEvents)
+  // Device to device opaque memory to opaque memory copy with offsets and
+  // extent
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+  // Simple device to device opaque memory to USM copy
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const std::vector<event> &DepEvents);
+
+  // Device to device opaque memory to USM copy with offsets and extent
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const ext::oneapi::experimental::image_mem_handle Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+
+  // Simple device to device USM to opaque memory copy
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      const std::vector<event> &DepEvents);
+
+  // Device to device USM to opaque memory copy with offsets and extent
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      ext::oneapi::experimental::image_mem_handle Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
+
+  // Simple device to device or host to host USM to USM copy
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      const std::vector<event> &DepEvents);
+
+  // Device to device or host to host USM to USM copy with offsets and extent
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent);
+  event ext_oneapi_copy(
+      const void *Src, sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch, void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent, event DepEvent);
+  event ext_oneapi_copy(
+      const void *Src,
+      sycl::range<3> SrcOffset,
+      const ext::oneapi::experimental::image_descriptor &SrcImgDesc,
+      size_t SrcRowPitch,
+      void *Dest,
+      sycl::range<3> DestOffset,
+      const ext::oneapi::experimental::image_descriptor &DestImgDesc,
+      size_t DestRowPitch,
+      sycl::range<3> CopyExtent,
+      const std::vector<event> &DepEvents);
 };
 }
 ```
@@ -2328,4 +2552,12 @@ These features still need to be handled:
 |6.4|2024-10-15| - Fix bindless spec examples and include examples in bindless
                    spec using asciidoc include.
 |6.5|2024-10-22| - Allow 3-channel image formats on some backends.
+|6.6|2024-10-31| - Update `image_mem_handle` to `image_mem_handle` copies to
+                   accept two image descriptors.
+                 - Add support for USM to `image_mem_handle` copies and 
+                   sub-copies.
+                 - Add support for `image_mem_handle` to USM copies and
+                   sub-copies.
+                 - Add support for USM to USM copies and sub-copies.
+                 - Add support for host to host copies and sub-copies.
 |======================
