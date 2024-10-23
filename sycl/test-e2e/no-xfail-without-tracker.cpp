@@ -50,7 +50,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 160
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 159
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
@@ -181,7 +181,6 @@
 // CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
 // CHECK-NEXT: Plugin/interop-cuda-experimental.cpp
 // CHECK-NEXT: Plugin/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
-// CHECK-NEXT: Plugin/level_zero_device_free_mem.cpp
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp
