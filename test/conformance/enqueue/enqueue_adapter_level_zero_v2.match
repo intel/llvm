@@ -6,6 +6,7 @@ urEnqueueKernelLaunchWithVirtualMemory.Success/Intel_R__oneAPI_Unified_Runtime_o
 {{OPT}}urEnqueueKernelLaunchIncrementTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UseEventsDisabled
 {{OPT}}urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/UseEventsNoQueuePerThread
 {{OPT}}urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/NoUseEventsNoQueuePerThread
+{{OPT}}urEnqueueKernelLaunchKernelSubGroupTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___copy_whole_buffer_2D
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___copy_non_zero_offsets_2D
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___copy_different_buffer_sizes_2D
