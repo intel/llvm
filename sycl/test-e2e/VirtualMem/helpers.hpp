@@ -9,7 +9,9 @@ namespace syclext = sycl::ext::oneapi::experimental;
 // Find the least common multiple of the context and device granularities. This
 // value can be used for aligning both physical memory allocations and for
 // reserving virtual memory ranges.
-size_t GetLCMGranularity(const sycl::device &Dev, const sycl::context &Ctx, syclext::granularity_mode Gm = syclext::granularity_mode::recommended) {
+size_t GetLCMGranularity(
+    const sycl::device &Dev, const sycl::context &Ctx,
+    syclext::granularity_mode Gm = syclext::granularity_mode::recommended) {
   size_t CtxGranularity = syclext::get_mem_granularity(Ctx, Gm);
   size_t DevGranularity = syclext::get_mem_granularity(Dev, Ctx, Gm);
 

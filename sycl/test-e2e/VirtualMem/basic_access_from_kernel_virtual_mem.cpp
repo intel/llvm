@@ -16,13 +16,13 @@ int main() {
   constexpr size_t NumberOfElements = 1000;
   size_t BytesRequired = NumberOfElements * sizeof(int);
 
-  size_t UsedGranularity = GetLCMGranularity(Device,Context);
+  size_t UsedGranularity = GetLCMGranularity(Device, Context);
 
   size_t AlignedByteSize =
-      ((BytesRequired + UsedGranularity - 1) / UsedGranularity) * UsedGranularity;
+      ((BytesRequired + UsedGranularity - 1) / UsedGranularity) *
+      UsedGranularity;
 
-  syclext::physical_mem NewPhysicalMem{Device, Context,
-                                       AlignedByteSize};
+  syclext::physical_mem NewPhysicalMem{Device, Context, AlignedByteSize};
   uintptr_t VirtualMemoryPtr =
       syclext::reserve_virtual_mem(0, AlignedByteSize, Context);
 
