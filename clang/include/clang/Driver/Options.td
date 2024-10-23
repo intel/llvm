@@ -4675,10 +4675,14 @@ def image__base : Separate<["-"], "image_base">;
 def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, EnumName<"include">,
     MetaVarName<"<file>">, HelpText<"Include file before parsing">,
     Visibility<[ClangOption, CC1Option]>;
-def include_footer : Separate<["-"], "include-footer">, Group<clang_i_Group>,
+def include_internal_footer : Separate<["-"], "include-internal-footer">, Group<clang_i_Group>,
     Visibility<[CC1Option]>,
     HelpText<"Name of the footer integration file">,  MetaVarName<"<file>">,
     MarshallingInfoString<PreprocessorOpts<"IncludeFooter">>;
+def include_internal_header : Separate<["-"], "include-internal-header">, Group<clang_i_Group>,
+    Visibility<[CC1Option]>,
+    HelpText<"Name of the header integration file">,  MetaVarName<"<file>">,
+    MarshallingInfoString<PreprocessorOpts<"IncludeHeader">>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">,
