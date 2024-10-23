@@ -1,7 +1,6 @@
-; RUN: sycl-post-link -properties -split=auto -spec-const=native -S -o %t.table %s -generate-device-image-default-spec-consts
-; RUN: FileCheck %s -input-file %t_1.ll --implicit-check-not="SpecConst"
+; RUN: opt -passes=spec-constants -spec-constant-mode=default_values %s -S -o - | FileCheck %s
 
-; This test checks that the post link tool is able to correctly transform
+; This test checks that SpecConstantsPass is able to correctly transform
 ; SYCL alloca intrinsics in SPIR-V devices when using default values.
 
 %"class.sycl::_V1::specialization_id" = type { i64 }
@@ -20,9 +19,9 @@
 define spir_kernel void @private_alloca() {
 ; CHECK: alloca double, i32 120, align 8
   call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) addrspacecast (ptr @size_i32_stable_name to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @size_i32 to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 8)
-; CHECK: alloca float, i64 10, align 8
+; CHECK-NEXT: alloca float, i64 10, align 8
   call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f32(ptr addrspace(4) addrspacecast (ptr @size_i64_stable_name to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @size_i64 to ptr addrspace(4)), ptr addrspace(4) null, float 0.000000e+00, i64 8)
-; CHECK: alloca %my_range, i16 1, align 64
+; CHECK-NEXT: alloca %my_range, i16 1, align 64
   call ptr @llvm.sycl.alloca.p0.p4.p4.p4.s_my_range(ptr addrspace(4) addrspacecast (ptr @size_i16_stable_name to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @size_i16 to ptr addrspace(4)), ptr addrspace(4) null, %my_range zeroinitializer, i64 64)
   ret void
 }
