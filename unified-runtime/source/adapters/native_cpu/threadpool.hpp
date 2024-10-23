@@ -208,25 +208,29 @@ public:
   }
 };
 
-template <class TP> class Scheduler {
-  std::vector<std::future<void>> futures;
+template <class TP> struct SchedulerBase {
   TP &TPref;
+  SchedulerBase(TP &ref) : TPref(ref) {}
+};
 
-public:
-  Scheduler(TP &ref) : TPref(ref) {}
+template <class TP> struct Scheduler : SchedulerBase<TP> {
+  using SchedulerBase<TP>::SchedulerBase;
 
   template <class T> void schedule(T &&task) {
-    futures.emplace_back(TPref.schedule_task(std::forward<T>(task)));
+    futures.emplace_back(this->TPref.schedule_task(std::forward<T>(task)));
   }
   inline void wait() {
     for (auto &f : futures)
       f.get();
   }
+
+private:
+  std::vector<std::future<void>> futures;
 };
 
 using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
-inline Scheduler<simple_threadpool_t> getScheduler(simple_threadpool_t &tp) {
-  return Scheduler(tp);
+template <class TPType> inline Scheduler<TPType> getScheduler(TPType &tp) {
+  return Scheduler<TPType>(tp);
 }
 
 using threadpool_t = simple_threadpool_t;
@@ -239,21 +243,16 @@ using threadpool_t = simple_threadpool_t;
 namespace native_cpu {
 
 struct TBB_threadpool {
+  oneapi::tbb::task_group tasks;
   inline size_t num_threads() const noexcept { return 32; }
 };
-template <> class Scheduler<TBB_threadpool> {
-  oneapi::tbb::task_group tasks;
-
-public:
-  inline void schedule(worker_task_t &&task) {
-    tasks.run([&]() { task(0); });
+template <> struct Scheduler<TBB_threadpool> : SchedulerBase<TBB_threadpool> {
+  using SchedulerBase<TBB_threadpool>::SchedulerBase;
+  template <class T> inline void schedule(T &&task) {
+    TPref.tasks.run(std::function<void()>([=]() mutable { task(0); }));
   }
-  inline void wait() { tasks.wait(); }
+  inline void wait() { TPref.tasks.wait(); }
 };
-
-inline Scheduler<TBB_threadpool> getScheduler(TBB_threadpool &tp) {
-  return Scheduler<TBB_threadpool>();
-}
 
 } // namespace native_cpu
 
