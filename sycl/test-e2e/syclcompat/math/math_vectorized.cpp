@@ -30,22 +30,35 @@
 #include "../common.hpp"
 #include "math_fixt.hpp"
 
-template <typename BinaryOp, typename ValueT>
+template <typename BinaryOp, typename ValueT, typename VecT>
 void vectorized_binary_kernel(ValueT *a, ValueT *b, unsigned *r) {
   unsigned ua = static_cast<unsigned>(*a);
   unsigned ub = static_cast<unsigned>(*b);
-  *r = syclcompat::vectorized_binary<sycl::short2>(ua, ub, BinaryOp());
+  *r = syclcompat::vectorized_binary<VecT>(ua, ub, BinaryOp());
 }
 
 template <typename BinaryOp, typename ValueT>
-void test_vectorized_binary(ValueT op1, ValueT op2, unsigned expected) {
+void test_vectorized_binary_2(ValueT op1, ValueT op2, unsigned expected) {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
 
   BinaryOpTestLauncher<ValueT, ValueT, unsigned>(grid, threads)
-      .template launch_test<vectorized_binary_kernel<BinaryOp, ValueT>>(
-          op1, op2, expected);
+      .template launch_test<
+          vectorized_binary_kernel<BinaryOp, ValueT, sycl::short2>>(op1, op2,
+                                                                    expected);
+}
+
+template <typename BinaryOp, typename ValueT>
+void test_vectorized_binary_4(ValueT op1, ValueT op2, unsigned expected) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+
+  BinaryOpTestLauncher<ValueT, ValueT, unsigned>(grid, threads)
+      .template launch_test<
+          vectorized_binary_kernel<BinaryOp, ValueT, sycl::uchar4>>(op1, op2,
+                                                                    expected);
 }
 
 template <typename UnaryOp, typename ValueT>
@@ -85,22 +98,84 @@ void test_vectorized_sum_abs_diff(ValueT op1, ValueT op2, unsigned expected) {
 }
 
 int main() {
-  test_vectorized_binary<syclcompat::abs_diff, uint32_t>(0x00010002, 0x00040002,
-                                                         0x00030000);
-  test_vectorized_binary<syclcompat::add_sat, uint32_t>(0x00020002, 0xFFFDFFFF,
-                                                        0xFFFF0001);
-  test_vectorized_binary<syclcompat::rhadd, uint32_t>(0x00010008, 0x00020001,
-                                                      0x00020005);
-  test_vectorized_binary<syclcompat::hadd, uint32_t>(0x00010003, 0x00020005,
-                                                     0x00010004);
-  test_vectorized_binary<syclcompat::maximum, uint32_t>(0x0FFF0000, 0x00000FFF,
-                                                        0x0FFF0FFF);
-  test_vectorized_binary<syclcompat::minimum, uint32_t>(0x0FFF0000, 0x00000FFF,
-                                                        0x00000000);
-  test_vectorized_binary<syclcompat::sub_sat, uint32_t>(0xFFFB0005, 0x00030008,
-                                                        0xFFF8FFFD);
+  test_vectorized_binary_2<syclcompat::abs_diff, uint32_t>(
+      0x00010002, 0x00040002, 0x00030000);
+  test_vectorized_binary_2<syclcompat::add_sat, uint32_t>(
+      0x00020002, 0xFFFDFFFF, 0xFFFF0001);
+  test_vectorized_binary_2<syclcompat::rhadd, uint32_t>(0x00010008, 0x00020001,
+                                                        0x00020005);
+  test_vectorized_binary_2<syclcompat::hadd, uint32_t>(0x00010003, 0x00020005,
+                                                       0x00010004);
+  test_vectorized_binary_2<syclcompat::maximum, uint32_t>(
+      0x0FFF0000, 0x00000FFF, 0x0FFF0FFF);
+  test_vectorized_binary_2<syclcompat::minimum, uint32_t>(
+      0x0FFF0000, 0x00000FFF, 0x00000000);
+  test_vectorized_binary_2<syclcompat::sub_sat, uint32_t>(
+      0xFFFB0005, 0x00030008, 0xFFF8FFFD);
   test_vectorized_unary<syclcompat::abs, uint32_t>(0xFFFBFFFD, 0x00050003);
   test_vectorized_sum_abs_diff<uint32_t>(0x00010002, 0x00040002, 0x00000003);
+
+  // Logical Binary Operators v2
+  test_vectorized_binary_2<std::equal_to<>, uint32_t>(0xFFF00002, 0xFFF00001,
+                                                      0xFFFF0000);
+  test_vectorized_binary_2<std::equal_to<>, uint32_t>(0x0001F00F, 0x0003F00F,
+                                                      0x0000FFFF);
+
+  test_vectorized_binary_2<std::not_equal_to<>, uint32_t>(
+      0xFFF00002, 0xFFF00001, 0x0000FFFF);
+  test_vectorized_binary_2<std::not_equal_to<>, uint32_t>(
+      0x0001F00F, 0x0003F00F, 0xFFFF0000);
+
+  test_vectorized_binary_2<std::greater_equal<>, uint32_t>(
+      0xFFF00002, 0xFFF00001, 0xFFFFFFFF);
+  test_vectorized_binary_2<std::greater_equal<>, uint32_t>(
+      0x0001F00F, 0x0003F001, 0x0000FFFF);
+
+  test_vectorized_binary_2<std::greater<>, uint32_t>(0xFFF00002, 0xFFF00001,
+                                                     0x0000FFFF);
+  test_vectorized_binary_2<std::greater<>, uint32_t>(0x0003F00F, 0x0001F00F,
+                                                     0xFFFF0000);
+
+  test_vectorized_binary_2<std::less_equal<>, uint32_t>(0xFFF00001, 0xF0F00002,
+                                                        0x0000FFFF);
+  test_vectorized_binary_2<std::less_equal<>, uint32_t>(0x0001FF0F, 0x0003F00F,
+                                                        0xFFFF0000);
+
+  test_vectorized_binary_2<std::less<>, uint32_t>(0xFFF00001, 0xFFF00002,
+                                                  0x0000FFFF);
+  test_vectorized_binary_2<std::less<>, uint32_t>(0x0001F00F, 0x0003F00F,
+                                                  0xFFFF0000);
+
+  // Logical Binary Operators v4
+  test_vectorized_binary_4<std::equal_to<>, uint32_t>(0x0001F00F, 0x0003F00F,
+                                                      0xFF00FFFF);
+  test_vectorized_binary_4<std::equal_to<>, uint32_t>(0x0102F0F0, 0x0202F0FF,
+                                                      0x00FFFF00);
+
+  test_vectorized_binary_4<std::not_equal_to<>, uint32_t>(
+      0x0001F00F, 0xFF01F10F, 0xFF00FF00);
+  test_vectorized_binary_4<std::not_equal_to<>, uint32_t>(
+      0x0201F0F0, 0x0202F0FF, 0x00FF00FF);
+
+  test_vectorized_binary_4<std::greater_equal<>, uint32_t>(
+      0xFFF00002, 0xFFF10101, 0xFF0000FF);
+  test_vectorized_binary_4<std::greater_equal<>, uint32_t>(
+      0x0001F1F0, 0x0103F001, 0x0000FFFF);
+
+  test_vectorized_binary_4<std::greater<>, uint32_t>(0xFFF00002, 0xF0F00001,
+                                                     0xFF0000FF);
+  test_vectorized_binary_4<std::greater<>, uint32_t>(0x0103F0F1, 0x0102F0F0,
+                                                     0x00FF00FF);
+
+  test_vectorized_binary_4<std::less_equal<>, uint32_t>(0xFFF10001, 0xFFF00100,
+                                                        0xFF00FF00);
+  test_vectorized_binary_4<std::less_equal<>, uint32_t>(0x0101F1F0, 0x0003F0F1,
+                                                        0x00FF00FF);
+
+  test_vectorized_binary_4<std::less<>, uint32_t>(0xFFF10001, 0xFFF20100,
+                                                  0x00FFFF00);
+  test_vectorized_binary_4<std::less<>, uint32_t>(0x0101F1F0, 0x0102F1F1,
+                                                  0x00FF00FF);
 
   return 0;
 }

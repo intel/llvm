@@ -109,12 +109,33 @@ clamp(sycl::marray<T, Size> val, sycl::marray<T, Size> min_val,
 template <typename VecT, class BinaryOperation, class = void>
 class vectorized_binary {
 public:
-  inline VecT operator()(VecT a, VecT b, const BinaryOperation binary_op) {
+  inline unsigned operator()(VecT a, VecT b, const BinaryOperation binary_op) {
     VecT v4;
     for (size_t i = 0; i < v4.size(); ++i) {
       v4[i] = binary_op(a[i], b[i]);
     }
-    return v4;
+    return sycl::vec<unsigned, 1>(v4.template as<sycl::vec<unsigned, 1>>())[0];
+  }
+};
+
+// Vectorized_binary for logical operations
+template <typename VecT, class BinaryOperation>
+class vectorized_binary<
+    VecT, BinaryOperation,
+    std::enable_if_t<std::is_same_v<
+        bool, decltype(std::declval<BinaryOperation>()(
+                  std::declval<typename VecT::element_type>(),
+                  std::declval<typename VecT::element_type>()))>>> {
+public:
+  inline unsigned operator()(VecT a, VecT b, const BinaryOperation binary_op) {
+    unsigned result = 0;
+    constexpr size_t elem_size = sizeof(typename VecT::element_type);
+    constexpr unsigned bool_mask = (1U << (8 * elem_size)) - 1;
+    for (size_t i = 0; i < a.size(); ++i) {
+      bool comp_result = binary_op(a[i], b[i]);
+      result |= (comp_result ? bool_mask : 0U) << (i * 8 * elem_size);
+    }
+    return result;
   }
 };
 
@@ -1044,10 +1065,7 @@ inline unsigned vectorized_binary(unsigned a, unsigned b,
   sycl::vec<unsigned, 1> v0{a}, v1{b};
   auto v2 = v0.as<VecT>();
   auto v3 = v1.as<VecT>();
-  auto v4 =
-      detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
-  v0 = v4.template as<sycl::vec<unsigned, 1>>();
-  return v0;
+  return detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
 }
 
 template <typename T1, typename T2>
