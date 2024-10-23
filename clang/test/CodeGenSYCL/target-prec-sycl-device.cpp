@@ -16,6 +16,13 @@
 // RUN: %clang_cc1 %{common_opts} -fno-target-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
+// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-target-prec-div \
+// RUN: -fno-target-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-target-prec-div \
+// RUN: -fno-target-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
 
 #include "sycl.hpp"
 
@@ -46,9 +53,12 @@ int main() {
     [=](id<1> wiID) {
       // PREC-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
       // ROUNDED-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
+
+      // ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
+
       // PREC-DIV: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
       // ROUNDED-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
-
+      // ROUNDED-DIV-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       (void)fdiv(Value1, Value1);
     });
   });
@@ -57,4 +67,6 @@ return 0;
 }
 
 // ROUNDED-SQRT: attributes #[[ATTR_SQRT]] = {{.*}}"fpbuiltin-max-error"="3.0"
+// ROUNDED-SQRT-FAST: attributes #[[ATTR_SQRT]] = {{.*}}"fpbuiltin-max-error"="3.0"
 // ROUNDED-DIV: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"
+// ROUNDED-DIV-FAST: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"

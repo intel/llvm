@@ -2958,14 +2958,6 @@ RenderComplexRangeOption(LangOptions::ComplexRangeKind Range) {
   return ComplexRangeStr;
 }
 
-static bool shouldUsePreciseDivision(const ArgList &Args) {
-  return Args.hasArg(options::OPT_ftarget_prec_div);
-}
-
-static bool shouldUsePreciseSqrt(const ArgList &Args) {
-  return Args.hasArg(options::OPT_ftarget_prec_sqrt);
-}
-
 static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                        bool OFastEnabled, const ArgList &Args,
                                        ArgStringList &CmdArgs,
@@ -3045,6 +3037,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
               : ComplexArithmeticStr(LangOptions::ComplexRangeKind::CX_Basic));
     Range = LangOptions::ComplexRangeKind::CX_Basic;
     SeenUnsafeMathModeOption = true;
+    if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
+      // when fp-model=fast is used the default precision for division and
+      // sqrt is not precise.
+      NoTargetPrecDiv = true;
+      NoTargetPrecSqrt = true;
+    }
   };
 
   // Lambda to consolidate common handling for fp-contract
@@ -3211,12 +3209,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
         applyFastMath();
         // applyFastMath sets fp-contract="fast"
         LastFpContractOverrideOption = "-ffp-model=fast";
-        if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-          // when fp-model=fast is used the default precision for division and
-          // sqrt is not precise.
-          NoTargetPrecDiv = shouldUsePreciseDivision(Args);
-          NoTargetPrecSqrt = shouldUsePreciseSqrt(Args);
-        }
       } else if (Val == "precise") {
         FPModel = Val;
         FPContract = "on";
