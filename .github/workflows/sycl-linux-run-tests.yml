@@ -90,6 +90,7 @@ on:
           - '["amdgpu"]'
           - '["Linux", "arc"]'
           - '["cts-cpu"]'
+          - '["Linux", "build"]'
       image:
         description: |
           Use option ending with ":build" for AMDGPU, ":latest" for the rest.
