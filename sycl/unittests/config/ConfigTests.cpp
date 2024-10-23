@@ -233,17 +233,16 @@ TEST(ConfigTests, CheckConfigProcessing) {
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 }
 
-// Unit test for SYCL_CACHE_TRACE environment variable.
-// SYCL_CACHE_TRACE accepts the following values:
-// 0 - no tracing
-// 1 - trace disk cache
-// 2 - trace in-memory cache
-// 3 - trace disk and in-memory cache
-// 4 - trace kernel_compiler
-// 5 - trace disk and kernel_compiler
-// 6 - trace in-memory and kernel_compiler
-// 7 - trace disk, in-memory and kernel_compiler
-// <Any other non-null value> - trace disk cache (Legacy behavior)
+// SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
+// different SYCL caches. The input value is parsed as an integer and
+// the following bit-masks is used to determine the tracing behavior:
+// 0x01 - trace disk cache
+// 0x02 - trace in-memory cache
+// 0x04 - trace kernel_compiler cache
+// Any valid combination of the above bit-masks can be used to enable/disable
+// tracing of the corresponding caches. If the input value is not null and
+// not a valid number, the disk cache tracing will be enabled (depreciated
+// behavior). The default value is 0 and no tracing is enabled.
 using namespace sycl::detail;
 TEST(ConfigTests, CheckSyclCacheTraceTest) {
 
