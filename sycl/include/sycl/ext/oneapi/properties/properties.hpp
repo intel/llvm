@@ -9,9 +9,9 @@
 #pragma once
 
 #include <array>
+#include <string_view>
 #include <type_traits>
 #include <utility>
-#include <string_view>
 
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/type_traits.hpp>
@@ -26,7 +26,6 @@
 #include <type_traits> // for enable_if_t
 #include <variant>     // for tuple
 
-
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -36,7 +35,7 @@ template <typename... property_tys> struct properties_type_list;
 
 // Is used to implement `is_property_v`.
 struct property_key_tag_base {};
-}
+} // namespace detail
 
 template <typename properties_type_list_ty, typename = void>
 class __SYCL_EBO properties;
@@ -114,6 +113,15 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
 template <typename property_key_t>
 struct property_key_tag : property_key_tag_base {};
 
+// NOTE: each property_t subclass must provide
+//
+// static constexpr std::string_view
+// property_name{"<fully-qualified-name-of-the-property"}
+//
+// member that will be used to sort the properties in the property list. That
+// way we can have a stable sorting order between device/custom-host compilers
+// for both properties provided by the implementation and the ones introduced by
+// users' applications/libraries.
 template <typename property_t, typename property_key_t = property_t>
 struct property_base : property_key_tag<property_key_t> {
 protected:
@@ -254,9 +262,8 @@ class __SYCL_EBO properties<
     std::enable_if_t<detail::property_names_are_unique<property_tys...>>>
     : private property_tys... {
   static_assert((is_property_v<property_tys> && ...));
-  static_assert(
-      detail::properties_are_sorted<property_tys...>,
-      "Properties must be sorted!");
+  static_assert(detail::properties_are_sorted<property_tys...>,
+                "Properties must be sorted!");
   using property_tys::get_property_impl...;
 
   template <typename, typename> friend class __SYCL_EBO properties;
@@ -379,7 +386,7 @@ properties(properties<detail::properties_type_list<other_property_list_tys...>>,
 using empty_properties_t = decltype(properties{});
 
 template <typename property_list_ty, typename... allowed_property_keys>
-struct all_properties_in : std::false_type{};
+struct all_properties_in : std::false_type {};
 template <typename... property_tys, typename... allowed_property_keys>
 struct all_properties_in<
     properties<detail::properties_type_list<property_tys...>>,
