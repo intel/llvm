@@ -5741,7 +5741,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // action to determine this.
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Header.empty()) {
-        CmdArgs.push_back("-include");
+        // Add the -include-internal-header option to add the integration header
+        CmdArgs.push_back("-include-internal-header");
         CmdArgs.push_back(Args.MakeArgString(Header));
         // When creating dependency information, filter out the generated
         // header file.
@@ -5753,11 +5754,11 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
         CmdArgs.push_back("-fsycl-enable-int-header-diags");
       }
 
-      // Add the -include-footer option to add the integration footer
       StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
       if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
           !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
-        CmdArgs.push_back("-include-footer");
+        // Add the -include-internal-footer option to add the integration footer
+        CmdArgs.push_back("-include-internal-footer");
         CmdArgs.push_back(Args.MakeArgString(Footer));
         // When creating dependency information, filter out the generated
         // integration footer file.
@@ -10174,6 +10175,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     SmallString<128> TargetTripleOpt = TT.getArchName();
     bool WrapFPGADevice = false;
     bool FPGAEarly = false;
+
+    // Validate and propogate CLI options related to device image compression.
+    // -offload-compress
+    if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+      WrapperArgs.push_back(
+          C.getArgs().MakeArgString(Twine("-offload-compress")));
+      // -offload-compression-level=<>
+      if (Arg *A = C.getInputArgs().getLastArg(
+              options::OPT_offload_compression_level_EQ))
+        WrapperArgs.push_back(C.getArgs().MakeArgString(
+            Twine("-offload-compression-level=") + A->getValue()));
+    }
+
     if (Arg *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ)) {
       WrapFPGADevice = true;
       FPGAEarly = (A->getValue() == StringRef("early"));
@@ -10715,8 +10729,7 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
               ",+SPV_INTEL_fpga_memory_attributes";
   else
     // Don't enable several freshly added extensions on FPGA H/W
-    ExtArg += ",+SPV_INTEL_token_type"
-              ",+SPV_INTEL_bfloat16_conversion"
+    ExtArg += ",+SPV_INTEL_bfloat16_conversion"
               ",+SPV_INTEL_joint_matrix"
               ",+SPV_INTEL_hw_thread_queries"
               ",+SPV_KHR_uniform_group_instructions"

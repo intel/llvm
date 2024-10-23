@@ -48,7 +48,6 @@ void test_memcpy3D_async_pitchedAPI() {
   size_t depth = 10;
   float *h_data;
   float *h_ref;
-  // test_feature:byte_t
   syclcompat::byte_t a = 'a';
   assert(sizeof(syclcompat::byte_t) == 1);
 
@@ -70,36 +69,23 @@ void test_memcpy3D_async_pitchedAPI() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent);
 
   // copy to Device.
   cpyParm_from_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * width, width, height);
 
-  // test_feature:get_data_ptr
-  // test_feature:get_pitch
-  // test_feature:get_x
-  // test_feature:get_y
   if (cpyParm_from_data_ct1.get_data_ptr() != h_data ||
       cpyParm_from_data_ct1.get_pitch() != sizeof(float) * width ||
       cpyParm_from_data_ct1.get_x() != width ||
       cpyParm_from_data_ct1.get_y() != height) {
     assert(false);
   }
-  // test_feature:set_data_ptr
-  // test_feature:set_pitch
-  // test_feature:set_x
-  // test_feature:set_y
   cpyParm_from_data_ct1.set_data_ptr((void *)h_data);
   cpyParm_from_data_ct1.set_pitch(sizeof(float) * width);
   cpyParm_from_data_ct1.set_x(width);
   cpyParm_from_data_ct1.set_y(height);
 
-  // test_feature:get_data_ptr
-  // test_feature:get_pitch
-  // test_feature:get_x
-  // test_feature:get_y
   if (cpyParm_from_data_ct1.get_data_ptr() != h_data ||
       cpyParm_from_data_ct1.get_pitch() != sizeof(float) * width ||
       cpyParm_from_data_ct1.get_x() != width ||
@@ -109,7 +95,6 @@ void test_memcpy3D_async_pitchedAPI() {
 
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -119,14 +104,12 @@ void test_memcpy3D_async_pitchedAPI() {
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
   syclcompat::get_default_queue().wait_and_throw();
   check(h_data, h_ref, width * height * depth);
   // memset device data.
-  // test_feature:memset_async
   syclcompat::memset_async(d_data, 0x1, extent);
   syclcompat::get_default_queue().wait_and_throw();
   // copy back to host
@@ -134,7 +117,6 @@ void test_memcpy3D_async_pitchedAPI() {
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -175,7 +157,6 @@ void test_memcpy3D_async_pitchedAPI_q() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent, q);
 
   // copy to Device.
@@ -183,7 +164,6 @@ void test_memcpy3D_async_pitchedAPI_q() {
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -193,7 +173,6 @@ void test_memcpy3D_async_pitchedAPI_q() {
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -202,7 +181,6 @@ void test_memcpy3D_async_pitchedAPI_q() {
 
   check(h_data, h_ref, width * height * depth);
   // memset device data.
-  // test_feature:memset_async
   syclcompat::memset_async(d_data, 0x1, extent, q);
   q.wait_and_throw();
   // copy back to host
@@ -210,7 +188,6 @@ void test_memcpy3D_async_pitchedAPI_q() {
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -288,7 +265,6 @@ void test_memcpy3D_async_offset() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent);
 
   // copy to Device.
@@ -296,7 +272,6 @@ void test_memcpy3D_async_offset() {
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -310,7 +285,6 @@ void test_memcpy3D_async_offset() {
   cpyParm_from_data_ct1 = d_data;
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * out_width, out_width, out_height);
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -384,7 +358,6 @@ void test_memcpy3D_async_offset_q() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent, q);
 
   // copy to Device.
@@ -392,7 +365,6 @@ void test_memcpy3D_async_offset_q() {
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -406,7 +378,6 @@ void test_memcpy3D_async_offset_q() {
   cpyParm_from_data_ct1 = d_data;
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * out_width, out_width, out_height);
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -480,7 +451,6 @@ void test_memcpy3D_async_offsetZ() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent);
 
   // copy to Device.
@@ -488,7 +458,6 @@ void test_memcpy3D_async_offsetZ() {
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -502,7 +471,6 @@ void test_memcpy3D_async_offsetZ() {
   cpyParm_from_data_ct1 = d_data;
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * out_width, out_width, out_height);
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1);
@@ -576,7 +544,6 @@ void test_memcpy3D_async_offsetZ_q() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent, q);
 
   // copy to Device.
@@ -584,7 +551,6 @@ void test_memcpy3D_async_offsetZ_q() {
       (void *)h_data, sizeof(float) * width, width, height);
   cpyParm_to_data_ct1 = d_data;
   cpyParm_size_ct1 = extent;
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
@@ -598,7 +564,6 @@ void test_memcpy3D_async_offsetZ_q() {
   cpyParm_from_data_ct1 = d_data;
   cpyParm_to_data_ct1 = syclcompat::pitched_data(
       (void *)h_data, sizeof(float) * out_width, out_width, out_height);
-  // test_feature:memcpy_async
   syclcompat::memcpy_async(cpyParm_to_data_ct1, cpyParm_to_pos_ct1,
                            cpyParm_from_data_ct1, cpyParm_from_pos_ct1,
                            cpyParm_size_ct1, q);
