@@ -16,7 +16,6 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>
 #include <sycl/device.hpp>
-
 #include <sys/stat.h>
 #include <thread>
 #include <vector>
