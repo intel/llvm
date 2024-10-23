@@ -6,26 +6,22 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
-
-namespace syclext = sycl::ext::oneapi::experimental;
+#include "helpers.hpp"
 
 int main() {
   sycl::queue Q;
   sycl::context Context = Q.get_context();
+  sycl::device Device = Q.get_device();
   int Failed = 0;
   constexpr size_t NumberOfElements = 1000;
   size_t BytesRequired = NumberOfElements * sizeof(int);
 
-  size_t CtxGranularity = syclext::get_mem_granularity(
-      Context, syclext::granularity_mode::recommended);
+  size_t UsedGranularity = GetLCMGranularity(Device,Context);
 
   size_t AlignedByteSize =
-      ((BytesRequired + CtxGranularity - 1) / CtxGranularity) * CtxGranularity;
+      ((BytesRequired + UsedGranularity - 1) / UsedGranularity) * UsedGranularity;
 
-  syclext::physical_mem NewPhysicalMem{Q.get_device(), Context,
+  syclext::physical_mem NewPhysicalMem{Device, Context,
                                        AlignedByteSize};
   uintptr_t VirtualMemoryPtr =
       syclext::reserve_virtual_mem(0, AlignedByteSize, Context);
