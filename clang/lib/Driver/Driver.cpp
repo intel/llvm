@@ -5437,7 +5437,7 @@ class OffloadingActionBuilder final {
                                                         types::TY_Tempfilelist);
               if (auto *OWA =
                       dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
-                OWA->setIndividualWrap(true);
+                OWA->setWrapIndividualFiles();
               addDeps(CompiledDeviceAction, TC, BoundArch);
             }
             addDeps(DeviceAction, TC, BoundArch);
@@ -5838,7 +5838,7 @@ class OffloadingActionBuilder final {
                         FPGAArchiveWrapperInputs, types::TY_Tempfilelist);
                 if (auto *OWA =
                         dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
-                  OWA->setIndividualWrap(true);
+                  OWA->setWrapIndividualFiles();
                 addDeps(CompiledDeviceAction, TC, nullptr);
               }
               addDeps(DeviceAction, TC, nullptr);

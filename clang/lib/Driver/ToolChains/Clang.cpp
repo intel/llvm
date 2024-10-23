@@ -10269,7 +10269,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     // the wrapping and compile step should be done individually.  Ideally this
     // would be controlled at the JobAction creation, but we cannot do that
     // until the compilation of the wrap is it's own JobAction.
-    bool IndividualWrapCompile = WrapperJob.getIndividualWrap();
+    bool IndividualWrapCompile = WrapperJob.getWrapIndividualFiles();
     const InputInfo TempOutput(types::TY_LLVM_BC, WrapperFileName,
                                WrapperFileName);
     if (!IndividualWrapCompile &&
@@ -10316,7 +10316,7 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       SmallString<128> ClangPath(C.getDriver().Dir);
       llvm::sys::path::append(ClangPath, "clang");
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
-      auto Cmd =
+      auto PostWrapCompileCmd =
           std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
                                     Clang, ClangArgs, std::nullopt);
       if (IndividualWrapCompile) {
@@ -10325,10 +10325,10 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         InputInfoList Inputs;
         Inputs.push_back(TempOutput);
         clang::driver::tools::SYCL::constructLLVMForeachCommand(
-            C, JA, std::move(Cmd), Inputs, Output, this, "", "bc",
-            ParallelJobs);
+            C, JA, std::move(PostWrapCompileCmd), Inputs, Output, this, "",
+            "bc", ParallelJobs);
       } else
-        C.addCommand(std::move(Cmd));
+        C.addCommand(std::move(PostWrapCompileCmd));
     }
     return;
   } // end of SYCL flavor of offload wrapper command creation

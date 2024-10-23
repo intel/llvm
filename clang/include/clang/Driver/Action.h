@@ -701,10 +701,10 @@ public:
   // Set the individual wrapping setting.  This is used to tell the wrapper job
   // action that the wrapping (and subsequent compile step) should be done
   // with for-each instead of using -batch.
-  void setIndividualWrap(bool SetValue) { IndividualWrap = SetValue; }
+  void setWrapIndividualFiles() { WrapIndividualFiles = true; }
 
   // Get the individual wrapping setting.
-  bool getIndividualWrap() const { return IndividualWrap; }
+  bool getWrapIndividualFiles() const { return WrapIndividualFiles; }
 
   // Set the offload kind for the current wrapping job action.  Default usage
   // is to use the kind of the current toolchain.
@@ -715,7 +715,7 @@ public:
 
 private:
   bool CompileStep = true;
-  bool IndividualWrap = false;
+  bool WrapIndividualFiles = false;
   OffloadKind Kind = OFK_None;
 };
 
