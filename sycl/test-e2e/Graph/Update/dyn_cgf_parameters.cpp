@@ -17,25 +17,26 @@ int main() {
   queue Queue{};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  const size_t N = 1024;
-  int *PtrA = malloc_device<int>(N, Queue);
-  int *PtrB = malloc_device<int>(N, Queue);
+  int *PtrA = malloc_device<int>(Size, Queue);
+  int *PtrB = malloc_device<int>(Size, Queue);
 
-  std::vector<int> HostDataA(N);
-  std::vector<int> HostDataB(N);
+  std::vector<int> HostDataA(Size);
+  std::vector<int> HostDataB(Size);
 
-  Queue.memset(PtrA, 0, N * sizeof(int));
-  Queue.memset(PtrB, 0, N * sizeof(int));
+  Queue.memset(PtrA, 0, Size * sizeof(int));
+  Queue.memset(PtrB, 0, Size * sizeof(int));
   Queue.wait();
 
   int PatternA = 0xA;
   auto CGFA = [&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] = PatternA; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { PtrA[Item.get_id()] = PatternA; });
   };
 
   int PatternB = 42;
   auto CGFB = [&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] = PatternB; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { PtrB[Item.get_id()] = PatternB; });
   };
 
   auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CGFA, CGFB});
@@ -43,10 +44,10 @@ int main() {
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(PtrA, HostDataA.data(), N);
-  Queue.copy(PtrB, HostDataB.data(), N);
+  Queue.copy(PtrA, HostDataA.data(), Size);
+  Queue.copy(PtrB, HostDataB.data(), Size);
   Queue.wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == PatternA);
     assert(HostDataB[i] == 0);
   }
@@ -55,10 +56,10 @@ int main() {
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(PtrA, HostDataA.data(), N);
-  Queue.copy(PtrB, HostDataB.data(), N);
+  Queue.copy(PtrA, HostDataA.data(), Size);
+  Queue.copy(PtrB, HostDataB.data(), Size);
   Queue.wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == PatternA);
     assert(HostDataB[i] == PatternB);
   }

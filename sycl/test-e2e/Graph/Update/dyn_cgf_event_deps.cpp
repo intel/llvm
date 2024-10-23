@@ -17,22 +17,21 @@ int main() {
   queue Queue{};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  const size_t N = 1024;
-  int *PtrA = malloc_device<int>(N, Queue);
-  int *PtrB = malloc_device<int>(N, Queue);
-  int *PtrC = malloc_device<int>(N, Queue);
-  std::vector<int> HostData(N);
+  int *PtrA = malloc_device<int>(Size, Queue);
+  int *PtrB = malloc_device<int>(Size, Queue);
+  int *PtrC = malloc_device<int>(Size, Queue);
+  std::vector<int> HostData(Size);
 
   Graph.begin_recording(Queue);
   int PatternA = 42;
-  auto EventA = Queue.fill(PtrA, PatternA, N);
+  auto EventA = Queue.fill(PtrA, PatternA, Size);
   int PatternB = 0xA;
-  auto EventB = Queue.fill(PtrB, PatternB, N);
+  auto EventB = Queue.fill(PtrB, PatternB, Size);
   Graph.end_recording(Queue);
 
   auto CGFA = [&](handler &CGH) {
     CGH.depends_on({EventA, EventB});
-    CGH.parallel_for(N, [=](item<1> Item) {
+    CGH.parallel_for(Size, [=](item<1> Item) {
       auto I = Item.get_id();
       PtrC[I] = PtrA[I] * PtrB[I];
     });
@@ -40,7 +39,7 @@ int main() {
 
   auto CGFB = [&](handler &CGH) {
     CGH.depends_on({EventA, EventB});
-    CGH.parallel_for(N, [=](item<1> Item) {
+    CGH.parallel_for(Size, [=](item<1> Item) {
       auto I = Item.get_id();
       PtrC[I] = PtrA[I] + PtrB[I];
     });
@@ -51,8 +50,8 @@ int main() {
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(PtrC, HostData.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(PtrC, HostData.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternA * PatternB);
   }
 
@@ -60,8 +59,8 @@ int main() {
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(PtrC, HostData.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(PtrC, HostData.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternA + PatternB);
   }
 

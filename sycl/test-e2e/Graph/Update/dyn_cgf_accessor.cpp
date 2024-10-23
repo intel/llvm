@@ -14,9 +14,7 @@
 
 int main() {
   queue Queue{};
-  const size_t N = 1024;
-  std::vector<int> HostData(N, 0);
-  buffer Buf{HostData};
+  buffer<int> Buf{sycl::range<1>(Size)};
   Buf.set_write_back(false);
   auto Acc = Buf.get_access();
 
@@ -28,13 +26,15 @@ int main() {
   int PatternA = 42;
   auto CGFA = [&](handler &CGH) {
     CGH.require(Acc);
-    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = PatternA; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { Acc[Item.get_id()] = PatternA; });
   };
 
   int PatternB = 0xA;
   auto CGFB = [&](handler &CGH) {
     CGH.require(Acc);
-    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = PatternB; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { Acc[Item.get_id()] = PatternB; });
   };
 
   auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CGFA, CGFB});
@@ -42,8 +42,9 @@ int main() {
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
+  std::vector<int> HostData(Size, 0);
   Queue.copy(Acc, HostData.data()).wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternA);
   }
 
@@ -52,7 +53,7 @@ int main() {
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
   Queue.copy(Acc, HostData.data()).wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternB);
   }
 

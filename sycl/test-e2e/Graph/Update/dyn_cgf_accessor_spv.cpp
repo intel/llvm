@@ -26,17 +26,13 @@ int main(int, char **argv) {
   kernel kernel = getKernel(
       KernelBundle, "_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlvE_");
 
-  const size_t N = 1024;
-
   exp_ext::command_graph Graph{
       Queue.get_context(),
       Queue.get_device(),
       {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
-  std::vector<int> HostDataA(N, 0);
-  std::vector<int> HostDataB(N, 0);
 
-  buffer BufA{HostDataA};
-  buffer BufB{HostDataB};
+  buffer<int> BufA{sycl::range<1>(Size)};
+  buffer<int> BufB{sycl::range<1>(Size)};
   BufA.set_write_back(false);
   BufB.set_write_back(false);
 
@@ -60,9 +56,12 @@ int main(int, char **argv) {
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
+
+  std::vector<int> HostDataA(Size, 0);
+  std::vector<int> HostDataB(Size, 0);
   Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   Queue.copy(BufB.get_access(), HostDataB.data()).wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == 0);
   }
@@ -71,9 +70,10 @@ int main(int, char **argv) {
   ExecGraph.update(DynamicCGNode);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
+
   Queue.copy(BufA.get_access(), HostDataA.data()).wait();
   Queue.copy(BufB.get_access(), HostDataB.data()).wait();
-  for (size_t i = 0; i < N; i++) {
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == i);
   }

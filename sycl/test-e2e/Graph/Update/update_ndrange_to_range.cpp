@@ -13,17 +13,15 @@
 int main() {
   queue Queue{};
 
-  const size_t N = 1024;
-
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  int *PtrA = malloc_device<int>(N, Queue);
+  int *PtrA = malloc_device<int>(Size, Queue);
 
-  std::vector<int> HostDataA(N);
+  std::vector<int> HostDataA(Size);
 
-  Queue.memset(PtrA, 0, N * sizeof(int)).wait();
+  Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
 
-  nd_range<1> NDRange{range{N}, range{32}};
+  nd_range<1> NDRange{range{Size}, range{32}};
 
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.parallel_for(NDRange, [=](nd_item<1> Item) {
@@ -37,19 +35,20 @@ int main() {
   // first half of PtrA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(PtrA, HostDataA.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
   }
 
   // Update NDRange to target first half only
-  KernelNode.update_range(range<1>{512});
+  size_t UpdateSize = Size / 2;
+  KernelNode.update_range(range<1>{UpdateSize});
   ExecGraph.update(KernelNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
-    assert(HostDataA[i] == (i >= 512 ? i : i * 2));
+  Queue.copy(PtrA, HostDataA.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
+    assert(HostDataA[i] == (i >= UpdateSize ? i : i * 2));
   }
   return 0;
 }

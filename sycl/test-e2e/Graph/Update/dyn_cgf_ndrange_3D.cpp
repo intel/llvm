@@ -9,7 +9,7 @@
 // XFAIL-TRACKER: OFNAAO-307
 
 // Tests updating a dynamic command-group node where the dynamic command-groups
-// have different ranges/nd-ranges
+// have different range/nd-range dimensions
 
 #include "../graph_common.hpp"
 

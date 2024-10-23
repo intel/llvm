@@ -99,8 +99,6 @@ public:
   /// Stores the executable graph impl associated with this node if it is a
   /// subgraph node.
   std::shared_ptr<exec_graph_impl> MSubGraphImpl;
-  /// Dynamic command-group object used in node, if any.
-  std::shared_ptr<dynamic_command_group_impl> MDynCG;
 
   /// Used for tracking visited status during cycle checks.
   bool MVisited = false;
@@ -158,7 +156,7 @@ public:
       : enable_shared_from_this(Other), MSuccessors(Other.MSuccessors),
         MPredecessors(Other.MPredecessors), MCGType(Other.MCGType),
         MNodeType(Other.MNodeType), MCommandGroup(Other.getCGCopy()),
-        MSubGraphImpl(Other.MSubGraphImpl), MDynCG(Other.MDynCG) {}
+        MSubGraphImpl(Other.MSubGraphImpl) {}
 
   /// Copy-assignment operator. This will perform a deep-copy of the
   /// command group object associated with this node.
@@ -170,7 +168,6 @@ public:
       MNodeType = Other.MNodeType;
       MCommandGroup = Other.getCGCopy();
       MSubGraphImpl = Other.MSubGraphImpl;
-      MDynCG = Other.MDynCG;
     }
     return *this;
   }
@@ -420,7 +417,7 @@ public:
       throw sycl::exception(sycl::errc::invalid,
                             "Cannot update execution range of a node with an "
                             "execution range of different dimensions than what "
-                            "the node was originall created with.");
+                            "the node was original created with.");
     }
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
@@ -441,7 +438,7 @@ public:
       throw sycl::exception(sycl::errc::invalid,
                             "Cannot update execution range of a node with an "
                             "execution range of different dimensions than what "
-                            "the node was originall created with.");
+                            "the node was original created with.");
     }
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};

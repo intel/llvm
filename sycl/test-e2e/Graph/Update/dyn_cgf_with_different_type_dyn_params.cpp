@@ -17,14 +17,13 @@ int main() {
   queue Queue{};
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
-  const size_t N = 1024;
-  int *PtrA = malloc_device<int>(N, Queue);
-  int *PtrB = malloc_device<int>(N, Queue);
-  int *PtrC = malloc_device<int>(N, Queue);
+  int *PtrA = malloc_device<int>(Size, Queue);
+  int *PtrB = malloc_device<int>(Size, Queue);
+  int *PtrC = malloc_device<int>(Size, Queue);
 
-  std::vector<int> HostDataA(N);
-  std::vector<int> HostDataB(N);
-  std::vector<int> HostDataC(N);
+  std::vector<int> HostDataA(Size);
+  std::vector<int> HostDataB(Size);
+  std::vector<int> HostDataC(Size);
 
   int ScalarValue = 17;
   exp_ext::dynamic_parameter DynParamScalar(Graph, ScalarValue);
@@ -37,7 +36,7 @@ int main() {
     // TODO: Use the free function kernel extension instead of regular kernels
     // when available.
     CGH.single_task([=]() {
-      for (size_t i = 0; i < N; i++) {
+      for (size_t i = 0; i < Size; i++) {
         PtrA[i] = ScalarValue;
       }
     });
@@ -49,7 +48,7 @@ int main() {
     // TODO: Use the free function kernel extension instead of regular kernels
     // when available.
     CGH.single_task([=]() {
-      for (size_t i = 0; i < N; i++) {
+      for (size_t i = 0; i < Size; i++) {
         PtrA[i] = ScalarValue;
       }
     });
@@ -62,7 +61,7 @@ int main() {
     // TODO: Use the free function kernel extension instead of regular kernels
     // when available.
     CGH.single_task([=]() {
-      for (size_t i = 0; i < N; i++) {
+      for (size_t i = 0; i < Size; i++) {
         PtrC[i] = ScalarValue;
       }
     });
@@ -73,7 +72,7 @@ int main() {
     // TODO: Use the free function kernel extension instead of regular kernels
     // when available.
     CGH.single_task([=]() {
-      for (size_t i = 0; i < N; i++) {
+      for (size_t i = 0; i < Size; i++) {
         PtrA[i] = ScalarValue;
       }
     });
@@ -86,19 +85,19 @@ int main() {
   auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
 
   auto ExecuteGraphAndVerifyResults = [&](int A, int B, int C) {
-    Queue.memset(PtrA, 0, N * sizeof(int));
-    Queue.memset(PtrB, 0, N * sizeof(int));
-    Queue.memset(PtrC, 0, N * sizeof(int));
+    Queue.memset(PtrA, 0, Size * sizeof(int));
+    Queue.memset(PtrB, 0, Size * sizeof(int));
+    Queue.memset(PtrC, 0, Size * sizeof(int));
     Queue.wait();
 
     Queue.ext_oneapi_graph(ExecGraph).wait();
 
-    Queue.copy(PtrA, HostDataA.data(), N);
-    Queue.copy(PtrB, HostDataB.data(), N);
-    Queue.copy(PtrC, HostDataC.data(), N);
+    Queue.copy(PtrA, HostDataA.data(), Size);
+    Queue.copy(PtrB, HostDataB.data(), Size);
+    Queue.copy(PtrC, HostDataC.data(), Size);
     Queue.wait();
 
-    for (size_t i = 0; i < N; i++) {
+    for (size_t i = 0; i < Size; i++) {
       assert(HostDataA[i] == A);
       assert(HostDataB[i] == B);
       assert(HostDataC[i] == C);

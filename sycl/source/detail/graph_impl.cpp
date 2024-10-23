@@ -562,7 +562,6 @@ graph_impl::add(std::shared_ptr<dynamic_command_group_impl> &DynCGImpl,
 
   // Track the dynamic command-group used inside the node object
   DynCGImpl->MNodes.push_back(NodeImpl);
-  NodeImpl->MDynCG = DynCGImpl;
 
   return NodeImpl;
 }

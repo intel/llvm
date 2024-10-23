@@ -291,18 +291,17 @@ from a `std::unique_ptr` to a `std::shared_ptr` so that multiple nodes and the
 the overhead of having to allocate and free copies of the CG when a new active
 CG is selected.
 
-The `dynamic_command_group_impl` class contains weak pointers to the nodes which
-have been created with it, so that when a new active CG is selected it can
-propagate the change to those nodes. The `node_impl` class also contains a
-reference to the dynamic command-group that created it, so that when the graph
-is finalized each node can use the list of kernels in its dynamic command-group
-as part of the `urCommandBufferAppendKernelLaunchExp` call to pass the possible
-alternative kernels.
+The `dynamic_command_group_impl` class contains a list of weak pointers to the
+nodes which have been created with it, so that when a new active CG is selected
+it can propagate the change to those nodes. The `dynamic_parameter_impl` class
+also contains a list of weak pointers, but to the `dynamic_command_group_impl`
+instances of any dynamic command-groups where they are used. This allows
+updating the dynamic parameter to propagate to dynamic command-group nodes.
 
 The `sycl::detail::CGExecKernel` class has been added to, so that if the
 object was created from an element in the dynamic command-group list, the class
 stores a vector of weak pointers to the other alternative command-groups created
-from the same dynamic command-group object. This allows the DPC++ scheduler to
+from the same dynamic command-group object. This allows the SYCL runtime to
 access the list of alternative kernels when calling the UR API to append a
 kernel command to a command-buffer.
 

@@ -17,18 +17,19 @@ int main() {
   exp_ext::command_graph GraphA{Queue.get_context(), Queue.get_device()};
   exp_ext::command_graph GraphB{Queue.get_context(), Queue.get_device()};
 
-  const size_t N = 1024;
-  int *Ptr = malloc_device<int>(N, Queue);
-  std::vector<int> HostData(N);
+  int *Ptr = malloc_device<int>(Size, Queue);
+  std::vector<int> HostData(Size);
 
   int PatternA = 42;
   auto CGFA = [&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { Ptr[Item.get_id()] = PatternA; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { Ptr[Item.get_id()] = PatternA; });
   };
 
   int PatternB = 0xA;
   auto CGFB = [&](handler &CGH) {
-    CGH.parallel_for(N, [=](item<1> Item) { Ptr[Item.get_id()] = PatternB; });
+    CGH.parallel_for(Size,
+                     [=](item<1> Item) { Ptr[Item.get_id()] = PatternB; });
   };
 
   auto DynamicCGA = exp_ext::dynamic_command_group(GraphA, {CGFA, CGFB});
@@ -41,8 +42,8 @@ int main() {
   auto ExecGraph = GraphA.finalize(exp_ext::property::graph::updatable{});
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(Ptr, HostData.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(Ptr, HostData.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternA);
   }
 
@@ -64,8 +65,8 @@ int main() {
   ExecGraph.update(GraphB);
 
   Queue.ext_oneapi_graph(ExecGraph).wait();
-  Queue.copy(Ptr, HostData.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(Ptr, HostData.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == PatternB);
   }
 
