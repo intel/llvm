@@ -190,3 +190,7 @@
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: offload-wrapper: input: [[BUNDLEROUT]], output: [[WRAPPEROUT2:.*]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}clang"{{.*}} -c -o [[LLCOUT2:.*]] [[WRAPPEROUT2]]
 // CHK-CMDS-AOT-AMD-EMBED-IR-NEXT: "{{.*}}ld" -- HOST_LINKER_FLAGS -dynamic-linker HOST_DYN_LIB -o a.out [[LLCOUT1]] [[LLCOUT2]] HOST_LIB_PATH HOST_STAT_LIB {{.*}}.o
+
+// Error handling when --linker-path is not provided for clang-linker-wrapper
+// RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
+// LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'
