@@ -2070,9 +2070,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
-      IsInvalid = false;
-    else {
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
       Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
           << ParamTy;
       IsInvalid = true;
@@ -2081,9 +2079,9 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
-    return isValid();
-  }
+  IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+  return isValid();
+}
 
   bool handleArrayType(ParmVarDecl *PD, QualType ParamTy) final {
     Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
@@ -2228,9 +2226,7 @@ public:
   }
 
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
-      IsInvalid = false;
-    else
+    if (!SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
       unsupportedFreeFunctionParamType(); // TODO
     return true;
   }
@@ -3015,7 +3011,7 @@ public:
     return handleSpecialType(FD, FieldTy);
   }
 
-  bool handleSyclSpecialType(ParmVarDecl * PD, QualType ParamTy) final {
+  bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory)) {
       const auto *RecordDecl = ParamTy->getAsCXXRecordDecl();
       assert(RecordDecl && "The type must be a RecordDecl");
@@ -6294,7 +6290,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // work_group_memory<int> where the hidden second parameter has a default
   // value. To circumvent this, we include the correct forward declaration
   // ourselves.
-  O << "#include <sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>\n";
+  O << "#include "
+       "<sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>\n";
   O << "\n";
 
   LangOptions LO;
