@@ -3080,9 +3080,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_foffload_fp32_prec_sqrt:
       break;
     case options::OPT_fno_offload_fp32_prec_sqrt:
-        if (!FPAccuracy.empty())
+      if (!FPAccuracy.empty())
         EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-sqrt");
-        NoOffloadFp32PrecSqrt = true;
+      NoOffloadFp32PrecSqrt = true;
       break;
     case options::OPT_fno_offload_fp32_prec_div:
       if (!FPAccuracy.empty())
