@@ -13,6 +13,7 @@
 #include "ur_api.h"
 
 #include "common.hpp"
+#include "event.hpp"
 #include "kernel.hpp"
 #include "memory.hpp"
 #include "queue.hpp"
@@ -67,10 +68,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
+  urEventWait(numEventsInWaitList, phEventWaitList);
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pGlobalWorkOffset, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -103,10 +102,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   }
 
   // TODO: add proper error checking
-  // TODO: add proper event dep management
   native_cpu::NDRDescT ndr(workDim, pGlobalWorkOffset, pGlobalWorkSize,
                            pLocalWorkSize);
-  auto &tp = hQueue->device->tp;
+  auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
   hKernel->updateMemPool(numParallelThreads);
   std::vector<std::future<void>> futures;
@@ -118,6 +116,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                           ndr.GlobalSize[2], ndr.LocalSize[0], ndr.LocalSize[1],
                           ndr.LocalSize[2], ndr.GlobalOffset[0],
                           ndr.GlobalOffset[1], ndr.GlobalOffset[2]);
+  auto event = new ur_event_handle_t_(hQueue, UR_COMMAND_KERNEL_LAUNCH);
+  event->tick_start();
+
 #ifndef NATIVECPU_USE_OCK
   hKernel->handleLocalArgs(1, 0);
   for (unsigned g2 = 0; g2 < numWG2; g2++) {
@@ -127,7 +128,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
           for (unsigned local1 = 0; local1 < ndr.LocalSize[1]; local1++) {
             for (unsigned local0 = 0; local0 < ndr.LocalSize[0]; local0++) {
               state.update(g0, g1, g2, local0, local1, local2);
-              hKernel->_subhandler(hKernel->_args.data(), &state);
+              hKernel->_subhandler(hKernel->getArgs().data(), &state);
             }
           }
         }
@@ -158,13 +159,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     for (unsigned g2 = 0; g2 < numWG2; g2++) {
       for (unsigned g1 = 0; g1 < numWG1; g1++) {
         for (unsigned g0 = 0; g0 < new_num_work_groups_0; g0 += 1) {
-          futures.emplace_back(
-              tp.schedule_task([&ndr = std::as_const(ndr), itemsPerThread,
-                                hKernel, g0, g1, g2](size_t) {
+          futures.emplace_back(tp.schedule_task(
+              [ndr, itemsPerThread, kernel = *hKernel, g0, g1, g2](size_t) {
                 native_cpu::state resized_state =
                     getResizedState(ndr, itemsPerThread);
                 resized_state.update(g0, g1, g2);
-                hKernel->_subhandler(hKernel->_args.data(), &resized_state);
+                kernel._subhandler(kernel.getArgs().data(), &resized_state);
               }));
         }
         // Peel the remaining work items. Since the local size is 1, we iterate
@@ -172,7 +172,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         for (unsigned g0 = new_num_work_groups_0 * itemsPerThread; g0 < numWG0;
              g0++) {
           state.update(g0, g1, g2);
-          hKernel->_subhandler(hKernel->_args.data(), &state);
+          hKernel->_subhandler(hKernel->getArgs().data(), &state);
         }
       }
     }
@@ -190,7 +190,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                 for (unsigned g0 = 0; g0 < numWG0; g0++) {
                   kernel.handleLocalArgs(numParallelThreads, threadId);
                   state.update(g0, g1, g2);
-                  kernel._subhandler(kernel._args.data(), &state);
+                  kernel._subhandler(kernel.getArgs().data(), &state);
                 }
               }));
         }
@@ -207,7 +207,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                     size_t threadId, ur_kernel_handle_t_ kernel) mutable {
                   kernel.handleLocalArgs(numParallelThreads, threadId);
                   state.update(g0, g1, g2);
-                  kernel._subhandler(kernel._args.data(), &state);
+                  kernel._subhandler(kernel.getArgs().data(), &state);
                 });
           }
         }
@@ -216,11 +216,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       auto groupsPerThread = numGroups / numParallelThreads;
       auto remainder = numGroups % numParallelThreads;
       for (unsigned thread = 0; thread < numParallelThreads; thread++) {
-        futures.emplace_back(tp.schedule_task(
-            [&groups, thread, groupsPerThread, hKernel](size_t threadId) {
+        futures.emplace_back(
+            tp.schedule_task([groups, thread, groupsPerThread,
+                              kernel = *hKernel](size_t threadId) {
               for (unsigned i = 0; i < groupsPerThread; i++) {
                 auto index = thread * groupsPerThread + i;
-                groups[index](threadId, *hKernel);
+                groups[index](threadId, kernel);
               }
             }));
       }
@@ -228,25 +229,32 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
       // schedule the remaining tasks
       if (remainder) {
         futures.emplace_back(
-            tp.schedule_task([&groups, remainder,
+            tp.schedule_task([groups, remainder,
                               scheduled = numParallelThreads * groupsPerThread,
-                              hKernel](size_t threadId) {
+                              kernel = *hKernel](size_t threadId) {
               for (unsigned i = 0; i < remainder; i++) {
                 auto index = scheduled + i;
-                groups[index](threadId, *hKernel);
+                groups[index](threadId, kernel);
               }
             }));
       }
     }
   }
 
-  for (auto &f : futures)
-    f.get();
 #endif // NATIVECPU_USE_OCK
-  // TODO: we should avoid calling clear here by avoiding using push_back
-  // in setKernelArgs.
-  hKernel->_args.clear();
-  hKernel->_localArgInfo.clear();
+  event->set_futures(futures);
+
+  *phEvent = event;
+  event->set_callback([hKernel, event]() {
+    event->tick_end();
+    // TODO: avoid calling clear() here.
+    hKernel->_localArgInfo.clear();
+  });
+
+  if (hQueue->isInOrder()) {
+    urEventWait(1, phEvent);
+  }
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -274,15 +282,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
 
 template <bool IsRead>
 static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
-    ur_queue_handle_t, ur_mem_handle_t Buff, bool,
+    ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool,
     ur_rect_offset_t BufferOffset, ur_rect_offset_t HostOffset,
     ur_rect_region_t region, size_t BufferRowPitch, size_t BufferSlicePitch,
     size_t HostRowPitch, size_t HostSlicePitch,
     typename std::conditional<IsRead, void *, const void *>::type DstMem,
-    uint32_t, const ur_event_handle_t *, ur_event_handle_t *) {
-  // TODO: events, blocking, check other constraints, performance optimizations
+    uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  ur_event_handle_t event;
+  if constexpr (IsRead)
+    event = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_READ_RECT);
+  else
+    event = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_WRITE_RECT);
+  event->tick_start();
+  // TODO: blocking, check other constraints, performance optimizations
   //       More sharing with level_zero where possible
 
+  urEventWait(NumEventsInWaitList, phEventWaitList);
   if (BufferRowPitch == 0)
     BufferRowPitch = region.width;
   if (BufferSlicePitch == 0)
@@ -306,21 +322,26 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
         else
           buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
       }
+
+  event->tick_end();
+  *phEvent = event;
   return UR_RESULT_SUCCESS;
 }
 
 static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
                                       const void *SrcPtr, size_t Size,
                                       uint32_t numEventsInWaitList,
-                                      const ur_event_handle_t *EventWaitList,
-                                      ur_event_handle_t *Event) {
-  // todo: non-blocking, events, UR integration
-  std::ignore = EventWaitList;
-  std::ignore = Event;
-  std::ignore = hQueue;
-  std::ignore = numEventsInWaitList;
+                                      const ur_event_handle_t *phEventWaitList,
+                                      ur_event_handle_t *phEvent,
+                                      ur_command_t command_type) {
+  ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
+  event->tick_start();
+  urEventWait(numEventsInWaitList, phEventWaitList);
   if (SrcPtr != DstPtr && Size)
     memmove(DstPtr, SrcPtr, Size);
+  event->tick_end();
+  if (phEvent)
+    *phEvent = event;
   return UR_RESULT_SUCCESS;
 }
 
@@ -331,8 +352,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
   std::ignore = blockingRead;
 
   void *FromPtr = /*Src*/ hBuffer->_mem + offset;
-  return doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
-                     phEventWaitList, phEvent);
+  auto res = doCopy_impl(hQueue, pDst, FromPtr, size, numEventsInWaitList,
+                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_READ);
+  return res;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
@@ -342,8 +364,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferWrite(
   std::ignore = blockingWrite;
 
   void *ToPtr = hBuffer->_mem + offset;
-  return doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
-                     phEventWaitList, phEvent);
+  auto res = doCopy_impl(hQueue, ToPtr, pSrc, size, numEventsInWaitList,
+                         phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_WRITE);
+  return res;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
@@ -377,10 +400,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ur_mem_handle_t hBufferDst, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  urEventWait(numEventsInWaitList, phEventWaitList);
   const void *SrcPtr = hBufferSrc->_mem + srcOffset;
   void *DstPtr = hBufferDst->_mem + dstOffset;
   return doCopy_impl(hQueue, DstPtr, SrcPtr, size, numEventsInWaitList,
-                     phEventWaitList, phEvent);
+                     phEventWaitList, phEvent, UR_COMMAND_MEM_BUFFER_COPY);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
@@ -484,15 +508,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ur_map_flags_t mapFlags, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent, void **ppRetMap) {
-  std::ignore = hQueue;
   std::ignore = blockingMap;
   std::ignore = mapFlags;
   std::ignore = size;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_event_handle_t event =
+      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
+  event->tick_start();
   *ppRetMap = hBuffer->_mem + offset;
+  event->tick_end();
+  *phEvent = event;
 
   return UR_RESULT_SUCCESS;
 }
@@ -501,12 +527,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_queue_handle_t hQueue, ur_mem_handle_t hMem, void *pMappedPtr,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
   std::ignore = hMem;
   std::ignore = pMappedPtr;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  *phEvent = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_UNMAP);
 
   return UR_RESULT_SUCCESS;
 }
@@ -515,10 +539,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_event_handle_t event =
+      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
+  event->tick_start();
 
   UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
@@ -564,6 +588,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     }
   }
   }
+
+  event->tick_end();
+  *phEvent = event;
+
   return UR_RESULT_SUCCESS;
 }
 
@@ -571,17 +599,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ur_queue_handle_t hQueue, bool blocking, void *pDst, const void *pSrc,
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
   std::ignore = blocking;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_event_handle_t event =
+      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
+  event->tick_start();
 
   UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
   UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
   memcpy(pDst, pSrc, size);
+  event->tick_end();
+  *phEvent = event;
 
   return UR_RESULT_SUCCESS;
 }
