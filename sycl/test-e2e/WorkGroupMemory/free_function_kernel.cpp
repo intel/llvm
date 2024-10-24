@@ -32,6 +32,7 @@ void sum(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
   mem[local_id] = buf[local_id];
   group_barrier(it.get_group());
   if (it.get_group().leader()) {
+    *Result = 0;
     if (!UseHelper) {
       for (int i = 0; i < WGSIZE; ++i) {
         *Result += mem[i];
