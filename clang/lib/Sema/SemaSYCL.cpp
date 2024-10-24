@@ -2079,9 +2079,9 @@ public:
   }
 
   bool handleArrayType(FieldDecl *FD, QualType FieldTy) final {
-  IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
-  return isValid();
-}
+    IsInvalid |= checkNotCopyableToKernel(FD, FieldTy);
+    return isValid();
+  }
 
   bool handleArrayType(ParmVarDecl *PD, QualType ParamTy) final {
     Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type) << ParamTy;
