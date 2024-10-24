@@ -125,6 +125,8 @@ static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
 ur_result_t
 ur_discrete_mem_handle_t::migrateBufferTo(ur_device_handle_t hDevice, void *src,
                                           size_t size) {
+  TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::migrateBufferTo");
+
   auto Id = hDevice->Id.value();
 
   if (!deviceAllocations[Id]) {
@@ -163,9 +165,11 @@ ur_discrete_mem_handle_t::~ur_discrete_mem_handle_t() {
   }
 }
 
-void *ur_discrete_mem_handle_t::getDevicePtrUnlocked(
+void *ur_discrete_mem_handle_t::getDevicePtr(
     ur_device_handle_t hDevice, access_mode_t access, size_t offset,
     size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
+  TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::getDevicePtr");
+
   std::ignore = access;
   std::ignore = size;
   std::ignore = migrate;
@@ -198,17 +202,10 @@ void *ur_discrete_mem_handle_t::getDevicePtrUnlocked(
          offset;
 }
 
-void *ur_discrete_mem_handle_t::getDevicePtr(
-    ur_device_handle_t hDevice, access_mode_t access, size_t offset,
-    size_t size, std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::lock_guard lock(this->Mutex);
-  return getDevicePtrUnlocked(hDevice, access, offset, size, migrate);
-}
-
 void *ur_discrete_mem_handle_t::mapHostPtr(
     access_mode_t access, size_t offset, size_t size,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::lock_guard lock(this->Mutex);
+  TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::mapHostPtr");
 
   // TODO: use async alloc?
 
@@ -231,7 +228,7 @@ void *ur_discrete_mem_handle_t::mapHostPtr(
 void ur_discrete_mem_handle_t::unmapHostPtr(
     void *pMappedPtr,
     std::function<void(void *src, void *dst, size_t)> migrate) {
-  std::lock_guard lock(this->Mutex);
+  TRACK_SCOPE_LATENCY("ur_discrete_mem_handle_t::unmapHostPtr");
 
   for (auto &hostAllocation : hostAllocations) {
     if (hostAllocation.ptr == pMappedPtr) {
@@ -241,9 +238,9 @@ void ur_discrete_mem_handle_t::unmapHostPtr(
                         deviceAllocations[activeAllocationDevice->Id.value()]) +
                     hostAllocation.offset;
       } else if (hostAllocation.access != access_mode_t::write_invalidate) {
-        devicePtr = ur_cast<char *>(getDevicePtrUnlocked(
-            hContext->getDevices()[0], access_mode_t::read_only,
-            hostAllocation.offset, hostAllocation.size, migrate));
+        devicePtr = ur_cast<char *>(
+            getDevicePtr(hContext->getDevices()[0], access_mode_t::read_only,
+                         hostAllocation.offset, hostAllocation.size, migrate));
       }
 
       if (devicePtr) {
@@ -328,7 +325,8 @@ ur_result_t urMemBufferCreateWithNativeHandle(
 ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
                          size_t propSize, void *pPropValue,
                          size_t *pPropSizeRet) {
-  std::shared_lock<ur_shared_mutex> Lock(hMemory->Mutex);
+  // No locking needed here, we only read const members
+
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
 
   switch (propName) {

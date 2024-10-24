@@ -134,7 +134,8 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
                              void *pContextInfo,
 
                              size_t *pPropSizeRet) {
-  std::shared_lock<ur_shared_mutex> Lock(hContext->Mutex);
+  // No locking needed here, we only read const members
+
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
   switch (
       (uint32_t)contextInfoType) { // cast to avoid warnings on EXT enum values

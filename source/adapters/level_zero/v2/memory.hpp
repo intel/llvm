@@ -26,6 +26,7 @@ struct ur_mem_handle_t_ : _ur_object {
     write_invalidate
   };
 
+  // Following functions should always be called under the lock.
   virtual void *
   getDevicePtr(ur_device_handle_t, access_mode_t, size_t offset, size_t size,
                std::function<void(void *src, void *dst, size_t)> mecmpy) = 0;
@@ -109,10 +110,6 @@ struct ur_discrete_mem_handle_t : public ur_mem_handle_t_ {
                     std::function<void(void *src, void *dst, size_t)>) override;
 
 private:
-  void *getDevicePtrUnlocked(ur_device_handle_t, access_mode_t, size_t offset,
-                             size_t size,
-                             std::function<void(void *src, void *dst, size_t)>);
-
   // Vector of per-device allocations indexed by device->Id
   std::vector<void *> deviceAllocations;
 
