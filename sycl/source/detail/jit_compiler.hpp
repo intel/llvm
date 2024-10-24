@@ -44,6 +44,12 @@ public:
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
+  std::vector<uint8_t> compileSYCL(
+      const std::string &Id, const std::string &SYCLSource,
+      const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+      const std::vector<std::string> &UserArgs, std::string *LogPtr,
+      const std::vector<std::string> &RegisteredKernelNames);
+
   bool isAvailable() { return Available; }
 
   static jit_compiler &get_instance() {
@@ -80,10 +86,12 @@ private:
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
   using MaterializeSpecConstFuncT =
       decltype(::jit_compiler::materializeSpecConstants) *;
+  using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
   MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
 #endif // SYCL_EXT_JIT_ENABLE
