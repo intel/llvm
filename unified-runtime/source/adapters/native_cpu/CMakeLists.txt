@@ -91,7 +91,6 @@ target_link_libraries(${TARGET_NAME} PRIVATE
 )
 
 target_include_directories(${TARGET_NAME} PRIVATE
-        "${CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES}"
         "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
 
@@ -99,8 +98,8 @@ if(NATIVECPU_WITH_TBB)
   target_link_libraries(${TARGET_NAME} PRIVATE
         TBB::tbb
   )
-  target_include_directories(${TARGET_NAME} PRIVATE
-        "${TBB_SOURCE_DIR_INTERNAL}"
-  )
+#  target_include_directories(${TARGET_NAME} PRIVATE
+#        "${TBB_SOURCE_DIR_INTERNAL}"
+#  )
   target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
 endif()
