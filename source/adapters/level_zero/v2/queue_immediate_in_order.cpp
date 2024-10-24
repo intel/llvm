@@ -84,6 +84,19 @@ ur_command_list_handler_t::ur_command_list_handler_t(
         ur::level_zero::urEventRelease(event);
       }) {}
 
+ur_command_list_handler_t::ur_command_list_handler_t(
+    ze_command_list_handle_t hZeCommandList, event_pool *eventPool,
+    bool ownZeHandle)
+    : commandList(hZeCommandList,
+                  [ownZeHandle](ze_command_list_handle_t hZeCommandList) {
+                    if (ownZeHandle) {
+                      zeCommandListDestroy(hZeCommandList);
+                    }
+                  }),
+      internalEvent(eventPool->allocate(), [=](ur_event_handle_t event) {
+        ur::level_zero::urEventRelease(event);
+      }) {}
+
 static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
   event_flags_t eventFlags = EVENT_FLAGS_COUNTER;
   if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
@@ -101,6 +114,17 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   eventPool.get()),
       computeHandler(hContext, hDevice, pProps, queue_group_type::Compute,
                      eventPool.get()) {}
+
+ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue)
+    : hContext(hContext), hDevice(hDevice), flags(flags),
+      eventPool(hContext->eventPoolCache.borrow(
+          hDevice->Id.value(), eventFlagsFromQueueFlags(flags))),
+      copyHandler(
+          reinterpret_cast<ze_command_list_handle_t>(hNativeHandle), eventPool.get(), false /* we're using a single command list for both handlers, only own it by one of them */),
+      computeHandler(reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
+                     eventPool.get(), ownZeQueue) {}
 
 ur_command_list_handler_t *
 ur_queue_immediate_in_order_t::getCommandListHandlerForCompute() {
@@ -161,9 +185,9 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
       return ReturnValue(false);
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
-        propName, logger::toHex(propName));
+    logger::error("Unsupported ParamName in urQueueGetInfo: "
+                  "ParamName=ParamName={}(0x{})",
+                  propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -186,8 +210,9 @@ ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
-  std::ignore = phNativeQueue;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
+      this->computeHandler.commandList.get());
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::finalizeHandler(

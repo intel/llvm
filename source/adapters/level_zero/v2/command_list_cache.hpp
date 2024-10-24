@@ -21,7 +21,7 @@
 
 namespace v2 {
 namespace raii {
-using cache_borrowed_command_list_t =
+using command_list_unique_handle =
     std::unique_ptr<::_ze_command_list_handle_t,
                     std::function<void(::ze_command_list_handle_t)>>;
 } // namespace raii
@@ -54,12 +54,12 @@ struct command_list_descriptor_hash_t {
 struct command_list_cache_t {
   command_list_cache_t(ze_context_handle_t ZeContext);
 
-  raii::cache_borrowed_command_list_t
+  raii::command_list_unique_handle
   getImmediateCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
                           uint32_t Ordinal, ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
                           std::optional<uint32_t> Index = std::nullopt);
-  raii::cache_borrowed_command_list_t
+  raii::command_list_unique_handle
   getRegularCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
                         uint32_t Ordinal);
 
