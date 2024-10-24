@@ -233,6 +233,9 @@ namespace sycl::ext::oneapi::experimental {
 template <typename CommandGroupFunc>
 void submit(sycl::queue q, CommandGroupFunc&& cgf);
 
+template <typename CommandGroupFunc, typename Properties>
+void submit(sycl::queue q, Properties properties, CommandGroupFunc&& cgf);
+
 }
 ----
 !====
@@ -249,6 +252,10 @@ namespace sycl::ext::oneapi::experimental {
 
 template <typename CommandGroupFunc>
 sycl::event submit_with_event(sycl::queue q, CommandGroupFunc&& cgf);
+
+template <typename CommandGroupFunc, typename Properties>
+sycl::event submit_with_event(sycl::queue q, Properties properties,
+                              CommandGroupFunc&& cgf);
 
 }
 ----
