@@ -1157,16 +1157,16 @@ defm cx_fortran_rules: BoolOptionWithoutMarshalling<"f", "cx-fortran-rules",
   NegFlag<SetFalse, [], [ClangOption, CC1Option], "Range reduction is disabled "
   "for complex arithmetic operations">>;
 
- defm target_prec_div: BoolOption<"f", "target-prec-div",
-  LangOpts<"TargetPrecDiv">, DefaultTrue,
+ defm offload_fp32_prec_div: BoolOption<"f", "offload-fp32-prec-div",
+  LangOpts<"OffloadFp32PrecDiv">, DefaultTrue,
   PosFlag<SetTrue, [], [ClangOption, CC1Option], "fdiv operations in offload device "
   "code are required to return correctly rounded results.">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option], "fdiv operations in offload device "
   "code are not required to return correctly rounded results.">>,
   Group<f_Group>;
 
- defm target_prec_sqrt: BoolOption<"f", "target-prec-sqrt",
- LangOpts<"TargetPrecSqrt">, DefaultTrue,
+ defm offload_fp32_prec_sqrt: BoolOption<"f", "offload-fp32-prec-sqrt",
+ LangOpts<"OffloadFp32PrecSqrt">, DefaultTrue,
   PosFlag<SetTrue, [], [ClangOption, CC1Option], "sqrt operations in offload device "
   "code are required to return correctly rounded results.">,
   NegFlag<SetFalse, [], [ClangOption, CC1Option], "sqrt operations in offload device "

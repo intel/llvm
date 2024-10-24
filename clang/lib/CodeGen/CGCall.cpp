@@ -1899,9 +1899,9 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
     }
-    if (Name == "sqrt" && !getLangOpts().TargetPrecSqrt)
+    if (Name == "sqrt" && !getLangOpts().OffloadFp32PrecSqrt)
       FPAccuracyVal = "3.0";
-    if (Name == "fdiv" && !getLangOpts().TargetPrecDiv)
+    if (Name == "fdiv" && !getLangOpts().OffloadFp32PrecDiv)
       FPAccuracyVal = "2.5";
     if (!FPAccuracyVal.empty())
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
@@ -5804,9 +5804,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
       if (!getLangOpts().FPAccuracyFuncMap.empty() ||
           !getLangOpts().FPAccuracyVal.empty() ||
-          (FuncName == "sqrt" && !getLangOpts().TargetPrecSqrt &&
+          (FuncName == "sqrt" && !getLangOpts().OffloadFp32PrecSqrt &&
            IsFloat32Type) ||
-          (FuncName == "fdiv" && !getLangOpts().TargetPrecDiv &&
+          (FuncName == "fdiv" && !getLangOpts().OffloadFp32PrecDiv &&
            IsFloat32Type)) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());

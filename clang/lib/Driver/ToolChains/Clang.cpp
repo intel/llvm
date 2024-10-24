@@ -3006,8 +3006,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
-  bool NoTargetPrecDiv = false;
-  bool NoTargetPrecSqrt = false;
+  bool NoOffloadFp32PrecDiv = false;
+  bool NoOffloadFp32PrecSqrt = false;
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&]() {
@@ -3040,8 +3040,8 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
       // when fp-model=fast is used the default precision for division and
       // sqrt is not precise.
-      NoTargetPrecDiv = true;
-      NoTargetPrecSqrt = true;
+      NoOffloadFp32PrecDiv = true;
+      NoOffloadFp32PrecSqrt = true;
     }
   };
 
@@ -3076,18 +3076,18 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     // If this isn't an FP option skip the claim below
     default: continue;
 
-    case options::OPT_ftarget_prec_div:
-    case options::OPT_ftarget_prec_sqrt:
+    case options::OPT_foffload_fp32_prec_div:
+    case options::OPT_foffload_fp32_prec_sqrt:
       break;
-    case options::OPT_fno_target_prec_sqrt:
+    case options::OPT_fno_offload_fp32_prec_sqrt:
         if (!FPAccuracy.empty())
-        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-sqrt");
-        NoTargetPrecSqrt = true;
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-sqrt");
+        NoOffloadFp32PrecSqrt = true;
       break;
-    case options::OPT_fno_target_prec_div:
+    case options::OPT_fno_offload_fp32_prec_div:
       if (!FPAccuracy.empty())
-        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-div");
-      NoTargetPrecDiv = true;
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-div");
+      NoOffloadFp32PrecDiv = true;
       break;
     case options::OPT_fcx_limited_range:
       if (GccRangeComplexOption.empty()) {
@@ -3173,10 +3173,10 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     case options::OPT_ffp_accuracy_EQ: {
       StringRef Val = A->getValue();
       FPAccuracy = Val;
-      if (NoTargetPrecDiv)
-        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-div");
-      if (NoTargetPrecSqrt)
-        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-target-prec-sqrt");
+      if (NoOffloadFp32PrecDiv)
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-div");
+      if (NoOffloadFp32PrecSqrt)
+        EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-sqrt");
       break;
     }
     case options::OPT_ffp_model_EQ: {
@@ -3591,14 +3591,14 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
   if (JA.isDeviceOffloading(Action::OFK_SYCL)) {
-    if (NoTargetPrecDiv)
-      CmdArgs.push_back("-fno-target-prec-div");
+    if (NoOffloadFp32PrecDiv)
+      CmdArgs.push_back("-fno-offload-fp32-prec-div");
     else
-      CmdArgs.push_back("-ftarget-prec-div");
-    if (NoTargetPrecSqrt)
-      CmdArgs.push_back("-fno-target-prec-sqrt");
+      CmdArgs.push_back("-foffload-fp32-prec-div");
+    if (NoOffloadFp32PrecSqrt)
+      CmdArgs.push_back("-fno-offload-fp32-prec-sqrt");
     else
-      CmdArgs.push_back("-ftarget-prec-sqrt");
+      CmdArgs.push_back("-foffload-fp32-prec-sqrt");
   }
 }
 

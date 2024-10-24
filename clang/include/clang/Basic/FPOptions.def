@@ -30,6 +30,6 @@ OPTION(BFloat16ExcessPrecision, LangOptions::ExcessPrecisionKind, 2, Float16Exce
 OPTION(FPAccuracy, LangOptions::FPAccuracyKind, 3, BFloat16ExcessPrecision)
 OPTION(MathErrno, bool, 1, FPAccuracy)
 OPTION(ComplexRange, LangOptions::ComplexRangeKind, 2, MathErrno)
-OPTION(TargetPrecDiv, bool, 1, ComplexRange)
-OPTION(TargetPrecSqrt, bool, 1, TargetPrecDiv)
+OPTION(OffloadFp32PrecDiv, bool, 1, ComplexRange)
+OPTION(OffloadFp32PrecSqrt, bool, 1, OffloadFp32PrecDiv)
 #undef OPTION

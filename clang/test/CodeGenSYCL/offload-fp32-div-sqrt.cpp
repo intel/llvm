@@ -4,24 +4,24 @@
 // RUN: %clang_cc1 %{common_opts} %s -o - \
 // RUN: | FileCheck --check-prefix PREC-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -ftarget-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts} -foffload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix PREC-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -fno-target-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts} -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -ftarget-prec-div %s -o - \
+// RUN: %clang_cc1 %{common_opts} -foffload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts} -fno-target-prec-div %s -o - \
+// RUN: %clang_cc1 %{common_opts} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
-// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-target-prec-div \
-// RUN: -fno-target-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
 
-// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-target-prec-div \
-// RUN: -fno-target-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
 
 #include "sycl.hpp"

@@ -24201,8 +24201,8 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
   // a TU fp-accuracy requested.
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
-      !LangOpts.FPAccuracyVal.empty() || !LangOpts.TargetPrecDiv ||
-      !LangOpts.TargetPrecSqrt) {
+      !LangOpts.FPAccuracyVal.empty() || !LangOpts.OffloadFp32PrecDiv ||
+      !LangOpts.OffloadFp32PrecSqrt) {
     llvm::Function *Func =
         CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
