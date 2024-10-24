@@ -12,7 +12,7 @@
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZES_ENABLE_SYSMAN=1 %{run} %t.out 2>&1 | FileCheck %s
-// RUN: env ZES_ENABLE_SYSMAN=0 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %if linux %{ env ZES_ENABLE_SYSMAN=0 %{run} %t.out 2>&1 | FileCheck %s %}
 //
 // The test is to check that the free device memory is reported by Level Zero
 // backend both with and without the sysman environment variable.
