@@ -115,4 +115,4 @@
 
 // Error handling when --linker-path is not provided for clang-linker-wrapper
 // RUN: not clang-linker-wrapper 2>&1 | FileCheck --check-prefix=LINKER-PATH-NOT-PROVIDED %s
-// LINKER-PATH-NOT-PROVIDED: Host linker is not available
+// LINKER-PATH-NOT-PROVIDED: linker path missing, must pass 'linker-path'
