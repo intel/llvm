@@ -1,6 +1,7 @@
-# commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
-# Author: Artur Gainullin <artur.gainullin@intel.com>
-# Date:   Tue Oct 22 03:30:08 2024 -0700
-#
-#     Support UR program creation from multiple device binaries (#2147)
-set(UNIFIED_RUNTIME_TAG 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb)
+# commit 58abf8fa778376546274c52304b9f924314d65e6
+# Merge: a96fddec a97df490
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Thu Oct 24 13:37:02 2024 +0100
+#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
+#     Query out and use local size set in program IL in CL adapter
+set(UNIFIED_RUNTIME_TAG 58abf8fa778376546274c52304b9f924314d65e6)
