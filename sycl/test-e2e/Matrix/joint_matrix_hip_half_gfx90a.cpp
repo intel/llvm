@@ -9,7 +9,7 @@
 // RUN: %{build} -fsycl -fsycl-targets=amd_gpu_gfx90a %s -o %t.out
 // RUN: %{run} %t.out
 
-// REQUIRES: gpu-amd-gfx90a
+// REQUIRES: gpu-amd-gfx90a, hip
 // REQUIRES: aspect-fp16
 
 #include "joint_matrix_hip_apply.hpp"
