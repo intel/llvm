@@ -98,6 +98,47 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
+    def make_default_features_list(self, expr, triple, add_default=True):
+        ### EXCEPTIONS LIST
+        # TODO: Define elsewhere?
+        exceptions = {}
+        exceptions["spir64"]={
+                "cuda":False, "hip":False, "hip_amd":False, "hip_nvidia":False,
+                "native_cpu":False,
+                }
+        exceptions["system"]={
+                "linux":True, "windows":False, "system-windows":False,
+                "run-mode":False, "TEMPORARY_DISABLED":False,
+                }
+        queried_features = []
+        for f in expr:
+            queried_features = queried_features + re.findall("[-+=._a-zA-Z0-9]+", f)
+
+        features = []
+        for f in queried_features:
+            if (exceptions[triple].get(
+                f,exceptions["system"].get(f,add_default))):
+                features.append(f)
+        return features
+
+    def select_triples_for_test(self, test):
+        # Check Triples
+        triples = set()
+        possible_triples = ["spir64"]
+        for triple in possible_triples:
+            unsupported=self.make_default_features_list(test.unsupported,triple,False)
+            required=self.make_default_features_list(test.requires,triple)
+            xfails=self.make_default_features_list(test.xfails,triple,False)
+            if test.getMissingRequiredFeaturesFromList(required):
+                continue
+            if self.getMatchedFromList(unsupported, test.unsupported):
+                continue
+            #if "*" in test.xfails or self.getMatchedFromList(xfails, test.xfails):
+            #    continue
+            triples.add(triple)
+
+        return triples
+
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
@@ -154,18 +195,26 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         if isinstance(script, lit.Test.Result):
             return script
 
-        devices_for_test = self.select_devices_for_test(test)
-        if not devices_for_test:
-            return lit.Test.Result(
-                lit.Test.UNSUPPORTED, "No supported devices to run the test on"
-            )
+        devices_for_test = []
+        triples = set()
+        if "run-mode" not in test.config.available_features:
+            triples = self.select_triples_for_test(test)
+            if not triples:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported backend to build for"
+                )
+        else:
+            devices_for_test = self.select_devices_for_test(test)
+            if not devices_for_test:
+                return lit.Test.Result(
+                    lit.Test.UNSUPPORTED, "No supported devices to run the test on"
+                )
+
+            for sycl_device in devices_for_test:
+                (backend, _) = sycl_device.split(":")
+                triples.add(get_triple(test, backend))
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
-        triples = set()
-        for sycl_device in devices_for_test:
-            (backend, _) = sycl_device.split(":")
-            triples.add(get_triple(test, backend))
-
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
         # -fsycl-targets is needed for CUDA/HIP, so just use it be default so
         # -that new tests by default would runnable there (unless they have
@@ -223,6 +272,14 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 new_script.append(directive)
                 continue
 
+            # Filter commands based on split-mode
+            is_run_line = any(i in directive.command for i in
+                   ["%{run}","%{run-unfiltered-devices}","%if run-mode"])
+
+            if ((is_run_line and "run-mode" not in test.config.available_features) or
+                (not is_run_line and "build-mode" not in test.config.available_features)):
+                directive.command=""
+
             if "%{run}" not in directive.command:
                 new_script.append(directive)
                 continue
@@ -278,7 +335,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if len(devices_for_test) > 1:
+        if (len(devices_for_test) > 1 or
+            "run-mode" not in test.config.available_features):
             return result
 
         # Single device - might be an XFAIL.
