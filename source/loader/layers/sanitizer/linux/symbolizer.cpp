@@ -15,8 +15,8 @@ namespace ur_sanitizer_layer {
 llvm::symbolize::LLVMSymbolizer *GetSymbolizer(bool destruct = false) {
     static auto *Instance = new llvm::symbolize::LLVMSymbolizer{};
     if (destruct) {
-        Instance = nullptr;
         delete Instance;
+        Instance = nullptr;
     }
     return Instance;
 }
@@ -25,7 +25,7 @@ llvm::symbolize::LLVMSymbolizer *GetSymbolizer(bool destruct = false) {
 // should be after the destructors of the SanitizerLayer since we may print 
 // some symbolized information in the SanitizerLayer destructor.
 __attribute__((destructor(101))) void DestructSymbolizer() {
-    GetSymbolizer(true);
+    (void)GetSymbolizer(true);
 }
 
 llvm::symbolize::PrinterConfig GetPrinterConfig() {
