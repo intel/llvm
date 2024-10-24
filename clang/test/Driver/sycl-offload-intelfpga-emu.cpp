@@ -21,14 +21,17 @@
 // CHK-FPGA-LINK: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.txt]]" "-spirv-max-version={{.*}}"{{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-EARLY: opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT3]]" "-ir=[[OUTPUT4:.+\.aocr]]" "--bo=-g"
 // CHK-FPGA-IMAGE: opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT3]]" "-ir=[[OUTPUT4:.+\.aocx]]" "--bo=-g"
+// CHK-FPGA-LINK: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" {{.*}} "-kind=sycl" "[[OUTPUT4]]"
+// CHK-FPGA-LINK: clang{{.*}} "-c" "-o" "[[OBJOUTDEV:.+\.txt]]" "[[WRAPOUT]]"
 // CHK-FPGA-LINK: file-table-tform{{.*}} "-replace=Code,Code" "-o" "[[TABLEOUT2:.+\.table]]" "[[OUTPUT2]]" "[[OUTPUT4]]"
-// CHK-FPGA-LINK: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" {{.*}} "-kind=sycl" "-batch" "[[TABLEOUT2]]"
-// CHK-FPGA-LINK: clang{{.*}} "-c" "-o" "[[OBJOUTDEV:.+\.o]]" "[[WRAPOUT]]"
+// CHK-FPGA-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPPEROUT_O:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr_emu-intel-unknown" "-kind=sycl" "-batch" "[[TABLEOUT2]]"
+// CHK-FPGA-EARLY: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocr_emu-intel-unknown" "-kind=host" "[[WRAPPEROUT_O]]"
+// CHK-FPGA-EARLY: clang{{.*}} "-c" "-o" "[[WRAPWRAPOUT:.+\.o]]"
+// CHK-FPGA-EARLY: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]" "@[[OBJOUTDEV]]" "[[WRAPWRAPOUT]]"
 // CHK-FPGA-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPPEROUT_O:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "-batch" "[[TABLEOUT2]]"
 // CHK-FPGA-IMAGE: clang-offload-wrapper{{.*}} "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocx-intel-unknown" "-kind=host" "[[WRAPPEROUT_O]]"
 // CHK-FPGA-IMAGE: clang{{.*}} "-c" "-o" "[[WRAPWRAPOUT:.+\.o]]"
-// CHK-FPGA-EARLY: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]" "[[OBJOUTDEV]]"
-// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]"{{.*}} "[[WRAPWRAPOUT]]"
+// CHK-FPGA-IMAGE: llvm-ar{{.*}} "cqL" "libfoo.a" "[[OBJOUT]]" "@[[OBJOUTDEV]]" "[[WRAPWRAPOUT]]"
 
 /// -fintelfpga -fsycl-link clang-cl specific
 // RUN:  touch %t.obj
@@ -45,10 +48,13 @@
 // CHK-FPGA-LINK-WIN: file-table-tform{{.*}} "-o" "[[TABLEOUT:.+\.txt]]" "[[OUTPUT2]]"
 // CHK-FPGA-LINK-WIN: llvm-spirv{{.*}} "-o" "[[OUTPUT3:.+\.txt]]" "-spirv-max-version={{.*}}"{{.*}} "[[TABLEOUT]]"
 // CHK-FPGA-LINK-WIN: opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT3]]" "-ir=[[OUTPUT4:.+\.aocr]]" "--bo=-g"
+// CHK-FPGA-LINK-WIN: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-kind=sycl" "[[OUTPUT4]]"
+// CHK-FPGA-LINK-WIN: clang{{.*}} "-c" "-o" "[[OBJOUTDEV:.+\.txt]]" "[[WRAPOUT]]"
 // CHK-FPGA-LINK-WIN: file-table-tform{{.*}} "-replace=Code,Code" "-o" "[[TABLEOUT2:.+\.table]]" "[[OUTPUT2]]" "[[OUTPUT4]]"
-// CHK-FPGA-LINK-WIN: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" {{.*}} "-kind=sycl" "-batch" "[[TABLEOUT2]]"
-// CHK-FPGA-LINK-WIN: clang{{.*}} "-c" "-o" "[[OBJOUTDEV:.+\.obj]]" "[[WRAPOUT]]"
-// CHK-FPGA-LINK-WIN: lib.exe{{.*}} "[[OBJOUT]]" "[[OBJOUTDEV]]" {{.*}} "-OUT:libfoo.lib"
+// CHK-FPGA-LINK-WIN: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT2:.+\.obj]]" {{.*}} "-kind=sycl" "-batch" "[[TABLEOUT2]]"
+// CHK-FPGA-LINK-WIN: clang-offload-wrapper{{.*}} "-o=[[WRAPWRAPOUT:.+\.bc]]" {{.*}} "-kind=host" "[[WRAPOUT2]]"
+// CHK-FPGA-LINK-WIN: clang{{.*}} "-c" "-o" "[[OUTDEV:.+\.obj]]" "[[WRAPWRAPOUT]]"
+// CHK-FPGA-LINK-WIN: lib.exe{{.*}} "[[OBJOUT]]" "@[[OBJOUTDEV]]" "[[OUTDEV]]" {{.*}} "-OUT:libfoo.lib"
 
 /// Check -fintelfpga -fsycl-link with an FPGA archive
 // Create the dummy archive
@@ -71,25 +77,22 @@
 // CHK-FPGA-LINK-LIB: clang{{.*}} "-o" "[[OUTPUT_O:.+\.o]]" "-x" "ir" "[[WRAPPED_AOCR_LIST_BC]]"
 // CHK-FPGA-LINK-LIB: clang-offload-bundler{{.*}} "-type=aocr" "-targets=sycl-fpga_aocr_emu-intel-unknown" "-input=[[INPUT]]" "-output=[[OUTPUT2:.+\.aocr]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: llvm-foreach{{.*}} "--out-ext=aocx" "--in-file-list=[[OUTPUT2]]" "--in-replace=[[OUTPUT2]]" "--out-file-list=[[OUTPUT3:.+\.aocx]]" "--out-replace=[[OUTPUT3]]" "--" "{{.*}}opencl-aot{{.*}} "-device=fpga_fast_emu" "-spv=[[OUTPUT2]]" "-ir=[[OUTPUT3]]" "--bo=-g"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPOUT:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocx-intel-unknown" "-kind=sycl" "[[OUTPUT3]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang{{.*}} "-c"{{.*}} "[[WRAPOUT]]"
 // CHK-FPGA-LINK-LIB-IMAGE: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-FPGA-LINK-LIB-IMAGE: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-fpga_aocr_emu-intel-unknown" "-input=[[INPUT]]" "-output=[[OUTPUT_BUNDLE_BC:.+\.txt]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-IMAGE: file-table-tform{{.*}} "-rename=0,SymAndProps" "-o" "[[OUTPUT_BC2:.+\.txt]]" "[[OUTPUT_BUNDLE_BC]]"
-// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
-// CHK-FPGA-LINK-LIB-IMAGE: clang{{.*}} "-c"{{.*}} "[[WRAPPED_SYM_PROP]]"
-// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP2:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
-// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPWRAP_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocx-intel-unknown" "-kind=host" "[[WRAPPED_SYM_PROP2]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "--emit-reg-funcs=0" "-target=fpga_aocx-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
+// CHK-FPGA-LINK-LIB-IMAGE: clang-offload-wrapper{{.*}} "-o=[[WRAPWRAP_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocx-intel-unknown" "-kind=host" "[[WRAPPED_SYM_PROP]]"
 // CHK-FPGA-LINK-LIB-IMAGE: clang{{.*}} "-c"{{.*}} "[[WRAPWRAP_SYM_PROP]]"
 // CHK-FPGA-LINK-LIB-EARLY: llvm-foreach{{.*}} "--out-ext=aocr" "--in-file-list=[[OUTPUT2]]" "--in-replace=[[OUTPUT2]]" "--out-file-list=[[OUTPUT3:.+\.aocr]]" "--out-replace=[[OUTPUT3]]" "--" "{{.*}}opencl-aot{{.*}}" "-device=fpga_fast_emu" "-spv=[[OUTPUT2]]" "-ir=[[OUTPUT3]]" "--bo=-g"
 // CHK-FPGA-LINK-LIB-EARLY: file-table-tform{{.*}} "-rename=0,Code" "-o" "[[OUTPUT4:.+\.txt]]" "[[OUTPUT3]]"
 // CHK-FPGA-LINK-LIB-EARLY: clang-offload-bundler{{.*}} "-type=aoo" "-targets=host-fpga_aocr_emu-intel-unknown" "-input=[[INPUT]]" "-output=[[OUTPUT_BUNDLE_BC:.+\.txt]]" "-unbundle"
 // CHK-FPGA-LINK-LIB-EARLY: file-table-tform{{.*}} "-rename=0,SymAndProps" "-o" "[[OUTPUT_BC2:.+\.txt]]" "[[OUTPUT_BUNDLE_BC]]"
-// CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr_emu-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
-// CHK-FPGA-LINK-LIB-EARLY: clang{{.*}} "-c"{{.*}} "[[WRAPPED_SYM_PROP]]"
-// CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP2:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr_emu-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
-// CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPWRAP_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocr_emu-intel-unknown" "-kind=host" "[[WRAPPED_SYM_PROP2]]"
+// CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPPED_SYM_PROP:.+\.o]]" "-host=x86_64-unknown-linux-gnu" "-target=fpga_aocr_emu-intel-unknown" "-kind=sycl" "--sym-prop-bc-files=[[OUTPUT_BC2]]" "-batch" "[[OUTPUT4]]"
+// CHK-FPGA-LINK-LIB-EARLY: clang-offload-wrapper{{.*}} "-o=[[WRAPWRAP_SYM_PROP:.+\.bc]]" "-host=x86_64-unknown-linux-gnu"{{.*}} "-target=fpga_aocr_emu-intel-unknown" "-kind=host" "[[WRAPPED_SYM_PROP]]"
 // CHK-FPGA-LINK-LIB-EARLY: clang{{.*}} "-c"{{.*}} "[[WRAPWRAP_SYM_PROP]]"
 // CHK-FPGA-LINK-LIB: llvm-ar{{.*}} "cqL" {{.*}} "[[OUTPUT_O]]"
-
 
 /// Check the warning's emission for conflicting emulation/hardware
 // RUN: touch %t-aocr.a
@@ -240,13 +243,13 @@
 // CHK-FPGA-LINK-SRC: 15: file-table-tform, {14}, tempfilelist, (device-sycl)
 // CHK-FPGA-LINK-SRC: 16: llvm-spirv, {15}, tempfilelist, (device-sycl)
 // CHK-FPGA-LINK-SRC: 17: backend-compiler, {16}, fpga_aocr_emu, (device-sycl)
-// CHK-FPGA-LINK-SRC: 18: file-table-tform, {14, 17}, tempfiletable, (device-sycl)
-// CHK-FPGA-LINK-SRC: 19: clang-offload-wrapper, {18}, object, (device-sycl)
-// CHK-FPGA-LINK-SRC: 20: offload, "device-sycl (spir64_fpga-unknown-unknown)" {19}, object
-// CHK-FPGA-LINK-SRC: 21: clang-offload-wrapper, {18}, object, (device-sycl)
+// CHK-FPGA-LINK-SRC: 18: clang-offload-wrapper, {17}, tempfilelist, (device-sycl)
+// CHK-FPGA-LINK-SRC: 19: offload, "device-sycl (spir64_fpga-unknown-unknown)" {18}, tempfilelist
+// CHK-FPGA-LINK-SRC: 20: file-table-tform, {14, 17}, tempfiletable, (device-sycl)
+// CHK-FPGA-LINK-SRC: 21: clang-offload-wrapper, {20}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 22: clang-offload-wrapper, {21}, object, (device-sycl)
 // CHK-FPGA-LINK-SRC: 23: offload, "device-sycl (spir64_fpga-unknown-unknown)" {22}, object
-// CHK-FPGA-LINK-SRC: 24: linker, {12, 20, 23}, archive, (host-sycl)
+// CHK-FPGA-LINK-SRC: 24: linker, {12, 19, 23}, archive, (host-sycl)
 
 /// Check for implied options with emulation (-g -O0)
 // RUN:   %clang -### -target x86_64-unknown-linux-gnu -fintelfpga -g -O0 -Xs "-DFOO1 -DFOO2" %s 2>&1 \

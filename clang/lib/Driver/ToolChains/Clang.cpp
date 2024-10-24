@@ -10255,8 +10255,18 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     const InputInfo &I = Inputs[0];
     assert(I.isFilename() && "Invalid input.");
 
-    if (I.getType() == types::TY_Tempfiletable ||
-        I.getType() == types::TY_Tempfilelist || IsEmbeddedIR)
+    // TODO: The embedded compilation step after the wrapping step restricts
+    // the ability to control the 'for each' methodology used when performing
+    // device code splitting.  We set the individual wrap behavior when we know
+    // the wrapping and compile step should be done individually.  Ideally this
+    // would be controlled at the JobAction creation, but we cannot do that
+    // until the compilation of the wrap is it's own JobAction.
+    bool IndividualWrapCompile = WrapperJob.getWrapIndividualFiles();
+    const InputInfo TempOutput(types::TY_LLVM_BC, WrapperFileName,
+                               WrapperFileName);
+    if (!IndividualWrapCompile &&
+        (I.getType() == types::TY_Tempfiletable ||
+         I.getType() == types::TY_Tempfilelist || IsEmbeddedIR))
       // Input files are passed via the batch job file table.
       WrapperArgs.push_back(C.getArgs().MakeArgString("-batch"));
     WrapperArgs.push_back(C.getArgs().MakeArgString(I.getFilename()));
@@ -10265,7 +10275,17 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
         JA, *this, ResponseFileSupport::None(),
         TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
         WrapperArgs, std::nullopt);
-    C.addCommand(std::move(Cmd));
+
+    if (IndividualWrapCompile) {
+      // When wrapping FPGA device binaries for FPGA archives, create individual
+      // wrapped and compiled entries for the archive.
+      StringRef ParallelJobs =
+          C.getArgs().getLastArgValue(options::OPT_fsycl_max_parallel_jobs_EQ);
+      clang::driver::tools::SYCL::constructLLVMForeachCommand(
+          C, JA, std::move(Cmd), Inputs, TempOutput, this, "", "bc",
+          ParallelJobs);
+    } else
+      C.addCommand(std::move(Cmd));
 
     if (WrapperCompileEnabled) {
       // TODO Use TC.SelectTool().
@@ -10288,9 +10308,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
       SmallString<128> ClangPath(C.getDriver().Dir);
       llvm::sys::path::append(ClangPath, "clang");
       const char *Clang = C.getArgs().MakeArgString(ClangPath);
-      C.addCommand(std::make_unique<Command>(JA, *this,
-                                             ResponseFileSupport::None(), Clang,
-                                             ClangArgs, std::nullopt));
+      auto PostWrapCompileCmd =
+          std::make_unique<Command>(JA, *this, ResponseFileSupport::None(),
+                                    Clang, ClangArgs, std::nullopt);
+      if (IndividualWrapCompile) {
+        StringRef ParallelJobs = C.getArgs().getLastArgValue(
+            options::OPT_fsycl_max_parallel_jobs_EQ);
+        InputInfoList Inputs;
+        Inputs.push_back(TempOutput);
+        clang::driver::tools::SYCL::constructLLVMForeachCommand(
+            C, JA, std::move(PostWrapCompileCmd), Inputs, Output, this, "",
+            "bc", ParallelJobs);
+      } else
+        C.addCommand(std::move(PostWrapCompileCmd));
     }
     return;
   } // end of SYCL flavor of offload wrapper command creation

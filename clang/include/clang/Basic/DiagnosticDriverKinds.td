@@ -401,6 +401,10 @@ def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
 def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
+def err_drv_sycl_offload_arch_new_driver: Error<
+  "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_sycl_offload_arch_missing_value : Error<
+  "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
