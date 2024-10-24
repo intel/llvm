@@ -31,16 +31,18 @@ using namespace llvm;
 
 static cl::opt<SpecConstantsPass::HandlingMode> SpecConstantMode(
     "spec-constant-mode", cl::Optional, cl::Hidden,
-    cl::desc("Spec constant handling mode"),
+    cl::desc("Specialization constant handling mode"),
+    cl::init(SpecConstantsPass::HandlingMode::emulation),
     cl::values(
-        clEnumValN(SpecConstantsPass::HandlingMode::default_values,
-                   "default_values",
-                   "spec constant uses are replaced by default values"),
-        clEnumValN(SpecConstantsPass::HandlingMode::emulation, "emulation",
-                   "spec constant intrinsics are replaced by RT buffers"),
         clEnumValN(
-            SpecConstantsPass::HandlingMode::native, "native",
-            "spec constant intrinsics are lowered to spirv intrinsics")));
+            SpecConstantsPass::HandlingMode::default_values, "default_values",
+            "Specialization constant uses are replaced by default values"),
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::emulation, "emulation",
+            "Specialization constant intrinsic is replaced by run-time buffer"),
+        clEnumValN(SpecConstantsPass::HandlingMode::native, "native",
+                   "Specialization constant intrinsic is lowered to SPIR-V "
+                   "intrinsic")));
 
 namespace {
 
