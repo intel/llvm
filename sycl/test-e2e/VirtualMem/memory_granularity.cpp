@@ -11,7 +11,6 @@
 
 #include <sycl/detail/core.hpp>
 
-#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
 namespace syclext = sycl::ext::oneapi::experimental;
