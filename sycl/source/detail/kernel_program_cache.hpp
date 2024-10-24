@@ -20,6 +20,7 @@
 #include <atomic>
 #include <condition_variable>
 #include <mutex>
+#include <set>
 #include <type_traits>
 
 #include <boost/unordered/unordered_flat_map.hpp>
@@ -118,9 +119,10 @@ public:
    * when debugging environment variables are set and we can just ignore them
    * since all kernels will have their build options overridden with the same
    * string*/
-  using ProgramCacheKeyT =
-      std::pair<std::pair<SerializedObj, std::uintptr_t>, ur_device_handle_t>;
-  using CommonProgramKeyT = std::pair<std::uintptr_t, ur_device_handle_t>;
+  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
+                                     std::set<ur_device_handle_t>>;
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
   struct ProgramCache {
     ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;

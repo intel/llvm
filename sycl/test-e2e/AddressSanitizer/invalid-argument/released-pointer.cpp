@@ -20,7 +20,7 @@ int main() {
   });
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: invalid-argument
-  // CHECK: The 1th argument {{.*}} is a released USM pointer
+  // CHECK: The {{[0-9]+}}th argument {{.*}} is a released USM pointer
   // CHECK: {{.*}} is located inside of Device USM region
   // CHECK: allocated here:
   // CHECK: freed here:

@@ -195,6 +195,19 @@ and not recommended to use in production environment.
     which may or may not perform additional inlining.
     Default value is 225.
 
+**`--offload-compress`**
+
+    Enables device image compression for SYCL offloading. Device images
+    are compressed using `zstd` compression algorithm and only if their size
+    exceeds 512 bytes.
+    Default value is false.
+
+**`--offload-compression-level=<int>`**
+
+    `zstd` compression level used to compress device images when `--offload-
+    compress` is enabled.
+    The default value is 10.
+
 ## Target toolchain options
 
 **`-Xsycl-target-backend=<T> "options"`**
