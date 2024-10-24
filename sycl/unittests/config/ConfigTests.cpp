@@ -324,4 +324,3 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
   sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
   TestConfig(0, 0, 0, 0);
 }
-

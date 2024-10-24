@@ -190,7 +190,8 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is set*/
   static void trace(const std::string &msg) {
-    static const bool traceEnabled = SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
+    static const bool traceEnabled =
+        SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache();
     if (traceEnabled)
       std::cerr << "[Persistent Cache]: " << msg << std::endl;
   }
