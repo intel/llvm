@@ -1,7 +1,7 @@
-# commit 58abf8fa778376546274c52304b9f924314d65e6
-# Merge: a96fddec a97df490
+# commit eddfd8ef62a267921612801ed4300cc429460b05
+# Merge: 58abf8fa ec5e8ea6
 # Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 24 13:37:02 2024 +0100
-#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
-#     Query out and use local size set in program IL in CL adapter
-set(UNIFIED_RUNTIME_TAG 58abf8fa778376546274c52304b9f924314d65e6)
+# Date:   Thu Oct 24 16:16:06 2024 +0100
+#     Merge pull request #2153 from PietroGhg/pietro/events_initial
+#     [NATIVECPU] Initial implementation of events on Native CPU
+set(UNIFIED_RUNTIME_TAG eddfd8ef62a267921612801ed4300cc429460b05)
