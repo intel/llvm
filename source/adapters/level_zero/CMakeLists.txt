@@ -109,6 +109,7 @@ if(UR_BUILD_ADAPTER_L0)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero PRIVATE
@@ -203,6 +204,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
         ${PROJECT_NAME}::umf
         LevelZeroLoader
         LevelZeroLoader-Headers
+        ComputeRuntimeLevelZero-Headers
     )
 
     target_include_directories(ur_adapter_level_zero_v2 PRIVATE
