@@ -6461,7 +6461,7 @@ class OffloadingActionBuilder final {
           if (GpuInitHasErrors)
             return true;
 
-          int GenIndex = 0;
+          size_t GenIndex = 0;
           // Fill SYCLTargetInfoList
           for (auto &TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
