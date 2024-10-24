@@ -204,7 +204,7 @@ if (NOT MSVC)
   set(sanitizer_obj_deps
     device.h atomic.hpp spirv_vars.h
     include/asan_libdevice.hpp
-    include/sanitizer_utils.hpp
+    include/asan_rtl.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 endif()
@@ -268,8 +268,8 @@ if(MSVC)
     SRC msvc_math.cpp
     DEPENDENCIES ${cmath_obj_deps})
 else()
-  add_devicelibs(libsycl-sanitizer
-    SRC sanitizer_utils.cpp
+  add_devicelibs(libsycl-asan
+    SRC sanitizer/asan_rtl.cpp
     DEPENDENCIES ${sanitizer_obj_deps}
     EXTRA_OPTS -fno-sycl-instrument-device-code)
 endif()

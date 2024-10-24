@@ -153,7 +153,7 @@
 // SYCL_NO_DEVICE_LIB_INVALID_VALUE: error: unsupported argument '[[Val]]' to option '-fno-sycl-device-lib='
 
 /// ###########################################################################
-/// test behavior of libsycl-sanitizer.o linking when -fsanitize=address is available
+/// test behavior of libsycl-asan.o linking when -fsanitize=address is available
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
 // RUN: %clangxx -fsycl --offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
@@ -184,7 +184,7 @@
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf-fp64.new.o
 // SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-fallback-imf-bf16.new.o
-// SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-sanitizer.new.o
+// SYCL_DEVICE_LIB_SANITIZER-SAME: {{.*}}libsycl-asan.new.o
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
-// SYCL_DEVICE_ASAN_MACRO: libsycl-sanitizer.new.o
+// SYCL_DEVICE_ASAN_MACRO: libsycl-asan.new.o

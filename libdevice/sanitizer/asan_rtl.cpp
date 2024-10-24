@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "atomic.hpp"
-#include "device.h"
-#include "spirv_vars.h"
+#include "../atomic.hpp"
+#include "../device.h"
+#include "../spirv_vars.h"
 
-#include "include/asan_libdevice.hpp"
-#include "include/sanitizer_utils.hpp"
+#include "../include/asan_libdevice.hpp"
+#include "../include/asan_rtl.hpp"
 
 using uptr = uintptr_t;
 using s8 = char;
