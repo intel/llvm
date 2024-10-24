@@ -2,6 +2,8 @@
 // RUN: %{run} %t.out
 //
 
+// UNSUPPORTED: gpu-intel-gen12
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/work_group_scratch_memory.hpp>
 #include <sycl/group_barrier.hpp>

@@ -2,6 +2,8 @@
 // RUN: %{run} %t.out
 //
 
+// UNSUPPORTED: gpu-intel-gen12
+
 // Test work_group_dynamic extension with allocation size specified at runtime.
 
 #include <sycl/detail/core.hpp>

@@ -20,7 +20,7 @@
 == Notice
 
 [%hardbreaks]
-Copyright (C) 2024 Intel Corporation.  All rights reserved.
+Copyright (C) 2023 Intel Corporation.  All rights reserved.
 
 Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
 of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
@@ -36,23 +36,23 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 8 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 
 == Status
 
-This is an experimental extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
-
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Overview
 
-This extension adds a ways to allocate device local memory, without passing a
+This extension adds a way to allocate device local memory, without passing a
 kernel argument: `work_group_static`.
 Device local memory is memory that is shared by all work-items in a work-group.
 The behavior is similar to the CUDA `+__shared__+` keyword, and the extension
@@ -111,15 +111,12 @@ public:
   const work_group_static& operator=(const T& value) const noexcept;
 
   T* operator&() const noexcept;
-
-private:
-  T storage;
 };
 
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-`T` must be trivially constructible and trivially destructible.
+`T` must be a cv-unqualified trivially constructible and trivially destructible.
 
 The storage for the object is allocated in device local memory before
 calling the user's kernel lambda, and deallocated when all work-items
@@ -164,7 +161,7 @@ work_group_static& operator=(const T& value) noexcept;
 ----
 _Constraints_: Available only if `std::is_array_v<T>` is false.
 
-_Effects_: Replaces the value referenced by `*ptr` with `value`.
+_Effects_: Copy `value` into the storage of the `work_group_static` instance.
 
 _Returns_: A reference to this instance of `work_group_static`.
 
@@ -173,7 +170,7 @@ _Returns_: A reference to this instance of `work_group_static`.
 T* operator&() noexcept;
 ----
 _Returns_: A pointer to the device local memory associated with this
-instance of `work_group_static` (i.e., `ptr`).
+instance of `work_group_static`.
 
 ==== Interaction with common address space deduction rules
 
@@ -183,33 +180,39 @@ the local address space.
 
 === Total allocation check
 
-If the total amount of device local memory requested (i.e., the sum of
-all memory requested by `local_accessor`, `group_local_memory`,
-`group_local_memory_for_overwrite`, `work_group_static` and `work_group_scratch_size`) exceeds a device's
-local memory capacity (as reported by `local_mem_size`) then the implementation
-must throw a synchronous `exception` with the `errc::memory_allocation` error
-code from the kernel invocation command (e.g. `parallel_for`).
+If the total amount of device local memory requested exceeds a device's
+local memory capacity as reported by `info::device::local_mem_size`
+then the implementation must throw a synchronous exception with the
+`errc::memory_allocation` error code from the kernel invocation command
+(e.g. `parallel_for`). This check must take all APIs that allocation device
+local memory into account, whether via the `work_group_scratch_size` property
+or other APIs such as `local_accessor`.
 
-==== Usage examples
-
-===== Allocations with size known at compile-time
+=== Example
 
 [source,c++]
 ----
-using namespace syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 /* optional: static */ syclex::work_group_static<int> program_scope_scalar;
 /* optional: static */ syclex::work_group_static<int[16]> program_scope_array;
+
+class ClassScope {
+  static syclex::work_group_static<int> class_scope_scalar;
+};
+
+syclex::work_group_static<int> ClassScope::class_scope_scalar;
 
 void foo() {
   /* optional: static */ syclex::work_group_static<int> function_scope_scalar;
   function_scope_scalar = 1; // assignment via overloaded = operator
   function_scope_scalar += 2; // += operator via implicit conversion to int&
+  class_scope_scalar = 3;
   int* ptr = &function_scope_scalar; // conversion to pointer via overloaded & operator
 }
 
 void bar() {
-  /* optional: static */ sylex::work_group_static<int[64]> function_scope_array;
+  /* optional: static */ syclex::work_group_static<int[64]> function_scope_array;
   function_scope_array[0] = 1; // [] operator via implicit conversion to int(&)[64]
   int* ptr = function_scope_array; // conversion to pointer via implicit conversion to int(&)[64]
 }

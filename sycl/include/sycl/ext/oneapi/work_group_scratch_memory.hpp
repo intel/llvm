@@ -23,7 +23,7 @@ inline void* get_work_group_scratch_memory() {
 #else
   throw sycl::exception(
       sycl::errc::feature_not_supported,
-      "sycl_ext_oneapi_work_group_dynamic extension is not supported on host");
+      "sycl_ext_oneapi_work_scratch_memory extension is not supported on host");
 #endif
 }
 

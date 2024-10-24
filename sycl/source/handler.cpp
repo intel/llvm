@@ -1951,6 +1951,8 @@ void handler::setKernelClusterLaunch(sycl::range<3> ClusterSize, int Dims) {
 }
 
 void handler::setKernelWorkGroupMem(size_t Size) {
+  throwIfGraphAssociated<syclex::detail::UnsupportedGraphFeatures::
+                             sycl_ext_oneapi_work_group_scratch_memory>();
   impl->MKernelWorkGroupMemorySize = Size;
 }
 

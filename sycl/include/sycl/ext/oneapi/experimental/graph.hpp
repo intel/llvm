@@ -59,7 +59,8 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_device_global = 6,
   sycl_ext_oneapi_bindless_images = 7,
   sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
-  sycl_ext_codeplay_enqueue_native_command = 9
+  sycl_ext_codeplay_enqueue_native_command = 9,
+  sycl_ext_oneapi_work_group_scratch_memory = 10
 };
 
 inline const char *
