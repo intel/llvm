@@ -57,7 +57,7 @@ namespace detail {
 // enqueueImp is expected to return status, not exception to correctly handle
 // submission error.
 template <typename MemOpFuncT, typename... MemOpArgTs>
-ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs... MemOpArgs) {
+ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs&& ...MemOpArgs) {
   try {
     MemOpFunc(MemOpArgs...);
   } catch (sycl::exception &e) {
@@ -68,7 +68,7 @@ ur_result_t callMemOpHelper(MemOpFuncT &MemOpFunc, MemOpArgTs... MemOpArgs) {
 
 template <typename MemOpRet, typename MemOpFuncT, typename... MemOpArgTs>
 ur_result_t callMemOpHelperRet(MemOpRet &MemOpResult, MemOpFuncT &MemOpFunc,
-                               MemOpArgTs... MemOpArgs) {
+                               MemOpArgTs&& ...MemOpArgs) {
   try {
     MemOpResult = MemOpFunc(MemOpArgs...);
   } catch (sycl::exception &e) {
