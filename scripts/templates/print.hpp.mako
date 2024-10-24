@@ -42,6 +42,9 @@ from templates import helper as th
         ${x}::details::printPtr(os, ${caller.body()});
     %elif iname and iname.startswith("pfn"):
         os << reinterpret_cast<void*>(${caller.body()});
+    %elif "int8_t" in itype:
+        ## Cast to int so bytes are printed as numbers
+        os << static_cast<int>(${caller.body()});
     %else:
         os << ${caller.body()};
     %endif
@@ -75,8 +78,11 @@ def findMemberType(_item):
     %endif
 ## can't iterate over 'void *'...
     %if th.param_traits.is_range(item) and "void*" not in itype:
-        os << ".${iname} = {";
-        for (size_t i = ${th.param_traits.range_start(item)}; ${deref}(params${access}${pname}) != NULL && i < ${deref}params${access}${prefix + th.param_traits.range_end(item)}; ++i) {
+        os << ".${iname} = ";
+        ${x}::details::printPtr(os, reinterpret_cast<const void*>(${deref}(params${access}${pname})));
+        if (${deref}(params${access}${pname}) != NULL) {
+        os << " {";
+        for (size_t i = ${th.param_traits.range_start(item)}; i < ${deref}params${access}${prefix + th.param_traits.range_end(item)}; ++i) {
             if (i != 0) {
                 os << ", ";
             }
@@ -85,6 +91,7 @@ def findMemberType(_item):
             </%call>
         }
         os << "}";
+        }
     %elif findMemberType(item) is not None and findMemberType(item)['type'] == "union":
         os << ".${iname} = ";
         ${x}::details::printUnion(os, ${deref}(params${access}${item['name']}), params${access}${th.param_traits.tagged_member(item)});
