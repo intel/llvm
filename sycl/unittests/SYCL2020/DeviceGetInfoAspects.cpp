@@ -8,7 +8,6 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>

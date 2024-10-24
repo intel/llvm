@@ -1996,8 +1996,10 @@ void instrumentationAddExtraKernelMetadata(
     Program = SyclKernel->getProgramRef();
     if (!SyclKernel->isCreatedFromSource())
       EliminatedArgMask = SyclKernel->getKernelArgMask();
-  } else {
-    assert(Queue && "Kernel submissions should have an associated queue");
+  } else if (Queue) {
+    // NOTE: Queue can be null when kernel is directly enqueued to a command
+    // buffer
+    //       by graph API, when a modifiable graph is finalized.
     std::tie(Kernel, KernelMutex, EliminatedArgMask, Program) =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             Queue->getContextImplPtr(), Queue->getDeviceImplPtr(), KernelName);
@@ -2021,6 +2023,7 @@ void instrumentationAddExtraKernelMetadata(
 }
 
 void instrumentationFillCommonData(const std::string &KernelName,
+                                   const std::string &FuncName,
                                    const std::string &FileName, uint64_t Line,
                                    uint64_t Column, const void *const Address,
                                    const QueueImplPtr &Queue,
@@ -2037,8 +2040,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
   xpti::payload_t Payload;
   if (!FileName.empty()) {
     // File name has a valid string
-    Payload = xpti::payload_t(KernelName.c_str(), FileName.c_str(), Line,
-                              Column, Address);
+    Payload = xpti::payload_t(FuncName.empty() ? KernelName.c_str()
+                                               : FuncName.c_str(),
+                              FileName.c_str(), Line, Column, Address);
     HasSourceInfo = true;
   } else if (Address) {
     // We have a valid function name and an address
@@ -2082,8 +2086,9 @@ void instrumentationFillCommonData(const std::string &KernelName,
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs) {
 
@@ -2102,13 +2107,25 @@ std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
 
   std::string FileName =
       CodeLoc.fileName() ? CodeLoc.fileName() : std::string();
-  instrumentationFillCommonData(KernelName, FileName, CodeLoc.lineNumber(),
-                                CodeLoc.columnNumber(), Address, Queue,
-                                FromSource, InstanceID, CmdTraceEvent);
+
+  // If code location is above sycl layer, use function name from code
+  // location instead of kernel name in event payload
+  std::string FuncName = (!IsTopCodeLoc && CodeLoc.functionName())
+                             ? CodeLoc.functionName()
+                             : std::string();
+
+  instrumentationFillCommonData(KernelName, FuncName, FileName,
+                                CodeLoc.lineNumber(), CodeLoc.columnNumber(),
+                                Address, Queue, FromSource, InstanceID,
+                                CmdTraceEvent);
 
   if (CmdTraceEvent) {
     // Stash the queue_id mutable metadata in TLS
-    xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY, getQueueID(Queue));
+    // NOTE: Queue can be null when kernel is directly enqueued to a command
+    // buffer by graph API, when a modifiable graph is finalized.
+    if (Queue.get())
+      xpti::framework::stash_tuple(XPTI_QUEUE_INSTANCE_ID_KEY,
+                                   getQueueID(Queue));
     instrumentationAddExtraKernelMetadata(CmdTraceEvent, NDRDesc,
                                           KernelBundleImplPtr, SyclKernelName,
                                           SyclKernel, Queue, CGArgs);
@@ -2145,8 +2162,14 @@ void ExecCGCommand::emitInstrumentationData() {
     break;
   }
 
+  // If code location is above sycl layer, use function name from code
+  // location instead of kernel name in event payload
+  std::string FuncName;
+  if (!MCommandGroup->MIsTopCodeLoc)
+    FuncName = MCommandGroup->MFunctionName;
+
   xpti_td *CmdTraceEvent = nullptr;
-  instrumentationFillCommonData(KernelName, MCommandGroup->MFileName,
+  instrumentationFillCommonData(KernelName, FuncName, MCommandGroup->MFileName,
                                 MCommandGroup->MLine, MCommandGroup->MColumn,
                                 MAddress, MQueue, FromSource, MInstanceID,
                                 CmdTraceEvent);
@@ -2274,6 +2297,8 @@ void SetArgBasedOnType(
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex) {
   switch (Arg.MType) {
+  case kernel_param_kind_t::kind_work_group_memory:
+    break;
   case kernel_param_kind_t::kind_stream:
     break;
   case kernel_param_kind_t::kind_accessor: {
@@ -2535,12 +2560,22 @@ ur_result_t enqueueImpCommandBufferKernel(
       LocalSize = RequiredWGSize;
   }
 
+  // Command-buffers which are not updatable cannot return command handles, so
+  // we query the descriptor here to check if a handle is required.
+  ur_exp_command_buffer_desc_t CommandBufferDesc{};
+
+  Adapter->call<UrApiKind::urCommandBufferGetInfoExp>(
+      CommandBuffer,
+      ur_exp_command_buffer_info_t::UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR,
+      sizeof(ur_exp_command_buffer_desc_t), &CommandBufferDesc, nullptr);
+
   ur_result_t Res =
       Adapter->call_nocheck<UrApiKind::urCommandBufferAppendKernelLaunchExp>(
           CommandBuffer, UrKernel, NDRDesc.Dims, &NDRDesc.GlobalOffset[0],
-          &NDRDesc.GlobalSize[0], LocalSize, SyncPoints.size(),
-          SyncPoints.size() ? SyncPoints.data() : nullptr, OutSyncPoint,
-          OutCommand);
+          &NDRDesc.GlobalSize[0], LocalSize, 0, nullptr, SyncPoints.size(),
+          SyncPoints.size() ? SyncPoints.data() : nullptr, 0, nullptr,
+          OutSyncPoint, nullptr,
+          CommandBufferDesc.isUpdatable ? OutCommand : nullptr);
 
   if (!SyclKernelImpl && !Kernel) {
     Adapter->call<UrApiKind::urKernelRelease>(UrKernel);

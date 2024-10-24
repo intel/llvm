@@ -13,6 +13,10 @@
 #include <detail/queue_impl.hpp>
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/common.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -369,6 +373,15 @@ graph_impl::add(std::function<void(handler &)> CGF,
                 const std::vector<std::shared_ptr<node_impl>> &Dep) {
   (void)Args;
   sycl::handler Handler{shared_from_this()};
+
+  // save code location if one was set in TLS.
+  // idealy it would be nice to capture user's call code location
+  // by adding a parameter to the graph.add function, but this will
+  // break the API. At least capture code location from TLS, user
+  // can set it before calling graph.add
+  sycl::detail::tls_code_loc_t Tls;
+  Handler.saveCodeLoc(Tls.query(), Tls.isToplevel());
+
   CGF(Handler);
 
   if (Handler.getType() == sycl::detail::CGType::Barrier) {
@@ -673,17 +686,42 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   }
   ur_exp_command_buffer_sync_point_t NewSyncPoint;
   ur_exp_command_buffer_command_handle_t NewCommand = 0;
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  int32_t StreamID = xptiRegisterStream(sycl::detail::SYCL_STREAM_NAME);
+  sycl::detail::CGExecKernel *CGExec =
+      static_cast<sycl::detail::CGExecKernel *>(Node->MCommandGroup.get());
+  sycl::detail::code_location CodeLoc(CGExec->MFileName.c_str(),
+                                      CGExec->MFunctionName.c_str(),
+                                      CGExec->MLine, CGExec->MColumn);
+  auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
+      StreamID, CGExec->MSyclKernel, CodeLoc, CGExec->MIsTopCodeLoc,
+      CGExec->MKernelName.c_str(), nullptr, CGExec->MNDRDesc,
+      CGExec->MKernelBundle, CGExec->MArgs);
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_begin, nullptr);
+#endif
+
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
-      Deps, &NewSyncPoint, &NewCommand, nullptr);
+      Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
-  MCommandMap[Node] = NewCommand;
+  if (MIsUpdatable) {
+    MCommandMap[Node] = NewCommand;
+  }
 
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
                           "Failed to add kernel to UR command-buffer");
   }
+
+#ifdef XPTI_ENABLE_INSTRUMENTATION
+  if (CmdTraceEvent)
+    sycl::detail::emitInstrumentationGeneral(
+        StreamID, InstanceID, CmdTraceEvent, xpti::trace_task_end, nullptr);
+#endif
 
   return NewSyncPoint;
 }
@@ -708,7 +746,10 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
           Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
           Deps);
 
-  MCommandMap[Node] = Event->getCommandBufferCommand();
+  if (MIsUpdatable) {
+    MCommandMap[Node] = Event->getCommandBufferCommand();
+  }
+
   return Event->getSyncPoint();
 }
 void exec_graph_impl::createCommandBuffers(
@@ -1474,6 +1515,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
+  UpdateDesc.hNewKernel = UrKernel;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
@@ -1646,8 +1688,15 @@ void modifiable_command_graph::end_recording(
   }
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
+#else
 void modifiable_command_graph::print_graph(std::string path,
+#endif
                                            bool verbose) const {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::string path{pathstr.data()};
+#endif
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);

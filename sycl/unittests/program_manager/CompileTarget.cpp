@@ -28,13 +28,13 @@ generateImageWithCompileTarget(std::string KernelName,
                                    SYCL_PROPERTY_TYPE_BYTE_ARRAY);
   UrPropertySet PropSet;
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_REQUIREMENTS,
-                 {CompileTargetProperty});
+                 std::move(CompileTargetProperty));
 
   std::vector<unsigned char> Bin(CompileTarget.begin(), CompileTarget.end());
   // Null terminate the data so it can be interpreted as c string.
   Bin.push_back(0);
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
+  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
   auto DeviceTargetSpec = CompileTarget == "spir64_x86_64"
                               ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64
@@ -138,8 +138,9 @@ static ur_result_t redefinedDeviceGet(void *pParams) {
 std::vector<std::string> createWithBinaryLog;
 static ur_result_t redefinedProgramCreateWithBinary(void *pParams) {
   auto params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
-  createWithBinaryLog.push_back(
-      reinterpret_cast<const char *>(*params.ppBinary));
+  for (uint32_t i = 0; i < *params.pnumDevices; ++i)
+    createWithBinaryLog.push_back(
+        reinterpret_cast<const char *>(*params.pppBinaries[i]));
   return UR_RESULT_SUCCESS;
 }
 
