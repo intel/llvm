@@ -1,13 +1,10 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// Fail is flaky for level_zero, enable when fixed.
+// Fail is flaky for level_zero caused by issue in UR Level Zero adapter:
+// URLZA-419
 // UNSUPPORTED: level_zero
 //
-// Consistently fails with opencl gpu, enable when fixed.
-// XFAIL: opencl && gpu
-// XFAIL-TRACKER: GSD-8971
-
 //==--- kernel_info_attr.cpp - SYCL info::kernel::attributes test ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,7 +34,17 @@ int main() {
   });
 
   const std::string krnAttr = krn.get_info<info::kernel::attributes>();
-  assert(krnAttr.empty());
+  if (q.get_device().get_platform().get_info<info::platform::vendor>() ==
+          "Intel(R) Corporation" &&
+      q.get_device().get_info<info::device::device_type>() ==
+          info::device_type::gpu) {
+    // Older intel drivers don't attach any default attributes and newer ones
+    // force walk order to X/Y/Z using special attribute.
+    assert(krnAttr.empty() ||
+           krnAttr == "intel_reqd_workgroup_walk_order(0,1,2)");
+  } else {
+    assert(krnAttr.empty());
+  }
   const std::string krnAttrExt =
       syclex::get_kernel_info<SingleTask, info::kernel::attributes>(ctx);
   assert(krnAttr == krnAttrExt);
