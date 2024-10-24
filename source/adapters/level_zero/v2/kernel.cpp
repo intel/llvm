@@ -182,8 +182,6 @@ ur_result_t ur_kernel_handle_t_::setArgValue(
     return UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX;
   }
 
-  std::scoped_lock<ur_shared_mutex> guard(Mutex);
-
   for (auto &singleDeviceKernel : deviceKernels) {
     if (!singleDeviceKernel.has_value()) {
       continue;
@@ -217,8 +215,6 @@ ur_program_handle_t ur_kernel_handle_t_::getProgramHandle() const {
 
 ur_result_t ur_kernel_handle_t_::setExecInfo(ur_kernel_exec_info_t propName,
                                              const void *pPropValue) {
-  std::scoped_lock<ur_shared_mutex> Guard(Mutex);
-
   for (auto &kernel : deviceKernels) {
     if (!kernel.has_value())
       continue;
@@ -315,6 +311,8 @@ ur_result_t urKernelSetArgValue(
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgValue");
+
+  std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
 }
 
@@ -327,6 +325,8 @@ ur_result_t urKernelSetArgPointer(
         *pArgValue ///< [in] argument value represented as matching arg type.
 ) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
+
+  std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
 }
 
@@ -335,6 +335,9 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *pProperties,
                      ur_mem_handle_t hArgValue) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgMemObj");
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> guard(hKernel->Mutex,
+                                                           hArgValue->Mutex);
 
   // TODO: support properties
   std::ignore = pProperties;
@@ -367,6 +370,8 @@ urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     const ur_kernel_arg_local_properties_t *pProperties) {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgLocal");
 
+  std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
+
   std::ignore = pProperties;
 
   return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
@@ -383,6 +388,8 @@ ur_result_t urKernelSetExecInfo(
 ) {
   std::ignore = propSize;
   std::ignore = pProperties;
+
+  std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   return hKernel->setExecInfo(propName, pPropValue);
 }
@@ -401,7 +408,7 @@ ur_result_t urKernelGetGroupInfo(
 ) {
   UrReturnHelper returnValue(paramValueSize, pParamValue, pParamValueSizeRet);
 
-  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  // No locking needed here, we only read const members
   switch (paramName) {
   case UR_KERNEL_GROUP_INFO_GLOBAL_WORK_SIZE: {
     // TODO: To revisit after level_zero/issues/262 is resolved
@@ -483,7 +490,7 @@ ur_result_t urKernelGetSubGroupInfo(
 
   auto props = hKernel->getProperties(hDevice);
 
-  std::shared_lock<ur_shared_mutex> Guard(hKernel->Mutex);
+  // No locking needed here, we only read const members
   if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_SUB_GROUP_SIZE) {
     returnValue(uint32_t{props.maxSubgroupSize});
   } else if (propName == UR_KERNEL_SUB_GROUP_INFO_MAX_NUM_SUB_GROUPS) {
