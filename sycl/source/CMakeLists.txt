@@ -218,7 +218,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Set the runpath to the lib directory so libsycl can find libur_loader
+                        INSTALL_RPATH "\$ORIGIN")
 
   # When building using icx on Windows, the VERSION file
   # produced by cmake is used in source code
