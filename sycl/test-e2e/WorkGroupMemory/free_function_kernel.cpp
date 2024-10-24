@@ -1,3 +1,7 @@
+// REQUIRES: aspect-usm_shared_allocations
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
@@ -10,8 +14,8 @@ using namespace sycl;
 queue q;
 context ctx = q.get_context();
 
-int sum_helper(
-    sycl::ext::oneapi::experimental::work_group_memory<int[]> mem, size_t WGSIZE) {
+int sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
+               size_t WGSIZE) {
   int ret = 0;
   for (int i = 0; i < WGSIZE; ++i) {
     ret += mem[i];
@@ -51,8 +55,7 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
 #ifndef __SYCL_DEVICE_ONLY__
   // Get the kernel object for the "mykernel" kernel.
   auto Bundle = get_kernel_bundle<sycl::bundle_state::executable>(ctx);
-  kernel_id sum_id =
-      ext::oneapi::experimental::get_kernel_id<sum>();
+  kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum>();
   kernel k_sum = Bundle.get_kernel(sum_id);
   q.submit([&](sycl::handler &cgh) {
      ext::oneapi::experimental::work_group_memory<int[]> mem{WGSIZE, cgh};
