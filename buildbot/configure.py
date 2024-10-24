@@ -64,6 +64,7 @@ def do_configure(args):
 
     sycl_enable_xpti_tracing = "ON"
     xpti_enable_werror = "OFF"
+    llvm_enable_zstd = "OFF"
 
     if sys.platform != "darwin":
         sycl_enabled_backends.append("level_zero")
@@ -133,6 +134,8 @@ def do_configure(args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
+        # Build with zstd disabled on CI for now.
+        llvm_enable_zstd = "OFF"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
@@ -177,7 +180,7 @@ def do_configure(args):
         "-DLLVM_ENABLE_PROJECTS={}".format(llvm_enable_projects),
         "-DSYCL_BUILD_PI_HIP_PLATFORM={}".format(sycl_build_pi_hip_platform),
         "-DLLVM_BUILD_TOOLS=ON",
-        "-DLLVM_ENABLE_ZSTD=ON",
+        "-DLLVM_ENABLE_ZSTD={}".format(llvm_enable_zstd),
         "-DLLVM_USE_STATIC_ZSTD=ON",
         "-DSYCL_ENABLE_WERROR={}".format(sycl_werror),
         "-DCMAKE_INSTALL_PREFIX={}".format(install_dir),
