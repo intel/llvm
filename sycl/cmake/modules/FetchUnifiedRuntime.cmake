@@ -23,9 +23,6 @@ option(SYCL_UR_USE_FETCH_CONTENT
 set(SYCL_UR_SOURCE_DIR
   "" CACHE PATH "Path to root of Unified Runtime repository")
 
-option(SYCL_UMF_DISABLE_HWLOC
-  "Disable hwloc support in UMF" ON)
-
 # Here we override the defaults to disable building tests from unified-runtime
 set(UR_BUILD_EXAMPLES OFF CACHE BOOL "Build example applications." FORCE)
 set(UR_BUILD_TESTS OFF CACHE BOOL "Build unit tests." FORCE)
@@ -124,10 +121,10 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # to link statically on windows
   if(WIN32)
     set(UMF_BUILD_SHARED_LIBRARY OFF CACHE INTERNAL "Build UMF shared library")
-    set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
-  else()
-    set(UMF_DISABLE_HWLOC ${SYCL_UMF_DISABLE_HWLOC} CACHE INTERNAL "Disable hwloc for UMF")
   endif()
+    
+  set(UMF_LINK_HWLOC_STATICALLY ON CACHE INTERNAL "static HWLOC")
+  set(UMF_HWLOC_TAG hwloc-2.9.3 CACHE INTERNAL "hwloc version")
 
   fetch_adapter_source(level_zero
     ${UNIFIED_RUNTIME_REPO}
