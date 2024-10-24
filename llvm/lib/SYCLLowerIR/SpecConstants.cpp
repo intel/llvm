@@ -29,6 +29,21 @@
 
 using namespace llvm;
 
+static cl::opt<SpecConstantsPass::HandlingMode> SpecConstantMode(
+    "spec-constant-mode", cl::Optional, cl::Hidden,
+    cl::desc("Specialization constant handling mode"),
+    cl::init(SpecConstantsPass::HandlingMode::emulation),
+    cl::values(
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::default_values, "default_values",
+            "Specialization constant uses are replaced by default values"),
+        clEnumValN(
+            SpecConstantsPass::HandlingMode::emulation, "emulation",
+            "Specialization constant intrinsic is replaced by run-time buffer"),
+        clEnumValN(SpecConstantsPass::HandlingMode::native, "native",
+                   "Specialization constant intrinsic is lowered to SPIR-V "
+                   "intrinsic")));
+
 namespace {
 
 // __sycl* intrinsic names are Itanium ABI-mangled; this is common prefix for
@@ -826,6 +841,9 @@ PreservedAnalyses SpecConstantsPass::run(Module &M,
   StringMap<unsigned> OffsetMap;
   MapVector<StringRef, MDNode *> SCMetadata;
   SmallVector<MDNode *, 4> DefaultsMetadata;
+
+  if (SpecConstantMode.getNumOccurrences() > 0)
+    Mode = SpecConstantMode;
 
   // Iterate through all declarations of instances of function template
   // template <typename T> T __sycl_get*SpecConstantValue(const char *ID)

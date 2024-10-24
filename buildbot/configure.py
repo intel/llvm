@@ -134,8 +134,8 @@ def do_configure(args):
 
         # For clang-format, clang-tidy and code coverage
         llvm_enable_projects += ";clang-tools-extra;compiler-rt"
-        # Build with zstd enabled on CI.
-        llvm_enable_zstd = "ON"
+        # Build with zstd disabled on CI for now.
+        llvm_enable_zstd = "OFF"
         if sys.platform != "darwin":
             # libclc is required for CI validation
             libclc_enabled = True
