@@ -25,7 +25,7 @@ template <typename T> inline T __get_high_half(T a0b0, T a0b1, T a1b0, T a1b1) {
 // A helper function for mul_hi built-in for long
 template <typename T>
 inline void __get_half_products(T a, T b, T &a0b0, T &a0b1, T &a1b0, T &a1b1) {
-  constexpr sycl::cl_int halfsize = (sizeof(T) * 8) / 2;
+  constexpr sycl::opencl::cl_int halfsize = (sizeof(T) * 8) / 2;
   T a1 = a >> halfsize;
   T a0 = (a << halfsize) >> halfsize;
   T b1 = b >> halfsize;

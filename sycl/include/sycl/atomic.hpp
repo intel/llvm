@@ -233,19 +233,19 @@ public:
 
 #ifdef __SYCL_DEVICE_ONLY__
   template <typename T2 = T>
-  std::enable_if_t<!std::is_same<cl_float, T2>::value, T>
+  std::enable_if_t<!std::is_same<opencl::cl_float, T2>::value, T>
   load(memory_order Order = memory_order::relaxed) const {
     return __spirv_AtomicLoad(Ptr, SpirvScope,
                               detail::getSPIRVMemorySemanticsMask(Order));
   }
   template <typename T2 = T>
-  std::enable_if_t<std::is_same<cl_float, T2>::value, T>
+  std::enable_if_t<std::is_same<opencl::cl_float, T2>::value, T>
   load(memory_order Order = memory_order::relaxed) const {
     auto *TmpPtr = reinterpret_cast<typename multi_ptr<
-        cl_int, addressSpace, access::decorated::yes>::pointer>(Ptr);
-    cl_int TmpVal = __spirv_AtomicLoad(
+        opencl::cl_int, addressSpace, access::decorated::yes>::pointer>(Ptr);
+    opencl::cl_int TmpVal = __spirv_AtomicLoad(
         TmpPtr, SpirvScope, detail::getSPIRVMemorySemanticsMask(Order));
-    cl_float ResVal = sycl::bit_cast<cl_float>(TmpVal);
+    auto ResVal = sycl::bit_cast<opencl::cl_float>(TmpVal);
     return ResVal;
   }
 #else
