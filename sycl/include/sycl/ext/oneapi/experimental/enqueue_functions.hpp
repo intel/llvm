@@ -12,6 +12,7 @@
 
 #include <sycl/detail/common.hpp>
 #include <sycl/event.hpp>
+#include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>
 #include <sycl/handler.hpp>
 #include <sycl/nd_range.hpp>
@@ -103,12 +104,21 @@ void submit(queue Q, CommandGroupFunc &&CGF,
       Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
+__SYCL_EXPORT void submit(queue Q, command_graph<graph_state::executable> G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current());
+
 template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
   return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
+
+__SYCL_EXPORT event
+submit_with_event(queue Q, command_graph<graph_state::executable> G,
+                  const sycl::detail::code_location &CodeLoc =
+                      sycl::detail::code_location::current());
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(handler &CGH, const KernelType &KernelObj) {
