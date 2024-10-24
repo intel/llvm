@@ -6284,7 +6284,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
-  O << "#include <sycl/ext/oneapi/properties/properties.hpp>\n";
+  // When using work group memory parameters in free kernel functions, the
+  // integration header emits incorrect forward declarations for the work group
+  // memory type because it ignores default arguments. This means the user
+  // cannot use work group memory types with parameters omitted such as
+  // work_group_memory<int> where the hidden second parameter has a default
+  // value. To circumvent this, we include the correct forward declaration
+  // ourselves.
   O << "#include <sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>\n";
   O << "\n";
 

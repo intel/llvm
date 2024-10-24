@@ -14,13 +14,13 @@ using namespace sycl;
 queue q;
 context ctx = q.get_context();
 
-int sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
-               size_t WGSIZE) {
-  int ret = 0;
+void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
+                sycl::ext::oneapi::experimental::work_group_memory<int> ret,
+                size_t WGSIZE) {
+  ret = 0;
   for (int i = 0; i < WGSIZE; ++i) {
     ret += mem[i];
   }
-  return ret;
 }
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
@@ -38,7 +38,9 @@ void sum(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
         *Result += mem[i];
       }
     } else {
-      *Result = sum_helper(mem, WGSIZE);
+      sycl::ext::oneapi::experimental::work_group_memory<int> ret;
+      sum_helper(mem, ret, WGSIZE);
+      *Result = ret;
     }
   }
 }
