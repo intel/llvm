@@ -1,6 +1,8 @@
 /* This test checks that get_info checks its aspect and passes without ZES_ENABLE_SYSMAN=1.*/
 // REQUIRES: gpu-intel-dg2, level_zero
 // RUN: %{build} -o %t.out
+// XFAIL: windows
+// XFAIL-TRACKER: URLZA-420
 // RUN: env ZES_ENABLE_SYSMAN=0 %{run} %t.out
 // Explicitly set 'ZES_ENABLE_SYSMAN=0'. HWLOC initializes this environment
 // variable in its constructor, causing this test to fail, as retrieving
