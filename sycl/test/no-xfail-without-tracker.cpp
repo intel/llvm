@@ -50,7 +50,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 158
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 156
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
@@ -168,8 +168,6 @@
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_su_int8.cpp
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_us_int8.cpp
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_arg_dim.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_colA_rowB_colC.cpp
 // CHECK-NEXT: Matrix/joint_matrix_int8_colmajorA_colmajorB.cpp
