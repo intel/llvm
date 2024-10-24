@@ -359,8 +359,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
 
   bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, srcOffset, size,
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, srcOffset,
+      size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -368,8 +368,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
       }));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::write_only, dstOffset, size,
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::write_only, dstOffset,
+      size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -401,7 +401,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferRead(
   ur_usm_handle_t_ dstHandle(hContext, size, pDst);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
+                                                          hBuffer->getMutex());
 
   return enqueueGenericCopyUnlocked(hBuffer, &dstHandle, blockingRead, offset,
                                     0, size, numEventsInWaitList,
@@ -419,7 +419,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWrite(
   ur_usm_handle_t_ srcHandle(hContext, size, pSrc);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
+                                                          hBuffer->getMutex());
 
   return enqueueGenericCopyUnlocked(&srcHandle, hBuffer, blockingWrite, 0,
                                     offset, size, numEventsInWaitList,
@@ -443,16 +443,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueRegionCopyUnlocked(
 
   bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, 0, src->getSize(),
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, 0,
+      src->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
         memoryMigrated = true;
       }));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::write_only, 0, dst->getSize(),
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::write_only, 0,
+      dst->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -487,7 +487,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferReadRect(
   ur_usm_handle_t_ dstHandle(hContext, 0, pDst);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
+                                                          hBuffer->getMutex());
 
   return enqueueRegionCopyUnlocked(
       hBuffer, &dstHandle, blockingRead, bufferOrigin, hostOrigin, region,
@@ -507,7 +507,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect(
   ur_usm_handle_t_ srcHandle(hContext, 0, pSrc);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
+                                                          hBuffer->getMutex());
 
   return enqueueRegionCopyUnlocked(
       &srcHandle, hBuffer, blockingWrite, hostOrigin, bufferOrigin, region,
@@ -527,7 +527,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopy(
             UR_RESULT_ERROR_INVALID_SIZE);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
-      this->Mutex, hBufferSrc->Mutex, hBufferDst->Mutex);
+      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return enqueueGenericCopyUnlocked(hBufferSrc, hBufferDst, false, srcOffset,
                                     dstOffset, size, numEventsInWaitList,
@@ -544,7 +544,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect(
       "ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect");
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
-      this->Mutex, hBufferSrc->Mutex, hBufferDst->Mutex);
+      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return enqueueRegionCopyUnlocked(
       hBufferSrc, hBufferDst, false, srcOrigin, dstOrigin, region, srcRowPitch,
@@ -561,7 +561,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferFill(
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
+                                                          hBuffer->getMutex());
 
   return enqueueGenericFillUnlocked(hBuffer, offset, patternSize, pPattern,
                                     size, numEventsInWaitList, phEventWaitList,
@@ -620,20 +620,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemImageCopy(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-static ur_mem_handle_t_::access_mode_t getAccessMode(ur_map_flags_t mapFlags) {
-  if (mapFlags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
-    return ur_mem_handle_t_::access_mode_t::write_invalidate;
-  } else if ((mapFlags & UR_MAP_FLAG_READ) && (mapFlags & UR_MAP_FLAG_WRITE)) {
-    return ur_mem_handle_t_::access_mode_t::read_write;
-  } else if (mapFlags & UR_MAP_FLAG_READ) {
-    return ur_mem_handle_t_::access_mode_t::read_only;
-  } else if (mapFlags & UR_MAP_FLAG_WRITE) {
-    return ur_mem_handle_t_::access_mode_t::write_only;
-  } else {
-    throw UR_RESULT_ERROR_INVALID_VALUE;
-  }
-}
-
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
     ur_mem_handle_t hBuffer, bool blockingMap, ur_map_flags_t mapFlags,
     size_t offset, size_t size, uint32_t numEventsInWaitList,
@@ -642,9 +628,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferMap");
 
   std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
-                                                          hBuffer->Mutex);
-
-  ur_mem_handle_t_::access_mode_t accessMode = getAccessMode(mapFlags);
+                                                          hBuffer->getMutex());
 
   auto handler = getCommandListHandlerForCopy();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -654,7 +638,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
 
   bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
-      accessMode, offset, size, [&](void *src, void *dst, size_t size) {
+      mapFlags, offset, size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -723,7 +707,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericFillUnlocked(
 
   bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, offset, size,
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, offset, size,
       [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,

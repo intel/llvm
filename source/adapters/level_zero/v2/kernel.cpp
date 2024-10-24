@@ -394,21 +394,21 @@ ur_result_t urKernelSetArgPointer(
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
 }
 
-static ur_mem_handle_t_::access_mode_t memAccessFromKernelProperties(
+static ur_mem_handle_t_::device_access_mode_t memAccessFromKernelProperties(
     const ur_kernel_arg_mem_obj_properties_t *pProperties) {
   if (pProperties) {
     switch (pProperties->memoryAccess) {
     case UR_MEM_FLAG_READ_WRITE:
-      return ur_mem_handle_t_::access_mode_t::read_write;
+      return ur_mem_handle_t_::device_access_mode_t::read_write;
     case UR_MEM_FLAG_WRITE_ONLY:
-      return ur_mem_handle_t_::access_mode_t::write_only;
+      return ur_mem_handle_t_::device_access_mode_t::write_only;
     case UR_MEM_FLAG_READ_ONLY:
-      return ur_mem_handle_t_::access_mode_t::read_only;
+      return ur_mem_handle_t_::device_access_mode_t::read_only;
     default:
-      return ur_mem_handle_t_::access_mode_t::read_write;
+      return ur_mem_handle_t_::device_access_mode_t::read_write;
     }
   }
-  return ur_mem_handle_t_::access_mode_t::read_write;
+  return ur_mem_handle_t_::device_access_mode_t::read_write;
 }
 
 ur_result_t
