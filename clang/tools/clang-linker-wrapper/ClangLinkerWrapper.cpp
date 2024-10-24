@@ -872,12 +872,11 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
       ",+SPV_INTEL_fpga_argument_interfaces"
       ",+SPV_INTEL_fpga_invocation_pipelining_attributes"
       ",+SPV_INTEL_fpga_latency_control"
-      ",+SPV_INTEL_task_sequence"
       ",+SPV_KHR_shader_clock"
-      ",+SPV_INTEL_bindless_images";
+      ",+SPV_INTEL_bindless_images"
+      ",+SPV_INTEL_task_sequence";
   ExtArg = ExtArg + DefaultExtArg + INTELExtArg;
-  ExtArg += ",+SPV_INTEL_token_type"
-            ",+SPV_INTEL_bfloat16_conversion"
+  ExtArg += ",+SPV_INTEL_bfloat16_conversion"
             ",+SPV_INTEL_joint_matrix"
             ",+SPV_INTEL_hw_thread_queries"
             ",+SPV_KHR_uniform_group_instructions"
@@ -885,7 +884,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
             ",+SPV_INTEL_tensor_float32_conversion"
             ",+SPV_INTEL_optnone"
             ",+SPV_KHR_non_semantic_info"
-            ",+SPV_KHR_cooperative_matrix";
+            ",+SPV_KHR_cooperative_matrix"
+            ",+SPV_EXT_shader_atomic_float16_add";
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));

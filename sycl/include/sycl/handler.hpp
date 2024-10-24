@@ -567,7 +567,7 @@ private:
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
   void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
-set_arg(ArgIndex, std::forward<T>(Arg));
+    set_arg(ArgIndex, std::forward<T>(Arg));
     setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
   }
 
@@ -1872,7 +1872,7 @@ public:
   ///
   /// \param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&...Args) {
-  setArgsHelper(0, std::forward<Ts>(Args)...);
+    setArgsHelper(0, std::forward<Ts>(Args)...);
   }
   /// Defines and invokes a SYCL kernel function as a function object type.
   ///
@@ -3585,9 +3585,9 @@ private:
       if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
         throw sycl::exception(
             make_error_code(errc::kernel_argument),
-            "A local accessor must not be used in a SYCL kernel function "
-            "that is invoked via single_task or via the simple form of "
-            "parallel_for that takes a range parameter.");
+            "A work group memory object must not be used in a SYCL kernel "
+            "function that is invoked via single_task or via the simple form "
+            "of parallel_for that takes a range parameter.");
     }
   }
 
