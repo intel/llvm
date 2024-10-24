@@ -1,4 +1,4 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem,
+// REQUIRES: aspect-ext_oneapi_virtual_mem
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
