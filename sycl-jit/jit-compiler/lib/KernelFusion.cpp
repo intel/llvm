@@ -14,6 +14,7 @@
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
+#include "rtc/DeviceCompilation.h"
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
 #include <llvm/Support/Error.h>
@@ -233,6 +234,31 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   }
 
   return JITResult{FusedKernelInfo};
+}
+
+extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
+                                 View<InMemoryFile> IncludeFiles,
+                                 View<const char *> UserArgs) {
+  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
+  if (!ModuleOrErr) {
+    return errorToFusionResult(ModuleOrErr.takeError(),
+                               "Device compilation failed");
+  }
+  std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
+
+  SYCLKernelInfo Kernel;
+  auto Error = translation::KernelTranslator::translateKernel(
+      Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
+
+  auto *LLVMCtx = &Module->getContext();
+  Module.reset();
+  delete LLVMCtx;
+
+  if (Error) {
+    return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
+  }
+
+  return JITResult{Kernel};
 }
 
 extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }
