@@ -1,3 +1,2 @@
 {{NONDETERMINISTIC}}
-urEnqueueKernelLaunchKernelWgSizeTest.Success/Intel_R__OpenCL___{{.*}}_
 {{OPT}}urEnqueueKernelLaunchUSMLinkedList.Success/Intel_R__OpenCL___{{.*}}_UsePoolEnabled
