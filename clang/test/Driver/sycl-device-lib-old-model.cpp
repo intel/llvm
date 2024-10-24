@@ -196,7 +196,7 @@
 // SYCL_LLVM_LINK_USER_ONLY_NEEDED: llvm-link{{.*}}  "-only-needed" "{{.*}}" "-o" "{{.*}}.bc" "--suppress-warnings"
 
 /// ###########################################################################
-/// test behavior of libsycl-sanitizer.o linking when -fsanitize=address is available
+/// test behavior of libsycl-asan.o linking when -fsanitize=address is available
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -fsanitize=address -### 2>&1 \
 // RUN:   | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_SANITIZER
 // RUN: %clangxx -fsycl --no-offload-new-driver %s --sysroot=%S/Inputs/SYCL -Xsycl-target-frontend -fsanitize=address -### 2>&1 \
@@ -226,8 +226,8 @@
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf.bc"
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-fp64.bc"
 // SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-fallback-imf-bf16.bc"
-// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-sanitizer.bc"
+// SYCL_DEVICE_LIB_SANITIZER-SAME: "{{.*}}libsycl-asan.bc"
 // SYCL_DEVICE_ASAN_MACRO: "-cc1"
 // SYCL_DEVICE_ASAN_MACRO-SAME: "USE_SYCL_DEVICE_ASAN"
 // SYCL_DEVICE_ASAN_MACRO: llvm-link{{.*}} "-only-needed"
-// SYCL_DEVICE_ASAN_MACRO-SAME: "{{.*}}libsycl-sanitizer.bc"
+// SYCL_DEVICE_ASAN_MACRO-SAME: "{{.*}}libsycl-asan.bc"
