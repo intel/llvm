@@ -2072,8 +2072,11 @@ public:
   bool handleSyclSpecialType(ParmVarDecl *PD, QualType ParamTy) final {
     if (SemaSYCL::isSyclType(ParamTy, SYCLTypeAttr::work_group_memory))
       IsInvalid = false;
-    else
-      IsInvalid |= checkSyclSpecialType(ParamTy, PD->getLocation());
+    else {
+      Diag.Report(PD->getLocation(), diag::err_bad_kernel_param_type)
+          << ParamTy;
+      IsInvalid = true;
+    }
     return isValid();
   }
 
