@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #pragma once
+
 #include <sycl/access/access.hpp>
 #include <sycl/accessor.hpp>
 #include <sycl/context.hpp>
@@ -625,6 +626,7 @@ private:
 
   template <typename T> void setArgHelper(int ArgIndex, T &&Arg) {
     void *StoredArg = storePlainArg(Arg);
+
     if (!std::is_same<cl_mem, T>::value && std::is_pointer<T>::value) {
       addArg(detail::kernel_param_kind_t::kind_pointer, StoredArg, sizeof(T),
              ArgIndex);
