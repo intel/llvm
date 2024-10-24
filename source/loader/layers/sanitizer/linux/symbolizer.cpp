@@ -12,20 +12,13 @@
 
 namespace ur_sanitizer_layer {
 
-llvm::symbolize::LLVMSymbolizer *GetSymbolizer(bool destruct = false) {
-    static auto *Instance = new llvm::symbolize::LLVMSymbolizer{};
-    if (destruct) {
-        delete Instance;
-        Instance = nullptr;
-    }
-    return Instance;
-}
+static auto *Symbolizer = new llvm::symbolize::LLVMSymbolizer{};
 
 // Let's destruct the symbolizer at the very end of exit process, at least 
 // should be after the destructors of the SanitizerLayer since we may print 
 // some symbolized information in the SanitizerLayer destructor.
 __attribute__((destructor(101))) void DestructSymbolizer() {
-    (void)GetSymbolizer(true);
+    delete Symbolizer;
 }
 
 llvm::symbolize::PrinterConfig GetPrinterConfig() {
@@ -58,7 +51,7 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
     auto Printer =
         std::make_unique<llvm::symbolize::LLVMPrinter>(OS, EH, Config);
 
-    auto ResOrErr = ur_sanitizer_layer::GetSymbolizer()->symbolizeInlinedCode(
+    auto ResOrErr = ur_sanitizer_layer::Symbolizer->symbolizeInlinedCode(
         ModuleName,
         {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
 
@@ -66,7 +59,7 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
         return;
     }
     Printer->print(Request, *ResOrErr);
-    ur_sanitizer_layer::GetSymbolizer()->pruneCache();
+    ur_sanitizer_layer::Symbolizer->pruneCache();
     if (RetSize) {
         *RetSize = Result.size() + 1;
     }
