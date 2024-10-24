@@ -162,9 +162,11 @@ template <typename T> inline T reverse_bits(T a) {
   static_assert(std::is_unsigned<T>::value && std::is_integral<T>::value,
                 "unsigned integer required");
 #if defined(__NVPTX__)
-  unsigned result;
-  asm volatile("brev.b32 %0, %1;" : "=r"(result) : "r"(a));
-  return result;
+  if constexpr (sizeof(T) == 4) {
+    unsigned result;
+    asm volatile("brev.b32 %0, %1;" : "=r"(result) : "r"(a));
+    return result;
+  }
 #endif // __NVPTX__
   if (!a)
     return 0;
