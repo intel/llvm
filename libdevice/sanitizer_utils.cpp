@@ -159,6 +159,8 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
                              (uptr)launch_info->GlobalShadowOffset);
           return 0;
         });
+
+    return shadow_ptr;
   } else if (as == ADDRESS_SPACE_LOCAL) { // local
     // The size of SLM is 64KB on DG2
     constexpr unsigned slm_size = 64 * 1024;
