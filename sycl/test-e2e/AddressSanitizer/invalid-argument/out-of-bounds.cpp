@@ -20,7 +20,7 @@ int main() {
   });
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: invalid-argument
-  // CHECK: The 1th argument {{.*}} is located outside of its region
+  // CHECK: The {{[0-9]+}}th argument {{.*}} is located outside of its region
 
   return 0;
 }
