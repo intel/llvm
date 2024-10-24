@@ -54,13 +54,12 @@ int main(int argc, char *argv[]) {
             auto x = sg.load(&global[i]);
             auto x_cv1 = sg.load<const volatile sycl::int2>(&global[i]);
             auto x_cv2 = sg.load(
-                sycl::global_ptr<const volatile sycl::int2>(&global[i]));
-
+                global.get_multi_ptr<sycl::access::decorated::yes>() + i);
             // Local address space
             auto y = sg.load(&local[i]);
             auto y_cv1 = sg.load<const volatile sycl::int2>(&local[i]);
-            auto y_cv2 =
-                sg.load(sycl::local_ptr<const volatile sycl::int2>(&local[i]));
+            auto y_cv2 = sg.load(
+                local.get_multi_ptr<sycl::access::decorated::yes>() + i);
 
             // Store result only if same for non-cv and cv
             if (utils<int, 2>::cmp_vec(x, x_cv1) &&

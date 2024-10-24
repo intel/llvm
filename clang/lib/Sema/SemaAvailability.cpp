@@ -640,8 +640,7 @@ static void DoEmitAvailabilityWarning(Sema &S, AvailabilityResult K,
       S.getTopMostPointOfInstantiation(ReferringDecl);
   bool ShouldAllowWarningInSystemHeader =
       InstantiationLoc != Loc &&
-      !S.getSourceManager().isInSystemHeader(InstantiationLoc) &&
-      !S.getLangOpts().SYCLIsDevice && !S.getLangOpts().SYCLIsHost;
+      !S.getSourceManager().isInSystemHeader(InstantiationLoc);
   struct AllowWarningInSystemHeaders {
     AllowWarningInSystemHeaders(DiagnosticsEngine &E,
                                 bool AllowWarningInSystemHeaders)
