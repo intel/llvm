@@ -50,6 +50,14 @@ jobs:
             target_devices: ext_oneapi_hip:gpu
             tests_selector: e2e
 
+          - name: Intel Build Tests Only
+            runner: '["Linux", "build"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:alldeps
+            image_options: -u 1001 --privileged --cap-add SYS_ADMIN
+            target_devices: opencl:cpu
+            tests_selector: e2e
+            extra_lit_opts: --param split-mode=build
+
           - name: Intel L0 GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
