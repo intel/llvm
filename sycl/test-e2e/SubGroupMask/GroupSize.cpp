@@ -38,7 +38,7 @@ template <size_t SGSize> void test(queue Queue) {
 
         cgh.parallel_for<sycl_subgr<SGSize>>(
             NdRange, [=
-        ](nd_item<1> NdItem) [[intel::reqd_sub_group_size(SGSize)]] {
+        ](nd_item<1> NdItem) [[sycl::reqd_sub_group_size(SGSize)]] {
               auto SG = NdItem.get_sub_group();
               auto LID = SG.get_local_id();
               auto SGID = SG.get_group_id();

@@ -27,7 +27,7 @@ using namespace sycl::ext::oneapi::experimental::matrix;
 // int8_t B[MATRIX_K / 4][MATRIX_N * 4];
 // int32_t C[MATRIX_M][MATRIX_N];
 
-SYCL_EXTERNAL [[intel::reqd_sub_group_size(SG_SZ)]] void
+SYCL_EXTERNAL [[sycl::reqd_sub_group_size(SG_SZ)]] void
 matrix_multiply(size_t NUM_COLS_C, size_t NUM_COLS_A,
                 sycl::accessor<int8_t, 2, access::mode::read_write> accA,
                 sycl::accessor<int8_t, 2, access::mode::read_write> accB,

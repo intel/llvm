@@ -115,7 +115,7 @@ void RunJointSort(sycl::queue &Q, const std::vector<T> &DataToSort,
 
        CGH.parallel_for<KernelNameJoint<IntWrapper<Dims>,
                                         UseGroupWrapper<UseGroup>, T, Compare>>(
-           NDRange, [=](sycl::nd_item<Dims> ID) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> ID) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              auto Group = [&]() {
                if constexpr (UseGroup == UseGroupT::SubGroup)
@@ -282,7 +282,7 @@ void RunSortOVerGroup(sycl::queue &Q, const std::vector<T> &DataToSort,
 
        CGH.parallel_for<KernelNameOverGroup<
            IntWrapper<Dims>, UseGroupWrapper<UseGroup>, T, Compare>>(
-           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
 

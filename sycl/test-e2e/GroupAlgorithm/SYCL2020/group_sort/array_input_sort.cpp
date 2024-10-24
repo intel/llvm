@@ -78,7 +78,7 @@ void RunSortOverGroupArray(sycl::queue &Q, const std::vector<T> &DataToSort,
                                                        CGH);
 
        CGH.parallel_for(
-           NDRange, [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           NDRange, [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                         ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
              using RadixSorterT = oneapi_exp::radix_sorters::group_sorter<

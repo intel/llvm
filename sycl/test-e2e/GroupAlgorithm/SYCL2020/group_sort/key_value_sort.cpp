@@ -120,7 +120,7 @@ void RunSortKeyValueOverGroup(sycl::queue &Q,
                                                        CGH);
 
        auto KeyValueSortKernel =
-           [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
 

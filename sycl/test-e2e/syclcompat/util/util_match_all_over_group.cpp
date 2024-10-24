@@ -92,7 +92,7 @@ void test_match_all_over_group() {
   sycl::queue q = syclcompat::get_default_queue();
   q.parallel_for(
       sycl::nd_range<1>(threads.size(), threads.size()),
-      [=](sycl::nd_item<1> item) [[intel::reqd_sub_group_size(SUBGROUP_SIZE)]] {
+      [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SUBGROUP_SIZE)]] {
         for (auto id = item.get_global_linear_id(); id < DATA_SIZE;
              id += SUBGROUP_SIZE)
           d_output[id] = syclcompat::match_all_over_sub_group(

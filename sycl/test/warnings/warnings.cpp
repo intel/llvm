@@ -4,6 +4,8 @@
 #include <sycl/sycl.hpp>
 
 using namespace sycl;
+
+
 int main() {
   vec<long, 4> newVec;
   queue myQueue;

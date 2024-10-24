@@ -66,7 +66,7 @@ void matrix_multiply(big_matrix<T1, NUM_ROWS_C, NUM_COLS_C> &C,
      cgh.parallel_for<class imatrix>(
          nd_range<2>({NDRangeM, NDRangeN * SG_SZ}, {1, 1 * SG_SZ}),
          [accA, accB, accC, M, N, K](nd_item<2> spmd_item)
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 
          {
            // The submatrix API has to be accessed by all the workitems in a
