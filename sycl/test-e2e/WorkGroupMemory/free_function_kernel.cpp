@@ -58,7 +58,7 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
   }
 
   // The following ifndef is required due to a number of limitations of free
-  // function kernels
+  // function kernels. See CMPLRLLVM-61498.
   // TODO: Remove it once these limitations are no longer there.
 #ifndef __SYCL_DEVICE_ONLY__
 
