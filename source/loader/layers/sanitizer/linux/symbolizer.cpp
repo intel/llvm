@@ -7,6 +7,9 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
+
+#include "ur_sanitizer_layer.hpp"
+
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 
