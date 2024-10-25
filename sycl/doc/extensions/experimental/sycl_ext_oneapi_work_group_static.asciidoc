@@ -116,7 +116,7 @@ public:
 } // namespace sycl::ext::oneapi::experimental
 ----
 
-`T` must be a cv-unqualified trivially constructible and trivially destructible.
+`T` must be cv-unqualified, trivially constructible and trivially destructible.
 
 The storage for the object is allocated in device local memory before
 calling the user's kernel lambda, and deallocated when all work-items
@@ -188,7 +188,7 @@ then the implementation must throw a synchronous exception with the
 local memory into account, whether via the `work_group_scratch_size` property
 or other APIs such as `local_accessor`.
 
-=== Example
+== Example
 
 [source,c++]
 ----

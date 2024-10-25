@@ -8665,12 +8665,9 @@ void Sema::CheckVariableDeclarationType(VarDecl *NewVD) {
   // ISO/IEC TR 18037 S5.1.2
   if (!getLangOpts().OpenCL && NewVD->hasLocalStorage() &&
       T.getAddressSpace() != LangAS::Default) {
-    if (!getLangOpts().SYCLIsDevice &&
-        T.getAddressSpace() != LangAS::sycl_local) {
-      Diag(NewVD->getLocation(), diag::err_as_qualified_auto_decl) << 0;
-      NewVD->setInvalidDecl();
-      return;
-    }
+    Diag(NewVD->getLocation(), diag::err_as_qualified_auto_decl) << 0;
+    NewVD->setInvalidDecl();
+    return;
   }
 
   // OpenCL v1.2 s6.8 - The static qualifier is valid only in program

@@ -1,3 +1,4 @@
+// Verify the use of wg_scope is correctly diagnosed.
 // RUN: %clang_cc1 -fsycl-is-device -verify %s
 
 class [[__sycl_detail__::wg_scope]] G1 {};
@@ -65,14 +66,14 @@ B12<Valid> b12;
 B12<InvalidCtor> b13;
 
 class B14 {
-  G1 field; // expected-error {{type with a SYCL work group scope attribute cannot be used with a non-static data members}}
+  G1 field; // expected-error {{non-static data member is of a type with a SYCL work group scope attribute applied to it}}
 };
 
 template <typename T> class B15 {
   T field; // #B15-field
 };
 
-// expected-error@#B15-field {{type with a SYCL work group scope attribute cannot be used with a non-static data members}}
+// expected-error@#B15-field {{non-static data member is of a type with a SYCL work group scope attribute applied to it}}
 // expected-note@+1 {{in instantiation of template class 'B15<G1>' requested here}}
 B15<G1> b15;
 

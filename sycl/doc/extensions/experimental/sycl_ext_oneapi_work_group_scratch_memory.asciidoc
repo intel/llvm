@@ -151,7 +151,7 @@ then the implementation must throw a synchronous exception with the
 local memory into account, whether via the `work_group_scratch_size` property
 or other APIs such as `local_accessor`.
 
-=== Example
+== Example
 
 [source,c++]
 ----
