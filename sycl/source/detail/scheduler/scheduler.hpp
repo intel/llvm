@@ -15,6 +15,7 @@
 
 #include <cstddef>
 #include <memory>
+#include <memory_resource>
 #include <queue>
 #include <set>
 #include <shared_mutex>
@@ -598,7 +599,7 @@ protected:
 
     /// \return a pointer to the corresponding memory object record for the
     /// SYCL memory object provided, or nullptr if it does not exist.
-    MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
+    static MemObjRecord *getMemObjRecord(SYCLMemObjI *MemObject);
 
     /// \return a pointer to MemObjRecord for pointer to memory object. If the
     /// record is not found, nullptr is returned.
@@ -620,9 +621,17 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
-    void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
+    static void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
                       access::mode AccessMode,
                       std::vector<Command *> &ToCleanUp);
+
+    /// If dependent cmd do same as NewCmd, move it to cleanup
+    static void detectDuplicates(Command *DepCommand,
+                          const std::pmr::unordered_set<Command *> &DependentCmdsOfNewCmd,
+                          std::vector<Command *> &ToCleanUp);
+
+    /// Prepare a command to cleanup
+    static void commandToCleanup(Command *DepCommand, std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
