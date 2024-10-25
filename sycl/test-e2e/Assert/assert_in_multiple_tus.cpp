@@ -6,8 +6,8 @@
 // https://github.com/intel/llvm/issues/8832
 // UNSUPPORTED: cuda
 //
-// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 
 // https://github.com/intel/llvm/issues/15029
 // UNSUPPORTED: gpu-intel-dg2
