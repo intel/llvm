@@ -144,6 +144,43 @@ ur_result_t adapterStateInit() {
   return UR_RESULT_SUCCESS;
 }
 
+/*
+This constructor initializes the `ur_adapter_handle_t_` object and
+sets up the environment for Level Zero (L0) initialization.
+The behavior of the initialization process is influenced by two
+environment variables:
+`UR_L0_ENABLE_SYSMAN_ENV_DEFAULT` and `UR_L0_ENABLE_ZESINIT_DEFAULT`.
+
+| Environment Variable           | Value | Behavior                   |
+|--------------------------------|-------|----------------------------|
+| UR_L0_ENABLE_SYSMAN_ENV_DEFAULT| 1     | Enables the default SysMan |
+|                                |       | environment initialization |
+|                                |       | by setting                 |
+|                                |       | `ZES_ENABLE_SYSMAN` to "1".|
+|                                | 0     | Disables the default SysMan|
+|                                |       | environment initialization.|
+|                                | unset | Defaults to 1, enabling the|
+|                                |       | SysMan environment         |
+|                                |       | initialization.            |
+| UR_L0_ENABLE_ZESINIT_DEFAULT   | 1     | Enables the default SysMan |
+|                                |       | initialization by loading  |
+|                                |       | SysMan-related functions   |
+|                                |       | and calling `zesInit`.     |
+|                                | 0     | Disables the default SysMan|
+|                                |       | initialization with zesInit|
+|                                | unset | Defaults to 0, disabling   |
+|                                |       | the SysMan initialization  |
+|                                |       | thru zesInit.              |
+
+Behavior Summary:
+- If `UR_L0_ENABLE_SYSMAN_ENV_DEFAULT` is set to 1 or is unset,
+  `ZES_ENABLE_SYSMAN` is set to "1".
+- If `UR_L0_ENABLE_ZESINIT_DEFAULT` is set to 1 and
+  `UR_L0_ENABLE_SYSMAN_ENV_DEFAULT` is not set to 1,
+  SysMan-related functions are loaded and `zesInit` is called.
+- If `UR_L0_ENABLE_ZESINIT_DEFAULT` is set to 0 or is unset,
+  SysMan initialization is skipped.
+*/
 ur_adapter_handle_t_::ur_adapter_handle_t_()
     : logger(logger::get_logger("level_zero")) {
 
@@ -168,6 +205,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       result = exceptionToResult(std::current_exception());
       return;
     }
+
+    // Check if the user has disabled the default L0 Env initialization.
+    const int UrSysManEnvInitEnabled = [] {
+      const char *UrRet = std::getenv("UR_L0_ENABLE_SYSMAN_ENV_DEFAULT");
+      if (!UrRet)
+        return 1;
+      return std::atoi(UrRet);
+    }();
 
     // initialize level zero only once.
     if (GlobalAdapter->ZeResult == std::nullopt) {
@@ -196,6 +241,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       if (UrL0InitAllDrivers) {
         L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
       }
+
+      // Set ZES_ENABLE_SYSMAN by default if the user has not set it.
+      if (UrSysManEnvInitEnabled) {
+        setEnvVar("ZES_ENABLE_SYSMAN", "1");
+      }
       logger::debug("\nzeInit with flags value of {}\n",
                     static_cast<int>(L0InitFlags));
       GlobalAdapter->ZeResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
@@ -223,15 +273,29 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 #else
     HMODULE processHandle = nullptr;
 #endif
-    GlobalAdapter->getDeviceByUUIdFunctionPtr =
-        (zes_pfnDriverGetDeviceByUuidExp_t)ur_loader::LibLoader::getFunctionPtr(
-            processHandle, "zesDriverGetDeviceByUuidExp");
-    GlobalAdapter->getSysManDriversFunctionPtr =
-        (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
-            processHandle, "zesDriverGet");
-    GlobalAdapter->sysManInitFunctionPtr =
-        (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
-                                                            "zesInit");
+
+    // Check if the user has enabled the default L0 SysMan initialization.
+    const int UrSysmanZesinitEnable = [] {
+      const char *UrRet = std::getenv("UR_L0_ENABLE_ZESINIT_DEFAULT");
+      if (!UrRet)
+        return 0;
+      return std::atoi(UrRet);
+    }();
+
+    // Enable zesInit by default only if ZES_ENABLE_SYSMAN has not been set by
+    // default and UrSysmanZesinitEnable is true.
+    if (UrSysmanZesinitEnable && !UrSysManEnvInitEnabled) {
+      GlobalAdapter->getDeviceByUUIdFunctionPtr =
+          (zes_pfnDriverGetDeviceByUuidExp_t)
+              ur_loader::LibLoader::getFunctionPtr(
+                  processHandle, "zesDriverGetDeviceByUuidExp");
+      GlobalAdapter->getSysManDriversFunctionPtr =
+          (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
+              processHandle, "zesDriverGet");
+      GlobalAdapter->sysManInitFunctionPtr =
+          (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
+                                                              "zesInit");
+    }
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&
         GlobalAdapter->sysManInitFunctionPtr) {
