@@ -1780,6 +1780,13 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     ArgStringList TargArgs;
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
+    // For -Xsycl-target-backend=<triple> we need to scrutinize the triple
+    for (auto *A : Args) {
+      if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
+        continue;
+      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple)
+        TargArgs.push_back(A->getValue(1));
+    }
     // Check for any -device settings.
     std::string DevArg;
     if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {
