@@ -5,6 +5,9 @@
 // VISALTO enable run
 // RUN: env IGC_VISALTO=63 IGC_VCSaveStackCallLinkage=1 IGC_VCDirectCallsOnly=1 %{run} %t.out
 
+// GSD-10143
+// UNSUPPORTED: gpu
+
 // Tests invoke_simd support in the compiler/headers
 /* This program is basically an extension of the standard vector addition
  * program (i.e., call_vadd_1d). The only difference is that instead of adding 2

@@ -3683,6 +3683,7 @@
 ?addLifetimeSharedPtrStorage@handler@_V1@sycl@@AEAAXV?$shared_ptr@$$CBX@std@@@Z
 ?addOrReplaceAccessorProperties@buffer_plain@detail@_V1@sycl@@IEAAXAEBVproperty_list@34@@Z
 ?addReduction@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@$$CBX@std@@@Z
+?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?addStream@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vstream_impl@detail@_V1@sycl@@@std@@@Z
 ?alignedAlloc@OSUtil@detail@_V1@sycl@@SAPEAX_K0@Z
 ?alignedFree@OSUtil@detail@_V1@sycl@@SAXPEAX@Z
