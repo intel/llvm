@@ -138,6 +138,7 @@
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/properties/new_properties.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h

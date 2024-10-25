@@ -3,7 +3,7 @@
 // CHECK: @fg_int = linkonce_odr dso_local addrspace(1) global %struct.fake_device_global { i32 43 }, align 4 #[[ATTR:[0-9]*]]
 // CHECK: attributes #[[ATTR]] = { "llvm-ir-prop"="42" }
 
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/new_properties.hpp>
 
 using namespace sycl::ext::oneapi::experimental::new_properties;
 

@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s -Xclang -verify -Xclang -verify-ignore-unexpected=note
 
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/new_properties.hpp>
 
 using namespace sycl::ext::oneapi::experimental::new_properties;
 
@@ -45,18 +45,18 @@ struct prop : detail::property_base<prop> {
 }
 
 void test() {
-  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<1>, property<1>>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<1>, property<1>>': Duplicate property!}}
   std::ignore = properties{property<1>{}, property<1>{}};
 
   constexpr properties pl{property<1>{}, property<2>{}};
-  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<2>, property<2>>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<2>, property<2>>': Duplicate property!}}
   std::ignore = properties{pl, property<2>{}};
 
   // Unfortunately, C++ front end doesn't use qualified name for "prop" below...
-  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement 'prop::property_name != prop::property_name': Property name collision between different property keys!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement 'prop::property_name != prop::property_name': Property name collision between different property keys!}}
   std::ignore = properties{library_a::prop{}, library_b::prop{}};
 
-  // expected-error@sycl/ext/oneapi/properties/properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<prop_key_t, prop_key_t>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<prop_key_t, prop_key_t>': Duplicate property!}}
   std::ignore = properties{property_with_key<1>{}, property_with_key<2>{}};
 }
 

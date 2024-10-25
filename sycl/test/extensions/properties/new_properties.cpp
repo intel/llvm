@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/ext/oneapi/properties/new_properties.hpp>
 
 using namespace sycl::ext::oneapi::experimental::new_properties;
 
