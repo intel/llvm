@@ -1,9 +1,9 @@
-// UNSUPPORTED: accelerator
-// TODO: FPGAs currently report supported subgroups as {4,8,16,32,64}, causing
-// this test to fail
-// UNSUPPORTED: cuda || hip
-// TODO: Device subgroup sizes reports {32}, but when we try to use it with a
-// kernel attribute and check it, we get a subgroup size of 0.
+// TODO: Despite using a supported required subgroup size compile_sub_group_size 
+// reports as 0 on fpga emu, cuda and hip
+// XFAIL: accelerator
+// XFAIL-TRACKER: URT-697
+// XFAIL: cuda || hip
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14357
 
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out

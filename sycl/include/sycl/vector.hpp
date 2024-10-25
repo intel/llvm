@@ -137,8 +137,7 @@ class __SYCL_EBO vec
   static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
                 "DataT must be cv-unqualified");
 
-  static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
-                    NumElements == 4 || NumElements == 8 || NumElements == 16,
+  static_assert(detail::is_allowed_vec_size_v<NumElements>,
                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
                 "or 16 are supported");
   static_assert(sizeof(bool) == sizeof(uint8_t), "bool size is not 1 byte");

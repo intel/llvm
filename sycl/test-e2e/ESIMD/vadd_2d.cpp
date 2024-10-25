@@ -30,14 +30,11 @@ int main(void) {
 
   try {
     sycl::image<2> imgA(A, image_channel_order::rgba,
-                        image_channel_type::unsigned_int32,
-                        range<2>{Size / 4, 1});
+                        image_channel_type::unsigned_int8, range<2>{Size, 1});
     sycl::image<2> imgB(B, image_channel_order::rgba,
-                        image_channel_type::unsigned_int32,
-                        range<2>{Size / 4, 1});
+                        image_channel_type::unsigned_int8, range<2>{Size, 1});
     sycl::image<2> imgC(C, image_channel_order::rgba,
-                        image_channel_type::unsigned_int32,
-                        range<2>{Size / 4, 1});
+                        image_channel_type::unsigned_int8, range<2>{Size, 1});
 
     // We need that many workitems
     range<1> GlobalRange{(Size / VL)};
