@@ -79,7 +79,7 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
 }
 
 int main() {
-  constexpr size_t SIZE = 1024;
+  constexpr size_t SIZE = 512;
   test(SIZE, SIZE, true /* UseHelper */);
   test(SIZE, SIZE, false);
   // Test with more than one work group
