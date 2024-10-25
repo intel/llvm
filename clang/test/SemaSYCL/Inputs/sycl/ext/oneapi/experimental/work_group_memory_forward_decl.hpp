@@ -1,5 +1,5 @@
 #pragma once
-// Dummy header file to avoid integration-header #include errors.
+// Dummy header file for the purpose of SemaSYCL testing.
 // It shadows the file 
 // sycl/include/sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp
 namespace sycl {
