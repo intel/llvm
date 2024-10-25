@@ -407,9 +407,7 @@ public:
     const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
-    auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-        Devices[0], UserArgs, SourceStr);
-    if (!BinProg.empty()) {
+
       std::vector<ur_device_handle_t> DeviceHandles;
       std::transform(Devices.begin(), Devices.end(),
                      std::back_inserter(DeviceHandles), [](const device &Dev) {
@@ -418,11 +416,20 @@ public:
 
       std::vector<const uint8_t *> Binaries;
       std::vector<size_t> Lengths;
+      std::vector<std::vector<std::vector<char>>> PersistentBinaries;
       for (size_t i = 0; i < Devices.size(); i++) {
-        auto BinProg = PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-            Devices[i], UserArgs, SourceStr);
-        Binaries.push_back((uint8_t *)(BinProg.data()));
-        Lengths.push_back(BinProg.size());
+        std::vector<std::vector<char>> BinProg =
+            PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+                Devices[i], UserArgs, SourceStr);
+
+        // exit if any device binary is missing
+        if (BinProg.empty()) {
+          return false;
+        }
+        PersistentBinaries.push_back(BinProg);
+
+        Binaries.push_back((uint8_t *)(BinProg[0].data()));
+        Lengths.push_back(BinProg[0].size());
       }
 
       ur_program_properties_t Properties = {};
@@ -435,8 +442,8 @@ public:
           ContextImpl->getHandleRef(), DeviceHandles.size(),
           DeviceHandles.data(), Lengths.data(), Binaries.data(), &Properties,
           &UrProgram);
-    }
-    return false;
+
+      return true;
   }
 
   std::shared_ptr<kernel_bundle_impl>
