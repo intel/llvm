@@ -133,6 +133,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
       ur::level_zero::urCommandBufferReleaseCommandExp;
   pDdiTable->pfnUpdateKernelLaunchExp =
       ur::level_zero::urCommandBufferUpdateKernelLaunchExp;
+  pDdiTable->pfnUpdateSignalEventExp =
+      ur::level_zero::urCommandBufferUpdateSignalEventExp;
+  pDdiTable->pfnUpdateWaitEventsExp =
+      ur::level_zero::urCommandBufferUpdateWaitEventsExp;
   pDdiTable->pfnGetInfoExp = ur::level_zero::urCommandBufferGetInfoExp;
   pDdiTable->pfnCommandGetInfoExp =
       ur::level_zero::urCommandBufferCommandGetInfoExp;

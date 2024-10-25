@@ -52,7 +52,32 @@ public:
   };
 };
 
-ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
+// Find the corresponding ZesDevice Handle for a given ZeDevice
+ur_result_t getZesDeviceHandle(zes_uuid_t coreDeviceUuid,
+                               zes_device_handle_t *ZesDevice,
+                               uint32_t *SubDeviceId, ze_bool_t *SubDevice) {
+  uint32_t ZesDriverCount = 0;
+  std::vector<zes_driver_handle_t> ZesDrivers;
+  std::vector<zes_device_handle_t> ZesDevices;
+  ze_result_t ZesResult = ZE_RESULT_ERROR_INVALID_ARGUMENT;
+  ZE2UR_CALL(GlobalAdapter->getSysManDriversFunctionPtr,
+             (&ZesDriverCount, nullptr));
+  ZesDrivers.resize(ZesDriverCount);
+  ZE2UR_CALL(GlobalAdapter->getSysManDriversFunctionPtr,
+             (&ZesDriverCount, ZesDrivers.data()));
+  for (uint32_t I = 0; I < ZesDriverCount; ++I) {
+    ZesResult = ZE_CALL_NOCHECK(
+        GlobalAdapter->getDeviceByUUIdFunctionPtr,
+        (ZesDrivers[I], coreDeviceUuid, ZesDevice, SubDevice, SubDeviceId));
+    if (ZesResult == ZE_RESULT_SUCCESS) {
+      return UR_RESULT_SUCCESS;
+    }
+  }
+  return UR_RESULT_ERROR_INVALID_ARGUMENT;
+}
+
+ur_result_t initPlatforms(PlatformVec &platforms,
+                          ze_result_t ZesResult) noexcept try {
   uint32_t ZeDriverCount = 0;
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
   if (ZeDriverCount == 0) {
@@ -65,24 +90,43 @@ ur_result_t initPlatforms(PlatformVec &platforms) noexcept try {
 
   ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
+    // Keep track of the first platform init for this Driver
+    bool DriverPlatformInit = false;
     ze_device_properties_t device_properties{};
     device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
     uint32_t ZeDeviceCount = 0;
     ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, nullptr));
     ZeDevices.resize(ZeDeviceCount);
     ZE2UR_CALL(zeDeviceGet, (ZeDrivers[I], &ZeDeviceCount, ZeDevices.data()));
+    auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
     // Check if this driver has GPU Devices
     for (uint32_t D = 0; D < ZeDeviceCount; ++D) {
       ZE2UR_CALL(zeDeviceGetProperties, (ZeDevices[D], &device_properties));
-
       if (ZE_DEVICE_TYPE_GPU == device_properties.type) {
-        // If this Driver is a GPU, save it as a usable platform.
-        auto platform = std::make_unique<ur_platform_handle_t_>(ZeDrivers[I]);
-        UR_CALL(platform->initialize());
+        // Check if this driver's platform has already been init.
+        if (!DriverPlatformInit) {
+          // If this Driver is a GPU, save it as a usable platform.
+          UR_CALL(platform->initialize());
 
-        // Save a copy in the cache for future uses.
-        platforms.push_back(std::move(platform));
-        break;
+          // Save a copy in the cache for future uses.
+          platforms.push_back(std::move(platform));
+          // Mark this driver's platform as init to prevent additional platforms
+          // from being created per driver.
+          DriverPlatformInit = true;
+        }
+        if (ZesResult == ZE_RESULT_SUCCESS) {
+          // Populate the Zes/Ze device mapping for this Ze Device into the last
+          // added platform which represents the current driver being queried.
+          ur_zes_device_handle_data_t ZesDeviceData;
+          zes_uuid_t ZesUUID;
+          std::memcpy(&ZesUUID, &device_properties.uuid, sizeof(zes_uuid_t));
+          if (getZesDeviceHandle(
+                  ZesUUID, &ZesDeviceData.ZesDevice, &ZesDeviceData.SubDeviceId,
+                  &ZesDeviceData.SubDevice) == UR_RESULT_SUCCESS) {
+            platforms.back()->ZedeviceToZesDeviceMap.insert(
+                std::make_pair(ZeDevices[D], std::move(ZesDeviceData)));
+          }
+        }
       }
     }
   }
@@ -171,8 +215,36 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
+    // Dynamically load the new L0 SysMan separate init and new EXP apis
+    // separately. This must be done to avoid attempting to use symbols that do
+    // not exist in older loader runtimes.
+#ifdef _WIN32
+    HMODULE processHandle = GetModuleHandle(NULL);
+#else
+    HMODULE processHandle = nullptr;
+#endif
+    GlobalAdapter->getDeviceByUUIdFunctionPtr =
+        (zes_pfnDriverGetDeviceByUuidExp_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGetDeviceByUuidExp");
+    GlobalAdapter->getSysManDriversFunctionPtr =
+        (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
+            processHandle, "zesDriverGet");
+    GlobalAdapter->sysManInitFunctionPtr =
+        (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
+                                                            "zesInit");
+    if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
+        GlobalAdapter->getSysManDriversFunctionPtr &&
+        GlobalAdapter->sysManInitFunctionPtr) {
+      ze_init_flags_t L0ZesInitFlags = 0;
+      logger::debug("\nzesInit with flags value of {}\n",
+                    static_cast<int>(L0ZesInitFlags));
+      GlobalAdapter->ZesResult = ZE_CALL_NOCHECK(
+          GlobalAdapter->sysManInitFunctionPtr, (L0ZesInitFlags));
+    } else {
+      GlobalAdapter->ZesResult = ZE_RESULT_ERROR_UNINITIALIZED;
+    }
 
-    ur_result_t err = initPlatforms(platforms);
+    ur_result_t err = initPlatforms(platforms, *GlobalAdapter->ZesResult);
     if (err == UR_RESULT_SUCCESS) {
       result = std::move(platforms);
     } else {

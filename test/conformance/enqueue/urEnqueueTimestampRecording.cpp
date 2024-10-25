@@ -35,13 +35,13 @@ void common_check(ur_event_handle_t event) {
     ASSERT_SUCCESS(urEventGetProfilingInfo(event, UR_PROFILING_INFO_COMMAND_END,
                                            sizeof(uint64_t), &endTime,
                                            nullptr));
-    ASSERT_TRUE(queuedTime > 0);
-    ASSERT_TRUE(submitTime > 0);
-    ASSERT_TRUE(startTime > 0);
-    ASSERT_TRUE(endTime > 0);
-    ASSERT_TRUE(queuedTime == submitTime);
-    ASSERT_TRUE(startTime == endTime);
-    ASSERT_TRUE(endTime >= submitTime);
+    ASSERT_GT(queuedTime, 0);
+    ASSERT_GT(submitTime, 0);
+    ASSERT_GT(startTime, 0);
+    ASSERT_GT(endTime, 0);
+    ASSERT_EQ(queuedTime, submitTime);
+    ASSERT_EQ(startTime, endTime);
+    ASSERT_GE(endTime, submitTime);
 }
 
 TEST_P(urEnqueueTimestampRecordingExpTest, Success) {

@@ -92,6 +92,7 @@ add_ur_adapter(${TARGET_NAME}
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.hpp
 )
+install_ur_library(${TARGET_NAME})
 
 if(NOT MSVC)
     target_compile_options(${TARGET_NAME} PRIVATE

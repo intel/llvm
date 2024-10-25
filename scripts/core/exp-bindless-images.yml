@@ -37,7 +37,7 @@ extend: true
 typed_etors: true
 desc: "Extension enums to $x_device_info_t to support bindless images."
 name: $x_device_info_t
-etors: 
+etors:
     - name: BINDLESS_IMAGES_SUPPORT_EXP
       value: "0x2000"
       desc: "[$x_bool_t] returns true if the device supports the creation of bindless images"
@@ -118,7 +118,7 @@ type: enum
 extend: true
 desc: "Structure Type experimental enumerations."
 name: $x_structure_type_t
-etors: 
+etors:
     - name: EXP_SAMPLER_MIP_PROPERTIES
       desc: $x_exp_sampler_mip_properties_t
       value: "0x2000"
@@ -581,7 +581,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -870,7 +870,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE
@@ -891,7 +891,7 @@ params:
       desc: "[in] external semaphore handle"
     - type: bool
       name: hasSignalValue
-      desc: | 
+      desc: |
             [in] indicates whether the samephore is capable and should signal on a certain value.
             Otherwise the semaphore is treated like a binary state, and `signalValue` is ignored.
     - type: uint64_t
@@ -909,7 +909,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_VALUE

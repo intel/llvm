@@ -1,4 +1,4 @@
-# Copyright (C) 2023 Intel Corporation
+# Copyright (C) 2023-2024 Intel Corporation
 # Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -28,13 +28,14 @@ function(add_cppformat name)
     if(${ARGC} EQUAL 0)
         return()
     else()
+        # Split args into 2 parts (in Windows the list is probably too long)
+        list(SUBLIST ARGN 0 250 selected_files_1)
+        list(SUBLIST ARGN 251 -1 selected_files_2)
         add_custom_target(cppformat-${name}
-            COMMAND ${CLANG_FORMAT}
-                --style=file
-                --i
-                ${ARGN}
+            COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_1}
+            COMMAND ${CLANG_FORMAT} --style=file --i ${selected_files_2}
             COMMENT "Format CXX source files"
-            )
+        )
     endif()
 
     add_dependencies(cppformat cppformat-${name})
@@ -57,27 +58,42 @@ macro(add_sanitizer_flag flag)
     set(CMAKE_REQUIRED_LIBRARIES ${SAVED_CMAKE_REQUIRED_LIBRARIES})
 endmacro()
 
+check_cxx_compiler_flag("-fcf-protection=full" CXX_HAS_FCF_PROTECTION_FULL)
+
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
+        target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
         target_compile_options(${name} PRIVATE
-            -fPIC
+            # Warning options
             -Wall
             -Wpedantic
             -Wempty-body
+            -Wformat
+            -Wformat-security
             -Wunused-parameter
+
+            # Hardening options
+            -fPIC
+            -fstack-protector-strong
+            -fvisibility=hidden # Required for -fsanitize=cfi
+            # -fsanitize=cfi requires -flto, which breaks a lot of things
+            # See: https://github.com/oneapi-src/unified-runtime/issues/2120
+            # -flto
+            # $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fsanitize=cfi>
+            $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
+            # -fstack-clash-protection is not supported in apple clang or GCC < 8
+            $<$<AND:$<CXX_COMPILER_ID:GNU>,$<VERSION_GREATER_EQUAL:$<CXX_COMPILER_VERSION>,8>>:-fstack-clash-protection>
+            $<$<CXX_COMPILER_ID:Clang>:-fstack-clash-protection>
+
+            # Colored output
             $<$<CXX_COMPILER_ID:GNU>:-fdiagnostics-color=always>
             $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fcolor-diagnostics>
         )
-        if (CMAKE_BUILD_TYPE STREQUAL "Release")
-            target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
-            target_compile_options(${name} PRIVATE -fvisibility=hidden)
+        if (UR_DEVELOPER_MODE)
+            target_compile_options(${name} PRIVATE -Werror -Wextra)
         endif()
-        if(UR_DEVELOPER_MODE)
-            target_compile_options(${name} PRIVATE
-                -Werror
-                -fno-omit-frame-pointer
-                -fstack-protector-strong
-            )
+        if (CMAKE_BUILD_TYPE STREQUAL "Release")
+            target_compile_options(${name} PRIVATE -fvisibility=hidden)
         endif()
     elseif(MSVC)
         target_compile_options(${name} PRIVATE
@@ -102,7 +118,15 @@ endfunction()
 function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
-            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now")
+            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now,-z,noexecstack")
+            if (UR_DEVELOPER_MODE)
+                target_link_options(${name} PRIVATE -Werror -Wextra)
+            endif()
+            if (CMAKE_BUILD_TYPE STREQUAL "Release")
+                target_link_options(${name} PRIVATE
+                    $<$<CXX_COMPILER_ID:GNU>:-pie>
+                )
+            endif()
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
@@ -137,6 +161,15 @@ function(add_ur_library name)
             $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
+endfunction()
+
+function(install_ur_library name)
+    install(TARGETS ${name}
+            EXPORT ${PROJECT_NAME}-targets
+            ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+            LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT unified-runtime
+    )
 endfunction()
 
 include(FetchContent)

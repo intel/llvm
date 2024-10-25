@@ -11,11 +11,13 @@
 
 #include "logger/ur_logger.hpp"
 #include <atomic>
+#include <loader/ur_loader.hpp>
 #include <loader/ze_loader.h>
 #include <mutex>
 #include <optional>
 #include <ur/ur.hpp>
 #include <ze_api.h>
+#include <zes_ddi.h>
 
 using PlatformVec = std::vector<std::unique_ptr<ur_platform_handle_t_>>;
 
@@ -26,7 +28,12 @@ struct ur_adapter_handle_t_ {
   std::atomic<uint32_t> RefCount = 0;
   std::mutex Mutex;
 
+  zes_pfnDriverGetDeviceByUuidExp_t getDeviceByUUIdFunctionPtr = nullptr;
+  zes_pfnDriverGet_t getSysManDriversFunctionPtr = nullptr;
+  zes_pfnInit_t sysManInitFunctionPtr = nullptr;
+
   std::optional<ze_result_t> ZeResult;
+  std::optional<ze_result_t> ZesResult;
   ZeCache<Result<PlatformVec>> PlatformCache;
   logger::Logger &logger;
 };

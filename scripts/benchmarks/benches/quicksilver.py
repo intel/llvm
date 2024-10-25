@@ -15,7 +15,7 @@ class QuickSilver(VelocityBase):
         super().__init__("QuickSilver", "qs", vb)
         self.data_path = os.path.join(vb.repo_path, "QuickSilver", "Examples", "AllScattering")
 
-    def run(self, env_vars) -> Result:
+    def run(self, env_vars) -> list[Result]:
         # TODO: fix the crash in QuickSilver when UR_L0_USE_IMMEDIATE_COMMANDLISTS=0
         if 'UR_L0_USE_IMMEDIATE_COMMANDLISTS' in env_vars and env_vars['UR_L0_USE_IMMEDIATE_COMMANDLISTS'] == '0':
             return None
@@ -42,4 +42,4 @@ class QuickSilver(VelocityBase):
         if match:
             return float(match.group(1))
         else:
-            raise ValueError("Failed to parse benchmark output.")
+            raise ValueError("{self.__class__.__name__}: Failed to parse benchmark output.")

@@ -141,3 +141,26 @@ TEST_P(urProgramSetSpecializationConstantsTest, InvalidSizeCount) {
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
                      urProgramSetSpecializationConstants(program, 0, &info));
 }
+
+TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueSize) {
+    ur_specialization_constant_info_t bad_info = {0, 0x1000, &spec_value};
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urProgramSetSpecializationConstants(program, 1, &bad_info));
+}
+
+TEST_P(urProgramSetSpecializationConstantsTest, InvalidValueId) {
+    ur_specialization_constant_info_t bad_info = {999, sizeof(spec_value),
+                                                  &spec_value};
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_SPEC_ID,
+        urProgramSetSpecializationConstants(program, 1, &bad_info));
+}
+
+TEST_P(urProgramSetSpecializationConstantsTest, InvalidValuePtr) {
+    ur_specialization_constant_info_t bad_info = {0, sizeof(spec_value),
+                                                  nullptr};
+    ASSERT_EQ_RESULT(
+        UR_RESULT_ERROR_INVALID_VALUE,
+        urProgramSetSpecializationConstants(program, 1, &bad_info));
+}

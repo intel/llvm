@@ -16,29 +16,32 @@ namespace v2 {
 event_pool_cache::event_pool_cache(size_t max_devices,
                                    ProviderCreateFunc ProviderCreate)
     : providerCreate(ProviderCreate) {
-  pools.resize(max_devices);
+  pools.resize(max_devices * (1ULL << EVENT_FLAGS_USED_BITS));
 }
 
 event_pool_cache::~event_pool_cache() {}
 
-raii::cache_borrowed_event_pool event_pool_cache::borrow(DeviceId id) {
+raii::cache_borrowed_event_pool event_pool_cache::borrow(DeviceId id,
+                                                         event_flags_t flags) {
   std::unique_lock<ur_mutex> Lock(mutex);
 
-  if (id >= pools.size()) {
+  event_descriptor event_desc{id, flags};
+
+  if (event_desc.index() >= pools.size()) {
     return nullptr;
   }
 
-  auto &vec = pools[id];
+  auto &vec = pools[event_desc.index()];
   if (vec.empty()) {
-    vec.emplace_back(std::make_unique<event_pool>(providerCreate(id)));
+    vec.emplace_back(std::make_unique<event_pool>(providerCreate(id, flags)));
   }
 
   auto pool = vec.back().release();
   vec.pop_back();
 
-  return raii::cache_borrowed_event_pool(pool, [this](event_pool *pool) {
+  return raii::cache_borrowed_event_pool(pool, [this, flags](event_pool *pool) {
     std::unique_lock<ur_mutex> Lock(mutex);
-    pools[pool->Id()].emplace_back(pool);
+    pools[event_descriptor{pool->Id(), flags}.index()].emplace_back(pool);
   });
 }
 

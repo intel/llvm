@@ -31,4 +31,4 @@ class Hashtable(VelocityBase):
         if match:
             return float(match.group(1))
         else:
-            raise ValueError("Failed to parse keys per second from benchmark output.")
+            raise ValueError("{self.__class__.__name__}: Failed to parse keys per second from benchmark output.")

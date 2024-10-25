@@ -747,11 +747,11 @@ ur_result_t urDeviceGetInfo(
   }
 
   case UR_DEVICE_INFO_GLOBAL_MEM_FREE: {
-    if (getenv("ZES_ENABLE_SYSMAN") == nullptr) {
-      setErrorMessage("Set ZES_ENABLE_SYSMAN=1 to obtain free memory",
-                      UR_RESULT_ERROR_UNINITIALIZED,
-                      static_cast<int32_t>(ZE_RESULT_ERROR_UNINITIALIZED));
-      return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
+    bool SysManEnv = getenv_tobool("ZES_ENABLE_SYSMAN", false);
+    if ((Device->Platform->ZedeviceToZesDeviceMap.size() == 0) && !SysManEnv) {
+      logger::error("SysMan support is unavailable on this system. Please "
+                    "check your level zero driver installation.");
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
     // Calculate the global memory size as the max limit that can be reported as
     // "free" memory for the user to allocate.
@@ -760,30 +760,57 @@ ur_result_t urDeviceGetInfo(
     // Currently this is only the one enumerated with ordinal 0.
     uint64_t FreeMemory = 0;
     uint32_t MemCount = 0;
-    ZE2UR_CALL(zesDeviceEnumMemoryModules, (ZeDevice, &MemCount, nullptr));
+
+    zes_device_handle_t ZesDevice = Device->ZeDevice;
+    struct ur_zes_device_handle_data_t ZesDeviceData = {};
+    // If legacy sysman is enabled thru the environment variable, then zesInit
+    // will fail, but sysman is still usable so go the legacy route.
+    if (!SysManEnv) {
+      auto It = Device->Platform->ZedeviceToZesDeviceMap.find(Device->ZeDevice);
+      if (It == Device->Platform->ZedeviceToZesDeviceMap.end()) {
+        // no matching device
+        return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+      } else {
+        ZesDeviceData =
+            Device->Platform->ZedeviceToZesDeviceMap[Device->ZeDevice];
+        ZesDevice = ZesDeviceData.ZesDevice;
+      }
+    }
+
+    ZE2UR_CALL(zesDeviceEnumMemoryModules, (ZesDevice, &MemCount, nullptr));
     if (MemCount != 0) {
       std::vector<zes_mem_handle_t> ZesMemHandles(MemCount);
       ZE2UR_CALL(zesDeviceEnumMemoryModules,
-                 (ZeDevice, &MemCount, ZesMemHandles.data()));
+                 (ZesDevice, &MemCount, ZesMemHandles.data()));
       for (auto &ZesMemHandle : ZesMemHandles) {
         ZesStruct<zes_mem_properties_t> ZesMemProperties;
         ZE2UR_CALL(zesMemoryGetProperties, (ZesMemHandle, &ZesMemProperties));
         // For root-device report memory from all memory modules since that
         // is what totally available in the default implicit scaling mode.
         // For sub-devices only report memory local to them.
-        if (!Device->isSubDevice() || Device->ZeDeviceProperties->subdeviceId ==
-                                          ZesMemProperties.subdeviceId) {
+        if (SysManEnv) {
+          if (!Device->isSubDevice() ||
+              Device->ZeDeviceProperties->subdeviceId ==
+                  ZesMemProperties.subdeviceId) {
 
-          ZesStruct<zes_mem_state_t> ZesMemState;
-          ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
-          FreeMemory += ZesMemState.free;
+            ZesStruct<zes_mem_state_t> ZesMemState;
+            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+            FreeMemory += ZesMemState.free;
+          }
+        } else {
+          if (ZesDeviceData.SubDeviceId == ZesMemProperties.subdeviceId ||
+              !ZesDeviceData.SubDevice) {
+            ZesStruct<zes_mem_state_t> ZesMemState;
+            ZE2UR_CALL(zesMemoryGetState, (ZesMemHandle, &ZesMemState));
+            FreeMemory += ZesMemState.free;
+          }
         }
       }
     }
     if (MemCount > 0) {
       return ReturnValue(std::min(GlobalMemSize, FreeMemory));
     } else {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+      return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
   case UR_DEVICE_INFO_MEMORY_CLOCK_RATE: {
@@ -994,36 +1021,60 @@ ur_result_t urDeviceGetInfo(
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
     return ReturnValue(true);
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
-    // Update support requires being able to update kernel arguments and all
-    // aspects of the kernel NDRange.
-    const ze_mutable_command_exp_flags_t UpdateMask =
-        ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE |
-        ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET;
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    const auto ZeMutableCommandFlags =
+        Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags;
 
-    const bool KernelArgUpdateSupport =
-        (Device->ZeDeviceMutableCmdListsProperties->mutableCommandFlags &
-         UpdateMask) == UpdateMask;
-    return ReturnValue(KernelArgUpdateSupport &&
-                       Device->Platform->ZeMutableCmdListExt.Supported);
+    auto supportsFlags = [&](ze_mutable_command_exp_flags_t RequiredFlags) {
+      return (ZeMutableCommandFlags & RequiredFlags) == RequiredFlags;
+    };
+
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities = 0;
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_ARGUMENTS)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS;
+    }
+    /* These capabilities are bundled together because, when the user updates
+     * the global work-size, the implementation might have to generate a new
+     * local work-size. This would require both mutable command flags to be set
+     * even though only the global work-size was explicitly updated. */
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_COUNT |
+                      ZE_MUTABLE_COMMAND_EXP_FLAG_GROUP_SIZE)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE;
+    }
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_GLOBAL_OFFSET)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
+    }
+    return ReturnValue(UpdateCapabilities);
   }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    // On L0 bindless images are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
+                       Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
+                       Device->ZeDeviceImageProperties->maxImageDims3D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SHARED_USM_SUPPORT_EXP: {
     // On L0 bindless images can not be backed by shared (managed) USM.
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    // On L0 1D bindless image USM are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    // On L0 2D bindless image USM are supported.
-    return ReturnValue(true);
+    bool DeviceIsDG2OrNewer =
+        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
+    return ReturnValue(DeviceIsDG2OrNewer &&
+                       Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
   case UR_DEVICE_INFO_MAX_IMAGE_LINEAR_WIDTH_EXP:

@@ -115,7 +115,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the kernel object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "[$x_context_handle_t] Return Context object associated with Kernel."
@@ -144,6 +144,14 @@ etors:
       desc: "[size_t] Return preferred multiple of Work Group size for launch"
     - name: PRIVATE_MEM_SIZE
       desc: "[size_t] Return minimum amount of private memory in bytes used by each work item in the Kernel"
+    - name: COMPILE_MAX_WORK_GROUP_SIZE
+      desc: |
+            [size_t[3]] Return the maximum Work Group size guaranteed by the
+            source code, or (0, 0, 0) if unspecified
+    - name: COMPILE_MAX_LINEAR_WORK_GROUP_SIZE
+      desc: |
+            [size_t] Return the maximum linearized Work Group size (X * Y * Z)
+            guaranteed by the source code, or 0 if unspecified
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Get Kernel SubGroup information"
@@ -202,12 +210,12 @@ params:
     - type: "size_t"
       name: propSize
       desc: |
-            [in] the size of the Kernel property value.           
+            [in] the size of the Kernel property value.
     - type: "void*"
       name: pPropValue
       desc: |
             [in,out][optional][typename(propName, propSize)] array of bytes holding the kernel info property.
-            If propSize is not equal to or greater than the real number of bytes needed to return 
+            If propSize is not equal to or greater than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: "pPropSizeRet"
@@ -467,6 +475,11 @@ returns:
         - "`count == 0`"
     - $X_RESULT_ERROR_UNSUPPORTED_FEATURE:
         - "If $X_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "A pSpecConstant entry contains a size that does not match that of the specialization constant in the module."
+        - "A pSpecConstant entry contains a nullptr pValue."
+    - $X_RESULT_ERROR_INVALID_SPEC_ID:
+        - "Any id specified in a pSpecConstant entry is not a valid specialization constant identifier."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return platform native kernel handle."
@@ -568,10 +581,10 @@ params:
             [in] pointer to an array of numWorkDim unsigned values that specify
             the offset used to calculate the global ID of a work-item
     - type: const size_t*
-      name: pGlobalWorkSize      
+      name: pGlobalWorkSize
       desc: |
             [in] pointer to an array of numWorkDim unsigned values that specify
-            the number of global work-items in workDim that will execute the 
+            the number of global work-items in workDim that will execute the
             kernel function
     - type: size_t*
       name: pSuggestedLocalWorkSize

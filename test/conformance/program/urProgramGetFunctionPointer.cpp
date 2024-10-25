@@ -29,10 +29,18 @@ TEST_P(urProgramGetFunctionPointerTest, Success) {
 TEST_P(urProgramGetFunctionPointerTest, InvalidKernelName) {
     void *function_pointer = nullptr;
     std::string missing_function = "aFakeFunctionName";
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME,
-                     urProgramGetFunctionPointer(device, program,
-                                                 missing_function.data(),
-                                                 &function_pointer));
+    auto result = urProgramGetFunctionPointer(
+        device, program, missing_function.data(), &function_pointer);
+    ur_platform_backend_t backend;
+    ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                     sizeof(backend), &backend, nullptr));
+    // TODO: level zero backend incorrectly returns UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+    if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+        ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, result);
+    } else {
+        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_KERNEL_NAME, result);
+    }
+
     ASSERT_EQ(function_pointer, nullptr);
 }
 

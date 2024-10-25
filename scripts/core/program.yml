@@ -119,7 +119,7 @@ returns:
         - "`length == 0`"
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Create a program object from device native binary."
+desc: "Create a program object from native binaries for the specified devices."
 class: $xProgram
 name: CreateWithBinary
 decl: static
@@ -128,22 +128,25 @@ analogue:
     - "**clCreateProgramWithBinary**"
 details:
     - "The application may call this function from simultaneous threads."
-    - "Following a successful call to this entry point, `phProgram` will contain a binary of type $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or $X_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`."
-    - "The device specified by `hDevice` must be device associated with context."
-    - "The adapter may (but is not required to) perform validation of the provided module during this call."
+    - "Following a successful call to this entry point, `phProgram` will contain binaries of type $X_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or $X_PROGRAM_BINARY_TYPE_LIBRARY for the specified devices in `phDevices`."
+    - "The devices specified by `phDevices` must be associated with the context."
+    - "The adapter may (but is not required to) perform validation of the provided modules during this call."
 params:
     - type: $x_context_handle_t
       name: hContext
       desc: "[in] handle of the context instance"
-    - type: $x_device_handle_t
-      name: hDevice
-      desc: "[in] handle to device associated with binary."
-    - type: size_t
-      name: size
-      desc: "[in] size in bytes."
-    - type: const uint8_t*
-      name: pBinary
-      desc: "[in] pointer to binary."
+    - type: uint32_t
+      name: numDevices
+      desc: "[in] number of devices"
+    - type: $x_device_handle_t*
+      name: phDevices
+      desc: "[in][range(0, numDevices)] a pointer to a list of device handles. The binaries are loaded for devices specified in this list."
+    - type: size_t*
+      name: pLengths
+      desc: "[in][range(0, numDevices)] array of sizes of program binaries specified by `pBinaries` (in bytes)."
+    - type: const uint8_t**
+      name: ppBinaries
+      desc: "[in][range(0, numDevices)] pointer to program binaries to be loaded for devices specified by `phDevices`."
     - type: const $x_program_properties_t*
       name: pProperties
       desc: "[in][optional] pointer to program creation properties."
@@ -155,8 +158,9 @@ returns:
         - "`NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`"
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`"
+        - "`numDevices == 0`"
     - $X_RESULT_ERROR_INVALID_NATIVE_BINARY:
-        - "If `pBinary` isn't a valid binary for `hDevice.`"
+        - "If any binary in `ppBinaries` isn't a valid binary for the corresponding device in `phDevices.`"
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Produces an executable program from one program, negates need for the linking step."
@@ -366,7 +370,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the program object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "[$x_context_handle_t] Program context info."
@@ -376,8 +380,8 @@ etors:
       desc: |
           [$x_device_handle_t[]] Return list of devices associated with a program.
           This is either the list of devices associated with the context or a subset of those devices when the program is created using $xProgramCreateWithBinary.
-    - name: SOURCE
-      desc: "[char[]] Return program source associated with Program."
+    - name: IL
+      desc: "[char[]] Return program IL if the program was created with $xProgramCreateWithIL, otherwise return size will be set to 0 and nothing will be returned."
     - name: BINARY_SIZES
       desc: "[size_t[]] Return program binary sizes for each device."
     - name: BINARIES
@@ -409,7 +413,7 @@ params:
       name: pPropValue
       desc: |
             [in,out][optional][typename(propName, propSize)] array of bytes of holding the program info property.
-            If propSize is not equal to or greater than the real number of bytes needed to return 
+            If propSize is not equal to or greater than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: "pPropSizeRet"
@@ -542,6 +546,11 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`count == 0`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "A pSpecConstant entry contains a size that does not match that of the specialization constant in the module."
+        - "A pSpecConstant entry contains a nullptr pValue."
+    - $X_RESULT_ERROR_INVALID_SPEC_ID:
+        - "Any id specified in a pSpecConstant entry is not a valid specialization constant identifier."
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Return program native program handle."

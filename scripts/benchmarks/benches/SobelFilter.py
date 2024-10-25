@@ -35,5 +35,5 @@ class SobelFilter(VelocityBase):
         if match:
             return round(float(match.group(1)) * 1000, 3)
         else:
-            raise ValueError("Failed to parse benchmark output.")
+            raise ValueError("{self.__class__.__name__}: Failed to parse benchmark output.")
 

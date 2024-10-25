@@ -1220,6 +1220,13 @@ template <class T> struct urProgramTestWithParam : urQueueTestWithParam<T> {
     ur_program_handle_t program = nullptr;
 };
 
+// This fixture can provide a kernel, but it doesn't build the kernel at SetUp,
+// instead Build() must be invoked separately. This is for tests that wish to
+// check device capabilities to determine whether the test should run before
+// trying to load any device code.
+//
+// For a fixture that provides the kernel at SetUp, inherit from urKernelTest
+// instead.
 struct urBaseKernelTest : urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
@@ -1252,6 +1259,8 @@ struct urKernelTest : urBaseKernelTest {
     }
 };
 
+// Parameterized version of urBaseKernelTest, the comments on that fixture
+// clarify why you'd want to use this instead of urKernelTestWithParam.
 template <class T>
 struct urBaseKernelTestWithParam : urProgramTestWithParam<T> {
     void SetUp() override {
@@ -1305,6 +1314,11 @@ struct KernelLaunchHelper {
                                               sizeof(zero), 0, size, 0, nullptr,
                                               nullptr));
         ASSERT_SUCCESS(urQueueFinish(queue));
+        SetBuffer1DArg(mem_handle, buffer_index);
+        *out_buffer = mem_handle;
+    }
+
+    void SetBuffer1DArg(ur_mem_handle_t mem_handle, size_t *buffer_index) {
         ASSERT_SUCCESS(urKernelSetArgMemObj(kernel, current_arg_index, nullptr,
                                             mem_handle));
         if (buffer_index) {
@@ -1341,7 +1355,6 @@ struct KernelLaunchHelper {
                                                &accessor));
             current_arg_index += 2;
         }
-        *out_buffer = mem_handle;
     }
 
     template <class T> void AddPodArg(T data) {
@@ -1386,11 +1399,13 @@ struct KernelLaunchHelper {
     uint32_t current_arg_index = 0;
 };
 
+// Parameterized kernel fixture with execution helpers, for the difference
+// between this and urKernelExecutionTestWithParam see the comment on
+// urBaseKernelTest.
 template <typename T>
 struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTestWithParam<T>::Build());
     }
 
     void TearDown() override {
@@ -1429,6 +1444,8 @@ struct urBaseKernelExecutionTestWithParam : urBaseKernelTestWithParam<T> {
     std::vector<ur_mem_handle_t> buffer_args;
 };
 
+// Kernel fixture with execution helpers, for the difference between this and
+// urKernelExecutionTest see the comment on urBaseKernelTest.
 struct urBaseKernelExecutionTest : urBaseKernelTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
@@ -1541,6 +1558,45 @@ struct urMultiDeviceQueueTest : urMultiDeviceContextTest {
     }
 
     std::vector<ur_queue_handle_t> queues;
+};
+
+struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::SetUp());
+
+        ur_platform_backend_t backend;
+        ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                         sizeof(backend), &backend, nullptr));
+        // Multi-device programs are not supported for AMD and CUDA
+        if (backend == UR_PLATFORM_BACKEND_HIP ||
+            backend == UR_PLATFORM_BACKEND_CUDA) {
+            GTEST_SKIP();
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::KernelsEnvironment::instance->LoadSource(program_name,
+                                                          il_binary));
+
+        const ur_program_properties_t properties = {
+            UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES, nullptr,
+            static_cast<uint32_t>(metadatas.size()),
+            metadatas.empty() ? nullptr : metadatas.data()};
+
+        ASSERT_SUCCESS(urProgramCreateWithIL(context, (*il_binary).data(),
+                                             (*il_binary).size(), &properties,
+                                             &program));
+    }
+
+    void TearDown() override {
+        if (program) {
+            EXPECT_SUCCESS(urProgramRelease(program));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceQueueTest::TearDown());
+    }
+
+    std::shared_ptr<std::vector<char>> il_binary;
+    std::string program_name = "foo";
+    ur_program_handle_t program = nullptr;
+    std::vector<ur_program_metadata_t> metadatas{};
 };
 
 } // namespace uur

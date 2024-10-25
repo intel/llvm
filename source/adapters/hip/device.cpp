@@ -223,7 +223,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
@@ -458,19 +458,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(size_t(1000));
   }
   case UR_DEVICE_INFO_ENDIAN_LITTLE: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_BUILD_ON_SUBDEVICE: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_COMPILER_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_LINKER_AVAILABLE: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_EXECUTION_CAPABILITIES: {
     auto Capability = ur_device_exec_capability_flags_t{
@@ -548,7 +548,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     // postprocessing is NOP. HIP 4.3 docs indicate support for
     // native asserts are in progress
     std::string SupportedExtensions = "";
-    SupportedExtensions += "pi_ext_intel_devicelib_assert ";
+    SupportedExtensions += "cl_intel_devicelib_assert ";
     SupportedExtensions += "ur_exp_usm_p2p ";
 
     int RuntimeVersion = 0;
@@ -583,7 +583,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(size_t(1024));
   }
   case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
   case UR_DEVICE_INFO_PARENT_DEVICE: {
     return ReturnValue(nullptr);
@@ -857,9 +857,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(static_cast<uint32_t>(MaxRegisters));
   }
   case UR_DEVICE_INFO_MEM_CHANNEL_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_IMAGE_SRGB:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_PCI_ADDRESS: {
     constexpr size_t AddressBufferSize = 13;
     char AddressBuffer[AddressBufferSize];
@@ -875,20 +875,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                        strnlen(AddressBuffer, AddressBufferSize - 1) + 1);
   }
   case UR_DEVICE_INFO_HOST_PIPE_READ_WRITE_SUPPORTED:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_ESIMD_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
     // HIP supports enqueueing native work through the urNativeEnqueueExp
-    return ReturnValue(true);
+    return ReturnValue(ur_bool_t{true});
   }
 
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
-    return ReturnValue(false);
+    return ReturnValue(ur_bool_t{false});
   // TODO: Investigate if this information is available on HIP.
   case UR_DEVICE_INFO_COMPONENT_DEVICES:
   case UR_DEVICE_INFO_COMPOSITE_DEVICE:
@@ -903,9 +903,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-
-  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int DriverVersion = 0;
     UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
 
@@ -917,6 +915,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
     return ReturnValue(DriverVersion >= CmdBufDriverMinVersion);
   }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    int DriverVersion = 0;
+    UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
+    const int CmdBufDriverMinVersion = 50530202; // ROCM 5.5.1
+    if (DriverVersion < CmdBufDriverMinVersion) {
+      return ReturnValue(
+          static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
+    }
+    ur_device_command_buffer_update_capability_flags_t UpdateCapabilities =
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+        UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    return ReturnValue(UpdateCapabilities);
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
+    return ReturnValue(false);
   default:
     break;
   }
@@ -1068,7 +1084,7 @@ ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
     return UR_RESULT_SUCCESS;
 
   ur_event_handle_t_::native_type Event;
-  ScopedContext Active(hDevice);
+  ScopedDevice Active(hDevice);
 
   if (pDeviceTimestamp) {
     UR_CHECK_ERROR(hipEventCreateWithFlags(&Event, hipEventDefault));

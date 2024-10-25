@@ -32,10 +32,7 @@ ur_context_handle_t_::getOwningURPool(umf_memory_pool_t *UMFPool) {
   return nullptr;
 }
 
-/// Create a UR HIP context.
-///
-/// By default creates a scoped context and keeps the last active HIP context
-/// on top of the HIP context stack.
+/// Create a UR context.
 ///
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
     uint32_t DeviceCount, const ur_device_handle_t *phDevices,
@@ -44,7 +41,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreate(
 
   std::unique_ptr<ur_context_handle_t_> ContextPtr{nullptr};
   try {
-    // Create a scoped context.
+    // Create a context.
     ContextPtr = std::unique_ptr<ur_context_handle_t_>(
         new ur_context_handle_t_{phDevices, DeviceCount});
     *phContext = ContextPtr.release();
@@ -111,13 +108,15 @@ urContextRetain(ur_context_handle_t hContext) {
   return UR_RESULT_SUCCESS;
 }
 
-UR_APIEXPORT ur_result_t UR_APICALL urContextGetNativeHandle(
-    ur_context_handle_t hContext, ur_native_handle_t *phNativeContext) {
-  // FIXME: this entry point has been deprecated in the SYCL RT and should be
-  // changed to unsupported once the deprecation period has elapsed
-  *phNativeContext = reinterpret_cast<ur_native_handle_t>(
-      hContext->getDevices()[0]->getNativeContext());
-  return UR_RESULT_SUCCESS;
+// urContextGetNativeHandle should not be implemented in the HIP backend.
+// hipCtx_t is not natively supported by amd devices, and more importantly does
+// not map to ur_context_handle_t in any way.
+UR_APIEXPORT ur_result_t UR_APICALL
+urContextGetNativeHandle([[maybe_unused]] ur_context_handle_t hContext,
+                         [[maybe_unused]] ur_native_handle_t *phNativeContext) {
+  std::ignore = hContext;
+  std::ignore = phNativeContext;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(

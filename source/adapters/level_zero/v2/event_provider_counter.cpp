@@ -35,7 +35,7 @@ provider_counter::provider_counter(ur_platform_handle_t platform,
       (ZEL_HANDLE_DEVICE, device->ZeDevice, (void **)&translatedDevice));
 }
 
-event_allocation provider_counter::allocate() {
+raii::cache_borrowed_event provider_counter::allocate() {
   if (freelist.empty()) {
     ZeStruct<ze_event_desc_t> desc;
     desc.index = 0;
@@ -53,13 +53,15 @@ event_allocation provider_counter::allocate() {
   auto event = std::move(freelist.back());
   freelist.pop_back();
 
-  return {event_type::EVENT_COUNTER,
-          raii::cache_borrowed_event(event.release(),
-                                     [this](ze_event_handle_t handle) {
-                                       freelist.push_back(handle);
-                                     })};
+  return raii::cache_borrowed_event(
+      event.release(),
+      [this](ze_event_handle_t handle) { freelist.push_back(handle); });
 }
 
 ur_device_handle_t provider_counter::device() { return urDevice; }
+
+event_flags_t provider_counter::eventFlags() const {
+  return EVENT_FLAGS_COUNTER;
+}
 
 } // namespace v2

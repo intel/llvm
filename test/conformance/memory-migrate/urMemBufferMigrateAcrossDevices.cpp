@@ -165,6 +165,9 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteRead) {
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                           buffer_size_bytes, out_vec.data(), 1,
                                           &e1, nullptr));
+
+    ASSERT_SUCCESS(urQueueFinish(queues[1]));
+
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val);
     }
@@ -186,6 +189,9 @@ TEST_F(urMultiDeviceContextMemBufferTest, FillRead) {
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                           buffer_size_bytes, out_vec.data(), 1,
                                           &e1, nullptr));
+
+    ASSERT_SUCCESS(urQueueFinish(queues[1]));
+
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val);
     }
@@ -219,6 +225,9 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelRead) {
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[0], buffer, false, 0,
                                           buffer_size_bytes, out_vec.data(), 1,
                                           &e2, nullptr));
+
+    ASSERT_SUCCESS(urQueueFinish(queues[0]));
+
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val + 1);
     }
@@ -257,6 +266,9 @@ TEST_F(urMultiDeviceContextMemBufferTest, WriteKernelKernelRead) {
     ASSERT_SUCCESS(urEnqueueMemBufferRead(queues[1], buffer, false, 0,
                                           buffer_size_bytes, out_vec.data(), 1,
                                           &e3, nullptr));
+
+    ASSERT_SUCCESS(urQueueFinish(queues[1]));
+
     for (auto &a : out_vec) {
         ASSERT_EQ(a, fill_val + 2);
     }

@@ -63,11 +63,10 @@ function(add_adapter_memcheck_test name)
         add_test(NAME ${test_name}
                 COMMAND ${CMAKE_COMMAND}
                 -D TEST_FILE=valgrind
-                -D TEST_ARGS="--tool=memcheck --leak-check=full $<TARGET_FILE:${target}> --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_DEVICES_COUNT}"
+                -D TEST_ARGS="--tool=memcheck --leak-check=full $<TARGET_FILE:${target}> --backend=${backend} --devices_count=${UR_TEST_DEVICES_COUNT} --platforms_count=${UR_TEST_DEVICES_COUNT}"
                 -D MODE=stderr
                 -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}_memcheck.match
                 -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-                DEPENDS ${TEST_TARGET_NAME}
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
 

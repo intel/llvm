@@ -81,7 +81,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
 
     *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithIL(
         cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
-    CL_RETURN_ON_FAILURE(Err);
   } else {
 
     /* If none of the devices conform with CL 2.1 or newer make sure they all
@@ -109,6 +108,24 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
 
     *phProgram = cl_adapter::cast<ur_program_handle_t>(
         FuncPtr(cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
+  }
+
+  // INVALID_VALUE is only returned in three circumstances according to the cl
+  // spec:
+  // * pIL == NULL
+  // * length == 0
+  // * pIL is not a well-formed binary
+  // UR has a unique error code for each of these, so here we figure out which
+  // to return
+  if (Err == CL_INVALID_VALUE) {
+    if (pIL == nullptr) {
+      return UR_RESULT_ERROR_INVALID_NULL_POINTER;
+    }
+    if (length == 0) {
+      return UR_RESULT_ERROR_INVALID_SIZE;
+    }
+    return UR_RESULT_ERROR_INVALID_BINARY;
+  } else {
     CL_RETURN_ON_FAILURE(Err);
   }
 
@@ -116,18 +133,21 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *,
-    ur_program_handle_t *phProgram) {
-
-  const cl_device_id Devices[1] = {cl_adapter::cast<cl_device_id>(hDevice)};
-  const size_t Lengths[1] = {size};
-  cl_int BinaryStatus[1];
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *, ur_program_handle_t *phProgram) {
+  std::vector<cl_device_id> Devices(numDevices);
+  for (uint32_t i = 0; i < numDevices; ++i)
+    Devices[i] = cl_adapter::cast<cl_device_id>(phDevices[i]);
+  std::vector<cl_int> BinaryStatus(numDevices);
   cl_int CLResult;
   *phProgram = cl_adapter::cast<ur_program_handle_t>(clCreateProgramWithBinary(
-      cl_adapter::cast<cl_context>(hContext), cl_adapter::cast<cl_uint>(1u),
-      Devices, Lengths, &pBinary, BinaryStatus, &CLResult));
-  CL_RETURN_ON_FAILURE(BinaryStatus[0]);
+      cl_adapter::cast<cl_context>(hContext),
+      cl_adapter::cast<cl_uint>(numDevices), Devices.data(), pLengths,
+      ppBinaries, BinaryStatus.data(), &CLResult));
+  for (uint32_t i = 0; i < numDevices; ++i) {
+    CL_RETURN_ON_FAILURE(BinaryStatus[i]);
+  }
   CL_RETURN_ON_FAILURE(CLResult);
 
   return UR_RESULT_SUCCESS;
@@ -159,8 +179,8 @@ static cl_int mapURProgramInfoToCL(ur_program_info_t URPropName) {
     return CL_PROGRAM_NUM_DEVICES;
   case UR_PROGRAM_INFO_DEVICES:
     return CL_PROGRAM_DEVICES;
-  case UR_PROGRAM_INFO_SOURCE:
-    return CL_PROGRAM_SOURCE;
+  case UR_PROGRAM_INFO_IL:
+    return CL_PROGRAM_IL;
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return CL_PROGRAM_BINARY_SIZES;
   case UR_PROGRAM_INFO_BINARIES:

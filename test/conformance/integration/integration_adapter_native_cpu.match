@@ -5,4 +5,3 @@ QueueUSMTestWithParam.QueueUSMTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__IN
 QueueUSMTestWithParam.QueueUSMTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__OUT_OF_ORDER_QUEUE
 QueueBufferTestWithParam.QueueBufferTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__IN_ORDER_QUEUE
 QueueBufferTestWithParam.QueueBufferTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__OUT_OF_ORDER_QUEUE
-{{OPT}}{{Segmentation fault|Aborted}}
