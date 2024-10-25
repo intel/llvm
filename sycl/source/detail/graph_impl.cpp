@@ -706,9 +706,11 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
-      Deps, &NewSyncPoint, &NewCommand, nullptr);
+      Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
-  MCommandMap[Node] = NewCommand;
+  if (MIsUpdatable) {
+    MCommandMap[Node] = NewCommand;
+  }
 
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
@@ -744,7 +746,10 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
           Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
           Deps);
 
-  MCommandMap[Node] = Event->getCommandBufferCommand();
+  if (MIsUpdatable) {
+    MCommandMap[Node] = Event->getCommandBufferCommand();
+  }
+
   return Event->getSyncPoint();
 }
 void exec_graph_impl::createCommandBuffers(
