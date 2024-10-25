@@ -6290,6 +6290,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // work_group_memory<int> where the hidden second parameter has a default
   // value. To circumvent this, we include the correct forward declaration
   // ourselves.
+  O << "#include <tuple>\n";
   O << "#include "
        "<sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>\n";
   O << "\n";

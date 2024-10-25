@@ -1,5 +1,4 @@
 #pragma once
-#include <tuple>
 namespace sycl {
 inline namespace _V1 {
 namespace ext {

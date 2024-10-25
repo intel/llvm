@@ -8,6 +8,7 @@
 
 #pragma once
 
+#include <tuple>
 #include <sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>
 #include <type_traits>
 
