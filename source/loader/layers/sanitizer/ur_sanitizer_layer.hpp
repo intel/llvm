@@ -16,6 +16,10 @@
 #include "ur/ur.hpp"
 #include "ur_proxy_layer.hpp"
 
+#ifdef UR_ENABLE_SYMBOLIZER
+#include "llvm/DebugInfo/Symbolize/Symbolize.h"
+#endif // UR_ENABLE_SYMBOLIZER
+
 #define SANITIZER_COMP_NAME "sanitizer layer"
 
 namespace ur_sanitizer_layer {
@@ -37,6 +41,10 @@ class __urdlllocal context_t : public proxy_layer_context_t,
     logger::Logger logger;
     std::unique_ptr<SanitizerInterceptor> interceptor;
     SanitizerType enabledType = SanitizerType::None;
+
+#ifdef UR_ENABLE_SYMBOLIZER
+    llvm::symbolize::LLVMSymbolizer symbolizer;
+#endif // UR_ENABLE_SYMBOLIZER
 
     context_t();
     ~context_t();
