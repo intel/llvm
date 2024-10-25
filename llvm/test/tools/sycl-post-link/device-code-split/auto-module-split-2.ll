@@ -10,7 +10,7 @@
 ; RUN: FileCheck %s -input-file=%t_0.sym --check-prefixes CHECK-TU0-TXT
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-TU1-TXT
 
-; RUN: sycl-module-split -split=auto -S < %s -o %t2
+; RUN: llvm-split -sycl-split=auto -S < %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-TU0,CHECK
 ; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-TU1,CHECK
 ; RUN: FileCheck %s -input-file=%t2_0.sym --check-prefixes CHECK-TU0-TXT

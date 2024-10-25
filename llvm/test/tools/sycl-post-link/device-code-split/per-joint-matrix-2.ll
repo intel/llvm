@@ -16,7 +16,7 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYMS-K1,CHECK-SYMS-K3 \
 ; RUN: --implicit-check-not Kernel2
 
-; RUN: sycl-module-split -split=auto -S %s -o %t2
+; RUN: llvm-split -sycl-split=auto -S %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K2 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel3
 ; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K1,CHECK-IR-K3 \
@@ -36,7 +36,7 @@
 ; RUN: FileCheck %s -input-file=%t_1.sym --check-prefixes CHECK-SYMS-K1,CHECK-SYMS-K3 \
 ; RUN: --implicit-check-not Kernel2
 
-; RUN: sycl-module-split -split=source -S %s -o %t2
+; RUN: llvm-split -sycl-split=source -S %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K2 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel3
 ; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K1,CHECK-IR-K3 \
@@ -60,7 +60,7 @@
 ; RUN: FileCheck %s -input-file=%t_2.sym --check-prefixes CHECK-SYMS-K1 \
 ; RUN: --implicit-check-not Kernel2 --implicit-check-not Kernel3
 
-; RUN: sycl-module-split -split=kernel -S %s -o %t2
+; RUN: llvm-split -sycl-split=kernel -S %s -o %t2
 ; RUN: FileCheck %s -input-file=%t2_0.ll --check-prefixes CHECK-IR-K3 \
 ; RUN: --implicit-check-not Kernel1 --implicit-check-not Kernel2
 ; RUN: FileCheck %s -input-file=%t2_1.ll --check-prefixes CHECK-IR-K2 \
