@@ -60,7 +60,7 @@ int main() {
 
     auto GraphExec = Graph.finalize();
 
-    exp_ext::submit(Queue, GraphExec);
+    exp_ext::execute_graph(Queue, GraphExec);
     Queue.wait_and_throw();
   }
 

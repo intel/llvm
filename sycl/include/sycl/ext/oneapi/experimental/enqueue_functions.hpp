@@ -104,21 +104,12 @@ void submit(queue Q, CommandGroupFunc &&CGF,
       Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
-__SYCL_EXPORT void submit(queue Q, command_graph<graph_state::executable> G,
-                          const sycl::detail::code_location &CodeLoc =
-                              sycl::detail::code_location::current());
-
 template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
   return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
-
-__SYCL_EXPORT event
-submit_with_event(queue Q, command_graph<graph_state::executable> G,
-                  const sycl::detail::code_location &CodeLoc =
-                      sycl::detail::code_location::current());
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>
 void single_task(handler &CGH, const KernelType &KernelObj) {
@@ -375,6 +366,16 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
                                 sycl::detail::code_location::current()) {
   submit(Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
+
+__SYCL_EXPORT void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current());
+
+__SYCL_EXPORT void
+execute_graph(handler CGH, command_graph<graph_state::executable> &G,
+                  const sycl::detail::code_location &CodeLoc =
+                      sycl::detail::code_location::current());
+
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
