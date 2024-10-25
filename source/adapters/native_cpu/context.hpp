@@ -64,10 +64,17 @@ static size_t get_padding(uint32_t alignment) {
 // allocation so that the pointer returned to the user
 // always satisfies (ptr % align) == 0.
 static inline void *malloc_impl(uint32_t alignment, size_t size) {
+  void *ptr = nullptr;
   assert(alignment >= alignof(usm_alloc_info) &&
          "memory not aligned to usm_alloc_info");
-  void *ptr = native_cpu::aligned_malloc(
-      alignment, alloc_header_size + get_padding(alignment) + size);
+#ifdef _MSC_VER
+  ptr = _aligned_malloc(alloc_header_size + get_padding(alignment) + size,
+                        alignment);
+
+#else
+  ptr = std::aligned_alloc(alignment,
+                           alloc_header_size + get_padding(alignment) + size);
+#endif
   return ptr;
 }
 
@@ -93,8 +100,11 @@ struct ur_context_handle_t_ : RefCounted {
     const native_cpu::usm_alloc_info &info = native_cpu::get_alloc_info(ptr);
     UR_ASSERT(info.type != UR_USM_TYPE_UNKNOWN,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
-
-    native_cpu::aligned_free(info.base_alloc_ptr);
+#ifdef _MSC_VER
+    _aligned_free(info.base_alloc_ptr);
+#else
+    free(info.base_alloc_ptr);
+#endif
     allocations.erase(ptr);
     return UR_RESULT_SUCCESS;
   }
