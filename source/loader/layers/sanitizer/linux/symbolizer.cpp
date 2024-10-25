@@ -10,14 +10,7 @@
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
 
-namespace ur_sanitizer_layer {
-
-llvm::symbolize::LLVMSymbolizer *GetSymbolizer() {
-    static llvm::symbolize::LLVMSymbolizer Symbolizer;
-    return &Symbolizer;
-}
-
-llvm::symbolize::PrinterConfig GetPrinterConfig() {
+static llvm::symbolize::PrinterConfig GetPrinterConfig() {
     llvm::symbolize::PrinterConfig Config;
     Config.Pretty = false;
     Config.PrintAddress = false;
@@ -27,8 +20,6 @@ llvm::symbolize::PrinterConfig GetPrinterConfig() {
     return Config;
 }
 
-} // namespace ur_sanitizer_layer
-
 extern "C" {
 
 void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
@@ -36,26 +27,25 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
     std::string Result;
     llvm::raw_string_ostream OS(Result);
     llvm::symbolize::Request Request{ModuleName, ModuleOffset};
-    llvm::symbolize::PrinterConfig Config =
-        ur_sanitizer_layer::GetPrinterConfig();
+    llvm::symbolize::PrinterConfig Config = GetPrinterConfig();
     llvm::symbolize::ErrorHandler EH = [&](const llvm::ErrorInfoBase &ErrorInfo,
                                            llvm::StringRef ErrorBanner) {
         OS << ErrorBanner;
         ErrorInfo.log(OS);
         OS << '\n';
     };
-    auto Printer =
-        std::make_unique<llvm::symbolize::LLVMPrinter>(OS, EH, Config);
+    llvm::symbolize::LLVMSymbolizer Symbolizer;
+    llvm::symbolize::LLVMPrinter Printer(OS, EH, Config);
 
-    auto ResOrErr = ur_sanitizer_layer::GetSymbolizer()->symbolizeInlinedCode(
+    auto ResOrErr = Symbolizer.symbolizeInlinedCode(
         ModuleName,
         {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
 
     if (!ResOrErr) {
         return;
     }
-    Printer->print(Request, *ResOrErr);
-    ur_sanitizer_layer::GetSymbolizer()->pruneCache();
+    Printer.print(Request, *ResOrErr);
+    Symbolizer.pruneCache();
     if (RetSize) {
         *RetSize = Result.size() + 1;
     }
