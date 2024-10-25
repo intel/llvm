@@ -1780,7 +1780,10 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     ArgStringList TargArgs;
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
-    // For -Xsycl-target-backend=<triple> we need to scrutinize the triple
+    // For -Xsycl-target-backend=<triple> the triple value is used to push
+    // specific options to the matching device compilation using that triple.
+    // Scrutinize this to make sure we are only checking the values needed
+    // for the current device compilation.
     for (auto *A : Args) {
       if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
         continue;
