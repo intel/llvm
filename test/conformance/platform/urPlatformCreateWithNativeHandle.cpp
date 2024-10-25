@@ -83,7 +83,8 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
 TEST_F(urPlatformCreateWithNativeHandleTest, InvalidNullPointerPlatform) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = 0;
-        ASSERT_SUCCESS(urPlatformGetNativeHandle(platform, &native_handle));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urPlatformGetNativeHandle(platform, &native_handle));
         ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
                          urPlatformCreateWithNativeHandle(
                              native_handle, adapters[0], nullptr, nullptr));
