@@ -45,9 +45,10 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
     auto Printer =
         std::make_unique<llvm::symbolize::LLVMPrinter>(OS, EH, Config);
 
-    auto ResOrErr = ur_sanitizer_layer::getContext()->symbolizer.symbolizeInlinedCode(
-        ModuleName,
-        {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
+    auto ResOrErr =
+        ur_sanitizer_layer::getContext()->symbolizer.symbolizeInlinedCode(
+            ModuleName,
+            {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
 
     if (!ResOrErr) {
         return;
