@@ -22,8 +22,7 @@ int main() {
         sycl::nd_range<1>(N, 1), [=](sycl::nd_item<1> item) {
           auto private_array =
               sycl::ext::oneapi::experimental::static_address_cast<
-                  sycl::access::address_space::private_space,
-                  sycl::access::decorated::no>(array);
+                  sycl::access::address_space::private_space>(array);
           private_array[0] = 0;
         });
     Q.wait();
