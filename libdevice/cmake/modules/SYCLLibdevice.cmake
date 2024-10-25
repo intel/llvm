@@ -112,13 +112,29 @@ function(compile_lib filename)
     "FILETYPE"
     "SRC;EXTRA_OPTS;DEPENDENCIES"
     ${ARGN})
+    set(compile_opt_list ${compile_opts}
+                         ${${ARG_FILETYPE}_device_compile_opts}
+                         ${ARG_EXTRA_OPTS})
+    compile_lib_ext(${filename}
+      FILETYPE ${ARG_FILETYPE}
+      SRC ${ARG_SRC}
+      DEPENDENCIES ${ARG_DEPENDENCIES}
+      OPTS ${compile_opt_list})
+endfunction()
+
+function(compile_lib_ext filename)
+  cmake_parse_arguments(ARG
+    ""
+    "FILETYPE"
+    "SRC;OPTS;DEPENDENCIES"
+    ${ARGN})
 
   set(devicelib-file
     ${${ARG_FILETYPE}_binary_dir}/${filename}.${${ARG_FILETYPE}-suffix})
 
   add_custom_command(
     OUTPUT ${devicelib-file}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clang} ${ARG_OPTS}
             ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SRC} -o ${devicelib-file}
     MAIN_DEPENDENCY ${ARG_SRC}
     DEPENDS ${ARG_DEPENDENCIES}
