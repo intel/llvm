@@ -408,42 +408,40 @@ public:
 
     std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
 
-      std::vector<ur_device_handle_t> DeviceHandles;
-      std::transform(Devices.begin(), Devices.end(),
-                     std::back_inserter(DeviceHandles), [](const device &Dev) {
-                       return getSyclObjImpl(Dev)->getHandleRef();
-                     });
+    std::vector<ur_device_handle_t> DeviceHandles;
+    std::transform(
+        Devices.begin(), Devices.end(), std::back_inserter(DeviceHandles),
+        [](const device &Dev) { return getSyclObjImpl(Dev)->getHandleRef(); });
 
-      std::vector<const uint8_t *> Binaries;
-      std::vector<size_t> Lengths;
-      std::vector<std::vector<std::vector<char>>> PersistentBinaries;
-      for (size_t i = 0; i < Devices.size(); i++) {
-        std::vector<std::vector<char>> BinProg =
-            PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-                Devices[i], UserArgs, SourceStr);
+    std::vector<const uint8_t *> Binaries;
+    std::vector<size_t> Lengths;
+    std::vector<std::vector<std::vector<char>>> PersistentBinaries;
+    for (size_t i = 0; i < Devices.size(); i++) {
+      std::vector<std::vector<char>> BinProg =
+          PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+              Devices[i], UserArgs, SourceStr);
 
-        // exit if any device binary is missing
-        if (BinProg.empty()) {
-          return false;
-        }
-        PersistentBinaries.push_back(BinProg);
-
-        Binaries.push_back((uint8_t *)(BinProg[0].data()));
-        Lengths.push_back(BinProg[0].size());
+      // exit if any device binary is missing
+      if (BinProg.empty()) {
+        return false;
       }
+      PersistentBinaries.push_back(BinProg);
 
-      ur_program_properties_t Properties = {};
-      Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
-      Properties.pNext = nullptr;
-      Properties.count = 0;
-      Properties.pMetadatas = nullptr;
+      Binaries.push_back((uint8_t *)(BinProg[0].data()));
+      Lengths.push_back(BinProg[0].size());
+    }
 
-      Adapter->call<UrApiKind::urProgramCreateWithBinary>(
-          ContextImpl->getHandleRef(), DeviceHandles.size(),
-          DeviceHandles.data(), Lengths.data(), Binaries.data(), &Properties,
-          &UrProgram);
+    ur_program_properties_t Properties = {};
+    Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.count = 0;
+    Properties.pMetadatas = nullptr;
 
-      return true;
+    Adapter->call<UrApiKind::urProgramCreateWithBinary>(
+        ContextImpl->getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
+        Lengths.data(), Binaries.data(), &Properties, &UrProgram);
+
+    return true;
   }
 
   std::shared_ptr<kernel_bundle_impl>
@@ -480,8 +478,8 @@ public:
           // if successful, the log is empty. if failed, throws an error with
           // the compilation log.
           std::vector<uint32_t> IPVersionVec(Devices.size());
-          std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
-           [&](ur_device_handle_t d) {
+          std::transform(DeviceVec.begin(), DeviceVec.end(),
+                         IPVersionVec.begin(), [&](ur_device_handle_t d) {
                            uint32_t ipVersion = 0;
                            Adapter->call<UrApiKind::urDeviceGetInfo>(
                                d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
@@ -511,23 +509,23 @@ public:
             "languages at this time");
       }();
 
-    Adapter->call<UrApiKind::urProgramCreateWithIL>(ContextImpl->getHandleRef(),
-                                                   spirv.data(), spirv.size(),
-                                                   nullptr, &UrProgram);
-    // program created by urProgramCreateWithIL is implicitly retained.
-    if (UrProgram == nullptr)
-      throw sycl::exception(
-          sycl::make_error_code(errc::invalid),
-          "urProgramCreateWithIL resulted in a null program handle.");
+      Adapter->call<UrApiKind::urProgramCreateWithIL>(
+          ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
+          &UrProgram);
+      // program created by urProgramCreateWithIL is implicitly retained.
+      if (UrProgram == nullptr)
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "urProgramCreateWithIL resulted in a null program handle.");
 
-    std::string XsFlags = extractXsFlags(BuildOptions);
-    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
-        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
-    }
-    Adapter->checkUrResult<errc::build>(Res);
+      std::string XsFlags = extractXsFlags(BuildOptions);
+      auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+          UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+      if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+        Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+            ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
+      }
+      Adapter->checkUrResult<errc::build>(Res);
 
     } // if(!FetchedFromCache)
 

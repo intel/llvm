@@ -142,9 +142,9 @@ getProgramBinaryData(const ur_program_handle_t &NativePrg,
     Pointers.push_back(Result[I].data());
   }
 
-  Adapter->call<UrApiKind::urProgramGetInfo>(NativePrg, UR_PROGRAM_INFO_BINARIES,
-                                            sizeof(char *) * Pointers.size(),
-                                            Pointers.data(), nullptr);
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
+      Pointers.data(), nullptr);
   return Result;
 }
 
