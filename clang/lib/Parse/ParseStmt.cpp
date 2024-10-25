@@ -2564,8 +2564,7 @@ Decl *Parser::ParseFunctionStatementBody(Decl *Decl, ParseScope &BodyScope) {
   // If the function body could not be parsed, make a bogus compoundstmt.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody =
-        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, {}, false);
   }
 
   BodyScope.Exit();
@@ -2602,8 +2601,7 @@ Decl *Parser::ParseFunctionTryBlock(Decl *Decl, ParseScope &BodyScope) {
   // compound statement as the body.
   if (FnBody.isInvalid()) {
     Sema::CompoundScopeRAII CompoundScope(Actions);
-    FnBody =
-        Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, std::nullopt, false);
+    FnBody = Actions.ActOnCompoundStmt(LBraceLoc, LBraceLoc, {}, false);
   }
 
   BodyScope.Exit();

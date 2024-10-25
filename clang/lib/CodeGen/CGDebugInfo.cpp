@@ -2653,7 +2653,7 @@ void CGDebugInfo::addHeapAllocSiteMetadata(llvm::CallBase *CI,
     return;
   llvm::MDNode *node;
   if (AllocatedTy->isVoidType())
-    node = llvm::MDNode::get(CGM.getLLVMContext(), std::nullopt);
+    node = llvm::MDNode::get(CGM.getLLVMContext(), {});
   else
     node = getOrCreateType(AllocatedTy, getOrCreateFile(Loc));
 
@@ -4335,8 +4335,7 @@ llvm::DISubroutineType *CGDebugInfo::getOrCreateFunctionType(const Decl *D,
              !CGM.getCodeGenOpts().EmitCodeView))
     // Create fake but valid subroutine type. Otherwise -verify would fail, and
     // subprogram DIE will miss DW_AT_decl_file and DW_AT_decl_line fields.
-    return DBuilder.createSubroutineType(
-        DBuilder.getOrCreateTypeArray(std::nullopt));
+    return DBuilder.createSubroutineType(DBuilder.getOrCreateTypeArray({}));
 
   if (const auto *Method = dyn_cast<CXXMethodDecl>(D))
     return getOrCreateMethodType(Method, F);

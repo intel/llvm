@@ -120,8 +120,8 @@ CodeGenTypes::arrangeFreeFunctionType(CanQual<FunctionNoProtoType> FTNP) {
   // When translating an unprototyped function type, always use a
   // variadic type.
   return arrangeLLVMFunctionInfo(FTNP->getReturnType().getUnqualifiedType(),
-                                 FnInfoOpts::None, std::nullopt,
-                                 FTNP->getExtInfo(), {}, RequiredArgs(0));
+                                 FnInfoOpts::None, {}, FTNP->getExtInfo(), {},
+                                 RequiredArgs(0));
 }
 
 static void addExtParameterInfosForCall(
@@ -475,7 +475,7 @@ CodeGenTypes::arrangeFunctionDeclaration(const FunctionDecl *FD) {
   // non-variadic type.
   if (CanQual<FunctionNoProtoType> noProto = FTy.getAs<FunctionNoProtoType>()) {
     return arrangeLLVMFunctionInfo(noProto->getReturnType(), FnInfoOpts::None,
-                                   std::nullopt, noProto->getExtInfo(), {},
+                                   {}, noProto->getExtInfo(), {},
                                    RequiredArgs::All);
   }
 
@@ -721,8 +721,8 @@ CodeGenTypes::arrangeCXXMethodCall(const CallArgList &args,
 }
 
 const CGFunctionInfo &CodeGenTypes::arrangeNullaryFunction() {
-  return arrangeLLVMFunctionInfo(getContext().VoidTy, FnInfoOpts::None,
-                                 std::nullopt, FunctionType::ExtInfo(), {},
+  return arrangeLLVMFunctionInfo(getContext().VoidTy, FnInfoOpts::None, {},
+                                 FunctionType::ExtInfo(), {},
                                  RequiredArgs::All);
 }
 
@@ -4504,7 +4504,7 @@ void CodeGenFunction::EmitNonNullArgCheck(RValue RV, QualType ArgType,
       EmitCheckSourceLocation(ArgLoc), EmitCheckSourceLocation(AttrLoc),
       llvm::ConstantInt::get(Int32Ty, ArgNo + 1),
   };
-  EmitCheck(std::make_pair(Cond, CheckKind), Handler, StaticData, std::nullopt);
+  EmitCheck(std::make_pair(Cond, CheckKind), Handler, StaticData, {});
 }
 
 void CodeGenFunction::EmitNonNullArgCheck(Address Addr, QualType ArgType,
@@ -4895,7 +4895,7 @@ CodeGenFunction::EmitNounwindRuntimeCall(llvm::FunctionCallee callee,
 /// runtime function.
 llvm::CallInst *CodeGenFunction::EmitRuntimeCall(llvm::FunctionCallee callee,
                                                  const llvm::Twine &name) {
-  return EmitRuntimeCall(callee, std::nullopt, name);
+  return EmitRuntimeCall(callee, {}, name);
 }
 
 // Calls which may throw must have operand bundles indicating which funclet
@@ -4962,7 +4962,7 @@ void CodeGenFunction::EmitNoreturnRuntimeCallOrInvoke(
 llvm::CallBase *
 CodeGenFunction::EmitRuntimeCallOrInvoke(llvm::FunctionCallee callee,
                                          const Twine &name) {
-  return EmitRuntimeCallOrInvoke(callee, std::nullopt, name);
+  return EmitRuntimeCallOrInvoke(callee, {}, name);
 }
 
 /// Emits a call or invoke instruction to the given runtime function.
