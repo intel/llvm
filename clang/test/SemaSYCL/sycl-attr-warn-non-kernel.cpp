@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device -Wno-error=deprecated-declarations -internal-isystem %S/Inputs -fsyntax-only -verify -pedantic %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -fsyntax-only -verify -pedantic %s
 
 // The test check issuing diagnostics for attributes that can not be applied to a non SYCL kernel function
 

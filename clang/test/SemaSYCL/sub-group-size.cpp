@@ -3,35 +3,29 @@
 // RUN: %clang_cc1 -internal-isystem %S/Inputs -fsycl-is-device -fsycl-default-sub-group-size=10 -sycl-std=2020 -internal-isystem %S/Inputs -fsyntax-only -verify=expected,primary %s
 
 // Validate the semantic analysis checks for the interaction betwen the
-// named_sub_group_size and sub_group_size attributes. These are not able to be
+// named_sub_group_size and reqd_sub_group_size attributes. These are not able to be
 // combined, and require that they only be applied to non-sycl-kernel/
 // non-sycl-device functions if they match the kernel they are being called
 // from.
 
 #include "Inputs/sycl.hpp"
 
-// expected-note@+4 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
-// expected-warning@+3 {{attribute 'intel::sub_group_size' is deprecated}}
-// expected-error@+2 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
+// expected-error@+2 {{'named_sub_group_size' and 'reqd_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
-// expected-error@+2 {{'sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
+[[sycl::reqd_sub_group_size(1)]] [[intel::named_sub_group_size(automatic)]] void f1();
+// expected-error@+2 {{'reqd_sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::named_sub_group_size(primary)]] [[intel::sub_group_size(1)]] void f2();
+[[intel::named_sub_group_size(primary)]] [[sycl::reqd_sub_group_size(1)]] void f2();
 
-// expected-note@+3 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
-// expected-warning@+2 {{attribute 'intel::sub_group_size' is deprecated}}
 // expected-note@+1 {{conflicting attribute is here}}
-[[intel::sub_group_size(1)]] void f3();
-// expected-error@+1 {{'named_sub_group_size' and 'sub_group_size' attributes are not compatible}}
+[[sycl::reqd_sub_group_size(1)]] void f3();
+// expected-error@+1 {{'named_sub_group_size' and 'reqd_sub_group_size' attributes are not compatible}}
 [[intel::named_sub_group_size(primary)]] void f3();
 
 // expected-note@+1 {{conflicting attribute is here}}
 [[intel::named_sub_group_size(primary)]] void f4();
-// expected-note@+3 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
-// expected-warning@+2 {{attribute 'intel::sub_group_size' is deprecated}}
-// expected-error@+1 {{'sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
-[[intel::sub_group_size(1)]] void f4();
+// expected-error@+1 {{'reqd_sub_group_size' and 'named_sub_group_size' attributes are not compatible}}
+[[sycl::reqd_sub_group_size(1)]] void f4();
 
 // expected-note@+1 {{previous attribute is here}}
 [[intel::named_sub_group_size(automatic)]] void f5();
@@ -165,9 +159,7 @@ void calls_kernel_5() {
 
 // Don't diag with the old sub-group-size.
 void calls_kernel_6() {
-  // expected-note@+2 {{did you mean to use 'sycl::reqd_sub_group_size' instead?}}
-  // expected-warning@+1{{attribute 'intel::reqd_sub_group_size' is deprecated}}
-  sycl::kernel_single_task<class Kernel6>([]() [[intel::reqd_sub_group_size(10)]] { // #Kernel6
+  sycl::kernel_single_task<class Kernel6>([]() [[sycl::reqd_sub_group_size(10)]] { // #Kernel6
     NoAttrExternalNotDefined();
   });
 }
