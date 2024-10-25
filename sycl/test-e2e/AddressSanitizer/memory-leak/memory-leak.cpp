@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu || (gpu && level_zero && gpu-intel-dg2)
+// REQUIRES: linux, cpu || (gpu && level_zero && (gpu-intel-dg2 || gpu-intel-pvc))
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %{run} %t 2>&1 | FileCheck %s
 

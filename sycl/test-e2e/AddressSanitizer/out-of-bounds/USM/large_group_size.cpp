@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu || (gpu && level_zero && gpu-intel-dg2)
+// REQUIRES: linux, cpu || (gpu && level_zero && (gpu-intel-dg2 || gpu-intel-pvc))
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK %s
 

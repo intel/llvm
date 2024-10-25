@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu || (gpu && level_zero && gpu-intel-dg2)
+// REQUIRES: linux, cpu || (gpu && level_zero && (gpu-intel-dg2 || gpu-intel-pvc))
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/detail/core.hpp>
