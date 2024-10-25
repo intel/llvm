@@ -183,6 +183,7 @@ class queue_impl;
 class event_impl;
 class context_impl;
 class DispatchHostTask;
+class MapOfDependentCmds;
 
 using ContextImplPtr = std::shared_ptr<detail::context_impl>;
 using EventImplPtr = std::shared_ptr<detail::event_impl>;
@@ -622,13 +623,9 @@ protected:
 
     /// Removes commands from leaves.
     static void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode,
+                      access::mode AccessMode, const MapOfDependentCmds &DependentCmdsOfNewCmd,
+                      const QueueImplPtr &Queue,
                       std::vector<Command *> &ToCleanUp);
-
-    /// If dependent cmd do same as NewCmd, move it to cleanup
-    static void detectDuplicates(Command *DepCommand,
-                          const std::pmr::unordered_set<Command *> &DependentCmdsOfNewCmd,
-                          std::vector<Command *> &ToCleanUp);
 
     /// Prepare a command to cleanup
     static void commandToCleanup(Command *DepCommand, std::vector<Command *> &ToCleanUp);
@@ -699,6 +696,12 @@ protected:
                               const std::vector<Requirement *> &Req,
                               Command::BlockReason Reason,
                               std::vector<Command *> &ToEnqueue);
+
+    /// If all dependences of a dependent cmd already covered by NewCmd,
+    /// move the dependent cmd in ToCleanUp
+    static void detectDuplicates(Command *DepCommand,
+                          const MapOfDependentCmds &DependentCmdsOfNewCmd,
+                          std::vector<Command *> &ToCleanUp);
 
   protected:
     /// Finds a command dependency corresponding to the record.
@@ -898,6 +901,43 @@ protected:
   friend class queue_impl;
   friend class event_impl;
   friend class ::MockScheduler;
+};
+
+class MapOfDependentCmds {
+  using CommandModePair = std::pair<SYCLMemObjI *, access::mode>;
+
+  struct CommandModePairHash {
+    std::size_t operator()(const CommandModePair& p) const noexcept {
+      return std::hash<SYCLMemObjI *>{}(p.first) ^ std::hash<access::mode>{}(p.second);
+    }
+  };
+
+  using CommandModePairSet = std::pmr::unordered_set<CommandModePair, CommandModePairHash>;
+
+  std::array<std::byte, 4*1024> MDependentCmdsOfNewCmdBuf;
+  std::pmr::monotonic_buffer_resource MDependentCmdsOfNewCmdBufRes{MDependentCmdsOfNewCmdBuf.data(),
+                                                                   MDependentCmdsOfNewCmdBuf.size()};
+  CommandModePairSet MDependentCmdsOfNewCmd{&MDependentCmdsOfNewCmdBufRes};
+
+  void addDep(const DepDesc &Dep) {
+    MDependentCmdsOfNewCmd.emplace(Dep.MDepRequirement->MSYCLMemObj, Dep.MDepRequirement->MAccessMode);
+  }
+public:
+
+  MapOfDependentCmds(const std::vector<DepDesc> &Deps) {
+    for (const DepDesc &Dep : Deps)
+      addDep(Dep);
+  }
+
+  void addDeps(const std::vector<DepDesc> &Deps) {
+    MDependentCmdsOfNewCmd.clear();
+    for (const DepDesc &Dep : Deps)
+      addDep(Dep);
+  }
+
+  bool isMemObjExist(const std::pair<SYCLMemObjI *, access::mode> &Mo) const {
+    return MDependentCmdsOfNewCmd.count(Mo);
+  }
 };
 
 } // namespace detail

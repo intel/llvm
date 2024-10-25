@@ -135,8 +135,11 @@ public:
   void updateLeaves(const std::set<sycl::detail::Command *> &Cmds,
                     sycl::detail::MemObjRecord *Record,
                     sycl::access::mode AccessMode,
+                    const sycl::detail::MapOfDependentCmds &DependentCmdsOfNewCmd,
+                    const sycl::detail::QueueImplPtr &Queue,
                     std::vector<sycl::detail::Command *> &ToCleanUp) {
-    return MGraphBuilder.updateLeaves(Cmds, Record, AccessMode, ToCleanUp);
+    return MGraphBuilder.updateLeaves(Cmds, Record, AccessMode, DependentCmdsOfNewCmd,
+                                      Queue, ToCleanUp);
   }
 
   static bool enqueueCommand(sycl::detail::Command *Cmd,

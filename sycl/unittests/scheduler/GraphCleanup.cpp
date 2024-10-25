@@ -86,7 +86,9 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
                         ToCleanUp);
   EXPECT_TRUE(ToCleanUp.empty());
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
-  MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write, ToCleanUp);
+  detail::MapOfDependentCmds DependentCmdsOfNewCmd(MockCmd->MDeps);
+  MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write,
+                  DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
 
   EXPECT_TRUE(ToCleanUp.empty());
   std::unique_ptr<detail::CG> CG{
@@ -107,7 +109,9 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
   MockCmd = new MockCommandWithCallback(QueueImpl, MockReq, Callback);
   addEdge(MockCmd, Cmd, AllocaCmd);
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
-  MS.updateLeaves({Cmd}, Record, access::mode::read_write, ToCleanUp);
+  DependentCmdsOfNewCmd.addDeps(MockCmd->MDeps);
+  MS.updateLeaves({Cmd}, Record, access::mode::read_write,
+                  DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
   MS.addHostAccessor(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
@@ -132,7 +136,9 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
     // Since this mock command has already been enqueued, it's expected to be
     // cleaned up during removal from leaves.
     ToCleanUp.clear();
-    MS.updateLeaves({MockCmd}, Record, access::mode::read_write, ToCleanUp);
+    detail::MapOfDependentCmds DependentCmdsOfNewCmd(LeafMockCmd->MDeps);
+    MS.updateLeaves({MockCmd}, Record, access::mode::read_write,
+                    DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
     EXPECT_EQ(ToCleanUp.size(), 1U);
     EXPECT_EQ(ToCleanUp[0], MockCmd);
     MS.cleanupCommands({MockCmd});
@@ -143,7 +149,9 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
     addEdge(LeafMockCmd, MockCmd, AllocaCmd);
     MS.addNodeToLeaves(Record, LeafMockCmd, access::mode::read_write,
                        ToEnqueue);
-    MS.updateLeaves({MockCmd}, Record, access::mode::read_write, ToCleanUp);
+    DependentCmdsOfNewCmd.addDeps(LeafMockCmd->MDeps);
+    MS.updateLeaves({MockCmd}, Record, access::mode::read_write,
+                    DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
     return MockCmd;
   };
 
@@ -184,7 +192,9 @@ static void checkCleanupOnLeafUpdate(
                         ToCleanUp);
   EXPECT_TRUE(ToCleanUp.empty());
   MS.addNodeToLeaves(Record, MockCmd, access::mode::read_write, ToEnqueue);
-  MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write, ToCleanUp);
+  const detail::MapOfDependentCmds DependentCmdsOfNewCmd(MockCmd->MDeps);
+  MS.updateLeaves({AllocaCmd}, Record, access::mode::read_write,
+                  DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
   detail::EnqueueResultT Res;
   MockScheduler::enqueueCommand(MockCmd, Res, detail::BLOCKING);
 
@@ -260,9 +270,10 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
           MS.addNodeToLeaves(Record, MockCmd.get(), access::mode::read_write,
                              ToEnqueue);
         }
+        const detail::MapOfDependentCmds DependentCmdsOfNewCmd(AllocaCmd->MDeps);
         for (std::unique_ptr<MockCommand> &MockCmd : Leaves)
           MS.updateLeaves({MockCmd.get()}, Record, access::mode::read_write,
-                          ToCleanUp);
+                          DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
         EXPECT_TRUE(ToCleanUp.empty());
       });
 }
