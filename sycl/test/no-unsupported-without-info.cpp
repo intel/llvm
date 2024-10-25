@@ -32,7 +32,7 @@
 // RUN: grep -rI "UNSUPPORTED:" %S/../test-e2e \
 // RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
-// RUN: grep -Pv "UNSUPPORTED-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t | \
+// RUN: grep -Pv "UNSUPPORTED-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
