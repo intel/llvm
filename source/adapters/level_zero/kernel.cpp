@@ -746,7 +746,7 @@ ur_result_t urKernelGetInfo(
       char *attributes = new char[Size];
       ZE2UR_CALL(zeKernelGetSourceAttributes,
                  (Kernel->ZeKernel, &Size, &attributes));
-      auto Res = ReturnValue(attributes);
+      auto Res = ReturnValue(static_cast<const char *>(attributes));
       delete[] attributes;
       return Res;
     } catch (const std::bad_alloc &) {
