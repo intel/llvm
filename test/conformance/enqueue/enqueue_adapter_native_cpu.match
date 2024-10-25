@@ -1,4 +1,7 @@
-{{NONDETERMINISTIC}}
+# Note: This file is only for use with cts_exe.py
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitList
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EmptyWaitListWithEvent
+{{OPT}}urEnqueueEventsWaitMultiDeviceTest.EnqueueWaitOnADifferentQueue
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleQueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueDeviceGetGlobalVariableReadTest.InvalidNullHandleProgram/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
@@ -16,8 +19,18 @@
 {{OPT}}urEnqueueDeviceGetGlobalVariableWriteTest.InvalidEventWaitInvalidEvent/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitTest.InvalidNullPtrEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitSingleQueueMultiOps/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitSingleQueueMultiOps/NoMultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueues/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueues/NoMultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueuesCommonDependency/MultiThread
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest.EnqueueWaitOnAllQueuesCommonDependency/NoMultiThread
 {{OPT}}urEnqueueEventsWaitWithBarrierTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueEventsWaitWithBarrierTest.InvalidNullPtrEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesBarrierOnly/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}_
+urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesLaunchOnly/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}_
+urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependencies/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}_
+urEnqueueEventsWaitWithBarrierOrderingTest.SuccessNonEventDependencies/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}_
 {{OPT}}urEnqueueKernelLaunchTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueKernelLaunchTest.InvalidNullHandleQueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueKernelLaunchTest.InvalidNullHandleKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
@@ -372,4 +385,8 @@
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerPipeSymbol/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidNullPointerBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}urEnqueueWriteHostPipeTest.InvalidEventWaitList/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
-{{OPT}}{{Segmentation fault|Aborted}}
+urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/*
+urEnqueueKernelLaunchIncrementMultiDeviceTest.Success/*
+urEnqueueKernelLaunchIncrementTest.Success/*
+# This one is flakey
+{{OPT}}urEnqueueMemBufferReadTestWithParam.NonBlocking/*

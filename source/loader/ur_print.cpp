@@ -980,6 +980,14 @@ urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintDeviceCommandBufferUpdateCapabilityFlags(
+    enum ur_device_command_buffer_update_capability_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpCommandBufferInfo(enum ur_exp_command_buffer_info_t value,
                                         char *buffer, const size_t buff_size,
                                         size_t *out_size) {
@@ -1430,6 +1438,22 @@ ur_result_t urPrintCommandBufferReleaseCommandExpParams(
 
 ur_result_t urPrintCommandBufferUpdateKernelLaunchExpParams(
     const struct ur_command_buffer_update_kernel_launch_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferUpdateSignalEventExpParams(
+    const struct ur_command_buffer_update_signal_event_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintCommandBufferUpdateWaitEventsExpParams(
+    const struct ur_command_buffer_update_wait_events_exp_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;

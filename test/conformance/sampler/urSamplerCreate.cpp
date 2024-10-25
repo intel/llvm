@@ -95,6 +95,7 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationAddrMode) {
     ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
                      UR_RESULT_ERROR_INVALID_ENUMERATION);
 }
+
 TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
     ur_sampler_desc_t sampler_desc{
         UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
@@ -106,4 +107,20 @@ TEST_P(urSamplerCreateTest, InvalidEnumerationFilterMode) {
     uur::raii::Sampler hSampler = nullptr;
     ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, hSampler.ptr()),
                      UR_RESULT_ERROR_INVALID_ENUMERATION);
+}
+
+TEST_P(urSamplerCreateTest, InvalidNullPointer) {
+    ur_sampler_desc_t sampler_desc{
+        UR_STRUCTURE_TYPE_SAMPLER_DESC,      /* stype */
+        nullptr,                             /* pNext */
+        true,                                /* normalizedCoords */
+        UR_SAMPLER_ADDRESSING_MODE_CLAMP,    /* addressing mode */
+        UR_SAMPLER_FILTER_MODE_FORCE_UINT32, /* filterMode */
+    };
+    uur::raii::Sampler hSampler = nullptr;
+    ASSERT_EQ_RESULT(urSamplerCreate(context, nullptr, hSampler.ptr()),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+    ASSERT_EQ_RESULT(urSamplerCreate(context, &sampler_desc, nullptr),
+                     UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }

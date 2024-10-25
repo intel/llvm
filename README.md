@@ -122,7 +122,7 @@ List of options provided by CMake:
 | UR_BUILD_TESTS | Build the tests | ON/OFF | ON |
 | UR_BUILD_TOOLS | Build tools | ON/OFF | ON |
 | UR_FORMAT_CPP_STYLE | Format code style | ON/OFF | OFF |
-| UR_DEVELOPER_MODE | Treat warnings as errors and enables additional checks | ON/OFF | OFF |
+| UR_DEVELOPER_MODE | Treat warnings as errors | ON/OFF | OFF |
 | UR_ENABLE_FAST_SPEC_MODE | Enable fast specification generation mode | ON/OFF | OFF |
 | UR_USE_ASAN | Enable AddressSanitizer | ON/OFF | OFF |
 | UR_USE_TSAN | Enable ThreadSanitizer | ON/OFF | OFF |
@@ -133,12 +133,15 @@ List of options provided by CMake:
 | UR_CONFORMANCE_TARGET_TRIPLES | SYCL triples to build CTS device binaries for | Comma-separated list | spir64 |
 | UR_CONFORMANCE_AMD_ARCH | AMD device target ID to build CTS binaries for | string | `""` |
 | UR_CONFORMANCE_ENABLE_MATCH_FILES | Enable CTS match files | ON/OFF | ON |
+| UR_CONFORMANCE_TEST_LOADER | Additionally build and run "loader" tests for the CTS | ON/OFF | OFF |
 | UR_BUILD_ADAPTER_L0     | Build the Level-Zero adapter            | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_OPENCL | Build the OpenCL adapter                | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_CUDA   | Build the CUDA adapter                  | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_HIP    | Build the HIP adapter                   | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_NATIVE_CPU | Build the Native-CPU adapter        | ON/OFF     | OFF     |
 | UR_BUILD_ADAPTER_ALL    | Build all currently supported adapters  | ON/OFF     | OFF     |
+| UR_BUILD_ADAPTER_L0_V2    | Build the (experimental) Level-Zero v2 adapter  | ON/OFF     | OFF     |
+| UR_STATIC_ADAPTER_L0    | Build the Level-Zero adapter as static and embed in the loader | ON/OFF   | OFF |
 | UR_HIP_PLATFORM         | Build HIP adapter for AMD or NVIDIA platform           | AMD/NVIDIA | AMD     |
 | UR_ENABLE_COMGR         | Enable comgr lib usage           | AMD/NVIDIA | AMD     |
 | UR_DPCXX | Path of the DPC++ compiler executable to build CTS device binaries | File path | `""` |
@@ -151,6 +154,13 @@ List of options provided by CMake:
 | UR_HIP_LIB_DIR | Path of the ROCm HIP library directory | Directory path | `${UR_HIP_ROCM_DIR}/lib` |
 
 ### Additional make targets
+
+To run tests, do the following:
+
+```bash
+$ make
+$ make test
+```
 
 To run automated code formatting, configure CMake with `UR_FORMAT_CPP_STYLE` option
 and then run a custom `cppformat` target:

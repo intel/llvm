@@ -24,7 +24,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     ur_adapter_handle_t *
         phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
     ///< If NumEntries is less than the number of adapters available, then
-    ///< ::urAdapterGet shall only retrieve that number of platforms.
+    ///< ::urAdapterGet shall only retrieve that number of adapters.
     uint32_t *
         pNumAdapters ///< [out][optional] returns the total number of adapters available.
 ) {
@@ -2563,10 +2563,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 /// @brief Intercept function for urProgramCreateWithBinary
 __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     ur_context_handle_t hContext, ///< [in] handle of the context instance
-    ur_device_handle_t
-        hDevice,            ///< [in] handle to device associated with binary.
-    size_t size,            ///< [in] size in bytes.
-    const uint8_t *pBinary, ///< [in] pointer to binary.
+    uint32_t numDevices,          ///< [in] number of devices
+    ur_device_handle_t *
+        phDevices, ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                   ///< binaries are loaded for devices specified in this list.
+    size_t *
+        pLengths, ///< [in][range(0, numDevices)] array of sizes of program binaries
+                  ///< specified by `pBinaries` (in bytes).
+    const uint8_t **
+        ppBinaries, ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                    ///< for devices specified by `phDevices`.
     const ur_program_properties_t *
         pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t
@@ -2586,12 +2592,16 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     // convert loader handle to platform handle
     hContext = reinterpret_cast<ur_context_object_t *>(hContext)->handle;
 
-    // convert loader handle to platform handle
-    hDevice = reinterpret_cast<ur_device_object_t *>(hDevice)->handle;
+    // convert loader handles to platform handles
+    auto phDevicesLocal = std::vector<ur_device_handle_t>(numDevices);
+    for (size_t i = 0; i < numDevices; ++i) {
+        phDevicesLocal[i] =
+            reinterpret_cast<ur_device_object_t *>(phDevices[i])->handle;
+    }
 
     // forward to device-platform
-    result = pfnCreateWithBinary(hContext, hDevice, size, pBinary, pProperties,
-                                 phProgram);
+    result = pfnCreateWithBinary(hContext, numDevices, phDevicesLocal.data(),
+                                 pLengths, ppBinaries, pProperties, phProgram);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
@@ -4331,17 +4341,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
         pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
     ///< specify the number of local work-items forming a work-group that will
     ///< execute the kernel function.
-    ///< If nullptr, the runtime implementation will choose the work-group
-    ///< size.
+    ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4406,7 +4415,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWait(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4466,7 +4476,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4532,7 +4543,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4603,7 +4615,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4684,7 +4697,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4769,7 +4783,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4840,7 +4855,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4922,7 +4938,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -4995,7 +5012,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5069,7 +5087,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageRead(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5144,7 +5163,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageWrite(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5220,7 +5240,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemImageCopy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5292,7 +5313,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent, ///< [out][optional] return an event object that identifies this particular
-                 ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
     void **ppRetMap ///< [out] return mapped pointer.  TODO: move it before
                     ///< numEventsInWaitList?
 ) {
@@ -5360,7 +5382,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5430,7 +5453,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5496,7 +5520,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5560,7 +5585,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMPrefetch(
     ///< command does not wait on any event to complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5676,11 +5702,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMFill2D(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5748,11 +5774,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5817,11 +5843,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableWrite(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5890,11 +5916,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueDeviceGlobalVariableRead(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -5969,9 +5995,10 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueReadHostPipe(
     ///< events that must be complete before the host pipe read.
     ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
-        phEvent ///< [out][optional] returns an event object that identifies this read
-                ///< command
+        phEvent ///< [out][optional] returns an event object that identifies this read command
     ///< and can be used to query or queue a wait for this command to complete.
+    ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    ///< an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6048,6 +6075,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueWriteHostPipe(
     ur_event_handle_t *
         phEvent ///< [out][optional] returns an event object that identifies this write command
     ///< and can be used to query or queue a wait for this command to complete.
+    ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+    ///< an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6395,7 +6424,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesImageCopyExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6829,7 +6859,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesWaitExternalSemaphoreExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -6903,7 +6934,8 @@ __urdlllocal ur_result_t UR_APICALL urBindlessImagesSignalExternalSemaphoreExp(
     ///< must be complete.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command instance.
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7105,16 +7137,37 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     const size_t *
         pGlobalWorkSize, ///< [in] Global work size to use when executing kernel.
     const size_t *
-        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel.
+        pLocalWorkSize, ///< [in][optional] Local work size to use when executing kernel. If this
+    ///< parameter is nullptr, then a local work size will be generated by the
+    ///< implementation.
+    uint32_t
+        numKernelAlternatives, ///< [in] The number of kernel alternatives provided in
+                               ///< phKernelAlternatives.
+    ur_kernel_handle_t *
+        phKernelAlternatives, ///< [in][optional][range(0, numKernelAlternatives)] List of kernel handles
+    ///< that might be used to update the kernel in this
+    ///< command after the command-buffer is finalized. The default kernel
+    ///< `hKernel` is implicitly marked as an alternative. It's
+    ///< invalid to specify it as part of this list.
     uint32_t
         numSyncPointsInWaitList, ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
         pSyncPoint, ///< [out][optional] Sync point associated with this command.
-    ur_exp_command_buffer_command_handle_t
-        *phCommand ///< [out][optional] Handle to this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *
+        phCommand ///< [out][optional] Handle to this command. Only available if the
+                  ///< command-buffer is updatable.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7138,14 +7191,43 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     // convert loader handle to platform handle
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
+    // convert loader handles to platform handles
+    auto phKernelAlternativesLocal =
+        std::vector<ur_kernel_handle_t>(numKernelAlternatives);
+    for (size_t i = 0; i < numKernelAlternatives; ++i) {
+        phKernelAlternativesLocal[i] =
+            reinterpret_cast<ur_kernel_object_t *>(phKernelAlternatives[i])
+                ->handle;
+    }
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendKernelLaunchExp(
         hCommandBuffer, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint,
-        phCommand);
+        pLocalWorkSize, numKernelAlternatives, phKernelAlternativesLocal.data(),
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
 
     if (UR_RESULT_SUCCESS != result) {
         return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
     }
 
     try {
@@ -7176,8 +7258,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7198,10 +7291,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size,
-                                   numSyncPointsInWaitList, pSyncPointWaitList,
-                                   pSyncPoint);
+    result = pfnAppendUSMMemcpyExp(
+        hCommandBuffer, pDst, pSrc, size, numSyncPointsInWaitList,
+        pSyncPointWaitList, numEventsInWaitList, phEventWaitListLocal.data(),
+        pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7221,8 +7350,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7243,10 +7383,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendUSMFillExp(hCommandBuffer, pMemory, pPattern, patternSize,
-                                 size, numSyncPointsInWaitList,
-                                 pSyncPointWaitList, pSyncPoint);
+    result = pfnAppendUSMFillExp(
+        hCommandBuffer, pMemory, pPattern, patternSize, size,
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7266,8 +7442,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7294,10 +7481,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     // convert loader handle to platform handle
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendMemBufferCopyExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOffset, dstOffset, size,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7317,8 +7540,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7342,10 +7576,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     // convert loader handle to platform handle
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendMemBufferWriteExp(hCommandBuffer, hBuffer, offset, size,
-                                        pSrc, numSyncPointsInWaitList,
-                                        pSyncPointWaitList, pSyncPoint);
+    result = pfnAppendMemBufferWriteExp(
+        hCommandBuffer, hBuffer, offset, size, pSrc, numSyncPointsInWaitList,
+        pSyncPointWaitList, numEventsInWaitList, phEventWaitListLocal.data(),
+        pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7364,8 +7634,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7389,10 +7670,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     // convert loader handle to platform handle
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendMemBufferReadExp(hCommandBuffer, hBuffer, offset, size,
-                                       pDst, numSyncPointsInWaitList,
-                                       pSyncPointWaitList, pSyncPoint);
+    result = pfnAppendMemBufferReadExp(
+        hCommandBuffer, hBuffer, offset, size, pDst, numSyncPointsInWaitList,
+        pSyncPointWaitList, numEventsInWaitList, phEventWaitListLocal.data(),
+        pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7419,8 +7736,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7447,11 +7775,47 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     // convert loader handle to platform handle
     hDstMem = reinterpret_cast<ur_mem_object_t *>(hDstMem)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendMemBufferCopyRectExp(
         hCommandBuffer, hSrcMem, hDstMem, srcOrigin, dstOrigin, region,
         srcRowPitch, srcSlicePitch, dstRowPitch, dstSlicePitch,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7484,8 +7848,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7509,11 +7884,47 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     // convert loader handle to platform handle
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendMemBufferWriteRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pSrc,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7544,8 +7955,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] Sync point associated with this command.
+        pSyncPoint, ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7569,11 +7991,47 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     // convert loader handle to platform handle
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendMemBufferReadRectExp(
         hCommandBuffer, hBuffer, bufferOffset, hostOffset, region,
         bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch, pDst,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7594,8 +8052,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7619,10 +8088,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     // convert loader handle to platform handle
     hBuffer = reinterpret_cast<ur_mem_object_t *>(hBuffer)->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
     result = pfnAppendMemBufferFillExp(
         hCommandBuffer, hBuffer, pPattern, patternSize, offset, size,
-        numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint);
+        numSyncPointsInWaitList, pSyncPointWaitList, numEventsInWaitList,
+        phEventWaitListLocal.data(), pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7640,8 +8145,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7662,10 +8178,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendUSMPrefetchExp(hCommandBuffer, pMemory, size, flags,
-                                     numSyncPointsInWaitList,
-                                     pSyncPointWaitList, pSyncPoint);
+    result = pfnAppendUSMPrefetchExp(
+        hCommandBuffer, pMemory, size, flags, numSyncPointsInWaitList,
+        pSyncPointWaitList, numEventsInWaitList, phEventWaitListLocal.data(),
+        pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7683,8 +8235,19 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     const ur_exp_command_buffer_sync_point_t *
         pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                             ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *
-        pSyncPoint ///< [out][optional] sync point associated with this command.
+        pSyncPoint, ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *
+        phEvent, ///< [out][optional] return an event object that will be signaled by the
+                 ///< completion of this command in the next execution of the
+                 ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t
+        *phCommand ///< [out][optional] Handle to this command.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7705,10 +8268,46 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
         reinterpret_cast<ur_exp_command_buffer_object_t *>(hCommandBuffer)
             ->handle;
 
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
     // forward to device-platform
-    result = pfnAppendUSMAdviseExp(hCommandBuffer, pMemory, size, advice,
-                                   numSyncPointsInWaitList, pSyncPointWaitList,
-                                   pSyncPoint);
+    result = pfnAppendUSMAdviseExp(
+        hCommandBuffer, pMemory, size, advice, numSyncPointsInWaitList,
+        pSyncPointWaitList, numEventsInWaitList, phEventWaitListLocal.data(),
+        pSyncPoint, phEvent, phCommand);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phEvent) {
+            *phEvent = reinterpret_cast<ur_event_handle_t>(
+                context->factories.ur_event_factory.getInstance(*phEvent,
+                                                                dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        if (nullptr != phCommand) {
+            *phCommand =
+                reinterpret_cast<ur_exp_command_buffer_command_handle_t>(
+                    context->factories.ur_exp_command_buffer_command_factory
+                        .getInstance(*phCommand, dditable));
+        }
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
 
     return result;
 }
@@ -7727,7 +8326,8 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferEnqueueExp(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< command-buffer execution instance.
+    ///< command-buffer execution instance. If phEventWaitList and phEvent are
+    ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -7872,6 +8472,13 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     // Deal with any struct parameters that have handle members we need to convert.
     auto pUpdateKernelLaunchLocal = *pUpdateKernelLaunch;
 
+    if (pUpdateKernelLaunchLocal.hNewKernel) {
+        pUpdateKernelLaunchLocal.hNewKernel =
+            reinterpret_cast<ur_kernel_object_t *>(
+                pUpdateKernelLaunchLocal.hNewKernel)
+                ->handle;
+    }
+
     std::vector<ur_exp_command_buffer_update_memobj_arg_desc_t>
         pUpdateKernelLaunchpNewMemObjArgList;
     for (uint32_t i = 0; i < pUpdateKernelLaunch->numNewMemObjArgs; i++) {
@@ -7893,6 +8500,96 @@ __urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
     // forward to device-platform
     result = pfnUpdateKernelLaunchExp(hCommand, pUpdateKernelLaunch);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateSignalEventExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer command to update.
+    ur_event_handle_t *phSignalEvent ///< [out] Event to be signaled.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    [[maybe_unused]] auto context = getContext();
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnUpdateSignalEventExp =
+        dditable->ur.CommandBufferExp.pfnUpdateSignalEventExp;
+    if (nullptr == pfnUpdateSignalEventExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // forward to device-platform
+    result = pfnUpdateSignalEventExp(hCommand, phSignalEvent);
+
+    if (UR_RESULT_SUCCESS != result) {
+        return result;
+    }
+
+    try {
+        // convert platform handle to loader handle
+        *phSignalEvent = reinterpret_cast<ur_event_handle_t>(
+            context->factories.ur_event_factory.getInstance(*phSignalEvent,
+                                                            dditable));
+    } catch (std::bad_alloc &) {
+        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urCommandBufferUpdateWaitEventsExp
+__urdlllocal ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t
+        hCommand, ///< [in] Handle of the command-buffer command to update.
+    uint32_t numEventsInWaitList, ///< [in] Size of the event wait list.
+    const ur_event_handle_t *
+        phEventWaitList ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before the command execution. If nullptr,
+    ///< the numEventsInWaitList must be 0, indicating no wait events.
+) {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    [[maybe_unused]] auto context = getContext();
+
+    // extract platform's function pointer table
+    auto dditable =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->dditable;
+    auto pfnUpdateWaitEventsExp =
+        dditable->ur.CommandBufferExp.pfnUpdateWaitEventsExp;
+    if (nullptr == pfnUpdateWaitEventsExp) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    // convert loader handle to platform handle
+    hCommand =
+        reinterpret_cast<ur_exp_command_buffer_command_object_t *>(hCommand)
+            ->handle;
+
+    // convert loader handles to platform handles
+    auto phEventWaitListLocal =
+        std::vector<ur_event_handle_t>(numEventsInWaitList);
+    for (size_t i = 0; i < numEventsInWaitList; ++i) {
+        phEventWaitListLocal[i] =
+            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
+    }
+
+    // forward to device-platform
+    result = pfnUpdateWaitEventsExp(hCommand, numEventsInWaitList,
+                                    phEventWaitListLocal.data());
 
     return result;
 }
@@ -7997,17 +8694,16 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueCooperativeKernelLaunchExp(
         pLocalWorkSize, ///< [in][optional] pointer to an array of workDim unsigned values that
     ///< specify the number of local work-items forming a work-group that will
     ///< execute the kernel function.
-    ///< If nullptr, the runtime implementation will choose the work-group
-    ///< size.
+    ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-    ///< event.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8106,8 +8802,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     const ur_event_handle_t *
         phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
     ///< events that must be complete before the kernel execution.
-    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-    ///< events.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [in,out] return an event object that identifies this particular kernel
                 ///< execution instance. Profiling information can be queried
@@ -8115,7 +8810,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
     ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
     ///< reports the timestamp at the time of the call to this function.
     ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
-    ///< reports the timestamp recorded when the command is executed on the device.
+    ///< reports the timestamp recorded when the command is executed on the
+    ///< device. If phEventWaitList and phEvent are not NULL, phEvent must not
+    ///< refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8189,7 +8886,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     ///< the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies this particular
-                ///< kernel execution instance.
+    ///< kernel execution instance. If phEventWaitList and phEvent are not
+    ///< NULL, phEvent must not refer to an element of the phEventWaitList
+    ///< array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8544,7 +9243,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *
         phEvent ///< [out][optional] return an event object that identifies the work that has
-    ///< been enqueued in nativeEnqueueFunc.
+    ///< been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+    ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 ) {
     ur_result_t result = UR_RESULT_SUCCESS;
 
@@ -8850,6 +9550,10 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetCommandBufferExpProcAddrTable(
                 ur_loader::urCommandBufferReleaseCommandExp;
             pDdiTable->pfnUpdateKernelLaunchExp =
                 ur_loader::urCommandBufferUpdateKernelLaunchExp;
+            pDdiTable->pfnUpdateSignalEventExp =
+                ur_loader::urCommandBufferUpdateSignalEventExp;
+            pDdiTable->pfnUpdateWaitEventsExp =
+                ur_loader::urCommandBufferUpdateWaitEventsExp;
             pDdiTable->pfnGetInfoExp = ur_loader::urCommandBufferGetInfoExp;
             pDdiTable->pfnCommandGetInfoExp =
                 ur_loader::urCommandBufferCommandGetInfoExp;

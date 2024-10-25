@@ -135,7 +135,7 @@ params:
       desc: "[in] Handle to config object the layer will be enabled for."
     - type: const char*
       name: pLayerName
-      desc: "[in] Null terminated string containing the name of the layer to enable."
+      desc: "[in] Null terminated string containing the name of the layer to enable. Empty if none are enabled."
 returns:
     - $X_RESULT_ERROR_LAYER_NOT_PRESENT:
         - "If layer specified with `pLayerName` can't be found by the loader."
@@ -210,7 +210,7 @@ loader_only: True
 name: Init
 decl: static
 ordinal: "0"
-details: 
+details:
     - "The application must call this function before calling any other function."
     - "If this function is not called then all other functions will return $X_RESULT_ERROR_UNINITIALIZED."
     - "Only one instance of the loader will be initialized per process."

@@ -180,6 +180,8 @@ TEST_P(urEnqueueKernelLaunchKernelSubGroupTest, Success) {
         queue, kernel, n_dimensions, global_offset.data(), global_size.data(),
         nullptr, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
+    // We specify this subgroup size in the kernel source, and then the kernel
+    // queries for its subgroup size at runtime and writes it to the buffer.
     ValidateBuffer<size_t>(buffer, sizeof(size_t), 8);
 }
 
@@ -230,7 +232,7 @@ inline std::string printKernelLaunchTestString(
 }
 
 struct urEnqueueKernelLaunchTestWithParam
-    : uur::urBaseKernelExecutionTestWithParam<testParametersEnqueueKernel> {
+    : uur::urKernelExecutionTestWithParam<testParametersEnqueueKernel> {
     void SetUp() override {
         global_range[0] = std::get<1>(GetParam()).X;
         global_range[1] = std::get<1>(GetParam()).Y;
@@ -247,12 +249,11 @@ struct urEnqueueKernelLaunchTestWithParam
             program_name = "fill_3d";
             buffer_size *= global_range[1] * global_range[2];
         }
-        UUR_RETURN_ON_FATAL_FAILURE(
-            urBaseKernelExecutionTestWithParam::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTestWithParam::SetUp());
     }
 
     void TearDown() override {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urBaseKernelExecutionTestWithParam<
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTestWithParam<
                                     testParametersEnqueueKernel>::TearDown());
     }
 
@@ -294,6 +295,68 @@ TEST_P(urEnqueueKernelLaunchTestWithParam, Success) {
                                          0, nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, buffer_size, val);
+}
+
+struct urEnqueueKernelLaunchWithUSM : uur::urKernelExecutionTest {
+
+    void SetUp() override {
+        program_name = "fill_usm";
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::SetUp());
+
+        ur_device_usm_access_capability_flags_t device_usm = 0;
+        ASSERT_SUCCESS(uur::GetDeviceUSMDeviceSupport(device, device_usm));
+        if (!device_usm) {
+            GTEST_SKIP() << "Device USM is not supported";
+        }
+
+        alloc_size = 1024;
+
+        ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
+                                        alloc_size, &usmPtr));
+
+        ASSERT_SUCCESS(urQueueFinish(queue));
+    }
+
+    void TearDown() override {
+
+        if (usmPtr) {
+            EXPECT_SUCCESS(urUSMFree(context, usmPtr));
+        }
+
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urKernelExecutionTest::TearDown());
+    }
+
+    size_t alloc_size = 0;
+    void *usmPtr = nullptr;
+};
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithUSM);
+
+TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
+    size_t work_dim = 1;
+    size_t global_offset = 0;
+    size_t global_size = alloc_size / sizeof(uint32_t);
+    uint32_t fill_val = 42;
+
+    ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, usmPtr));
+    ASSERT_SUCCESS(
+        urKernelSetArgValue(kernel, 1, sizeof(fill_val), nullptr, &fill_val));
+
+    auto *ptr = static_cast<uint32_t *>(usmPtr);
+    for (size_t i = 0; i < global_size; i++) {
+        ptr[i] = 0;
+    }
+
+    ur_event_handle_t kernel_evt;
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, work_dim,
+                                         &global_offset, &global_size, nullptr,
+                                         0, nullptr, &kernel_evt));
+
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // verify fill worked
+    for (size_t i = 0; i < global_size; i++) {
+        ASSERT_EQ(ptr[i], fill_val);
+    }
 }
 
 struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {

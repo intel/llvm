@@ -135,10 +135,10 @@ urQueueCreate(ur_context_handle_t hContext, ur_device_handle_t hDevice,
       }
 
       if (URFlags & UR_QUEUE_FLAG_PRIORITY_HIGH) {
-        ScopedContext Active(hDevice);
+        ScopedDevice Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(nullptr, &Priority));
       } else if (URFlags & UR_QUEUE_FLAG_PRIORITY_LOW) {
-        ScopedContext Active(hDevice);
+        ScopedDevice Active(hDevice);
         UR_CHECK_ERROR(hipDeviceGetStreamPriorityRange(&Priority, nullptr));
       }
     }
@@ -225,7 +225,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueRelease(ur_queue_handle_t hQueue) {
     if (!hQueue->backendHasOwnership())
       return UR_RESULT_SUCCESS;
 
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->forEachStream([](hipStream_t S) {
       UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -251,7 +251,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
 
   try {
 
-    ScopedContext Active(hQueue->getDevice());
+    ScopedDevice Active(hQueue->getDevice());
 
     hQueue->syncStreams<true>([&Result](hipStream_t S) {
       UR_CHECK_ERROR(hipStreamSynchronize(S));
@@ -283,7 +283,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueFlush(ur_queue_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL
 urQueueGetNativeHandle(ur_queue_handle_t hQueue, ur_queue_native_desc_t *,
                        ur_native_handle_t *phNativeQueue) {
-  ScopedContext Active(hQueue->getDevice());
+  ScopedDevice Active(hQueue->getDevice());
   *phNativeQueue =
       reinterpret_cast<ur_native_handle_t>(hQueue->getNextComputeStream());
   return UR_RESULT_SUCCESS;
@@ -299,7 +299,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
     ur_native_handle_t hNativeQueue, ur_context_handle_t hContext,
     ur_device_handle_t hDevice, const ur_queue_native_properties_t *pProperties,
     ur_queue_handle_t *phQueue) {
-  (void)hDevice;
+  if (!hDevice && hContext->getDevices().size() == 1)
+    hDevice = hContext->getDevices().front();
 
   unsigned int HIPFlags;
   hipStream_t HIPStream = reinterpret_cast<hipStream_t>(hNativeQueue);

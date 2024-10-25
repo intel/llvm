@@ -130,6 +130,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
       return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
     }
   }
+  if (propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE ||
+      propName == UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE) {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
       cl_adapter::cast<cl_kernel>(hKernel),
       cl_adapter::cast<cl_device_id>(hDevice),
@@ -356,13 +360,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, size_t localWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
-  return UR_RESULT_SUCCESS;
+    [[maybe_unused]] ur_kernel_handle_t hKernel,
+    [[maybe_unused]] size_t localWorkSize,
+    [[maybe_unused]] size_t dynamicSharedMemorySize,
+    [[maybe_unused]] uint32_t *pGroupCountRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelCreateWithNativeHandle(
@@ -424,4 +426,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
       pGlobalWorkSize, pSuggestedLocalWorkSize));
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

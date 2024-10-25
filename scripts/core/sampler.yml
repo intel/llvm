@@ -52,7 +52,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the sampler object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: CONTEXT
       desc: "[$x_context_handle_t] Sampler context info"
@@ -136,7 +136,7 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_SAMPLER
     - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
-    - $X_RESULT_ERROR_OUT_OF_RESOURCES    
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Query information about a sampler object"

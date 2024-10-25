@@ -29,8 +29,9 @@ urProgramCreateWithIL(ur_context_handle_t hContext, const void *pIL,
   DIE_NO_IMPLEMENTATION
 }
 
-static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,
-                                 native_cpu::ReqdWGSize_t &res) {
+static ur_result_t
+deserializeWGMetadata(const ur_program_metadata_t &MetadataElement,
+                      native_cpu::WGSize_t &res, std::uint32_t DefaultVal) {
   size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
 
   // Expect between 1 and 3 32-bit integer values.
@@ -43,20 +44,26 @@ static ur_result_t getReqdWGSize(const ur_program_metadata_t &MetadataElement,
   const char *ValuePtr =
       reinterpret_cast<const char *>(MetadataElement.value.pData) +
       sizeof(std::uint64_t);
-  // Read values and pad with 1's for values not present.
-  std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
-  std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
-  std::get<0>(res) = ReqdWorkGroupElements[0];
-  std::get<1>(res) = ReqdWorkGroupElements[1];
-  std::get<2>(res) = ReqdWorkGroupElements[2];
+  // Read values and pad with a default value for missing elements.
+  std::uint32_t WorkGroupElements[] = {DefaultVal, DefaultVal, DefaultVal};
+  std::memcpy(WorkGroupElements, ValuePtr, MDElemsSize);
+  std::get<0>(res) = WorkGroupElements[0];
+  std::get<1>(res) = WorkGroupElements[1];
+  std::get<2>(res) = WorkGroupElements[2];
   return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  std::ignore = size;
+  if (numDevices > 1)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto hDevice = phDevices[0];
+  auto pBinary = ppBinaries[0];
+  std::ignore = pLengths;
   std::ignore = pProperties;
 
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -71,13 +78,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
       const auto &mdNode = pProperties->pMetadatas[i];
       std::string mdName(mdNode.pName);
       auto [Prefix, Tag] = splitMetadataName(mdName);
-      if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
-        native_cpu::ReqdWGSize_t reqdWGSize;
-        auto res = getReqdWGSize(mdNode, reqdWGSize);
+      if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE ||
+          Tag == __SYCL_UR_PROGRAM_METADATA_TAG_MAX_WORK_GROUP_SIZE) {
+        bool isReqd =
+            Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+        native_cpu::WGSize_t wgSizeProp;
+        auto res = deserializeWGMetadata(
+            mdNode, wgSizeProp,
+            isReqd ? 1 : std::numeric_limits<std::uint32_t>::max());
         if (res != UR_RESULT_SUCCESS) {
           return res;
         }
-        hProgram->KernelReqdWorkGroupSizeMD[Prefix] = std::move(reqdWGSize);
+        (isReqd ? hProgram->KernelReqdWorkGroupSizeMD
+                : hProgram->KernelMaxWorkGroupSizeMD)[Prefix] =
+            std::move(wgSizeProp);
+      } else if (Tag ==
+                 __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
+        hProgram->KernelMaxLinearWorkGroupSizeMD[Prefix] = mdNode.value.data64;
       }
     }
   }
@@ -93,6 +110,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   *phProgram = hProgram.release();
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinaryExp(
+    ur_context_handle_t, uint32_t, ur_device_handle_t *, size_t *,
+    const uint8_t **, const ur_program_properties_t *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
@@ -112,7 +135,9 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
   std::ignore = hProgram;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -127,21 +152,27 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   std::ignore = phPrograms;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
                                                         uint32_t,
                                                         ur_device_handle_t *,
                                                         const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
                                                       uint32_t,
                                                       ur_device_handle_t *,
                                                       const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled and linked,
+  // so urProgramBuild is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -150,7 +181,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -204,8 +237,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return returnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
     return returnValue(hProgram->_ctx->_device);
-  case UR_PROGRAM_INFO_SOURCE:
-    return returnValue(nullptr);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return returnValue("foo");
   case UR_PROGRAM_INFO_BINARIES:
@@ -213,6 +244,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_KERNEL_NAMES: {
     return returnValue("foo");
   }
+  case UR_PROGRAM_INFO_IL:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

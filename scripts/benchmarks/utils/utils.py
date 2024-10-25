@@ -8,9 +8,6 @@ import json
 import shutil
 import subprocess # nosec B404
 from pathlib import Path
-from collections import defaultdict
-import csv
-import io
 from benches.result import Result
 from benches.options import options
 
@@ -45,6 +42,7 @@ def git_clone(dir, name, repo, commit):
 
     if os.path.isdir(repo_path) and os.path.isdir(os.path.join(repo_path, '.git')):
         run("git fetch", cwd=repo_path)
+        run("git reset --hard", cwd=repo_path)
         run(f"git checkout {commit}", cwd=repo_path)
     elif not os.path.exists(repo_path):
         run(f"git clone --recursive {repo} {repo_path}")

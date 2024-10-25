@@ -275,13 +275,15 @@ etors:
       desc: "Objection allocation failure"
     - name: ERROR_ADAPTER_SPECIFIC
       desc: "An adapter specific warning/error has been reported and can be retrieved
-             via the urPlatformGetLastError entry point."
+             via the urAdapterGetLastError entry point."
     - name: ERROR_LAYER_NOT_PRESENT
       desc: "A requested layer was not found by the loader."
     - name: ERROR_IN_EVENT_LIST_EXEC_STATUS
       desc: "An event in the provided wait list has $X_EVENT_STATUS_ERROR."
     - name: ERROR_DEVICE_NOT_AVAILABLE
       desc: "Device in question has `$X_DEVICE_INFO_AVAILABLE == false`"
+    - name: ERROR_INVALID_SPEC_ID
+      desc: "A specialization constant identifier is not valid."
     - name: ERROR_UNKNOWN
       value: "0x7ffffffe"
       desc: "Unknown or internal error"

@@ -20,7 +20,7 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   std::unique_ptr<ur_kernel_handle_t_> RetKernel{nullptr};
 
   try {
-    ScopedContext Active(hProgram->getDevice());
+    ScopedDevice Active(hProgram->getDevice());
 
     hipFunction_t HIPFunc;
     hipError_t KernelError =
@@ -127,6 +127,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
         &Bytes, HIP_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+    // FIXME: could be added
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }
@@ -167,11 +171,11 @@ urKernelGetNativeHandle(ur_kernel_handle_t, ur_native_handle_t *) {
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSuggestMaxCooperativeGroupCountExp(
     ur_kernel_handle_t hKernel, size_t localWorkSize,
     size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
-  (void)hKernel;
-  (void)localWorkSize;
-  (void)dynamicSharedMemorySize;
-  *pGroupCountRet = 1;
-  return UR_RESULT_SUCCESS;
+  std::ignore = hKernel;
+  std::ignore = localWorkSize;
+  std::ignore = dynamicSharedMemorySize;
+  std::ignore = pGroupCountRet;
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
@@ -373,7 +377,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   MaxThreadsPerBlock[2] = hQueue->Device->getMaxBlockDimZ();
 
   ur_device_handle_t Device = hQueue->getDevice();
-  ScopedContext Active(Device);
+  ScopedDevice Active(Device);
 
   guessLocalWorkSize(Device, ThreadsPerBlock, pGlobalWorkSize, workDim,
                      MaxThreadsPerBlock);

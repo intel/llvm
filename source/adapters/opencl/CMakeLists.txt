@@ -37,12 +37,14 @@ add_ur_adapter(${TARGET_NAME} SHARED
     ${CMAKE_CURRENT_SOURCE_DIR}/program.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/queue.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/sampler.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/usm.hpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/usm_p2p.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/virtual_mem.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/../../ur/ur.hpp
 )
+install_ur_library(${TARGET_NAME})
 
 set_target_properties(${TARGET_NAME} PROPERTIES
     VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}"
@@ -54,7 +56,7 @@ if(UR_OPENCL_INCLUDE_DIR)
 else()
     FetchContent_Declare(OpenCL-Headers
         GIT_REPOSITORY  "https://github.com/KhronosGroup/OpenCL-Headers.git"
-        GIT_TAG         1e193332d02e27e15812d24ff2a3a7a908eb92a3
+        GIT_TAG         542d7a8f65ecfd88b38de35d8b10aa67b36b33b2
     )
     FetchContent_MakeAvailable(OpenCL-Headers)
     FetchContent_GetProperties(OpenCL-Headers

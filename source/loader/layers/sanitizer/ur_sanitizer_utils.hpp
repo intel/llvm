@@ -34,6 +34,8 @@ ur_context_handle_t GetContext(ur_queue_handle_t Queue);
 ur_context_handle_t GetContext(ur_program_handle_t Program);
 ur_context_handle_t GetContext(ur_kernel_handle_t Kernel);
 ur_device_handle_t GetDevice(ur_queue_handle_t Queue);
+std::vector<ur_device_handle_t> GetDevices(ur_context_handle_t Context);
+std::vector<ur_device_handle_t> GetDevices(ur_program_handle_t Program);
 DeviceType GetDeviceType(ur_context_handle_t Context,
                          ur_device_handle_t Device);
 ur_device_handle_t GetParentDevice(ur_device_handle_t Device);
@@ -42,7 +44,6 @@ bool GetDeviceUSMCapability(ur_device_handle_t Device,
 std::string GetKernelName(ur_kernel_handle_t Kernel);
 size_t GetDeviceLocalMemorySize(ur_device_handle_t Device);
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel);
-std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program);
 ur_device_handle_t GetUSMAllocDevice(ur_context_handle_t Context,
                                      const void *MemPtr);
 uint32_t GetKernelNumArgs(ur_kernel_handle_t Kernel);
@@ -52,5 +53,11 @@ size_t GetKernelPrivateMemorySize(ur_kernel_handle_t Kernel,
                                   ur_device_handle_t Device);
 size_t GetVirtualMemGranularity(ur_context_handle_t Context,
                                 ur_device_handle_t Device);
+
+ur_result_t
+EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr, char Value,
+                      size_t Size, uint32_t NumEvents = 0,
+                      const ur_event_handle_t *EventWaitList = nullptr,
+                      ur_event_handle_t *OutEvent = nullptr);
 
 } // namespace ur_sanitizer_layer

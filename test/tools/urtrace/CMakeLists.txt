@@ -19,7 +19,6 @@ function(add_trace_test name CLI_ARGS)
         -D MODE=stdout
         -D MATCH_FILE=${CMAKE_CURRENT_BINARY_DIR}/${name}.match
         -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-        DEPENDS ur_trace_cli hello_world
     )
     set_tests_properties(${TEST_NAME} PROPERTIES LABELS "urtrace")
 endfunction()

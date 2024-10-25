@@ -49,9 +49,9 @@ urCommandBufferFinalizeExp(ur_exp_command_buffer_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t, ur_kernel_handle_t, uint32_t,
     const size_t *, const size_t *, const size_t *, uint32_t,
-    const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_command_handle_t *) {
+    ur_kernel_handle_t *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
+    uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -59,8 +59,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     ur_exp_command_buffer_handle_t, void *, const void *, size_t, uint32_t,
-    const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -69,7 +70,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t, size_t,
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -79,7 +81,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_mem_handle_t,
     ur_rect_offset_t, ur_rect_offset_t, ur_rect_region_t, size_t, size_t,
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -89,7 +92,8 @@ UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, size_t, size_t,
     const void *, uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -98,8 +102,9 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
 UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, size_t, size_t, void *,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -109,8 +114,9 @@ UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_rect_offset_t,
     ur_rect_offset_t, ur_rect_region_t, size_t, size_t, size_t, size_t, void *,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -120,8 +126,9 @@ UR_APIEXPORT
 ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, ur_rect_offset_t,
     ur_rect_offset_t, ur_rect_region_t, size_t, size_t, size_t, size_t, void *,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   detail::ur::die("Experimental Command-buffer feature is not "
                   "implemented for the NativeCPU adapter.");
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -138,29 +145,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferEnqueueExp(
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     ur_exp_command_buffer_handle_t, ur_mem_handle_t, const void *, size_t,
     size_t, size_t, uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     ur_exp_command_buffer_handle_t, void *, const void *, size_t, size_t,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t, const void *, size_t,
     ur_usm_migration_flags_t, uint32_t,
-    const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t, const void *, size_t, ur_usm_advice_flags_t,
-    uint32_t, const ur_exp_command_buffer_sync_point_t *,
-    ur_exp_command_buffer_sync_point_t *) {
+    uint32_t, const ur_exp_command_buffer_sync_point_t *, uint32_t,
+    const ur_event_handle_t *, ur_exp_command_buffer_sync_point_t *,
+    ur_event_handle_t *, ur_exp_command_buffer_command_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -177,6 +188,17 @@ urCommandBufferReleaseCommandExp(ur_exp_command_buffer_command_handle_t) {
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t,
     const ur_exp_command_buffer_update_kernel_launch_desc_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t, ur_event_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferUpdateWaitEventsExp(ur_exp_command_buffer_command_handle_t,
+                                   uint32_t, const ur_event_handle_t *) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 

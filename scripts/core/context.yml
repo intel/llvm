@@ -95,7 +95,7 @@ etors:
     - name: REFERENCE_COUNT
       desc: |
             [uint32_t] Reference count of the context object.
-            The reference count returned should be considered immediately stale. 
+            The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
     - name: USM_MEMCPY2D_SUPPORT
       desc: "[$x_bool_t] to indicate if the $xEnqueueUSMMemcpy2D entrypoint is supported."
@@ -107,11 +107,11 @@ etors:
       desc: "[$x_memory_scope_capability_flags_t] return a bit-field of atomic memory scope capabilities."
     - name: ATOMIC_FENCE_ORDER_CAPABILITIES
       desc: |
-            [$x_memory_order_capability_flags_t] return a bit-field of atomic memory fence order capabilities. 
+            [$x_memory_order_capability_flags_t] return a bit-field of atomic memory fence order capabilities.
             Zero is returned if the backend does not support context-level fences.
     - name: ATOMIC_FENCE_SCOPE_CAPABILITIES
       desc: |
-            [$x_memory_scope_capability_flags_t] return a bit-field of atomic memory fence scope capabilities. 
+            [$x_memory_scope_capability_flags_t] return a bit-field of atomic memory fence scope capabilities.
             Zero is returned if the backend does not support context-level fences.
 --- #--------------------------------------------------------------------------
 type: function
@@ -122,7 +122,7 @@ decl: static
 ordinal: "0"
 analogue:
     - "**clReleaseContext**"
-details:    
+details:
     - "The application may call this function from simultaneous threads for the same context."
     - "The implementation of this function should be thread-safe."
 params:
@@ -157,7 +157,7 @@ params:
       name: pPropValue
       desc: |
             [out][optional][typename(propName, propSize)] array of bytes holding the info.
-            if propSize is not equal to or greater than the real number of bytes needed to return 
+            if propSize is not equal to or greater than the real number of bytes needed to return
             the info then the $X_RESULT_ERROR_INVALID_SIZE error is returned and pPropValue is not used.
     - type: "size_t*"
       name: pPropSizeRet

@@ -11,6 +11,17 @@
 #include "program.hpp"
 #include "ur_util.hpp"
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <cstring>
+#include <memory>
+#include <new>
+#include <string>
+#include <tuple>
+#include <utility>
+#include <vector>
+
 bool getMaxRegistersJitOptionValue(const std::string &BuildOptions,
                                    unsigned int &Value) {
   using namespace std::string_view_literals;
@@ -54,9 +65,10 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
 
     auto [Prefix, Tag] = splitMetadataName(MetadataElementName);
 
-    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE) {
-      // If metadata is reqd_work_group_size, record it for the corresponding
-      // kernel name.
+    if (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE ||
+        Tag == __SYCL_UR_PROGRAM_METADATA_TAG_MAX_WORK_GROUP_SIZE) {
+      // If metadata is reqd_work_group_size/max_work_group_size, record it for
+      // the corresponding kernel name.
       size_t MDElemsSize = MetadataElement.size - sizeof(std::uint64_t);
 
       // Expect between 1 and 3 32-bit integer values.
@@ -69,11 +81,13 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
           reinterpret_cast<const char *>(MetadataElement.value.pData) +
           sizeof(std::uint64_t);
       // Read values and pad with 1's for values not present.
-      std::uint32_t ReqdWorkGroupElements[] = {1, 1, 1};
-      std::memcpy(ReqdWorkGroupElements, ValuePtr, MDElemsSize);
-      KernelReqdWorkGroupSizeMD[Prefix] =
-          std::make_tuple(ReqdWorkGroupElements[0], ReqdWorkGroupElements[1],
-                          ReqdWorkGroupElements[2]);
+      std::array<uint32_t, 3> WorkGroupElements = {1, 1, 1};
+      std::memcpy(WorkGroupElements.data(), ValuePtr, MDElemsSize);
+      (Tag == __SYCL_UR_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE
+           ? KernelReqdWorkGroupSizeMD
+           : KernelMaxWorkGroupSizeMD)[Prefix] =
+          std::make_tuple(WorkGroupElements[0], WorkGroupElements[1],
+                          WorkGroupElements[2]);
     } else if (Tag == __SYCL_UR_PROGRAM_METADATA_GLOBAL_ID_MAPPING) {
       const char *MetadataValPtr =
           reinterpret_cast<const char *>(MetadataElement.value.pData) +
@@ -81,6 +95,9 @@ ur_program_handle_t_::setMetadata(const ur_program_metadata_t *Metadata,
       const char *MetadataValPtrEnd =
           MetadataValPtr + MetadataElement.size - sizeof(std::uint64_t);
       GlobalIDMD[Prefix] = std::string{MetadataValPtr, MetadataValPtrEnd};
+    } else if (Tag ==
+               __SYCL_UR_PROGRAM_METADATA_TAG_MAX_LINEAR_WORK_GROUP_SIZE) {
+      KernelMaxLinearWorkGroupSizeMD[Prefix] = MetadataElement.value.data64;
     }
   }
   return UR_RESULT_SUCCESS;
@@ -399,8 +416,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return ReturnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
     return ReturnValue(&hProgram->Device, 1);
-  case UR_PROGRAM_INFO_SOURCE:
-    return ReturnValue(hProgram->Binary);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return ReturnValue(&hProgram->BinarySizeInBytes, 1);
   case UR_PROGRAM_INFO_BINARIES:
@@ -410,6 +425,7 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     UR_ASSERT(getKernelNames(hProgram), UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_PROGRAM_INFO_NUM_KERNELS:
+  case UR_PROGRAM_INFO_IL:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
@@ -477,12 +493,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramGetNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
+  if (numDevices > 1)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 
-  UR_CHECK_ERROR(
-      createProgram(hContext, hDevice, size, pBinary, pProperties, phProgram));
+  UR_CHECK_ERROR(createProgram(hContext, phDevices[0], pLengths[0],
+                               ppBinaries[0], pProperties, phProgram));
   (*phProgram)->BinaryType = UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT;
 
   return UR_RESULT_SUCCESS;

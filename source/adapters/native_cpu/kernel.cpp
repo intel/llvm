@@ -31,13 +31,24 @@ urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
   ur_kernel_handle_t_ *kernel;
 
   // Set reqd_work_group_size for kernel if needed
+  std::optional<native_cpu::WGSize_t> ReqdWG;
   const auto &ReqdMap = hProgram->KernelReqdWorkGroupSizeMD;
-  auto ReqdIt = ReqdMap.find(pKernelName);
-  if (ReqdIt != ReqdMap.end()) {
-    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdIt->second);
-  } else {
-    kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f);
+  if (auto ReqdIt = ReqdMap.find(pKernelName); ReqdIt != ReqdMap.end()) {
+    ReqdWG = ReqdIt->second;
   }
+
+  std::optional<native_cpu::WGSize_t> MaxWG;
+  const auto &MaxMap = hProgram->KernelMaxWorkGroupSizeMD;
+  if (auto MaxIt = MaxMap.find(pKernelName); MaxIt != MaxMap.end()) {
+    MaxWG = MaxIt->second;
+  }
+  std::optional<uint64_t> MaxLinearWG;
+  const auto &MaxLinMap = hProgram->KernelMaxLinearWorkGroupSizeMD;
+  if (auto MaxLIt = MaxLinMap.find(pKernelName); MaxLIt != MaxLinMap.end()) {
+    MaxLinearWG = MaxLIt->second;
+  }
+  kernel = new ur_kernel_handle_t_(hProgram, pKernelName, *f, ReqdWG, MaxWG,
+                                   MaxLinearWG);
 
   *phKernel = kernel;
 
@@ -48,18 +59,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgValue(
     ur_kernel_handle_t hKernel, uint32_t argIndex, size_t argSize,
     const ur_kernel_arg_value_properties_t *pProperties,
     const void *pArgValue) {
-  // Todo: error checking
-  // Todo: I think that the opencl spec (and therefore the pi spec mandates that
-  // arg is copied (this is why it is defined as const void*, I guess we should
-  // do it
-  // TODO: can args arrive out of order?
+  // TODO: error checking
   std::ignore = argIndex;
   std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(argSize, UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE);
 
-  hKernel->_args.emplace_back(const_cast<void *>(pArgValue));
+  hKernel->addArg(pArgValue, argIndex, argSize);
 
   return UR_RESULT_SUCCESS;
 }
@@ -70,7 +77,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetArgLocal(
   std::ignore = pProperties;
   // emplace a placeholder kernel arg, gets replaced with a pointer to the
   // memory pool before enqueueing the kernel.
-  hKernel->_args.emplace_back(nullptr);
+  hKernel->addPtrArg(nullptr, argIndex);
   hKernel->_localArgInfo.emplace_back(argIndex, argSize);
   return UR_RESULT_SUCCESS;
 }
@@ -148,6 +155,10 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     int bytes = 0;
     return returnValue(static_cast<uint64_t>(bytes));
   }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE:
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE:
+    // FIXME: could be added
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
 
   default:
     break;
@@ -206,14 +217,13 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgPointer(ur_kernel_handle_t hKernel, uint32_t argIndex,
                       const ur_kernel_arg_pointer_properties_t *pProperties,
                       const void *pArgValue) {
-  // TODO: out_of_order args?
   std::ignore = argIndex;
   std::ignore = pProperties;
 
   UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
   UR_ASSERT(pArgValue, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  hKernel->_args.push_back(const_cast<void *>(pArgValue));
+  hKernel->addPtrArg(const_cast<void *>(pArgValue), argIndex);
 
   return UR_RESULT_SUCCESS;
 }
@@ -247,7 +257,6 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *pProperties,
                      ur_mem_handle_t hArgValue) {
-  // TODO: out_of_order args?
   std::ignore = argIndex;
   std::ignore = pProperties;
 
@@ -256,11 +265,11 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   // Taken from ur/adapters/cuda/kernel.cpp
   // zero-sized buffers are expected to be null.
   if (hArgValue == nullptr) {
-    hKernel->_args.emplace_back(nullptr);
+    hKernel->addPtrArg(nullptr, argIndex);
     return UR_RESULT_SUCCESS;
   }
 
-  hKernel->_args.emplace_back(hArgValue->_mem);
+  hKernel->addPtrArg(hArgValue->_mem, argIndex);
   return UR_RESULT_SUCCESS;
 }
 
@@ -271,7 +280,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
   std::ignore = count;
   std::ignore = pSpecConstants;
 
-  DIE_NO_IMPLEMENTATION
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urKernelGetNativeHandle(

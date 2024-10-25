@@ -971,6 +971,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintExpExternalSemaphoreDesc(const struct
 UR_APIEXPORT ur_result_t UR_APICALL urPrintExpImageCopyRegion(const struct ur_exp_image_copy_region_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_device_command_buffer_update_capability_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintDeviceCommandBufferUpdateCapabilityFlags(enum ur_device_command_buffer_update_capability_flag_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_command_buffer_info_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -2449,6 +2457,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferReleaseCommandExpParams(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferUpdateKernelLaunchExpParams(const struct ur_command_buffer_update_kernel_launch_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_command_buffer_update_signal_event_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferUpdateSignalEventExpParams(const struct ur_command_buffer_update_signal_event_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_command_buffer_update_wait_events_exp_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintCommandBufferUpdateWaitEventsExpParams(const struct ur_command_buffer_update_wait_events_exp_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_command_buffer_get_info_exp_params_t struct

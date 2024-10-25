@@ -13,6 +13,7 @@
 #include "memory.hpp"
 #include "queue.hpp"
 #include "sampler.hpp"
+#include "ur_api.h"
 
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelCreate(ur_program_handle_t hProgram, const char *pKernelName,
@@ -123,6 +124,30 @@ urKernelGetGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     UR_CHECK_ERROR(cuFuncGetAttribute(
         &Bytes, CU_FUNC_ATTRIBUTE_LOCAL_SIZE_BYTES, hKernel->get()));
     return ReturnValue(uint64_t(Bytes));
+  }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE: {
+    size_t MaxGroupSize[3] = {0, 0, 0};
+    const auto &MaxWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxWorkGroupSizeMD;
+    const auto MaxWGSizeMD = MaxWGSizeMDMap.find(hKernel->getName());
+    if (MaxWGSizeMD != MaxWGSizeMDMap.end()) {
+      const auto MaxWGSize = MaxWGSizeMD->second;
+      MaxGroupSize[0] = std::get<0>(MaxWGSize);
+      MaxGroupSize[1] = std::get<1>(MaxWGSize);
+      MaxGroupSize[2] = std::get<2>(MaxWGSize);
+    }
+    return ReturnValue(MaxGroupSize, 3);
+  }
+  case UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE: {
+    size_t MaxLinearGroupSize = 0;
+    const auto &MaxLinearWGSizeMDMap =
+        hKernel->getProgram()->KernelMaxLinearWorkGroupSizeMD;
+    const auto MaxLinearWGSizeMD =
+        MaxLinearWGSizeMDMap.find(hKernel->getName());
+    if (MaxLinearWGSizeMD != MaxLinearWGSizeMDMap.end()) {
+      MaxLinearGroupSize = MaxLinearWGSizeMD->second;
+    }
+    return ReturnValue(MaxLinearGroupSize);
   }
   default:
     break;
@@ -343,7 +368,8 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
   try {
     auto Device = hKernel->getProgram()->getDevice();
     ur_mem_flags_t MemAccess =
-        Properties ? Properties->memoryAccess : UR_MEM_FLAG_READ_WRITE;
+        Properties ? Properties->memoryAccess
+                   : static_cast<ur_mem_flags_t>(UR_MEM_FLAG_READ_WRITE);
     hKernel->Args.addMemObjArg(argIndex, hArgValue, MemAccess);
     if (hArgValue->isImage()) {
       CUDA_ARRAY3D_DESCRIPTOR arrayDesc;
@@ -445,4 +471,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urKernelGetSuggestedLocalWorkSize(
   std::copy(ThreadsPerBlock, ThreadsPerBlock + workDim,
             pSuggestedLocalWorkSize);
   return Result;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urKernelSetSpecializationConstants(
+    ur_kernel_handle_t, uint32_t, const ur_specialization_constant_info_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }

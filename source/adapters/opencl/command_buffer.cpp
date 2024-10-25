@@ -71,10 +71,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferCreateExp(
   const bool IsUpdatable =
       pCommandBufferDesc ? pCommandBufferDesc->isUpdatable : false;
 
-  bool DeviceSupportsUpdate = false;
+  ur_device_command_buffer_update_capability_flags_t UpdateCapabilities;
   cl_device_id CLDevice = cl_adapter::cast<cl_device_id>(hDevice);
-  CL_RETURN_ON_FAILURE(deviceSupportsURCommandBufferKernelUpdate(
-      CLDevice, DeviceSupportsUpdate));
+  CL_RETURN_ON_FAILURE(
+      getDeviceCommandBufferUpdateCapabilities(CLDevice, UpdateCapabilities));
+  bool DeviceSupportsUpdate = UpdateCapabilities > 0;
 
   if (IsUpdatable && !DeviceSupportsUpdate) {
     return UR_RESULT_ERROR_INVALID_OPERATION;
@@ -140,10 +141,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, ur_kernel_handle_t hKernel,
     uint32_t workDim, const size_t *pGlobalWorkOffset,
     const size_t *pGlobalWorkSize, const size_t *pLocalWorkSize,
+    uint32_t /*numKernelAlternatives*/,
+    ur_kernel_handle_t * /*phKernelAlternatives*/,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
     ur_exp_command_buffer_command_handle_t *phCommandHandle) {
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+
+  // Command handles can only be obtained from updatable command-buffers
+  UR_ASSERT(!(phCommandHandle && !hCommandBuffer->IsUpdatable),
+            UR_RESULT_ERROR_INVALID_OPERATION);
 
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
   cl_ext::clCommandNDRangeKernelKHR_fn clCommandNDRangeKernelKHR = nullptr;
@@ -156,7 +167,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   cl_mutable_command_khr *OutCommandHandle =
       hCommandBuffer->IsUpdatable ? &CommandHandle : nullptr;
 
-  cl_ndrange_kernel_command_properties_khr UpdateProperties[] = {
+  cl_command_properties_khr UpdateProperties[] = {
       CL_MUTABLE_DISPATCH_UPDATABLE_FIELDS_KHR,
       CL_MUTABLE_DISPATCH_GLOBAL_OFFSET_KHR |
           CL_MUTABLE_DISPATCH_GLOBAL_SIZE_KHR |
@@ -164,7 +175,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
           CL_MUTABLE_DISPATCH_ARGUMENTS_KHR | CL_MUTABLE_DISPATCH_EXEC_INFO_KHR,
       0};
 
-  cl_ndrange_kernel_command_properties_khr *Properties =
+  cl_command_properties_khr *Properties =
       hCommandBuffer->IsUpdatable ? UpdateProperties : nullptr;
   CL_RETURN_ON_FAILURE(clCommandNDRangeKernelKHR(
       hCommandBuffer->CLCommandBuffer, nullptr, Properties,
@@ -175,9 +186,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendKernelLaunchExp(
   try {
     auto URCommandHandle =
         std::make_unique<ur_exp_command_buffer_command_handle_t_>(
-            hCommandBuffer, CommandHandle, workDim, pLocalWorkSize != nullptr);
-    *phCommandHandle = URCommandHandle.release();
-    hCommandBuffer->CommandHandles.push_back(*phCommandHandle);
+            hCommandBuffer, CommandHandle, hKernel, workDim,
+            pLocalWorkSize != nullptr);
+    ur_exp_command_buffer_command_handle_t Handle = URCommandHandle.release();
+    hCommandBuffer->CommandHandles.push_back(Handle);
+    if (phCommandHandle) {
+      *phCommandHandle = Handle;
+    }
   } catch (...) {
     return UR_RESULT_ERROR_OUT_OF_RESOURCES;
   }
@@ -192,7 +207,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMMemcpyExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -203,7 +222,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMFillExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -212,8 +235,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
     ur_mem_handle_t hDstMem, size_t srcOffset, size_t dstOffset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
+  (void)phEvent;
+  (void)phCommand;
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
   cl_ext::clCommandCopyBufferKHR_fn clCommandCopyBufferKHR = nullptr;
   UR_RETURN_ON_FAILURE(
@@ -222,7 +250,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyExp(
           cl_ext::CommandCopyBufferName, &clCommandCopyBufferKHR));
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       srcOffset, dstOffset, size, numSyncPointsInWaitList, pSyncPointWaitList,
       pSyncPoint, nullptr));
@@ -242,7 +270,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
 
   size_t OpenCLOriginRect[3]{srcOrigin.x, srcOrigin.y, srcOrigin.z};
   size_t OpenCLDstRect[3]{dstOrigin.x, dstOrigin.y, dstOrigin.z};
@@ -256,7 +288,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferCopyRectExp(
           cl_ext::CommandCopyBufferRectName, &clCommandCopyBufferRectKHR));
 
   CL_RETURN_ON_FAILURE(clCommandCopyBufferRectKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hSrcMem), cl_adapter::cast<cl_mem>(hDstMem),
       OpenCLOriginRect, OpenCLDstRect, OpenCLRegion, srcRowPitch, srcSlicePitch,
       dstRowPitch, dstSlicePitch, numSyncPointsInWaitList, pSyncPointWaitList,
@@ -273,10 +305,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
-
-  cl_adapter::die("Experimental Command-buffer feature is not "
-                  "implemented for OpenCL adapter.");
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -288,7 +321,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -306,7 +343,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferWriteRectExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -324,7 +365,11 @@ ur_result_t UR_APICALL urCommandBufferAppendMemBufferReadRectExp(
     [[maybe_unused]] uint32_t numSyncPointsInWaitList,
     [[maybe_unused]] const ur_exp_command_buffer_sync_point_t
         *pSyncPointWaitList,
-    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    [[maybe_unused]] ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
@@ -333,7 +378,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
     const void *pPattern, size_t patternSize, size_t offset, size_t size,
     uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    [[maybe_unused]] uint32_t numEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,
+    [[maybe_unused]] ur_event_handle_t *phEvent,
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t *phCommand) {
 
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
   cl_ext::clCommandFillBufferKHR_fn clCommandFillBufferKHR = nullptr;
@@ -343,7 +392,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendMemBufferFillExp(
           cl_ext::CommandFillBufferName, &clCommandFillBufferKHR));
 
   CL_RETURN_ON_FAILURE(clCommandFillBufferKHR(
-      hCommandBuffer->CLCommandBuffer, nullptr,
+      hCommandBuffer->CLCommandBuffer, nullptr, nullptr,
       cl_adapter::cast<cl_mem>(hBuffer), pPattern, patternSize, offset, size,
       numSyncPointsInWaitList, pSyncPointWaitList, pSyncPoint, nullptr));
 
@@ -354,14 +403,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMPrefetchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
     ur_usm_migration_flags_t flags, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   (void)hCommandBuffer;
   (void)mem;
   (void)size;
   (void)flags;
   (void)numSyncPointsInWaitList;
   (void)pSyncPointWaitList;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
   (void)pSyncPoint;
+  (void)phEvent;
+  (void)phCommand;
 
   // Not implemented
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -371,14 +426,20 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferAppendUSMAdviseExp(
     ur_exp_command_buffer_handle_t hCommandBuffer, const void *mem, size_t size,
     ur_usm_advice_flags_t advice, uint32_t numSyncPointsInWaitList,
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList,
-    ur_exp_command_buffer_sync_point_t *pSyncPoint) {
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_exp_command_buffer_sync_point_t *pSyncPoint, ur_event_handle_t *phEvent,
+    ur_exp_command_buffer_command_handle_t *phCommand) {
   (void)hCommandBuffer;
   (void)mem;
   (void)size;
   (void)advice;
   (void)numSyncPointsInWaitList;
   (void)pSyncPointWaitList;
+  (void)numEventsInWaitList;
+  (void)phEventWaitList;
   (void)pSyncPoint;
+  (void)phEvent;
+  (void)phCommand;
 
   // Not implemented
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
@@ -485,6 +546,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
     const ur_exp_command_buffer_update_kernel_launch_desc_t
         *pUpdateKernelLaunch) {
 
+  // Kernel handle updates are not yet supported.
+  if (pUpdateKernelLaunch->hNewKernel != hCommand->Kernel) {
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   ur_exp_command_buffer_handle_t hCommandBuffer = hCommand->hCommandBuffer;
   cl_context CLContext = cl_adapter::cast<cl_context>(hCommandBuffer->hContext);
 
@@ -497,27 +563,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   if (!hCommandBuffer->IsFinalized || !hCommandBuffer->IsUpdatable)
     return UR_RESULT_ERROR_INVALID_OPERATION;
 
-  if (cl_uint NewWorkDim = pUpdateKernelLaunch->newWorkDim) {
-    // Error if work dim changes
-    if (NewWorkDim != hCommand->WorkDim) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error If Local size and not global size
-    if ((pUpdateKernelLaunch->pNewLocalWorkSize != nullptr) &&
-        (pUpdateKernelLaunch->pNewGlobalWorkSize == nullptr)) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
-
-    // Error if local size non-nullptr and created with null
-    // or if local size nullptr and created with non-null
-    const bool IsNewLocalSizeNull =
-        pUpdateKernelLaunch->pNewLocalWorkSize == nullptr;
-    const bool IsOriginalLocalSizeNull = !hCommand->UserDefinedLocalSize;
-
-    if (IsNewLocalSizeNull ^ IsOriginalLocalSizeNull) {
-      return UR_RESULT_ERROR_INVALID_OPERATION;
-    }
+  if (pUpdateKernelLaunch->newWorkDim != hCommand->WorkDim &&
+      (!pUpdateKernelLaunch->pNewGlobalWorkOffset ||
+       !pUpdateKernelLaunch->pNewGlobalWorkSize)) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
   }
 
   // Find the CL USM pointer arguments to the kernel to update
@@ -556,8 +605,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   cl_mutable_command_khr command =
       cl_adapter::cast<cl_mutable_command_khr>(hCommand->CLMutableCommand);
   cl_mutable_dispatch_config_khr dispatch_config = {
-      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR,
-      nullptr,
       command,
       static_cast<cl_uint>(CLArgs.size()),    // num_args
       static_cast<cl_uint>(CLUSMArgs.size()), // num_svm_args
@@ -570,12 +617,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
       CLGlobalWorkSize.data(),                // global_work_size
       CLLocalWorkSize.data(),                 // local_work_size
   };
-  cl_mutable_base_config_khr config = {
-      CL_STRUCTURE_TYPE_MUTABLE_BASE_CONFIG_KHR, nullptr, 1, &dispatch_config};
-  CL_RETURN_ON_FAILURE(
-      clUpdateMutableCommandsKHR(hCommandBuffer->CLCommandBuffer, &config));
+  cl_uint num_configs = 1;
+  cl_command_buffer_update_type_khr config_types[1] = {
+      CL_STRUCTURE_TYPE_MUTABLE_DISPATCH_CONFIG_KHR};
+  const void *configs[1] = {&dispatch_config};
+  CL_RETURN_ON_FAILURE(clUpdateMutableCommandsKHR(
+      hCommandBuffer->CLCommandBuffer, num_configs, config_types, configs));
 
   return UR_RESULT_SUCCESS;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateSignalEventExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t Command,
+    [[maybe_unused]] ur_event_handle_t *Event) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateWaitEventsExp(
+    [[maybe_unused]] ur_exp_command_buffer_command_handle_t Command,
+    [[maybe_unused]] uint32_t NumEventsInWaitList,
+    [[maybe_unused]] const ur_event_handle_t *EventWaitList) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
@@ -588,6 +650,16 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferGetInfoExp(
   switch (propName) {
   case UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT:
     return ReturnValue(hCommandBuffer->getExternalReferenceCount());
+  case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
+    ur_exp_command_buffer_desc_t Descriptor{};
+    Descriptor.stype = UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC;
+    Descriptor.pNext = nullptr;
+    Descriptor.isUpdatable = hCommandBuffer->IsUpdatable;
+    Descriptor.isInOrder = false;
+    Descriptor.enableProfiling = false;
+
+    return ReturnValue(Descriptor);
+  }
   default:
     assert(!"Command-buffer info request not implemented");
   }

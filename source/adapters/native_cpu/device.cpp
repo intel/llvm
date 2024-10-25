@@ -10,6 +10,7 @@
 
 #include <ur_api.h>
 
+#include "common.hpp"
 #include "platform.hpp"
 
 #if defined(_MSC_VER) || defined(__MINGW32__) || defined(__MINGW64__)
@@ -180,6 +181,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_MAX_WORK_GROUP_SIZE:
     // TODO: provide a mechanism to estimate/configure this.
     return ReturnValue(size_t{2048});
+  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
+    // Set the max sub groups to be the same as the max work group size.
+    return ReturnValue(uint32_t{2048});
   case UR_DEVICE_INFO_MEM_BASE_ADDR_ALIGN:
     // Imported from level_zero
     return ReturnValue(uint32_t{8});
@@ -244,7 +248,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint32_t{4});
   case UR_DEVICE_INFO_NATIVE_VECTOR_WIDTH_HALF:
     return ReturnValue(uint32_t{16});
-  // Imported from level_zero
   case UR_DEVICE_INFO_USM_HOST_SUPPORT:
   case UR_DEVICE_INFO_USM_DEVICE_SUPPORT:
   case UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT:
@@ -357,7 +360,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_GPU_HW_THREADS_PER_EU:
   case UR_DEVICE_INFO_UUID:
   case UR_DEVICE_INFO_DEVICE_ID:
-  case UR_DEVICE_INFO_MAX_NUM_SUB_GROUPS:
   case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS:
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_MAX_WORK_GROUPS_3D:
@@ -400,8 +402,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
 
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP:
+  case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP:
+    return ReturnValue(
+        static_cast<ur_device_command_buffer_update_capability_flags_t>(0));
 
   case UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP:
     return ReturnValue(false);
@@ -464,19 +469,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(
     ur_device_handle_t hDevice, uint64_t *pDeviceTimestamp,
     uint64_t *pHostTimestamp) {
-  std::ignore = hDevice; // todo
+  std::ignore = hDevice;
   if (pHostTimestamp) {
-    using namespace std::chrono;
-    *pHostTimestamp =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+    *pHostTimestamp = get_timestamp();
   }
   if (pDeviceTimestamp) {
-    // todo: calculate elapsed time properly
-    using namespace std::chrono;
-    *pDeviceTimestamp =
-        duration_cast<nanoseconds>(steady_clock::now().time_since_epoch())
-            .count();
+    *pDeviceTimestamp = get_timestamp();
   }
   return UR_RESULT_SUCCESS;
 }

@@ -15,6 +15,7 @@ if(UR_BUILD_ADAPTER_L0)
             SOURCES
                 urProgramLink.cpp
                 urKernelCreateWithNativeHandle.cpp
+                urEventCreateWithNativeHandle.cpp
             ENVIRONMENT
                 "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero>\""
         )
@@ -44,6 +45,7 @@ if(UR_BUILD_ADAPTER_L0)
         # Make L0 use CallMap from a seprate shared lib so that we can access the map
         # from the tests. This only seems to work on linux
         add_library(zeCallMap SHARED zeCallMap.cpp)
+        install_ur_library(zeCallMap)
         target_compile_definitions(ur_adapter_level_zero PRIVATE UR_L0_CALL_COUNT_IN_TESTS)
         # TODO: stop exporting internals like this for tests...
         target_link_libraries(ur_adapter_level_zero PRIVATE zeCallMap)

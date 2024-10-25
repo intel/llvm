@@ -150,7 +150,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_RELEASE_EXP = 122,                         ///< Enumerator for ::urCommandBufferReleaseExp
     UR_FUNCTION_COMMAND_BUFFER_FINALIZE_EXP = 123,                        ///< Enumerator for ::urCommandBufferFinalizeExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_KERNEL_LAUNCH_EXP = 125,            ///< Enumerator for ::urCommandBufferAppendKernelLaunchExp
-    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 128,                         ///< Enumerator for ::urCommandBufferEnqueueExp
     UR_FUNCTION_USM_PITCHED_ALLOC_EXP = 132,                              ///< Enumerator for ::urUSMPitchedAllocExp
     UR_FUNCTION_BINDLESS_IMAGES_UNSAMPLED_IMAGE_HANDLE_DESTROY_EXP = 133, ///< Enumerator for ::urBindlessImagesUnsampledImageHandleDestroyExp
     UR_FUNCTION_BINDLESS_IMAGES_SAMPLED_IMAGE_HANDLE_DESTROY_EXP = 134,   ///< Enumerator for ::urBindlessImagesSampledImageHandleDestroyExp
@@ -199,17 +198,6 @@ typedef enum ur_function_t {
     UR_FUNCTION_LOADER_CONFIG_SET_CODE_LOCATION_CALLBACK = 200,           ///< Enumerator for ::urLoaderConfigSetCodeLocationCallback
     UR_FUNCTION_LOADER_INIT = 201,                                        ///< Enumerator for ::urLoaderInit
     UR_FUNCTION_LOADER_TEAR_DOWN = 202,                                   ///< Enumerator for ::urLoaderTearDown
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 203,               ///< Enumerator for ::urCommandBufferAppendUSMMemcpyExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 204,                 ///< Enumerator for ::urCommandBufferAppendUSMFillExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 205,          ///< Enumerator for ::urCommandBufferAppendMemBufferCopyExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 206,         ///< Enumerator for ::urCommandBufferAppendMemBufferWriteExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 207,          ///< Enumerator for ::urCommandBufferAppendMemBufferReadExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 208,     ///< Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 209,    ///< Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 210,     ///< Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 211,          ///< Enumerator for ::urCommandBufferAppendMemBufferFillExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 212,             ///< Enumerator for ::urCommandBufferAppendUSMPrefetchExp
-    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 213,               ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
     UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP = 214,              ///< Enumerator for ::urEnqueueCooperativeKernelLaunchExp
     UR_FUNCTION_KERNEL_SUGGEST_MAX_COOPERATIVE_GROUP_COUNT_EXP = 215,     ///< Enumerator for ::urKernelSuggestMaxCooperativeGroupCountExp
     UR_FUNCTION_PROGRAM_GET_GLOBAL_VARIABLE_POINTER = 216,                ///< Enumerator for ::urProgramGetGlobalVariablePointer
@@ -227,7 +215,21 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,        ///< Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
-    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 231,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 231,               ///< Enumerator for ::urCommandBufferAppendUSMMemcpyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 232,                 ///< Enumerator for ::urCommandBufferAppendUSMFillExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 233,          ///< Enumerator for ::urCommandBufferAppendMemBufferCopyExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 234,         ///< Enumerator for ::urCommandBufferAppendMemBufferWriteExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_EXP = 235,          ///< Enumerator for ::urCommandBufferAppendMemBufferReadExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_RECT_EXP = 236,     ///< Enumerator for ::urCommandBufferAppendMemBufferCopyRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_RECT_EXP = 237,    ///< Enumerator for ::urCommandBufferAppendMemBufferWriteRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_READ_RECT_EXP = 238,     ///< Enumerator for ::urCommandBufferAppendMemBufferReadRectExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_FILL_EXP = 239,          ///< Enumerator for ::urCommandBufferAppendMemBufferFillExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_PREFETCH_EXP = 240,             ///< Enumerator for ::urCommandBufferAppendUSMPrefetchExp
+    UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_ADVISE_EXP = 241,               ///< Enumerator for ::urCommandBufferAppendUSMAdviseExp
+    UR_FUNCTION_COMMAND_BUFFER_ENQUEUE_EXP = 242,                         ///< Enumerator for ::urCommandBufferEnqueueExp
+    UR_FUNCTION_COMMAND_BUFFER_UPDATE_SIGNAL_EVENT_EXP = 243,             ///< Enumerator for ::urCommandBufferUpdateSignalEventExp
+    UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP = 244,              ///< Enumerator for ::urCommandBufferUpdateWaitEventsExp
+    UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -506,10 +508,11 @@ typedef enum ur_result_t {
     UR_RESULT_ERROR_INVALID_USM_SIZE = 64,                                    ///< Invalid USM size
     UR_RESULT_ERROR_OBJECT_ALLOCATION_FAILURE = 65,                           ///< Objection allocation failure
     UR_RESULT_ERROR_ADAPTER_SPECIFIC = 66,                                    ///< An adapter specific warning/error has been reported and can be
-                                                                              ///< retrieved via the urPlatformGetLastError entry point.
+                                                                              ///< retrieved via the urAdapterGetLastError entry point.
     UR_RESULT_ERROR_LAYER_NOT_PRESENT = 67,                                   ///< A requested layer was not found by the loader.
     UR_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS = 68,                           ///< An event in the provided wait list has ::UR_EVENT_STATUS_ERROR.
     UR_RESULT_ERROR_DEVICE_NOT_AVAILABLE = 69,                                ///< Device in question has `::UR_DEVICE_INFO_AVAILABLE == false`
+    UR_RESULT_ERROR_INVALID_SPEC_ID = 70,                                     ///< A specialization constant identifier is not valid.
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP = 0x1000,                      ///< Invalid Command-Buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP = 0x1001,           ///< Sync point is not valid for the command-buffer
     UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP = 0x1002, ///< Sync point wait list is invalid
@@ -707,7 +710,7 @@ UR_APIEXPORT ur_result_t UR_APICALL
 urLoaderConfigEnableLayer(
     ur_loader_config_handle_t hLoaderConfig, ///< [in] Handle to config object the layer will be enabled for.
     const char *pLayerName                   ///< [in] Null terminated string containing the name of the layer to
-                                             ///< enable.
+                                             ///< enable. Empty if none are enabled.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -849,6 +852,7 @@ urLoaderTearDown(
 ///     - ::UR_RESULT_ERROR_DEVICE_LOST
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         + `NumEntries == 0 && phAdapters != NULL`
 UR_APIEXPORT ur_result_t UR_APICALL
 urAdapterGet(
     uint32_t NumEntries,             ///< [in] the number of adapters to be added to phAdapters.
@@ -857,7 +861,7 @@ urAdapterGet(
                                      ///< will be returned.
     ur_adapter_handle_t *phAdapters, ///< [out][optional][range(0, NumEntries)] array of handle of adapters.
                                      ///< If NumEntries is less than the number of adapters available, then
-                                     ///< ::urAdapterGet shall only retrieve that number of platforms.
+                                     ///< ::urAdapterGet shall only retrieve that number of adapters.
     uint32_t *pNumAdapters           ///< [out][optional] returns the total number of adapters available.
 );
 
@@ -1297,10 +1301,8 @@ typedef enum ur_platform_backend_t {
 #endif
 ///////////////////////////////////////////////////////////////////////////////
 #ifndef UR_DEVICE_BINARY_TARGET_UNKNOWN
-/// @brief Target identification strings for
-///        ::ur_device_binary_t.pDeviceTargetSpec
-///        A device type represented by a particular target triple requires
-///        specific
+/// @brief Target identification strings for ::ur_device_binary_t.pDeviceTargetSpec
+///        A device type represented by a particular target triple requires specific
 ///        binary images. We need to map the image type onto the device target triple
 #define UR_DEVICE_BINARY_TARGET_UNKNOWN "<unknown>"
 #endif // UR_DEVICE_BINARY_TARGET_UNKNOWN
@@ -1637,8 +1639,10 @@ typedef enum ur_device_info_t {
                                                                      ///< `EnqueueDeviceGlobalVariableRead` entry points.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
-    UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP = 0x1001,       ///< [::ur_bool_t] Returns true if the device supports updating the kernel
-                                                                     ///< commands in a command-buffer.
+    UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP = 0x1001,  ///< [::ur_device_command_buffer_update_capability_flags_t] Command-buffer
+                                                                     ///< update capabilities of the device
+    UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP = 0x1002,        ///< [::ur_bool_t] Returns true if the device supports using event objects
+                                                                     ///< for command synchronization outside of a command-buffer.
     UR_DEVICE_INFO_CLUSTER_LAUNCH_EXP = 0x1111,                      ///< [::ur_bool_t] return true if enqueue Cluster Launch is supported
     UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP = 0x2000,             ///< [::ur_bool_t] returns true if the device supports the creation of
                                                                      ///< bindless images
@@ -1823,8 +1827,7 @@ typedef enum ur_device_affinity_domain_flag_t {
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_NUMA,
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L4_CACHE,
                                                                    ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L3_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE,
-                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
+                                                                   ///< ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L2_CACHE, ::UR_DEVICE_AFFINITY_DOMAIN_FLAG_L1_CACHE,
                                                                    ///< and partition the device into sub devices comprised of compute units
                                                                    ///< that share memory subsystems at this level.
     /// @cond
@@ -2609,8 +2612,7 @@ typedef struct ur_image_desc_t {
 ///
 /// @details
 ///     - The primary ::ur_image_format_t that must be supported by all the
-///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA,
-///       UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
+///       adapters are {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_UNORM_INT16},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT8},
 ///       {UR_IMAGE_CHANNEL_ORDER_RGBA, UR_IMAGE_CHANNEL_TYPE_SNORM_INT16},
@@ -4200,17 +4202,19 @@ urProgramCreateWithIL(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Create a program object from device native binary.
+/// @brief Create a program object from native binaries for the specified
+///        devices.
 ///
 /// @details
 ///     - The application may call this function from simultaneous threads.
 ///     - Following a successful call to this entry point, `phProgram` will
-///       contain a binary of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
-///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for `hDevice`.
-///     - The device specified by `hDevice` must be device associated with
+///       contain binaries of type ::UR_PROGRAM_BINARY_TYPE_COMPILED_OBJECT or
+///       ::UR_PROGRAM_BINARY_TYPE_LIBRARY for the specified devices in
+///       `phDevices`.
+///     - The devices specified by `phDevices` must be associated with the
 ///       context.
 ///     - The adapter may (but is not required to) perform validation of the
-///       provided module during this call.
+///       provided modules during this call.
 ///
 /// @remarks
 ///   _Analogues_
@@ -4223,21 +4227,27 @@ urProgramCreateWithIL(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hContext`
-///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
-///         + `NULL == pBinary`
+///         + `NULL == phDevices`
+///         + `NULL == pLengths`
+///         + `NULL == ppBinaries`
 ///         + `NULL == phProgram`
 ///         + `NULL != pProperties && pProperties->count > 0 && NULL == pProperties->pMetadatas`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NULL != pProperties && NULL != pProperties->pMetadatas && pProperties->count == 0`
+///         + `numDevices == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_NATIVE_BINARY
-///         + If `pBinary` isn't a valid binary for `hDevice.`
+///         + If any binary in `ppBinaries` isn't a valid binary for the corresponding device in `phDevices.`
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramCreateWithBinary(
     ur_context_handle_t hContext,               ///< [in] handle of the context instance
-    ur_device_handle_t hDevice,                 ///< [in] handle to device associated with binary.
-    size_t size,                                ///< [in] size in bytes.
-    const uint8_t *pBinary,                     ///< [in] pointer to binary.
+    uint32_t numDevices,                        ///< [in] number of devices
+    ur_device_handle_t *phDevices,              ///< [in][range(0, numDevices)] a pointer to a list of device handles. The
+                                                ///< binaries are loaded for devices specified in this list.
+    size_t *pLengths,                           ///< [in][range(0, numDevices)] array of sizes of program binaries
+                                                ///< specified by `pBinaries` (in bytes).
+    const uint8_t **ppBinaries,                 ///< [in][range(0, numDevices)] pointer to program binaries to be loaded
+                                                ///< for devices specified by `phDevices`.
     const ur_program_properties_t *pProperties, ///< [in][optional] pointer to program creation properties.
     ur_program_handle_t *phProgram              ///< [out] pointer to handle of Program object created.
 );
@@ -4490,7 +4500,9 @@ typedef enum ur_program_info_t {
     UR_PROGRAM_INFO_DEVICES = 3,         ///< [::ur_device_handle_t[]] Return list of devices associated with a program.
                                          ///< This is either the list of devices associated with the context or a
                                          ///< subset of those devices when the program is created using ::urProgramCreateWithBinary.
-    UR_PROGRAM_INFO_SOURCE = 4,          ///< [char[]] Return program source associated with Program.
+    UR_PROGRAM_INFO_IL = 4,              ///< [char[]] Return program IL if the program was created with
+                                         ///< ::urProgramCreateWithIL, otherwise return size will be set to 0 and
+                                         ///< nothing will be returned.
     UR_PROGRAM_INFO_BINARY_SIZES = 5,    ///< [size_t[]] Return program binary sizes for each device.
     UR_PROGRAM_INFO_BINARIES = 6,        ///< [unsigned char[]] Return program binaries for all devices for this
                                          ///< Program.
@@ -4648,6 +4660,11 @@ typedef struct ur_specialization_constant_info_t {
 ///         + `NULL == pSpecConstants`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `count == 0`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + A pSpecConstant entry contains a size that does not match that of the specialization constant in the module.
+///         + A pSpecConstant entry contains a nullptr pValue.
+///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
+///         + Any id specified in a pSpecConstant entry is not a valid specialization constant identifier.
 UR_APIEXPORT ur_result_t UR_APICALL
 urProgramSetSpecializationConstants(
     ur_program_handle_t hProgram,                           ///< [in] handle of the Program object
@@ -4862,6 +4879,10 @@ typedef enum ur_kernel_group_info_t {
     UR_KERNEL_GROUP_INFO_PREFERRED_WORK_GROUP_SIZE_MULTIPLE = 4, ///< [size_t] Return preferred multiple of Work Group size for launch
     UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE = 5,                   ///< [size_t] Return minimum amount of private memory in bytes used by each
                                                                  ///< work item in the Kernel
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_WORK_GROUP_SIZE = 6,        ///< [size_t[3]] Return the maximum Work Group size guaranteed by the
+                                                                 ///< source code, or (0, 0, 0) if unspecified
+    UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE = 7, ///< [size_t] Return the maximum linearized Work Group size (X * Y * Z)
+                                                                 ///< guaranteed by the source code, or 0 if unspecified
     /// @cond
     UR_KERNEL_GROUP_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -4965,7 +4986,7 @@ urKernelGetInfo(
 ///         + `NULL == hKernel`
 ///         + `NULL == hDevice`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_KERNEL_GROUP_INFO_PRIVATE_MEM_SIZE < propName`
+///         + `::UR_KERNEL_GROUP_INFO_COMPILE_MAX_LINEAR_WORK_GROUP_SIZE < propName`
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelGetGroupInfo(
     ur_kernel_handle_t hKernel,      ///< [in] handle of the Kernel object
@@ -5235,6 +5256,11 @@ urKernelSetArgMemObj(
 ///         + `count == 0`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 ///         + If ::UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS query is false
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + A pSpecConstant entry contains a size that does not match that of the specialization constant in the module.
+///         + A pSpecConstant entry contains a nullptr pValue.
+///     - ::UR_RESULT_ERROR_INVALID_SPEC_ID
+///         + Any id specified in a pSpecConstant entry is not a valid specialization constant identifier.
 UR_APIEXPORT ur_result_t UR_APICALL
 urKernelSetSpecializationConstants(
     ur_kernel_handle_t hKernel,                             ///< [in] handle of the kernel object
@@ -6134,15 +6160,14 @@ urEnqueueKernelLaunch(
     const size_t *pLocalWorkSize,             ///< [in][optional] pointer to an array of workDim unsigned values that
                                               ///< specify the number of local work-items forming a work-group that will
                                               ///< execute the kernel function.
-                                              ///< If nullptr, the runtime implementation will choose the work-group
-                                              ///< size.
+                                              ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6186,7 +6211,8 @@ urEnqueueEventsWait(
                                               ///< previously enqueued commands
                                               ///< must be complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6232,7 +6258,8 @@ urEnqueueEventsWaitWithBarrier(
                                               ///< previously enqueued commands
                                               ///< must be complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6283,7 +6310,8 @@ urEnqueueMemBufferRead(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6334,7 +6362,8 @@ urEnqueueMemBufferWrite(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6402,7 +6431,8 @@ urEnqueueMemBufferReadRect(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6471,7 +6501,8 @@ urEnqueueMemBufferWriteRect(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6518,7 +6549,8 @@ urEnqueueMemBufferCopy(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6577,7 +6609,8 @@ urEnqueueMemBufferCopyRect(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6630,7 +6663,8 @@ urEnqueueMemBufferFill(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6685,7 +6719,8 @@ urEnqueueMemImageRead(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6740,7 +6775,8 @@ urEnqueueMemImageWrite(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6789,7 +6825,8 @@ urEnqueueMemImageCopy(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6874,7 +6911,8 @@ urEnqueueMemBufferMap(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent,               ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
     void **ppRetMap                           ///< [out] return mapped pointer.  TODO: move it before
                                               ///< numEventsInWaitList?
 );
@@ -6919,7 +6957,8 @@ urEnqueueMemUnmap(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -6965,7 +7004,8 @@ urEnqueueUSMFill(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7008,7 +7048,8 @@ urEnqueueUSMMemcpy(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7056,7 +7097,8 @@ urEnqueueUSMPrefetch(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that this
                                               ///< command does not wait on any event to complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7143,10 +7185,10 @@ urEnqueueUSMFill2D(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7194,10 +7236,10 @@ urEnqueueUSMMemcpy2D(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7233,10 +7275,10 @@ urEnqueueDeviceGlobalVariableWrite(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list.
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7272,10 +7314,10 @@ urEnqueueDeviceGlobalVariableRead(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list.
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7313,9 +7355,10 @@ urEnqueueReadHostPipe(
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the host pipe read.
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
-    ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this read
-                                              ///< command
+    ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this read command
                                               ///< and can be used to query or queue a wait for this command to complete.
+                                              ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+                                              ///< an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -7356,6 +7399,8 @@ urEnqueueWriteHostPipe(
                                               ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] returns an event object that identifies this write command
                                               ///< and can be used to query or queue a wait for this command to complete.
+                                              ///< If phEventWaitList and phEvent are not NULL, phEvent must not refer to
+                                              ///< an element of the phEventWaitList array.
 );
 
 #if !defined(__GNUC__)
@@ -7821,7 +7866,8 @@ urBindlessImagesImageCopyExp(
                                               ///< previously enqueued commands
                                               ///< must be complete.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< command instance.
+                                              ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                              ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8116,7 +8162,8 @@ urBindlessImagesWaitExternalSemaphoreExp(
                                                    ///< previously enqueued commands
                                                    ///< must be complete.
     ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
-                                                   ///< command instance.
+                                                   ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                                   ///< must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8153,7 +8200,8 @@ urBindlessImagesSignalExternalSemaphoreExp(
                                                    ///< previously enqueued commands
                                                    ///< must be complete.
     ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
-                                                   ///< command instance.
+                                                   ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+                                                   ///< must not refer to an element of the phEventWaitList array.
 );
 
 #if !defined(__GNUC__)
@@ -8164,12 +8212,39 @@ urBindlessImagesSignalExternalSemaphoreExp(
 #pragma region command_buffer_(experimental)
 #endif
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Device kernel execution capability
+typedef uint32_t ur_device_command_buffer_update_capability_flags_t;
+typedef enum ur_device_command_buffer_update_capability_flag_t {
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS = UR_BIT(0),   ///< Device supports updating the kernel arguments in command-buffer
+                                                                                    ///< commands.
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE = UR_BIT(1),    ///< Device supports updating the local work-group size in command-buffer
+                                                                                    ///< commands.
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE = UR_BIT(2),   ///< Device supports updating the global work-group size in command-buffer
+                                                                                    ///< commands.
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET = UR_BIT(3), ///< Device supports updating the global work offset in command-buffer
+                                                                                    ///< commands.
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE = UR_BIT(4),      ///< Device supports updating the kernel handle in command-buffer commands.
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS = UR_BIT(5),             ///< Device supports updating the event parameters in command-buffer
+                                                                                    ///< commands.
+    /// @cond
+    UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_FORCE_UINT32 = 0x7fffffff
+    /// @endcond
+
+} ur_device_command_buffer_update_capability_flag_t;
+/// @brief Bit Mask for validating ur_device_command_buffer_update_capability_flags_t
+#define UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAGS_MASK 0xffffffc0
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Command-buffer query information type
 typedef enum ur_exp_command_buffer_info_t {
     UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT = 0, ///< [uint32_t] Reference count of the command-buffer object.
                                                     ///< The reference count returned should be considered immediately stale.
                                                     ///< It is unsuitable for general use in applications. This feature is
                                                     ///< provided for identifying memory leaks.
+    UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR = 1,      ///< [::ur_exp_command_buffer_desc_t] Returns a ::ur_exp_command_buffer_desc_t
+                                                    ///< with the properties of the command-buffer. Returned values may differ
+                                                    ///< from those passed on construction if the property was ignored by the
+                                                    ///< adapter.
     /// @cond
     UR_EXP_COMMAND_BUFFER_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -8216,7 +8291,7 @@ typedef struct ur_exp_command_buffer_update_memobj_arg_desc_t {
                                                            ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_MEMOBJ_ARG_DESC
     const void *pNext;                                     ///< [in][optional] pointer to extension-specific structure
     uint32_t argIndex;                                     ///< [in] Argument index.
-    const ur_kernel_arg_mem_obj_properties_t *pProperties; ///< [in][optinal] Pointer to memory object properties.
+    const ur_kernel_arg_mem_obj_properties_t *pProperties; ///< [in][optional] Pointer to memory object properties.
     ur_mem_handle_t hNewMemObjArg;                         ///< [in][optional] Handle of memory object to set at argument index.
 
 } ur_exp_command_buffer_update_memobj_arg_desc_t;
@@ -8228,7 +8303,7 @@ typedef struct ur_exp_command_buffer_update_pointer_arg_desc_t {
                                                            ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC
     const void *pNext;                                     ///< [in][optional] pointer to extension-specific structure
     uint32_t argIndex;                                     ///< [in] Argument index.
-    const ur_kernel_arg_pointer_properties_t *pProperties; ///< [in][optinal] Pointer to USM pointer properties.
+    const ur_kernel_arg_pointer_properties_t *pProperties; ///< [in][optional] Pointer to USM pointer properties.
     const void *pNewPointerArg;                            ///< [in][optional] USM pointer to memory location holding the argument
                                                            ///< value to set at argument index.
 
@@ -8242,7 +8317,7 @@ typedef struct ur_exp_command_buffer_update_value_arg_desc_t {
     const void *pNext;                                   ///< [in][optional] pointer to extension-specific structure
     uint32_t argIndex;                                   ///< [in] Argument index.
     uint32_t argSize;                                    ///< [in] Argument size.
-    const ur_kernel_arg_value_properties_t *pProperties; ///< [in][optinal] Pointer to value properties.
+    const ur_kernel_arg_value_properties_t *pProperties; ///< [in][optional] Pointer to value properties.
     const void *pNewValueArg;                            ///< [in][optional] Argument value representing matching kernel arg type to
                                                          ///< set at argument index.
 
@@ -8254,6 +8329,11 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
     ur_structure_type_t stype;                                                 ///< [in] type of this structure, must be
                                                                                ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC
     const void *pNext;                                                         ///< [in][optional] pointer to extension-specific structure
+    ur_kernel_handle_t hNewKernel;                                             ///< [in][optional] The new kernel handle. If this parameter is nullptr,
+                                                                               ///< the current kernel handle in `hCommand`
+                                                                               ///< will be used. If a kernel handle is passed, it must be a valid kernel
+                                                                               ///< alternative as defined in
+                                                                               ///< ::urCommandBufferAppendKernelLaunchExp.
     uint32_t numNewMemObjArgs;                                                 ///< [in] Length of pNewMemObjArgList.
     uint32_t numNewPointerArgs;                                                ///< [in] Length of pNewPointerArgList.
     uint32_t numNewValueArgs;                                                  ///< [in] Length of pNewValueArgList.
@@ -8265,15 +8345,25 @@ typedef struct ur_exp_command_buffer_update_kernel_launch_desc_t {
     const ur_exp_command_buffer_update_value_arg_desc_t *pNewValueArgList;     ///< [in][optional][range(0, numNewValueArgs)] An array describing the new
                                                                                ///< kernel value arguments for the command.
     size_t *pNewGlobalWorkOffset;                                              ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
-                                                                               ///< values that describe the offset used to calculate the global ID.
+                                                                               ///< values that describe the offset used
+                                                                               ///< to calculate the global ID. If this parameter is nullptr, the current
+                                                                               ///< global work offset will be used. This parameter is required if
+                                                                               ///< `newWorkDim` is different from the current work dimensions
+                                                                               ///< in the command.
     size_t *pNewGlobalWorkSize;                                                ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
-                                                                               ///< values that describe the number of global work-items.
+                                                                               ///< values that describe the number of
+                                                                               ///< global work-items. If this parameter is nullptr, the current global
+                                                                               ///< work size in `hCommand` will be used.
+                                                                               ///< This parameter is required if `newWorkDim` is different from the
+                                                                               ///< current work dimensions in the command.
     size_t *pNewLocalWorkSize;                                                 ///< [in][optional][range(0, newWorkDim)] Array of newWorkDim unsigned
-                                                                               ///< values that describe the number of work-items that make up a
-                                                                               ///< work-group. If newWorkDim is non-zero and pNewLocalWorkSize is
-                                                                               ///< nullptr, then runtime implementation will choose the work-group size.
-                                                                               ///< If newWorkDim is zero and pNewLocalWorkSize is nullptr, then the local
-                                                                               ///< work size is unchanged.
+                                                                               ///< values that describe the number of
+                                                                               ///< work-items that make up a work-group. If `pNewGlobalWorkSize` is set
+                                                                               ///< and `pNewLocalWorkSize` is nullptr,
+                                                                               ///< then the runtime implementation will choose the local work size. If
+                                                                               ///< `pNewGlobalWorkSize` is nullptr and
+                                                                               ///< `pNewLocalWorkSize` is nullptr, the current local work size in the
+                                                                               ///< command will be used.
 
 } ur_exp_command_buffer_update_kernel_launch_desc_t;
 
@@ -8395,12 +8485,23 @@ urCommandBufferFinalizeExp(
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `phKernelAlternatives == NULL && numKernelAlternatives > 0`
+///         + `phKernelAlternatives != NULL && numKernelAlternatives == 0`
+///         + If `phKernelAlternatives` contains `hKernel`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION - "phCommand is not NULL and hCommandBuffer is not updatable."
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferAppendKernelLaunchExp(
     ur_exp_command_buffer_handle_t hCommandBuffer,                ///< [in] Handle of the command-buffer object.
@@ -8408,12 +8509,29 @@ urCommandBufferAppendKernelLaunchExp(
     uint32_t workDim,                                             ///< [in] Dimension of the kernel execution.
     const size_t *pGlobalWorkOffset,                              ///< [in] Offset to use when executing kernel.
     const size_t *pGlobalWorkSize,                                ///< [in] Global work size to use when executing kernel.
-    const size_t *pLocalWorkSize,                                 ///< [in][optional] Local work size to use when executing kernel.
+    const size_t *pLocalWorkSize,                                 ///< [in][optional] Local work size to use when executing kernel. If this
+                                                                  ///< parameter is nullptr, then a local work size will be generated by the
+                                                                  ///< implementation.
+    uint32_t numKernelAlternatives,                               ///< [in] The number of kernel alternatives provided in
+                                                                  ///< phKernelAlternatives.
+    ur_kernel_handle_t *phKernelAlternatives,                     ///< [in][optional][range(0, numKernelAlternatives)] List of kernel handles
+                                                                  ///< that might be used to update the kernel in this
+                                                                  ///< command after the command-buffer is finalized. The default kernel
+                                                                  ///< `hKernel` is implicitly marked as an alternative. It's
+                                                                  ///< invalid to specify it as part of this list.
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
     ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
-    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command. Only available if the
+                                                                  ///< command-buffer is updatable.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8438,6 +8556,13 @@ urCommandBufferAppendKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8449,7 +8574,15 @@ urCommandBufferAppendUSMMemcpyExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8476,6 +8609,13 @@ urCommandBufferAppendUSMMemcpyExp(
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_WAIT_LIST_EXP
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8488,7 +8628,15 @@ urCommandBufferAppendUSMFillExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8509,6 +8657,13 @@ urCommandBufferAppendUSMFillExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8522,7 +8677,15 @@ urCommandBufferAppendMemBufferCopyExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8544,6 +8707,13 @@ urCommandBufferAppendMemBufferCopyExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8556,7 +8726,15 @@ urCommandBufferAppendMemBufferWriteExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8578,6 +8756,13 @@ urCommandBufferAppendMemBufferWriteExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8590,7 +8775,15 @@ urCommandBufferAppendMemBufferReadExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8611,6 +8804,13 @@ urCommandBufferAppendMemBufferReadExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8628,7 +8828,15 @@ urCommandBufferAppendMemBufferCopyRectExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8650,6 +8858,13 @@ urCommandBufferAppendMemBufferCopyRectExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8670,7 +8885,15 @@ urCommandBufferAppendMemBufferWriteRectExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8692,6 +8915,13 @@ urCommandBufferAppendMemBufferWriteRectExp(
 ///         + `pSyncPointWaitList == NULL && numSyncPointsInWaitList > 0`
 ///         + `pSyncPointWaitList != NULL && numSyncPointsInWaitList == 0`
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8711,7 +8941,15 @@ urCommandBufferAppendMemBufferReadRectExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] Sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] Sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8735,6 +8973,13 @@ urCommandBufferAppendMemBufferReadRectExp(
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + If `offset + size` results in an out-of-bounds access.
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8748,7 +8993,15 @@ urCommandBufferAppendMemBufferFillExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8779,6 +9032,13 @@ urCommandBufferAppendMemBufferFillExp(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `size == 0`
 ///         + If `size` is higher than the allocation size of `pMemory`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8790,7 +9050,15 @@ urCommandBufferAppendUSMPrefetchExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8821,6 +9089,13 @@ urCommandBufferAppendUSMPrefetchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `size == 0`
 ///         + If `size` is higher than the allocation size of `pMemory`
+///     - ::UR_RESULT_ERROR_INVALID_EVENT
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If the device associated with `hCommandBuffer` does not support UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP and either `phEvent` or `phEventWaitList` are not NULL.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -8832,7 +9107,15 @@ urCommandBufferAppendUSMAdviseExp(
     uint32_t numSyncPointsInWaitList,                             ///< [in] The number of sync points in the provided dependency list.
     const ur_exp_command_buffer_sync_point_t *pSyncPointWaitList, ///< [in][optional] A list of sync points that this command depends on. May
                                                                   ///< be ignored if command-buffer is in-order.
-    ur_exp_command_buffer_sync_point_t *pSyncPoint                ///< [out][optional] sync point associated with this command.
+    uint32_t numEventsInWaitList,                                 ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList,                     ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                                  ///< events that must be complete before the command execution. If nullptr,
+                                                                  ///< the numEventsInWaitList must be 0, indicating no wait events.
+    ur_exp_command_buffer_sync_point_t *pSyncPoint,               ///< [out][optional] sync point associated with this command.
+    ur_event_handle_t *phEvent,                                   ///< [out][optional] return an event object that will be signaled by the
+                                                                  ///< completion of this command in the next execution of the
+                                                                  ///< command-buffer.
+    ur_exp_command_buffer_command_handle_t *phCommand             ///< [out][optional] Handle to this command.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8864,7 +9147,8 @@ urCommandBufferEnqueueExp(
                                                    ///< events that must be complete before the command-buffer execution.
                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                     ///< [out][optional] return an event object that identifies this particular
-                                                   ///< command-buffer execution instance.
+                                                   ///< command-buffer execution instance. If phEventWaitList and phEvent are
+                                                   ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8905,9 +9189,10 @@ urCommandBufferReleaseCommandExp(
 );
 
 ///////////////////////////////////////////////////////////////////////////////
-/// @brief Update a kernel launch command in a finalized command-buffer. This
-///        entry-point is synchronous and may block if the command-buffer is
-///        executing when the entry-point is called.
+/// @brief Update a kernel launch command in a finalized command-buffer.
+///
+/// @details
+/// This entry-point is synchronous and may block if the command-buffer is executing when the entry-point is called.
 ///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -8923,24 +9208,88 @@ urCommandBufferReleaseCommandExp(
 ///     - ::UR_RESULT_ERROR_INVALID_OPERATION
 ///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
 ///         + If the command-buffer `hCommand` belongs to has not been finalized.
-///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and different from the work-dim used on creation of `hCommand`.
-///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value and `pUpdateKernelLaunch->pNewGlobalWorkSize` is NULL.
-///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a non-NULL value when `hCommand` was created with a NULL local work size.
-///         + If `pUpdateKernellaunch->newWorkDim` is non-zero and `pUpdateKernelLaunch->pNewLocalWorkSize` is set to a NULL value when `hCommand` was created with a non-NULL local work size.
-///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP - "If `hCommand` is not a kernel execution command."
 ///     - ::UR_RESULT_ERROR_INVALID_MEM_OBJECT
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_INDEX
 ///     - ::UR_RESULT_ERROR_INVALID_KERNEL_ARGUMENT_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_DIMENSION
+///         + `pUpdateKernelLaunch->newWorkDim < 1 || pUpdateKernelLaunch->newWorkDim > 3`
 ///     - ::UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + If `pUpdateKernelLaunch->hNewKernel` was not passed to the `hKernel` or `phKernelAlternatives` parameters of ::urCommandBufferAppendKernelLaunchExp when this command was created.
+///         + If `pUpdateKernelLaunch->newWorkDim` is different from the current workDim in `hCommand` and, pUpdateKernelLaunch->pNewGlobalWorkSize, or pUpdateKernelLaunch->pNewGlobalWorkOffset are nullptr.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 UR_APIEXPORT ur_result_t UR_APICALL
 urCommandBufferUpdateKernelLaunchExp(
     ur_exp_command_buffer_command_handle_t hCommand,                             ///< [in] Handle of the command-buffer kernel command to update.
     const ur_exp_command_buffer_update_kernel_launch_desc_t *pUpdateKernelLaunch ///< [in] Struct defining how the kernel command is to be updated.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Get a new event that will be signaled the next time the command in the
+///        command-buffer executes.
+///
+/// @details
+/// It is the users responsibility to release the returned `phSignalEvent`.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == phSignalEvent`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS is not supported by the device associated with `hCommand`.
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
+///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///         + If no `phEvent` parameter was set on creation of the command associated with `hCommand`.
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferUpdateSignalEventExp(
+    ur_exp_command_buffer_command_handle_t hCommand, ///< [in] Handle of the command-buffer command to update.
+    ur_event_handle_t *phSignalEvent                 ///< [out] Event to be signaled.
+);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Set the list of wait events for a command to depend on to a list of
+///        new events.
+///
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_UNINITIALIZED
+///     - ::UR_RESULT_ERROR_DEVICE_LOST
+///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
+///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
+///         + `NULL == hCommand`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_EVENTS is not supported by the device associated with `hCommand`.
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION
+///         + If ::ur_exp_command_buffer_desc_t::isUpdatable was not set to true on creation of the command buffer `hCommand` belongs to.
+///         + If the command-buffer `hCommand` belongs to has not been finalized.
+///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_COMMAND_HANDLE_EXP
+///     - ::UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST
+///         + `phEventWaitList == NULL && numEventsInWaitList > 0`
+///         + `phEventWaitList != NULL && numEventsInWaitList == 0`
+///         + If event objects in phEventWaitList are not valid events.
+///         + If `numEventsInWaitList` does not match the number of wait events set when the command associated with `hCommand` was created.
+///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+UR_APIEXPORT ur_result_t UR_APICALL
+urCommandBufferUpdateWaitEventsExp(
+    ur_exp_command_buffer_command_handle_t hCommand, ///< [in] Handle of the command-buffer command to update.
+    uint32_t numEventsInWaitList,                    ///< [in] Size of the event wait list.
+    const ur_event_handle_t *phEventWaitList         ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+                                                     ///< events that must be complete before the command execution. If nullptr,
+                                                     ///< the numEventsInWaitList must be 0, indicating no wait events.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -8954,7 +9303,7 @@ urCommandBufferUpdateKernelLaunchExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
@@ -9063,15 +9412,14 @@ urEnqueueCooperativeKernelLaunchExp(
     const size_t *pLocalWorkSize,             ///< [in][optional] pointer to an array of workDim unsigned values that
                                               ///< specify the number of local work-items forming a work-group that will
                                               ///< execute the kernel function.
-                                              ///< If nullptr, the runtime implementation will choose the work-group
-                                              ///< size.
+                                              ///< If nullptr, the runtime implementation will choose the work-group size.
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait
-                                              ///< event.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                ///< [out][optional] return an event object that identifies this particular
-                                              ///< kernel execution instance.
+                                              ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                              ///< NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -9128,15 +9476,16 @@ urEnqueueTimestampRecordingExp(
     uint32_t numEventsInWaitList,             ///< [in] size of the event wait list
     const ur_event_handle_t *phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
                                               ///< events that must be complete before the kernel execution.
-                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait
-                                              ///< events.
+                                              ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                ///< [in,out] return an event object that identifies this particular kernel
                                               ///< execution instance. Profiling information can be queried
                                               ///< from this event as if `hQueue` had profiling enabled. Querying
                                               ///< `UR_PROFILING_INFO_COMMAND_QUEUED` or `UR_PROFILING_INFO_COMMAND_SUBMIT`
                                               ///< reports the timestamp at the time of the call to this function.
                                               ///< Querying `UR_PROFILING_INFO_COMMAND_START` or `UR_PROFILING_INFO_COMMAND_END`
-                                              ///< reports the timestamp recorded when the command is executed on the device.
+                                              ///< reports the timestamp recorded when the command is executed on the
+                                              ///< device. If phEventWaitList and phEvent are not NULL, phEvent must not
+                                              ///< refer to an element of the phEventWaitList array.
 );
 
 #if !defined(__GNUC__)
@@ -9263,7 +9612,9 @@ urEnqueueKernelLaunchCustomExp(
                                                     ///< events that must be complete before the kernel execution. If nullptr,
                                                     ///< the numEventsInWaitList must be 0, indicating that no wait event.
     ur_event_handle_t *phEvent                      ///< [out][optional] return an event object that identifies this particular
-                                                    ///< kernel execution instance.
+                                                    ///< kernel execution instance. If phEventWaitList and phEvent are not
+                                                    ///< NULL, phEvent must not refer to an element of the phEventWaitList
+                                                    ///< array.
 );
 
 #if !defined(__GNUC__)
@@ -9675,7 +10026,8 @@ urEnqueueNativeCommandExp(
                                                                    ///< events that must be complete before the kernel execution.
                                                                    ///< If nullptr, the numEventsInWaitList must be 0, indicating no wait events.
     ur_event_handle_t *phEvent                                     ///< [out][optional] return an event object that identifies the work that has
-                                                                   ///< been enqueued in nativeEnqueueFunc.
+                                                                   ///< been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are
+                                                                   ///< not NULL, phEvent must not refer to an element of the phEventWaitList array.
 );
 
 #if !defined(__GNUC__)
@@ -9981,9 +10333,10 @@ typedef struct ur_program_create_with_il_params_t {
 ///     allowing the callback the ability to modify the parameter's value
 typedef struct ur_program_create_with_binary_params_t {
     ur_context_handle_t *phContext;
-    ur_device_handle_t *phDevice;
-    size_t *psize;
-    const uint8_t **ppBinary;
+    uint32_t *pnumDevices;
+    ur_device_handle_t **pphDevices;
+    size_t **ppLengths;
+    const uint8_t ***pppBinaries;
     const ur_program_properties_t **ppProperties;
     ur_program_handle_t **pphProgram;
 } ur_program_create_with_binary_params_t;
@@ -11523,9 +11876,14 @@ typedef struct ur_command_buffer_append_kernel_launch_exp_params_t {
     const size_t **ppGlobalWorkOffset;
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
+    uint32_t *pnumKernelAlternatives;
+    ur_kernel_handle_t **pphKernelAlternatives;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
     ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_kernel_launch_exp_params_t;
 
@@ -11540,7 +11898,11 @@ typedef struct ur_command_buffer_append_usm_memcpy_exp_params_t {
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_usm_memcpy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11555,7 +11917,11 @@ typedef struct ur_command_buffer_append_usm_fill_exp_params_t {
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_usm_fill_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11571,7 +11937,11 @@ typedef struct ur_command_buffer_append_mem_buffer_copy_exp_params_t {
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_copy_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11586,7 +11956,11 @@ typedef struct ur_command_buffer_append_mem_buffer_write_exp_params_t {
     const void **ppSrc;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_write_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11601,7 +11975,11 @@ typedef struct ur_command_buffer_append_mem_buffer_read_exp_params_t {
     void **ppDst;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_read_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11621,7 +11999,11 @@ typedef struct ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t {
     size_t *pdstSlicePitch;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_copy_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11641,7 +12023,11 @@ typedef struct ur_command_buffer_append_mem_buffer_write_rect_exp_params_t {
     void **ppSrc;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_write_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11661,7 +12047,11 @@ typedef struct ur_command_buffer_append_mem_buffer_read_rect_exp_params_t {
     void **ppDst;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_read_rect_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11677,7 +12067,11 @@ typedef struct ur_command_buffer_append_mem_buffer_fill_exp_params_t {
     size_t *psize;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_mem_buffer_fill_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11691,7 +12085,11 @@ typedef struct ur_command_buffer_append_usm_prefetch_exp_params_t {
     ur_usm_migration_flags_t *pflags;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_usm_prefetch_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11705,7 +12103,11 @@ typedef struct ur_command_buffer_append_usm_advise_exp_params_t {
     ur_usm_advice_flags_t *padvice;
     uint32_t *pnumSyncPointsInWaitList;
     const ur_exp_command_buffer_sync_point_t **ppSyncPointWaitList;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
     ur_exp_command_buffer_sync_point_t **ppSyncPoint;
+    ur_event_handle_t **pphEvent;
+    ur_exp_command_buffer_command_handle_t **pphCommand;
 } ur_command_buffer_append_usm_advise_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -11744,6 +12146,25 @@ typedef struct ur_command_buffer_update_kernel_launch_exp_params_t {
     ur_exp_command_buffer_command_handle_t *phCommand;
     const ur_exp_command_buffer_update_kernel_launch_desc_t **ppUpdateKernelLaunch;
 } ur_command_buffer_update_kernel_launch_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferUpdateSignalEventExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_update_signal_event_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+    ur_event_handle_t **pphSignalEvent;
+} ur_command_buffer_update_signal_event_exp_params_t;
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Function parameters for urCommandBufferUpdateWaitEventsExp
+/// @details Each entry is a pointer to the parameter passed to the function;
+///     allowing the callback the ability to modify the parameter's value
+typedef struct ur_command_buffer_update_wait_events_exp_params_t {
+    ur_exp_command_buffer_command_handle_t *phCommand;
+    uint32_t *pnumEventsInWaitList;
+    const ur_event_handle_t **pphEventWaitList;
+} ur_command_buffer_update_wait_events_exp_params_t;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Function parameters for urCommandBufferGetInfoExp

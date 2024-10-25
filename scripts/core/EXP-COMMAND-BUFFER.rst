@@ -78,6 +78,7 @@ Command-Buffers are tied to a specific ${x}_context_handle_t and
 ${x}_device_handle_t. ${x}CommandBufferCreateExp optionally takes a descriptor
 to provide additional properties for how the command-buffer should be
 constructed. The members defined in ${x}_exp_command_buffer_desc_t are:
+
 * ``isUpdatable``, which should be set to ``true`` to support :ref:`updating
 command-buffer commands`.
 * ``isInOrder``, which should be set to ``true`` to enable commands enqueued to
@@ -95,12 +96,13 @@ Commands can be appended to a command-buffer by calling any of the
 command-buffer append functions. Typically these closely mimic the existing
 enqueue functions in the Core API in terms of their command-specific parameters.
 However, they differ in that they take a command-buffer handle instead of a
-queue handle, and the dependencies and return parameters are sync-points instead
-of event handles.
+queue handle. Dependencies are also expressed differently, in that internal
+command-buffer dependencies are expressed with sync-points. While event handles
+are used to express synchronization external to the command-buffer.
 
-The entry-point for appending a kernel launch command also returns an optional
-handle to the command being appended. This handle can be used to update the
-command configuration between command-buffer executions, see the section on
+The entry-points for appending commands also return an optional handle to the
+command being appended. This handle can be used to update the command
+configuration between command-buffer executions, see the section on
 :ref:`updating command-buffer commands`.
 
 Currently only the following commands are supported:
@@ -122,7 +124,7 @@ It is planned to eventually support any command type from the Core API which can
 actually be appended to the equivalent adapter native constructs.
 
 Sync-Points
---------------------------------------------------------------------------------
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 A sync-point is a value which represents a command inside of a command-buffer
 which is returned from command-buffer append function calls. These can be
@@ -138,14 +140,74 @@ were obtained from.
     ${x}_exp_command_buffer_sync_point_t syncPoint;
 
     ${x}CommandBufferAppendUSMMemcpyExp(hCommandBuffer, pDst, pSrc, size, 0,
-                                        nullptr, &syncPoint);
+                                        nullptr, 0, nullptr, &syncPoint, nullptr,
+                                        nullptr);
 
     // Append a kernel launch with syncPoint as a dependency, ignore returned
     // sync-point
     ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim,
                                            pGlobalWorkOffset, pGlobalWorkSize,
-                                           pLocalWorkSize, 1, &syncPoint,
-                                           nullptr, nullptr);
+                                           pLocalWorkSize, 0, nullptr, 1,
+                                           &syncPoint, 0, nullptr,
+                                           nullptr, nullptr, nullptr);
+
+Command Synchronization With Events
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+When appending commands to a command-buffer an optional ``phEventWaitList``
+input parameter is available for passing a list of ${x}_event_handle_t objects
+the command should wait on. As well as an optional ``phEvent`` output parameter
+to get a ${x}_event_handle_t object that will be signaled on completion of the
+command execution. It is the users responsibility to release the returned
+``phEvent`` with ${x}EventRelease.
+
+The wait event parameter allows commands in a command-buffer to depend on the
+completion of UR commands which are external to a command-buffer. While the
+output signal event parameter allows individual commands in a command-buffer to
+trigger external queue commands. Using returned signal events as wait events
+inside the same command-buffer is also valid usage.
+
+.. important::
+   Support for using ``phEventWaitList`` & ``phEvent`` parameters requires a device
+   to support ${X}_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP.
+
+Signal Event Valid Usage
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A returned signal event represents only the status of the command in the
+current execution of a given command-buffer on a device. Command signal events
+are not unique per execution of a command-buffer. If a command-buffer is
+enqueued multiple times before using one of these events (for example as a
+dependency to an eager queue operation), it is undefined which specific
+execution of the command-buffer the event will represent. If a dependency on a
+specific graph command-buffer execution is required this ordering must be
+enforced by the user to ensure there is only a single command-buffer execution
+in flight when using these command signal events.
+
+When a user calls ${x}CommandBufferEnqueueExp all the signal events returned
+from the individual commands in the command-buffer are synchronously reset to
+a non-complete state prior to the asynchronous commands beginning.
+
+Inter-Graph Synchronization
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It is possible for commands in different command-buffer objects to synchronize
+using the event mechanism. This is only guaranteed to behave correctly in the one
+directional synchronization case, where the signal events of one
+command-buffer's commands are used as a wait events of another command-buffer's
+commands. Such a relationship defines a permanent dependency between the
+command-buffers which does not need to be updated using
+:ref:`command event update` to preserve synchronization on future enqueues of
+the command-buffer.
+
+Bi-directional sync between individual commands in two separate command-buffers
+is however not guaranteed to behave correctly. This is due to the completion
+state of the command events only being reset when a command-buffer is enqueued.
+It is therefore possible for the first command-buffer enqueued to execute its
+wait node that needs to have its event reset by the enqueue of the second
+command-buffer, before the code path returns to user code for the user to
+enqueue the second command-buffer. Resulting in the first command-buffer's
+wait node completing too early for the intended overall executing ordering.
 
 Enqueueing Command-Buffers
 --------------------------------------------------------------------------------
@@ -162,18 +224,37 @@ enqueued or executed simultaneously, and submissions may be serialized.
     ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr,
                               &executionEvent);
 
+
 Updating Command-Buffer Commands
 --------------------------------------------------------------------------------
 
 An adapter implementing the command-buffer experimental feature can optionally
 support updating the configuration of kernel commands recorded to a
-command-buffer. Support for this is reported by returning true in the
-${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP query.
+command-buffer. The attributes of kernel commands that can be updated are
+device specific and can be queried using the
+${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP query.
+
+All update entry-points are synchronous and may block if the command-buffer is
+executing when the entry-point is called.
+
+Kernel Argument Update
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Kernel commands can have the ND-Range & parameter arguments of the command
+updated when a device supports the relevant bits in
+${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP.
 
 Updating kernel commands is done by passing the new kernel configuration
 to ${x}CommandBufferUpdateKernelLaunchExp along with the command handle of
 the kernel command to update. Configurations that can be changed are the
-parameters to the kernel and the execution ND-Range.
+kernel handle, the parameters to the kernel and the execution ND-Range.
+
+Kernel handles that might be used to update the kernel of a command, need
+to be registered when the command is created. This can be done
+using the ``phKernelAlternatives`` parameter of
+${x}CommandBufferAppendKernelLaunchExp. The command can then be updated
+to use the new kernel handle by passing it to
+${x}CommandBufferUpdateKernelLaunchExp.
 
 .. parsed-literal::
 
@@ -187,11 +268,14 @@ parameters to the kernel and the execution ND-Range.
     ${x}CommandBufferCreateExp(hContext, hDevice, &desc, &hCommandBuffer);
 
     // Append a kernel command which has two buffer parameters, an input
-    // and an output.
+    // and an output. Register hNewKernel as an alternative kernel handle
+    // which can later be used to change the kernel handle associated
+    // with this command.
     ${x}_exp_command_buffer_command_handle_t hCommand;
     ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim,
                                            pGlobalWorkOffset, pGlobalWorkSize,
-                                           pLocalWorkSize, 0, nullptr,
+                                           pLocalWorkSize, 1, &hNewKernel,
+                                           0, nullptr, 0, nullptr, nullptr,
                                            nullptr, &hCommand);
 
     // Close the command-buffer before updating
@@ -220,6 +304,7 @@ parameters to the kernel and the execution ND-Range.
     ${x}_exp_command_buffer_update_kernel_launch_desc_t update {
         UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
         nullptr, // pNext
+        hNewKernel  // hNewKernel
         2, // numNewMemobjArgs
         0, // numNewPointerArgs
         0, // numNewValueArgs
@@ -237,6 +322,76 @@ parameters to the kernel and the execution ND-Range.
     // Perform the update
     ${x}CommandBufferUpdateKernelLaunchExp(hCommand, &update);
 
+Command Event Update
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Once a command-buffer has been finalized the wait-list parameter of the command
+can be updated with ${x}CommandBufferUpdateWaitEventsExp. The number of wait
+events for a command must stay consistent, therefore the number of events
+passed to ${x}CommandBufferUpdateWaitEventsExp must be the same as when the
+command was created.
+
+The ${x}CommandBufferUpdateSignalEventExp entry-points can be used to update
+the signal event of a command. This returns a new event that will be signaled
+on the next execution of the command in the command-buffer. It may be that
+this is backed by the same native event object as the original signal event,
+provided that the backend provides a way to reset or reuse events between
+command-buffer executions.
+
+As ${x}_event_handle_t objects for queue submissions can only be signaled once,
+and not reset, this update mechanism allows command synchronization to be
+refreshed between command-buffer executions with regular command-queue events
+that haven't yet been signaled.
+
+It is the users responsibility to release the returned ``phEvent`` with
+${x}EventRelease. To update a command signal event with
+${x}CommandBufferUpdateSignalEventExp there must also have been a non-null
+``phEvent`` parameter passed on command creation.
+
+.. important::
+   Support for updating ``phEventWaitList`` & ``phEvent`` parameters requires a
+   device to support the `EVENTS` bit in
+   ${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP.
+
+.. parsed-literal::
+
+    // Create a command-buffer with update enabled.
+    ${x}_exp_command_buffer_desc_t desc {
+      ${X}_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_DESC,
+      nullptr,
+      true // isUpdatable
+    };
+    ${x}_exp_command_buffer_handle_t hCommandBuffer;
+    ${x}CommandBufferCreateExp(hContext, hDevice, &desc, &hCommandBuffer);
+
+    // Append a kernel command with 2 events to wait on, and returning an
+    // event that will be signaled.
+    ${x}_event_handle_t hSignalEvent;
+    ${x}_event_handle_t hWaitEvents[2] = {...};
+    ${x}_exp_command_buffer_command_handle_t hCommand;
+    ${x}CommandBufferAppendKernelLaunchExp(hCommandBuffer, hKernel, workDim,
+                                           pGlobalWorkOffset, pGlobalWorkSize,
+                                           pLocalWorkSize, 0, nullptr, 0, nullptr,
+                                           2, hWaitEvents, nullptr, &hSignalEvent,
+                                           &hCommand);
+
+    // Close the command-buffer before updating
+    ${x}CommandBufferFinalizeExp(hCommandBuffer);
+
+    // Enqueue command-buffer
+    ${x}CommandBufferEnqueueExp(hCommandBuffer, hQueue, 0, nullptr, nullptr);
+
+    // Wait for command-buffer to finish
+    ${x}QueueFinish(hQueue);
+
+    // Update signal event
+    ${x}_event_handle_t hNewSignalEvent;
+    ${x}CommandBufferUpdateSignalEventExp(hCommand, &hNewSignalEvent);
+
+    // Update wait events to a new event
+    ${x}_event_handle_t hNewWaitEvents[2] = ...;
+    {x}CommandBufferUpdateWaitEventsExp(hCommand, 2, &hNewWaitEvents);
+
 
 API
 --------------------------------------------------------------------------------
@@ -249,7 +404,15 @@ Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 * ${x}_device_info_t
     * ${X}_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP
-    * ${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP
+    * ${X}_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP
+    * ${X}_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP
+* ${x}_device_command_buffer_update_capability_flags_t
+    * UPDATE_KERNEL_ARGUMENTS
+    * LOCAL_WORK_SIZE
+    * GLOBAL_WORK_SIZE
+    * GLOBAL_WORK_OFFSET
+    * KERNEL_HANDLE
+    * EVENTS
 * ${x}_result_t
     * ${X}_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
     * ${X}_RESULT_ERROR_INVALID_COMMAND_BUFFER_SYNC_POINT_EXP
@@ -284,6 +447,7 @@ Enums
     * ${X}_FUNCTION_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_EXP
 * ${x}_exp_command_buffer_info_t
     * ${X}_EXP_COMMAND_BUFFER_INFO_REFERENCE_COUNT
+    * ${X}_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR
 * ${x}_exp_command_buffer_command_info_t
     * ${X}_EXP_COMMAND_BUFFER_COMMAND_INFO_REFERENCE_COUNT
 
@@ -320,6 +484,8 @@ Functions
 * ${x}CommandBufferRetainCommandExp
 * ${x}CommandBufferReleaseCommandExp
 * ${x}CommandBufferUpdateKernelLaunchExp
+* ${x}CommandBufferUpdateSignalEventExp
+* ${x}CommandBufferUpdateWaitEventsExp
 * ${x}CommandBufferGetInfoExp
 * ${x}CommandBufferCommandGetInfoExp
 
@@ -340,6 +506,10 @@ Changelog
 +-----------+-------------------------------------------------------+
 | 1.4       | Add function definitions for kernel command update    |
 +-----------+-------------------------------------------------------+
+| 1.5       | Add support for updating kernel handles.              |
++-----------+-------------------------------------------------------+
+| 1.6       | Command level synchronization with event objects      |
++-----------+-------------------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
@@ -348,3 +518,4 @@ Contributors
 * Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_
 * Maxime France-Pillois `maxime.francepillois@codeplay.com <maxime.francepillois@codeplay.com>`_
 * Aaron Greig `aaron.greig@codeplay.com <aaron.greig@codeplay.com>`_
+* Fábio Mestre `fabio.mestre@codeplay.com <fabio.mestre@codeplay.com>`_

@@ -7,4 +7,3 @@
 {{OPT}}urSamplerGetInfoTest.InvalidSizePropSizeSmall/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urSamplerReleaseTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urSamplerRetainTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-{{OPT}}{{Segmentation fault|Aborted}}

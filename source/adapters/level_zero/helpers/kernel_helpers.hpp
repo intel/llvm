@@ -36,11 +36,12 @@ ur_result_t calculateKernelWorkDimensions(
  * command buffer.
  * @param[in] Context Context associated with the queue.
  * @param[in] Kernel The handle to the kernel that will be appended.
- * @param[in] GlobalWorkOffset The global offset value.
+ * @param[in] WorkDim The number of work dimensions.
+ * @param[in] GlobalWorkOffset Array of size WorkDim.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t setKernelGlobalOffset(ur_context_handle_t Context,
-                                  ze_kernel_handle_t Kernel,
+                                  ze_kernel_handle_t Kernel, uint32_t WorkDim,
                                   const size_t *GlobalWorkOffset);
 
 /**

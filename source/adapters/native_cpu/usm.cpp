@@ -15,13 +15,17 @@
 #include "context.hpp"
 #include <cstdlib>
 
-namespace native_cpu {
+namespace umf {
+ur_result_t getProviderNativeError(const char *, int32_t) {
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
 
 static ur_result_t alloc_helper(ur_context_handle_t hContext,
                                 const ur_usm_desc_t *pUSMDesc, size_t size,
                                 void **ppMem, ur_usm_type_t type) {
-  auto alignment = pUSMDesc ? pUSMDesc->align : 1u;
-  UR_ASSERT((alignment & (alignment - 1)) == 0, UR_RESULT_ERROR_INVALID_VALUE);
+  auto alignment = (pUSMDesc && pUSMDesc->align) ? pUSMDesc->align : 1u;
+  UR_ASSERT(isPowerOf2(alignment), UR_RESULT_ERROR_UNSUPPORTED_ALIGNMENT);
   UR_ASSERT(ppMem, UR_RESULT_ERROR_INVALID_NULL_POINTER);
   // TODO: Check Max size when UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE is implemented
   UR_ASSERT(size > 0, UR_RESULT_ERROR_INVALID_USM_SIZE);
@@ -33,15 +37,12 @@ static ur_result_t alloc_helper(ur_context_handle_t hContext,
   return UR_RESULT_SUCCESS;
 }
 
-} // namespace native_cpu
-
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,
                ur_usm_pool_handle_t pool, size_t size, void **ppMem) {
   std::ignore = pool;
 
-  return native_cpu::alloc_helper(hContext, pUSMDesc, size, ppMem,
-                                  UR_USM_TYPE_HOST);
+  return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_HOST);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -51,8 +52,7 @@ urUSMDeviceAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   std::ignore = hDevice;
   std::ignore = pool;
 
-  return native_cpu::alloc_helper(hContext, pUSMDesc, size, ppMem,
-                                  UR_USM_TYPE_DEVICE);
+  return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_DEVICE);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -62,8 +62,7 @@ urUSMSharedAlloc(ur_context_handle_t hContext, ur_device_handle_t hDevice,
   std::ignore = hDevice;
   std::ignore = pool;
 
-  return native_cpu::alloc_helper(hContext, pUSMDesc, size, ppMem,
-                                  UR_USM_TYPE_SHARED);
+  return alloc_helper(hContext, pUSMDesc, size, ppMem, UR_USM_TYPE_SHARED);
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urUSMFree(ur_context_handle_t hContext,

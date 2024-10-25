@@ -1,4 +1,1 @@
-{{NONDETERMINISTIC}}
-urContextCreateWithNativeHandleTest.InvalidNullHandleAdapter/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__
-urContextCreateWithNativeHandleTest.InvalidNullPointerContext/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__
 urContextSetExtendedDeleterTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}__

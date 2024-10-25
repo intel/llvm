@@ -46,8 +46,7 @@ namespace ur_tracing_layer
         uint64_t instance = getContext()->notify_begin(${th.make_func_etor(n, tags, obj)}, "${th.make_func_name(n, tags, obj)}", &params);
 
         auto &logger = getContext()->logger;
-
-        logger.info("---> ${th.make_func_name(n, tags, obj)}");
+        logger.info("   ---> ${th.make_func_name(n, tags, obj)}\n");
 
         ${x}_result_t result = ${th.make_pfn_name(n, tags, obj)}( ${", ".join(th.make_param_lines(n, tags, obj, format=["name"]))} );
 
@@ -56,7 +55,7 @@ namespace ur_tracing_layer
         if (logger.getLevel() <= logger::Level::INFO) {
             std::ostringstream args_str;
             ur::extras::printFunctionParams(args_str, ${th.make_func_etor(n, tags, obj)}, &params);
-            logger.info("({}) -> {};\n", args_str.str(), result);
+            logger.info("   <--- ${th.make_func_name(n, tags, obj)}({}) -> {};\n", args_str.str(), result);
         }
 
         return result;
