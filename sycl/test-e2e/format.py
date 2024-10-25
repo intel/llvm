@@ -99,16 +99,22 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
     def make_default_features_list(self, expr, triple, add_default=True):
-        ### EXCEPTIONS LIST
-        # TODO: Define elsewhere?
+        # Dictionary of features which we know are always/never present for a 
+        # given triple (or the system in general).
         exceptions = {}
         exceptions["spir64"]={
-                "cuda":False, "hip":False, "hip_amd":False, "hip_nvidia":False,
+                "cuda":False,
+                "hip":False,
+                "hip_amd":False,
+                "hip_nvidia":False,
                 "native_cpu":False,
                 }
         exceptions["system"]={
-                "linux":True, "windows":False, "system-windows":False,
-                "run-mode":False, "TEMPORARY_DISABLED":False,
+                "linux":True,
+                "windows":False,
+                "system-windows":False,
+                "run-mode":False,
+                "TEMPORARY_DISABLED":False,
                 }
         queried_features = []
         for f in expr:
@@ -116,8 +122,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         features = []
         for f in queried_features:
-            if (exceptions[triple].get(
-                f,exceptions["system"].get(f,add_default))):
+            if (exceptions[triple].get(f, exceptions["system"].get(f,add_default))):
                 features.append(f)
         return features
 
@@ -126,8 +131,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         triples = set()
         possible_triples = ["spir64"]
         for triple in possible_triples:
-            unsupported=self.make_default_features_list(test.unsupported,triple,False)
-            required=self.make_default_features_list(test.requires,triple)
+            unsupported = self.make_default_features_list(
+                test.unsupported, triple, False
+            )
+            required = self.make_default_features_list(test.requires, triple)
             if test.getMissingRequiredFeaturesFromList(required):
                 continue
             if self.getMatchedFromList(unsupported, test.unsupported):
@@ -270,12 +277,15 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             # Filter commands based on split-mode
-            is_run_line = any(i in directive.command for i in
-                   ["%{run}","%{run-unfiltered-devices}","%if run-mode"])
+            is_run_line = any(
+                i in directive.command for i in
+                ["%{run}","%{run-unfiltered-devices}","%if run-mode"]
+            )
 
-            if ((is_run_line and "run-mode" not in test.config.available_features) or
-                (not is_run_line and "build-mode" not in test.config.available_features)):
-                directive.command=""
+            if (is_run_line and "run-mode" not in test.config.available_features) or (
+                not is_run_line and "build-mode" not in test.config.available_features
+            ):
+                directive.command = ""
 
             if "%{run}" not in directive.command:
                 new_script.append(directive)
@@ -332,8 +342,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if (len(devices_for_test) > 1 or
-            "run-mode" not in test.config.available_features):
+        if (
+            len(devices_for_test) > 1 or
+            "run-mode" not in test.config.available_features
+        ):
             return result
 
         # Single device - might be an XFAIL.

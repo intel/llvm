@@ -17,7 +17,7 @@ from lit.llvm.subst import ToolSubst, FindTool
 # Configuration file for the 'lit' test runner.
 
 # split-mode: Set if tests should run normally or with split build/run
-match lit_config.params.get("split-mode","both"):
+match lit_config.params.get("split-mode", "both"):
     case "run":
         config.available_features.add("run-mode")
     case "build":
