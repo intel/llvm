@@ -8,16 +8,49 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "adapter.hpp"
 #include "common.hpp"
-#include "logger/ur_logger.hpp"
+#include "ur/ur.hpp"
 
-struct ur_adapter_handle_t_ {
-  std::atomic<uint32_t> RefCount = 0;
-  std::mutex Mutex;
-  logger::Logger &log = logger::get_logger("opencl");
-};
+#ifdef _MSC_VER
+#include <Windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
-static ur_adapter_handle_t_ *adapter = nullptr;
+ur_adapter_handle_t_::ur_adapter_handle_t_() {
+#ifdef _MSC_VER
+  // Loading OpenCL.dll increments the libraries internal reference count.
+  auto handle = LoadLibraryA("OpenCL.dll");
+
+#define CL_CORE_FUNCTION(FUNC)                                                 \
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, "FUNC"));
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+
+  // So we can safely decrement it here wihtout actually unloading OpenCL.dll.
+  FreeLibrary(handle);
+#else
+  // Loading libOpenCL.so to get the library handle but don't dlclose it as
+  // this causes a segfault when attempting to call any OpenCL entry point.
+  auto handle = dlopen("libOpenCL.so", RTLD_LOCAL);
+
+#define CL_CORE_FUNCTION(FUNC)                                                 \
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(dlsym(handle, #FUNC));
+#include "core_functions.def"
+#undef CL_CORE_FUNCTION
+
+#endif
+}
+
+static ur_adapter_handle_t adapter = nullptr;
+
+ur_adapter_handle_t ur::cl::getAdapter() {
+  if (!adapter) {
+    die("OpenCL adapter used before initalization or after destruction");
+  }
+  return adapter;
+}
 
 static void globalAdapterShutdown() {
   if (cl_ext::ExtFuncPtrCache) {

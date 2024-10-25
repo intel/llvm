@@ -239,10 +239,6 @@ cl_int(CL_API_CALL *)(cl_command_queue, cl_program, const char *, cl_bool,
                       size_t, size_t, void *, cl_uint, const cl_event *,
                       cl_event *);
 
-using clSetProgramSpecializationConstant_fn = CL_API_ENTRY
-cl_int(CL_API_CALL *)(cl_program program, cl_uint spec_id, size_t spec_size,
-                      const void *spec_value);
-
 using clEnqueueReadHostPipeINTEL_fn = CL_API_ENTRY
 cl_int(CL_API_CALL *)(cl_command_queue queue, cl_program program,
                       const char *pipe_symbol, cl_bool blocking, void *ptr,
