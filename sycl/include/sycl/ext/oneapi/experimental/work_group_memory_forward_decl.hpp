@@ -1,11 +1,14 @@
 #pragma once
-#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <tuple>
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
-template <typename DataT, typename PropertiesT = empty_properties_t>
+
+template <typename> class properties;
+
+template <typename DataT, typename PropertiesT = properties<std::tuple<>>>
 class work_group_memory;
 } // namespace experimental
 } // namespace oneapi
