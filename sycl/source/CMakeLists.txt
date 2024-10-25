@@ -214,7 +214,9 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
 
   set_target_properties(${LIB_NAME} PROPERTIES
                         VERSION ${SYCL_VERSION_STRING}
-                        SOVERSION ${SYCL_MAJOR_VERSION})
+                        SOVERSION ${SYCL_MAJOR_VERSION}
+                        # Required to find libur_loader.so
+                        INSTALL_RPATH "\$ORIGIN")
 
   check_cxx_compiler_flag(-Winstantiation-after-specialization
     HAS_INST_AFTER_SPEC)
