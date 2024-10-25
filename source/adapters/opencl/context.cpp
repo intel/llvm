@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "adapter.hpp"
 
 #include <mutex>
 #include <set>
@@ -169,6 +170,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
+  if (!ur::cl::getAdapter()->clSetContextDestructorCallback) {
+    ur::cl::getAdapter()->log.warning(
+        "clSetContextDestructorCallback not found, consider upgrading the "
+        "OpenCL-ICD-Loader to the latest version.");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   static std::unordered_map<ur_context_handle_t,
                             std::set<ur_context_extended_deleter_t>>
       ContextCallbackMap;
@@ -212,7 +220,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     auto *C = static_cast<ContextCallback *>(pUserData);
     C->execute();
   };
-  CL_RETURN_ON_FAILURE(clSetContextDestructorCallback(
+  CL_RETURN_ON_FAILURE(ur::cl::getAdapter()->clSetContextDestructorCallback(
       cl_adapter::cast<cl_context>(hContext), ClCallback, Callback));
 
   return UR_RESULT_SUCCESS;
