@@ -2,6 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// The name mangling for free function kernels currently does not work with PTX.
+// UNSUPPORTED: cuda
+
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
@@ -17,7 +20,6 @@ context ctx = q.get_context();
 void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
                 sycl::ext::oneapi::experimental::work_group_memory<int> ret,
                 size_t WGSIZE) {
-  ret = 0;
   for (int i = 0; i < WGSIZE; ++i) {
     ret += mem[i];
   }
@@ -26,22 +28,23 @@ void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
 void sum(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
-         int *buf, int *Result, size_t WGSIZE, bool UseHelper) {
+         int *buf,
+         sycl::ext::oneapi::experimental::work_group_memory<int> result,
+         int expected, size_t WGSIZE, bool UseHelper) {
   const auto it = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
   size_t local_id = it.get_local_id();
   mem[local_id] = buf[local_id];
   group_barrier(it.get_group());
   if (it.get_group().leader()) {
-    *Result = 0;
+    result = 0;
     if (!UseHelper) {
       for (int i = 0; i < WGSIZE; ++i) {
-        *Result += mem[i];
+        result += mem[i];
       }
     } else {
-      sycl::ext::oneapi::experimental::work_group_memory<int> ret;
-      sum_helper(mem, ret, WGSIZE);
-      *Result = ret;
+      sum_helper(mem, result, WGSIZE);
     }
+    assert(result == expected);
   }
 }
 
@@ -53,23 +56,26 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
     buf[i] = i;
     expected += buf[i];
   }
-  int *result = malloc_shared<int>(1, q);
-  assert(result && "Shared USM allocation failed!");
+
+  // The following ifndef is required due to a number of limitations of free
+  // function kernels
+  // TODO: Remove it once these limitations are no longer there.
 #ifndef __SYCL_DEVICE_ONLY__
+
   // Get the kernel object for the "mykernel" kernel.
   auto Bundle = get_kernel_bundle<sycl::bundle_state::executable>(ctx);
   kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum>();
   kernel k_sum = Bundle.get_kernel(sum_id);
   q.submit([&](sycl::handler &cgh) {
      ext::oneapi::experimental::work_group_memory<int[]> mem{WGSIZE, cgh};
-     cgh.set_args(mem, buf, result, WGSIZE, UseHelper);
+     ext::oneapi::experimental ::work_group_memory<int> result{cgh};
+     cgh.set_args(mem, buf, result, expected, WGSIZE, UseHelper);
      nd_range ndr{{SIZE}, {WGSIZE}};
      cgh.parallel_for(ndr, k_sum);
    }).wait();
-#endif
-  assert(expected == *result);
+
+#endif // __SYCL_DEVICE_ONLY
   free(buf, q);
-  free(result, q);
 }
 
 int main() {
