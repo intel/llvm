@@ -173,6 +173,7 @@ if(UR_ENABLE_SANITIZER)
             PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/layers/sanitizer/linux/symbolizer.cpp
         )
+        target_compile_definitions(ur_loader PRIVATE UR_ENABLE_SYMBOLIZER)
         target_include_directories(ur_loader PRIVATE ${LLVM_INCLUDE_DIRS})
         target_link_libraries(ur_loader PRIVATE LLVMSupport LLVMSymbolize)
         # In in-tree build, if LLVM is built with libc++, we also need to build
