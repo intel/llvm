@@ -128,13 +128,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         for triple in possible_triples:
             unsupported=self.make_default_features_list(test.unsupported,triple,False)
             required=self.make_default_features_list(test.requires,triple)
-            xfails=self.make_default_features_list(test.xfails,triple,False)
             if test.getMissingRequiredFeaturesFromList(required):
                 continue
             if self.getMatchedFromList(unsupported, test.unsupported):
                 continue
-            #if "*" in test.xfails or self.getMatchedFromList(xfails, test.xfails):
-            #    continue
             triples.add(triple)
 
         return triples
