@@ -38,6 +38,8 @@ PreservedAnalyses FAtomicsNativeCPU::run(Module &M,
 
     BasicBlock *BB = BasicBlock::Create(Ctx, "entry", &F);
     IRBuilder<> Builder(BB);
+    // Currently we drop arguments 1 and 2 (scope and memory ordering),
+    // defaulting to Monotonic ordering and System scope.
     auto A =
         Builder.CreateAtomicRMW(OpCode, F.getArg(0), F.getArg(3), MaybeAlign(),
                                 AtomicOrdering::Monotonic, SyncScope::System);
