@@ -1746,7 +1746,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     ur_mem_handle_t
         *Mem ///< [out] pointer to handle of buffer memory object created.
 ) {
-  bool OwnNativeHandle = Properties->isNativeHandleOwned;
+  bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
