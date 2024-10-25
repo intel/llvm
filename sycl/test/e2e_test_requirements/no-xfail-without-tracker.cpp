@@ -25,10 +25,10 @@
 //   verify that against the reference
 // - ...and check if the list of improperly XFAIL-ed tests needs to be updated.
 //
-// RUN: grep -rI "XFAIL:" %S/../test-e2e \
+// RUN: grep -rI "XFAIL:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
-// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t | \
+// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
@@ -50,13 +50,12 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 159
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 156
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
 //
-// CHECK: AOT/fpga-aoc-archive-split-per-kernel.cpp
-// CHECK-NEXT: AddressSanitizer/nullpointer/private_nullptr.cpp
+// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/accessor/accessor.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
@@ -169,8 +168,6 @@
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_su_int8.cpp
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_us_int8.cpp
 // CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_arg_dim.cpp
-// CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_runtime_dim.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_colA_rowB_colC.cpp
 // CHECK-NEXT: Matrix/joint_matrix_int8_colmajorA_colmajorB.cpp
