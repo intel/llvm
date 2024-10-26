@@ -302,6 +302,11 @@ Modified Compiler Flags
   the ``promoted`` algorithm for complex division when possible rather than the
   less basic (limited range) algorithm.
 
+- The ``-fveclib`` option has been updated to enable ``-fno-math-errno`` for
+  ``-fveclib=ArmPL`` and ``-fveclib=SLEEF``. This gives Clang more opportunities
+  to utilize these vector libraries. The behavior for all other vector function
+  libraries remains unchanged.
+
 Removed Compiler Flags
 -------------------------
 
@@ -423,6 +428,8 @@ Improvements to Clang's diagnostics
 - Clang now emits a ``-Wdepredcated-literal-operator`` diagnostic, even if the
   name was a reserved name, which we improperly allowed to suppress the
   diagnostic.
+
+- Clang now diagnoses ``[[deprecated]]`` attribute usage on local variables (#GH90073).
 
 Improvements to Clang's time-trace
 ----------------------------------
@@ -623,6 +630,9 @@ X86 Support
 - All intrinsics in bmi2intrin.h can now be used in constant expressions.
 
 - All intrinsics in tbmintrin.h can now be used in constant expressions.
+
+- Supported intrinsics for ``MOVRS AND AVX10.2``.
+  * Supported intrinsics of ``_mm(256|512)_(mask(z))_loadrs_epi(8|16|32|64)``.
 
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^
