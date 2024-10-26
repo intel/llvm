@@ -1,4 +1,4 @@
-//==----------- get_coord_int8_matA.cpp  - DPC++ joint_matrix---------==//
+//==----------- get_coordinate_ops.cpp - DPC++ joint_matrix---------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,11 +10,12 @@
 // REQUIRES: aspect-ext_intel_matrix
 // REQUIRES-INTEL-DRIVER: lin: 27501, win: 101.4943
 
-// RUN: %{build} -o %t.out
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -o %t.out
 // RUN: %{run} %t.out
+// XFAIL: cpu
 
-#include "../common.hpp"
+#include "../../common.hpp"
 
 #define SG_SZ 32
 
-#include "../get_coord_int8_matA_impl.hpp"
+#include "../../get_coordinate_ops_impl.hpp"
