@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 484
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 486
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been propely UNSUPPORTED.
@@ -259,6 +259,8 @@
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
 // CHECK-NEXT: InOrderEventsExt/get_last_event.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
+// CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
+// CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
 // CHECK-NEXT: KernelAndProgram/build-log.cpp
 // CHECK-NEXT: KernelAndProgram/cache-build-result.cpp
 // CHECK-NEXT: KernelAndProgram/free_function_apis.cpp
