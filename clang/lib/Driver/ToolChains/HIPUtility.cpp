@@ -324,7 +324,7 @@ void HIP::constructHIPFatbinCommand(Compilation &C, const JobAction &JA,
       Args.MakeArgString(std::string("-output=").append(Output));
   BundlerArgs.push_back(BundlerOutputArg);
 
-  // For SYCL, the compression is occuring during the wrapping step, so we do
+  // For SYCL, the compression is occurring during the wrapping step, so we do
   // not want to do additional compression here.
   if (!JA.isDeviceOffloading(Action::OFK_SYCL))
     addOffloadCompressArgs(Args, BundlerArgs);
