@@ -133,6 +133,9 @@ __unspecified__ reduction(span<T, Extent> vars, const T& identity,
 }
 ----
 
+_Mandates_: The specified `properties` are compatible with the reduction,
+according to the description of each individual property.
+
 === Reduction properties
 
 New `reduction` properties are introduced to allow developers to constrain
@@ -185,6 +188,10 @@ use of atomic operations, etc. _{endnote}_]
 |`initialize_to_identity`
 |Adds the same requirement as
 `sycl::property::reduction::initialize_to_identity`.
+
+For `reduction` overloads without an `identity` parameter, the identity of the
+combination operation must be identifiable via the `known_identity` trait
+class.
 
 |===
 

@@ -48,6 +48,15 @@ auto WrapOp(BinaryOperation combiner, PropertyList properties) {
   }
 }
 
+template <typename T, typename BinaryOperation, typename PropertyList>
+void CheckReductionIdentity(PropertyList properties) {
+  if constexpr (properties.template has_property<
+                    ext::oneapi::experimental::initialize_to_identity_key>()) {
+    static_assert(has_known_identity_v<BinaryOperation, T>,
+                  "initialize_to_identity requires an identity value.");
+  }
+}
+
 template <typename PropertyList>
 property_list GetReductionPropertyList(PropertyList properties) {
   if constexpr (properties.template has_property<
@@ -79,6 +88,8 @@ struct IsDeterministicOperator<DeterministicOperatorWrapper<BinaryOperation>>
 template <typename BufferT, typename BinaryOperation, typename PropertyList>
 auto reduction(BufferT vars, handler &cgh, BinaryOperation combiner,
                PropertyList properties) {
+  detail::CheckReductionIdentity<typename BufferT::value_type, BinaryOperation>(
+      properties);
   auto WrappedOp = detail::WrapOp(combiner, properties);
   auto RuntimeProps = detail::GetReductionPropertyList(properties);
   return reduction(vars, cgh, WrappedOp, RuntimeProps);
@@ -86,6 +97,7 @@ auto reduction(BufferT vars, handler &cgh, BinaryOperation combiner,
 
 template <typename T, typename BinaryOperation, typename PropertyList>
 auto reduction(T *var, BinaryOperation combiner, PropertyList properties) {
+  detail::CheckReductionIdentity<T, BinaryOperation>(properties);
   auto WrappedOp = detail::WrapOp(combiner, properties);
   auto RuntimeProps = detail::GetReductionPropertyList(properties);
   return reduction(var, WrappedOp, RuntimeProps);
@@ -95,6 +107,7 @@ template <typename T, size_t Extent, typename BinaryOperation,
           typename PropertyList>
 auto reduction(span<T, Extent> vars, BinaryOperation combiner,
                PropertyList properties) {
+  detail::CheckReductionIdentity<T, BinaryOperation>(properties);
   auto WrappedOp = detail::WrapOp(combiner, properties);
   auto RuntimeProps = detail::GetReductionPropertyList(properties);
   return reduction(vars, WrappedOp, RuntimeProps);
