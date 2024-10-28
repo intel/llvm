@@ -253,6 +253,24 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
       **params->ppPropSizeRet = 0;
     }
     return UR_RESULT_SUCCESS;
+  case UR_DEVICE_INFO_SINGLE_FP_CONFIG:
+  case UR_DEVICE_INFO_HALF_FP_CONFIG:
+  case UR_DEVICE_INFO_DOUBLE_FP_CONFIG:
+    if (*params->ppPropValue) {
+      // This is the minimum requirement for a device reporting support for a
+      // given FP type.
+      ur_device_fp_capability_flags_t capabilities =
+          UR_DEVICE_FP_CAPABILITY_FLAG_DENORM |
+          UR_DEVICE_FP_CAPABILITY_FLAG_INF_NAN |
+          UR_DEVICE_FP_CAPABILITY_FLAG_ROUND_TO_NEAREST |
+          UR_DEVICE_FP_CAPABILITY_FLAG_FMA;
+      *static_cast<ur_device_fp_capability_flags_t *>(*params->ppPropValue) =
+          capabilities;
+    }
+    if (*params->ppPropSizeRet) {
+      **params->ppPropSizeRet = sizeof(ur_device_fp_capability_flags_t);
+    }
+    return UR_RESULT_SUCCESS;
   default: {
     // In the default case we fill the return value with 0's. This may not be
     // valid for all device queries, but it will mean a consistent return value
