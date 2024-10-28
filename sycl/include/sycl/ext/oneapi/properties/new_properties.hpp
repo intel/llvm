@@ -176,6 +176,9 @@ inline constexpr bool properties_are_sorted = []() constexpr {
     return true;
   }
 }();
+
+template <typename property_key_t>
+inline constexpr property_key_tag<property_key_t> key{};
 } // namespace detail
 
 // Empty property list.
@@ -268,20 +271,20 @@ public:
   template <typename property_key_t>
   static constexpr auto get_property() -> std::enable_if_t<
       std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
-          detail::property_key_tag<property_key_t>{}))>,
+          detail::key<property_key_t>))>,
       decltype(std::declval<properties>().get_property_impl(
-          detail::property_key_tag<property_key_t>{}))> {
+          detail::key<property_key_t>))> {
     return decltype(std::declval<properties>().get_property_impl(
-        detail::property_key_tag<property_key_t>{})){};
+        detail::key<property_key_t>)){};
   }
 
   template <typename property_key_t>
   constexpr auto get_property() const -> std::enable_if_t<
       !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
-          detail::property_key_tag<property_key_t>{}))>,
+          detail::key<property_key_t>))>,
       decltype(std::declval<properties>().get_property_impl(
-          detail::property_key_tag<property_key_t>{}))> {
-    return get_property_impl(detail::property_key_tag<property_key_t>{});
+          detail::key<property_key_t>))> {
+    return get_property_impl(detail::key<property_key_t>);
   }
 
   // TODO: Do we need separate `static` overload if we decide to keep this
