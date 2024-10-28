@@ -2,7 +2,7 @@
 
 // This test checks whether memory granularity returned is greater then 0 and
 // that the recommended granularity is the same size or greater than the minimum
-// granularity for virtul memory extension.
+// granularity for virtual memory extension.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
