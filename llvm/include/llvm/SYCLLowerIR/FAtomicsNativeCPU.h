@@ -20,8 +20,7 @@ namespace llvm {
 
 class ModulePass;
 
-class FAtomicsNativeCPU
-    : public PassInfoMixin<FAtomicsNativeCPU> {
+class FAtomicsNativeCPU : public PassInfoMixin<FAtomicsNativeCPU> {
 public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 };
