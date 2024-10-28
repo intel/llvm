@@ -3,8 +3,8 @@
 // VTables are global variables with possibly external linkage and that causes
 // them to be copied into every module we produce during device code split
 // which in turn leads to multiple definitions error at runtime.
-// https://github.com/intel/llvm/issues/15069
-// XFAIL: *
+// XFAIL: run-mode
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15069
 //
 // This test covers a scenario where virtual functions defintion and their uses
 // are split into different translation units. In particular:

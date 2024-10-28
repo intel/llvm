@@ -51,7 +51,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 156
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 151
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
@@ -63,7 +63,6 @@
 // CHECK-NEXT: Basic/built-ins.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
-// CHECK-NEXT: Basic/fpga_tests/fpga_pipes_mixed_usage.cpp
 // CHECK-NEXT: Basic/image/srgba-read.cpp
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
 // CHECK-NEXT: Basic/max_work_group_size_props.cpp
@@ -78,7 +77,6 @@
 // CHECK-NEXT: DeviceCodeSplit/split-per-kernel.cpp
 // CHECK-NEXT: DeviceCodeSplit/split-per-source-main.cpp
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
-// CHECK-NEXT: ESIMD/assert.cpp
 // CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: GroupLocalMemory/group_local_memory.cpp
@@ -208,7 +206,4 @@
 // CHECK-NEXT: Scheduler/MultipleDevices.cpp
 // CHECK-NEXT: Scheduler/ReleaseResourcesTest.cpp
 // CHECK-NEXT: Tracing/buffer_printers.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs-and-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs.cpp
 // CHECK-NEXT: syclcompat/launch/launch_policy_lmem.cpp
