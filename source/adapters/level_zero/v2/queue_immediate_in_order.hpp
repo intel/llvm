@@ -108,6 +108,10 @@ public:
   enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueEventsWaitWithBarrierExt(
+      const ur_exp_enqueue_ext_properties_t *pProperties,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override;
   ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                    size_t offset, size_t size, void *pDst,
                                    uint32_t numEventsInWaitList,
