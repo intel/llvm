@@ -258,26 +258,43 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t withTimingEvent(ur_command_t command_type, ur_queue_handle_t hQueue,
+                            uint32_t numEventsInWaitList,
+                            const ur_event_handle_t *phEventWaitList,
+                            ur_event_handle_t *phEvent,
+                            const std::function<ur_result_t()> &f) {
+  urEventWait(numEventsInWaitList, phEventWaitList);
+  ur_event_handle_t event;
+  if (phEvent) {
+    event = new ur_event_handle_t_(hQueue, command_type);
+    event->tick_start();
+  }
+
+  ur_result_t result = f();
+
+  if (phEvent) {
+    event->tick_end();
+    *phEvent = event;
+  }
+  return result;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWait(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
-  DIE_NO_IMPLEMENTATION;
+  // TODO: the wait here should be async
+  return withTimingEvent(UR_COMMAND_EVENTS_WAIT, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent,
+                         [&]() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
     ur_queue_handle_t hQueue, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hQueue;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-
-  DIE_NO_IMPLEMENTATION;
+  return withTimingEvent(UR_COMMAND_EVENTS_WAIT_WITH_BARRIER, hQueue,
+                         numEventsInWaitList, phEventWaitList, phEvent,
+                         [&]() { return UR_RESULT_SUCCESS; });
 }
 
 template <bool IsRead>
@@ -289,43 +306,42 @@ static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
     typename std::conditional<IsRead, void *, const void *>::type DstMem,
     uint32_t NumEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  ur_event_handle_t event;
+  ur_command_t command_t;
   if constexpr (IsRead)
-    event = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_READ_RECT);
+    command_t = UR_COMMAND_MEM_BUFFER_READ_RECT;
   else
-    event = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_WRITE_RECT);
-  event->tick_start();
-  // TODO: blocking, check other constraints, performance optimizations
-  //       More sharing with level_zero where possible
+    command_t = UR_COMMAND_MEM_BUFFER_WRITE_RECT;
+  return withTimingEvent(
+      command_t, hQueue, NumEventsInWaitList, phEventWaitList, phEvent, [&]() {
+        // TODO: blocking, check other constraints, performance optimizations
+        //       More sharing with level_zero where possible
 
-  urEventWait(NumEventsInWaitList, phEventWaitList);
-  if (BufferRowPitch == 0)
-    BufferRowPitch = region.width;
-  if (BufferSlicePitch == 0)
-    BufferSlicePitch = BufferRowPitch * region.height;
-  if (HostRowPitch == 0)
-    HostRowPitch = region.width;
-  if (HostSlicePitch == 0)
-    HostSlicePitch = HostRowPitch * region.height;
-  for (size_t w = 0; w < region.width; w++)
-    for (size_t h = 0; h < region.height; h++)
-      for (size_t d = 0; d < region.depth; d++) {
-        size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
-                            (h + BufferOffset.y) * BufferRowPitch + w +
-                            BufferOffset.x;
-        size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
-                             (h + HostOffset.y) * HostRowPitch + w +
-                             HostOffset.x;
-        int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
-        if constexpr (IsRead)
-          ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
-        else
-          buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
-      }
+        if (BufferRowPitch == 0)
+          BufferRowPitch = region.width;
+        if (BufferSlicePitch == 0)
+          BufferSlicePitch = BufferRowPitch * region.height;
+        if (HostRowPitch == 0)
+          HostRowPitch = region.width;
+        if (HostSlicePitch == 0)
+          HostSlicePitch = HostRowPitch * region.height;
+        for (size_t w = 0; w < region.width; w++)
+          for (size_t h = 0; h < region.height; h++)
+            for (size_t d = 0; d < region.depth; d++) {
+              size_t buff_orign = (d + BufferOffset.z) * BufferSlicePitch +
+                                  (h + BufferOffset.y) * BufferRowPitch + w +
+                                  BufferOffset.x;
+              size_t host_origin = (d + HostOffset.z) * HostSlicePitch +
+                                   (h + HostOffset.y) * HostRowPitch + w +
+                                   HostOffset.x;
+              int8_t &buff_mem = ur_cast<int8_t *>(Buff->_mem)[buff_orign];
+              if constexpr (IsRead)
+                ur_cast<int8_t *>(DstMem)[host_origin] = buff_mem;
+              else
+                buff_mem = ur_cast<const int8_t *>(DstMem)[host_origin];
+            }
 
-  event->tick_end();
-  *phEvent = event;
-  return UR_RESULT_SUCCESS;
+        return UR_RESULT_SUCCESS;
+      });
 }
 
 static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
@@ -334,15 +350,12 @@ static inline ur_result_t doCopy_impl(ur_queue_handle_t hQueue, void *DstPtr,
                                       const ur_event_handle_t *phEventWaitList,
                                       ur_event_handle_t *phEvent,
                                       ur_command_t command_type) {
-  ur_event_handle_t event = new ur_event_handle_t_(hQueue, command_type);
-  event->tick_start();
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  if (SrcPtr != DstPtr && Size)
-    memmove(DstPtr, SrcPtr, Size);
-  event->tick_end();
-  if (phEvent)
-    *phEvent = event;
-  return UR_RESULT_SUCCESS;
+  return withTimingEvent(command_type, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent, [&]() {
+                           if (SrcPtr != DstPtr && Size)
+                             memmove(DstPtr, SrcPtr, Size);
+                           return UR_RESULT_SUCCESS;
+                         });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferRead(
@@ -426,22 +439,23 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
     size_t patternSize, size_t offset, size_t size,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  return withTimingEvent(
+      UR_COMMAND_MEM_BUFFER_FILL, hQueue, numEventsInWaitList, phEventWaitList,
+      phEvent, [&]() {
+        UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
 
-  // TODO: error checking
-  // TODO: handle async
-  void *startingPtr = hBuffer->_mem + offset;
-  unsigned steps = size / patternSize;
-  for (unsigned i = 0; i < steps; i++) {
-    memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
-           patternSize);
-  }
+        // TODO: error checking
+        // TODO: handle async
+        void *startingPtr = hBuffer->_mem + offset;
+        unsigned steps = size / patternSize;
+        for (unsigned i = 0; i < steps; i++) {
+          memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
+                 patternSize);
+        }
 
-  return UR_RESULT_SUCCESS;
+        return UR_RESULT_SUCCESS;
+      });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
@@ -512,15 +526,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferMap(
   std::ignore = mapFlags;
   std::ignore = size;
 
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event =
-      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
-  event->tick_start();
-  *ppRetMap = hBuffer->_mem + offset;
-  event->tick_end();
-  *phEvent = event;
-
-  return UR_RESULT_SUCCESS;
+  return withTimingEvent(UR_COMMAND_MEM_BUFFER_MAP, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent, [&]() {
+                           *ppRetMap = hBuffer->_mem + offset;
+                           return UR_RESULT_SUCCESS;
+                         });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
@@ -529,70 +539,65 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemUnmap(
     ur_event_handle_t *phEvent) {
   std::ignore = hMem;
   std::ignore = pMappedPtr;
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  *phEvent = new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_UNMAP);
-
-  return UR_RESULT_SUCCESS;
+  return withTimingEvent(UR_COMMAND_MEM_UNMAP, hQueue, numEventsInWaitList,
+                         phEventWaitList, phEvent,
+                         [&]() { return UR_RESULT_SUCCESS; });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
     ur_queue_handle_t hQueue, void *ptr, size_t patternSize,
     const void *pPattern, size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event =
-      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
-  event->tick_start();
+  return withTimingEvent(
+      UR_COMMAND_USM_FILL, hQueue, numEventsInWaitList, phEventWaitList,
+      phEvent, [&]() {
+        UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+        UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+        UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
+        UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
+        // TODO: add check for allocation size once the query is supported
 
-  UR_ASSERT(ptr, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pPattern, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(patternSize != 0, UR_RESULT_ERROR_INVALID_SIZE)
-  UR_ASSERT(size != 0, UR_RESULT_ERROR_INVALID_SIZE)
-  UR_ASSERT(patternSize < size, UR_RESULT_ERROR_INVALID_SIZE)
-  UR_ASSERT(size % patternSize == 0, UR_RESULT_ERROR_INVALID_SIZE)
-  // TODO: add check for allocation size once the query is supported
-
-  switch (patternSize) {
-  case 1:
-    memset(ptr, *static_cast<const uint8_t *>(pPattern), size * patternSize);
-    break;
-  case 2: {
-    const auto pattern = *static_cast<const uint16_t *>(pPattern);
-    auto *start = reinterpret_cast<uint16_t *>(ptr);
-    auto *end =
-        reinterpret_cast<uint16_t *>(reinterpret_cast<uint8_t *>(ptr) + size);
-    std::fill(start, end, pattern);
-    break;
-  }
-  case 4: {
-    const auto pattern = *static_cast<const uint32_t *>(pPattern);
-    auto *start = reinterpret_cast<uint32_t *>(ptr);
-    auto *end =
-        reinterpret_cast<uint32_t *>(reinterpret_cast<uint8_t *>(ptr) + size);
-    std::fill(start, end, pattern);
-    break;
-  }
-  case 8: {
-    const auto pattern = *static_cast<const uint64_t *>(pPattern);
-    auto *start = reinterpret_cast<uint64_t *>(ptr);
-    auto *end =
-        reinterpret_cast<uint64_t *>(reinterpret_cast<uint8_t *>(ptr) + size);
-    std::fill(start, end, pattern);
-    break;
-  }
-  default: {
-    for (unsigned int step{0}; step < size; step += patternSize) {
-      auto *dest =
-          reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(ptr) + step);
-      memcpy(dest, pPattern, patternSize);
-    }
-  }
-  }
-
-  event->tick_end();
-  *phEvent = event;
-
-  return UR_RESULT_SUCCESS;
+        switch (patternSize) {
+        case 1:
+          memset(ptr, *static_cast<const uint8_t *>(pPattern),
+                 size * patternSize);
+          break;
+        case 2: {
+          const auto pattern = *static_cast<const uint16_t *>(pPattern);
+          auto *start = reinterpret_cast<uint16_t *>(ptr);
+          auto *end = reinterpret_cast<uint16_t *>(
+              reinterpret_cast<uint8_t *>(ptr) + size);
+          std::fill(start, end, pattern);
+          break;
+        }
+        case 4: {
+          const auto pattern = *static_cast<const uint32_t *>(pPattern);
+          auto *start = reinterpret_cast<uint32_t *>(ptr);
+          auto *end = reinterpret_cast<uint32_t *>(
+              reinterpret_cast<uint8_t *>(ptr) + size);
+          std::fill(start, end, pattern);
+          break;
+        }
+        case 8: {
+          const auto pattern = *static_cast<const uint64_t *>(pPattern);
+          auto *start = reinterpret_cast<uint64_t *>(ptr);
+          auto *end = reinterpret_cast<uint64_t *>(
+              reinterpret_cast<uint8_t *>(ptr) + size);
+          std::fill(start, end, pattern);
+          break;
+        }
+        default: {
+          for (unsigned int step{0}; step < size; step += patternSize) {
+            auto *dest = reinterpret_cast<void *>(
+                reinterpret_cast<uint8_t *>(ptr) + step);
+            memcpy(dest, pPattern, patternSize);
+          }
+        }
+        }
+        return UR_RESULT_SUCCESS;
+      });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
@@ -600,20 +605,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy(
     size_t size, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   std::ignore = blocking;
-  urEventWait(numEventsInWaitList, phEventWaitList);
-  ur_event_handle_t event =
-      new ur_event_handle_t_(hQueue, UR_COMMAND_MEM_BUFFER_MAP);
-  event->tick_start();
+  return withTimingEvent(
+      UR_COMMAND_USM_MEMCPY, hQueue, numEventsInWaitList, phEventWaitList,
+      phEvent, [&]() {
+        UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
+        UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+        UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
 
-  UR_ASSERT(hQueue, UR_RESULT_ERROR_INVALID_QUEUE);
-  UR_ASSERT(pDst, UR_RESULT_ERROR_INVALID_NULL_POINTER);
-  UR_ASSERT(pSrc, UR_RESULT_ERROR_INVALID_NULL_POINTER);
+        memcpy(pDst, pSrc, size);
 
-  memcpy(pDst, pSrc, size);
-  event->tick_end();
-  *phEvent = event;
-
-  return UR_RESULT_SUCCESS;
+        return UR_RESULT_SUCCESS;
+      });
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMPrefetch(
