@@ -146,7 +146,7 @@ request for specific reduction behavior(s), the implementation must throw an
 
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 struct deterministic_key {
   using value_t = property_value<deterministic_key>;
