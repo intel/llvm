@@ -21,7 +21,6 @@ static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
 #endif
 
 static constexpr auto InvalidDPCPPRoot = "<invalid>";
-static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
 
 static const std::string &getDPCPPRoot() {
   thread_local std::string DPCPPRoot;
@@ -32,6 +31,7 @@ static const std::string &getDPCPPRoot() {
   DPCPPRoot = InvalidDPCPPRoot;
 
 #ifdef _GNU_SOURCE
+  static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
   Dl_info Info;
   if (dladdr(&X, &Info)) {
     std::string LoadedLibraryPath = Info.dli_fname;
