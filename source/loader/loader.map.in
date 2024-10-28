@@ -69,6 +69,7 @@
 		urEnqueueDeviceGlobalVariableWrite;
 		urEnqueueEventsWait;
 		urEnqueueEventsWaitWithBarrier;
+		urEnqueueEventsWaitWithBarrierExt;
 		urEnqueueKernelLaunch;
 		urEnqueueKernelLaunchCustomExp;
 		urEnqueueMemBufferCopy;
@@ -266,6 +267,7 @@
 		urPrintEnqueueDeviceGlobalVariableReadParams;
 		urPrintEnqueueDeviceGlobalVariableWriteParams;
 		urPrintEnqueueEventsWaitParams;
+		urPrintEnqueueEventsWaitWithBarrierExtParams;
 		urPrintEnqueueEventsWaitWithBarrierParams;
 		urPrintEnqueueKernelLaunchCustomExpParams;
 		urPrintEnqueueKernelLaunchParams;
@@ -310,6 +312,8 @@
 		urPrintExpCommandBufferUpdateMemobjArgDesc;
 		urPrintExpCommandBufferUpdatePointerArgDesc;
 		urPrintExpCommandBufferUpdateValueArgDesc;
+		urPrintExpEnqueueExtFlags;
+		urPrintExpEnqueueExtProperties;
 		urPrintExpEnqueueNativeCommandFlags;
 		urPrintExpEnqueueNativeCommandProperties;
 		urPrintExpExternalMemDesc;

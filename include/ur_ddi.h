@@ -1399,6 +1399,15 @@ typedef ur_result_t(UR_APICALL *ur_pfnEnqueueWriteHostPipe_t)(
     ur_event_handle_t *);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urEnqueueEventsWaitWithBarrierExt
+typedef ur_result_t(UR_APICALL *ur_pfnEnqueueEventsWaitWithBarrierExt_t)(
+    ur_queue_handle_t,
+    const ur_exp_enqueue_ext_properties_t *,
+    uint32_t,
+    const ur_event_handle_t *,
+    ur_event_handle_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of Enqueue functions pointers
 typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueKernelLaunch_t pfnKernelLaunch;
@@ -1426,6 +1435,7 @@ typedef struct ur_enqueue_dditable_t {
     ur_pfnEnqueueDeviceGlobalVariableRead_t pfnDeviceGlobalVariableRead;
     ur_pfnEnqueueReadHostPipe_t pfnReadHostPipe;
     ur_pfnEnqueueWriteHostPipe_t pfnWriteHostPipe;
+    ur_pfnEnqueueEventsWaitWithBarrierExt_t pfnEventsWaitWithBarrierExt;
 } ur_enqueue_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
