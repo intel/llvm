@@ -229,7 +229,6 @@ environment:
  * **dump_ir**: - compiler can / cannot dump IR;
  * **llvm-spirv** - llvm-spirv tool availability;
  * **llvm-link** - llvm-link tool availability;
- * **fusion**: - Runtime supports kernel fusion;
  * **aspect-\<name\>**: - SYCL aspects supported by a device;
  * **arch-\<name\>** - [SYCL architecture](https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_device_architecture.asciidoc) of a device (e.g. `arch-intel_gpu_pvc`, the name matches what you
    can pass into `-fsycl-targets` compiler flag);
@@ -344,3 +343,29 @@ Once the issue is created, you can update the test by adding `XFAIL` and
 
 If you add `XFAIL` without `XFAIL-TRACKER` directive,
 `no-xfail-without-tracker.cpp` test will fail, notifying you about that.
+
+## Marking tests as unsupported
+
+Some tests may be considered unsupported, e.g.:
+* the test checks the feature that is not supported by some
+  backend / device / OS / etc.
+* the test is flaky or hangs, so it can't be marked with `XFAIL`.
+
+In these cases the test can be marked with `UNSUPPORTED`. This mark should be
+followed by either `UNSUPPORTED-INTENDED` or `UNSUPPORTED-TRACKER` depending on
+whether the test is not intended to be run with some feature at all or it was
+temporarily disabled due to some issue.
+```
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-INTENDED: only supported by backends with SPIR-V IR
+
+// Sporadically fails on DG2.
+// UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/DDDDD
+// *OR*
+// UNSUPPORTED-TRACKER: PRJ-1234
+```
+
+If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` or `UNSUPPORTED-INTENDED`
+directive, the `no-unsupported-without-tracker.cpp` test will fail, notifying
+you about that.
