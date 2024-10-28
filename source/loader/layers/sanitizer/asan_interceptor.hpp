@@ -291,6 +291,7 @@ class SanitizerInterceptor {
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
 
   private:
+    // m_Options may be used in other places, place it at the top
     AsanOptions m_Options;
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
