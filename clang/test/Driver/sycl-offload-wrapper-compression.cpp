@@ -14,7 +14,7 @@
 // Clang throws an error in the following command "cannot find 'remangled-l64-signed_char.libspirv-amdgcn-amd-amdhsa.bc'" on some machine,
 // that's why appending '|| true'. This error should not affect the driver invocation, which this test intends to verify.
 
-// RUN: (%clangxx -### -fsycl --offload-compress -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx1031 -fsycl-targets=amdgcn-amd-amdhsa %s > %t.driver 2>&1) || true
+// RUN: (%clangxx -### -fsycl --offload-compress -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx1031 -fsycl-targets=amdgcn-amd-amdhsa %s &> %t.driver) || true
 // RUN: FileCheck %s --check-prefix=CHECK-NO-COMPRESS-BUNDLER --input-file=%t.driver
 
 // CHECK-NO-COMPRESS-NOT: {{.*}}clang-offload-wrapper{{.*}}"-offload-compress"{{.*}}
