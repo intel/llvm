@@ -12,7 +12,6 @@
 
 #include "helpers.hpp"
 
-
 template <typename T> class VirtualVector {
 public:
   VirtualVector(sycl::queue &Q)
