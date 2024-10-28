@@ -507,11 +507,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceBfloat16FallbackLib);
   }
 
-  // Disabled ITT annotations in device code, under -fpreview-breaking-changes.
-  bool IsPreviewBreak = Args.hasArg(options::OPT_fpreview_breaking_changes);
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code,
-                   !IsPreviewBreak))
+                   options::OPT_fno_sycl_instrument_device_code, false))
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)

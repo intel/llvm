@@ -24,11 +24,5 @@
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -nocudalib -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
-// ITT annotations are disabled by default under -fpreview-breaking-changes.
-// RUN: %clangxx -fsycl --offload-new-driver -fpreview-breaking-changes -fsycl-targets=spir64 -### %s 2>&1 \
-// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fpreview-breaking-changes -nocudalib -### %s 2>&1 \
-// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
-
 // CHECK-NONPASSED-NOT: "-fsycl-instrument-device-code"
 // CHECK-NONPASSED-NOT: clang-linker-wrapper{{.*}} {{.*}}libsycl-itt-{{.*}}

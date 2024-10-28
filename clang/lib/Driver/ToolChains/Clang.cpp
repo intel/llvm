@@ -5588,15 +5588,10 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
     // Forward -fsycl-instrument-device-code option to cc1. This option will
     // only be used for SPIR/SPIR-V based targets.
-    // Disabled ITT annotations in device code, under
-    // -fpreview-breaking-changes.
-    if (Triple.isSPIROrSPIRV()) {
-      bool IsPreviewBreak = Args.hasArg(options::OPT_fpreview_breaking_changes);
+    if (Triple.isSPIROrSPIRV())
       if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                       options::OPT_fno_sycl_instrument_device_code,
-                       !IsPreviewBreak))
+                       options::OPT_fno_sycl_instrument_device_code, false))
         CmdArgs.push_back("-fsycl-instrument-device-code");
-    }
 
     if (!SYCLStdArg) {
       // The user had not pass SYCL version, thus we'll employ no-sycl-strict
