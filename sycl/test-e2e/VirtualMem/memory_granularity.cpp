@@ -1,5 +1,3 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem
-
 // This test checks whether memory granularity returned is greater than 0 and
 // that the recommended granularity is the same size or greater than the minimum
 // granularity for virtual memory extension.
