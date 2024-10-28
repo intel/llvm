@@ -142,6 +142,10 @@ public:
   }
 };
 
+template <template <auto...> typename property> struct property_key;
+template <template <auto...> typename property>
+using property_key_t = typename property_key<property>::type;
+
 template <typename... property_tys>
 inline constexpr bool property_names_are_unique = []() constexpr {
   if constexpr (sizeof...(property_tys) == 0) {
@@ -177,14 +181,23 @@ inline constexpr bool properties_are_sorted = []() constexpr {
   }
 }();
 
-template <typename property_key_t>
-inline constexpr property_key_tag<property_key_t> key{};
+template <template <auto...> typename property>
+constexpr auto key() {
+  return property_key_tag<property_key_t<property>>{};
+}
+template <typename property>
+constexpr auto key() {
+  return property_key_tag<property>{};
+}
 } // namespace detail
 
 // Empty property list.
 template <> class __SYCL_EBO properties<detail::properties_type_list<>, void> {
 public:
   template <typename> static constexpr bool has_property() { return false; }
+  template <template <auto...> typename> static constexpr bool has_property() {
+    return false;
+  }
 
   // TODO: How does this work without qualified name?
   template <typename other_property_t>
@@ -253,38 +266,54 @@ public:
   constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
 
-  template <typename property_key_t> static constexpr bool has_property() {
-    return std::is_base_of_v<detail::property_key_tag<property_key_t>,
-                             properties>;
+  template <template <auto...> typename property>
+  static constexpr bool has_property() {
+    return std::is_base_of_v<decltype(detail::key<property>()), properties>;
   }
 
-  // Two methods below do the following (pseudocode):
-  //
-  // template <property_key_t>
-  // using ret_t = decltype(this->get_property_impl(key_tag<property_key_t>{}));
-  // static constexpr auto get_property() requires(is_empty_v<ret_t>) {
-  //   return ret_t{};
-  // }
-  // constexpr auto get_property() const requires(!is_empty_v<ret_t>) {
-  //   return get_property_impl(key_tag<property_key_t>{});
-  // }
-  template <typename property_key_t>
+  template <typename property> static constexpr bool has_property() {
+    return std::is_base_of_v<decltype(detail::key<property>()), properties>;
+  }
+
+  // First, do return type SFINAE to choose between static/non-static. Second,
+  // duplicate the code for non-templated properties (until we have "universal
+  // template" in C++).
+  template <template <auto...> typename property>
   static constexpr auto get_property() -> std::enable_if_t<
       std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
-          detail::key<property_key_t>))>,
+          detail::key<property>()))>,
       decltype(std::declval<properties>().get_property_impl(
-          detail::key<property_key_t>))> {
+          detail::key<property>()))> {
     return decltype(std::declval<properties>().get_property_impl(
-        detail::key<property_key_t>)){};
+        detail::key<property>())){};
   }
 
-  template <typename property_key_t>
+  template <template <auto...> typename property>
   constexpr auto get_property() const -> std::enable_if_t<
       !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
-          detail::key<property_key_t>))>,
+          detail::key<property>()))>,
       decltype(std::declval<properties>().get_property_impl(
-          detail::key<property_key_t>))> {
-    return get_property_impl(detail::key<property_key_t>);
+          detail::key<property>()))> {
+    return get_property_impl(detail::key<property>());
+  }
+
+  template <typename property>
+  static constexpr auto get_property() -> std::enable_if_t<
+      std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))>,
+      decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))> {
+    return decltype(std::declval<properties>().get_property_impl(
+        detail::key<property>())){};
+  }
+
+  template <typename property>
+  constexpr auto get_property() const -> std::enable_if_t<
+      !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))>,
+      decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))> {
+    return get_property_impl(detail::key<property>());
   }
 
   // TODO: Use more effective insert sort for single-property insertion.
@@ -322,6 +351,7 @@ properties(unsorted_property_tys...)
 
 using empty_properties_t = decltype(properties{});
 
+// FIXME:
 template <typename property_list_ty, typename... allowed_property_keys>
 struct all_properties_in : std::false_type {};
 template <typename... property_tys, typename... allowed_property_keys>

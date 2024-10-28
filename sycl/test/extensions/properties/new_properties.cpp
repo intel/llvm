@@ -22,6 +22,8 @@ struct named_property_base
 };
 
 namespace test_sorting {
+// Treat each instantiation as a separate property by not providing a common
+// key.
 template <int N> struct Property : named_property_base<Property<N>> {};
 static_assert(
     std::is_same_v<decltype(properties{Property<3>{}, Property<2>{}}),
@@ -33,7 +35,13 @@ struct property1 : named_property_base<property1> {};
 
 template <int N>
 struct property2 : named_property_base<property2<N>, struct property2_key> {};
+} // namespace test
 
+template <> struct detail::property_key<test::property2> {
+  using type = test::property2_key;
+};
+
+namespace test {
 struct property3 : named_property_base<property3> {
   property3(int x) : x(x) {}
   int x;
@@ -50,8 +58,8 @@ void test() {
   static_assert(pl1.has_property<property1>());
   static_assert(!pl2.has_property<property1>());
 
-  static_assert(pl1.has_property<property2_key>());
-  static_assert(!pl2.has_property<property2_key>());
+  static_assert(pl1.has_property<property2>());
+  static_assert(!pl2.has_property<property2>());
 
   static_assert(pl1.has_property<property3>());
   static_assert(pl2.has_property<property3>());
@@ -86,6 +94,14 @@ template <int N>
 struct ct_prop : named_property_base<ct_prop<N>, struct ct_prop_key> {
   static constexpr auto value() { return N; }
 };
+} // namespace test_compile_prop_in_runtime_list
+
+template <>
+struct detail::property_key<test_compile_prop_in_runtime_list::ct_prop> {
+  using type = test_compile_prop_in_runtime_list::ct_prop_key;
+};
+
+namespace test_compile_prop_in_runtime_list {
 struct rt_prop : named_property_base<rt_prop> {
   rt_prop(int N) : x(N) {}
 
@@ -96,7 +112,7 @@ struct rt_prop : named_property_base<rt_prop> {
 void test() {
   int x = 42;
   properties pl{ct_prop<42>{}, rt_prop{x}};
-  constexpr auto p = pl.get_property<struct ct_prop_key>();
+  constexpr auto p = pl.get_property<ct_prop>();
   static_assert(std::is_same_v<decltype(p), const ct_prop<42>>);
   static_assert(p.value() == 42);
 }
@@ -114,6 +130,7 @@ namespace test_static_get_property {
   }
 }
 
+// TODO:
 namespace test_trait {
 struct prop : named_property_base<prop> {};
 struct prop2 : named_property_base<prop2> {};
@@ -161,6 +178,33 @@ static_assert(has_value_v<prop<1>>);
 static_assert(!has_value_v<decltype(pl1)>);
 static_assert(!has_value_v<decltype(pl2)>);
 }
+
+namespace implicit_key {
+struct non_template_prop : named_property_base<non_template_prop> {};
+template <int N> struct prop : named_property_base<prop<N>, struct prop_key_t> {
+  static constexpr int value = N;
+};
+} // namespace implicit_key
+
+template <> struct detail::property_key<implicit_key::prop> {
+  using type = implicit_key::prop_key_t;
+};
+
+namespace implicit_key {
+constexpr properties pl1{non_template_prop{}};
+constexpr properties pl2{prop<42>{}};
+static_assert(pl1.has_property<non_template_prop>());
+static_assert(!pl1.has_property<prop>());
+static_assert(!pl2.has_property<non_template_prop>());
+static_assert(pl2.has_property<prop>());
+static_assert(!empty_properties_t::has_property<non_template_prop>());
+static_assert(!empty_properties_t::has_property<prop>());
+
+constexpr auto p1 = pl1.get_property<non_template_prop>();
+static_assert(std::is_same_v<decltype(p1), const non_template_prop>);
+constexpr auto p2 = pl2.get_property<prop>();
+static_assert(std::is_same_v<decltype(p2), const prop<42>>);
+} // namespace implicit_key
 
 int main() {
   test::test();
