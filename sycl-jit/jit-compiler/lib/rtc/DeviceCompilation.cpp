@@ -158,8 +158,13 @@ Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module &Module,
 
   bool DeviceInstrumentationEnabled = true;
   for (StringRef UA : UserArgs) {
+    // Check instrumentation-related flags (last occurence determines outcome).
     if (UA == "-fno-sycl-instrument-device-code") {
       DeviceInstrumentationEnabled = false;
+      continue;
+    }
+    if (UA == "-fsycl-instrument-device-code") {
+      DeviceInstrumentationEnabled = true;
       continue;
     }
 
