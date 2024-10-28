@@ -22,6 +22,7 @@
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin1D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin2D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin3D/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest/*
 urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependencies/*
 urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesBarrierOnly/*
 urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesLaunchOnly/*
