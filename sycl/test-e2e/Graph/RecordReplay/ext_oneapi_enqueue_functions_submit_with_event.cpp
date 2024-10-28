@@ -52,7 +52,9 @@ int main() {
 
   auto GraphExec = Graph.finalize();
 
-  exp_ext::submit_with_event(Queue, [&](handler &CGH){execute_graph(CGH, GraphExec);}).wait();
+  exp_ext::submit_with_event(Queue, [&](handler &CGH) {
+    execute_graph(CGH, GraphExec);
+  }).wait();
 
   free(PtrA, Queue);
   free(PtrB, Queue);
