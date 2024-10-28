@@ -248,9 +248,6 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
     auto Device = GetDevice(Queue);
     auto ContextInfo = getContextInfo(Context);
     auto DeviceInfo = getDeviceInfo(Device);
-    auto KernelInfo = getKernelInfo(Kernel);
-
-    UR_CALL(LaunchInfo.updateKernelInfo(*KernelInfo.get()));
 
     ManagedQueue InternalQueue(Context, Device);
     if (!InternalQueue) {
@@ -663,33 +660,18 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                      LocalWorkSize[Dim];
         }
 
-        // Set launch info argument
         auto ArgNums = GetKernelNumArgs(Kernel);
         if (ArgNums == 0) {
             return UR_RESULT_SUCCESS;
         }
 
+        // Prepare asan runtime data
         LaunchInfo.Data.Host.GlobalShadowOffset =
             DeviceInfo->Shadow->ShadowBegin;
         LaunchInfo.Data.Host.GlobalShadowOffsetEnd =
             DeviceInfo->Shadow->ShadowEnd;
         LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
         LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
-
-        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
-            ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
-            sizeof(LaunchInfo), (void **)&LaunchInfo.Data.DevicePtr));
-        getContext()->logger.debug(
-            "launch_info {} (numLocalArgs={}, localArgs={})",
-            (void *)LaunchInfo.Data.DevicePtr,
-            LaunchInfo.Data.Host.NumLocalArgs,
-            (void *)LaunchInfo.Data.Host.LocalArgs);
-        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-            Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.DevicePtr);
-        if (URes != UR_RESULT_SUCCESS) {
-            getContext()->logger.error("Failed to set launch info: {}", URes);
-            return URes;
-        }
 
         auto EnqueueAllocateShadowMemory = [Context = ContextInfo->Handle,
                                             Device = DeviceInfo->Handle,
@@ -807,8 +789,34 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             }
         }
 
-        // Prepare launch info for device side
+        // Write local arguments info
+        if (!KernelInfo->LocalArgs.empty()) {
+            std::vector<LocalArgsInfo> LocalArgsInfo;
+            for (auto [ArgIndex, ArgInfo] : KernelInfo->LocalArgs) {
+                LocalArgsInfo.push_back(ArgInfo);
+                getContext()->logger.debug(
+                    "local_args (argIndex={}, size={}, sizeWithRZ={})",
+                    ArgIndex, ArgInfo.Size, ArgInfo.SizeWithRedZone);
+            }
+            UR_CALL(LaunchInfo.Data.importLocalArgsInfo(Queue, LocalArgsInfo));
+        }
+
+        // sync asan runtime data to device side
         UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
+
+        // set kernel argument
+        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+            Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
+        if (URes != UR_RESULT_SUCCESS) {
+            getContext()->logger.error("Failed to set launch info: {}", URes);
+            return URes;
+        }
+
+        getContext()->logger.debug(
+            "launch_info {} (numLocalArgs={}, localArgs={})",
+            (void *)LaunchInfo.Data.getDevicePtr(),
+            LaunchInfo.Data.Host.NumLocalArgs,
+            (void *)LaunchInfo.Data.Host.LocalArgs);
     } while (false);
 
     return UR_RESULT_SUCCESS;
@@ -860,54 +868,39 @@ ContextInfo::~ContextInfo() {
     }
 }
 
-ur_result_t LaunchInfo::updateKernelInfo(const KernelInfo &KI) {
-    if (!KI.LocalArgs.empty()) {
-        std::vector<LocalArgsInfo> LocalArgsInfo;
-        for (auto [ArgIndex, ArgInfo] : KI.LocalArgs) {
-            LocalArgsInfo.push_back(ArgInfo);
-            getContext()->logger.debug(
-                "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
-                ArgInfo.Size, ArgInfo.SizeWithRedZone);
+AsanRuntimeDataWrapper::~AsanRuntimeDataWrapper() {
+    [[maybe_unused]] ur_result_t Result;
+    auto Type = GetDeviceType(Context, Device);
+    auto ContextInfo = getContext()->interceptor->getContextInfo(Context);
+    if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
+        if (Host.PrivateShadowOffset) {
+            ContextInfo->Stats.UpdateShadowFreed(Host.PrivateShadowOffsetEnd -
+                                                 Host.PrivateShadowOffset + 1);
+            Result = getContext()->urDdiTable.USM.pfnFree(
+                Context, (void *)Host.PrivateShadowOffset);
+            assert(Result == UR_RESULT_SUCCESS);
         }
-        ManagedQueue Queue(Context, Device);
-        UR_CALL(
-            Data.importLocalArgsInfo(Context, Device, Queue, LocalArgsInfo));
+        if (Host.LocalShadowOffset) {
+            ContextInfo->Stats.UpdateShadowFreed(Host.LocalShadowOffsetEnd -
+                                                 Host.LocalShadowOffset + 1);
+            Result = getContext()->urDdiTable.USM.pfnFree(
+                Context, (void *)Host.LocalShadowOffset);
+            assert(Result == UR_RESULT_SUCCESS);
+        }
     }
-    return UR_RESULT_SUCCESS;
+    if (Host.LocalArgs) {
+        Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                      (void *)Host.LocalArgs);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
+    if (DevicePtr) {
+        Result = getContext()->urDdiTable.USM.pfnFree(Context, DevicePtr);
+        assert(Result == UR_RESULT_SUCCESS);
+    }
 }
 
 LaunchInfo::~LaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
-    if (Data.DevicePtr) {
-        auto Type = GetDeviceType(Context, Device);
-        auto ContextInfo = getContext()->interceptor->getContextInfo(Context);
-        if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
-            if (Data.Host.PrivateShadowOffset) {
-                ContextInfo->Stats.UpdateShadowFreed(
-                    Data.Host.PrivateShadowOffsetEnd -
-                    Data.Host.PrivateShadowOffset + 1);
-                Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data.Host.PrivateShadowOffset);
-                assert(Result == UR_RESULT_SUCCESS);
-            }
-            if (Data.Host.LocalShadowOffset) {
-                ContextInfo->Stats.UpdateShadowFreed(
-                    Data.Host.LocalShadowOffsetEnd -
-                    Data.Host.LocalShadowOffset + 1);
-                Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data.Host.LocalShadowOffset);
-                assert(Result == UR_RESULT_SUCCESS);
-            }
-        }
-        if (Data.Host.LocalArgs) {
-            Result = getContext()->urDdiTable.USM.pfnFree(
-                Context, (void *)Data.Host.LocalArgs);
-            assert(Result == UR_RESULT_SUCCESS);
-        }
-        Result = getContext()->urDdiTable.USM.pfnFree(Context,
-                                                      (void *)Data.DevicePtr);
-        assert(Result == UR_RESULT_SUCCESS);
-    }
     Result = getContext()->urDdiTable.Context.pfnRelease(Context);
     assert(Result == UR_RESULT_SUCCESS);
     Result = getContext()->urDdiTable.Device.pfnRelease(Device);
