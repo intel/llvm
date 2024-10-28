@@ -287,17 +287,6 @@ public:
     return get_property_impl(detail::key<property_key_t>);
   }
 
-  // TODO: Do we need separate `static` overload if we decide to keep this
-  // interface?
-  template <typename property_key_t, typename default_property_t>
-  constexpr auto
-  get_property_or_default_to(default_property_t default_property) {
-    if constexpr (has_property<property_key_t>())
-      return get_property<property_key_t>();
-    else
-      return default_property;
-  }
-
   // TODO: Use more effective insert sort for single-property insertion.
 
   // Need to use qualified type to force CTAD instead of using *current*
