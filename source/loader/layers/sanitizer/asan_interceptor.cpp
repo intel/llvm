@@ -669,8 +669,10 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             return UR_RESULT_SUCCESS;
         }
 
-        LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
-        LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+        LaunchInfo.Data.Host.GlobalShadowOffset =
+            DeviceInfo->Shadow->ShadowBegin;
+        LaunchInfo.Data.Host.GlobalShadowOffsetEnd =
+            DeviceInfo->Shadow->ShadowEnd;
         LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
         LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
 
