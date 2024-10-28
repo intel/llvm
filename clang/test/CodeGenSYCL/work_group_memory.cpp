@@ -19,7 +19,7 @@
 //
 // CHECK-INT-HEADER: const kernel_param_desc_t kernel_signatures[] = {
 // CHECK-INT-HEADER-NEXT: //--- _ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_EUlNS0_4itemILi1EEEE_
-// CHECK-INT-HEADER-NEXT: { kernel_param_kind_t::kind_work_group_memory, 8, 0 },
+// CHECK-INT-HEADER-NEXT: { kernel_param_kind_t::kind_work_group_memory, {{[4, 8]}}, 0 },
 // CHECK-INT-HEADER-EMPTY:
 // CHECK-INT-HEADER-NEXT: { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-INT-HEADER-NEXT: };
