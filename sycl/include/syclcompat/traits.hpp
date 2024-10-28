@@ -249,8 +249,9 @@ inline constexpr bool is_launch_policy_v = is_launch_policy<T>::value;
 
 // Trait to detect if all args are sycl_exp property types
 template <typename... Args>
-using are_all_props = std::conjunction<
-    sycl::ext::oneapi::experimental::is_property_value<Args>...>;
+using are_all_props =
+    sycl::ext::oneapi::experimental::detail::AllPropertyValues<
+        std::tuple<Args...>>;
 
 } // namespace experimental::detail
 

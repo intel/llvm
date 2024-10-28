@@ -57,22 +57,6 @@ operator!=(const property_value<PropertyT, A...> &,
   return (!std::is_same<A, B>::value || ...);
 }
 
-template <typename V, typename = void> struct is_property_value {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key<V>::value;
-};
-template <typename V, typename O, typename = void> struct is_property_value_of {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key_of<V, O>::value;
-};
-// Specialization for compile-time-constant properties
-template <typename V>
-struct is_property_value<V, std::void_t<typename V::key_t>>
-    : is_property_key<typename V::key_t> {};
-template <typename V, typename O>
-struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
-    : is_property_key_of<typename V::key_t, O> {};
-
 namespace detail {
 
 // Specialization of PropertyID for propagating IDs through property_value.

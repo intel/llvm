@@ -25,52 +25,6 @@ int main() {
   static_assert(sycl::ext::oneapi::experimental::is_property_key<
                 sycl::ext::intel::experimental::protocol_key>::value);
 
-  // Check that is_property_value is correctly specialized.
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::ready_latency<3>)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::bits_per_symbol<3>)>::value);
-
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_valid<true>)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_valid_on)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::uses_valid_off)>::value);
-
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::
-                             first_symbol_in_high_order_bits<true>)>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::
-                             first_symbol_in_high_order_bits_on)>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::
-                             first_symbol_in_high_order_bits_off)>::value);
-
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::protocol<TestProtocol>)>::
-          value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::protocol_avalon_streaming)>::
-          value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::
-                             protocol_avalon_streaming_uses_ready)>::value);
-  static_assert(
-      sycl::ext::oneapi::experimental::is_property_value<
-          decltype(sycl::ext::intel::experimental::protocol_avalon_mm)>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(sycl::ext::intel::experimental::
-                             protocol_avalon_mm_uses_ready)>::value);
-
   // Checks that fully specialized properties are the same as the templated
   // variants.
   static_assert(std::is_same_v<

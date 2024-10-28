@@ -16,7 +16,7 @@ static annotated_ptr<int, decltype(properties(buffer_location<1>,
 
 struct A {};
 
-// Checks is_property_key_of and is_property_value_of for T.
+// Checks is_property_key_of for T.
 template <typename T> void checkIsPropertyOf() {
   static_assert(is_property_key_of<register_map_key, T>::value);
   static_assert(is_property_key_of<conduit_key, T>::value);
@@ -29,23 +29,9 @@ template <typename T> void checkIsPropertyOf() {
   static_assert(is_property_key_of<read_write_mode_key, T>::value);
   static_assert(is_property_key_of<maxburst_key, T>::value);
   static_assert(is_property_key_of<wait_request_key, T>::value);
-
-  static_assert(is_property_value_of<decltype(register_map), T>::value);
-  static_assert(is_property_value_of<decltype(conduit), T>::value);
-  static_assert(is_property_value_of<decltype(stable), T>::value);
-
-  static_assert(is_property_value_of<decltype(buffer_location<1>), T>::value);
-  static_assert(is_property_value_of<decltype(awidth<2>), T>::value);
-  static_assert(is_property_value_of<decltype(dwidth<8>), T>::value);
-  static_assert(is_property_value_of<decltype(latency<0>), T>::value);
-  static_assert(is_property_value_of<decltype(read_write_mode_read), T>::value);
-  static_assert(is_property_value_of<decltype(maxburst<1>), T>::value);
-  static_assert(
-      is_property_value_of<decltype(wait_request_requested), T>::value);
 }
 
-// Checks is_property_key_of and is_property_value_of are false for non-pointer
-// type T.
+// Checks is_property_key_of is false for non-pointer type T.
 template <typename T> void checkIsValidPropertyOfNonPtr() {
   static_assert(
       is_valid_property<T, decltype(wait_request_not_requested)>::value ==

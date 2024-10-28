@@ -18,20 +18,6 @@ int main() {
   static_assert(oneapi::experimental::is_property_key<
                 intel::experimental::invocation_capacity_key>::value);
 
-  // Check that is_property_value is correctly specialized
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::balanced)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::response_capacity<0>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::response_capacity<
-                         TestResponseCapacity>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::invocation_capacity<0>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::invocation_capacity<
-                         TestInvocationCapacity>)>::value);
-
   // Check that property lists will accept the new properties.
   using P = decltype(oneapi::experimental::properties(
       intel::experimental::balanced,

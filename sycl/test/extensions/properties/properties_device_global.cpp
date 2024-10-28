@@ -17,20 +17,6 @@ int main() {
   static_assert(is_property_key<init_mode_key>::value);
   static_assert(is_property_key<implement_in_csr_key>::value);
 
-  // Check that is_property_value is correctly specialized.
-  static_assert(is_property_value<decltype(device_image_scope)>::value);
-  static_assert(is_property_value<decltype(host_access<TestAccess>)>::value);
-  static_assert(is_property_value<decltype(host_access_read)>::value);
-  static_assert(is_property_value<decltype(host_access_write)>::value);
-  static_assert(is_property_value<decltype(host_access_read_write)>::value);
-  static_assert(is_property_value<decltype(host_access_none)>::value);
-  static_assert(is_property_value<decltype(init_mode<TestTrigger>)>::value);
-  static_assert(is_property_value<decltype(init_mode_reprogram)>::value);
-  static_assert(is_property_value<decltype(init_mode_reset)>::value);
-  static_assert(is_property_value<decltype(implement_in_csr<true>)>::value);
-  static_assert(is_property_value<decltype(implement_in_csr_on)>::value);
-  static_assert(is_property_value<decltype(implement_in_csr_off)>::value);
-
   // Checks that fully specialized properties are the same as the templated
   // variants.
   static_assert(std::is_same_v<decltype(host_access_read),

@@ -47,28 +47,6 @@ struct is_property_key_of<cuda::cluster_size_key<2>, T> : std::true_type {};
 template <typename T>
 struct is_property_key_of<cuda::cluster_size_key<3>, T> : std::true_type {};
 
-template <>
-struct is_property_value<cuda::cluster_size_key<1>>
-    : is_property_key<cuda::cluster_size_key<1>> {};
-template <>
-struct is_property_value<cuda::cluster_size_key<2>>
-    : is_property_key<cuda::cluster_size_key<2>> {};
-template <>
-struct is_property_value<cuda::cluster_size_key<3>>
-    : is_property_key<cuda::cluster_size_key<3>> {};
-
-template <typename O>
-struct is_property_value_of<cuda::cluster_size_key<1>, O>
-    : is_property_key_of<cuda::cluster_size_key<1>, O> {};
-
-template <typename O>
-struct is_property_value_of<cuda::cluster_size_key<2>, O>
-    : is_property_key_of<cuda::cluster_size_key<2>, O> {};
-
-template <typename O>
-struct is_property_value_of<cuda::cluster_size_key<3>, O>
-    : is_property_key_of<cuda::cluster_size_key<3>, O> {};
-
 namespace detail {
 template <typename PropertiesT> constexpr std::size_t getClusterDim() {
   if constexpr (PropertiesT::template has_property<

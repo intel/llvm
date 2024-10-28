@@ -29,40 +29,6 @@ int main() {
                     intel::experimental::streaming_interface_options_enum::
                         accept_downstream_stall>>::value);
 
-  // Check that oneapi::experimental::is_property_value is correctly specialized
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::streaming_interface<
-                         intel::experimental::streaming_interface_options_enum::
-                             accept_downstream_stall>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::streaming_interface<
-                         intel::experimental::streaming_interface_options_enum::
-                             remove_downstream_stall>)>::value);
-  static_assert(
-      oneapi::experimental::is_property_value<
-          decltype(intel::experimental::register_map_interface<
-                   intel::experimental::register_map_interface_options_enum::
-                       wait_for_done_write>)>::value);
-  static_assert(
-      oneapi::experimental::is_property_value<
-          decltype(intel::experimental::register_map_interface<
-                   intel::experimental::register_map_interface_options_enum::
-                       do_not_wait_for_done_write>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::pipelined<-1>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::pipelined<0>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::pipelined<4>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::fpga_cluster<
-                         intel::experimental::fpga_cluster_options_enum::
-                             stall_enable>)>::value);
-  static_assert(oneapi::experimental::is_property_value<
-                decltype(intel::experimental::fpga_cluster<
-                         intel::experimental::fpga_cluster_options_enum::
-                             stall_free>)>::value);
-
   // Checks that fully specialized properties are the same as the templated
   // variants.
   static_assert(std::is_same_v<

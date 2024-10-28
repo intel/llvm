@@ -9,12 +9,6 @@ int main() {
   static_assert(sycl::ext::oneapi::experimental::is_property_key<
                 cache_config_key>::value);
 
-  // Check that oneapi::experimental::is_property_value is correctly specialized
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(cache_config{large_slm})>::value);
-  static_assert(sycl::ext::oneapi::experimental::is_property_value<
-                decltype(cache_config{large_data})>::value);
-
   // Check that property lists will accept the new properties
   sycl::ext::oneapi::experimental::properties Props1(
       cache_config{large_slm});
