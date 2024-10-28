@@ -121,10 +121,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             features_queried_by_test = features_queried_by_test + re.findall(
                 "[-+=._a-zA-Z0-9]+", f
             )
-        features = []
+        features = set()
         for f in features_queried_by_test:
             if exceptions[triple].get(f, exceptions["system"].get(f, add_default)):
-                features.append(f)
+                features.add(f)
         return features
 
     def select_triples_for_test(self, test):
@@ -136,9 +136,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 test.unsupported, triple, False
             )
             required = self.make_default_features_list(test.requires, triple)
-            if test.getMissingRequiredFeaturesFromList(required):
+            features = unsupported.union(required)
+            if test.getMissingRequiredFeaturesFromList(features):
                 continue
-            if self.getMatchedFromList(unsupported, test.unsupported):
+            if self.getMatchedFromList(features, test.unsupported):
                 continue
             triples.add(triple)
 
