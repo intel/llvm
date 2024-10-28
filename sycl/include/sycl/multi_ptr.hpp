@@ -733,11 +733,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr.
-// TODO: Add deprecation warning here when possible.
 template <typename ElementType, access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<ElementType, Space, access::decorated::legacy> {
+class multi_ptr<ElementType, Space, access::decorated::legacy> {
 public:
   using value_type = ElementType;
   using element_type =
@@ -1083,11 +1080,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<void, Space, access::decorated::legacy> {
+class multi_ptr<void, Space, access::decorated::legacy> {
 public:
   using value_type = void;
   using element_type = void;
@@ -1244,11 +1238,8 @@ private:
 };
 
 // Legacy specialization of multi_ptr for const void.
-// TODO: Add deprecation warning here when possible.
 template <access::address_space Space>
-class __SYCL2020_DEPRECATED(
-    "decorated::legacy multi_ptr specialization is deprecated since SYCL 2020.")
-    multi_ptr<const void, Space, access::decorated::legacy> {
+class multi_ptr<const void, Space, access::decorated::legacy> {
 public:
   using value_type = const void;
   using element_type = const void;
