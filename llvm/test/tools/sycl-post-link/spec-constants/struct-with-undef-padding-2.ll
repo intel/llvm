@@ -38,10 +38,10 @@
 ; RUN: FileCheck %s -input-file=%t.files_0.ll
 ; RUN: %if asserts %{ sycl-post-link -properties -debug-only=SpecConst --spec-const=native -S < %s 2>&1 | FileCheck %s --check-prefix=CHECK-LOG %}
 ;
-; CHECK: %[[#A:]] = call float @_Z20__spirv_SpecConstantif(i32 [[#ID:]], float 0x40091EB860000000)
-; CHECK: %[[#B:]] = call i32 @_Z20__spirv_SpecConstantii(i32 [[#ID+1]], i32 42)
-; CHECK: %[[#C:]] = call i8 @_Z20__spirv_SpecConstantia(i32 2, i8 8)
-; CHECK: call %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefiaA3_a_Rstruct.user_defined_type(float %[[#A]], i32 %[[#B]], i8 %[[#C]], [3 x i8] undef)
+; CHECK: %[[#A:]] = call spir_func float @_Z20__spirv_SpecConstantif(i32 [[#ID:]], float 0x40091EB860000000)
+; CHECK: %[[#B:]] = call spir_func i32 @_Z20__spirv_SpecConstantii(i32 [[#ID+1]], i32 42)
+; CHECK: %[[#C:]] = call spir_func i8 @_Z20__spirv_SpecConstantia(i32 2, i8 8)
+; CHECK: call spir_func %struct.user_defined_type @_Z29__spirv_SpecConstantCompositefiaA3_a_Rstruct.user_defined_type(float %[[#A]], i32 %[[#B]], i8 %[[#C]], [3 x i8] undef)
 ;
 ; CHECK: !sycl.specialization-constants = !{![[#SC:]]}
 ; CHECK: ![[#SC]] = !{!"uidac684fbd602505be____ZL7spec_id",

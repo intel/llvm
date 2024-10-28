@@ -28,5 +28,5 @@ int main() {
   return 0;
 }
 
-// CHECK0: ---> urProgramBuild{{.*}}-ze-opt-disable{{.*}}-> UR_RESULT_SUCCESS
-// CHECK1: ---> urProgramBuild{{.*}}-ze-opt-level=2{{.*}}-> UR_RESULT_SUCCESS
+// CHECK0: <--- urProgramBuild{{.*}}-ze-opt-disable{{.*}}-> UR_RESULT_SUCCESS
+// CHECK1: <--- urProgramBuild{{.*}}-ze-opt-level=2{{.*}}-> UR_RESULT_SUCCESS

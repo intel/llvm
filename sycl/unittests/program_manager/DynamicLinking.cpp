@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrArray<sycl::unittest::UrProperty>
+std::vector<sycl::unittest::UrProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
   sycl::unittest::UrPropertySet PropSet;
-  sycl::unittest::UrArray<sycl::unittest::UrProperty> Props;
+  std::vector<sycl::unittest::UrProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -70,7 +70,7 @@ sycl::unittest::UrImage generateImage(
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
+  std::vector<sycl::unittest::UrOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
   sycl::unittest::UrImage Img{BinType,

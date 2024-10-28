@@ -20,7 +20,7 @@
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
 //
-// CHECK-FALLBACK: ---> urProgramLink
+// CHECK-FALLBACK: <--- urProgramLink
 
 #include "../helpers.hpp"
 #include <array>

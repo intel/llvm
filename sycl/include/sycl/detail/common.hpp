@@ -140,6 +140,9 @@ public:
   /// @return The code location information saved in the TLS slot. If not TLS
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
 private:
   // The flag that is used to determine if the object is in a local scope or in

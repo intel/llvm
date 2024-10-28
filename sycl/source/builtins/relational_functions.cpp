@@ -112,10 +112,7 @@ HOST_IMPL(bitselect, [](auto x, auto y, auto z) {
   static_assert(std::is_same_v<T0, T1> && std::is_same_v<T1, T2> &&
                 detail::is_scalar_arithmetic_v<T0>);
 
-  using utype = detail::make_type_t<
-      T0, detail::type_list<unsigned char, unsigned short, unsigned int,
-                            unsigned long, unsigned long long>>;
-  static_assert(sizeof(utype) == sizeof(T0));
+  using utype = fixed_width_unsigned<sizeof(T0)>;
   bitset bx(bit_cast<utype>(x)), by(bit_cast<utype>(y)), bz(bit_cast<utype>(z));
   bitset res = (bz & by) | (~bz & bx);
   unsigned long long ures = res.to_ullong();

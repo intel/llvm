@@ -23,7 +23,6 @@
 #include <sycl/nd_item.hpp>                    // for nd_item
 #include <sycl/nd_range.hpp>                   // for nd_range
 #include <sycl/range.hpp>                      // for range, operator*
-#include <ur_api.h> // for UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE
 
 #include <functional>  // for function
 #include <stddef.h>    // for size_t

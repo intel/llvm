@@ -8,8 +8,8 @@
 // The test checks that the last parameter is not `nullptr` for
 // urEnqueueKernelLaunch.
 //
-// CHECK-NOT: ---> urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
-// CHECK: ---> urEnqueueKernelLaunch
+// CHECK-NOT: <--- urEnqueueKernelLaunch({{.*}}.phEvent = nullptr
+// CHECK: <--- urEnqueueKernelLaunch
 // CHECK: -> UR_RESULT_SUCCESS
 //
 // CHECK: The test passed.

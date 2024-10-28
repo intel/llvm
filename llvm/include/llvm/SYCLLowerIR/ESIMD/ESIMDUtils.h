@@ -61,6 +61,7 @@ Type *getVectorTyOrNull(StructType *STy);
 class SimpleAllocator {
 protected:
   SmallVector<void *, 128> Ptrs;
+  SimpleAllocator &operator=(const SimpleAllocator &) = delete;
 
 public:
   void reset() {
@@ -84,6 +85,10 @@ public:
     return Ptr;
   }
 
+  SimpleAllocator() = default;
+  SimpleAllocator(const SimpleAllocator &) : SimpleAllocator() {
+    assert(false && "Unreachable");
+  }
   ~SimpleAllocator() { reset(); }
 };
 

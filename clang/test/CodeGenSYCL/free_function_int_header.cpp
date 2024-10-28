@@ -76,6 +76,26 @@ __attribute__((sycl_device))
 
 template void ff_6(Agg S1, Derived S2, int);
 
+constexpr int TestArrSize = 3;
+
+template <int ArrSize>
+struct KArgWithPtrArray {
+  int *data[ArrSize];
+  int start[ArrSize];
+  int end[ArrSize];
+  constexpr int getArrSize() { return ArrSize; }
+};
+
+template <int ArrSize>
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel", 0)]]
+void ff_7(KArgWithPtrArray<ArrSize> KArg) {
+  for (int j = 0; j < ArrSize; j++)
+    for (int i = KArg.start[j]; i <= KArg.end[j]; i++)
+      KArg.data[j][i] = KArg.start[j] + KArg.end[j];
+}
+
+template void ff_7(KArgWithPtrArray<TestArrSize> KArg);
+
 // CHECK:      const char* const kernel_names[] = {
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piii
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_2Piiii
@@ -84,6 +104,7 @@ template void ff_6(Agg S1, Derived S2, int);
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_3IdEvPT_S0_S0_
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_410NoPointers8Pointers3Agg
 // CHECK-NEXT:   {{.*}}__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i
+// CHECK-NEXT:   {{.*}}__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
 // CHECK-NEXT:   ""
 // CHECK-NEXT: };
 
@@ -123,6 +144,9 @@ template void ff_6(Agg S1, Derived S2, int);
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 32, 0 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 40, 32 },
 // CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 4, 72 },
+
+// CHECK:  //--- _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
+// CHECK-NEXT:  { kernel_param_kind_t::kind_std_layout, 48, 0 },
 
 // CHECK:        { kernel_param_kind_t::kind_invalid, -987654321, -987654321 },
 // CHECK-NEXT: };
@@ -249,6 +273,26 @@ template void ff_6(Agg S1, Derived S2, int);
 // CHECK-NEXT:   static constexpr bool value = true;
 // CHECK-NEXT: };
 // CHECK-NEXT: }
+//
+// CHECK: Definition of _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE as a free function kernel
+
+// CHECK: Forward declarations of kernel and its argument types:
+// CHECK: template <int ArrSize> struct KArgWithPtrArray;
+//
+// CHECK: template <int ArrSize> void ff_7(KArgWithPtrArray<ArrSize> KArg);
+// CHECK-NEXT: static constexpr auto __sycl_shim8() {
+// CHECK-NEXT:   return (void (*)(struct KArgWithPtrArray<3>))ff_7<3>;
+// CHECK-NEXT: }
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_kernel<__sycl_shim8()> {
+// CHECK-NEXT:   static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: template <>
+// CHECK-NEXT: struct ext::oneapi::experimental::is_single_task_kernel<__sycl_shim8()> {
+// CHECK-NEXT:   static constexpr bool value = true;
+// CHECK-NEXT: };
+// CHECK-NEXT: }
 
 // CHECK: #include <sycl/kernel_bundle.hpp>
 
@@ -305,5 +349,13 @@ template void ff_6(Agg S1, Derived S2, int);
 // CHECK-NEXT: template <>
 // CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim7()>() {
 // CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_6I3Agg7DerivedEvT_T0_i"});
+// CHECK-NEXT: }
+// CHECK-NEXT: }
+
+// CHECK: Definition of kernel_id of _Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <>
+// CHECK-NEXT: kernel_id ext::oneapi::experimental::get_kernel_id<__sycl_shim8()>() {
+// CHECK-NEXT:   return sycl::detail::get_kernel_id_impl(std::string_view{"_Z18__sycl_kernel_ff_7ILi3EEv16KArgWithPtrArrayIXT_EE"});
 // CHECK-NEXT: }
 // CHECK-NEXT: }

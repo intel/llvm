@@ -28,7 +28,7 @@ int main() {
 
   {
     // Check access mode flags
-    // CHECK: urEnqueueMemBufferMap
+    // CHECK: <--- urEnqueueMemBufferMap
     // CHECK: .mapFlags = UR_MAP_FLAG_READ
     auto AccA = BufA.get_access<access::mode::read>();
     for (std::size_t I = 0; I < Size; ++I) {
@@ -36,15 +36,15 @@ int main() {
     }
   }
   {
-    // CHECK: urEnqueueMemUnmap
-    // CHECK: urEnqueueMemBufferMap
+    // CHECK: <--- urEnqueueMemUnmap
+    // CHECK: <--- urEnqueueMemBufferMap
     // CHECK: .mapFlags = UR_MAP_FLAG_READ | UR_MAP_FLAG_WRITE
     auto AccA = BufA.get_access<access::mode::write>();
     for (std::size_t I = 0; I < Size; ++I)
       AccA[I] = 2 * I;
   }
 
-  // CHECK-NOT: urEnqueueMemBufferMap
+  // CHECK-NOT: <--- urEnqueueMemBufferMap
   auto AccA = BufA.get_access<access::mode::read>();
   for (std::size_t I = 0; I < Size; ++I) {
     assert(AccA[I] == 2 * I);

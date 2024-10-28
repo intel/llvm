@@ -3,7 +3,7 @@
 // RUN: FileCheck %s --input-file %t.ll --check-prefix=CHECK-WG-BARRIER
 // RUN: FileCheck %s --input-file %t.ll
 
-#include "sycl.hpp"
+#include <sycl/sycl.hpp>
 using namespace sycl;
 
 class Test;

@@ -371,6 +371,62 @@ bool test_5(queue Queue) {
   return PassA && PassB;
 }
 
+constexpr int TestArrSize = 3;
+
+template <int ArrSize>
+struct KArgWithPtrArray {
+  int *data[ArrSize];
+  int start[ArrSize];
+  int end[ArrSize];
+  constexpr int getArrSize() { return ArrSize; }
+};
+
+template <int ArrSize>
+SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    (ext::oneapi::experimental::single_task_kernel))
+void ff_6(KArgWithPtrArray<ArrSize> KArg) {
+  for (int j = 0; j < ArrSize; j++)
+    for (int i = KArg.start[j]; i <= KArg.end[j]; i++)
+      KArg.data[j][i] = KArg.start[j] + KArg.end[j];
+}
+
+template void ff_6(KArgWithPtrArray<TestArrSize> KArg);
+
+bool test_6(queue Queue) {
+  constexpr int Range = 10;
+  KArgWithPtrArray<TestArrSize> KArg;
+  for (int i = 0; i < TestArrSize; ++i) {
+    KArg.data[i] = malloc_shared<int>(Range, Queue);
+    memset(KArg.data[i], 0, Range * sizeof(int));
+    KArg.start[i]= 3;
+    KArg.end[i] = 5;
+  }
+  int Result[Range] = {0, 0, 0, 8, 8, 8, 0, 0, 0, 0};
+  range<1> R1{Range};
+
+  bool Pass = true;
+#ifndef __SYCL_DEVICE_ONLY__
+  kernel_bundle Bundle =
+      get_kernel_bundle<bundle_state::executable>(Queue.get_context());
+  kernel_id Kernel_id = ext::oneapi::experimental::get_kernel_id<(
+      void (*)(KArgWithPtrArray<TestArrSize>))ff_6<TestArrSize>>();
+  kernel Kernel = Bundle.get_kernel(Kernel_id);
+  Queue.submit([&](handler &Handler) {
+    Handler.set_arg(0, KArg);
+    Handler.single_task(Kernel);
+  });
+  Queue.wait();
+  for (int i = 0; i < TestArrSize; ++i) {
+    Pass &= checkUSM(KArg.data[i], Range, Result);
+    std::cout << "Test 6, array: " << i << (Pass ? " PASS" : " FAIL")
+              << std::endl;
+    free(KArg.data[i], Queue);
+  }
+
+#endif
+  return Pass;
+}
+
 int main() {
   queue Queue;
 
@@ -381,6 +437,7 @@ int main() {
   Pass &= test_3(Queue);
   Pass &= test_4(Queue);
   Pass &= test_5(Queue);
+  Pass &= test_6(Queue);
 
   return Pass ? 0 : 1;
 }

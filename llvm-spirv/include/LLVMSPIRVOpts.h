@@ -236,6 +236,14 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return EmitFunctionPtrAddrSpace;
+  }
+
+  void setEmitFunctionPtrAddrSpace(bool Value) noexcept {
+    EmitFunctionPtrAddrSpace = Value;
+  }
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
@@ -286,6 +294,10 @@ private:
   // Add a workaround to preserve OpenCL kernel_arg_type and
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
+
+  // Controls if CodeSectionINTEL can be emitted and consumed with a dedicated
+  // address space
+  bool EmitFunctionPtrAddrSpace = false;
 
   bool PreserveAuxData = false;
 

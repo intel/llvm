@@ -782,8 +782,7 @@ class DeviceFunctionTracker {
 
 public:
   DeviceFunctionTracker(SemaSYCL &S) : SemaSYCLRef(S) {
-    if (S.getLangOpts().SYCLAllowAllFeaturesInConstexpr)
-      CG.setSkipConstantExpressions(S.getASTContext());
+    CG.setSkipConstantExpressions(S.getASTContext());
     CG.addToCallGraph(S.getASTContext().getTranslationUnitDecl());
     CollectSyclExternalFuncs();
   }
@@ -4694,6 +4693,9 @@ public:
                           CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
@@ -5594,14 +5596,12 @@ SemaSYCL::DiagIfDeviceCode(SourceLocation Loc, unsigned DiagID,
       return SemaDiagnosticBuilder::K_ImmediateWithCallStack;
     if (!FD)
       return SemaDiagnosticBuilder::K_Nop;
-    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
-        (SemaRef.isConstantEvaluatedContext() ||
-         SemaRef.currentEvaluationContext().isDiscardedStatementContext()))
+    if (SemaRef.isConstantEvaluatedContext() ||
+        SemaRef.currentEvaluationContext().isDiscardedStatementContext())
       return SemaDiagnosticBuilder::K_Nop;
     // Defer until we know that the variable's intializer is actually a
     // manifestly constant-evaluated expression.
-    if (SemaRef.getLangOpts().SYCLAllowAllFeaturesInConstexpr &&
-        SemaRef.InConstexprVarInit)
+    if (SemaRef.InConstexprVarInit)
       return SemaDiagnosticBuilder::K_Deferred;
     if (SemaRef.getEmissionStatus(FD) ==
         Sema::FunctionEmissionStatus::Emitted) {
@@ -5776,6 +5776,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(stream);
     CASE(specialization_constants_buffer);
     CASE(pointer);
+    CASE(work_group_memory);
   }
   return "<ERROR>";
 

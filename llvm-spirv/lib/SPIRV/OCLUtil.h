@@ -161,7 +161,7 @@ struct OCLBuiltinTransInfo {
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
-  Type *RetTy;      // Return type of the translated function
+  Type *RetTy; // Return type of the translated function
   OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
@@ -578,6 +578,30 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   assert(SI->getDefaultDest() != EntryBB &&
          "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+}
+
+/// Maps LLVM SyncScope into SPIR-V Scope.
+///
+/// \param [in] Ctx Context for the LLVM SyncScope
+/// \param [in] Id SyncScope::ID value which needs to be mapped to SPIR-V Scope
+inline spv::Scope toSPIRVScope(const LLVMContext &Ctx, SyncScope::ID Id) {
+  // We follow Clang/LLVM convention by which the default is System scope, which
+  // in SPIR-V maps to CrossDevice scope. This is in order to ensure that the
+  // resulting SPIR-V is conservatively correct (i.e. always works), under the
+  // assumption that it is the responsibility of the higher level language to
+  // choose a narrower scope, if desired.
+  switch (Id) {
+  case SyncScope::SingleThread:
+    return spv::ScopeInvocation;
+  case SyncScope::System:
+    return spv::ScopeCrossDevice;
+  default:
+    SmallVector<StringRef> SSIDs;
+    Ctx.getSyncScopeNames(SSIDs);
+    spv::Scope S = ScopeCrossDevice; // Default to CrossDevice scope.
+    OCLStrMemScopeMap::find(SSIDs[Id].str(), &S);
+    return S;
+  }
 }
 
 /// Performs conversion from OpenCL memory_scope into SPIR-V Scope.
