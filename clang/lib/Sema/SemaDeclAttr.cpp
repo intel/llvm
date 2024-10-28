@@ -6801,7 +6801,6 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     S.SYCL().handleSYCLIntelMaxWorkGroupsPerMultiprocessor(D, AL);
     break;
   case ParsedAttr::AT_IntelReqdSubGroupSize:
-    // TODO: deprecate other spellings and change if to assert
     S.SYCL().handleIntelReqdSubGroupSizeAttr(D, AL);
     break;
   case ParsedAttr::AT_IntelNamedSubGroupSize:
