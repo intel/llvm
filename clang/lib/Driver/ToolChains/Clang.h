@@ -47,7 +47,8 @@ private:
 
   void RenderTargetOptions(const llvm::Triple &EffectiveTriple,
                            const llvm::opt::ArgList &Args, bool KernelOrKext,
-                           llvm::opt::ArgStringList &CmdArgs) const;
+                           llvm::opt::ArgStringList &CmdArgs,
+                           const JobAction &JA) const;
 
   void AddAArch64TargetArgs(const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const;
@@ -55,6 +56,9 @@ private:
                         const llvm::opt::ArgList &Args,
                         llvm::opt::ArgStringList &CmdArgs,
                         bool KernelOrKext) const;
+  void AddSPIRTargetArgs(const llvm::opt::ArgList &Args,
+                          llvm::opt::ArgStringList &CmdArgs,
+                          const JobAction &JA, const Driver &D) const;
   void AddARM64TargetArgs(const llvm::opt::ArgList &Args,
                           llvm::opt::ArgStringList &CmdArgs) const;
   void AddLoongArchTargetArgs(const llvm::opt::ArgList &Args,
