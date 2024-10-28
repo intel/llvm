@@ -3,10 +3,6 @@
 
 // UNSUPPORTED: hip || cuda
 
-// TODO: Remove XFAIL after fixing
-// https://github.com/intel/intel-graphics-compiler/issues/330
-// XFAIL: gpu
-
 // Make dump directory.
 // RUN: rm -rf %t.spvdir && mkdir %t.spvdir
 
