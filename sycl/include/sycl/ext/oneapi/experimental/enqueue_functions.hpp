@@ -372,15 +372,16 @@ inline void partial_barrier(queue Q, const std::vector<event> &Events,
       Q, [&](handler &CGH) { partial_barrier(CGH, Events); }, CodeLoc);
 }
 
-__SYCL_EXPORT void execute_graph(queue Q,
-                                 command_graph<graph_state::executable> &G,
-                                 const sycl::detail::code_location &CodeLoc =
-                                     sycl::detail::code_location::current());
+inline void execute_graph(queue Q, command_graph<graph_state::executable> &G,
+                          const sycl::detail::code_location &CodeLoc =
+                              sycl::detail::code_location::current()) {
+  Q.ext_oneapi_graph(G, CodeLoc);
+}
 
-__SYCL_EXPORT void execute_graph(handler CGH,
-                                 command_graph<graph_state::executable> &G,
-                                 const sycl::detail::code_location &CodeLoc =
-                                     sycl::detail::code_location::current());
+inline void execute_graph(handler &CGH,
+                          command_graph<graph_state::executable> &G) {
+  CGH.ext_oneapi_graph(G);
+}
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
