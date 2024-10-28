@@ -9,7 +9,7 @@
 
 #include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
-#include <assert.h>
+#include <cassert>
 
 namespace syclext = sycl::ext::oneapi::experimental;
 
