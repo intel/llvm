@@ -159,9 +159,33 @@ struct AsanRuntimeDataWrapper {
 
     AsanRuntimeData *DevicePtr = nullptr;
 
+    ur_context_handle_t Context{};
+
+    ur_device_handle_t Device{};
+
+    AsanRuntimeDataWrapper(ur_context_handle_t Context,
+                           ur_device_handle_t Device)
+        : Context(Context), Device(Device) {}
+
+    ~AsanRuntimeDataWrapper();
+
+    AsanRuntimeData *getDevicePtr() {
+        if (DevicePtr == nullptr) {
+            ur_result_t Result = getContext()->urDdiTable.USM.pfnDeviceAlloc(
+                Context, Device, nullptr, nullptr, sizeof(AsanRuntimeData),
+                (void **)&DevicePtr);
+            if (Result != UR_RESULT_SUCCESS) {
+                getContext()->logger.error(
+                    "Failed to alloc device usm for asan runtime data: {}",
+                    Result);
+            }
+        }
+        return DevicePtr;
+    }
+
     ur_result_t syncFromDevice(ur_queue_handle_t Queue) {
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-            Queue, true, ur_cast<void *>(&Host), DevicePtr,
+            Queue, true, ur_cast<void *>(&Host), getDevicePtr(),
             sizeof(AsanRuntimeData), 0, nullptr, nullptr));
 
         return UR_RESULT_SUCCESS;
@@ -169,15 +193,14 @@ struct AsanRuntimeDataWrapper {
 
     ur_result_t syncToDevice(ur_queue_handle_t Queue) {
         UR_CALL(getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
-            Queue, true, DevicePtr, ur_cast<void *>(&Host),
+            Queue, true, getDevicePtr(), ur_cast<void *>(&Host),
             sizeof(AsanRuntimeData), 0, nullptr, nullptr));
 
         return UR_RESULT_SUCCESS;
     }
 
     ur_result_t
-    importLocalArgsInfo(ur_context_handle_t Context, ur_device_handle_t Device,
-                        ur_queue_handle_t Queue,
+    importLocalArgsInfo(ur_queue_handle_t Queue,
                         const std::vector<LocalArgsInfo> &LocalArgs) {
         assert(!LocalArgs.empty());
 
@@ -197,8 +220,6 @@ struct AsanRuntimeDataWrapper {
 };
 
 struct LaunchInfo {
-    AsanRuntimeDataWrapper Data{};
-
     ur_context_handle_t Context = nullptr;
     ur_device_handle_t Device = nullptr;
     const size_t *GlobalWorkSize = nullptr;
@@ -206,11 +227,14 @@ struct LaunchInfo {
     std::vector<size_t> LocalWorkSize;
     uint32_t WorkDim = 0;
 
+    AsanRuntimeDataWrapper Data;
+
     LaunchInfo(ur_context_handle_t Context, ur_device_handle_t Device,
                const size_t *GlobalWorkSize, const size_t *LocalWorkSize,
                const size_t *GlobalWorkOffset, uint32_t WorkDim)
         : Context(Context), Device(Device), GlobalWorkSize(GlobalWorkSize),
-          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim) {
+          GlobalWorkOffset(GlobalWorkOffset), WorkDim(WorkDim),
+          Data(Context, Device) {
         if (LocalWorkSize) {
             this->LocalWorkSize =
                 std::vector<size_t>(LocalWorkSize, LocalWorkSize + WorkDim);
@@ -222,8 +246,6 @@ struct LaunchInfo {
         assert(Result == UR_RESULT_SUCCESS);
     }
     ~LaunchInfo();
-
-    ur_result_t updateKernelInfo(const KernelInfo &KI);
 };
 
 struct DeviceGlobalInfo {
