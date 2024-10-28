@@ -118,8 +118,9 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         }
         features_queried_by_test = []
         for f in expr:
-            features_queried_by_test = features_queried_by_test + re.findall("[-+=._a-zA-Z0-9]+", f)
-
+            features_queried_by_test = features_queried_by_test + re.findall(
+                "[-+=._a-zA-Z0-9]+", f
+            )
         features = []
         for f in features_queried_by_test:
             if exceptions[triple].get(f, exceptions["system"].get(f, add_default)):
