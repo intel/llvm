@@ -38,14 +38,16 @@ __SYCL_EXPORT void mem_advise(queue Q, void *Ptr, size_t NumBytes, int Advice,
                            /*CallerNeedsEvent=*/false);
 }
 
-__SYCL_EXPORT void
-enqueue_graph(handler CGH, command_graph<graph_state::executable> &G,
-                  const sycl::detail::code_location &CodeLoc) {
-  CGH.ext_oneapi_graph(G, CodeLoc);
+__SYCL_EXPORT void enqueue_graph(handler CGH,
+                                 command_graph<graph_state::executable> &G,
+                                 const sycl::detail::code_location &CodeLoc) {
+  sycl::detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+  CGH.ext_oneapi_graph(G);
 }
 
-__SYCL_EXPORT void enqueue_graph(queue Q, command_graph<graph_state::executable> &G,
-                          const sycl::detail::code_location &CodeLoc) {
+__SYCL_EXPORT void enqueue_graph(queue Q,
+                                 command_graph<graph_state::executable> &G,
+                                 const sycl::detail::code_location &CodeLoc) {
   Q.ext_oneapi_graph(G, CodeLoc);
 }
 
