@@ -291,6 +291,7 @@ class SanitizerInterceptor {
                                   std::shared_ptr<DeviceInfo> &DeviceInfo);
 
   private:
+    AsanOptions m_Options;
     std::unordered_map<ur_context_handle_t, std::shared_ptr<ContextInfo>>
         m_ContextMap;
     ur_shared_mutex m_ContextMapMutex;
@@ -315,8 +316,6 @@ class SanitizerInterceptor {
     ur_shared_mutex m_AllocationMapMutex;
 
     std::unique_ptr<Quarantine> m_Quarantine;
-
-    AsanOptions m_Options;
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;

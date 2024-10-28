@@ -837,7 +837,7 @@ ContextInfo::~ContextInfo() {
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
 
-    if (getOptions().DetectLeaks) {
+    if (getContext()->interceptor->getOptions().DetectLeaks) {
         // check memory leaks
         std::vector<AllocationIterator> AllocInfos =
             getContext()->interceptor->findAllocInfoByContext(Handle);
