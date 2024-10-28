@@ -71,15 +71,15 @@ template <int... N> void test(std::integer_sequence<int, N...>) {
 }
 } // namespace bench
 
-namespace test_merge_ctor {
+namespace test_operator_plus {
 template <int N> struct property : named_property_base<property<N>> {};
 
 constexpr properties pl1{property<1>{}, property<2>{}, property<3>{}};
-constexpr properties pl2{pl1, property<4>{}};
+constexpr properties pl2 = pl1 + properties{property<4>{}};
 static_assert(!pl1.has_property<property<4>>());
 static_assert(pl2.has_property<property<2>>());
 static_assert(pl2.has_property<property<4>>());
-} // namespace test_merge_ctor
+} // namespace test_operator_plus
 
 namespace test_compile_prop_in_runtime_list {
 template <int N>
@@ -138,11 +138,8 @@ static_assert(
 static_assert(
     std::is_same_v<pl, decltype(empty_properties_t{} + prop2{} + prop{})>);
 
-static_assert(std::is_same_v<decltype(properties{prop{}}), decltype(+prop{})>);
-static_assert(std::is_same_v<decltype(properties{prop2{}}), decltype(+prop2{})>);
-
-static_assert(std::is_same_v<pl, decltype(+prop{} + prop2{})>);
-static_assert(std::is_same_v<pl, decltype(+prop2{} + prop{})>);
+static_assert(std::is_same_v<pl, decltype(properties{prop{}} + prop2{})>);
+static_assert(std::is_same_v<pl, decltype(properties{prop2{}} + prop{})>);
 
 static_assert(std::is_same_v<decltype(properties{prop{}} + prop2{}), pl>);
 }

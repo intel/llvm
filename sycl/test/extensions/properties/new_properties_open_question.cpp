@@ -74,7 +74,8 @@ inline constexpr other_prop_property other_prop{};
 
 void bar() {
   // Unary `+` has a bit of hacky feeling...
-  foo(+prop<42>);
+  // foo(+prop<42>);
+
   // More than one property in a property list looks very natural.
   // Alternatively, that can be `operator|` but it has no unary version.
   foo(prop<42> + other_prop);

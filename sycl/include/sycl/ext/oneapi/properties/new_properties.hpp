@@ -117,15 +117,7 @@ struct property_base : property_key_tag<property_key_t> {
 protected:
   using key_t = property_key_t;
   constexpr property_t get_property_impl(property_key_tag<key_t>) const {
-    // In fact, `static_cast` below works just fine with clang/msvc but not with
-    // gcc, see https://godbolt.org/z/MY6849jGh for a reduced test. However, we
-    // need to support all ,so special case for compile-time properties (when
-    // `is_empty_v` is true).
-    if constexpr (std::is_empty_v<property_t>) {
-      return property_t{};
-    } else {
-      return *static_cast<const property_t *>(this);
-    }
+    return *static_cast<const property_t *>(this);
   }
 
   // For key_t access in error reporting specialization.
@@ -147,14 +139,6 @@ public:
                           std::declval<const other_property_t>()})>
   operator+(const this_property_t &lhs, const other_property_t &rhs) {
     return properties{lhs, rhs};
-  }
-
-  template <typename this_property_t>
-  friend constexpr std::enable_if_t<
-      std::is_same_v<this_property_t, property_t>,
-      properties<properties_type_list<this_property_t>>>
-  operator+(const this_property_t &lhs) {
-    return properties<properties_type_list<property_t>>{lhs};
   }
 };
 
@@ -266,25 +250,6 @@ public:
   constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
 
-  // TODO: not sure if that is needed if we'd have operator| or operator+.
-  // TODO: sizeof... check.
-  template <
-      typename... other_property_list_tys, typename... other_property_tys,
-      typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
-  constexpr properties(
-      properties<detail::properties_type_list<other_property_list_tys...>>
-          other_properties,
-      other_property_tys... props)
-      : other_property_list_tys(
-            static_cast<other_property_list_tys &>(other_properties))...,
-        other_property_tys(props)... {}
-
-  // TODO: Do we need this? If so, is separate CTAD needed?
-  // template <typename... unsorted_property_tys>
-  // properties(unsorted_property_tys &&...props)
-  //     : unsorted_property_tys(std::forward<unsorted_property_tys>(props))...
-  //     {}
-
   template <typename property_key_t> static constexpr bool has_property() {
     return std::is_base_of_v<detail::property_key_tag<property_key_t>,
                              properties>;
@@ -362,16 +327,6 @@ properties(unsorted_property_tys...)
     -> properties<typename detail::properties_sorter<
         std::make_integer_sequence<int, sizeof...(unsorted_property_tys)>,
         unsorted_property_tys...>::type>;
-
-template <
-    typename... other_property_list_tys, typename... other_property_tys,
-    typename = std::enable_if_t<((is_property_v<other_property_tys> && ...))>>
-properties(properties<detail::properties_type_list<other_property_list_tys...>>,
-           other_property_tys...)
-    -> properties<typename detail::properties_sorter<
-        std::make_integer_sequence<int, sizeof...(other_property_list_tys) +
-                                            sizeof...(other_property_tys)>,
-        other_property_list_tys..., other_property_tys...>::type>;
 
 using empty_properties_t = decltype(properties{});
 

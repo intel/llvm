@@ -50,7 +50,7 @@ void test() {
 
   constexpr properties pl{property<1>{}, property<2>{}};
   // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<2>, property<2>>': Duplicate property!}}
-  std::ignore = properties{pl, property<2>{}};
+  std::ignore = pl + properties{property<2>{}};
 
   // Unfortunately, C++ front end doesn't use qualified name for "prop" below...
   // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement 'prop::property_name != prop::property_name': Property name collision between different property keys!}}
