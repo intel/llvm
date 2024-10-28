@@ -22,7 +22,7 @@
  **************************************************************************/
 
 // The original source was under the license below:
-//==---- dpct.hpp ---------------------------------*- C++ -*----------------==//
+//==---- defs.hpp ---------------------------------*- C++ -*----------------==//
 //
 // Copyright (C) Intel Corporation
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
