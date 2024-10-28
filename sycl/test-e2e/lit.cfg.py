@@ -16,7 +16,7 @@ from lit.llvm.subst import ToolSubst, FindTool
 
 # Configuration file for the 'lit' test runner.
 
-#TODO: Remove once #15728 is merged
+# TODO: Remove once #15728 is merged
 config.available_features.add("run-mode")
 
 # name: The name of this test suite.
