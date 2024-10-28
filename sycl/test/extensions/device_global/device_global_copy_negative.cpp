@@ -10,11 +10,11 @@ namespace oneapiext = sycl::ext::oneapi::experimental;
 using device_image_properties =
     decltype(oneapiext::properties{oneapiext::device_image_scope});
 
-// expected-error@sycl/ext/oneapi/device_global/device_global.hpp:* {{call to deleted constructor}}
+// expected-error@+2 {{call to implicitly-deleted copy constructor of}}
 oneapiext::device_global<const int, device_image_properties> DGInit1{3};
 oneapiext::device_global<const int, device_image_properties> DGCopy1{DGInit1};
 
-// expected-error@sycl/ext/oneapi/device_global/device_global.hpp:* {{call to deleted constructor}}
+// expected-error@+2 {{call to implicitly-deleted copy constructor of}}
 oneapiext::device_global<int, device_image_properties> DGInit2{3};
 oneapiext::device_global<int, device_image_properties> DGCopy2{DGInit2};
 
