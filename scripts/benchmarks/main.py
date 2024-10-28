@@ -44,6 +44,12 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         ExecImmediateCopyQueue(cb, 0, 1, 'Device', 'Device', 1024),
         ExecImmediateCopyQueue(cb, 1, 1, 'Device', 'Host', 1024),
         VectorSum(cb),
+        MemcpyExecute(cb, 400, 8, 1024, 100),
+        MemcpyExecute(cb, 400, 8, 102400, 10),
+        MemcpyExecute(cb, 500, 8, 102400, 10),
+        MemcpyExecute(cb, 400, 1, 1024, 1000),
+        MemcpyExecute(cb, 10, 16, 1024, 1000),
+        MemcpyExecute(cb, 10, 16, 102400, 100),
 
         # *** Velocity benchmarks
         Hashtable(vb),
