@@ -837,13 +837,15 @@ ContextInfo::~ContextInfo() {
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
 
-    // check memory leaks
-    std::vector<AllocationIterator> AllocInfos =
-        getContext()->interceptor->findAllocInfoByContext(Handle);
-    for (const auto &It : AllocInfos) {
-        const auto &[_, AI] = *It;
-        if (!AI->IsReleased) {
-            ReportMemoryLeak(AI);
+    if (getOptions().DetectLeaks) {
+        // check memory leaks
+        std::vector<AllocationIterator> AllocInfos =
+            getContext()->interceptor->findAllocInfoByContext(Handle);
+        for (const auto &It : AllocInfos) {
+            const auto &[_, AI] = *It;
+            if (!AI->IsReleased) {
+                ReportMemoryLeak(AI);
+            }
         }
     }
 }
