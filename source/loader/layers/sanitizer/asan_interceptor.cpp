@@ -243,7 +243,7 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
 
 ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
                                                   ur_queue_handle_t Queue,
-                                                  USMLaunchInfo &LaunchInfo) {
+                                                  LaunchInfo &LaunchInfo) {
     auto Context = GetContext(Queue);
     auto Device = GetDevice(Queue);
     auto ContextInfo = getContextInfo(Context);
@@ -268,12 +268,14 @@ ur_result_t SanitizerInterceptor::preLaunchKernel(ur_kernel_handle_t Kernel,
 
 ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                                                    ur_queue_handle_t Queue,
-                                                   USMLaunchInfo &LaunchInfo) {
+                                                   LaunchInfo &LaunchInfo) {
     // FIXME: We must use block operation here, until we support urEventSetCallback
     auto Result = getContext()->urDdiTable.Queue.pfnFinish(Queue);
 
+    UR_CALL(LaunchInfo.Data.syncFromDevice(Queue));
+
     if (Result == UR_RESULT_SUCCESS) {
-        for (const auto &AH : LaunchInfo.Data->SanitizerReport) {
+        for (const auto &AH : LaunchInfo.Data.Host.SanitizerReport) {
             if (!AH.Flag) {
                 continue;
             }
@@ -600,7 +602,7 @@ SanitizerInterceptor::getMemBuffer(ur_mem_handle_t MemHandle) {
 ur_result_t SanitizerInterceptor::prepareLaunch(
     std::shared_ptr<ContextInfo> &ContextInfo,
     std::shared_ptr<DeviceInfo> &DeviceInfo, ur_queue_handle_t Queue,
-    ur_kernel_handle_t Kernel, USMLaunchInfo &LaunchInfo) {
+    ur_kernel_handle_t Kernel, LaunchInfo &LaunchInfo) {
 
     do {
         auto KernelInfo = getKernelInfo(Kernel);
@@ -635,27 +637,6 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             }
         }
 
-        // Set launch info argument
-        auto ArgNums = GetKernelNumArgs(Kernel);
-        if (ArgNums) {
-            getContext()->logger.debug(
-                "launch_info {} (numLocalArgs={}, localArgs={})",
-                (void *)LaunchInfo.Data, LaunchInfo.Data->NumLocalArgs,
-                (void *)LaunchInfo.Data->LocalArgs);
-            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-                Kernel, ArgNums - 1, nullptr, LaunchInfo.Data);
-            if (URes != UR_RESULT_SUCCESS) {
-                getContext()->logger.error("Failed to set launch info: {}",
-                                           URes);
-                return URes;
-            }
-        }
-
-        LaunchInfo.Data->GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
-        LaunchInfo.Data->GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
-        LaunchInfo.Data->DeviceTy = DeviceInfo->Type;
-        LaunchInfo.Data->Debug = getOptions().Debug ? 1 : 0;
-
         if (LaunchInfo.LocalWorkSize.empty()) {
             LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
             auto URes =
@@ -680,6 +661,32 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
             NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
                      LocalWorkSize[Dim];
+        }
+
+        // Set launch info argument
+        auto ArgNums = GetKernelNumArgs(Kernel);
+        if (ArgNums == 0) {
+            return UR_RESULT_SUCCESS;
+        }
+
+        LaunchInfo.Data.Host.GlobalShadowOffset = DeviceInfo->Shadow->ShadowBegin;
+        LaunchInfo.Data.Host.GlobalShadowOffsetEnd = DeviceInfo->Shadow->ShadowEnd;
+        LaunchInfo.Data.Host.DeviceTy = DeviceInfo->Type;
+        LaunchInfo.Data.Host.Debug = getOptions().Debug ? 1 : 0;
+
+        UR_CALL(getContext()->urDdiTable.USM.pfnDeviceAlloc(
+            ContextInfo->Handle, DeviceInfo->Handle, nullptr, nullptr,
+            sizeof(LaunchInfo), (void **)&LaunchInfo.Data.DevicePtr));
+        getContext()->logger.debug(
+            "launch_info {} (numLocalArgs={}, localArgs={})",
+            (void *)LaunchInfo.Data.DevicePtr,
+            LaunchInfo.Data.Host.NumLocalArgs,
+            (void *)LaunchInfo.Data.Host.LocalArgs);
+        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+            Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.DevicePtr);
+        if (URes != UR_RESULT_SUCCESS) {
+            getContext()->logger.error("Failed to set launch info: {}", URes);
+            return URes;
         }
 
         auto EnqueueAllocateShadowMemory = [Context = ContextInfo->Handle,
@@ -730,7 +737,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
                 if (EnqueueAllocateShadowMemory(
                         LocalShadowMemorySize,
-                        LaunchInfo.Data->LocalShadowOffset) !=
+                        LaunchInfo.Data.Host.LocalShadowOffset) !=
                     UR_RESULT_SUCCESS) {
                     getContext()->logger.warning(
                         "Failed to allocate shadow memory for local "
@@ -741,8 +748,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                         "Skip checking local memory of kernel <{}>",
                         GetKernelName(Kernel));
                 } else {
-                    LaunchInfo.Data->LocalShadowOffsetEnd =
-                        LaunchInfo.Data->LocalShadowOffset +
+                    LaunchInfo.Data.Host.LocalShadowOffsetEnd =
+                        LaunchInfo.Data.Host.LocalShadowOffset +
                         LocalShadowMemorySize - 1;
 
                     ContextInfo->Stats.UpdateShadowMalloced(
@@ -750,8 +757,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
                     getContext()->logger.info(
                         "ShadowMemory(Local, {} - {})",
-                        (void *)LaunchInfo.Data->LocalShadowOffset,
-                        (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
+                        (void *)LaunchInfo.Data.Host.LocalShadowOffset,
+                        (void *)LaunchInfo.Data.Host.LocalShadowOffsetEnd);
                 }
             }
         }
@@ -759,7 +766,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         // Write shadow memory offset for private memory
         if (getOptions().DetectPrivates) {
             if (DeviceInfo->Type == DeviceType::CPU) {
-                LaunchInfo.Data->PrivateShadowOffset =
+                LaunchInfo.Data.Host.PrivateShadowOffset =
                     DeviceInfo->Shadow->ShadowBegin;
             } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
                        DeviceInfo->Type == DeviceType::GPU_DG2) {
@@ -772,7 +779,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
                 if (EnqueueAllocateShadowMemory(
                         PrivateShadowMemorySize,
-                        LaunchInfo.Data->PrivateShadowOffset) !=
+                        LaunchInfo.Data.Host.PrivateShadowOffset) !=
                     UR_RESULT_SUCCESS) {
                     getContext()->logger.warning(
                         "Failed to allocate shadow memory for private "
@@ -783,8 +790,8 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                         "Skip checking private memory of kernel <{}>",
                         GetKernelName(Kernel));
                 } else {
-                    LaunchInfo.Data->PrivateShadowOffsetEnd =
-                        LaunchInfo.Data->PrivateShadowOffset +
+                    LaunchInfo.Data.Host.PrivateShadowOffsetEnd =
+                        LaunchInfo.Data.Host.PrivateShadowOffset +
                         PrivateShadowMemorySize - 1;
 
                     ContextInfo->Stats.UpdateShadowMalloced(
@@ -792,11 +799,14 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
                     getContext()->logger.info(
                         "ShadowMemory(Private, {} - {})",
-                        (void *)LaunchInfo.Data->PrivateShadowOffset,
-                        (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
+                        (void *)LaunchInfo.Data.Host.PrivateShadowOffset,
+                        (void *)LaunchInfo.Data.Host.PrivateShadowOffsetEnd);
                 }
             }
         }
+
+        // Prepare launch info for device side
+        UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
     } while (false);
 
     return UR_RESULT_SUCCESS;
@@ -848,61 +858,52 @@ ContextInfo::~ContextInfo() {
     }
 }
 
-ur_result_t USMLaunchInfo::initialize() {
-    UR_CALL(getContext()->urDdiTable.Context.pfnRetain(Context));
-    UR_CALL(getContext()->urDdiTable.Device.pfnRetain(Device));
-    UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-        Context, Device, nullptr, nullptr, sizeof(LaunchInfo), (void **)&Data));
-    *Data = LaunchInfo{};
-    return UR_RESULT_SUCCESS;
-}
-
-ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
-    auto NumArgs = KI.LocalArgs.size();
-    if (NumArgs) {
-        Data->NumLocalArgs = NumArgs;
-        UR_CALL(getContext()->urDdiTable.USM.pfnSharedAlloc(
-            Context, Device, nullptr, nullptr, sizeof(LocalArgsInfo) * NumArgs,
-            (void **)&Data->LocalArgs));
-        uint32_t i = 0;
+ur_result_t LaunchInfo::updateKernelInfo(const KernelInfo &KI) {
+    if (!KI.LocalArgs.empty()) {
+        std::vector<LocalArgsInfo> LocalArgsInfo;
         for (auto [ArgIndex, ArgInfo] : KI.LocalArgs) {
-            Data->LocalArgs[i++] = ArgInfo;
+            LocalArgsInfo.push_back(ArgInfo);
             getContext()->logger.debug(
                 "local_args (argIndex={}, size={}, sizeWithRZ={})", ArgIndex,
                 ArgInfo.Size, ArgInfo.SizeWithRedZone);
         }
+        ManagedQueue Queue(Context, Device);
+        UR_CALL(
+            Data.importLocalArgsInfo(Context, Device, Queue, LocalArgsInfo));
     }
     return UR_RESULT_SUCCESS;
 }
 
-USMLaunchInfo::~USMLaunchInfo() {
+LaunchInfo::~LaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
-    if (Data) {
+    if (Data.DevicePtr) {
         auto Type = GetDeviceType(Context, Device);
         auto ContextInfo = getContext()->interceptor->getContextInfo(Context);
         if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
-            if (Data->PrivateShadowOffset) {
+            if (Data.Host.PrivateShadowOffset) {
                 ContextInfo->Stats.UpdateShadowFreed(
-                    Data->PrivateShadowOffsetEnd - Data->PrivateShadowOffset +
-                    1);
+                    Data.Host.PrivateShadowOffsetEnd -
+                    Data.Host.PrivateShadowOffset + 1);
                 Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data->PrivateShadowOffset);
+                    Context, (void *)Data.Host.PrivateShadowOffset);
                 assert(Result == UR_RESULT_SUCCESS);
             }
-            if (Data->LocalShadowOffset) {
+            if (Data.Host.LocalShadowOffset) {
                 ContextInfo->Stats.UpdateShadowFreed(
-                    Data->LocalShadowOffsetEnd - Data->LocalShadowOffset + 1);
+                    Data.Host.LocalShadowOffsetEnd -
+                    Data.Host.LocalShadowOffset + 1);
                 Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data->LocalShadowOffset);
+                    Context, (void *)Data.Host.LocalShadowOffset);
                 assert(Result == UR_RESULT_SUCCESS);
             }
         }
-        if (Data->LocalArgs) {
+        if (Data.Host.LocalArgs) {
             Result = getContext()->urDdiTable.USM.pfnFree(
-                Context, (void *)Data->LocalArgs);
+                Context, (void *)Data.Host.LocalArgs);
             assert(Result == UR_RESULT_SUCCESS);
         }
-        Result = getContext()->urDdiTable.USM.pfnFree(Context, (void *)Data);
+        Result = getContext()->urDdiTable.USM.pfnFree(Context,
+                                                      (void *)Data.DevicePtr);
         assert(Result == UR_RESULT_SUCCESS);
     }
     Result = getContext()->urDdiTable.Context.pfnRelease(Context);

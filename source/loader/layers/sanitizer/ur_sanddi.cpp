@@ -458,10 +458,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     getContext()->logger.debug("==== urEnqueueKernelLaunch");
 
-    USMLaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
-                             pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
-                             workDim);
-    UR_CALL(LaunchInfo.initialize());
+    LaunchInfo LaunchInfo(GetContext(hQueue), GetDevice(hQueue),
+                          pGlobalWorkSize, pLocalWorkSize, pGlobalWorkOffset,
+                          workDim);
 
     UR_CALL(getContext()->interceptor->preLaunchKernel(hKernel, hQueue,
                                                        LaunchInfo));
