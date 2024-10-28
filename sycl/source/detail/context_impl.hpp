@@ -305,6 +305,8 @@ private:
            std::unique_ptr<std::byte[]>>
       MDeviceGlobalUnregisteredData;
   std::mutex MDeviceGlobalUnregisteredDataMutex;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 template <typename T, typename Capabilities>

@@ -482,6 +482,33 @@ void image_impl::unsampledImageDestructorNotification(void *UserObj) {
   XPTIRegistry::unsampledImageDestructorNotification(UserObj);
 }
 
+void image_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/image_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/image_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

@@ -266,6 +266,29 @@ public:
                 internal::LifetimeExtender(std::move(OffloadEntries)),
                 std::move(PropertySet)) {}
 
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  UrImage(std::vector<UrOffloadEntry> &&OffloadEntries,
+          UrPropertySet PropertySet)
+      : UrImage(
+            SYCL_DEVICE_BINARY_VERSION, SYCL_DEVICE_BINARY_OFFLOAD_KIND_SYCL,
+            SYCL_DEVICE_BINARY_TYPE_SPIRV, __SYCL_DEVICE_BINARY_TARGET_SPIRV64,
+            "", "", {}, std::vector<unsigned char>{1, 2, 3, 4, 5},
+            internal::LifetimeExtender(std::move(OffloadEntries)),
+            std::move(PropertySet)) {}
+
+  /// Constructs a mock SYCL device image with:
+  /// - the latest version
+  /// - SPIR-V format
+  /// - empty compile and link options
+  /// - placeholder binary data
+  /// - no properties
+  UrImage(std::vector<UrOffloadEntry> &&OffloadEntries)
+      : UrImage(std::move(OffloadEntries), {}) {}
+
   sycl_device_binary_struct convertToNativeType() {
     return sycl_device_binary_struct{
         MVersion,
@@ -575,7 +598,6 @@ generateDefaultImage(std::initializer_list<std::string> KernelNames) {
               std::move(Bin),
               std::move(Entries),
               std::move(PropSet)};
-
   return Img;
 }
 

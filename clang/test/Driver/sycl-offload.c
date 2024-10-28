@@ -169,7 +169,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
 
 /// ###########################################################################
 
@@ -452,7 +452,7 @@
 // RUN: %clang_cl -fsycl --offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
 
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
