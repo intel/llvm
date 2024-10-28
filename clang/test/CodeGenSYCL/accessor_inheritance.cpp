@@ -60,16 +60,16 @@ int main() {
 // CHECK: store i32 [[ARG_C]], ptr addrspace(4) [[ARG_C]].addr.ascast
 //
 // Check A and B scalar fields initialization
-// CHECK: [[GEP:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
-// CHECK: [[FIELD_A:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 0
+// CHECK: [[GEP:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
+// CHECK: [[FIELD_A:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 0
 // CHECK: [[ARG_A_LOAD:%[a-zA-Z0-9_]+]] = load i32, ptr addrspace(4) [[ARG_A]].addr.ascast
 // CHECK: store i32 [[ARG_A_LOAD]], ptr addrspace(4) [[FIELD_A]]
-// CHECK: [[FIELD_B:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 1
+// CHECK: [[FIELD_B:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 1
 // CHECK: [[ARG_B_LOAD:%[a-zA-Z0-9_]+]] = load i32, ptr addrspace(4) [[ARG_B]].addr.ascast
 // CHECK: store i32 [[ARG_B_LOAD]], ptr addrspace(4) [[FIELD_B]]
 //
 // Check accessors initialization
-// CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 2
+// CHECK: [[ACC_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %struct{{.*}}Base, ptr addrspace(4) [[GEP]], i32 0, i32 2
 // Default constructor call
 // CHECK: call spir_func void @_ZN4sycl3_V18accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC1Ev(ptr addrspace(4) {{[^,]*}} [[ACC_FIELD]])
 // CHECK: [[GEP1:%[a-zA-Z0-9_]+]] = getelementptr inbounds i8, ptr addrspace(4) [[GEP]], i64 20
@@ -77,16 +77,16 @@ int main() {
 // CHECK: call spir_func void @_ZN4sycl3_V18accessorIcLi1ELNS0_6access4modeE1024ELNS2_6targetE2014ELNS2_11placeholderE0ENS0_3ext6oneapi22accessor_property_listIJEEEEC2Ev(ptr addrspace(4) {{[^,]*}} [[GEP1]])
 
 // CHECK C field initialization
-// CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Captured, ptr addrspace(4) [[GEP]], i32 0, i32 2
+// CHECK: [[FIELD_C:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %struct{{.*}}Captured, ptr addrspace(4) [[GEP]], i32 0, i32 2
 // CHECK: [[ARG_C_LOAD:%[a-zA-Z0-9_]+]] = load i32, ptr addrspace(4) [[ARG_C]].addr.ascast
 // CHECK: store i32 [[ARG_C_LOAD]], ptr addrspace(4) [[FIELD_C]]
 //
 // Check __init method calls
-// CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
-// CHECK: [[ACC1_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds %struct{{.*}}Base, ptr addrspace(4) [[GEP2]], i32 0, i32 2
+// CHECK: [[GEP2:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
+// CHECK: [[ACC1_FIELD:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %struct{{.*}}Base, ptr addrspace(4) [[GEP2]], i32 0, i32 2
 // CHECK: [[ACC1_DATA_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[ACC1_DATA]].addr.ascast
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{[^,]*}} [[ACC1_FIELD]], ptr addrspace(1) noundef [[ACC1_DATA_LOAD]]
 //
-// CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
+// CHECK: [[GEP3:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class{{.*}}.anon, ptr addrspace(4) [[KERNEL_OBJ]], i32 0, i32 0
 // CHECK: [[ACC2_DATA_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[ACC2_DATA]].addr.ascast
 // CHECK: call spir_func void @{{.*}}__init{{.*}}(ptr addrspace(4) {{[^,]*}}, ptr addrspace(1) noundef [[ACC2_DATA_LOAD]]

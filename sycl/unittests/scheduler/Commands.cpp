@@ -37,7 +37,7 @@ ur_result_t redefineUrEventGetInfo(void *pParams) {
 
 //
 // This test checks a handling of empty events in WaitWithBarrier command.
-// Original reproducer for l0 plugin led to segfault(nullptr dereference):
+// Original reproducer for l0 adapter led to segfault(nullptr dereference):
 //
 // #include <sycl/sycl.hpp>
 // int main() {

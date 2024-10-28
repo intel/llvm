@@ -6,9 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "device_imf.hpp"
+#include "device.h"
 
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "device_imf.hpp"
 
 DEVICE_EXTERN_C_INLINE
 float __devicelib_imf_saturatef(float);

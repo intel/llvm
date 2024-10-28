@@ -10,7 +10,7 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <sycl/detail/ur.hpp>
+#include <detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/image.hpp>
@@ -23,12 +23,12 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  auto Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
+  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
   ur_platform_handle_t UrPlatform = nullptr;
-  Plugin->call(urPlatformCreateWithNativeHandle,
-               detail::ur::cast<ur_native_handle_t>(PlatformId),
-               Plugin->getUrAdapter(), /* pProperties = */ nullptr, &UrPlatform);
-  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Plugin);
+  Adapter->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter->getUrAdapter(),
+      /* pProperties = */ nullptr, &UrPlatform);
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
 }
 
 // protected constructor for internal use

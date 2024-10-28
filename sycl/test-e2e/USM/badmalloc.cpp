@@ -1,5 +1,3 @@
-// UNSUPPORTED: windows
-//
 // RUN: %{build} -o %t1.out
 // RUN: %{run} %t1.out
 // UNSUPPORTED: ze_debug

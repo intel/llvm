@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+// TODO(#15184): Delete this file in the next ABI-breaking window.
+
 #pragma once
 
 #include <sycl/detail/export.hpp> // for __SYCL_EXPORT
@@ -17,10 +19,6 @@
 
 namespace sycl {
 inline namespace _V1 {
-
-namespace detail {
-class fusion_wrapper_impl;
-}
 
 namespace ext::codeplay::experimental {
 
@@ -92,7 +90,7 @@ public:
   event complete_fusion(const property_list &propList = {});
 
 private:
-  std::shared_ptr<detail::fusion_wrapper_impl> MImpl;
+  std::shared_ptr<detail::queue_impl> MQueue;
 };
 } // namespace ext::codeplay::experimental
 } // namespace _V1

@@ -1,7 +1,7 @@
 // REQUIRES: level_zero || cuda
 
 // RUN: %{build} -o %t2.out
-// RUN: env SYCL_UR_TRACE=1 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t2.out %if level_zero %{ 2>&1 | FileCheck %s %}
 // RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>
@@ -34,6 +34,6 @@ int main() {
   }
 }
 
-// CHECK:---> urMemBufferCreate
-// CHECK:---> urMemBufferCreate
+// CHECK: <--- urMemBufferCreate
+// CHECK: <--- urMemBufferCreate
 // CHECK-SAME: UR_MEM_FLAG_ALLOC_HOST_POINTER

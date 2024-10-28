@@ -1,17 +1,17 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 env SYCL_UR_TRACE=1  %{run} %t.out | FileCheck %s
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 env SYCL_UR_TRACE=2  %{run} %t.out | FileCheck %s
 
 // sub-buffer host alloca are not mated with device alloca. That linkage occurs
 // in the parent alloca. this test ensures that any map operations are using the
 // correct alloca, even in the case of sub-buffer accessors in host tasks.
 
 // CHECK: == fills completed
-// CHECK: urEnqueueMemBufferMap
-// CHECK: urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
 
 // CHECK: == between host accesses
-// CHECK: urEnqueueMemBufferMap
+// CHECK: <--- urEnqueueMemBufferMap
 // CHECK-SAME: .mapFlags = UR_MAP_FLAG_READ
 
 #include <sycl/detail/core.hpp>

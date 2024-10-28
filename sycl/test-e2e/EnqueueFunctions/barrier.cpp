@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Tests the enqueue free function barriers.
 
@@ -50,5 +50,5 @@ int main() {
   return 0;
 }
 
-// CHECK-COUNT-4:---> urEnqueueEventsWaitWithBarrier
-// CHECK-NOT:---> urEnqueueEventsWaitWithBarrier
+// CHECK-COUNT-4: <--- urEnqueueEventsWaitWithBarrier
+// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrier

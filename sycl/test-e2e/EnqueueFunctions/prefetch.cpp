@@ -1,6 +1,6 @@
 // REQUIRES: aspect-usm_shared_allocations
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Tests the enqueue free function prefetch.
 
@@ -35,5 +35,5 @@ int main() {
   return 0;
 }
 
-// CHECK-COUNT-3:---> urEnqueueUSMPrefetch
-// CHECK-NOT:---> urEnqueueUSMPrefetch
+// CHECK-COUNT-3: <--- urEnqueueUSMPrefetch
+// CHECK-NOT: <--- urEnqueueUSMPrefetch

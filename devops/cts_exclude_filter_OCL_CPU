@@ -5,6 +5,7 @@ marray
 math_builtin_api
 # https://github.com/intel/llvm/issues/13574
 hierarchical
-# https://github.com/intel/llvm/issues/14819
-queue
-spec_constants
+# fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
+accessor_legacy
+# CMPLRLLVM-62822
+multi_ptr

@@ -11,7 +11,7 @@
 // RUN: %{run} %t.2.out
 
 // Check if the test sill passes with O0
-// RUN: %{build} -O0 -o %t.3.out
+// RUN: %{build} %O0 -o %t.3.out
 // RUN: %{run} %t.3.out
 
 // Checks validity of SLM frame offsets in case of complex call graph with two

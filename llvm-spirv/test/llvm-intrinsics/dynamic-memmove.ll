@@ -21,10 +21,10 @@ entry:
   ret void
 
 ; CHECK-LLVM: @memmove_caller(ptr addrspace(1) [[DST:%.*]], ptr addrspace(1) [[SRC:%.*]], i64 [[N:%.*]])
+; CHECK-LLVM: [[COMPARE_N_TO_0:%.*]] = icmp eq i64 [[N]], 0
 ; CHECK-LLVM:  [[SRC_CMP:%.*]] = ptrtoint ptr addrspace(1) [[SRC]] to i64
 ; CHECK-LLVM:  [[DST_CMP:%.*]] = ptrtoint ptr addrspace(1) [[DST]] to i64
 ; CHECK-LLVM: [[COMPARE_SRC_DST:%.*]] = icmp ult i64 [[SRC_CMP]], [[DST_CMP]]
-; CHECK-LLVM-NEXT: [[COMPARE_N_TO_0:%.*]] = icmp eq i64 [[N]], 0
 ; CHECK-LLVM-NEXT: br i1 [[COMPARE_SRC_DST]], label %[[COPY_BACKWARDS:.*]], label %[[COPY_FORWARD:.*]]
 ; CHECK-LLVM: [[COPY_BACKWARDS]]:
 }

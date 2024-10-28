@@ -1,7 +1,6 @@
 // REQUIRES: sg-8
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
-// UNSUPPORTED: accelerator
 
 // The test verifies sort API extension.
 // Currently it checks the following combinations:

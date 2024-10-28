@@ -159,9 +159,29 @@ public:
       get_info(const device &Device, const range<3> &WGSize) const;
 
   // TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension
-  // once #7598 is merged.
+  // once #7598 is merged. (regarding the 'max_num_work_group_sync' query)
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.

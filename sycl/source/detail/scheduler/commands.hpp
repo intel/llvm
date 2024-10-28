@@ -119,7 +119,6 @@ public:
     UPDATE_REQUIREMENT,
     EMPTY_TASK,
     HOST_TASK,
-    FUSION,
     EXEC_CMD_BUFFER,
     UPDATE_CMD_BUFFER
   };
@@ -199,7 +198,7 @@ public:
   void emitEdgeEventForEventDependence(Command *Cmd,
                                        ur_event_handle_t &EventAddr);
   /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(ur_event_handle_t &UrEventAddr);
+  void emitEnqueuedEventSignal(const ur_event_handle_t UrEventAddr);
   /// Create a trace event of node_create type; this must be guarded by a
   /// check for xptiTraceEnabled().
   /// Post Condition: MTraceEvent will be set to the event created.
@@ -241,6 +240,10 @@ public:
   /// in order queue
   std::vector<ur_event_handle_t>
   getUrEvents(const std::vector<EventImplPtr> &EventImpls) const;
+
+  static std::vector<ur_event_handle_t>
+  getUrEvents(const std::vector<EventImplPtr> &EventImpls,
+              const QueueImplPtr &CommandQueue, bool IsHostTaskCommand);
   /// Collect UR events from EventImpls and filter out some of them in case of
   /// in order queue. Does blocking enqueue if event is expected to produce ur
   /// event but has empty native handle.
@@ -304,17 +307,6 @@ public:
   // Memory is allocated in this method and released in destructor.
   void copySubmissionCodeLocation();
 
-  /// Clear all dependency events This should only be used if a command is about
-  /// to be deleted without being executed before that. As of now, the only
-  /// valid use case for this function is in kernel fusion, where the fused
-  /// kernel commands are replaced by the fused command without ever being
-  /// executed.
-  void clearAllDependencies() {
-    MPreparedDepsEvents.clear();
-    MPreparedHostDepsEvents.clear();
-    MDeps.clear();
-  }
-
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -333,10 +325,10 @@ public:
   /// Used for marking the node during graph traversal.
   Marks MMarks;
 
-  enum class BlockReason : int { HostAccessor = 0, HostTask };
+  enum class BlockReason : int { Unset = -1, HostAccessor = 0, HostTask };
 
   // Only have reasonable value while MIsBlockable is true
-  BlockReason MBlockReason;
+  BlockReason MBlockReason = BlockReason::Unset;
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
@@ -363,8 +355,6 @@ public:
   std::string MCommandName;
   /// Flag to indicate if makeTraceEventProlog() has been run.
   bool MTraceEventPrologComplete = false;
-  /// Flag to indicate if this is the first time we are seeing this payload.
-  bool MFirstInstance = false;
   /// Instance ID tracked for the command.
   uint64_t MInstanceID = 0;
   /// Represents code location of command submission to SYCL API, assigned with
@@ -640,8 +630,6 @@ void enqueueImpKernel(
     const bool KernelUsesClusterLaunch,
     const RTDeviceBinaryImage *BinImage = nullptr);
 
-class KernelFusionCommand;
-
 /// The exec CG command enqueues execution of kernel or explicit memory
 /// operation.
 class ExecCGCommand : public Command {
@@ -666,11 +654,6 @@ public:
   // host-task-representing command is unreliable. This unreliability roots in
   // the cleanup process.
   EmptyCommand *MEmptyCmd = nullptr;
-
-  // MFusionCommand is employed to mark a CG command as part of a kernel fusion
-  // and allows to refer back to the corresponding KernelFusionCommand if
-  // necessary.
-  KernelFusionCommand *MFusionCmd = nullptr;
 
   // MEventNeeded is true if the command needs to produce a valid event. The
   // implementation may elect to not produce events (native or SYCL) if this
@@ -701,8 +684,9 @@ private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif
@@ -722,48 +706,6 @@ private:
   AllocaCommandBase *MSrcAllocaCmd = nullptr;
   Requirement MDstReq;
   void **MDstPtr = nullptr;
-};
-
-/// The KernelFusionCommand is placed in the execution graph together with the
-/// individual kernels of the fusion list to control kernel fusion.
-class KernelFusionCommand : public Command {
-public:
-  enum class FusionStatus { ACTIVE, CANCELLED, COMPLETE, DELETED };
-
-  explicit KernelFusionCommand(QueueImplPtr Queue);
-
-  void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() final;
-  bool producesPiEvent() const final;
-
-  std::vector<Command *> &auxiliaryCommands();
-
-  void addToFusionList(ExecCGCommand *Kernel);
-
-  std::vector<ExecCGCommand *> &getFusionList();
-
-  ///
-  /// Set the status of this fusion command to \p Status. This function should
-  /// only be called under the protection of the scheduler write-lock.
-  void setFusionStatus(FusionStatus Status);
-
-  /// Reset the queue. This can be required as the command is held in order
-  /// to maintain events alive, however this prevent the normal destruction of
-  /// the queue.
-  void resetQueue();
-
-  bool isActive() const { return MStatus == FusionStatus::ACTIVE; }
-
-  bool readyForDeletion() const { return MStatus == FusionStatus::DELETED; }
-
-private:
-  ur_result_t enqueueImp() final;
-
-  std::vector<ExecCGCommand *> MFusionList;
-
-  std::vector<Command *> MAuxiliaryCommands;
-
-  FusionStatus MStatus;
 };
 
 class UpdateCommandBufferCommand : public Command {
@@ -800,7 +742,7 @@ ur_result_t enqueueImpCommandBufferKernel(
 // Refactored from SetKernelParamsAndLaunch to allow it to be used in the graphs
 // extension.
 void SetArgBasedOnType(
-    const detail::PluginPtr &Plugin, ur_kernel_handle_t Kernel,
+    const detail::AdapterPtr &Adapter, ur_kernel_handle_t Kernel,
     const std::shared_ptr<device_image_impl> &DeviceImageImpl,
     const std::function<void *(Requirement *Req)> &getMemAllocationFunc,
     const sycl::context &Context, detail::ArgDesc &Arg, size_t NextTrueIndex);

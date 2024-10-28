@@ -196,7 +196,7 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_UR_TRACE` | Integer | If non-0 then enable Unified Runtime tracing. Default is 0. |
+| `SYCL_UR_TRACE` | Integer | Described [below](#sycl_ur_trace-options)  | Enable specified level of tracing for UR. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
@@ -230,6 +230,21 @@ variables in production code.</span>
 | before_addHostAcc | print graph before addHostAccessor method |
 | after_addHostAcc | print graph after addHostAccessor method |
 | always | print graph before and after each of the above methods |
+
+
+### `SYCL_UR_TRACE` Options
+
+`SYCL_UR_TRACE` accepts a bit-mask, so individual tracing types can be enabled.
+Setting a value of `-1` will enable all tracing types.
+
+Supported tracing levels are in the table below
+
+| Option | Description |
+| ------ | ----------- |
+| 1 | Enable basic tracing, which is tracing of UR adapters/devices discovery |
+| 2 | Enable tracing of the UR calls |
+| -1 | Enable all levels of tracing |
+
 
 ## Debugging variables for Level Zero Plugin
 

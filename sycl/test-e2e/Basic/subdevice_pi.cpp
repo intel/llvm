@@ -3,9 +3,9 @@
 // REQUIRES: cpu
 //
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out separate equally | FileCheck %s --check-prefix CHECK-SEPARATE
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out separate equally | FileCheck %s --check-prefix CHECK-SEPARATE
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out shared equally | FileCheck %s --check-prefix CHECK-SHARED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out fused  equally | FileCheck %s --check-prefix CHECK-FUSED --implicit-check-not piContextCreate --implicit-check-not piMemBufferCreate
 
 #include <iostream>
 #include <string>
@@ -51,7 +51,7 @@ static bool check_separate(device dev, buffer<int, 1> buf,
   std::vector<device> subdevices = partition(dev);
   assert(subdevices.size() > 1);
   // CHECK-SEPARATE: Create sub devices
-  // CHECK-SEPARATE: ---> urDevicePartition
+  // CHECK-SEPARATE: <--- urDevicePartition
 
   log_pi("Test sub device 0");
   {
@@ -59,11 +59,11 @@ static bool check_separate(device dev, buffer<int, 1> buf,
     use_mem(buf, q0);
   }
   // CHECK-SEPARATE: Test sub device 0
-  // CHECK-SEPARATE: ---> urContextCreate
-  // CHECK-SEPARATE: ---> urQueueCreate
-  // CHECK-SEPARATE: ---> urMemBufferCreate
-  // CHECK-SEPARATE: ---> urEnqueueKernelLaunch
-  // CHECK-SEPARATE: ---> urQueueFinish
+  // CHECK-SEPARATE: <--- urContextCreate
+  // CHECK-SEPARATE: <--- urQueueCreate
+  // CHECK-SEPARATE: <--- urMemBufferCreate
+  // CHECK-SEPARATE: <--- urEnqueueKernelLaunch
+  // CHECK-SEPARATE: <--- urQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -71,16 +71,16 @@ static bool check_separate(device dev, buffer<int, 1> buf,
     use_mem(buf, q1);
   }
   // CHECK-SEPARATE: Test sub device 1
-  // CHECK-SEPARATE: ---> urContextCreate
-  // CHECK-SEPARATE: ---> urQueueCreate
-  // CHECK-SEPARATE: ---> urMemBufferCreate
+  // CHECK-SEPARATE: <--- urContextCreate
+  // CHECK-SEPARATE: <--- urQueueCreate
+  // CHECK-SEPARATE: <--- urMemBufferCreate
   //
   // Verify that we have a memcpy between subdevices in this case
-  // CHECK-SEPARATE: ---> urEnqueueMemBuffer{{Map|Read}}
-  // CHECK-SEPARATE: ---> urEnqueueMemBufferWrite
+  // CHECK-SEPARATE: <--- urEnqueueMemBuffer{{Map|Read}}
+  // CHECK-SEPARATE: <--- urEnqueueMemBufferWrite
   //
-  // CHECK-SEPARATE: ---> urEnqueueKernelLaunch
-  // CHECK-SEPARATE: ---> urQueueFinish
+  // CHECK-SEPARATE: <--- urEnqueueKernelLaunch
+  // CHECK-SEPARATE: <--- urQueueFinish
 
   return true;
 }
@@ -91,14 +91,14 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
   std::vector<device> subdevices = partition(dev);
   assert(subdevices.size() > 1);
   // CHECK-SHARED: Create sub devices
-  // CHECK-SHARED: ---> urDevicePartition
+  // CHECK-SHARED: <--- urDevicePartition
 
   // Shared context: queues are bound to specific subdevices, but
   // memory does not migrate
   log_pi("Create shared context");
   context shared_context(subdevices);
   // CHECK-SHARED: Create shared context
-  // CHECK-SHARED: ---> urContextCreate
+  // CHECK-SHARED: <--- urContextCreate
   //
   // Make sure that a single context is created: see --implicit-check-not above.
 
@@ -108,14 +108,14 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
     use_mem(buf, q0);
   }
   // CHECK-SHARED: Test sub device 0
-  // CHECK-SHARED: ---> urQueueCreate
-  // CHECK-SHARED: ---> urMemBufferCreate
+  // CHECK-SHARED: <--- urQueueCreate
+  // CHECK-SHARED: <--- urMemBufferCreate
   //
   // Make sure that a single buffer is created (and shared between subdevices):
   // see --implicit-check-not above.
   //
-  // CHECK-SHARED: ---> urEnqueueKernelLaunch
-  // CHECK-SHARED: ---> urQueueFinish
+  // CHECK-SHARED: <--- urEnqueueKernelLaunch
+  // CHECK-SHARED: <--- urQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -123,10 +123,10 @@ static bool check_shared_context(device dev, buffer<int, 1> buf,
     use_mem(buf, q1);
   }
   // CHECK-SHARED: Test sub device 1
-  // CHECK-SHARED: ---> urQueueCreate
-  // CHECK-SHARED: ---> urEnqueueKernelLaunch
-  // CHECK-SHARED: ---> urQueueFinish
-  // CHECK-SHARED: ---> urEnqueueMemBufferRead
+  // CHECK-SHARED: <--- urQueueCreate
+  // CHECK-SHARED: <--- urEnqueueKernelLaunch
+  // CHECK-SHARED: <--- urQueueFinish
+  // CHECK-SHARED: <--- urEnqueueMemBufferRead
 
   return true;
 }
@@ -137,7 +137,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   std::vector<device> subdevices = partition(dev);
   assert(subdevices.size() > 1);
   // CHECK-FUSED: Create sub devices
-  // CHECK-FUSED: ---> urDevicePartition
+  // CHECK-FUSED: <--- urDevicePartition
 
   // Fused context: same as shared context, but also includes the root device
   log_pi("Create fused context");
@@ -147,7 +147,7 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
   devices.push_back(subdevices[1]);
   context fused_context(devices);
   // CHECK-FUSED: Create fused context
-  // CHECK-FUSED: ---> urContextCreate
+  // CHECK-FUSED: <--- urContextCreate
   //
   // Make sure that a single context is created: see --implicit-check-not above.
 
@@ -157,14 +157,14 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
     use_mem(buf, q);
   }
   // CHECK-FUSED: Test root device
-  // CHECK-FUSED: ---> urQueueCreate
-  // CHECK-FUSED: ---> urMemBufferCreate
+  // CHECK-FUSED: <--- urQueueCreate
+  // CHECK-FUSED: <--- urMemBufferCreate
   //
   // Make sure that a single buffer is created (and shared between subdevices
   // *and* the root device): see --implicit-check-not above.
   //
-  // CHECK-FUSED: ---> urEnqueueKernelLaunch
-  // CHECK-FUSED: ---> urQueueFinish
+  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urQueueFinish
 
   log_pi("Test sub device 0");
   {
@@ -172,9 +172,9 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
     use_mem(buf, q0);
   }
   // CHECK-FUSED: Test sub device 0
-  // CHECK-FUSED: ---> urQueueCreate
-  // CHECK-FUSED: ---> urEnqueueKernelLaunch
-  // CHECK-FUSED: ---> urQueueFinish
+  // CHECK-FUSED: <--- urQueueCreate
+  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urQueueFinish
 
   log_pi("Test sub device 1");
   {
@@ -182,10 +182,10 @@ static bool check_fused_context(device dev, buffer<int, 1> buf,
     use_mem(buf, q1);
   }
   // CHECK-FUSED: Test sub device 1
-  // CHECK-FUSED: ---> urQueueCreate
-  // CHECK-FUSED: ---> urEnqueueKernelLaunch
-  // CHECK-FUSED: ---> urQueueFinish
-  // CHECK-FUSED: ---> urEnqueueMemBufferRead
+  // CHECK-FUSED: <--- urQueueCreate
+  // CHECK-FUSED: <--- urEnqueueKernelLaunch
+  // CHECK-FUSED: <--- urQueueFinish
+  // CHECK-FUSED: <--- urEnqueueMemBufferRead
 
   return true;
 }

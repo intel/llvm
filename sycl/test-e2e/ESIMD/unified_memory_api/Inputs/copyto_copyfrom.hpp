@@ -83,6 +83,7 @@ bool testUSM(queue Q, uint32_t Groups, uint32_t Threads,
 
   bool Passed = verify(Out, Size, N);
 
+  sycl::free(In, Q);
   sycl::free(Out, Q);
 
   return Passed;

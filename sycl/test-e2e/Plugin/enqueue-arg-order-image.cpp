@@ -4,13 +4,10 @@
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
 
-// https://github.com/intel/llvm/issues/11434
-// UNSUPPORTED: gpu-intel-dg2
-
 // RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 
@@ -306,28 +303,28 @@ int main() {
 // clang-format off
 //CHECK: start copyD2H-Image
 //CHECK: -- 1D
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
 //CHECK: about to destruct 1D
-//CHECK: ---> urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+//CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 //CHECK: -- 2D
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
 //CHECK: about to destruct 2D
-//CHECK: ---> urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}, .rowPitch = 256
+//CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}, .rowPitch = 256
 //CHECK: -- 3D
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
-//CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
 //CHECK: about to destruct 3D
-//CHECK: ---> urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
+//CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
 //CHECK: end copyD2H-Image
 
 // CHECK: start copyH2D-image
 // CHECK: -- 1D
-// CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
-// CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
-// CHECK: ---> urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
-// CHECK: ---> urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 // The order of the following calls may vary since some of them are made by a
 // host task (in a separate thread). Don't check for the actual function name
 // as it may be interleaved with other tracing output.
@@ -336,7 +333,7 @@ int main() {
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 // CHECK: about to destruct 1D
-// CHECK: ---> urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 // CHECK: -- 2D
 // The order of the following calls may vary since some of them are made by a
 // host task (in a separate thread). Don't check for the actual function name
@@ -350,7 +347,7 @@ int main() {
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
 // CHECK: about to destruct 2D
-// CHECK: ---> urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
 // CHECK: -- 3D
 // CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
 // CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
@@ -364,7 +361,7 @@ int main() {
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
 // CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
 // CHECK: about to destruct 3D
-// CHECK: ---> urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
+// CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
 
 // CHECK: end copyH2D-image
 // clang-format on

@@ -25,7 +25,7 @@ ur_event_handle_t MEMCPY = nullptr;
 ur_event_handle_t MEMSET = nullptr;
 
 template <typename T> auto getVal(T obj) {
-  return detail::getSyclObjImpl(obj)->getHandleRef();
+  return detail::getSyclObjImpl(obj)->getHandle();
 }
 
 ur_result_t redefinedEnqueueEventsWaitAfter(void *pParams) {

@@ -1,7 +1,7 @@
 // REQUIRES: cuda
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -226,6 +226,31 @@ int main() {
       printString("num channels is correct!\n");
     } else {
       printString("num channels is NOT correct!\n");
+      validated = false;
+    }
+
+    // Extension: image descriptor -- number of levels
+    sycl::ext::oneapi::experimental::image_descriptor mipDesc(
+        {width, height}, 4, sycl::image_channel_type::signed_int32,
+        sycl::ext::oneapi::experimental::image_type::mipmap, 3);
+
+    // Extension: allocate mipmap memory on device
+    sycl::ext::oneapi::experimental::image_mem mipMem(mipDesc, q);
+
+    auto numChannelsMipMem = mipMem.get_num_channels();
+    auto numChannelsMip =
+        sycl::ext::oneapi::experimental::get_image_num_channels(
+            mipMem.get_handle(), dev, ctxt);
+
+    if (numChannelsMipMem != numChannelsMip) {
+      printString(
+          "mipmap handle and mem object disagree on number of channels!\n");
+      validated = false;
+    }
+    if (numChannelsMip == 4) {
+      printString("mipmap num channels is correct!\n");
+    } else {
+      printString("mipmap num channels is NOT correct!\n");
       validated = false;
     }
 

@@ -124,8 +124,8 @@ struct is_complex : public std::false_type {};
 // ---- is_arithmetic_or_complex
 template <typename T>
 using is_arithmetic_or_complex =
-    std::integral_constant<bool, sycl::detail::is_complex<T>::value ||
-                                     sycl::detail::is_arithmetic<T>::value>;
+    std::bool_constant<sycl::detail::is_complex<T>::value ||
+                       sycl::detail::is_arithmetic<T>::value>;
 
 template <typename T>
 struct is_vector_arithmetic_or_complex

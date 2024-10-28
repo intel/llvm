@@ -195,7 +195,7 @@ short _FExp(float *px, float y,
   if (*px < -hugexp || y == 0.0F) { // certain underflow
     *px = 0.0F;
   } else if (hugexp < *px) { // certain overflow
-    *px = _FInf._Float;
+    *px = _FInf._Float * (y < 0.F ? -1.F : 1.F);
     ret = _INFCODE;
   } else { // xexp won't overflow
     float g = *px * invln2;

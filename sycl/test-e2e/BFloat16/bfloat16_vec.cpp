@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO currently the feature isn't supported on FPGA.
 // TODO enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu || accelerator
+// UNSUPPORTED: cpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out

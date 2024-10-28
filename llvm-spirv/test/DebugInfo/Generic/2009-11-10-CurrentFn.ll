@@ -9,11 +9,11 @@ target triple = "spir64-unknown-unknown"
 
 define void @bar(i32 %i) nounwind uwtable ssp !dbg !5 {
 entry:
-  tail call void (...) @foo() nounwind, !dbg !14
+  tail call void @foo() nounwind, !dbg !14
   ret void, !dbg !16
 }
 
-declare void @foo(...)
+declare void @foo()
 
 declare void @llvm.dbg.value(metadata, metadata, metadata) nounwind readnone
 

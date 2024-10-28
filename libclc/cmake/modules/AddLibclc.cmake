@@ -12,8 +12,8 @@
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 #
-# Depends on the libclc::clang and libclc::llvm-as targets for compiling and
-# assembling, respectively.
+# Depends on the clang, llvm-as, and llvm-link targets for compiling,
+# assembling, and linking, respectively.
 function(compile_to_bc)
   cmake_parse_arguments(ARG
     ""
@@ -51,7 +51,7 @@ function(compile_to_bc)
 
   add_custom_command(
     OUTPUT ${ARG_OUTPUT}${TMP_SUFFIX}
-    COMMAND libclc::clang
+    COMMAND ${clang_exe}
       ${TARGET_ARG}
       ${PP_OPTS}
       ${ARG_EXTRA_OPTS}
@@ -64,7 +64,7 @@ function(compile_to_bc)
       ${XCL_OPT}
       ${ARG_INPUT}
     DEPENDS
-      libclc::clang
+      ${clang_target}
       ${ARG_INPUT}
       ${ARG_DEPENDENCIES}
     DEPFILE ${ARG_OUTPUT}.d
@@ -73,8 +73,8 @@ function(compile_to_bc)
   if( ${FILE_EXT} STREQUAL ".ll" )
     add_custom_command(
       OUTPUT ${ARG_OUTPUT}
-      COMMAND libclc::llvm-as -o ${ARG_OUTPUT} ${ARG_OUTPUT}${TMP_SUFFIX}
-      DEPENDS libclc::llvm-as ${ARG_OUTPUT}${TMP_SUFFIX}
+      COMMAND ${llvm-as_exe} -o ${ARG_OUTPUT} ${ARG_OUTPUT}${TMP_SUFFIX}
+      DEPENDS ${llvm-as_target} ${ARG_OUTPUT}${TMP_SUFFIX}
     )
   endif()
 endfunction()
@@ -86,12 +86,15 @@ endfunction()
 #     Custom target to create
 # * INPUT <string> ...
 #     List of bytecode files to link together
+# * RSP_DIR <string>
+#     Directory where a response file should be placed
+#     (Only needed for WIN32 or CYGWIN)
 # * DEPENDENCIES <string> ...
 #     List of extra dependencies to inject
 function(link_bc)
   cmake_parse_arguments(ARG
     ""
-    "TARGET"
+    "TARGET;RSP_DIR"
     "INPUTS;DEPENDENCIES"
     ${ARGN}
   )
@@ -100,7 +103,7 @@ function(link_bc)
   if( WIN32 OR CYGWIN )
     # Create a response file in case the number of inputs exceeds command-line
     # character limits on certain platforms.
-    file( TO_CMAKE_PATH ${LIBCLC_ARCH_OBJFILE_DIR}/${ARG_TARGET}.rsp RSP_FILE )
+    file( TO_CMAKE_PATH ${ARG_RSP_DIR}/${ARG_TARGET}.rsp RSP_FILE )
     # Turn it into a space-separate list of input files
     list( JOIN ARG_INPUTS " " RSP_INPUT )
     file( WRITE ${RSP_FILE} ${RSP_INPUT} )
@@ -113,12 +116,15 @@ function(link_bc)
 
   add_custom_command(
     OUTPUT ${ARG_TARGET}.bc
-    COMMAND libclc::llvm-link -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
-    DEPENDS libclc::llvm-link ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
+    COMMAND ${llvm-link_exe} -o ${ARG_TARGET}.bc ${LINK_INPUT_ARG}
+    DEPENDS ${llvm-link_target} ${ARG_DEPENDENCIES} ${ARG_INPUTS} ${RSP_FILE}
   )
 
   add_custom_target( ${ARG_TARGET} ALL DEPENDS ${ARG_TARGET}.bc )
-  set_target_properties( ${ARG_TARGET} PROPERTIES TARGET_FILE ${ARG_TARGET}.bc )
+  set_target_properties( ${ARG_TARGET} PROPERTIES
+    TARGET_FILE ${ARG_TARGET}.bc
+    FOLDER "libclc/Device IR/Linking"
+  )
 endfunction()
 
 # Decomposes and returns variables based on a libclc triple and architecture
@@ -216,6 +222,50 @@ function(add_libclc_alias alias target)
 
 endfunction(add_libclc_alias alias target)
 
+# Runs opt and prepare-builtins on a bitcode file specified by lib_tgt
+#
+# ARGUMENTS:
+# * LIB_TGT string
+#     Target name that becomes dependent on the out file named LIB_TGT.bc
+# * IN_FILE string
+#     Target name of the input bytecode file
+# * OUT_DIR string
+#     Name of the directory where the output should be placed
+# *  DEPENDENCIES <string> ...
+#     List of extra dependencies to inject
+function(process_bc out_file)
+  cmake_parse_arguments(ARG
+    ""
+    "LIB_TGT;IN_FILE;OUT_DIR"
+    "OPT_FLAGS;DEPENDENCIES"
+    ${ARGN})
+  add_custom_command( OUTPUT ${ARG_LIB_TGT}.bc
+    COMMAND ${opt_exe} ${ARG_OPT_FLAGS} -o ${ARG_LIB_TGT}.bc
+    ${ARG_IN_FILE}
+    DEPENDS ${opt_target} ${ARG_IN_FILE} ${ARG_DEPENDENCIES}
+  )
+  add_custom_target( ${ARG_LIB_TGT}
+    ALL DEPENDS ${ARG_LIB_TGT}.bc
+    )
+  set_target_properties( ${ARG_LIB_TGT}
+    PROPERTIES TARGET_FILE ${ARG_LIB_TGT}.bc
+    )
+
+  set( builtins_opt_lib $<TARGET_PROPERTY:${ARG_LIB_TGT},TARGET_FILE> )
+
+  # Add prepare target
+  add_custom_command( OUTPUT ${ARG_OUT_DIR}/${out_file}
+    COMMAND ${prepare_builtins_exe} -o ${ARG_OUT_DIR}/${out_file}
+      ${builtins_opt_lib}
+      DEPENDS ${builtins_opt_lib} ${ARG_LIB_TGT} ${prepare_builtins_target} )
+  add_custom_target( prepare-${out_file} ALL
+    DEPENDS ${ARG_OUT_DIR}/${out_file}
+  )
+  set_target_properties( prepare-${out_file}
+    PROPERTIES TARGET_FILE ${ARG_OUT_DIR}/${out_file}
+  )
+endfunction()
+
 # add_libclc_builtin_set(arch_suffix
 #   TRIPLE string
 #     Triple used to compile
@@ -242,7 +292,7 @@ macro(add_libclc_builtin_set arch_suffix)
   list( APPEND ARG_COMPILE_OPT
     -D__CLC_INTERNAL
     -D${CLC_TARGET_DEFINE}
-    -I${PROJECT_SOURCE_DIR}/generic/include
+    -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
     # FIXME: Fix libclc to not require disabling this noisy warning
     -Wno-bitwise-conditional-parentheses
   )
@@ -263,9 +313,9 @@ macro(add_libclc_builtin_set arch_suffix)
       # the path (e.g., ironing out any ".."), then make it relative to the
       # root directory again, and use that relative path component for the
       # binary path.
-      get_filename_component( abs_path ${file} ABSOLUTE BASE_DIR ${PROJECT_SOURCE_DIR} )
-      file( RELATIVE_PATH root_rel_path ${PROJECT_SOURCE_DIR} ${abs_path} )
-      set( input_file ${PROJECT_SOURCE_DIR}/${file} )
+      get_filename_component( abs_path ${file} ABSOLUTE BASE_DIR ${CMAKE_CURRENT_SOURCE_DIR} )
+      file( RELATIVE_PATH root_rel_path ${CMAKE_CURRENT_SOURCE_DIR} ${abs_path} )
+      set( input_file ${CMAKE_CURRENT_SOURCE_DIR}/${file} )
       set( output_file "${LIBCLC_ARCH_OBJFILE_DIR}/${root_rel_path}.bc" )
     endif()
 
@@ -276,7 +326,7 @@ macro(add_libclc_builtin_set arch_suffix)
       INPUT ${input_file}
       OUTPUT ${output_file}
       EXTRA_OPTS -fno-builtin -nostdlib
-          "${ARG_COMPILE_OPT}" -I${PROJECT_SOURCE_DIR}/${file_dir}
+          "${ARG_COMPILE_OPT}" -I${CMAKE_CURRENT_SOURCE_DIR}/${file_dir}
       DEPENDENCIES generate_convert.cl clspv-generate_convert.cl
     )
     list(APPEND bytecode_files ${output_file})
@@ -291,44 +341,28 @@ macro(add_libclc_builtin_set arch_suffix)
   link_bc(
     TARGET ${builtins_link_lib_tgt}
     INPUTS ${bytecode_files}
+    RSP_DIR ${LIBCLC_ARCH_OBJFILE_DIR}
     DEPENDENCIES ${builtins_comp_lib_tgt}
   )
 
   set( builtins_link_lib $<TARGET_PROPERTY:${builtins_link_lib_tgt},TARGET_FILE> )
 
+  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    DEPENDS ${builtins_link_lib} prepare_builtins )
+
   set( builtins_opt_lib_tgt builtins.opt.${arch_suffix} )
 
-  # Add opt target
-  add_custom_command( OUTPUT ${builtins_opt_lib_tgt}.bc
-    COMMAND libclc::opt ${ARG_OPT_FLAGS} -o ${builtins_opt_lib_tgt}.bc
-      ${builtins_link_lib}
-    DEPENDS libclc::opt ${builtins_link_lib} ${builtins_link_lib_tgt}
-  )
-  add_custom_target( ${builtins_opt_lib_tgt}
-    ALL DEPENDS ${builtins_opt_lib_tgt}.bc
-  )
-  set_target_properties( ${builtins_opt_lib_tgt}
-    PROPERTIES TARGET_FILE ${builtins_opt_lib_tgt}.bc
-  )
-
-  set( builtins_opt_lib $<TARGET_PROPERTY:${builtins_opt_lib_tgt},TARGET_FILE> )
-
-  # Add prepare target
-  set( obj_suffix ${arch_suffix}.bc )
-  add_custom_command( OUTPUT ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-    COMMAND prepare_builtins -o ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-      ${builtins_opt_lib}
-    DEPENDS ${builtins_opt_lib} ${builtins_opt_lib_tgt} prepare_builtins )
-  add_custom_target( prepare-${obj_suffix} ALL
-    DEPENDS ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
-  set_target_properties( prepare-${obj_suffix}
-    PROPERTIES TARGET_FILE ${LIBCLC_LIBRARY_OUTPUT_INTDIR}/${obj_suffix}
-  )
+  process_bc(${arch_suffix}.bc
+    LIB_TGT ${builtins_opt_lib_tgt}
+    IN_FILE ${builtins_link_lib}
+    OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
+    OPT_FLAGS ${ARG_OPT_FLAGS}
+    DEPENDENCIES ${builtins_link_lib_tgt} ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.
+  set( obj_suffix ${arch_suffix}.bc )
   add_dependencies(${ARG_PARENT_TARGET} prepare-${obj_suffix})
   set( builtins_lib $<TARGET_PROPERTY:prepare-${obj_suffix},TARGET_FILE> )
 
@@ -431,7 +465,7 @@ function(libclc_configure_lib_source OUT_LIST OUT_GEN_LIST)
   foreach( l ${ARG_DIRS} )
     foreach( s "SOURCES" "SOURCES_${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}" )
       file( TO_CMAKE_PATH ${l}/${ARG_LIB_DIR}/${s} file_loc )
-      file( TO_CMAKE_PATH ${PROJECT_SOURCE_DIR}/${file_loc} loc )
+      file( TO_CMAKE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/${file_loc} loc )
       # Prepend the location to give higher priority to
       # specialized implementation
       if( EXISTS ${loc} )

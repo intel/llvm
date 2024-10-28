@@ -37,6 +37,8 @@ class OptionCategory;
 
 namespace module_split {
 
+constexpr char SYCL_ESIMD_SPLIT_MD_NAME[] = "sycl-esimd-split-status";
+
 extern cl::OptionCategory &getModuleSplitCategory();
 
 enum IRSplitMode {
@@ -82,6 +84,11 @@ struct EntryPointGroup {
       // Scope remains global
       return Res;
     }
+
+    // Indicates that this group holds definitions of virtual functions - they
+    // are outlined into separate device images and should be removed from all
+    // other modules. The flag is used in ModuleDesc::cleanup
+    bool HasVirtualFunctionDefinitions = false;
   };
 
   std::string GroupId;
@@ -215,6 +222,8 @@ public:
       Reqs = computeDeviceRequirements(getModule(), entries());
     return *Reqs;
   }
+
+  void saveSplitInformationAsMetadata();
 
 #ifndef NDEBUG
   void verifyESIMDProperty() const;

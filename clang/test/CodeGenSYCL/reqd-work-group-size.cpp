@@ -1,7 +1,7 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple amdgcn-amd-amdhsa -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,CHECK-NVPTX
-// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s --check-prefixes=CHECK,CHECK-NVPTX
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple nvptx64-nvidia-cuda -disable-llvm-passes -emit-llvm -o - %s | FileCheck %s
 
 #include "sycl.hpp"
 
@@ -122,55 +122,6 @@ int main() {
 // CHECK: define {{.*}} void @{{.*}}kernel_name21() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE2D2_or_WGSIZE1D8]]
 // CHECK: define {{.*}} void @{{.*}}kernel_name22() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D22:[0-9]+]]
 // CHECK: define {{.*}} void @{{.*}}kernel_name24() #0 {{.*}} !work_group_num_dim ![[NDRWGS1D:[0-9]+]] !reqd_work_group_size ![[WGSIZE1D2:[0-9]+]]
-
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name1, !"reqntidx", i32 16}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name1, !"reqntidy", i32 16}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name1, !"reqntidz", i32 32}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name3, !"reqntidx", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name3, !"reqntidy", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name3, !"reqntidz", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name4, !"reqntidx", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name4, !"reqntidy", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name4, !"reqntidz", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name6, !"reqntidx", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name6, !"reqntidy", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name6, !"reqntidz", i32 1}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name7, !"reqntidx", i32 16}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name7, !"reqntidy", i32 16}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name7, !"reqntidz", i32 32}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name9, !"reqntidx", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name9, !"reqntidy", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name9, !"reqntidz", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name10, !"reqntidx", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name10, !"reqntidy", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name10, !"reqntidz", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name12, !"reqntidx", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name12, !"reqntidy", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name12, !"reqntidz", i32 1}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name13, !"reqntidx", i32 16}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name13, !"reqntidy", i32 32}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name13, !"reqntidz"
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name15, !"reqntidx", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name15, !"reqntidy", i32 8}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name15, !"reqntidz"
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name16, !"reqntidx", i32 2}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name16, !"reqntidy", i32 2}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name16, !"reqntidz"
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name18, !"reqntidx", i32 8}
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name18, !"reqntidy", i32 1}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name18, !"reqntidz"
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name19, !"reqntidx", i32 32}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name19, !"reqntidy",
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name19, !"reqntidz",
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name21, !"reqntidx", i32 8}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name21, !"reqntidy",
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name21, !"reqntidz",
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name22, !"reqntidx", i32 2}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name22, !"reqntidy",
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name22, !"reqntidz",
-// CHECK-NVPTX: = !{ptr @{{.*}}kernel_name24, !"reqntidx", i32 1}
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name24, !"reqntidy",
-// CHECK-NVPTX-NOT: = !{ptr @{{.*}}kernel_name24, !"reqntidz",
 
 // CHECK: ![[NDRWGS3D]] = !{i32 3}
 // CHECK: ![[WGSIZE3D32]] = !{i32 16, i32 16, i32 32}

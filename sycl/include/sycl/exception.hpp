@@ -10,7 +10,6 @@
 
 // 4.9.2 Exception Class Interface
 
-#include <sycl/detail/cl.h>                   // for cl_int
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/string.hpp>

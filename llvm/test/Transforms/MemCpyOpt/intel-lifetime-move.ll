@@ -20,7 +20,7 @@ define dso_local void @wombat(ptr %meow) local_unnamed_addr {
 ; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 8 dereferenceable(32) [[TM2]], ptr noundef nonnull align 8 dereferenceable(32) [[MEOW:%.*]], i64 32, i1 false)
 ; CHECK-NEXT:    [[TM3:%.*]] = bitcast ptr [[TM]] to ptr
 ; CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 32, ptr nonnull [[TM3]])
-; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[TM3]], ptr align 8 [[MEOW]], i64 32, i1 false)
+; CHECK-NEXT:    call void @llvm.memcpy.p0.p0.i64(ptr align 8 [[TM]], ptr align 8 [[MEOW]], i64 32, i1 false)
 ; CHECK-NEXT:    ret void
 ;
 bb:

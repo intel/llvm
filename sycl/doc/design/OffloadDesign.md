@@ -283,7 +283,7 @@ list to be passed along.
 *Example: spir64_gen enabling options*
 
 > --gpu-tool-arg="-device pvc -options extraopt_pvc"
---gpu-tool-arg="-device skl -options -extraopt_skl"
+--gpu-tool-arg="-options -extraopt_skl"
 
 *Example: clang-linker-wrapper options*
 
@@ -295,6 +295,128 @@ options to a specific device GPU target for spir64_gen.  The syntax will
 resemble `--gpu-tool-arg=<arch> <arg>`.  This corresponds to the existing
 option syntax of `-fsycl-targets=intel_gpu_arch` where `arch` can be a fixed
 set of targets.
+
+#### --offload-arch
+
+For SYCL offloading to Intel GPUs, Intel CPUs, NVidia and AMD GPUs, specify the device architecture using ``--offload-arch`` option. For instance 
+  ``--offload-arch=sm_80`` to target an NVidia Tesla A100, 
+  ``--offload-arch=gfx90a`` to target an AMD Instinct MI250X, or 
+  ``--offload-arch=sm_80,gfx90a`` to target both.
+
+For Intel Graphics AOT target, valid values for ``--offload-arch`` are mapped to
+valid device names accepted by OCLOC (the Intel GPU AOT compiler) via the ``-device`` option.
+
+SYCL offloading with ``--offload-arch`` for Intel CPUs and Intel GPUs is currently enabled only with ``--offload-new-driver`` option.
+
+```
+Example:
+
+$ clang++ -fsycl -offload-arch=bdw --offload-new-driver -c foo.cpp // SYCL AOT for Intel GPU.
+$ clang++ -fsycl -offload-arch=broadwell --offload-new-driver -c foo.cpp // SYCL AOT for Intel CPU.
+```
+
+The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel GPUs and the corresponding `-device` value passed to OCLOC.
+
+| Intel GPU device | ``--offload-arch`` accepted value | OCLOC -device value |
+|------------------|-------------------------|------------------------|
+| Intel(R) microarchitecture code name Broadwell Intel graphics architecture | bdw | bdw |
+| Intel(R) microarchitecture code name Skylake Intel graphics architecture | skl | skl |
+| Kaby Lake Intel graphics architecture | kbl | kbl                   |
+| Coffee Lake Intel graphics architecture | cfl | cfl                 |
+| Apollo Lake Intel graphics architecture | apl | apl                 |
+| Broxton Intel graphics architecture | bxt  | apl                    |
+| Gemini Lake Intel graphics architecture | glk | glk                 |
+| Whiskey Lake Intel graphics architecture | whl | whl                |
+| Amber Lake Intel graphics architecture | aml | aml                  |
+| Comet Lake Intel graphics architecture | cml | cml                  |
+| Ice Lake Intel graphics architecture | icl, icllp | icllp           |
+| Elkhart Lake Intel graphics architecture | ehl | ehl                |
+| Jasper Lake Intel graphics architecture | jsl | jsl                 |
+| Tiger Lake Intel graphics architecture | tgl, tgllp | tgllp         |
+| Rocket Lake Intel graphics architecture | rkl | rkl                 |
+| Alder Lake S Intel graphics architecture | adl_s | adl_s            |
+| Raptor Lake Intel graphics architecture | rpl_s | adl_s             |
+| Alder Lake P Intel graphics architecture | adl_p | adl_p            |
+| Alder Lake N Intel graphics architecture | adl_n | adl_n            |
+| DG1 Intel graphics architecture | dg1      | dg1                    |
+| Alchemist G10 Intel graphics architecture | acm_g10, dg2_g10 | acm_g10 |
+| Alchemist G11 Intel graphics architecture | acm_g11, dg2_g11 | acm_g11 |
+| Alchemist G12 Intel graphics architecture | acm_g12, dg2_g12 | acm_g12 |
+| Ponte Vecchio Intel graphics architecture | pvc | pvc               |
+| Ponte Vecchio VG Intel graphics architecture | pvc_vg | pvc_vg      |
+| Meteor Lake U/S or Arrow Lake U/S Intel graphics architecture | mtl_u, mtl_s, arl_u | mtl_s |
+| Meteor Lake H Intel graphics architecture | mtl_h | mtl_h           |
+| Arrow Lake H Intel graphics architecture | arl_h | arl_h            |
+| Battlemage G21 Intel graphics architecture | bmg_g21 | bmg_g21      |
+| Lunar Lake Intel graphics architecture | lnl_m | lnl_m              |
+
+#### nvptx64-nvidia-cuda support
+For SYCL offloading to NVidia GPUs using ``--offload-arch`` option, the following table
+lists the accepted values.
+
+| NVidia GPU device name | ``--offload-arch`` accepted values for NVidia GPUs |
+|------------------------|----------------------------------------------------|
+| NVIDIA Maxwell architecture (compute capability 5.0) | sm_50 |
+| NVIDIA Maxwell architecture (compute capability 5.2) | sm_52 |
+| NVIDIA Maxwell architecture (compute capability 5.3) | sm_53 |
+| NVIDIA Pascal architecture (compute capability 6.0)  | sm_60 |
+| NVIDIA Pascal architecture (compute capability 6.1)  | sm_61 |
+| NVIDIA Pascal architecture (compute capability 6.2)  | sm_62 |
+| NVIDIA Volta architecture (compute capability 7.0)   | sm_70 |
+| NVIDIA Volta architecture (compute capability 7.2)   | sm_72 |
+| NVIDIA Turing architecture (compute capability 7.5)  | sm_75 |
+| NVIDIA Ampere architecture (compute capability 8.0)  | sm_80 |
+| NVIDIA Ampere architecture (compute capability 8.6)  | sm_86 |
+| NVIDIA Jetson/Drive AGX Orin architecture            | sm_87 |
+| NVIDIA Ada Lovelace architecture                     | sm_89 |
+| NVIDIA Hopper architecture                           | sm_90 |
+| NVIDIA Hopper architecture (with wgmma and setmaxnreg instructions)  | sm_90a |
+
+#### amdgcn-amd-amdhsa support
+
+For SYCL offloading to AMD GPUs using ``--offload-arch`` option, the following table
+lists the accepted values.
+
+| AMD GPU device name | ``--offload-arch`` accepted values for AMD GPUs |
+|------------------------|----------------------------------------------------|
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx700 |
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx701 |
+| AMD GCN GFX7 (Sea Islands (CI)) architecture | gfx702 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx801 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx802 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx803 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx805 |
+| AMD GCN GFX8 (Volcanic Islands (VI)) architecture | gfx810 |
+| AMD GCN GFX9 (Vega) architecture | gfx900 |
+| AMD GCN GFX9 (Vega) architecture | gfx902 |
+| AMD GCN GFX9 (Vega) architecture | gfx904 |
+| AMD GCN GFX9 (Vega) architecture | gfx906 |
+| AMD GCN GFX9 (Vega) architecture | gfx908 |
+| AMD GCN GFX9 (Vega) architecture | gfx909 |
+| AMD GCN GFX9 (Vega) architecture | gfx90a |
+| AMD GCN GFX9 (Vega) architecture | gfx90c |
+| AMD GCN GFX9 (Vega) architecture | gfx940 |
+| AMD GCN GFX9 (Vega) architecture | gfx941 |
+| AMD GCN GFX9 (Vega) architecture | gfx942 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1010 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1011 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1012 |
+| AMD GCN GFX10.1 (RDNA 1) architecture | gfx1013 |
+| AMD GCN GFX10.3 (RDNA 2) architecture | gfx1030 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1031 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1032 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1033 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1034 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1035 |
+| GCN GFX10.3 (RDNA 2) architecture | gfx1036 |
+| GCN GFX11 (RDNA 3) architecture | gfx1100 |
+| GCN GFX11 (RDNA 3) architecture | gfx1101 |
+| GCN GFX11 (RDNA 3) architecture | gfx1102 |
+| GCN GFX11 (RDNA 3) architecture | gfx1103 |
+| GCN GFX11 (RDNA 3) architecture | gfx1150 |
+| GCN GFX11 (RDNA 3) architecture | gfx1151 |
+| GCN GFX12 (RDNA 4) architecture | gfx1200 |
+| GCN GFX12 (RDNA 4) architecture | gfx1201 |
 
 #### spir64_fpga support
 
@@ -354,6 +476,34 @@ Compilation behaviors involving AOT for CPU involve an additional call to
 Additional options passed by the user via the
 `-Xsycl-target-backend=spir64_x86_64 <opts>` command will be processed by a new
 option to the wrapper, `--cpu-tool-arg=<arg>`
+
+Similar to SYCL offloading to Intel GPUs using `--offload-arch`, SYCL AOT for Intel CPUs
+will also leverage the `--offload-arch` option.
+The valid CPU device names accepted for `--offload-arch` are CPU names from ``clang -march``.
+These names are more verbose, and do not overlap with the Intel GPU names.
+These user input CPU names are mapped to the corresponding ``opencl-aot -march`` option.
+
+The following table shows a mapping of the accepted values for `--offload-arch` to enable SYCL offloading to Intel CPUs and the corresponding `-march` value passed to opencl-aot.
+
+| Intel CPU device | ``--offload-arch`` accepted value | opencl-aot -march value |
+|----------------|-------------------------|----------------------------|
+| Intel(R) Advanced Vector Extensions 512 | skylake-avx512 | avx512     |
+| Intel(R) Advanced Vector Extensions 2 | core-avx2 | avx2              |
+| Intel(R) Advanced Vector Extensions | corei7-avx | avx                |
+| Intel(R) Streaming SIMD Extensions 4.2 | corei7 | sse4.2              |
+| Intel(R) microarchitecture code name Westmere | westmere | wsm        |
+| Intel(R) microarchitecture code name Sandy Bridge | sandybridge | snb |
+| Intel(R) microarchitecture code name Ivy Bridge | ivybridge | ivyb    |
+| Intel(R) microarchitecture code name Broadwell | broadwell | bdw      |
+| Intel(R) microarchitecture code name Coffee Lake | coffeelake | cfl   |
+| Intel(R) microarchitecture code name Alder Lake | alderlake | adl     |
+| Intel(R) microarchitecture code name Skylake (client) | skylake | skylake     |
+| Intel(R) microarchitecture code name Skylake (server) | skx | skx     |
+| Intel(R) microarchitecture code name Cascade Lake | cascadelake | clk |
+| Intel(R) microarchitecture code name Ice Lake (client) | icelake-client | icl |
+| Intel(R) microarchitecture code name Ice Lake (server) | icelake-server | icx |
+| Intel(R) microarchitecture code name Sapphire Rapids | sapphirerapids | spr |
+| Intel(R) microarchitecture code name Granite Rapids | graniterapids | gnr |
 
 ### Wrapping of device image
 

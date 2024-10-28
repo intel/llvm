@@ -77,7 +77,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 
   std::string_view NameView{StreamName};
-  if (NameView == "ur") {
+  if (NameView == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
                          urBeginEndCallback);

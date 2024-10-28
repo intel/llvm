@@ -10,15 +10,13 @@ function deps() {
     #
     # However, sometimes first header is on the same line with
     # "null.o: /dev/null <header>", so add an explicit line break there.
-    #
-    # Also, <detail/plugins/.*/features.hpp> is dependent on what plugins were
-    # enabled, so ignore them.
 
     clang++ -fsycl -fsycl-device-only -include "$HEADER" -c -x c++ /dev/null -o /dev/null  -MD -MF - \
         | sed 's@: /dev/null@: /dev/null\n@' \
-        | grep 'include/sycl\|/dev/null\|:' \
-        | grep -v 'detail/plugins/.*/features.hpp' \
+        | grep 'include/sycl\|/dev/null\|CL/\|ur_\|:' \
         | sed 's@.*/include/sycl/@@' \
+        | sed 's@.*/include/CL/@CL/@' \
+        | sed 's@.*/include/ur_@ur_@' \
         | sed 's/ \\//'
 }
 

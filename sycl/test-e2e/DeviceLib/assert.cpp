@@ -1,4 +1,4 @@
-// REQUIRES: (cpu || cuda ) && linux
+// REQUIRES: (cpu || cuda || hip ) && linux
 // RUN: %{build} -DSYCL_FALLBACK_ASSERT=1 -o %t.out
 // (see the other RUN lines below; it is a bit complicated)
 //
@@ -69,7 +69,7 @@
 // extension is a new feature and may not be supported by the runtime used with
 // SYCL.
 //
-// RUN: %if cpu %{ env SYCL_UR_TRACE=1 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=2 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGABRT %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if cpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
 // RUN: %if gpu %{ env                 SHOULD_CRASH=1 EXPECTED_SIGNAL=SIGIOT  %{run} %t.out 2> %t.stderr.native %}
 // RUN: %if gpu %{ FileCheck %s --input-file %t.stderr.native --check-prefixes=CHECK-MESSAGE || FileCheck %s --input-file %t.stderr.native --check-prefix CHECK-NOTSUPPORTED %}
@@ -91,6 +91,7 @@
 // Note that the work-item that hits the assert first may vary, since the order
 // of execution is undefined. We catch only the first one (whatever id it is).
 
+#include "../helpers.hpp"
 #include "sycl/backend/opencl.hpp"
 #include <array>
 #include <assert.h>
@@ -128,7 +129,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
   if (sycl::opencl::has_extension(dev, "cl_intel_devicelib_assert")) {
     unsupported = false;
   }
-  if (unsupported && getenv("SKIP_IF_NO_EXT")) {
+  if (unsupported && env::isDefined("SKIP_IF_NO_EXT")) {
     fprintf(stderr, "Device has no support for cl_intel_devicelib_assert, "
                     "skipping the test\n");
     exit(EXIT_SKIP_TEST);
@@ -160,7 +161,7 @@ int main() {
     if (WIFEXITED(status) && WEXITSTATUS(status) == EXIT_SKIP_TEST) {
       return 0;
     }
-    if (getenv("SHOULD_CRASH")) {
+    if (env::isDefined("SHOULD_CRASH")) {
       if (!WIFSIGNALED(status)) {
         fprintf(stderr, "error: process did not terminate by a signal\n");
         return 1;
@@ -176,12 +177,13 @@ int main() {
     }
     int sig = WTERMSIG(status);
     int expected = 0;
-    if (const char *env = getenv("EXPECTED_SIGNAL")) {
-      if (0 == strcmp(env, "SIGABRT")) {
+    const std::string envVal = env::getVal("EXPECTED_SIGNAL");
+    if (!envVal.empty()) {
+      if (envVal == "SIGABRT") {
         expected = SIGABRT;
-      } else if (0 == strcmp(env, "SIGSEGV")) {
+      } else if (envVal == "SIGSEGV") {
         expected = SIGSEGV;
-      } else if (0 == strcmp(env, "SIGIOT")) {
+      } else if (envVal == "SIGIOT") {
         expected = SIGIOT;
       }
       if (!expected) {

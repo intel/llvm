@@ -257,8 +257,6 @@ void AMDGPUOpenMPToolChain::addClangTargetOptions(
   assert(DeviceOffloadingKind == Action::OFK_OpenMP &&
          "Only OpenMP offloading kinds are supported.");
 
-  CC1Args.push_back("-fcuda-is-device");
-
   if (DriverArgs.hasArg(options::OPT_nogpulib))
     return;
 
@@ -269,7 +267,7 @@ void AMDGPUOpenMPToolChain::addClangTargetOptions(
   }
 
   // Link the bitcode library late if we're using device LTO.
-  if (getDriver().isUsingLTO(/* IsOffload */ true))
+  if (getDriver().isUsingOffloadLTO())
     return;
 }
 
@@ -297,7 +295,7 @@ llvm::opt::DerivedArgList *AMDGPUOpenMPToolChain::TranslateArgs(
               llvm::formatv("{0}", llvm::fmt_consume(ArchsOrErr.takeError()));
           getDriver().Diag(diag::err_drv_undetermined_gpu_arch)
               << llvm::Triple::getArchTypeName(getArch()) << ErrMsg << "-march";
-          Arch = CudaArchToString(CudaArch::HIPDefault);
+          Arch = OffloadArchToString(OffloadArch::HIPDefault);
         } else {
           Arch = Args.MakeArgString(ArchsOrErr->front());
         }

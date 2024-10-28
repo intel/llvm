@@ -28,6 +28,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -123,14 +124,11 @@ public:
   /// \return A pair consisting of the UR program created with the corresponding
   ///         device code binary and a boolean that is true if the device code
   ///         binary was found in the persistent cache and false otherwise.
-  std::pair<ur_program_handle_t, bool>
-  getOrCreateURProgram(
+  std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const context &Context,
-      const device &Device,
-      const std::string &CompileAndLinkOptions,
-      SerializedObj SpecConsts);
+      const context &Context, const device &Device,
+      const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS
@@ -300,13 +298,14 @@ private:
   ProgramManager(ProgramManager const &) = delete;
   ProgramManager &operator=(ProgramManager const &) = delete;
 
-  using ProgramPtr = std::unique_ptr<remove_pointer_t<ur_program_handle_t>,
+  using ProgramPtr = std::unique_ptr<std::remove_pointer_t<ur_program_handle_t>,
                                      decltype(&::urProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
                    const std::string &LinkOptions, ur_device_handle_t Device,
                    uint32_t DeviceLibReqMask,
-                   const std::vector<ur_program_handle_t> &ProgramsToLink);
+                   const std::vector<ur_program_handle_t> &ProgramsToLink,
+                   bool CreatedFromBinary = false);
 
   /// Dumps image to current directory
   void dumpImage(const RTDeviceBinaryImage &Img, uint32_t SequenceID = 0) const;
@@ -398,7 +397,7 @@ private:
   // the underlying program disposed of), so the map can't be used in any way
   // other than binary image lookup with known live UrProgram as the key.
   // NOTE: access is synchronized via the MNativeProgramsMutex
-  std::unordered_map<ur_program_handle_t, const RTDeviceBinaryImage *>
+  std::unordered_multimap<ur_program_handle_t, const RTDeviceBinaryImage *>
       NativePrograms;
 
   /// Protects NativePrograms that can be changed by class' methods.

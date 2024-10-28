@@ -227,12 +227,12 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
   ReadCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
   // These dummy handles are automatically cleaned up by the runtime
-  ReadCmd->getEvent()->getHandleRef() = reinterpret_cast<ur_event_handle_t>(
-      mock::createDummyHandle<ur_event_handle_t>());
+  ReadCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
+      mock::createDummyHandle<ur_event_handle_t>()));
   WriteCmd =
       new MockCmdWithReleaseTracking(sycl::detail::getSyclObjImpl(Q), MockReq);
-  WriteCmd->getEvent()->getHandleRef() = reinterpret_cast<ur_event_handle_t>(
-      mock::createDummyHandle<ur_event_handle_t>());
+  WriteCmd->getEvent()->setHandle(reinterpret_cast<ur_event_handle_t>(
+      mock::createDummyHandle<ur_event_handle_t>()));
   ReadCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
   WriteCmd->MEnqueueStatus = sycl::detail::EnqueueResultT::SyclEnqueueSuccess;
 
@@ -247,23 +247,23 @@ TEST_F(BufferDestructionCheck, ReadyToReleaseLogic) {
                                             &replaceEventGetInfo);
   testing::InSequence S;
 
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] =
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
       UR_EVENT_STATUS_SUBMITTED;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
-      UR_EVENT_STATUS_SUBMITTED;
-
-  EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
-
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] =
-      UR_EVENT_STATUS_COMPLETE;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
       UR_EVENT_STATUS_SUBMITTED;
 
   EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
 
-  ExpectedEventStatus[ReadCmd->getEvent()->getHandleRef()] =
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
       UR_EVENT_STATUS_COMPLETE;
-  ExpectedEventStatus[WriteCmd->getEvent()->getHandleRef()] =
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_SUBMITTED;
+
+  EXPECT_FALSE(MockSchedulerPtr->checkLeavesCompletion(Rec));
+
+  ExpectedEventStatus[ReadCmd->getEvent()->getHandle()] =
+      UR_EVENT_STATUS_COMPLETE;
+  ExpectedEventStatus[WriteCmd->getEvent()->getHandle()] =
       UR_EVENT_STATUS_COMPLETE;
   EXPECT_TRUE(MockSchedulerPtr->checkLeavesCompletion(Rec));
   // previous expect_call is still valid and will generate failure if we recieve
