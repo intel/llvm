@@ -25,7 +25,6 @@
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: detail/type_traits.hpp
 // CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
-// CHECK-NEXT: detail/generic_type_lists.hpp
 // CHECK-NEXT: detail/type_list.hpp
 // CHECK-NEXT: detail/boost/mp11/algorithm.hpp
 // CHECK-NEXT: detail/boost/mp11/list.hpp

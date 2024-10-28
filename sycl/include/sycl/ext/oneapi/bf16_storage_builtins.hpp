@@ -11,7 +11,6 @@
 #include <sycl/__spirv/spirv_ops.hpp>
 #include <sycl/builtins.hpp>
 #include <sycl/detail/builtins/builtins.hpp>
-#include <sycl/detail/generic_type_lists.hpp>
 #include <sycl/detail/generic_type_traits.hpp>
 #include <sycl/detail/type_traits.hpp>
 

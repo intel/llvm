@@ -185,8 +185,8 @@ jobs:
       with:
         path: khronos_sycl_cts
         repository: 'KhronosGroup/SYCL-CTS'
-        ref: 'SYCL-2020'
-        default_branch: 'SYCL-2020'
+        ref: 'main'
+        default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'

@@ -699,10 +699,9 @@ static void InitializeCPlusPlusFeatureTestMacros(const LangOptions &LangOpts,
                         LangOpts.CPlusPlus23   ? "202211L"
                         : LangOpts.CPlusPlus17 ? "201603L"
                                                : "200907");
-    Builder.defineMacro("__cpp_static_assert", LangOpts.CPlusPlus26 ? "202306L"
-                                               : LangOpts.CPlusPlus17
-                                                   ? "201411L"
-                                                   : "200410");
+    // C++17 / C++26 static_assert supported as an extension in earlier language
+    // modes, so we use the C++26 value.
+    Builder.defineMacro("__cpp_static_assert", "202306L");
     Builder.defineMacro("__cpp_decltype", "200707L");
     Builder.defineMacro("__cpp_attributes", "200809L");
     Builder.defineMacro("__cpp_rvalue_references", "200610L");
@@ -1491,9 +1490,10 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
   }
 
   // CUDA device path compilaton
-  if (LangOpts.CUDAIsDevice && !LangOpts.HIP) {
+  if (LangOpts.CUDAIsDevice && !LangOpts.HIP && !LangOpts.isSYCL()) {
     // The CUDA_ARCH value is set for the GPU target specified in the NVPTX
     // backend's target defines.
+    // Note: SYCL targeting nvptx-cuda relies on __SYCL_CUDA_ARCH__ instead.
     Builder.defineMacro("__CUDA_ARCH__");
   }
 
@@ -1661,6 +1661,13 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   for (unsigned i = 0, e = InitOpts.Includes.size(); i != e; ++i) {
     const std::string &Path = InitOpts.Includes[i];
     AddImplicitInclude(Builder, Path);
+  }
+
+  // Process -include-internal-header directive.
+  if (!LangOpts.SYCLIsDevice) {
+    if (!InitOpts.IncludeHeader.empty()) {
+      AddImplicitInclude(Builder, InitOpts.IncludeHeader);
+    }
   }
 
   // Instruct the preprocessor to skip the preamble.
