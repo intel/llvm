@@ -18,7 +18,7 @@
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
 static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
-#endif // _GNU_SOURCE
+#endif
 
 static constexpr auto InvalidDPCPPRoot = "<invalid>";
 static constexpr auto JITLibraryPathSuffix = "/lib/libsycl-jit.so";
