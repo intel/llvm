@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 486
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 487
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been propely UNSUPPORTED.
@@ -274,6 +274,7 @@
 // CHECK-NEXT: KernelAndProgram/undefined-symbol.cpp
 // CHECK-NEXT: KernelCompiler/kernel_compiler_opencl.cpp
 // CHECK-NEXT: KernelCompiler/kernel_compiler_sycl.cpp
+// CHECK-NEXT: KernelCompiler/kernel_compiler_sycl_jit.cpp
 // CHECK-NEXT: KernelCompiler/multi_device.cpp
 // CHECK-NEXT: KernelCompiler/sycl_device_flags.cpp
 // CHECK-NEXT: LLVMIntrinsicLowering/bitreverse.cpp
