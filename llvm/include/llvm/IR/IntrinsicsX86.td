@@ -6273,6 +6273,11 @@ let TargetPrefix = "x86" in {
         DefaultAttrsIntrinsic<[llvm_v8i32_ty],
         [llvm_v8i32_ty, llvm_v8i32_ty],
         [IntrNoMem]>;
+  def int_x86_vsm4key4512
+      : ClangBuiltin<"__builtin_ia32_vsm4key4512">,
+        DefaultAttrsIntrinsic<[llvm_v16i32_ty],
+        [llvm_v16i32_ty, llvm_v16i32_ty],
+        [IntrNoMem]>;
   def int_x86_vsm4rnds4128
       : ClangBuiltin<"__builtin_ia32_vsm4rnds4128">,
         DefaultAttrsIntrinsic<[llvm_v4i32_ty],
@@ -6282,6 +6287,11 @@ let TargetPrefix = "x86" in {
       : ClangBuiltin<"__builtin_ia32_vsm4rnds4256">,
         DefaultAttrsIntrinsic<[llvm_v8i32_ty],
         [llvm_v8i32_ty, llvm_v8i32_ty],
+        [IntrNoMem]>;
+  def int_x86_vsm4rnds4512
+      : ClangBuiltin<"__builtin_ia32_vsm4rnds4512">,
+        DefaultAttrsIntrinsic<[llvm_v16i32_ty],
+        [llvm_v16i32_ty, llvm_v16i32_ty],
         [IntrNoMem]>;
 }
 //===----------------------------------------------------------------------===//
