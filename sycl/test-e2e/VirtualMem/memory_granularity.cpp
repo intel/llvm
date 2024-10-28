@@ -20,23 +20,31 @@ int main() {
   sycl::context Context = Q.get_context();
   sycl::device Device = Q.get_device();
 
-  size_t DevRecommended = syclext::get_mem_granularity(Device, Context,
-                                   syclext::granularity_mode::recommended);
-  size_t ContextRecommended = syclext::get_mem_granularity(Context,
-                                   syclext::granularity_mode::recommended);
-  size_t DevMinimum = syclext::get_mem_granularity(Device, Context,
-                                   syclext::granularity_mode::minimum);
-  size_t ContextMinimum = syclext::get_mem_granularity(Context,
-                                   syclext::granularity_mode::minimum);
+  size_t DevRecommended = syclext::get_mem_granularity(
+      Device, Context, syclext::granularity_mode::recommended);
+  size_t ContextRecommended = syclext::get_mem_granularity(
+      Context, syclext::granularity_mode::recommended);
+  size_t DevMinimum = syclext::get_mem_granularity(
+      Device, Context, syclext::granularity_mode::minimum);
+  size_t ContextMinimum =
+      syclext::get_mem_granularity(Context, syclext::granularity_mode::minimum);
 
-  assert(DevRecommended > 0 && "recommended granularity for device should be greater than 0");
-  assert(ContextRecommended > 0 && "recommended granularity for context should be greater than 0");
-  
-  assert(DevMinimum > 0 && "minimum granularity for device should be greater than 0");
-  assert(ContextMinimum> 0 && "minimum granularity for context should be greater than 0");
-  
-  assert(DevRecommended >= DevMinimum && "recommended granularity size must be at least minimum granularity for device");
-  assert(ContextRecommended >= ContextMinimum && "recommended granularity size must be at least minimum granularity for context");
-  
+  assert(DevRecommended > 0 &&
+         "recommended granularity for device should be greater than 0");
+  assert(ContextRecommended > 0 &&
+         "recommended granularity for context should be greater than 0");
+
+  assert(DevMinimum > 0 &&
+         "minimum granularity for device should be greater than 0");
+  assert(ContextMinimum > 0 &&
+         "minimum granularity for context should be greater than 0");
+
+  assert(DevRecommended >= DevMinimum &&
+         "recommended granularity size must be at least minimum granularity "
+         "for device");
+  assert(ContextRecommended >= ContextMinimum &&
+         "recommended granularity size must be at least minimum granularity "
+         "for context");
+
   return 0;
 }
