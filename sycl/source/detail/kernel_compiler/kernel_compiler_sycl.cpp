@@ -324,3 +324,40 @@ bool SYCL_Compilation_Available() {
 } // namespace _V1
 } // namespace sycl
 #endif
+
+#if SYCL_EXT_JIT_ENABLE
+#include "../jit_compiler.hpp"
+#endif
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+bool SYCL_JIT_Compilation_Available() {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
+#else
+  return false;
+#endif
+}
+
+spirv_vec_t SYCL_JIT_to_SPIRV(
+    [[maybe_unused]] const std::string &SYCLSource,
+    [[maybe_unused]] include_pairs_t IncludePairs,
+    [[maybe_unused]] const std::vector<std::string> &UserArgs,
+    [[maybe_unused]] std::string *LogPtr,
+    [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
+      "rtc", SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+#else
+  throw sycl::exception(sycl::errc::build,
+                        "kernel_compiler via sycl-jit is not available");
+#endif
+}
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl

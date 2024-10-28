@@ -503,6 +503,12 @@ public:
                                                BuildOptions, LogPtr,
                                                RegisteredKernelNames);
         }
+        if (Language == syclex::source_language::sycl_jit) {
+          const auto &SourceStr = std::get<std::string>(this->Source);
+          return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
+                                                  BuildOptions, LogPtr,
+                                                  RegisteredKernelNames);
+        }
         throw sycl::exception(
             make_error_code(errc::invalid),
             "SYCL C++, OpenCL C and SPIR-V are the only supported "
@@ -572,7 +578,8 @@ public:
   std::string adjust_kernel_name(const std::string &Name,
                                  syclex::source_language Lang) {
     // Once name demangling support is in, we won't need this.
-    if (Lang != syclex::source_language::sycl)
+    if (Lang != syclex::source_language::sycl &&
+        Lang != syclex::source_language::sycl_jit)
       return Name;
 
     bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
