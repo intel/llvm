@@ -1,7 +1,7 @@
-# commit 58abf8fa778376546274c52304b9f924314d65e6
-# Merge: a96fddec a97df490
+# commit d3a518a2a621da6d78f8d25e8460fd3300fff705
+# Merge: ab0a706b 77975b87
 # Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 24 13:37:02 2024 +0100
-#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
-#     Query out and use local size set in program IL in CL adapter
-set(UNIFIED_RUNTIME_TAG 58abf8fa778376546274c52304b9f924314d65e6)
+# Date:   Fri Oct 25 16:45:53 2024 +0100
+#     Merge pull request #2219 from kbenzie/benie/cl-adapter-opt-core-func
+#     [CL] Support using old ICD loaders
+set(UNIFIED_RUNTIME_TAG d3a518a2a621da6d78f8d25e8460fd3300fff705)
