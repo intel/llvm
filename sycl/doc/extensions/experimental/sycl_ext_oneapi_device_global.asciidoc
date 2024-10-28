@@ -252,7 +252,7 @@ public:
   // Available if PropertyListT::has_property<device_image_scope_key>() is false
   // and OtherT is convertible to T.
   template <typename OtherT, typename OtherProps>
-  constexpr device_global(const device_global<OtherT, OtherProps> &other) {}
+  constexpr device_global(const device_global<OtherT, OtherProps> &other);
 
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
@@ -339,21 +339,8 @@ The object of type `T` is initialized from the `args` parameter pack using list 
 a|
 [source,c++]
 ----
-constexpr device_global(const device_global &other);
-----
-|
-Available if `PropertyListT::has_property<device_image_scope_key>() == false`.
-
-Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
-
-The storage on each device for `T` is initialized with a copy of the storage in `other`.
-
-// --- ROW BREAK ---
-a|
-[source,c++]
-----
 template <typename OtherT, typename OtherProps>
-constexpr device_global(const device_global<OtherT, OtherProps> &other) {}
+constexpr device_global(const device_global<OtherT, OtherProps> &other);
 ----
 |
 Available if `PropertyListT::has_property<device_image_scope_key>() == false` and

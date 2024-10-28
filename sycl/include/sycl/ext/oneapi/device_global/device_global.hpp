@@ -101,14 +101,11 @@ public:
   constexpr device_global_base(
       const device_global_base<OtherT, OtherProps> &DGB)
       : init_val{ExtractInitialVal(DGB)} {}
-  constexpr device_global_base(const device_global_base &DGB)
-      : init_val{DGB.init_val} {}
 #else
   template <typename OtherT, typename OtherProps,
             typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
   constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) {
   }
-  constexpr device_global_base(const device_global_base &) {}
 #endif // __SYCL_DEVICE_ONLY__
 
   template <access::decorated IsDecorated>
@@ -228,9 +225,6 @@ public:
 
   // Inherit the base class' constructors
   using detail::device_global_base<T, property_list_t>::device_global_base;
-
-  constexpr device_global(const device_global &DG)
-      : base_t(static_cast<const base_t &>(DG)) {}
 
   device_global(const device_global &&) = delete;
   device_global &operator=(const device_global &) = delete;
