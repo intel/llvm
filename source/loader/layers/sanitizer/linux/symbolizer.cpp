@@ -7,8 +7,10 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
+#include "common.hpp"
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
+#include <link.h>
 
 static llvm::symbolize::PrinterConfig GetPrinterConfig() {
     llvm::symbolize::PrinterConfig Config;
@@ -18,6 +20,28 @@ static llvm::symbolize::PrinterConfig GetPrinterConfig() {
     Config.SourceContextLines = 0;
     Config.Verbose = false;
     return Config;
+}
+
+static uintptr_t GetModuleBase(const char *ModuleName) {
+    uintptr_t Data = (uintptr_t)ModuleName;
+    int Result = dl_iterate_phdr(
+        [](struct dl_phdr_info *Info, size_t, void *Arg) {
+            uintptr_t *Data = (uintptr_t *)Arg;
+            const char *ModuleName = (const char *)(*Data);
+            if (strstr(Info->dlpi_name, ModuleName)) {
+                *Data = (uintptr_t)Info->dlpi_addr;
+                return 1;
+            }
+            return 0;
+        },
+        (void *)&Data);
+
+    // If dl_iterate_phdr return 0, it means the module is main executable,
+    // its base address should be 0.
+    if (!Result) {
+        return 0;
+    }
+    return Data;
 }
 
 extern "C" {
@@ -38,8 +62,8 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
     llvm::symbolize::LLVMPrinter Printer(OS, EH, Config);
 
     auto ResOrErr = Symbolizer.symbolizeInlinedCode(
-        ModuleName,
-        {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
+        ModuleName, {ModuleOffset - GetModuleBase(ModuleName),
+                     llvm::object::SectionedAddress::UndefSection});
 
     if (!ResOrErr) {
         return;
