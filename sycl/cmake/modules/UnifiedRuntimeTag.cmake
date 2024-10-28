@@ -1,7 +1,5 @@
-# commit 58abf8fa778376546274c52304b9f924314d65e6
-# Merge: a96fddec a97df490
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 24 13:37:02 2024 +0100
-#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
-#     Query out and use local size set in program IL in CL adapter
-set(UNIFIED_RUNTIME_TAG devsan-add-report-flag)
+# commit 66ba7970a6badf781226b75a98c9585ef30ea93a
+# Author: Maosu Zhao <maosu.zhao@intel.com>
+# Date:   Mon Oct 28 18:39:57 2024 +0800
+#     [DeviceSanitizer] Add a report flag to LaunchInfo (#2069)
+set(UNIFIED_RUNTIME_TAG 66ba7970a6badf781226b75a98c9585ef30ea93a)
