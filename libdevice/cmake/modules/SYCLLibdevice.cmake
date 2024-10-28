@@ -22,7 +22,7 @@ set(install_dest_obj lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_obj-new-offload lib${LLVM_LIBDIR_SUFFIX})
 set(install_dest_bc lib${LLVM_LIBDIR_SUFFIX})
 
-set(clang $<TARGET_FILE:clang>)
+set(clangxx $<TARGET_FILE:clang> --driver-mode=g++)
 set(llvm-ar $<TARGET_FILE:llvm-ar>)
 set(llvm-link $<TARGET_FILE:llvm-link>)
 set(llvm-opt $<TARGET_FILE:opt>)
@@ -118,7 +118,7 @@ function(compile_lib filename)
 
   add_custom_command(
     OUTPUT ${devicelib-file}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clangxx} ${compile_opts} ${ARG_EXTRA_OPTS}
             ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SRC} -o ${devicelib-file}
     MAIN_DEPENDENCY ${ARG_SRC}
     DEPENDS ${ARG_DEPENDENCIES}
@@ -418,7 +418,7 @@ function(add_lib_imf name)
 
   add_custom_command(
     OUTPUT ${ARG_DIR}/${name}.${${ARG_FTYPE}-suffix}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clangxx} ${compile_opts} ${ARG_EXTRA_OPTS}
             -I ${CMAKE_CURRENT_SOURCE_DIR}/imf
             ${imf_${ARG_DTYPE}_fallback_src}
             -o
@@ -518,7 +518,7 @@ foreach(dtype IN ITEMS bf16 fp32 fp64)
     endif()
     add_custom_command(
       OUTPUT ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
-      COMMAND ${clang} ${${ftype}_host_compile_opts}
+      COMMAND ${clangxx} ${${ftype}_host_compile_opts}
               ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
               -o ${${ftype}_binary_dir}/imf-${dtype}-host.${${ftype}-suffix}
       MAIN_DEPENDENCY ${CMAKE_CURRENT_SOURCE_DIR}/${wrapper_name}
