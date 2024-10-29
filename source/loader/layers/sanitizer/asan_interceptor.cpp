@@ -634,6 +634,20 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
             }
         }
 
+        auto ArgNums = GetKernelNumArgs(Kernel);
+        // We must prepare all kernel args before call
+        // urKernelGetSuggestedLocalWorkSize, otherwise the call will fail on
+        // CPU device.
+        if (ArgNums) {
+            ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
+                Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
+            if (URes != UR_RESULT_SUCCESS) {
+                getContext()->logger.error("Failed to set launch info: {}",
+                                           URes);
+                return URes;
+            }
+        }
+
         if (LaunchInfo.LocalWorkSize.empty()) {
             LaunchInfo.LocalWorkSize.resize(LaunchInfo.WorkDim);
             auto URes =
@@ -658,11 +672,6 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
         for (uint32_t Dim = 0; Dim < LaunchInfo.WorkDim; ++Dim) {
             NumWG *= (LaunchInfo.GlobalWorkSize[Dim] + LocalWorkSize[Dim] - 1) /
                      LocalWorkSize[Dim];
-        }
-
-        auto ArgNums = GetKernelNumArgs(Kernel);
-        if (ArgNums == 0) {
-            return UR_RESULT_SUCCESS;
         }
 
         // Prepare asan runtime data
@@ -803,14 +812,6 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         // sync asan runtime data to device side
         UR_CALL(LaunchInfo.Data.syncToDevice(Queue));
-
-        // set kernel argument
-        ur_result_t URes = getContext()->urDdiTable.Kernel.pfnSetArgPointer(
-            Kernel, ArgNums - 1, nullptr, LaunchInfo.Data.getDevicePtr());
-        if (URes != UR_RESULT_SUCCESS) {
-            getContext()->logger.error("Failed to set launch info: {}", URes);
-            return URes;
-        }
 
         getContext()->logger.debug(
             "launch_info {} (numLocalArgs={}, localArgs={})",
