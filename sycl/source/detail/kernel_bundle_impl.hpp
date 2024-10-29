@@ -427,8 +427,8 @@ public:
       }
       PersistentBinaries.push_back(BinProg);
 
-      Binaries.push_back((uint8_t *)(BinProg[0].data()));
-      Lengths.push_back(BinProg[0].size());
+      Binaries.push_back((uint8_t *)(PersistentBinaries[i][0].data()));
+      Lengths.push_back(PersistentBinaries[i][0].size());
     }
 
     ur_program_properties_t Properties = {};
@@ -524,16 +524,17 @@ public:
             sycl::make_error_code(errc::invalid),
             "urProgramCreateWithIL resulted in a null program handle.");
 
-      std::string XsFlags = extractXsFlags(BuildOptions);
-      auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
-          UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-      if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-        Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
-            ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
-      }
-      Adapter->checkUrResult<errc::build>(Res);
-
     } // if(!FetchedFromCache)
+
+    std::string XsFlags = extractXsFlags(BuildOptions);
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+    if (Res ==
+        UR_RESULT_ERROR_UNSUPPORTED_FEATURE) { // (Res != UR_RESULT_SUCCESS) {
+      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
+    }
+    Adapter->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
