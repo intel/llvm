@@ -16,7 +16,9 @@ template <typename property_key_t> constexpr auto generate_property_key_name() {
 #endif
 }
 
-template <typename property_t, typename property_key_t = property_t>
+template <typename property_t,
+          typename property_key_t =
+              detail::property_key_non_template<property_t>>
 struct named_property_base
     : public detail::property_base<property_t, property_key_t> {
   static constexpr std::string_view property_name =
@@ -27,7 +29,9 @@ template <int N> struct property : named_property_base<property<N>> {};
 
 template <int N>
 struct property_with_key
-    : named_property_base<property_with_key<N>, struct prop_key_t> {};
+    : named_property_base<
+          property_with_key<N>,
+          detail::property_key_value_template<property_with_key>> {};
 
 namespace library_a {
 struct prop : detail::property_base<prop> {
@@ -45,18 +49,18 @@ struct prop : detail::property_base<prop> {
 }
 
 void test() {
-  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<1>, property<1>>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<sycl::ext::oneapi::experimental::new_properties::detail::property_key_non_template<property<1>>, sycl::ext::oneapi::experimental::new_properties::detail::property_key_non_template<property<1>>>': Duplicate property!}}
   std::ignore = properties{property<1>{}, property<1>{}};
 
   constexpr properties pl{property<1>{}, property<2>{}};
-  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<property<2>, property<2>>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<sycl::ext::oneapi::experimental::new_properties::detail::property_key_non_template<property<2>>, sycl::ext::oneapi::experimental::new_properties::detail::property_key_non_template<property<2>>>': Duplicate property!}}
   std::ignore = pl + properties{property<2>{}};
 
   // Unfortunately, C++ front end doesn't use qualified name for "prop" below...
   // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement 'prop::property_name != prop::property_name': Property name collision between different property keys!}}
   std::ignore = properties{library_a::prop{}, library_b::prop{}};
 
-  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<prop_key_t, prop_key_t>': Duplicate property!}}
+  // expected-error@sycl/ext/oneapi/properties/new_properties.hpp:* {{static assertion failed due to requirement '!std::is_same_v<sycl::ext::oneapi::experimental::new_properties::detail::property_key_value_template<property_with_key>, sycl::ext::oneapi::experimental::new_properties::detail::property_key_value_template<property_with_key>>': Duplicate property!}}
   std::ignore = properties{property_with_key<1>{}, property_with_key<2>{}};
 }
 

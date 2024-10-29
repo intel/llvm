@@ -99,9 +99,29 @@ struct properties_sorter<std::integer_sequence<int, IdxSeq...>,
       nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
 };
 
-// We support incomplete property_key_t, so need to wrap it.
-template <typename property_key_t>
-struct property_key_tag : property_key_tag_base {};
+// Need "universal template"
+// (https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2024/p2989r2.pdf) to
+// simplify this to a single template and support mixed type/non-type template
+// parameters in properties.
+template <typename> struct property_key_non_template : property_key_tag_base {};
+template <template <auto...> typename>
+struct property_key_value_template : property_key_tag_base {};
+template <template <typename...> typename>
+struct property_key_type_template : property_key_tag_base {};
+
+// Helpers to provide "uniform" access to the key.
+template <typename property>
+constexpr auto key() {
+  return property_key_non_template<property>{};
+}
+template <template <auto...> typename property>
+constexpr auto key() {
+  return property_key_value_template<property>{};
+}
+template <template <typename...> typename property>
+constexpr auto key() {
+  return property_key_type_template<property>{};
+}
 
 // NOTE: each property_t subclass must provide
 //
@@ -112,11 +132,12 @@ struct property_key_tag : property_key_tag_base {};
 // way we can have a stable sorting order between device/custom-host compilers
 // for both properties provided by the implementation and the ones introduced by
 // users' applications/libraries.
-template <typename property_t, typename property_key_t = property_t>
-struct property_base : property_key_tag<property_key_t> {
+template <typename property_t,
+          typename property_key_t = property_key_non_template<property_t>>
+struct property_base : property_key_t {
 protected:
   using key_t = property_key_t;
-  constexpr property_t get_property_impl(property_key_tag<key_t>) const {
+  constexpr property_t get_property_impl(key_t = {}) const {
     return *static_cast<const property_t *>(this);
   }
 
@@ -141,10 +162,6 @@ public:
     return properties{lhs, rhs};
   }
 };
-
-template <template <auto...> typename property> struct property_key;
-template <template <auto...> typename property>
-using property_key_t = typename property_key<property>::type;
 
 template <typename... property_tys>
 inline constexpr bool property_names_are_unique = []() constexpr {
@@ -181,14 +198,6 @@ inline constexpr bool properties_are_sorted = []() constexpr {
   }
 }();
 
-template <template <auto...> typename property>
-constexpr auto key() {
-  return property_key_tag<property_key_t<property>>{};
-}
-template <typename property>
-constexpr auto key() {
-  return property_key_tag<property>{};
-}
 } // namespace detail
 
 // Empty property list.
@@ -266,18 +275,46 @@ public:
   constexpr properties(unsorted_property_tys... props)
       : unsorted_property_tys(props)... {}
 
-  template <template <auto...> typename property>
-  static constexpr bool has_property() {
-    return std::is_base_of_v<decltype(detail::key<property>()), properties>;
-  }
+  // Until we have "universal template", `has_property`/`get_property`
+  // implementations have to be duplicated for
+  // non-templated/value-templated/type-templated cases.
 
   template <typename property> static constexpr bool has_property() {
     return std::is_base_of_v<decltype(detail::key<property>()), properties>;
   }
 
-  // First, do return type SFINAE to choose between static/non-static. Second,
-  // duplicate the code for non-templated properties (until we have "universal
-  // template" in C++).
+  template <template <auto...> typename property>
+  static constexpr bool has_property() {
+    return std::is_base_of_v<decltype(detail::key<property>()), properties>;
+  }
+
+  template <template <typename...> typename property>
+  static constexpr bool has_property() {
+    return std::is_base_of_v<decltype(detail::key<property>()), properties>;
+  }
+
+  // In addition to the duplication mentioned above, do SFINAE-based dispatch
+  // between compile/run-time properties to enable "static" access when
+  // possible.
+  template <typename property>
+  static constexpr auto get_property() -> std::enable_if_t<
+      std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))>,
+      decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))> {
+    return decltype(std::declval<properties>().get_property_impl(
+        detail::key<property>())){};
+  }
+
+  template <typename property>
+  constexpr auto get_property() const -> std::enable_if_t<
+      !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))>,
+      decltype(std::declval<properties>().get_property_impl(
+          detail::key<property>()))> {
+    return get_property_impl(detail::key<property>());
+  }
+
   template <template <auto...> typename property>
   static constexpr auto get_property() -> std::enable_if_t<
       std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
@@ -297,7 +334,7 @@ public:
     return get_property_impl(detail::key<property>());
   }
 
-  template <typename property>
+  template <template <typename...> typename property>
   static constexpr auto get_property() -> std::enable_if_t<
       std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
           detail::key<property>()))>,
@@ -307,7 +344,7 @@ public:
         detail::key<property>())){};
   }
 
-  template <typename property>
+  template <template <typename...> typename property>
   constexpr auto get_property() const -> std::enable_if_t<
       !std::is_empty_v<decltype(std::declval<properties>().get_property_impl(
           detail::key<property>()))>,

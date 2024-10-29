@@ -17,14 +17,18 @@ template <typename property_key_t> constexpr auto generate_property_key_name() {
 #endif
 }
 
-template <typename property_t, typename property_key_t = property_t>
+template <typename property_t,
+          typename property_key_t =
+              detail::property_key_non_template<property_t>>
 struct named_property_base
     : public detail::property_base<property_t, property_key_t> {
   static constexpr std::string_view property_name =
       generate_property_key_name<property_key_t>();
 };
 
-template <int N> struct prop : named_property_base<prop<N>, struct prop_key> {
+template <int N>
+struct prop
+    : named_property_base<prop<N>, detail::property_key_value_template<prop>> {
   static constexpr const char *ir_attribute_name = "llvm-ir-prop";
   static constexpr int ir_attribute_value = N;
 };

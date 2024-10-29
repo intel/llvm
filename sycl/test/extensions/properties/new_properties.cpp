@@ -14,7 +14,9 @@ template <typename property_key_t> constexpr auto generate_property_key_name() {
 #endif
 }
 
-template <typename property_t, typename property_key_t = property_t>
+template <typename property_t,
+          typename property_key_t =
+              detail::property_key_non_template<property_t>>
 struct named_property_base
     : public detail::property_base<property_t, property_key_t> {
   static constexpr std::string_view property_name =
@@ -34,14 +36,9 @@ namespace test {
 struct property1 : named_property_base<property1> {};
 
 template <int N>
-struct property2 : named_property_base<property2<N>, struct property2_key> {};
-} // namespace test
-
-template <> struct detail::property_key<test::property2> {
-  using type = test::property2_key;
-};
-
-namespace test {
+struct property2
+    : named_property_base<property2<N>,
+                          detail::property_key_value_template<property2>> {};
 struct property3 : named_property_base<property3> {
   property3(int x) : x(x) {}
   int x;
@@ -91,17 +88,11 @@ static_assert(pl2.has_property<property<4>>());
 
 namespace test_compile_prop_in_runtime_list {
 template <int N>
-struct ct_prop : named_property_base<ct_prop<N>, struct ct_prop_key> {
+struct ct_prop
+    : named_property_base<ct_prop<N>,
+                          detail::property_key_value_template<ct_prop>> {
   static constexpr auto value() { return N; }
 };
-} // namespace test_compile_prop_in_runtime_list
-
-template <>
-struct detail::property_key<test_compile_prop_in_runtime_list::ct_prop> {
-  using type = test_compile_prop_in_runtime_list::ct_prop_key;
-};
-
-namespace test_compile_prop_in_runtime_list {
 struct rt_prop : named_property_base<rt_prop> {
   rt_prop(int N) : x(N) {}
 
@@ -181,16 +172,11 @@ static_assert(!has_value_v<decltype(pl2)>);
 
 namespace implicit_key {
 struct non_template_prop : named_property_base<non_template_prop> {};
-template <int N> struct prop : named_property_base<prop<N>, struct prop_key_t> {
+template <int N>
+struct prop
+    : named_property_base<prop<N>, detail::property_key_value_template<prop>> {
   static constexpr int value = N;
 };
-} // namespace implicit_key
-
-template <> struct detail::property_key<implicit_key::prop> {
-  using type = implicit_key::prop_key_t;
-};
-
-namespace implicit_key {
 constexpr properties pl1{non_template_prop{}};
 constexpr properties pl2{prop<42>{}};
 static_assert(pl1.has_property<non_template_prop>());
@@ -208,8 +194,8 @@ static_assert(std::is_same_v<decltype(p2), const prop<42>>);
 
 int main() {
   test::test();
-  bench::test(std::make_integer_sequence<int, 67>{});
-  // More than 67 fails with clang
+  bench::test(std::make_integer_sequence<int, 45>{});
+  // More than that fails with clang, e.g.
   // clang-format off
   // new_properties.cpp:165:10: note: in instantiation of function template specialization 'bench::test<0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
   //       13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51,

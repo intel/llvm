@@ -13,40 +13,44 @@ template <typename property_key_t> constexpr auto generate_property_key_name() {
 #error "Unsupported compiler"
 #endif
 }
-
-template <typename property_t, typename property_key_t = property_t>
+template <typename property_t,
+          typename property_key_t =
+              detail::property_key_non_template<property_t>>
 struct named_property_base
     : public detail::property_base<property_t, property_key_t> {
   static constexpr std::string_view property_name =
       generate_property_key_name<property_key_t>();
 };
 
-struct prop_key {};
-
-template <typename PropList> auto foo(PropList props = {}) {
-  static_assert(props.template has_property<prop_key>());
-  static_assert(props.template get_property<prop_key>().value == 42);
+template <template <auto...> typename Foo, typename PropList>
+auto foo(PropList props = {}) {
+  static_assert(props.template has_property<Foo>());
+  static_assert(props.template get_property<Foo>().value == 42);
 }
 
 namespace approach_one {
 // Don't provide `inline constexpr` property variables at all, they don't
 // provide enough benefits now that `property_value` thing was eliminated.
 
-template <int N> struct prop : named_property_base<prop<N>, prop_key> {
+template <int N>
+struct prop
+    : named_property_base<prop<N>, detail::property_key_value_template<prop>> {
   static constexpr int value = N;
 };
 struct other_prop : named_property_base<other_prop> {};
 
 void bar() {
-  foo(properties{prop<42>{}});
-  foo(properties{prop<42>{}, other_prop{}});
+  foo<prop>(properties{prop<42>{}});
+  foo<prop>(properties{prop<42>{}, other_prop{}});
 }
 } // namespace approach_one
 
 namespace approach_two {
 // Keep providing `inline constexpr` "shortcuts".
 template <int N>
-struct prop_property : named_property_base<prop_property<N>, prop_key> {
+struct prop_property
+    : named_property_base<prop_property<N>,
+                          detail::property_key_value_template<prop_property>> {
   static constexpr int value = N;
 };
 struct other_prop_property : named_property_base<other_prop_property> {};
@@ -56,15 +60,17 @@ inline constexpr other_prop_property other_prop{};
 
 void bar() {
   // Still need `properties` here.
-  foo(properties{prop<42>});
-  foo(properties{prop<42>, other_prop});
+  foo<prop_property>(properties{prop<42>});
+  foo<prop_property>(properties{prop<42>, other_prop});
 }
 } // namespace approach_two
 namespace approach_three {
 // Use operator+ to create `properties` property list from individual
 // properties.
 template <int N>
-struct prop_property : named_property_base<prop_property<N>, prop_key> {
+struct prop_property
+    : named_property_base<prop_property<N>,
+                          detail::property_key_value_template<prop_property>> {
   static constexpr int value = N;
 };
 struct other_prop_property : named_property_base<other_prop_property> {};
@@ -78,7 +84,7 @@ void bar() {
 
   // More than one property in a property list looks very natural.
   // Alternatively, that can be `operator|` but it has no unary version.
-  foo(prop<42> + other_prop);
+  foo<prop_property>(prop<42> + other_prop);
 }
 } // namespace approach_three
 
@@ -88,12 +94,16 @@ namespace approach_four {
 
 // This will be part of the implementation's `detail::property_base` but I'm
 // keeping it in the test for now until the future direction is chosen.
-template <typename property_t, typename property_key_t = property_t>
+template <typename property_t,
+          typename property_key_t =
+              detail::property_key_non_template<property_t>>
 struct adjusted_property_base
     : public named_property_base<property_t, property_key_t> {
   template <typename T> static constexpr bool has_property() {
     return std::is_same_v<T, property_key_t>;
   }
+  template <template <auto...> typename Property /* , something here */>
+  static constexpr bool has_property() { return true; }
 
   // Technically it should be two version static/non-static depending on
   // `std::is_empty_v<property_t>`, skipped here for brevity.
@@ -102,10 +112,17 @@ struct adjusted_property_base
   static constexpr property_t get_property() {
     return property_t{};
   }
+
+  template <template <auto...> typename Property /* , something here */>
+  static constexpr property_t get_property() {
+    return property_t{};
+  }
 };
 
 template <int N>
-struct prop_property : adjusted_property_base<prop_property<N>, prop_key> {
+struct prop_property : adjusted_property_base<
+                           prop_property<N>,
+                           detail::property_key_value_template<prop_property>> {
   static constexpr int value = N;
 };
 struct other_prop_property : adjusted_property_base<other_prop_property> {};
@@ -115,11 +132,11 @@ inline constexpr other_prop_property other_prop{};
 
 void bar() {
   // "Duck-typing" here.
-  foo(prop<42>);
+  foo<prop_property>(prop<42>);
 
   // Now nothing prevents us from using `operator|` here that someone might
   // found more natural. Not doing for simplicity for now.
-  foo(prop<42> + other_prop);
+  foo<prop_property>(prop<42> + other_prop);
 }
 
 // Problem:
@@ -151,7 +168,9 @@ namespace approach_five {
 // Same as approach three but make shortcuts property lists instead of
 // individual properties.
 template <int N>
-struct prop_property : named_property_base<prop_property<N>, prop_key> {
+struct prop_property
+    : named_property_base<prop_property<N>,
+                          detail::property_key_value_template<prop_property>> {
   static constexpr int value = N;
 };
 struct other_prop_property : named_property_base<other_prop_property> {};
@@ -160,8 +179,8 @@ template <int N> inline constexpr auto prop = properties{prop_property<N>{}};
 inline constexpr auto other_prop = properties{other_prop_property{}};
 
 void bar() {
-  foo(prop<42>);
-  foo(prop<42> + other_prop);
+  foo<prop_property>(prop<42>);
+  foo<prop_property>(prop<42> + other_prop);
 }
 
 // Problem:
