@@ -1376,7 +1376,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
   GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
       M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
-      MetadataInitializer, "__AsanSpirKernelMetadata", nullptr,
+      MetadataInitializer, "__AsanKernelMetadata", nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
 
