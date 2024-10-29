@@ -460,6 +460,8 @@ ur_result_t UR_APICALL urAdapterGetInfo(
 ///         + `NULL == phAdapters`
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         + `NumEntries == 0 && phPlatforms != NULL`
+///     - ::UR_RESULT_ERROR_INVALID_VALUE
+///         + `pNumPlatforms == NULL && phPlatforms == NULL`
 ur_result_t UR_APICALL urPlatformGet(
     ur_adapter_handle_t *
         phAdapters, ///< [in][range(0, NumAdapters)] array of adapters to query for platforms.
