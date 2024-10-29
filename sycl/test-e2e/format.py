@@ -99,22 +99,19 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
     def make_default_features_list(self, expr, triple, add_default=True):
-        # Dictionary of features which we know are always/never present for a
+        # Dictionaries of features which we know are always/never present for a
         # given triple (or the system in general).
-        exceptions = {}
-        exceptions["spir64"] = {
-            "cuda": False,
-            "hip": False,
-            "hip_amd": False,
-            "hip_nvidia": False,
-            "native_cpu": False,
+        always_has_feature = {
+            "spir64": set(),
+            "system": {"linux"},
         }
-        exceptions["system"] = {
-            "linux": True,
-            "windows": False,
-            "system-windows": False,
-            "run-mode": False,
-            "TEMPORARY_DISABLED": False,
+        never_has_feature = {
+            "spir64": {
+                "cuda", "hip", "hip_amd", "hip_nvidia", "native_cpu"
+            },
+            "system": {
+                "windows", "system-windows", "run-mode", "TEMPORARY_DISABLED",
+            },
         }
         features_queried_by_test = []
         for f in expr:
@@ -122,8 +119,13 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 "[-+=._a-zA-Z0-9]+", f
             )
         features = set()
+        exceptions = {}
+        if add_default:
+            exceptions = never_has_feature[triple].union(never_has_feature["system"])
+        else:
+            exceptions = always_has_feature[triple].union(always_has_feature["system"])
         for f in features_queried_by_test:
-            if exceptions[triple].get(f, exceptions["system"].get(f, add_default)):
+            if (not add_default if f in exceptions else add_default):
                 features.add(f)
         return features
 
