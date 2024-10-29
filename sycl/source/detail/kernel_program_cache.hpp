@@ -181,8 +181,8 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
    * set.*/
-  static void traceProgram(const std::string &Msg,
-                           const ProgramCacheKeyT &CacheKey) {
+  static inline void traceProgram(const std::string &Msg,
+                                  const ProgramCacheKeyT &CacheKey) {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache();
     if (traceEnabled) {
@@ -205,8 +205,9 @@ public:
 
   /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
    * set.*/
-  static void traceKernel(const std::string &Msg, const std::string &KernelName,
-                          bool IsKernelFastCache = false) {
+  static inline void traceKernel(const std::string &Msg,
+                                 const std::string &KernelName,
+                                 bool IsKernelFastCache = false) {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache();
     if (traceEnabled) {
