@@ -240,11 +240,11 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+constexpr void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
   (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void loop(F &&f) {
+template <size_t count, class F> constexpr void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }

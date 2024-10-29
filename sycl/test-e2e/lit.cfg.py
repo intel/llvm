@@ -281,6 +281,18 @@ sp = subprocess.getstatusoutput(
 if sp[0] == 0:
     config.available_features.add("preview-breaking-changes-supported")
 
+# Check if clang is built with ZSTD and compression support.
+fPIC_opt = "-fPIC" if platform.system() != "Windows" else ""
+ps = subprocess.Popen(
+    [config.dpcpp_compiler, "-fsycl", "--offload-compress", "-shared", fPIC_opt, "-x", "c++", "-", "-o", "-"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+)
+op = ps.communicate(input=b"")
+if ps.wait() == 0:
+    config.available_features.add("zstd")
+
 # Check for CUDA SDK
 check_cuda_file = "cuda_include.cpp"
 with open_check_file(check_cuda_file) as fp:
@@ -430,8 +442,6 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
     for line in sp.splitlines():
-        if "Intel(R) Data Center GPU Max 1100" in line:
-            config.available_features.add("gpu-intel-pvc-1T")
         if "gfx90a" in line:
             config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
@@ -720,6 +730,15 @@ for sycl_device in config.sycl_devices:
             # str.removeprefix isn't universally available...
             sg_sizes_str = line.strip().replace("info::device::sub_group_sizes: ", "")
             dev_sg_sizes.append(sg_sizes_str.strip().split(" "))
+        if re.match(r" *DeviceID*", line):
+            gpu_intel_pvc_1T_device_id = "3034"
+            gpu_intel_pvc_2T_device_id = "3029"
+            _, device_id = line.strip().split(":", 1)
+            device_id = device_id.strip()
+            if device_id == gpu_intel_pvc_1T_device_id:             
+                config.available_features.add("gpu-intel-pvc-1T")
+            if device_id == gpu_intel_pvc_2T_device_id:
+                config.available_features.add("gpu-intel-pvc-2T")
         if re.match(r" *Architecture:", line):
             _, architecture = line.strip().split(":", 1)
             architectures.add(architecture.strip())

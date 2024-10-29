@@ -36,6 +36,7 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Unified Runtime
 sycl/cmake/modules/FetchUnifiedRuntime.cmake @intel/unified-runtime-reviewers
+sycl/cmake/modules/UnifiedRuntimeTag.cmake @intel/unified-runtime-reviewers
 sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
 sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers

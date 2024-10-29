@@ -14,7 +14,7 @@
 // UNSUPPORTED: (level_zero && windows)
 
 // https://github.com/intel/llvm/issues/15648
-// UNSUPPORTED: gpu-intel-dg2 && linux
+// UNSUPPORTED: (gpu-intel-dg2 || hip_amd) && linux
 
 #include "memcpy2d_common.hpp"
 
