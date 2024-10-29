@@ -1,5 +1,6 @@
-// This test is intended to ensure that we have no trackers marked as XFAIL
+// This test is intended to ensure that we have no tests marked as XFAIL
 // without a tracker information added to a test.
+// For more info see: sycl/test-e2e/README.md
 //
 // The format we check is:
 // XFAIL: lit,features
