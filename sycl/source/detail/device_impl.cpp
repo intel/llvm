@@ -803,9 +803,7 @@ ext::oneapi::experimental::architecture device_impl::getDeviceArch() const {
 bool device_impl::isFp16Supported() const {
   // If we don't get anything back from this we can assume the device doesn't
   // support fp16.
-  auto halfConfig = get_info<info::device::half_fp_config>();
-  // return !get_info<info::device::half_fp_config>().empty();
-  return !halfConfig.empty();
+  return !get_info<info::device::half_fp_config>().empty();
 }
 
 bool device_impl::isFp64Supported() const {
