@@ -1,26 +1,110 @@
-// DEFINE: %{common_opts} = -internal-isystem %S/Inputs -fsycl-is-device \
-// DEFINE: -emit-llvm -triple spir64-unknown-unknown
+// DEFINE: %{common_opts_spirv32} = -internal-isystem %S/Inputs \
+// DEFINE: -fsycl-is-device -emit-llvm -triple spirv32-unknown-unknown
 
-// RUN: %clang_cc1 %{common_opts} %s -o - \
+// DEFINE: %{common_opts_spirv64} = -internal-isystem %S/Inputs \
+// DEFINE: -fsycl-is-device -emit-llvm -triple spirv32-unknown-unknown
+
+// DEFINE: %{common_opts_spir} = -internal-isystem %S/Inputs \
+// DEFINE: -fsycl-is-device -emit-llvm -triple spirv32-unknown-unknown
+
+// DEFINE: %{common_opts_spir64} = -internal-isystem %S/Inputs \
+// DEFINE: -fsycl-is-device -emit-llvm -triple spirv32-unknown-unknown
+
+// RUN: %clang_cc1 %{common_opts_spirv32} %s -o - \
 // RUN: | FileCheck --check-prefix PREC-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -foffload-fp32-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts_spirv32} -foffload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix PREC-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
 
-// RUN: %clang_cc1 %{common_opts} -foffload-fp32-prec-div %s -o - \
+// RUN: %clang_cc1 %{common_opts_spirv32} -foffload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts} -fno-offload-fp32-prec-div %s -o - \
+// RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
-// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN:-fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+//
+
+// RUN: %clang_cc1 %{common_opts_spirv64} %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -foffload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
 
-// RUN: %clang_cc1 %{common_opts} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+//
+
+// RUN: %clang_cc1 %{common_opts_spir} %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -foffload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+//
+
+// RUN: %clang_cc1 %{common_opts_spir64} %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -foffload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
 

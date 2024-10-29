@@ -1737,21 +1737,20 @@ void Clang::AddSPIRTargetArgs(const ArgList &Args, ArgStringList &CmdArgs,
         CmdArgs.push_back("-fno-offload-fp32-prec-div");
         CmdArgs.push_back("-fno-offload-fp32-prec-sqrt");
       }
+    } else {
+      if (Arg *A = Args.getLastArg(options::OPT_ffp_accuracy_EQ)) {
+        if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_div))
+          EmitAccuracyDiag(D, JA, A->getValue(), "-fno-offload-fp32-prec-div");
+        if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_sqrt))
+          EmitAccuracyDiag(D, JA, A->getValue(), "-fno-offload-fp32-prec-sqrt");
+      }
+      if (!Args.hasFlag(options::OPT_foffload_fp32_prec_div,
+                        options::OPT_fno_offload_fp32_prec_div, true))
+        CmdArgs.push_back("-fno-offload-fp32-prec-div");
+      if (!Args.hasFlag(options::OPT_foffload_fp32_prec_sqrt,
+                        options::OPT_fno_offload_fp32_prec_sqrt, true))
+        CmdArgs.push_back("-fno-offload-fp32-prec-sqrt");
     }
-    if (Arg *A = Args.getLastArg(options::OPT_ffp_accuracy_EQ)) {
-      if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_div))
-        EmitAccuracyDiag(D, JA, A->getValue(), "-fno-offload-fp32-prec-div");
-      if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_sqrt))
-        EmitAccuracyDiag(D, JA, A->getValue(), "-fno-offload-fp32-prec-sqrt");
-    }
-    if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_div))
-      CmdArgs.push_back("-fno-offload-fp32-prec-div");
-    else
-      CmdArgs.push_back("-foffload-fp32-prec-div");
-    if (Args.getLastArg(options::OPT_fno_offload_fp32_prec_sqrt))
-      CmdArgs.push_back("-fno-offload-fp32-prec-sqrt");
-    else
-      CmdArgs.push_back("-foffload-fp32-prec-sqrt");
   }
 }
 
@@ -1820,6 +1819,8 @@ void Clang::RenderTargetOptions(const llvm::Triple &EffectiveTriple,
 
   case llvm::Triple::spir:
   case llvm::Triple::spir64:
+  case llvm::Triple::spirv32:
+  case llvm::Triple::spirv64:
     AddSPIRTargetArgs(Args, CmdArgs, JA, D);
     break;
   case llvm::Triple::arm:

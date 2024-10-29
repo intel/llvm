@@ -45,10 +45,11 @@
 // RUN: -fno-offload-fp32-prec-sqrt -### %s 2>&1 \
 // RUN: | FileCheck %s --check-prefix=WARN-LOW-SQRT
 
-// CHECK: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}} "-foffload-fp32-prec-div" "-foffload-fp32-prec-sqrt"
+// CHECK: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}}
+
 // CHECK-NOT: "-triple{{.*}}" "-fsycl-is-host"{{.*}} "-foffload-fp32-prec-div" "-foffload-fp32-prec-sqrt"
-// NO_PREC_DIV: "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-fno-offload-fp32-prec-div" "-foffload-fp32-prec-sqrt"
-// NO_PREC_SQRT: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}} "-foffload-fp32-prec-div" "-fno-offload-fp32-prec-sqrt"
+// NO_PREC_DIV: "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-fno-offload-fp32-prec-div"
+// NO_PREC_SQRT: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}} "-fno-offload-fp32-prec-sqrt"
 // NO_PREC_DIV_SQRT: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}} "-fno-offload-fp32-prec-div" "-fno-offload-fp32-prec-sqrt"
 // RUN: %clang -c -fsycl -ffp-model=fast  -### %s 2>&1 | FileCheck --check-prefix=FAST %s
 
