@@ -7,17 +7,12 @@
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
  */
+#include "common.hpp"
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"
+#include <link.h>
 
-namespace ur_sanitizer_layer {
-
-llvm::symbolize::LLVMSymbolizer *GetSymbolizer() {
-    static llvm::symbolize::LLVMSymbolizer Symbolizer;
-    return &Symbolizer;
-}
-
-llvm::symbolize::PrinterConfig GetPrinterConfig() {
+static llvm::symbolize::PrinterConfig GetPrinterConfig() {
     llvm::symbolize::PrinterConfig Config;
     Config.Pretty = false;
     Config.PrintAddress = false;
@@ -27,7 +22,27 @@ llvm::symbolize::PrinterConfig GetPrinterConfig() {
     return Config;
 }
 
-} // namespace ur_sanitizer_layer
+static uintptr_t GetModuleBase(const char *ModuleName) {
+    uintptr_t Data = (uintptr_t)ModuleName;
+    int Result = dl_iterate_phdr(
+        [](struct dl_phdr_info *Info, size_t, void *Arg) {
+            uintptr_t *Data = (uintptr_t *)Arg;
+            const char *ModuleName = (const char *)(*Data);
+            if (strstr(Info->dlpi_name, ModuleName)) {
+                *Data = (uintptr_t)Info->dlpi_addr;
+                return 1;
+            }
+            return 0;
+        },
+        (void *)&Data);
+
+    // If dl_iterate_phdr return 0, it means the module is main executable,
+    // its base address should be 0.
+    if (!Result) {
+        return 0;
+    }
+    return Data;
+}
 
 extern "C" {
 
@@ -36,26 +51,25 @@ void SymbolizeCode(const char *ModuleName, uint64_t ModuleOffset,
     std::string Result;
     llvm::raw_string_ostream OS(Result);
     llvm::symbolize::Request Request{ModuleName, ModuleOffset};
-    llvm::symbolize::PrinterConfig Config =
-        ur_sanitizer_layer::GetPrinterConfig();
+    llvm::symbolize::PrinterConfig Config = GetPrinterConfig();
     llvm::symbolize::ErrorHandler EH = [&](const llvm::ErrorInfoBase &ErrorInfo,
                                            llvm::StringRef ErrorBanner) {
         OS << ErrorBanner;
         ErrorInfo.log(OS);
         OS << '\n';
     };
-    auto Printer =
-        std::make_unique<llvm::symbolize::LLVMPrinter>(OS, EH, Config);
+    llvm::symbolize::LLVMSymbolizer Symbolizer;
+    llvm::symbolize::LLVMPrinter Printer(OS, EH, Config);
 
-    auto ResOrErr = ur_sanitizer_layer::GetSymbolizer()->symbolizeInlinedCode(
-        ModuleName,
-        {ModuleOffset, llvm::object::SectionedAddress::UndefSection});
+    auto ResOrErr = Symbolizer.symbolizeInlinedCode(
+        ModuleName, {ModuleOffset - GetModuleBase(ModuleName),
+                     llvm::object::SectionedAddress::UndefSection});
 
     if (!ResOrErr) {
         return;
     }
-    Printer->print(Request, *ResOrErr);
-    ur_sanitizer_layer::GetSymbolizer()->pruneCache();
+    Printer.print(Request, *ResOrErr);
+    Symbolizer.pruneCache();
     if (RetSize) {
         *RetSize = Result.size() + 1;
     }

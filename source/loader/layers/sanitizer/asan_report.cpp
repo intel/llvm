@@ -103,9 +103,10 @@ void ReportGenericError(const DeviceSanitizerReport &Report,
     // Try to demangle the kernel name
     KernelName = DemangleName(KernelName);
 
-    getContext()->logger.always("\n====ERROR: DeviceSanitizer: {} on {}",
+    getContext()->logger.always("\n====ERROR: DeviceSanitizer: {} on {} ({})",
                                 ToString(Report.ErrorType),
-                                ToString(Report.MemoryType));
+                                ToString(Report.MemoryType),
+                                (void *)Report.Address);
     getContext()->logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
         "{}, {})",
