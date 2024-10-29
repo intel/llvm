@@ -104,6 +104,7 @@ SYCLConditionalCallOnDevicePass::run(Module &M, ModuleAnalysisManager &) {
                          &M);
 
     NewFCaller->setCallingConv(FCaller->getCallingConv());
+    NewFCaller->setAttributes(FCaller->getAttributes());
 
     DenseMap<CallInst *, CallInst *> OldCallsToNewCalls;
 
