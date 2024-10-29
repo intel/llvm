@@ -271,6 +271,9 @@ ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
                            ZeStruct<ze_image_desc_t> &ZeImageDesc) {
   auto [ZeImageFormatType, ZeImageFormatTypeSize] =
       getImageFormatTypeAndSize(ImageFormat);
+  if (ZeImageFormatTypeSize == 0) {
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;
   switch (ImageFormat->channelOrder) {
@@ -673,7 +676,8 @@ getImageFormatTypeAndSize(const ur_image_format_t *ImageFormat) {
     logger::error(
         "urMemImageCreate: unsupported image data type: data type = {}",
         ImageFormat->channelType);
-    ur::unreachable();
+    ZeImageFormatType = ZE_IMAGE_FORMAT_TYPE_FORCE_UINT32;
+    ZeImageFormatTypeSize = 0;
   }
   return {ZeImageFormatType, ZeImageFormatTypeSize};
 }

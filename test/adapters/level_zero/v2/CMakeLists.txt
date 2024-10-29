@@ -45,3 +45,12 @@ add_unittest(level_zero_event_pool
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event_provider_counter.cpp
         ${PROJECT_SOURCE_DIR}/source/adapters/level_zero/v2/event.cpp
 )
+
+add_adapter_test(level_zero_memory_residency
+    FIXTURE DEVICES
+    SOURCES
+        memory_residency.cpp
+    ENVIRONMENT
+        "UR_ADAPTERS_FORCE_LOAD=\"$<TARGET_FILE:ur_adapter_level_zero_v2>\""
+        "ZES_ENABLE_SYSMAN=1"
+)

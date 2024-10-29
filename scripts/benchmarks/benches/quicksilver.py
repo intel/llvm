@@ -42,4 +42,4 @@ class QuickSilver(VelocityBase):
         if match:
             return float(match.group(1))
         else:
-            raise ValueError("Failed to parse benchmark output.")
+            raise ValueError("{self.__class__.__name__}: Failed to parse benchmark output.")

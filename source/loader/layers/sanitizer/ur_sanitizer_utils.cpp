@@ -72,6 +72,22 @@ ur_device_handle_t GetDevice(ur_queue_handle_t Queue) {
     return Device;
 }
 
+std::vector<ur_device_handle_t> GetDevices(ur_context_handle_t Context) {
+    std::vector<ur_device_handle_t> Devices{};
+    uint32_t DeviceNum = 0;
+    [[maybe_unused]] ur_result_t Result;
+    Result = getContext()->urDdiTable.Context.pfnGetInfo(
+        Context, UR_CONTEXT_INFO_NUM_DEVICES, sizeof(uint32_t), &DeviceNum,
+        nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDevices(Context) failed");
+    Devices.resize(DeviceNum);
+    Result = getContext()->urDdiTable.Context.pfnGetInfo(
+        Context, UR_CONTEXT_INFO_DEVICES,
+        sizeof(ur_device_handle_t) * DeviceNum, Devices.data(), nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDevices(Context) failed");
+    return Devices;
+}
+
 ur_program_handle_t GetProgram(ur_kernel_handle_t Kernel) {
     ur_program_handle_t Program{};
     [[maybe_unused]] auto Result = getContext()->urDdiTable.Kernel.pfnGetInfo(
@@ -135,7 +151,7 @@ DeviceType GetDeviceType(ur_context_handle_t Context,
         assert(Result == UR_RESULT_SUCCESS &&
                "getDeviceType() failed at allocating device USM");
         // FIXME: There's no API querying the address bits of device, so we guess it by the
-        // value of device USM pointer (see "USM Allocation Range" in asan_shadow_setup.cpp)
+        // value of device USM pointer (see "USM Allocation Range" in asan_shadow.cpp)
         auto Type = DeviceType::UNKNOWN;
         if (Ptr >> 48 == 0xff00U) {
             Type = DeviceType::GPU_PVC;
@@ -169,18 +185,20 @@ bool GetDeviceUSMCapability(ur_device_handle_t Device,
     return (bool)Flag;
 }
 
-std::vector<ur_device_handle_t> GetProgramDevices(ur_program_handle_t Program) {
-    size_t PropSize;
+std::vector<ur_device_handle_t> GetDevices(ur_program_handle_t Program) {
+    uint32_t DeviceNum = 0;
     [[maybe_unused]] ur_result_t Result =
         getContext()->urDdiTable.Program.pfnGetInfo(
-            Program, UR_PROGRAM_INFO_DEVICES, 0, nullptr, &PropSize);
-    assert(Result == UR_RESULT_SUCCESS);
+            Program, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+            nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDevices(Program) failed");
 
     std::vector<ur_device_handle_t> Devices;
-    Devices.resize(PropSize / sizeof(ur_device_handle_t));
+    Devices.resize(DeviceNum);
     Result = getContext()->urDdiTable.Program.pfnGetInfo(
-        Program, UR_PROGRAM_INFO_DEVICES, PropSize, Devices.data(), nullptr);
-    assert(Result == UR_RESULT_SUCCESS);
+        Program, UR_PROGRAM_INFO_DEVICES,
+        DeviceNum * sizeof(ur_device_handle_t), Devices.data(), nullptr);
+    assert(Result == UR_RESULT_SUCCESS && "getDevices(Program) failed");
 
     return Devices;
 }
@@ -222,6 +240,17 @@ size_t GetVirtualMemGranularity(ur_context_handle_t Context,
             sizeof(Size), &Size, nullptr);
     assert(Result == UR_RESULT_SUCCESS);
     return Size;
+}
+
+ur_result_t EnqueueUSMBlockingSet(ur_queue_handle_t Queue, void *Ptr,
+                                  char Value, size_t Size, uint32_t NumEvents,
+                                  const ur_event_handle_t *EventWaitList,
+                                  ur_event_handle_t *OutEvent) {
+    if (Size == 0) {
+        return UR_RESULT_SUCCESS;
+    }
+    return getContext()->urDdiTable.Enqueue.pfnUSMFill(
+        Queue, Ptr, 1, &Value, Size, NumEvents, EventWaitList, OutEvent);
 }
 
 } // namespace ur_sanitizer_layer

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <gtest/gtest.h>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <ur_api.h>
@@ -17,6 +18,7 @@ struct PlatformEnvironment : ::testing::Environment {
 
     struct PlatformOptions {
         std::string platform_name;
+        std::optional<ur_platform_backend_t> platform_backend;
         unsigned long platforms_count = 0;
     };
 
@@ -26,13 +28,14 @@ struct PlatformEnvironment : ::testing::Environment {
     virtual void SetUp() override;
     virtual void TearDown() override;
 
+    void selectPlatformFromOptions();
     PlatformOptions parsePlatformOptions(int argc, char **argv);
 
+    std::string error{};
     PlatformOptions platform_options;
     std::vector<ur_adapter_handle_t> adapters{};
     ur_adapter_handle_t adapter = nullptr;
     ur_platform_handle_t platform = nullptr;
-    std::string error;
     static PlatformEnvironment *instance;
 };
 

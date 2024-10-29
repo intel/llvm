@@ -33,13 +33,13 @@ params:
       name: pGlobalWorkOffset
       desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
-      name: pGlobalWorkSize      
+      name: pGlobalWorkSize
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
     - type: "const size_t*"
       name: pLocalWorkSize
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
-            If nullptr, the runtime implementation will choose the work-group size. 
+            If nullptr, the runtime implementation will choose the work-group size.
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -47,12 +47,12 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
-returns:      
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -71,7 +71,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command which waits a list of events to complete before it completes" 
+desc: "Enqueue a command which waits a list of events to complete before it completes"
 class: $xEnqueue
 name: EventsWait
 ordinal: "0"
@@ -92,12 +92,12 @@ params:
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
-            must be complete. 
+            must be complete.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -111,7 +111,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a barrier command which waits a list of events to complete before it completes" 
+desc: "Enqueue a barrier command which waits a list of events to complete before it completes"
 class: $xEnqueue
 name: EventsWaitWithBarrier
 ordinal: "0"
@@ -133,12 +133,12 @@ params:
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
             If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
-            must be complete. 
+            must be complete.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -152,7 +152,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to read from a buffer object to host memory" 
+desc: "Enqueue a command to read from a buffer object to host memory"
 class: $xEnqueue
 name: MemBufferRead
 ordinal: "0"
@@ -178,7 +178,7 @@ params:
       desc: "[in] size in bytes of data being read"
     - type: void*
       name: pDst
-      desc: "[in] pointer to host memory where data is to be read into"     
+      desc: "[in] pointer to host memory where data is to be read into"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -190,8 +190,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -207,11 +207,11 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to write into a buffer object from host memory" 
+desc: "Enqueue a command to write into a buffer object from host memory"
 class: $xEnqueue
 name: MemBufferWrite
 ordinal: "0"
-details: 
+details:
     - "Input parameter blockingWrite indicates if the write is blocking or non-blocking."
 analogue:
     - "**clEnqueueWriteBuffer**"
@@ -233,7 +233,7 @@ params:
       desc: "[in] size in bytes of data being written"
     - type: "const void*"
       name: pSrc
-      desc: "[in] pointer to host memory where data is to be written from"     
+      desc: "[in] pointer to host memory where data is to be written from"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -245,8 +245,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -262,7 +262,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to read a 2D or 3D rectangular region from a buffer object to host memory" 
+desc: "Enqueue a command to read a 2D or 3D rectangular region from a buffer object to host memory"
 class: $xEnqueue
 name: MemBufferReadRect
 ordinal: "0"
@@ -301,10 +301,10 @@ params:
       desc: "[in] length of each row in bytes in the host memory region pointed by dst"
     - type: size_t
       name: hostSlicePitch
-      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by dst"  
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by dst"
     - type: void*
       name: pDst
-      desc: "[in] pointer to host memory where data is to be read into"     
+      desc: "[in] pointer to host memory where data is to be read into"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -316,8 +316,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -340,7 +340,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to write a 2D or 3D rectangular region in a buffer object from host memory" 
+desc: "Enqueue a command to write a 2D or 3D rectangular region in a buffer object from host memory"
 class: $xEnqueue
 name: MemBufferWriteRect
 ordinal: "0"
@@ -379,10 +379,10 @@ params:
       desc: "[in] length of each row in bytes in the host memory region pointed by src"
     - type: size_t
       name: hostSlicePitch
-      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by src"  
+      desc: "[in] length of each 2D slice in bytes in the host memory region pointed by src"
     - type: void*
       name: pSrc
-      desc: "[in] pointer to host memory where data is to be written from"     
+      desc: "[in] pointer to host memory where data is to be written from"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -394,8 +394,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -418,7 +418,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to copy from a buffer object to another" 
+desc: "Enqueue a command to copy from a buffer object to another"
 class: $xEnqueue
 name: MemBufferCopy
 ordinal: "0"
@@ -437,7 +437,7 @@ params:
     - type: size_t
       name: srcOffset
       desc: "[in] offset into hBufferSrc to begin copying from"
-    - type: size_t 
+    - type: size_t
       name: dstOffset
       desc: "[in] offset info hBufferDst to begin copying into"
     - type: size_t
@@ -454,8 +454,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -472,7 +472,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to copy a 2D or 3D rectangular region from one buffer object to another" 
+desc: "Enqueue a command to copy a 2D or 3D rectangular region from one buffer object to another"
 class: $xEnqueue
 name: MemBufferCopyRect
 ordinal: "0"
@@ -508,7 +508,7 @@ params:
       desc: "[in] length of each row in bytes in the destination buffer object"
     - type: size_t
       name: dstSlicePitch
-      desc: "[in] length of each 2D slice in bytes in the destination buffer object"  
+      desc: "[in] length of each 2D slice in bytes in the destination buffer object"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -520,8 +520,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -545,7 +545,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to fill a buffer object with a pattern of a given size" 
+desc: "Enqueue a command to fill a buffer object with a pattern of a given size"
 class: $xEnqueue
 name: MemBufferFill
 ordinal: "0"
@@ -581,8 +581,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -603,7 +603,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to read from an image or image array object to host memory" 
+desc: "Enqueue a command to read from an image or image array object to host memory"
 class: $xEnqueue
 name: MemImageRead
 ordinal: "0"
@@ -635,7 +635,7 @@ params:
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void*
       name: pDst
-      desc: "[in] pointer to host memory where image is to be read into"     
+      desc: "[in] pointer to host memory where image is to be read into"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -647,8 +647,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -664,7 +664,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to write an image or image array object from host memory" 
+desc: "Enqueue a command to write an image or image array object from host memory"
 class: $xEnqueue
 name: MemImageWrite
 ordinal: "0"
@@ -696,7 +696,7 @@ params:
       desc: "[in] length of each 2D slice of the 3D image"
     - type: void*
       name: pSrc
-      desc: "[in] pointer to host memory where image is to be read into"     
+      desc: "[in] pointer to host memory where image is to be read into"
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -708,8 +708,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -725,7 +725,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to copy from an image object to another" 
+desc: "Enqueue a command to copy from an image object to another"
 class: $xEnqueue
 name: MemImageCopy
 ordinal: "0"
@@ -761,8 +761,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -778,7 +778,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to fill an image object with specified color" 
+desc: "Enqueue a command to fill an image object with specified color"
 class: $xEnqueue
 name: MemImageFill
 ordinal: "0"
@@ -817,8 +817,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -839,10 +839,10 @@ etors:
     - name: READ
       desc: "Map for read access"
       value: "$X_BIT(0)"
-    - name: WRITE      
+    - name: WRITE
       desc: "Map for write access"
       value: "$X_BIT(1)"
-    - name: WRITE_INVALIDATE_REGION      
+    - name: WRITE_INVALIDATE_REGION
       desc: "Map for discard_write access"
       value: "$X_BIT(2)"
 --- #--------------------------------------------------------------------------
@@ -856,11 +856,11 @@ etors:
       value: "$X_BIT(0)"
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to map a region of the buffer object into the host address space and return a pointer to the mapped region" 
+desc: "Enqueue a command to map a region of the buffer object into the host address space and return a pointer to the mapped region"
 class: $xEnqueue
 name: MemBufferMap
 ordinal: "0"
-details: 
+details:
     - "Input parameter blockingMap indicates if the map is blocking or non-blocking."
     - "Currently, no direct support in Level Zero. Implemented as a shared allocation followed by copying on discrete GPU"
     - "TODO: add a driver function in Level Zero?"
@@ -896,11 +896,11 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
     - type: void**
       name: ppRetMap
       desc: "[out] return mapped pointer.  TODO: move it before numEventsInWaitList?"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -916,7 +916,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region" 
+desc: "Enqueue a command to map a region of the image object into the host address space and return a pointer to the mapped region"
 class: $xEnqueue
 name: MemImageMap
 version: "9999.0" # See #50
@@ -966,8 +966,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -981,7 +981,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to unmap a previously mapped region of a memory object" 
+desc: "Enqueue a command to unmap a previously mapped region of a memory object"
 class: $xEnqueue
 name: MemUnmap
 ordinal: "0"
@@ -1008,8 +1008,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
@@ -1054,7 +1054,7 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
@@ -1074,7 +1074,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to copy USM memory" 
+desc: "Enqueue a command to copy USM memory"
 class: $xEnqueue
 name: USMMemcpy
 ordinal: "0"
@@ -1105,8 +1105,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -1123,7 +1123,7 @@ returns:
     - $X_RESULT_ERROR_OUT_OF_RESOURCES
 --- #--------------------------------------------------------------------------
 type: function
-desc: "Enqueue a command to prefetch USM memory" 
+desc: "Enqueue a command to prefetch USM memory"
 class: $xEnqueue
 name: USMPrefetch
 ordinal: "0"
@@ -1153,8 +1153,8 @@ params:
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular command instance.
-returns:      
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -1194,7 +1194,7 @@ params:
       name: phEvent
       desc: |
             [out][optional] return an event object that identifies this particular command instance.
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_EVENT
     - $X_RESULT_ERROR_INVALID_SIZE:
@@ -1238,11 +1238,11 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`pitch == 0`"
@@ -1302,11 +1302,11 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_SIZE:
       - "`srcPitch == 0`"
@@ -1361,11 +1361,11 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1408,11 +1408,11 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1428,28 +1428,28 @@ name: ReadHostPipe
 ordinal: "0"
 params:
     - type: $x_queue_handle_t
-      name: hQueue 
+      name: hQueue
       desc: |
             [in] a valid host command-queue in which the read command
             will be queued. hQueue and hProgram must be created with the same
             UR context.
     - type: $x_program_handle_t
-      name: hProgram 
+      name: hProgram
       desc: "[in] a program object with a successfully built executable."
     - type: const char*
-      name: pipe_symbol 
+      name: pipe_symbol
       desc: "[in] the name of the program scope pipe global variable."
     - type: bool
-      name: blocking 
+      name: blocking
       desc: "[in] indicate if the read operation is blocking or non-blocking."
     - type: void*
-      name: pDst 
+      name: pDst
       desc: "[in] a pointer to buffer in host memory that will hold resulting data from pipe."
     - type: size_t
-      name: size 
+      name: size
       desc: "[in] size of the memory region to read, in bytes."
     - type: uint32_t
-      name: numEventsInWaitList 
+      name: numEventsInWaitList
       desc: "[in] number of events in the wait list."
     - type: const $x_event_handle_t*
       name: phEventWaitList
@@ -1457,10 +1457,10 @@ params:
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe read.
             If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
-      name: phEvent 
+      name: phEvent
       desc: |
-            [out][optional] returns an event object that identifies this read command 
-            and can be used to query or queue a wait for this command to complete.
+            [out][optional] returns an event object that identifies this read command
+            and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
@@ -1476,28 +1476,28 @@ name: WriteHostPipe
 ordinal: "0"
 params:
     - type: $x_queue_handle_t
-      name: hQueue 
+      name: hQueue
       desc: |
             [in] a valid host command-queue in which the write command
             will be queued. hQueue and hProgram must be created with the same
             UR context.
     - type: $x_program_handle_t
-      name: hProgram 
+      name: hProgram
       desc: "[in] a program object with a successfully built executable."
     - type: const char*
-      name: pipe_symbol 
+      name: pipe_symbol
       desc: "[in] the name of the program scope pipe global variable."
     - type: bool
-      name: blocking 
+      name: blocking
       desc: "[in] indicate if the read and write operations are blocking or non-blocking."
     - type: void*
-      name: pSrc 
+      name: pSrc
       desc: "[in] a pointer to buffer in host memory that holds data to be written to the host pipe."
     - type: size_t
-      name: size 
+      name: size
       desc: "[in] size of the memory region to read or write, in bytes."
     - type: uint32_t
-      name: numEventsInWaitList 
+      name: numEventsInWaitList
       desc: "[in] number of events in the wait list."
     - type: const $x_event_handle_t*
       name: phEventWaitList
@@ -1505,10 +1505,10 @@ params:
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the host pipe write.
             If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
-      name: phEvent 
+      name: phEvent
       desc: |
             [out][optional] returns an event object that identifies this write command
-            and can be used to query or queue a wait for this command to complete.
+            and can be used to query or queue a wait for this command to complete. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
   - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
     - "`phEventWaitList == NULL && numEventsInWaitList > 0`"

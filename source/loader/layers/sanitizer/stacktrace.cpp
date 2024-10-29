@@ -11,6 +11,7 @@
  */
 
 #include "stacktrace.hpp"
+#include "asan_interceptor.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 extern "C" {
@@ -86,11 +87,16 @@ void StackTrace::print() const {
 
     unsigned index = 0;
 
-    for (auto &BI : stack) {
+    char **BacktraceSymbols = GetBacktraceSymbols(stack);
+
+    for (size_t i = 0; i < stack.size(); i++) {
+        BacktraceInfo BI = BacktraceSymbols[i];
+
         // Skip runtime modules
-        if (Contains(BI, "libsycl.so") ||
-            Contains(BI, "libpi_unified_runtime.so") ||
-            Contains(BI, "libur_loader.so")) {
+        if (!getContext()->interceptor->getOptions().Debug &&
+            (Contains(BI, "libsycl.so") || Contains(BI, "libur_loader.so") ||
+             Contains(BI, "libomptarget.rtl.unified_runtime.so") ||
+             Contains(BI, "libomptarget.so"))) {
             continue;
         }
 
@@ -123,6 +129,8 @@ void StackTrace::print() const {
         ++index;
     }
     getContext()->logger.always("");
+
+    free(BacktraceSymbols);
 }
 
 } // namespace ur_sanitizer_layer

@@ -25,7 +25,6 @@ function(add_loader_platform_test name ENV)
         -D MODE=stdout
         -D MATCH_FILE=${CMAKE_CURRENT_SOURCE_DIR}/${name}.match
         -P ${PROJECT_SOURCE_DIR}/cmake/match.cmake
-        DEPENDS test-loader-platforms ur_adapter_mock
     )
     set_tests_properties(${TEST_NAME} PROPERTIES
         LABELS "loader"

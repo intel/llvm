@@ -30,12 +30,33 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  std::vector<size_t> compiledLocalWorksize;
+  if (!pLocalWorkSize) {
+    cl_device_id device = nullptr;
+    CL_RETURN_ON_FAILURE(clGetCommandQueueInfo(
+        cl_adapter::cast<cl_command_queue>(hQueue), CL_QUEUE_DEVICE,
+        sizeof(device), &device, nullptr));
+    // This query always returns size_t[3], if nothing was specified it returns
+    // all zeroes.
+    size_t queriedLocalWorkSize[3] = {0, 0, 0};
+    CL_RETURN_ON_FAILURE(clGetKernelWorkGroupInfo(
+        cl_adapter::cast<cl_kernel>(hKernel), device,
+        CL_KERNEL_COMPILE_WORK_GROUP_SIZE, sizeof(size_t[3]),
+        queriedLocalWorkSize, nullptr));
+    if (queriedLocalWorkSize[0] != 0) {
+      for (uint32_t i = 0; i < workDim; i++) {
+        compiledLocalWorksize.push_back(queriedLocalWorkSize[i]);
+      }
+    }
+  }
 
   CL_RETURN_ON_FAILURE(clEnqueueNDRangeKernel(
       cl_adapter::cast<cl_command_queue>(hQueue),
       cl_adapter::cast<cl_kernel>(hKernel), workDim, pGlobalWorkOffset,
-      pGlobalWorkSize, pLocalWorkSize, numEventsInWaitList,
-      cl_adapter::cast<const cl_event *>(phEventWaitList),
+      pGlobalWorkSize,
+      compiledLocalWorksize.empty() ? pLocalWorkSize
+                                    : compiledLocalWorksize.data(),
+      numEventsInWaitList, cl_adapter::cast<const cl_event *>(phEventWaitList),
       cl_adapter::cast<cl_event *>(phEvent)));
 
   return UR_RESULT_SUCCESS;

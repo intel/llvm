@@ -20,7 +20,7 @@ class ComputeBench:
         if self.built:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "f6882552215736f90295244046fcb6e17fe53e83")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "aa6a3b2108bb86202b654ad28129156fa746d41d")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -34,12 +34,13 @@ class ComputeBench:
             f"-DBUILD_UR=ON",
             f"-Dunified-runtime_DIR={options.ur_dir}/lib/cmake/unified-runtime",
         ]
-        run(configure_command, add_sycl=True)
 
+        print(f"{self.__class__.__name__}: Run {configure_command}")
+        run(configure_command, add_sycl=True)
+        print(f"{self.__class__.__name__}: Run cmake --build {build_path} -j")
         run(f"cmake --build {build_path} -j", add_sycl=True)
 
         self.built = True
-        self.bins = os.path.join(build_path, 'bin')
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -58,8 +59,8 @@ class ComputeBenchmark(Benchmark):
         return "μs"
 
     def setup(self):
+        self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
         self.bench.setup()
-        self.benchmark_bin = os.path.join(self.bench.bins, self.bench_name)
 
     def run(self, env_vars) -> list[Result]:
         command = [
@@ -229,4 +230,27 @@ class VectorSum(ComputeBenchmark):
             "--numberOfElementsX=512",
             "--numberOfElementsY=256",
             "--numberOfElementsZ=256",
+        ]
+
+class MemcpyExecute(ComputeBenchmark):
+    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations):
+        self.numOpsPerThread = numOpsPerThread
+        self.numThreads = numThreads
+        self.allocSize = allocSize
+        self.iterations = iterations
+        super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
+
+    def name(self):
+        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize}"
+
+    def bin_args(self) -> list[str]:
+        return [
+            "--Ioq=1",
+            "--UseEvents=1",
+            "--MeasureCompletion=1",
+            "--UseQueuePerThread=1",
+            f"--AllocSize={self.allocSize}",
+            f"--NumThreads={self.numThreads}",
+            f"--NumOpsPerThread={self.numOpsPerThread}",
+            f"--iterations={self.iterations}"
         ]

@@ -19,6 +19,17 @@
 #include <umf/pools/pool_proxy.h>
 #include <umf/providers/provider_level_zero.h>
 
+namespace umf {
+ur_result_t getProviderNativeError(const char *providerName,
+                                   int32_t nativeError) {
+  if (strcmp(providerName, "Level Zero") == 0) {
+    return ze2urResult(static_cast<ze_result_t>(nativeError));
+  }
+
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
+
 static usm::DisjointPoolAllConfigs initializeDisjointPoolConfig() {
   const char *PoolUrTraceVal = std::getenv("UR_L0_USM_ALLOCATOR_TRACE");
 
@@ -74,8 +85,22 @@ makePool(umf_disjoint_pool_params_t *poolParams,
   params.level_zero_device_handle =
       poolDescriptor.hDevice ? poolDescriptor.hDevice->ZeDevice : nullptr;
   params.memory_type = urToUmfMemoryType(poolDescriptor.type);
-  // TODO: handle memory residency:
-  // set resident_device_handles and resident_device_count
+
+  std::vector<ze_device_handle_t> residentZeHandles;
+
+  if (poolDescriptor.type == UR_USM_TYPE_DEVICE) {
+    assert(params.level_zero_device_handle);
+    auto residentHandles =
+        poolDescriptor.hContext->getP2PDevices(poolDescriptor.hDevice);
+    residentZeHandles.push_back(params.level_zero_device_handle);
+    for (auto &device : residentHandles) {
+      residentZeHandles.push_back(device->ZeDevice);
+    }
+
+    params.resident_device_handles = residentZeHandles.data();
+    params.resident_device_count = residentZeHandles.size();
+  }
+
   auto [ret, provider] =
       umf::providerMakeUniqueFromOps(umfLevelZeroMemoryProviderOps(), &params);
   if (ret != UMF_RESULT_SUCCESS) {
@@ -157,6 +182,10 @@ ur_result_t ur_usm_pool_handle_t_::allocate(
   }
 
   return UR_RESULT_SUCCESS;
+}
+
+ur_result_t ur_usm_pool_handle_t_::free(void *ptr) {
+  return umf::umf2urResult(umfFree(ptr));
 }
 
 namespace ur::level_zero {

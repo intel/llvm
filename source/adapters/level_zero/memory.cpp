@@ -154,40 +154,13 @@ ur_result_t enqueueMemCopyRectHelper(
                 ur_cast<std::uintptr_t>(ZeEvent));
   printZeEventList(WaitList);
 
-  uint32_t SrcOriginX = ur_cast<uint32_t>(SrcOrigin.x);
-  uint32_t SrcOriginY = ur_cast<uint32_t>(SrcOrigin.y);
-  uint32_t SrcOriginZ = ur_cast<uint32_t>(SrcOrigin.z);
-
-  uint32_t SrcPitch = SrcRowPitch;
-  if (SrcPitch == 0)
-    SrcPitch = ur_cast<uint32_t>(Region.width);
-
-  if (SrcSlicePitch == 0)
-    SrcSlicePitch = ur_cast<uint32_t>(Region.height) * SrcPitch;
-
-  uint32_t DstOriginX = ur_cast<uint32_t>(DstOrigin.x);
-  uint32_t DstOriginY = ur_cast<uint32_t>(DstOrigin.y);
-  uint32_t DstOriginZ = ur_cast<uint32_t>(DstOrigin.z);
-
-  uint32_t DstPitch = DstRowPitch;
-  if (DstPitch == 0)
-    DstPitch = ur_cast<uint32_t>(Region.width);
-
-  if (DstSlicePitch == 0)
-    DstSlicePitch = ur_cast<uint32_t>(Region.height) * DstPitch;
-
-  uint32_t Width = ur_cast<uint32_t>(Region.width);
-  uint32_t Height = ur_cast<uint32_t>(Region.height);
-  uint32_t Depth = ur_cast<uint32_t>(Region.depth);
-
-  const ze_copy_region_t ZeSrcRegion = {SrcOriginX, SrcOriginY, SrcOriginZ,
-                                        Width,      Height,     Depth};
-  const ze_copy_region_t ZeDstRegion = {DstOriginX, DstOriginY, DstOriginZ,
-                                        Width,      Height,     Depth};
+  auto ZeParams = ur2zeRegionParams(SrcOrigin, DstOrigin, Region, SrcRowPitch,
+                                    DstRowPitch, SrcSlicePitch, DstSlicePitch);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopyRegion,
-             (ZeCommandList, DstBuffer, &ZeDstRegion, DstPitch, DstSlicePitch,
-              SrcBuffer, &ZeSrcRegion, SrcPitch, SrcSlicePitch, ZeEvent,
+             (ZeCommandList, DstBuffer, &ZeParams.dstRegion, ZeParams.dstPitch,
+              ZeParams.dstSlicePitch, SrcBuffer, &ZeParams.srcRegion,
+              ZeParams.srcPitch, ZeParams.srcSlicePitch, ZeEvent,
               WaitList.Length, WaitList.ZeEventList));
 
   logger::debug("calling zeCommandListAppendMemoryCopyRegion()");
@@ -1451,6 +1424,10 @@ static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
 
   auto [ZeImageFormatType, ZeImageFormatTypeSize] =
       getImageFormatTypeAndSize(ImageFormat);
+
+  if (ZeImageFormatTypeSize == 0) {
+    return UR_RESULT_ERROR_UNSUPPORTED_IMAGE_FORMAT;
+  }
 
   // TODO: populate the layout mapping
   ze_image_format_layout_t ZeImageFormatLayout;

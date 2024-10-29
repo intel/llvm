@@ -28,7 +28,7 @@ params:
     - type: "uint32_t"
       name: NumEntries
       desc: |
-            [in] the number of adapters to be added to phAdapters. 
+            [in] the number of adapters to be added to phAdapters.
             If phAdapters is not NULL, then NumEntries should be greater than zero, otherwise $X_RESULT_ERROR_INVALID_SIZE,
             will be returned.
     - type: "$x_adapter_handle_t*"
@@ -39,7 +39,7 @@ params:
     - type: "uint32_t*"
       name: "pNumAdapters"
       desc: |
-            [out][optional] returns the total number of adapters available. 
+            [out][optional] returns the total number of adapters available.
 returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NumEntries == 0 && phAdapters != NULL`"

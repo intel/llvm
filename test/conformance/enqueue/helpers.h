@@ -154,6 +154,50 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     return test_name.str();
 }
 
+struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
+    void initQueues(std::vector<ur_device_handle_t> srcDevices,
+                    size_t numDuplicate) {
+        for (size_t i = 0; i < numDuplicate; i++) {
+            devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
+        }
+
+        for (auto &device : devices) {
+            ur_queue_handle_t queue = nullptr;
+            ASSERT_SUCCESS(urQueueCreate(context, device, nullptr, &queue));
+            queues.push_back(queue);
+        }
+    }
+
+    // Default implementation that uses all available devices
+    void SetUp() override {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiDeviceContextTestTemplate<1>::SetUp());
+        initQueues(uur::KernelsEnvironment::instance->devices, 1);
+    }
+
+    // Specialized implementation that duplicates all devices and queues
+    void SetUp(std::vector<ur_device_handle_t> srcDevices,
+               size_t numDuplicate) {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiDeviceContextTestTemplate<1>::SetUp());
+        initQueues(srcDevices, numDuplicate);
+    }
+
+    void TearDown() override {
+        for (auto &queue : queues) {
+            EXPECT_SUCCESS(urQueueRelease(queue));
+        }
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiDeviceContextTestTemplate<1>::TearDown());
+    }
+    std::function<std::tuple<std::vector<ur_device_handle_t>,
+                             std::vector<ur_queue_handle_t>>(void)>
+        makeQueues;
+
+    std::vector<ur_device_handle_t> devices;
+    std::vector<ur_queue_handle_t> queues;
+};
+
 } // namespace uur
 
 #endif // UUR_ENQUEUE_RECT_HELPERS_H_INCLUDED

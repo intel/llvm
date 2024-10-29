@@ -45,6 +45,8 @@
 		urCommandBufferRetainCommandExp;
 		urCommandBufferRetainExp;
 		urCommandBufferUpdateKernelLaunchExp;
+		urCommandBufferUpdateSignalEventExp;
+		urCommandBufferUpdateWaitEventsExp;
 		urContextCreate;
 		urContextCreateWithNativeHandle;
 		urContextGetInfo;
@@ -222,6 +224,8 @@
 		urPrintCommandBufferRetainCommandExpParams;
 		urPrintCommandBufferRetainExpParams;
 		urPrintCommandBufferUpdateKernelLaunchExpParams;
+		urPrintCommandBufferUpdateSignalEventExpParams;
+		urPrintCommandBufferUpdateWaitEventsExpParams;
 		urPrintContextCreateParams;
 		urPrintContextCreateWithNativeHandleParams;
 		urPrintContextFlags;

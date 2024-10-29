@@ -58,20 +58,20 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferCommandsTest);
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMMemcpyExp) {
     ASSERT_SUCCESS(urCommandBufferAppendUSMMemcpyExp(
         cmd_buf_handle, device_ptrs[0], device_ptrs[1], allocation_size, 0,
-        nullptr, nullptr));
+        nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMFillExp) {
     uint32_t pattern = 42;
     ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
         cmd_buf_handle, device_ptrs[0], &pattern, sizeof(pattern),
-        allocation_size, 0, nullptr, nullptr));
+        allocation_size, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferCopyExp) {
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferCopyExp(
         cmd_buf_handle, buffers[0], buffers[1], 0, 0, allocation_size, 0,
-        nullptr, nullptr));
+        nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferCopyRectExp) {
@@ -79,14 +79,14 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferCopyRectExp) {
     ur_rect_region_t region{4, 4, 1};
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferCopyRectExp(
         cmd_buf_handle, buffers[0], buffers[1], origin, origin, region, 4, 16,
-        4, 16, 0, nullptr, nullptr));
+        4, 16, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadExp) {
     std::array<uint32_t, elements> host_data{};
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadExp(
         cmd_buf_handle, buffers[0], 0, allocation_size, host_data.data(), 0,
-        nullptr, nullptr));
+        nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadRectExp) {
@@ -95,14 +95,14 @@ TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferReadRectExp) {
     ur_rect_region_t region{4, 4, 1};
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferReadRectExp(
         cmd_buf_handle, buffers[0], origin, origin, region, 4, 16, 4, 16,
-        host_data.data(), 0, nullptr, nullptr));
+        host_data.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferWriteExp) {
     std::array<uint32_t, elements> host_data{};
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferWriteExp(
         cmd_buf_handle, buffers[0], 0, allocation_size, host_data.data(), 0,
-        nullptr, nullptr));
+        nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest,
@@ -112,26 +112,26 @@ TEST_P(urCommandBufferCommandsTest,
     ur_rect_region_t region{4, 4, 1};
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferWriteRectExp(
         cmd_buf_handle, buffers[0], origin, origin, region, 4, 16, 4, 16,
-        host_data.data(), 0, nullptr, nullptr));
+        host_data.data(), 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendMemBufferFillExp) {
     uint32_t pattern = 42;
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
         cmd_buf_handle, buffers[0], &pattern, sizeof(pattern), 0,
-        allocation_size, 0, nullptr, nullptr));
+        allocation_size, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMPrefetchExp) {
     ASSERT_SUCCESS(urCommandBufferAppendUSMPrefetchExp(
-        cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr,
-        nullptr));
+        cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, nullptr));
 }
 
 TEST_P(urCommandBufferCommandsTest, urCommandBufferAppendUSMAdviseExp) {
     ASSERT_SUCCESS(urCommandBufferAppendUSMAdviseExp(
-        cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr,
-        nullptr));
+        cmd_buf_handle, device_ptrs[0], allocation_size, 0, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, nullptr));
 }
 
 struct urCommandBufferAppendKernelLaunchExpTest
@@ -189,7 +189,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urCommandBufferAppendKernelLaunchExpTest);
 TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         cmd_buf_handle, kernel, n_dimensions, &global_offset, &global_size,
-        &local_size, 0, nullptr, 0, nullptr, nullptr, nullptr));
+        &local_size, 0, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr,
+        nullptr));
 
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(cmd_buf_handle));
 

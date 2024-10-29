@@ -102,7 +102,7 @@ params:
       desc: "[in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution. If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. "
     - type: ur_event_handle_t*
       name: phEvent
-      desc: "[out][optional] return an event object that identifies this particular kernel execution instance."
+      desc: "[out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array."
 returns:
     - $X_RESULT_SUCCESS
     - $X_RESULT_ERROR_UNINITIALIZED
@@ -138,4 +138,3 @@ etors:
     - name: CLUSTER_LAUNCH_EXP
       value: "0x1111"
       desc: "[$x_bool_t] return true if enqueue Cluster Launch is supported"
-

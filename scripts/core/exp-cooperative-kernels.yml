@@ -37,13 +37,13 @@ params:
       name: pGlobalWorkOffset
       desc: "[in] pointer to an array of workDim unsigned values that specify the offset used to calculate the global ID of a work-item"
     - type: "const size_t*"
-      name: pGlobalWorkSize      
+      name: pGlobalWorkSize
       desc: "[in] pointer to an array of workDim unsigned values that specify the number of global work-items in workDim that will execute the kernel function"
     - type: "const size_t*"
       name: pLocalWorkSize
       desc: |
             [in][optional] pointer to an array of workDim unsigned values that specify the number of local work-items forming a work-group that will execute the kernel function.
-            If nullptr, the runtime implementation will choose the work-group size. 
+            If nullptr, the runtime implementation will choose the work-group size.
     - type: uint32_t
       name: numEventsInWaitList
       desc: "[in] size of the event wait list"
@@ -51,11 +51,11 @@ params:
       name: phEventWaitList
       desc: |
             [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before the kernel execution.
-            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event. 
+            If nullptr, the numEventsInWaitList must be 0, indicating that no wait event.
     - type: $x_event_handle_t*
       name: phEvent
       desc: |
-            [out][optional] return an event object that identifies this particular kernel execution instance.
+            [out][optional] return an event object that identifies this particular kernel execution instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_QUEUE
     - $X_RESULT_ERROR_INVALID_KERNEL
@@ -87,5 +87,5 @@ params:
     - type: "uint32_t*"
       name: "pGroupCountRet"
       desc: "[out] pointer to maximum number of groups"
-returns:      
+returns:
     - $X_RESULT_ERROR_INVALID_KERNEL

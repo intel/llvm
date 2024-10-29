@@ -220,7 +220,7 @@ params:
       name: size
       desc: "[in] size in bytes of the virtual memory range."
     - type: $x_virtual_mem_info_t
-      name: propName 
+      name: propName
       desc: "[in] type of the info to query."
     - type: size_t
       name: propSize

@@ -48,6 +48,10 @@ void event_pool::free(ur_event_handle_t_ *event) {
   event->RefCount.increment();
 }
 
-event_provider *event_pool::getProvider() { return provider.get(); }
+event_provider *event_pool::getProvider() const { return provider.get(); }
+
+event_flags_t event_pool::getFlags() const {
+  return getProvider()->eventFlags();
+}
 
 } // namespace v2

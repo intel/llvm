@@ -20,7 +20,7 @@ struct AsanOptions {
     bool Debug = false;
     uint64_t MinRZSize = 16;
     uint64_t MaxRZSize = 2048;
-    uint32_t MaxQuarantineSizeMB = 0;
+    uint32_t MaxQuarantineSizeMB = 8;
     bool DetectLocals = true;
     bool DetectPrivates = true;
     bool PrintStats = false;

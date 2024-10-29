@@ -3,6 +3,8 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "helpers.h"
+
 #include <uur/fixtures.h>
 #include <uur/raii.h>
 
@@ -13,27 +15,23 @@
 std::tuple<size_t, size_t, size_t> minL0DriverVersion = {1, 3, 29534};
 
 template <typename T>
-struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
+struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
                                       testing::WithParamInterface<T> {
     std::string KernelName;
     std::vector<ur_program_handle_t> programs;
     std::vector<ur_kernel_handle_t> kernels;
     std::vector<void *> SharedMem;
 
-    std::vector<ur_queue_handle_t> queues;
-    std::vector<ur_device_handle_t> devices;
-
-    std::function<void(void)> createQueues;
-
     static constexpr char ProgramName[] = "increment";
     static constexpr size_t ArraySize = 100;
-    static constexpr size_t InitialValue = 1;
+    static constexpr uint32_t InitialValue = 1;
 
-    void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urMultiDeviceContextTestTemplate<1>::SetUp());
+    void SetUp() override { throw std::runtime_error("Not implemented"); }
 
-        createQueues();
+    void SetUp(std::vector<ur_device_handle_t> srcDevices,
+               size_t duplicateDevices) {
+        UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest::SetUp(
+            srcDevices, duplicateDevices));
 
         for (auto &device : devices) {
             SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform,
@@ -71,6 +69,7 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
             ASSERT_SUCCESS(
                 urUSMSharedAlloc(context, devices[i], nullptr, nullptr,
                                  ArraySize * sizeof(uint32_t), &SharedMem[i]));
+            ASSERT_NE(SharedMem[i], nullptr);
 
             ASSERT_SUCCESS(urEnqueueUSMFill(queues[i], SharedMem[i],
                                             sizeof(uint32_t), &InitialValue,
@@ -86,9 +85,6 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiDeviceContextTestTemplate<1>,
     void TearDown() override {
         for (auto &Ptr : SharedMem) {
             urUSMFree(context, Ptr);
-        }
-        for (const auto &queue : queues) {
-            EXPECT_SUCCESS(urQueueRelease(queue));
         }
         for (const auto &kernel : kernels) {
             urKernelRelease(kernel);
@@ -136,23 +132,8 @@ struct urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam
     using urMultiQueueLaunchMemcpyTest<Param>::SharedMem;
 
     void SetUp() override {
-        this->createQueues = [&] {
-            for (size_t i = 0; i < duplicateDevices; i++) {
-                devices.insert(
-                    devices.end(),
-                    uur::KernelsEnvironment::instance->devices.begin(),
-                    uur::KernelsEnvironment::instance->devices.end());
-            }
-
-            for (auto &device : devices) {
-                ur_queue_handle_t queue = nullptr;
-                ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
-                queues.push_back(queue);
-            }
-        };
-
-        UUR_RETURN_ON_FATAL_FAILURE(
-            urMultiQueueLaunchMemcpyTest<Param>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueLaunchMemcpyTest<Param>::SetUp(
+            uur::KernelsEnvironment::instance->devices, duplicateDevices));
     }
 
     void TearDown() override {
@@ -166,8 +147,6 @@ struct urEnqueueKernelLaunchIncrementTest
           std::tuple<ur_device_handle_t, uur::BoolTestParam>> {
     static constexpr size_t numOps = 50;
 
-    ur_queue_handle_t queue;
-
     using Param = std::tuple<ur_device_handle_t, uur::BoolTestParam>;
     using urMultiQueueLaunchMemcpyTest<Param>::context;
     using urMultiQueueLaunchMemcpyTest<Param>::queues;
@@ -176,26 +155,12 @@ struct urEnqueueKernelLaunchIncrementTest
     using urMultiQueueLaunchMemcpyTest<Param>::SharedMem;
 
     void SetUp() override {
-        auto device = std::get<0>(GetParam());
-
-        this->createQueues = [&] {
-            ASSERT_SUCCESS(urQueueCreate(context, device, 0, &queue));
-
-            // use the same queue and device for all operations
-            for (size_t i = 0; i < numOps; i++) {
-                urQueueRetain(queue);
-
-                queues.push_back(queue);
-                devices.push_back(device);
-            }
-        };
-
-        UUR_RETURN_ON_FATAL_FAILURE(
-            urMultiQueueLaunchMemcpyTest<Param>::SetUp());
+        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueLaunchMemcpyTest<Param>::SetUp(
+            std::vector<ur_device_handle_t>{std::get<0>(GetParam())},
+            numOps)); // Use single device, duplicated numOps times
     }
 
     void TearDown() override {
-        urQueueRelease(queue);
         UUR_RETURN_ON_FATAL_FAILURE(
             urMultiQueueLaunchMemcpyTest<Param>::TearDown());
     }
@@ -218,6 +183,9 @@ TEST_P(urEnqueueKernelLaunchIncrementTest, Success) {
     ur_event_handle_t *lastMemcpyEvent = nullptr;
     ur_event_handle_t *kernelEvent = nullptr;
     ur_event_handle_t *memcpyEvent = nullptr;
+
+    // This is a single device test
+    auto queue = queues[0];
 
     for (size_t i = 0; i < numOps; i++) {
         if (useEvents) {
