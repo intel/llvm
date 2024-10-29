@@ -135,8 +135,9 @@ constexpr auto key() {
 template <typename property_t,
           typename property_key_t = property_key_non_template<property_t>>
 struct property_base : property_key_t {
-protected:
   using key_t = property_key_t;
+
+protected:
   constexpr property_t get_property_impl(key_t = {}) const {
     return *static_cast<const property_t *>(this);
   }
@@ -387,22 +388,6 @@ properties(unsorted_property_tys...)
         unsorted_property_tys...>::type>;
 
 using empty_properties_t = decltype(properties{});
-
-// FIXME:
-template <typename property_list_ty, typename... allowed_property_keys>
-struct all_properties_in : std::false_type {};
-template <typename... property_tys, typename... allowed_property_keys>
-struct all_properties_in<
-    properties<detail::properties_type_list<property_tys...>>,
-    allowed_property_keys...>
-    : std::bool_constant<((sycl::detail::check_type_in_v<
-                               property_tys, allowed_property_keys...> &&
-                           ...))> {};
-
-template <typename property_list_ty, typename... allowed_property_keys>
-inline constexpr bool all_properties_in_v =
-    all_properties_in<std::remove_const_t<property_list_ty>,
-                      allowed_property_keys...>::value;
 } // namespace new_properties
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -121,16 +121,30 @@ namespace test_static_get_property {
   }
 }
 
-// TODO:
-namespace test_trait {
+namespace properties_validation_example {
 struct prop : named_property_base<prop> {};
 struct prop2 : named_property_base<prop2> {};
+
+template <typename> struct foo;
+template <typename... property_tys>
+struct foo<properties<detail::properties_type_list<property_tys...>>> {
+  template <typename... key_tys> static constexpr bool bar(key_tys...) {
+    return ((sycl::detail::check_type_in_v<typename property_tys::key_t,
+                                           key_tys...> &&
+             ...));
+  }
+};
 constexpr properties pl{prop{}};
 using ty = std::remove_const_t<decltype(pl)>;
-static_assert(all_properties_in_v<ty, prop>);
-static_assert(all_properties_in_v<empty_properties_t, prop>);
-static_assert(!all_properties_in_v<ty, prop2>);
-} // namespace test_trait
+static_assert(foo<ty>::bar(detail::key<prop>()));
+static_assert(foo<ty>::bar(detail::key<prop>(), detail::key<prop2>()));
+static_assert(foo<empty_properties_t>::bar(detail::key<prop>()));
+static_assert(!foo<ty>::bar(detail::key<prop2>()));
+
+// static_assert(all_properties_in_v<ty, prop>);
+// static_assert(all_properties_in_v<empty_properties_t, prop>);
+// static_assert(!all_properties_in_v<ty, prop2>);
+} // namespace properties_validation_example
 
 namespace test_combine_op {
 struct prop : named_property_base<prop> {};
