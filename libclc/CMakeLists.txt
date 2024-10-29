@@ -337,7 +337,7 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       list( APPEND opencl_gen_files clspv-convert.cl )
     elseif ( NOT ENABLE_RUNTIME_SUBNORMAL )
       list( APPEND opencl_gen_files convert-clc.cl )
-      list( APPEND opencl_lib_files generic/lib/subnormal_use_default.ll )
+      list( APPEND opencl_lib_files generic/libspirv/subnormal_use_default.ll )
     endif()
   endif()
 
