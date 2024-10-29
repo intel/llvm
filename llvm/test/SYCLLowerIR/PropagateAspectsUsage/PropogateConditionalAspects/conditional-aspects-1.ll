@@ -9,7 +9,7 @@
 ;            |
 ;           CF1
 ;            |
-;           F3 (C)
+;           F3 (C, fp64)
 ;
 
 %Optional.A = type { i32 }
@@ -41,7 +41,8 @@ define spir_func void @func2() {
 
 ; CHECK: define spir_func void @func3() !sycl_conditionally_used_aspects ![[#ID2:]]
 define spir_func void @func3() {
-  %tmp = alloca %Optional.C
+  %tmp1 = alloca %Optional.C
+  %tmp2 = alloca double
   ret void
 }
 
@@ -64,6 +65,6 @@ attributes #1 = { "sycl-call-if-on-device-conditionally"="true" }
 ; CHECK: ![[#ID2]] = !{![[#ID3:]]}
 ; CHECK: ![[#ID3]] = !{![[#ID4:]], ![[#ID5:]]}
 ; CHECK: ![[#ID4]] = !{i32 0}
-; CHECK: ![[#ID5]] = !{i32 3}
+; CHECK: ![[#ID5]] = !{i32 3, i32 6}
 ; CHECK: ![[#ID6]] = !{i32 1}
 ; CHECK: ![[#ID7]] = !{i32 2}
