@@ -622,13 +622,15 @@ protected:
                          std::vector<Command *> &ToEnqueue);
 
     /// Removes commands from leaves.
-    static void updateLeaves(const std::set<Command *> &Cmds, MemObjRecord *Record,
-                      access::mode AccessMode, const MapOfDependentCmds &DependentCmdsOfNewCmd,
-                      const QueueImplPtr &Queue,
-                      std::vector<Command *> &ToCleanUp);
+    static void updateLeaves(const std::set<Command *> &Cmds,
+                             MemObjRecord *Record, access::mode AccessMode,
+                             const MapOfDependentCmds &DependentCmdsOfNewCmd,
+                             const QueueImplPtr &Queue,
+                             std::vector<Command *> &ToCleanUp);
 
     /// Prepare a command to cleanup
-    static void commandToCleanup(Command *DepCommand, std::vector<Command *> &ToCleanUp);
+    static void commandToCleanup(Command *DepCommand,
+                                 std::vector<Command *> &ToCleanUp);
 
     /// Perform connection of events in multiple contexts
     /// \param Cmd dependant command
@@ -907,23 +909,27 @@ class MapOfDependentCmds {
   using CommandModePair = std::pair<SYCLMemObjI *, access::mode>;
 
   struct CommandModePairHash {
-    std::size_t operator()(const CommandModePair& p) const noexcept {
-      return std::hash<SYCLMemObjI *>{}(p.first) ^ std::hash<access::mode>{}(p.second);
+    std::size_t operator()(const CommandModePair &p) const noexcept {
+      return std::hash<SYCLMemObjI *>{}(p.first) ^
+             std::hash<access::mode>{}(p.second);
     }
   };
 
-  using CommandModePairSet = std::pmr::unordered_set<CommandModePair, CommandModePairHash>;
+  using CommandModePairSet =
+      std::pmr::unordered_set<CommandModePair, CommandModePairHash>;
 
-  std::array<std::byte, 4*1024> MDependentCmdsOfNewCmdBuf;
-  std::pmr::monotonic_buffer_resource MDependentCmdsOfNewCmdBufRes{MDependentCmdsOfNewCmdBuf.data(),
+  std::array<std::byte, 4 * 1024> MDependentCmdsOfNewCmdBuf;
+  std::pmr::monotonic_buffer_resource MDependentCmdsOfNewCmdBufRes{
+      MDependentCmdsOfNewCmdBuf.data(),
                                                                    MDependentCmdsOfNewCmdBuf.size()};
   CommandModePairSet MDependentCmdsOfNewCmd{&MDependentCmdsOfNewCmdBufRes};
 
   void addDep(const DepDesc &Dep) {
-    MDependentCmdsOfNewCmd.emplace(Dep.MDepRequirement->MSYCLMemObj, Dep.MDepRequirement->MAccessMode);
+    MDependentCmdsOfNewCmd.emplace(Dep.MDepRequirement->MSYCLMemObj,
+                                   Dep.MDepRequirement->MAccessMode);
   }
-public:
 
+public:
   MapOfDependentCmds(const std::vector<DepDesc> &Deps) {
     for (const DepDesc &Dep : Deps)
       addDep(Dep);

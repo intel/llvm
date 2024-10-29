@@ -161,6 +161,13 @@ public:
     return MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess;
   }
 
+  bool isCleanupSubject() const {
+    return MLeafCounter && // if already no leaves, can't be duplicate
+      MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess &&
+      // host task may be available by ThreadPool, can't cleanup it up
+      !isHostTask();
+  }
+
   // Shows that command could not be enqueued, now it may be true for empty task
   // only
   bool isEnqueueBlocked() const {

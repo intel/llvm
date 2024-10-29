@@ -261,10 +261,8 @@ void Scheduler::GraphBuilder::updateLeaves(const std::set<Command *> &Cmds,
     detectDuplicates(Cmd, DependentCmdsOfNewCmd, ToCleanUp);
 
     // For in-order queue, we may cleanup all dependent command from our queue
-    if (Queue && Queue->isInOrder() && Cmd->getQueue() == Queue
-        && Cmd->getType() == Command::RUN_CG
-        && Cmd->MLeafCounter
-        && Cmd->MEnqueueStatus == EnqueueResultT::SyclEnqueueSuccess)
+    if (Queue && Queue->isInOrder() && Cmd->getQueue() == Queue &&
+        Cmd->isCleanupSubject())
       commandToCleanup(Cmd, ToCleanUp);
   }
 }
@@ -282,8 +280,7 @@ void Scheduler::GraphBuilder::addNodeToLeaves(
 void Scheduler::GraphBuilder::detectDuplicates(
     Command *DepCommand, const MapOfDependentCmds &DependentCmdsOfNewCmd,
     std::vector<Command *> &ToCleanUp) {
-  if (!DepCommand->MLeafCounter || // already no leaves, can't be duplicate
-      DepCommand->MEnqueueStatus != EnqueueResultT::SyclEnqueueSuccess)
+  if (!DepCommand->isCleanupSubject())
     return;
   // any dependence of DepCommand already covered by NewCmd
   bool Duplicate = std::all_of(DepCommand->MDeps.begin(), DepCommand->MDeps.end(),

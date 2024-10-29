@@ -270,7 +270,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
           MS.addNodeToLeaves(Record, MockCmd.get(), access::mode::read_write,
                              ToEnqueue);
         }
-        const detail::MapOfDependentCmds DependentCmdsOfNewCmd(AllocaCmd->MDeps);
+        const detail::MapOfDependentCmds DependentCmdsOfNewCmd(
+            AllocaCmd->MDeps);
         for (std::unique_ptr<MockCommand> &MockCmd : Leaves)
           MS.updateLeaves({MockCmd.get()}, Record, access::mode::read_write,
                           DependentCmdsOfNewCmd, QueueImpl, ToCleanUp);
