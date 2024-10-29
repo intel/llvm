@@ -1778,6 +1778,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
       Result != UR_RESULT_SUCCESS)
     return Result;
 
+  MEvent->setHandle(UREvent);
   return UR_RESULT_SUCCESS;
 }
 
