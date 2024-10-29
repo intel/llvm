@@ -7,12 +7,12 @@ queue q;
 
 class Functor {
 public:
-  [[intel::reqd_sub_group_size(4), cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(4), cl::reqd_work_group_size(32, 16, 16)]] void operator()() const {}
 };
 
 class Functor1 {
 public:
-  [[intel::reqd_sub_group_size(2), sycl::reqd_work_group_size(64, 32, 32)]] void operator()() const {}
+  [[sycl::reqd_sub_group_size(2), sycl::reqd_work_group_size(64, 32, 32)]] void operator()() const {}
 };
 
 template <int SIZE, int SIZE1, int SIZE2>

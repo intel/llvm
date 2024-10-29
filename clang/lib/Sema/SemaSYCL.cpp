@@ -3167,7 +3167,7 @@ public:
 //        // code
 //      }
 //
-//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
+//      [[sycl::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
 //      {
 //        // code
 //      }
