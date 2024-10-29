@@ -36,3 +36,7 @@
 {{OPT}}KernelCommandEventSyncUpdateTest.TwoWaitEvents/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidWaitUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidSignalUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryUpdateTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersAndLocalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryMultiUpdateTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryMultiUpdateTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
