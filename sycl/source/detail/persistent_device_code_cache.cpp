@@ -205,18 +205,18 @@ void PersistentDeviceCodeCache::putCompiledKernelToDisc(
       std::string FullFileName = FileName + ".bin";
       writeBinaryDataToFile(FullFileName,
                             getProgramBinaryData(NativePrg, Device));
-      trace("kernel_compiler binary has been cached: " + FullFileName);
+      PersistentDeviceCodeCache::trace_KernelCompiler(
+          "binary has been cached: " + FullFileName);
     } else {
-      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
+      PersistentDeviceCodeCache::trace_KernelCompiler("cache lock not owned " +
+                                                      FileName);
     }
   } catch (std::exception &e) {
-    PersistentDeviceCodeCache::trace(
-        std::string("exception encountered making persistent cache: ") +
-        e.what());
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("exception encountered making cache: ") + e.what());
   } catch (...) {
-    PersistentDeviceCodeCache::trace(
-        std::string("error outputting persistent cache: ") +
-        std::strerror(errno));
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("error outputting cache: ") + std::strerror(errno));
   }
 }
 
@@ -287,7 +287,8 @@ PersistentDeviceCodeCache::getCompiledKernelFromDisc(
         std::string FullFileName = FileName + ".bin";
         std::vector<std::vector<char>> res =
             readBinaryDataFromFile(FullFileName);
-        trace("kernel_compiler using cached binary: " + FullFileName);
+        PersistentDeviceCodeCache::trace_KernelCompiler(
+            "using cached binary: " + FullFileName);
         return res; // subject for NRVO
       } catch (...) {
         // If read was unsuccessfull try the next item

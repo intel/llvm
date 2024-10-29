@@ -213,6 +213,12 @@ public:
     if (traceEnabled)
       std::cerr << "[Persistent Cache]: " << msg << std::endl;
   }
+  static void trace_KernelCompiler(const std::string &msg) {
+    static const bool traceEnabled =
+        SYCLConfig<SYCL_CACHE_TRACE>::isTraceKernelCompiler();
+    if (traceEnabled)
+      std::cerr << "[kernel_compiler Persistent Cache]: " << msg << std::endl;
+  }
 };
 } // namespace detail
 } // namespace _V1

@@ -18,7 +18,7 @@
 // 'reading-from-cache' is just a string we pass to differentiate between the
 // two runs.
 
-// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=1 SYCL_CACHE_DIR=%t/cache_dir
+// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
 // RUN: rm -rf %t/cache_dir
 // RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
 // RUN:  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
@@ -28,13 +28,13 @@
 // RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
 // RUN:   %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
-// CHECK-WRITTEN-TO-CACHE: Code caching: enabled
-// CHECK-WRITTEN-TO-CACHE-NOT: *** Code caching: kernel_compiler using cached binary
-// CHECK-WRITTEN-TO-CACHE: *** Code caching: kernel_compiler binary has been cached
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
+// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
 
-// CHECK-READ-FROM-CACHE: *** Code caching: enabled
-// CHECK-READ-FROM-CACHE-NOT: *** Code caching: kernel_compiler binary has been cached
-// CHECK-READ-FROM-CACHE: *** Code caching: kernel_compiler using cached binary
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
+// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
+// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
