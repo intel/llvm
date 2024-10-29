@@ -9819,9 +9819,9 @@ urUSMReleaseExp(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Supported peer info
 typedef enum ur_exp_peer_info_t {
-    UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,  ///< [uint32_t] 1 if P2P access is supported otherwise P2P access is not
+    UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED = 0,  ///< [int] 1 if P2P access is supported otherwise P2P access is not
                                                     ///< supported.
-    UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1, ///< [uint32_t] 1 if atomic operations are supported over the P2P link,
+    UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED = 1, ///< [int] 1 if atomic operations are supported over the P2P link,
                                                     ///< otherwise such operations are not supported.
     /// @cond
     UR_EXP_PEER_INFO_FORCE_UINT32 = 0x7fffffff

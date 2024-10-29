@@ -10308,9 +10308,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
 
     switch (value) {
     case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
-        const uint32_t *tptr = (const uint32_t *)ptr;
-        if (sizeof(uint32_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+        const int *tptr = (const int *)ptr;
+        if (sizeof(int) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(int) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
@@ -10320,9 +10320,9 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
         os << ")";
     } break;
     case UR_EXP_PEER_INFO_UR_PEER_ATOMICS_SUPPORTED: {
-        const uint32_t *tptr = (const uint32_t *)ptr;
-        if (sizeof(uint32_t) > size) {
-            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+        const int *tptr = (const int *)ptr;
+        if (sizeof(int) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(int) << ")";
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
         os << (const void *)(tptr) << " (";
