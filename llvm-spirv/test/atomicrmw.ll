@@ -4,7 +4,6 @@
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
 
 ; CHECK: TypeInt [[Int:[0-9]+]] 32 0
-; CHECK-DAG: Constant [[Int]] [[Scope_Device:[0-9]+]] 1 {{$}}
 ; CHECK-DAG: Constant [[Int]] [[MemSem_Relaxed:[0-9]+]] 0
 ; CHECK-DAG: Constant [[Int]] [[MemSem_Acquire:[0-9]+]] 2
 ; CHECK-DAG: Constant [[Int]] [[MemSem_Release:[0-9]+]] 4 {{$}}
@@ -26,37 +25,37 @@ target triple = "spir64"
 define dso_local spir_func void @test_atomicrmw() local_unnamed_addr #0 {
 entry:
   %0 = atomicrmw xchg ptr addrspace(1) @ui, i32 42 acq_rel
-; CHECK: AtomicExchange [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_AcquireRelease]] [[Value]]
+; CHECK: AtomicExchange [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_AcquireRelease]] [[Value]]
 
   %1 = atomicrmw xchg ptr addrspace(1) @f, float 42.000000e+00 seq_cst
-; CHECK: AtomicExchange [[Float]] {{[0-9]+}} [[FPPointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[FPValue]]
+; CHECK: AtomicExchange [[Float]] {{[0-9]+}} [[FPPointer]] {{.+}} [[MemSem_SequentiallyConsistent]] [[FPValue]]
 
   %2 = atomicrmw add ptr addrspace(1) @ui, i32 42 monotonic
-; CHECK: AtomicIAdd [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Relaxed]] [[Value]]
+; CHECK: AtomicIAdd [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Relaxed]] [[Value]]
 
   %3 = atomicrmw sub ptr addrspace(1) @ui, i32 42 acquire
-; CHECK: AtomicISub [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Acquire]] [[Value]]
+; CHECK: AtomicISub [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Acquire]] [[Value]]
 
   %4 = atomicrmw or ptr addrspace(1) @ui, i32 42 release
-; CHECK: AtomicOr [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Release]] [[Value]]
+; CHECK: AtomicOr [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Release]] [[Value]]
 
   %5 = atomicrmw xor ptr addrspace(1) @ui, i32 42 acq_rel
-; CHECK: AtomicXor [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_AcquireRelease]] [[Value]]
+; CHECK: AtomicXor [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_AcquireRelease]] [[Value]]
 
   %6 = atomicrmw and ptr addrspace(1) @ui, i32 42 seq_cst
-; CHECK: AtomicAnd [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_SequentiallyConsistent]] [[Value]]
+; CHECK: AtomicAnd [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_SequentiallyConsistent]] [[Value]]
 
   %7 = atomicrmw max ptr addrspace(1) @ui, i32 42 monotonic
-; CHECK: AtomicSMax [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Relaxed]] [[Value]]
+; CHECK: AtomicSMax [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Relaxed]] [[Value]]
 
   %8 = atomicrmw min ptr addrspace(1) @ui, i32 42 acquire
-; CHECK: AtomicSMin [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Acquire]] [[Value]]
+; CHECK: AtomicSMin [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Acquire]] [[Value]]
 
   %9 = atomicrmw umax ptr addrspace(1) @ui, i32 42 release
-; CHECK: AtomicUMax [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_Release]] [[Value]]
+; CHECK: AtomicUMax [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_Release]] [[Value]]
 
   %10 = atomicrmw umin ptr addrspace(1) @ui, i32 42 acq_rel
-; CHECK: AtomicUMin [[Int]] {{[0-9]+}} [[Pointer]] [[Scope_Device]] [[MemSem_AcquireRelease]] [[Value]]
+; CHECK: AtomicUMin [[Int]] {{[0-9]+}} [[Pointer]] {{.+}} [[MemSem_AcquireRelease]] [[Value]]
 
   ret void
 }

@@ -1,6 +1,3 @@
-// UNSUPPORTED: cuda, hip, acc
-// FIXME: replace unsupported with an aspect check once we have it
-//
 // RUN: %{build} -o %t.out %helper-includes
 // RUN: %{run} %t.out
 

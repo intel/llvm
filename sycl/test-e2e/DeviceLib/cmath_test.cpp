@@ -1,14 +1,14 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} -fno-builtin %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fno-builtin %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t.out
-// RUN: %if !gpu %{ %{run} %t.out %}
+// RUN: %{build} -Wno-error=unused-command-line-argument -fno-builtin -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
+// RUN: %if !gpu %{ %{run} %t2.out %}
 //
 // // Check that --fast-math works with cmath funcs for CUDA
-// RUN: %if cuda %{ %{build} -fno-builtin %{mathflags} -o %t.out -ffast-math -DSYCL_E2E_FASTMATH %}
-// RUN: %if cuda %{ %{run} %t.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -Wno-nan-infinity-disabled -fno-builtin %{mathflags} -o %t3.out -ffast-math -DSYCL_E2E_FASTMATH %}
+// RUN: %if cuda %{ %{run} %t3.out %}
 
 #include "math_utils.hpp"
 #include <cmath>

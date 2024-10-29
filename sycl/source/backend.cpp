@@ -13,10 +13,11 @@
 #include "detail/kernel_id_impl.hpp"
 #include "detail/platform_impl.hpp"
 #include "detail/queue_impl.hpp"
-#include "sycl/detail/impl_utils.hpp"
+#include <detail/ur.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/detail/impl_utils.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>

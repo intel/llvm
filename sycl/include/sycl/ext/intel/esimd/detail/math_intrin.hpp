@@ -102,6 +102,11 @@ extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_fmax(__ESIMD_raw_vec_t(T, N),
                      __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_rsqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_rsqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)
