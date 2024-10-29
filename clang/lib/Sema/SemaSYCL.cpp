@@ -2040,7 +2040,7 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
-    if (this->SemaSYCLRef.getLangOpts().SYCLRTCMode) {
+    if (SemaSYCLRef.getLangOpts().SYCLRTCMode) {
       // When compiling in RTC mode, the restriction regarding forward
       // declarations doesn't apply, as we don't need the integration header.
       return isValid();
@@ -6461,7 +6461,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   // The rest of this function only applies to free-function kernels. However,
   // in RTC mode, we do not need integration header information for
   // free-function kernels, so we can return early here.
-  if (this->S.getLangOpts().SYCLRTCMode) {
+  if (S.getLangOpts().SYCLRTCMode) {
     return;
   }
 
