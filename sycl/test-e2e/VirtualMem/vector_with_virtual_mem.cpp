@@ -1,4 +1,7 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem, aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations
+
+// XFAIL: linux && gpu-intel-dg2
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15812
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
