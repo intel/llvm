@@ -9,7 +9,7 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental::matrix;
 
-SYCL_EXTERNAL [[intel::reqd_sub_group_size(16)]] void matrix_store_as(
+SYCL_EXTERNAL [[sycl::reqd_sub_group_size(16)]] void matrix_store_as(
     multi_ptr<unsigned short, access::address_space::global_space> pA,
     multi_ptr<unsigned short, access::address_space::global_space> pB,
     multi_ptr<float, access::address_space::global_space> pC,
