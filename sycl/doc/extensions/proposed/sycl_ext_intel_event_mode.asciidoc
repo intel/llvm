@@ -107,12 +107,12 @@ managed.
 ```
 namespace sycl::ext::intel::experimental {
 
-enum class event_modes { none, low_power };
+enum class event_mode_enum { none, low_power };
 
 struct event_mode {
-  event_mode(event_modes mode);
+  event_mode(event_mode_enum mode);
 
-  event_modes value;
+  event_mode_enum value;
 };
 
 using event_mode_key = event_mode;
@@ -123,7 +123,7 @@ using event_mode_key = event_mode;
 
 === Low power event mode
 
-Passing the `event_mode` property with `event_modes::low_power` to
+Passing the `event_mode` property with `event_mode_enum::low_power` to
 `submit_with_event` will act as a hint to the `event` created from the
 corresponding commands to do low-power synchronization. If the backend is able
 to handle low-power events, calling `event::wait()` or `event::wait_and_throw()`
@@ -139,7 +139,7 @@ _{endnote}_]
 === New property usage example
 
 As an example of how to use the new `event_mode` property using the
-`event_modes::low_power` mode, see the following code:
+`event_mode_enum::low_power` mode, see the following code:
 
 ```
 #include <sycl/sycl.hpp>
@@ -154,7 +154,7 @@ int main() {
   oneapiex::submit(Q, [&](sycl::handler &CGH) {...});
 
   // Submit a command with the low-power event mode.
-  oneapiex::properties Props{intelex::event_mode{intelex::event_modes::low_power}};
+  oneapiex::properties Props{intelex::event_mode{intelex::event_mode_enum::low_power}};
   sycl::event E = oneapiex::submit_with_event(Q, Props, [&](sycl::handler &CGH) {
     ...
   });
