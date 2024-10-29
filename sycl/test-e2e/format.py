@@ -203,6 +203,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         devices_for_test = []
         triples = set()
+        unsplit_test = False
         if "run-mode" not in test.config.available_features:
             triples = self.select_triples_for_test(test)
             if not triples:
@@ -219,6 +220,11 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
                 triples.add(get_triple(test, backend))
+            for l in test.config.requires:
+                if "run-mode" in re.findall("[-+=._a-zA-Z0-9]+", l):
+                    unsplit_test = True
+                    break
+
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
@@ -279,7 +285,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 continue
 
             # Filter commands based on split-mode
-            is_run_line = any(
+            is_run_line = unsplit_test or any(
                 i in directive.command
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
             )
