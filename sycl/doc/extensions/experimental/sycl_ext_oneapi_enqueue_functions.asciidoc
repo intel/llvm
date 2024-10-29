@@ -726,7 +726,7 @@ namespace sycl::ext::oneapi::experimental {
 
 void execute_graph(sycl::queue q, command_graph<graph_state::executable> &g);
 
-void execute_graph(sycl::handler h, command_graph<graph_state::executable> &g);
+void execute_graph(sycl::handler &h, command_graph<graph_state::executable> &g);
 
 }
 ----
