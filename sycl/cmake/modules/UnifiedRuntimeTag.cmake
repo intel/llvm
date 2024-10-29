@@ -1,5 +1,7 @@
-# commit 66ba7970a6badf781226b75a98c9585ef30ea93a
-# Author: Maosu Zhao <maosu.zhao@intel.com>
-# Date:   Mon Oct 28 18:39:57 2024 +0800
-#     [DeviceSanitizer] Add a report flag to LaunchInfo (#2069)
-set(UNIFIED_RUNTIME_TAG 66ba7970a6badf781226b75a98c9585ef30ea93a)
+# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
+# Merge: 694c1b9a 27ad3f7d
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Mon Oct 28 16:29:45 2024 +0100
+#   Merge pull request #2242 from nrspruit/sysman_env_disable
+#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
+set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
