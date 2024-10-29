@@ -483,6 +483,18 @@ getDriverVersion(ur_device_handle_t hDevice) {
         }                                                                      \
     } while (0)
 
+// Is this a Data Center GPU Max series (aka PVC)?
+// TODO: change to use
+// https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
+// when that is stable.
+static inline bool isPVC(ur_device_handle_t hDevice) {
+    uint32_t deviceId;
+    EXPECT_EQ(urDeviceGetInfo(hDevice, UR_DEVICE_INFO_DEVICE_ID,
+                              sizeof(uint32_t), &deviceId, nullptr),
+              UR_RESULT_SUCCESS);
+    return (deviceId & 0xff0) == 0xbd0 || (deviceId & 0xff0) == 0xb60;
+}
+
 } // namespace uur
 
 #endif // UR_CONFORMANCE_INCLUDE_UTILS_H_INCLUDED

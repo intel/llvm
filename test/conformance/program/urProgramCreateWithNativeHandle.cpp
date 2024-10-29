@@ -9,6 +9,14 @@ struct urProgramCreateWithNativeHandleTest : uur::urProgramTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
         {
+            ur_platform_backend_t backend;
+            ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
+                                             sizeof(backend), &backend,
+                                             nullptr));
+            // For Level Zero we have to build the program to have the native handle.
+            if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+                ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+            }
             UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
                 urProgramGetNativeHandle(program, &native_program_handle));
         }

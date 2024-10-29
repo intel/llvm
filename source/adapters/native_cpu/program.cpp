@@ -54,10 +54,16 @@ deserializeWGMetadata(const ur_program_metadata_t &MetadataElement,
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
-    ur_context_handle_t hContext, ur_device_handle_t hDevice, size_t size,
-    const uint8_t *pBinary, const ur_program_properties_t *pProperties,
+    ur_context_handle_t hContext, uint32_t numDevices,
+    ur_device_handle_t *phDevices, size_t *pLengths, const uint8_t **ppBinaries,
+    const ur_program_properties_t *pProperties,
     ur_program_handle_t *phProgram) {
-  std::ignore = size;
+  if (numDevices > 1)
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+
+  auto hDevice = phDevices[0];
+  auto pBinary = ppBinaries[0];
+  std::ignore = pLengths;
   std::ignore = pProperties;
 
   UR_ASSERT(hContext, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
@@ -106,6 +112,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinary(
   return UR_RESULT_SUCCESS;
 }
 
+UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithBinaryExp(
+    ur_context_handle_t, uint32_t, ur_device_handle_t *, size_t *,
+    const uint8_t **, const ur_program_properties_t *, ur_program_handle_t *) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuild(ur_context_handle_t hContext,
                                                    ur_program_handle_t hProgram,
                                                    const char *pOptions) {
@@ -123,7 +135,9 @@ urProgramCompile(ur_context_handle_t hContext, ur_program_handle_t hProgram,
   std::ignore = hProgram;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -138,21 +152,27 @@ urProgramLink(ur_context_handle_t hContext, uint32_t count,
   std::ignore = phPrograms;
   std::ignore = pOptions;
 
-  DIE_NO_IMPLEMENTATION
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramCompileExp(ur_program_handle_t,
                                                         uint32_t,
                                                         ur_device_handle_t *,
                                                         const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled, so
+  // urProgramCompile is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramBuildExp(ur_program_handle_t,
                                                       uint32_t,
                                                       ur_device_handle_t *,
                                                       const char *) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is offline compiled and linked,
+  // so urProgramBuild is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
@@ -161,7 +181,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramLinkExp(
   if (nullptr != phProgram) {
     *phProgram = nullptr;
   }
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  // Currently for Native CPU the program is already linked and all its
+  // symbols are resolved, so this is a no-op.
+  return UR_RESULT_SUCCESS;
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL
@@ -215,8 +237,6 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
     return returnValue(1u);
   case UR_PROGRAM_INFO_DEVICES:
     return returnValue(hProgram->_ctx->_device);
-  case UR_PROGRAM_INFO_SOURCE:
-    return returnValue(nullptr);
   case UR_PROGRAM_INFO_BINARY_SIZES:
     return returnValue("foo");
   case UR_PROGRAM_INFO_BINARIES:
@@ -224,6 +244,8 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_KERNEL_NAMES: {
     return returnValue("foo");
   }
+  case UR_PROGRAM_INFO_IL:
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   default:
     break;
   }

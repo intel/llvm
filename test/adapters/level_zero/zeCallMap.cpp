@@ -9,4 +9,5 @@
 // Map used by L0 adapter to count the number of calls to each L0 function
 // Lifetime is managed by the adapter, this variable is defined here
 // only so that we can read it from the tests.
-std::map<std::string, int> *ZeCallCount = nullptr;
+__attribute__((visibility("default"))) std::map<std::string, int> *ZeCallCount =
+    nullptr;

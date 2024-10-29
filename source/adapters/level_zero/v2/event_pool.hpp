@@ -46,7 +46,8 @@ public:
   // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t_ *event);
 
-  event_provider *getProvider();
+  event_provider *getProvider() const;
+  event_flags_t getFlags() const;
 
 private:
   std::unique_ptr<event_provider> provider;

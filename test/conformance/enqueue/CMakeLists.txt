@@ -7,6 +7,7 @@ add_conformance_test_with_kernels_environment(enqueue
     urEnqueueDeviceGlobalVariableRead.cpp
     urEnqueueDeviceGlobalVariableWrite.cpp
     urEnqueueEventsWait.cpp
+    urEnqueueEventsWaitMultiDevice.cpp
     urEnqueueEventsWaitWithBarrier.cpp
     urEnqueueKernelLaunch.cpp
     urEnqueueKernelLaunchAndMemcpyInOrder.cpp

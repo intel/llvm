@@ -112,8 +112,8 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(NDRangeUpdateTest);
 TEST_P(NDRangeUpdateTest, Update3D) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, global_offset.data(),
-        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, nullptr,
-        &command_handle));
+        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
@@ -160,8 +160,8 @@ TEST_P(NDRangeUpdateTest, Update3D) {
 TEST_P(NDRangeUpdateTest, Update2D) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, global_offset.data(),
-        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, nullptr,
-        &command_handle));
+        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
@@ -218,8 +218,8 @@ TEST_P(NDRangeUpdateTest, Update2D) {
 TEST_P(NDRangeUpdateTest, Update1D) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, global_offset.data(),
-        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, nullptr,
-        &command_handle));
+        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
@@ -271,8 +271,8 @@ TEST_P(NDRangeUpdateTest, ImplToUserDefinedLocalSize) {
     // Append a kernel node without setting the local work-size.
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, global_offset.data(),
-        global_size.data(), nullptr, 0, nullptr, 0, nullptr, nullptr,
-        &command_handle));
+        global_size.data(), nullptr, 0, nullptr, 0, nullptr, 0, nullptr,
+        nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 
@@ -325,8 +325,8 @@ TEST_P(NDRangeUpdateTest, UserToImplDefinedLocalSize) {
     // Append a kernel node and set a user defined local work-size.
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, kernel, n_dimensions, global_offset.data(),
-        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, nullptr,
-        &command_handle));
+        global_size.data(), local_size.data(), 0, nullptr, 0, nullptr, 0,
+        nullptr, nullptr, nullptr, &command_handle));
     ASSERT_NE(command_handle, nullptr);
     ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
 

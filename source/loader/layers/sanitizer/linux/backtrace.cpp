@@ -15,22 +15,22 @@
 namespace ur_sanitizer_layer {
 
 StackTrace GetCurrentBacktrace() {
-    void *Frames[MAX_BACKTRACE_FRAMES];
+    BacktraceFrame Frames[MAX_BACKTRACE_FRAMES];
     int FrameCount = backtrace(Frames, MAX_BACKTRACE_FRAMES);
-    char **Symbols = backtrace_symbols(Frames, FrameCount);
-
-    if (Symbols == nullptr) {
-        return StackTrace();
-    }
 
     StackTrace Stack;
-    for (int i = 0; i < FrameCount; i++) {
-        BacktraceInfo addr_info(Symbols[i]);
-        Stack.stack.emplace_back(addr_info);
-    }
-    free(Symbols);
+    Stack.stack =
+        std::vector<BacktraceFrame>(&Frames[0], &Frames[FrameCount - 1]);
 
     return Stack;
+}
+
+char **GetBacktraceSymbols(const std::vector<BacktraceFrame> &BacktraceFrames) {
+    assert(!BacktraceFrames.empty());
+
+    char **BacktraceSymbols =
+        backtrace_symbols(&BacktraceFrames[0], BacktraceFrames.size());
+    return BacktraceSymbols;
 }
 
 } // namespace ur_sanitizer_layer

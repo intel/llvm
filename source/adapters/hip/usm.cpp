@@ -18,6 +18,13 @@
 #include "ur_util.hpp"
 #include "usm.hpp"
 
+namespace umf {
+ur_result_t getProviderNativeError(const char *, int32_t) {
+  // TODO: implement when UMF supports HIP
+  return UR_RESULT_ERROR_UNKNOWN;
+}
+} // namespace umf
+
 /// USM: Implements USM Host allocations using HIP Pinned Memory
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(ur_context_handle_t hContext, const ur_usm_desc_t *pUSMDesc,

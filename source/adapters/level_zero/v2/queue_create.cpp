@@ -22,6 +22,10 @@ ur_result_t urQueueCreate(ur_context_handle_t hContext,
                           ur_device_handle_t hDevice,
                           const ur_queue_properties_t *pProperties,
                           ur_queue_handle_t *phQueue) {
+  if (!hContext->isValidDevice(hDevice)) {
+    return UR_RESULT_ERROR_INVALID_DEVICE;
+  }
+
   // TODO: For now, always use immediate, in-order
   *phQueue =
       new v2::ur_queue_immediate_in_order_t(hContext, hDevice, pProperties);

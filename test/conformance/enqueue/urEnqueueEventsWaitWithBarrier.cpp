@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -35,6 +35,32 @@ struct urEnqueueEventsWaitWithBarrierTest : uur::urMultiQueueTest {
 };
 
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest);
+
+struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
+    void SetUp() override {
+        program_name = "sequence";
+        UUR_RETURN_ON_FATAL_FAILURE(urProgramTest::SetUp());
+        ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
+
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                         sizeof(uint32_t), nullptr, &buffer));
+
+        auto entry_points =
+            uur::KernelsEnvironment::instance->GetEntryPointNames(program_name);
+        std::cout << entry_points[0];
+
+        ASSERT_SUCCESS(urKernelCreate(program, "_ZTS3Add", &add_kernel));
+        ASSERT_SUCCESS(urKernelCreate(program, "_ZTS3Mul", &mul_kernel));
+    }
+
+    void TearDown() override { uur::urProgramTest::TearDown(); }
+
+    ur_kernel_handle_t add_kernel;
+    ur_kernel_handle_t mul_kernel;
+    ur_mem_handle_t buffer = nullptr;
+};
+
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierOrderingTest);
 
 TEST_P(urEnqueueEventsWaitWithBarrierTest, Success) {
     ur_event_handle_t event1 = nullptr;
@@ -96,4 +122,130 @@ TEST_P(urEnqueueEventsWaitWithBarrierTest, InvalidNullPtrEventWaitList) {
         UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST);
 
     ASSERT_SUCCESS(urEventRelease(validEvent));
+}
+
+TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
+       SuccessEventDependenciesBarrierOnly) {
+    constexpr size_t offset = 0;
+    constexpr size_t count = 1;
+    ur_event_handle_t event;
+
+    uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
+    uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
+
+    addHelper.SetBuffer1DArg(buffer, nullptr);
+    mulHelper.SetBuffer1DArg(buffer, nullptr);
+
+    for (size_t i = 0; i < 10; i++) {
+        constexpr uint32_t ONE = 1;
+        urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE,
+                                0, nullptr, &event);
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset,
+                                             &count, nullptr, 0, nullptr,
+                                             &event));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset,
+                                             &count, nullptr, 0, nullptr,
+                                             &event));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event, nullptr));
+        addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
+    }
+}
+
+TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
+       SuccessEventDependenciesLaunchOnly) {
+    constexpr size_t offset = 0;
+    constexpr size_t count = 1;
+    ur_event_handle_t event;
+
+    uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
+    uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
+
+    addHelper.SetBuffer1DArg(buffer, nullptr);
+    mulHelper.SetBuffer1DArg(buffer, nullptr);
+
+    for (size_t i = 0; i < 10; i++) {
+        constexpr uint32_t ONE = 1;
+        urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE,
+                                0, nullptr, nullptr);
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset,
+                                             &count, nullptr, 1, &event,
+                                             nullptr));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset,
+                                             &count, nullptr, 1, &event,
+                                             nullptr));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, &event));
+        addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
+    }
+}
+
+TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest, SuccessEventDependencies) {
+    constexpr size_t offset = 0;
+    constexpr size_t count = 1;
+    ur_event_handle_t event[6];
+
+    uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
+    uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
+
+    addHelper.SetBuffer1DArg(buffer, nullptr);
+    mulHelper.SetBuffer1DArg(buffer, nullptr);
+
+    for (size_t i = 0; i < 10; i++) {
+        constexpr uint32_t ONE = 1;
+        urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE,
+                                0, nullptr, &event[0]);
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event[0], &event[1]));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset,
+                                             &count, nullptr, 1, &event[1],
+                                             &event[2]));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event[2], &event[3]));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset,
+                                             &count, nullptr, 1, &event[3],
+                                             &event[4]));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 1, &event[4], &event[5]));
+        addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
+    }
+}
+
+TEST_P(urEnqueueEventsWaitWithBarrierOrderingTest,
+       SuccessNonEventDependencies) {
+    constexpr size_t offset = 0;
+    constexpr size_t count = 1;
+
+    uur::KernelLaunchHelper addHelper(platform, context, add_kernel, queue);
+    uur::KernelLaunchHelper mulHelper(platform, context, mul_kernel, queue);
+
+    addHelper.SetBuffer1DArg(buffer, nullptr);
+    mulHelper.SetBuffer1DArg(buffer, nullptr);
+
+    for (size_t i = 0; i < 10; i++) {
+        constexpr uint32_t ONE = 1;
+        urEnqueueMemBufferWrite(queue, buffer, true, 0, sizeof(uint32_t), &ONE,
+                                0, nullptr, nullptr);
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, add_kernel, 1, &offset,
+                                             &count, nullptr, 0, nullptr,
+                                             nullptr));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
+        EXPECT_SUCCESS(urEnqueueKernelLaunch(queue, mul_kernel, 1, &offset,
+                                             &count, nullptr, 0, nullptr,
+                                             nullptr));
+        EXPECT_SUCCESS(
+            urEnqueueEventsWaitWithBarrier(queue, 0, nullptr, nullptr));
+        addHelper.ValidateBuffer(buffer, sizeof(uint32_t), 4004);
+    }
 }

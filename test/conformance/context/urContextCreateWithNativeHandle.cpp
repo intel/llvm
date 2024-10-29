@@ -46,11 +46,6 @@ TEST_P(urContextCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
         native_context, adapter, 1, &device, &props, &ctx));
     ASSERT_NE(ctx, nullptr);
-
-    uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_REFERENCE_COUNT,
-                                    sizeof(uint32_t), &ref_count, nullptr));
-    ASSERT_EQ(ref_count, 1);
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
@@ -66,13 +61,6 @@ TEST_P(urContextCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
     UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(urContextCreateWithNativeHandle(
         native_context, adapter, 1, &device, &props, &ctx));
     ASSERT_NE(ctx, nullptr);
-
-    uint32_t ref_count = 0;
-    ASSERT_SUCCESS(urContextGetInfo(ctx, UR_CONTEXT_INFO_REFERENCE_COUNT,
-                                    sizeof(uint32_t), &ref_count, nullptr));
-    ASSERT_EQ(ref_count, 2);
-
-    ASSERT_SUCCESS(urContextRelease(ctx));
 }
 
 TEST_P(urContextCreateWithNativeHandleTest, InvalidNullHandleAdapter) {

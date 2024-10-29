@@ -112,7 +112,7 @@ params:
       name: phEvent
       desc: |
             [out][optional] return an event object that identifies the work that has
-            been enqueued in nativeEnqueueFunc.
+            been enqueued in nativeEnqueueFunc. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
 returns:
     - $X_RESULT_ERROR_INVALID_NULL_HANDLE
     - $X_RESULT_ERROR_INVALID_NULL_POINTER

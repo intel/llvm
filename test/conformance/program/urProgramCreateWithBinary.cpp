@@ -38,45 +38,54 @@ struct urProgramCreateWithBinaryTest : uur::urProgramTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramCreateWithBinaryTest);
 
 TEST_P(urProgramCreateWithBinaryTest, Success) {
-    ASSERT_SUCCESS(urProgramCreateWithBinary(context, device, binary.size(),
-                                             binary.data(), nullptr,
-                                             &binary_program));
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
+    ASSERT_SUCCESS(urProgramCreateWithBinary(context, 1, &device, &size, &data,
+                                             nullptr, &binary_program));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullHandleContext) {
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urProgramCreateWithBinary(nullptr, device, binary.size(),
-                                               binary.data(), nullptr,
+                     urProgramCreateWithBinary(nullptr, 1, &device, &size,
+                                               &data, nullptr,
                                                &binary_program));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullHandleDevice) {
-    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
-                     urProgramCreateWithBinary(context, nullptr, binary.size(),
-                                               binary.data(), nullptr,
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urProgramCreateWithBinary(context, 0, nullptr, &size,
+                                               &data, nullptr,
                                                &binary_program));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullPointerBinary) {
+    auto size = binary.size();
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urProgramCreateWithBinary(context, device, binary.size(),
+                     urProgramCreateWithBinary(context, 1, &device, &size,
                                                nullptr, nullptr,
                                                &binary_program));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullPointerProgram) {
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urProgramCreateWithBinary(context, device, binary.size(),
-                                               binary.data(), nullptr,
-                                               nullptr));
+                     urProgramCreateWithBinary(context, 1, &device, &size,
+                                               &data, nullptr, nullptr));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, InvalidNullPointerMetadata) {
     ur_program_properties_t properties = {};
     properties.count = 1;
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                     urProgramCreateWithBinary(context, device, binary.size(),
-                                               binary.data(), &properties,
+                     urProgramCreateWithBinary(context, 1, &device, &size,
+                                               &data, &properties,
                                                &binary_program));
 }
 
@@ -89,17 +98,21 @@ TEST_P(urProgramCreateWithBinaryTest, InvalidSizePropertyCount) {
                                 md_string.size(), md_value};
     ur_program_properties_t properties = {};
     properties.pMetadatas = &md;
+    auto size = binary.size();
+    const uint8_t *data = binary.data();
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_SIZE,
-                     urProgramCreateWithBinary(context, device, binary.size(),
-                                               binary.data(), &properties,
+                     urProgramCreateWithBinary(context, 1, &device, &size,
+                                               &data, &properties,
                                                &binary_program));
 }
 
 TEST_P(urProgramCreateWithBinaryTest, BuildInvalidProgramBinary) {
     ur_program_handle_t program = nullptr;
     uint8_t binary[] = {0, 1, 2, 3, 4};
-    auto result = urProgramCreateWithBinary(context, device, 5, binary, nullptr,
-                                            &program);
+    const uint8_t *data = binary;
+    size_t size = 5;
+    auto result = urProgramCreateWithBinary(context, 1, &device, &size, &data,
+                                            nullptr, &program);
     // The driver is not required to reject the binary
     ASSERT_TRUE(result == UR_RESULT_ERROR_INVALID_BINARY ||
                 result == UR_RESULT_SUCCESS);
