@@ -8,13 +8,13 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp> // for MemorySemanticsMask
+#include <sycl/__spirv/spirv_types.hpp> // for MemorySemanticsMask
 #include <sycl/access/access.hpp>     // for fence_space
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/memory_enums.hpp>      // for memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_vars.hpp>
+#include <sycl/__spirv/spirv_vars.hpp>
 #endif
 
 #include <cstddef>     // for size_t
@@ -240,11 +240,11 @@ getSPIRVMemorySemanticsMask(const access::fence_space AccessSpace,
 
 // To ensure loop unrolling is done when processing dimensions.
 template <size_t... Inds, class F>
-void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
+constexpr void loop_impl(std::integer_sequence<size_t, Inds...>, F &&f) {
   (f(std::integral_constant<size_t, Inds>{}), ...);
 }
 
-template <size_t count, class F> void loop(F &&f) {
+template <size_t count, class F> constexpr void loop(F &&f) {
   loop_impl(std::make_index_sequence<count>{}, std::forward<F>(f));
 }
 inline constexpr bool is_power_of_two(int x) { return (x & (x - 1)) == 0; }

@@ -189,7 +189,7 @@ public:
       if (InsertWrappers) {
         if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
           auto *WrapperCall =
-              CallInst::Create(WrapperFuncTy, FinishWrapperFunc, "", RI);
+              CallInst::Create(WrapperFuncTy, FinishWrapperFunc, "", RI->getIterator());
           WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
         }
       }
@@ -198,7 +198,7 @@ public:
       KernelFunc->getEntryBlock().getFirstInsertionPt();
       auto *WrapperCall =
           CallInst::Create(WrapperFuncTy, StartWrapperFunc, "",
-                           &*KernelFunc->getEntryBlock().getFirstInsertionPt());
+                           KernelFunc->getEntryBlock().getFirstInsertionPt());
       WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
     }
   }

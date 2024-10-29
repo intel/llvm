@@ -11,7 +11,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// XFAIL: gpu
+// XFAIL: gpu && !gpu-intel-dg2
 
 #include "../common.hpp"
 #include "../joint_matrix_apply_two_matrices_impl.hpp"

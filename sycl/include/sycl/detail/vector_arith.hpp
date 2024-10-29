@@ -113,7 +113,7 @@ template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
 protected:
   using vec_t = vec<DataT, NumElements>;
-  using ocl_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using ocl_t = detail::fixed_width_signed<sizeof(DataT)>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.

@@ -703,11 +703,17 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABI64)
           Target.setEnvironment(llvm::Triple::GNUABIN32);
+        else if (Target.getEnvironment() == llvm::Triple::Musl ||
+                 Target.getEnvironment() == llvm::Triple::MuslABI64)
+          Target.setEnvironment(llvm::Triple::MuslABIN32);
       } else if (ABIName == "64") {
         Target = Target.get64BitArchVariant();
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABIN32)
           Target.setEnvironment(llvm::Triple::GNUABI64);
+        else if (Target.getEnvironment() == llvm::Triple::Musl ||
+                 Target.getEnvironment() == llvm::Triple::MuslABIN32)
+          Target.setEnvironment(llvm::Triple::MuslABI64);
       }
     }
   }
@@ -1185,12 +1191,13 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
   llvm::StringMap<llvm::DenseSet<StringRef>> DerivedArchs;
   llvm::StringMap<StringRef> FoundNormalizedTriples;
   llvm::SmallVector<llvm::Triple, 4> UniqueSYCLTriplesVec;
+  // StringSet to contain SYCL target triples.
+  llvm::StringSet<> SYCLTriples;
   if (HasSYCLTargetsOption) {
     // At this point, we know we have a valid combination
     // of -fsycl*target options passed
     Arg *SYCLTargetsValues = SYCLTargets;
     if (SYCLTargetsValues) {
-      llvm::StringSet<> SYCLTriples;
       if (SYCLTargetsValues->getNumValues()) {
 
         // Multiple targets are currently not supported when using
@@ -1290,6 +1297,109 @@ void Driver::CreateOffloadingDeviceToolChains(Compilation &C,
         Diag(clang::diag::warn_drv_empty_joined_argument)
             << SYCLTargetsValues->getAsString(C.getInputArgs());
     }
+  }
+  // If the user specified --offload-arch, deduce the offloading
+  // target triple(s) from the set of architecture(s).
+  // Create a toolchain for each valid triple.
+  // We do not support SYCL offloading if any of the inputs is a
+  // .cu (for CUDA type) or .hip (for HIP type) file.
+  else if (HasValidSYCLRuntime &&
+           C.getInputArgs().hasArg(options::OPT_offload_arch_EQ) && !IsHIP &&
+           !IsCuda) {
+    // SYCL offloading to AOT Targets with '--offload-arch'
+    // is currently enabled only with '--offload-new-driver' option.
+    // Emit a diagnostic if '--offload-arch' is invoked without
+    // '--offload-new driver' option.
+    if (!C.getInputArgs().hasFlag(options::OPT_offload_new_driver,
+                                  options::OPT_no_offload_new_driver, false)) {
+      Diag(clang::diag::err_drv_sycl_offload_arch_new_driver);
+      return;
+    }
+    const ToolChain *HostTC = C.getSingleOffloadToolChain<Action::OFK_Host>();
+    auto AMDTriple = getHIPOffloadTargetTriple(*this, C.getInputArgs());
+    auto NVPTXTriple = getNVIDIAOffloadTargetTriple(*this, C.getInputArgs(),
+                                                    HostTC->getTriple());
+
+    // Attempt to deduce the offloading triple from the set of architectures.
+    // We need to temporarily create these toolchains so that we can access
+    // tools for inferring architectures.
+    llvm::DenseSet<StringRef> Archs;
+    if (NVPTXTriple) {
+      auto TempTC = std::make_unique<toolchains::CudaToolChain>(
+          *this, *NVPTXTriple, *HostTC, C.getInputArgs(), Action::OFK_None);
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
+        Archs.insert(Arch);
+    }
+    if (AMDTriple) {
+      auto TempTC = std::make_unique<toolchains::AMDGPUOpenMPToolChain>(
+          *this, *AMDTriple, *HostTC, C.getInputArgs());
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, &*TempTC, true))
+        Archs.insert(Arch);
+    }
+    if (!AMDTriple && !NVPTXTriple) {
+      for (StringRef Arch :
+           getOffloadArchs(C, C.getArgs(), Action::OFK_SYCL, nullptr, true))
+        Archs.insert(Arch);
+    }
+    for (StringRef Arch : Archs) {
+      if (NVPTXTriple && IsSYCLSupportedNVidiaGPUArch(StringToOffloadArch(
+                             getProcessorFromTargetID(*NVPTXTriple, Arch)))) {
+        DerivedArchs[NVPTXTriple->getTriple()].insert(Arch);
+      } else if (AMDTriple &&
+                 IsSYCLSupportedAMDGPUArch(StringToOffloadArch(
+                     getProcessorFromTargetID(*AMDTriple, Arch)))) {
+        DerivedArchs[AMDTriple->getTriple()].insert(Arch);
+      } else if (IsSYCLSupportedIntelCPUArch(StringToOffloadArchSYCL(Arch))) {
+        DerivedArchs[MakeSYCLDeviceTriple("spir64_x86_64").getTriple()].insert(
+            Arch);
+      } else if (IsSYCLSupportedIntelGPUArch(StringToOffloadArchSYCL(Arch))) {
+        StringRef IntelGPUArch;
+        // For Intel Graphics AOT target, valid values for '--offload-arch'
+        // are mapped to valid device names accepted by OCLOC (the Intel GPU AOT
+        // compiler) via the '-device' option. The mapIntelGPUArchName
+        // function maps the accepted values for '--offload-arch' to enable SYCL
+        // offloading to Intel GPUs and the corresponding '-device' value passed
+        // to OCLOC.
+        IntelGPUArch = mapIntelGPUArchName(Arch).data();
+        DerivedArchs[MakeSYCLDeviceTriple("spir64_gen").getTriple()].insert(
+            IntelGPUArch);
+      } else {
+        Diag(clang::diag::err_drv_invalid_sycl_target) << Arch;
+        return;
+      }
+    }
+    // Emit an error if architecture value is not provided
+    // to --offload-arch.
+    if (Archs.empty()) {
+      Diag(clang::diag::err_drv_sycl_offload_arch_missing_value);
+      return;
+    }
+
+    for (const auto &TripleAndArchs : DerivedArchs)
+      SYCLTriples.insert(TripleAndArchs.first());
+
+    for (const auto &Val : SYCLTriples) {
+      llvm::Triple SYCLTargetTriple(MakeSYCLDeviceTriple(Val.getKey()));
+      std::string NormalizedName = SYCLTargetTriple.normalize();
+
+      // Make sure we don't have a duplicate triple.
+      auto Duplicate = FoundNormalizedTriples.find(NormalizedName);
+      if (Duplicate != FoundNormalizedTriples.end()) {
+        Diag(clang::diag::warn_drv_sycl_offload_target_duplicate)
+            << Val.getKey() << Duplicate->second;
+        continue;
+      }
+
+      // Store the current triple so that we can check for duplicates in the
+      // following iterations.
+      FoundNormalizedTriples[NormalizedName] = Val.getKey();
+      UniqueSYCLTriplesVec.push_back(SYCLTargetTriple);
+    }
+
+    addSYCLDefaultTriple(C, UniqueSYCLTriplesVec);
+
   } else {
     // If -fsycl is supplied without -fsycl-targets we will assume SPIR-V.
     // For -fsycl-device-only, we also setup the implied triple as needed.
@@ -2791,7 +2901,8 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
 
   if (C.getArgs().hasArg(options::OPT_print_multi_lib)) {
     for (const Multilib &Multilib : TC.getMultilibs())
-      llvm::outs() << Multilib << "\n";
+      if (!Multilib.isFatalError())
+        llvm::outs() << Multilib << "\n";
     return false;
   }
 
@@ -3957,12 +4068,6 @@ class OffloadingActionBuilder final {
         // Set the flag to true, so that the builder acts on the current input.
         IsActive = true;
 
-        if (CompileHostOnly)
-          return ABRT_Success;
-
-        // Replicate inputs for each GPU architecture.
-        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
-                                                 : types::TY_CUDA_DEVICE;
         std::string CUID = FixedCUID.str();
         if (CUID.empty()) {
           if (UseCUID == CUID_Random)
@@ -3986,6 +4091,12 @@ class OffloadingActionBuilder final {
         }
         IA->setId(CUID);
 
+        if (CompileHostOnly)
+          return ABRT_Success;
+
+        // Replicate inputs for each GPU architecture.
+        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
+                                                 : types::TY_CUDA_DEVICE;
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           CudaDeviceActions.push_back(
               C.MakeAction<InputAction>(IA->getInputArg(), Ty, IA->getId()));
@@ -5425,9 +5536,58 @@ class OffloadingActionBuilder final {
                   BundlingActions, types::TY_Object);
               if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
                 OWA->setOffloadKind(Action::OFK_Host);
+              // The Backend compilation step performed here is being done for
+              // creating FPGA archives.  The possible split binaries after
+              // sycl-post-link need to be individually wrapped as opposed to
+              // being passed into the clang-offload-wrapper via a table and
+              // using the -batch option - effectively creating a single
+              // binary.  The resulting archive created from -fsycl-link should
+              // not contain the singular binary, but should be individual
+              // binaries to be consumed later by either the -fsycl-link=image
+              // device compilation step or being linked into the final exe.
+              //
+              // Typical compile flow:
+              //               .bc
+              //                |
+              //     sycl-post-link -split=kernel
+              //                |
+              //       +--------+--------+
+              //       |        |        |
+              //     split1   split2   split3
+              //       |        |        |
+              // llvm-spirv llvm-spirv llvm-spirv
+              //       |        |        |
+              //     ocloc    ocloc    ocloc
+              //       |        |        |
+              //       +--------+--------+
+              //                |
+              //     clang-offload-wrapper -batch
+              //                |
+              //               .o
+              //
+              // Individual wrap compile flow:
+              //               .bc
+              //                |
+              //     sycl-post-link -split=kernel
+              //                |
+              //       +--------+--------+
+              //       |        |        |
+              //     split1   split2   split3
+              //       |        |        |
+              // llvm-spirv llvm-spirv llvm-spirv
+              //       |        |        |
+              //     ocloc    ocloc    ocloc
+              //       |        |        |
+              //     wrap     wrap     wrap
+              //       |        |        |
+              //      .o       .o       .o
+              //
               Action *CompiledDeviceAction =
-                  C.MakeAction<OffloadWrapperJobAction>(WrapperItems,
-                                                        types::TY_Object);
+                  C.MakeAction<OffloadWrapperJobAction>(FPGAAOTAction,
+                                                        types::TY_Tempfilelist);
+              if (auto *OWA =
+                      dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
+                OWA->setWrapIndividualFiles();
               addDeps(CompiledDeviceAction, TC, BoundArch);
             }
             addDeps(DeviceAction, TC, BoundArch);
@@ -5701,6 +5861,9 @@ class OffloadingActionBuilder final {
           };
 
           Action *ExtractIRFilesAction = createExtractIRFilesAction();
+          // Device binaries that are individually wrapped when creating an
+          // FPGA Archive.
+          ActionList FPGAArchiveWrapperInputs;
 
           if (IsNVPTX || IsAMDGCN) {
             JobAction *FinAction =
@@ -5786,6 +5949,7 @@ class OffloadingActionBuilder final {
                 FileTableTformJobAction::COL_CODE,
                 FileTableTformJobAction::COL_CODE);
             WrapperInputs.push_back(ReplaceFilesAction);
+            FPGAArchiveWrapperInputs.push_back(BuildCodeAction);
           }
           if (SkipWrapper) {
             // Wrapper step not requested.
@@ -5820,8 +5984,11 @@ class OffloadingActionBuilder final {
                 if (auto *OWA = dyn_cast<OffloadWrapperJobAction>(DeviceAction))
                   OWA->setOffloadKind(Action::OFK_Host);
                 Action *CompiledDeviceAction =
-                    C.MakeAction<OffloadWrapperJobAction>(WrapperInputs,
-                                                          types::TY_Object);
+                    C.MakeAction<OffloadWrapperJobAction>(
+                        FPGAArchiveWrapperInputs, types::TY_Tempfilelist);
+                if (auto *OWA =
+                        dyn_cast<OffloadWrapperJobAction>(CompiledDeviceAction))
+                  OWA->setWrapIndividualFiles();
                 addDeps(CompiledDeviceAction, TC, nullptr);
               }
               addDeps(DeviceAction, TC, nullptr);
@@ -6350,7 +6517,7 @@ class OffloadingActionBuilder final {
           if (GpuInitHasErrors)
             return true;
 
-          int GenIndex = 0;
+          size_t GenIndex = 0;
           // Fill SYCLTargetInfoList
           for (auto &TT : SYCLTripleList) {
             auto TCIt = llvm::find_if(
@@ -7446,8 +7613,30 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
       if (Args.hasArg(options::OPT_fsycl_link_EQ) &&
           Args.hasArg(options::OPT_fintelfpga)) {
         // Wrap the object when creating an FPGA AOCX or AOCR binary.
-        auto *BC = C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
-        auto *ASM = C.MakeAction<BackendJobAction>(BC, types::TY_PP_Asm);
+        // When the input file is an AOCR (early) archive, the unbundled host
+        // binary consists of a list of objects. We cannot directly wrap that
+        // binary to be consumed later - this has to go through each listed
+        // object.
+        bool FPGAEarly = true;
+        if (auto *A = C.getInputArgs().getLastArg(options::OPT_fsycl_link_EQ))
+          FPGAEarly = A->getValue() == StringRef("early");
+
+        Action *WrapperAction;
+        if ((LI->getType() == types::TY_FPGA_AOCR ||
+             LI->getType() == types::TY_FPGA_AOCR_EMU) &&
+            !FPGAEarly) {
+          auto *RenameAction = C.MakeAction<FileTableTformJobAction>(
+              LI, types::TY_Tempfilelist, types::TY_Tempfilelist);
+          RenameAction->addRenameColumnTform(FileTableTformJobAction::COL_ZERO,
+                                             FileTableTformJobAction::COL_CODE);
+          ActionList WrapperItems({RenameAction});
+          WrapperAction = C.MakeAction<OffloadWrapperJobAction>(
+              WrapperItems, types::TY_LLVM_BC);
+        } else
+          WrapperAction =
+              C.MakeAction<OffloadWrapperJobAction>(LI, types::TY_LLVM_BC);
+        auto *ASM =
+            C.MakeAction<BackendJobAction>(WrapperAction, types::TY_PP_Asm);
         auto *OBJ = C.MakeAction<AssembleJobAction>(ASM, types::TY_Object);
         OffloadAction::HostDependence HDep(
             *OBJ, *C.getSingleOffloadToolChain<Action::OFK_Host>(),

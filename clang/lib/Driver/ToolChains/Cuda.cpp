@@ -17,6 +17,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -722,8 +723,6 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   for (StringRef Feature : Features)
     CmdArgs.append({"--feature", Args.MakeArgString(Feature)});
 
-  addGPULibraries(getToolChain(), Args, CmdArgs);
-
   // Add paths for the default clang library path.
   SmallString<256> DefaultLibPath =
       llvm::sys::path::parent_path(TC.getDriver().Dir);
@@ -924,7 +923,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -941,8 +940,7 @@ void CudaToolChain::addClangTargetOptions(
   // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
   // device code compatability, hence we do not set Cuda mode in that instance.
   if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
 
     if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
       CC1Args.push_back("-fcuda-prec-sqrt");
@@ -1205,8 +1203,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

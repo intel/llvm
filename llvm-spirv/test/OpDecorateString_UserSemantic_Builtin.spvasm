@@ -1,0 +1,45 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.4 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o - | llvm-dis | FileCheck --check-prefix=CHECK-OCL %s
+; RUN: llvm-spirv -r --spirv-target-env=SPV-IR %t.spv -o - | llvm-dis | FileCheck --check-prefix=CHECK-SPV-IR %s
+
+; Ensure that UserSemantic decorations on BuiltIn variables do not prevent successful translation.
+
+; CHECK-OCL: call spir_func i64 @_Z13get_global_idj(i32 0)
+; CHECK-SPV-IR: call spir_func i64 @_Z33__spirv_BuiltInGlobalInvocationIdi(i32 0)
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int64
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %usersemantic_test "usersemantic_test" %global_id
+               OpDecorate %global_id LinkageAttributes "global_id" Import
+               OpDecorate %global_id Constant
+               OpDecorate %global_id BuiltIn GlobalInvocationId
+               ; Basic decoration:
+               OpDecorateString %global_id UserSemantic "FOO"
+               ; Duplicate decorations are allowed as long as the string is different.
+               OpDecorateString %global_id UserSemantic "BAR"
+               ; Try one more string with punctuation.
+               OpDecorateString %global_id UserSemantic "FOO? BAR. BAZ!"
+      %ulong = OpTypeInt 64 0
+       %uint = OpTypeInt 32 0
+    %v3ulong = OpTypeVector %ulong 3
+%_ptr_Input_v3ulong = OpTypePointer Input %v3ulong
+       %void = OpTypeVoid
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+          %9 = OpTypeFunction %void %_ptr_CrossWorkgroup_uint
+%global_id = OpVariable %_ptr_Input_v3ulong Input
+%usersemantic_test = OpFunction %void None %9
+        %dst = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+      %entry = OpLabel
+      %index = OpLoad %v3ulong %global_id Aligned 32
+       %call = OpCompositeExtract %ulong %index 0
+       %conv = OpUConvert %uint %call
+    %idxprom = OpSConvert %ulong %conv
+   %arrayidx = OpInBoundsPtrAccessChain %_ptr_CrossWorkgroup_uint %dst %idxprom
+               OpStore %arrayidx %conv Aligned 4
+               OpReturn
+               OpFunctionEnd

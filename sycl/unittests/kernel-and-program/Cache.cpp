@@ -59,18 +59,10 @@ static sycl::unittest::UrImage generateDefaultImage() {
   UrPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
   std::vector<UrOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  UrImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
