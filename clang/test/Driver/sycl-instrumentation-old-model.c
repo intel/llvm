@@ -20,6 +20,12 @@
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-stubs.bc"
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
 
+// ITT annotations in device code are disabled by default.
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+
 // RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 // RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -nocudalib -### %s 2>&1 \

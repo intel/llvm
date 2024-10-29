@@ -19,6 +19,12 @@
 // CHECK-SPIRV-SAME: libsycl-itt-compiler-wrappers.new.o
 // CHECK-SPIRV-SAME: libsycl-itt-stubs.new.o
 
+// ITT annotations in device code are disabled by default.
+// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+// RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+
 // RUN: %clangxx -fsycl --offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 // RUN: %clangxx -fsycl --offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -fno-sycl-instrument-device-code -nocudalib -### %s 2>&1 \
