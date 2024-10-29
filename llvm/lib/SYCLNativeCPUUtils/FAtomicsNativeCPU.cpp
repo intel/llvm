@@ -24,6 +24,7 @@ PreservedAnalyses FAtomicsNativeCPU::run(Module &M,
                                          ModuleAnalysisManager &MAM) {
   bool ModuleChanged = false;
   auto &Ctx = M.getContext();
+  // TODO: add checks for windows mangling
   for (auto &F : M) {
     AtomicRMWInst::BinOp OpCode;
     if (F.getName().starts_with("_Z21__spirv_AtomicFAddEXT")) {

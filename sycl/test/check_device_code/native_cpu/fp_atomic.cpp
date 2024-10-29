@@ -1,3 +1,4 @@
+// REQUIRES: linux
 // RUN: %clangxx -fsycl-device-only  -fsycl-targets=native_cpu -S -emit-llvm  -o %t_temp.ll %s
 // RUN: %clangxx -mllvm -sycl-native-cpu-backend -S -emit-llvm -o - %t_temp.ll | FileCheck %s
 #include <sycl/sycl.hpp>
