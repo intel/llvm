@@ -133,8 +133,16 @@ __unspecified__ reduction(span<T, Extent> vars, const T& identity,
 }
 ----
 
-_Mandates_: The specified `properties` are compatible with the reduction,
-according to the description of each individual property.
+_Constraints_: Available only when `PropertyList` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "Reduction properties".
+
+The `reduction` functions that take no `identity` parameter have the following
+clause:
+
+_Mandates_: If `properties` contains the `initialize_to_identity` property,
+then the identity of the `BinaryOperation` operation must be identifiable via
+the `known_identity` trait class.
 
 === Reduction properties
 
@@ -188,10 +196,6 @@ use of atomic operations, etc. _{endnote}_]
 |`initialize_to_identity`
 |Adds the same requirement as
 `sycl::property::reduction::initialize_to_identity`.
-
-For `reduction` overloads without an `identity` parameter, the identity of the
-combination operation must be identifiable via the `known_identity` trait
-class.
 
 |===
 
