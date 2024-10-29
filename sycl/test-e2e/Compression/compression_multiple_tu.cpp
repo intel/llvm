@@ -2,9 +2,6 @@
 // translation units, one compressed and one not compressed.
 // REQUIRES: zstd, linux
 
-// XFAIL: hip_amd
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15829
-
 // RUN: %{build} --offload-compress -DENABLE_KERNEL1 -shared -fPIC -o %T/kernel1.so
 // RUN: %{build} -DENABLE_KERNEL2 -shared -fPIC -o %T/kernel2.so
 
