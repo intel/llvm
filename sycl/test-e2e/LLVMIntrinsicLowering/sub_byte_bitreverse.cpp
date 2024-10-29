@@ -3,7 +3,6 @@
 
 // UNSUPPORTED: hip || cuda
 
-// TODO: Remove XFAIL after fixing
 // XFAIL: gpu
 // XFAIL-TRACKER: https://github.com/intel/intel-graphics-compiler/issues/330
 
