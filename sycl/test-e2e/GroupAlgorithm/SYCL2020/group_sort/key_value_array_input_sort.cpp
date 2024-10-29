@@ -94,7 +94,7 @@ void RunSortKeyValueOverGroupArray(sycl::queue &Q,
                                                        CGH);
 
        CGH.parallel_for(NDRange, [=](sycl::nd_item<Dims>
-                                         id) [[intel::reqd_sub_group_size(
+                                         id) [[sycl::reqd_sub_group_size(
                                      ReqSubGroupSize)]] {
          const size_t GlobalLinearID = id.get_global_linear_id();
 
