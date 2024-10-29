@@ -14,7 +14,9 @@
 
 #include <cinttypes>
 
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 namespace ur_sanitizer_layer {
+#endif // !__SPIR__ && !__SPIRV__
 
 enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
@@ -86,6 +88,7 @@ struct AsanRuntimeData {
     DeviceType DeviceTy = DeviceType::UNKNOWN;
     uint32_t Debug = 0;
 
+    int ReportFlag = 0;
     DeviceSanitizerReport SanitizerReport[ASAN_MAX_NUM_REPORTS];
 };
 
@@ -160,4 +163,6 @@ inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
     }
 }
 
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer
+#endif // !__SPIR__ && !__SPIRV__
