@@ -358,7 +358,7 @@ macro(add_libclc_builtin_set arch_suffix)
     IN_FILE ${builtins_link_lib}
     OUT_DIR ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
     OPT_FLAGS ${ARG_OPT_FLAGS}
-    DEPENDENCIES ${builtins_link_lib_tgt})
+    DEPENDENCIES ${builtins_link_lib_tgt} ${LIBCLC_LIBRARY_OUTPUT_INTDIR})
 
   # Add dependency to top-level pseudo target to ease making other
   # targets dependent on libclc.

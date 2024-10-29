@@ -329,6 +329,8 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
       return BE == sycl::backend::ext_oneapi_cuda;
     } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
       return BE == sycl::backend::ext_oneapi_hip;
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
+      return BE == sycl::backend::ext_oneapi_native_cpu;
     }
 
     return false;
@@ -378,6 +380,8 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
       return true;
     } else if (Language == source_language::sycl) {
       return detail::SYCL_Compilation_Available();
+    } else if (Language == source_language::sycl_jit) {
+      return detail::SYCL_JIT_Compilation_Available();
     }
   }
 

@@ -1,14 +1,14 @@
 // RUN: echo "Running parallel_for benchmark without range rounding"
-// RUN: %{build} -fsycl-range-rounding=disable -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fsycl-range-rounding=disable -o %t1.out
+// RUN: %{run} %t1.out
 
 // RUN: echo "Running parallel_for benchmark with normal range rounding"
-// RUN: %{build} -fsycl-range-rounding=force -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fsycl-range-rounding=force -o %t2.out
+// RUN: %{run} %t2.out
 
 // RUN: echo "Running parallel_for benchmark with experimental range rounding"
-// RUN: %{build} -fsycl-exp-range-rounding -fsycl-range-rounding=force -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fsycl-exp-range-rounding -fsycl-range-rounding=force -o %t3.out
+// RUN: %{run} %t3.out
 
 #include <chrono>
 #include <iostream>

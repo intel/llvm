@@ -42,7 +42,7 @@ SYCL_EXTERNAL auto test_binary_op2(simd<sycl::half, 8> val1, simd<long long, 8> 
 //   CHECK: <8 x i64> %[[VAL2_VEC:[a-zA-Z0-9_\.]+]]{{.*}} {
   return val1 + val2;
 // CHECK: %[[CONV:[a-zA-Z0-9_\.]+]] = sitofp <8 x i64> %[[VAL2_VEC]] to <8 x half>
-// CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = fadd <8 x half> %[[CONV]], %[[VAL1_VEC]]
+// CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = fadd <8 x half> %[[VAL1_VEC]], %[[CONV]]
 // CHECK-NEXT: ret <8 x half> %[[RES]]
 // CHECK-LABEL: }
 }
@@ -55,7 +55,7 @@ SYCL_EXTERNAL auto test_cmp_op(simd<sycl::half, 8> val1, simd<long long, 8> val2
 //   CHECK: <8 x i64> %[[VAL2_VEC:[a-zA-Z0-9_\.]+]]{{.*}} {
   return val1 < val2;
 // CHECK: %[[CONV:[a-zA-Z0-9_\.]+]] = sitofp <8 x i64> %[[VAL2_VEC]] to <8 x half>
-// CHECK-NEXT: %[[CMP:[a-zA-Z0-9_\.]+]] = fcmp ogt <8 x half> %[[CONV]], %[[VAL1_VEC]]
+// CHECK-NEXT: %[[CMP:[a-zA-Z0-9_\.]+]] = fcmp olt <8 x half> %[[VAL1_VEC]], %[[CONV]]
 // CHECK-NEXT: %[[RES:[a-zA-Z0-9_\.]+]] = zext <8 x i1> %[[CMP]] to <8 x i16>
 // CHECK-NEXT: ret <8 x i16>{{.*}}%[[RES]]
 // CHECK-LABEL: }

@@ -41,7 +41,7 @@ event_instances_t *GRecordsInProgress = nullptr;
 xpti::utils::timer::measurement_t GMeasure;
 
 constexpr const char *GStreamBasic = "sycl";
-constexpr const char *GStreamPI = "sycl.pi";
+constexpr const char *GStreamPI = "ur.call";
 constexpr const char *GStreamMemory = "sycl.experimental.mem_alloc";
 constexpr const char *GStreamL0 = "sycl.experimental.level_zero.call";
 constexpr const char *GStreamCuda = "sycl.experimental.cuda.call";
@@ -154,7 +154,7 @@ XPTI_CALLBACK_API void graphCallback(uint16_t trace_type,
                                      xpti::trace_event_data_t *parent,
                                      xpti::trace_event_data_t *event,
                                      uint64_t instance, const void *user_data);
-XPTI_CALLBACK_API void syclPiCallback(uint16_t trace_type,
+XPTI_CALLBACK_API void syclURCallback(uint16_t trace_type,
                                       xpti::trace_event_data_t *parent,
                                       xpti::trace_event_data_t *event,
                                       uint64_t instance, const void *user_data);
@@ -219,7 +219,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     // characteristics that can be encapsulated in a launcher application
     //
     // 1. XPTI_SYCL_PERF_OUTPUT=[json,csv,table,stack,all]
-    // 2. XPTI_STREAMS=[all] or [sycl,sycl.pi,sycl.perf,sycl.perf.detail,...]
+    // 2. XPTI_STREAMS=[all] or [sycl,ur.call,sycl.perf,sycl.perf.detail,...]
     // 3. XPTI_STDOUT_USE_COLOR=[1,0]
     // 4. XPTI_IGNORE_LIST=piPlatformsGet,piProgramBuild
     // 5. XPTI_SIMULATION=10,20,50,100
@@ -464,10 +464,10 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_begin,
-                         syclPiCallback);
+                         syclURCallback);
     xptiRegisterCallback(StreamID,
                          (uint16_t)xpti::trace_point_type_t::function_end,
-                         syclPiCallback);
+                         syclURCallback);
   } else if (std::string(GStreamL0) == stream_name && Check) {
     auto StreamID = xptiRegisterStream(stream_name);
     xptiRegisterCallback(StreamID,
@@ -909,7 +909,7 @@ XPTI_CALLBACK_API void graphMemCallback(uint16_t TraceType,
   // Need to add DOT writer here
 }
 
-XPTI_CALLBACK_API void syclPiCallback(uint16_t TraceType,
+XPTI_CALLBACK_API void syclURCallback(uint16_t TraceType,
                                       xpti::trace_event_data_t *Parent,
                                       xpti::trace_event_data_t *Event,
                                       uint64_t Instance, const void *UserData) {

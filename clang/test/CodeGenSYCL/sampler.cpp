@@ -5,8 +5,8 @@
 // CHECK: [[ANON:%[a-zA-Z0-9_]+]] = alloca %class.anon, align 8
 // CHECK: [[ANONCAST:%[a-zA-Z0-9_.]+]] = addrspacecast ptr [[ANON]] to ptr addrspace(4)
 // CHECK: store target("spirv.Sampler") [[SAMPLER_ARG]], ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
-// CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
-// CHECK-NEXT: [[GEP2:%[a-zA-z0-9]+]]  = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
+// CHECK-NEXT: [[GEP:%[a-zA-z0-9]+]]  = getelementptr inbounds nuw %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
+// CHECK-NEXT: [[GEP2:%[a-zA-z0-9]+]]  = getelementptr inbounds nuw %class.anon, ptr addrspace(4) [[ANONCAST]], i32 0, i32 0
 // CHECK-NEXT: [[LOAD_SAMPLER_ARG:%[0-9]+]] = load target("spirv.Sampler"), ptr addrspace(4) [[SAMPLER_ARG]].addr.ascast, align 8
 // CHECK-NEXT: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{[^,]*}} [[GEP2]], target("spirv.Sampler") [[LOAD_SAMPLER_ARG]])
 //
@@ -24,14 +24,14 @@
 // CHECK: store i32 [[ARG_A]], ptr addrspace(4) [[ARG_A]].addr.ascast, align 4
 
 // Initialize 'a'
-// CHECK: [[GEP_LAMBDA:%[a-zA-z0-9]+]] = getelementptr inbounds %class.anon.0, ptr addrspace(4) [[LAMBDA]], i32 0, i32 0
-// CHECK: [[GEP_A:%[a-zA-Z0-9]+]] = getelementptr inbounds %struct.sampler_wrapper, ptr addrspace(4) [[GEP_LAMBDA]], i32 0, i32 1
+// CHECK: [[GEP_LAMBDA:%[a-zA-z0-9]+]] = getelementptr inbounds nuw %class.anon.0, ptr addrspace(4) [[LAMBDA]], i32 0, i32 0
+// CHECK: [[GEP_A:%[a-zA-Z0-9]+]] = getelementptr inbounds nuw %struct.sampler_wrapper, ptr addrspace(4) [[GEP_LAMBDA]], i32 0, i32 1
 // CHECK: [[LOAD_A:%[0-9]+]] = load i32, ptr addrspace(4) [[ARG_A]].addr.ascast, align 4
 // CHECK: store i32 [[LOAD_A]], ptr addrspace(4) [[GEP_A]], align 8
 
 // Initialize wrapped sampler 'smpl'
-// CHECK: [[GEP_LAMBDA_0:%[a-zA-z0-9]+]] = getelementptr inbounds %class.anon.0, ptr addrspace(4) [[LAMBDA]], i32 0, i32 0
-// CHECK: [[GEP_SMPL:%[a-zA-Z0-9]+]] = getelementptr inbounds %struct.sampler_wrapper, ptr addrspace(4) [[GEP_LAMBDA_0]], i32 0, i32 0
+// CHECK: [[GEP_LAMBDA_0:%[a-zA-z0-9]+]] = getelementptr inbounds nuw %class.anon.0, ptr addrspace(4) [[LAMBDA]], i32 0, i32 0
+// CHECK: [[GEP_SMPL:%[a-zA-Z0-9]+]] = getelementptr inbounds nuw %struct.sampler_wrapper, ptr addrspace(4) [[GEP_LAMBDA_0]], i32 0, i32 0
 // CHECK: [[LOAD_SMPL:%[0-9]+]] = load target("spirv.Sampler"), ptr addrspace(4) [[SAMPLER_ARG_WRAPPED]].addr.ascast, align 8
 // CHECK: call spir_func void @{{[a-zA-Z0-9_]+}}(ptr addrspace(4) {{.*}}, target("spirv.Sampler") [[LOAD_SMPL]])
 //

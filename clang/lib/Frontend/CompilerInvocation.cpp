@@ -824,7 +824,6 @@ static bool RoundTrip(ParseFn Parse, GenerateFn Generate,
       llvm::sys::printArg(OS, Arg, /*Quote=*/true);
       OS << ' ';
     }
-    OS.flush();
     return Buffer;
   };
 
@@ -1193,7 +1192,6 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
       os << " ";
     os << Args.getArgString(i);
   }
-  os.flush();
 
   return Diags.getNumErrors() == NumErrorsBefore;
 }
@@ -1510,7 +1508,15 @@ void CompilerInvocation::setDefaultPointerAuthOptions(
         PointerAuthSchema(Key::ASIA, true, Discrimination::Decl);
     Opts.CXXMemberFunctionPointers =
         PointerAuthSchema(Key::ASIA, false, Discrimination::Type);
+
+    if (LangOpts.PointerAuthInitFini) {
+      Opts.InitFiniPointers = PointerAuthSchema(
+          Key::ASIA, LangOpts.PointerAuthInitFiniAddressDiscrimination,
+          Discrimination::Constant, InitFiniPointerConstantDiscriminator);
+    }
   }
+  Opts.ReturnAddresses = LangOpts.PointerAuthReturns;
+  Opts.AuthTraps = LangOpts.PointerAuthAuthTraps;
   Opts.IndirectGotos = LangOpts.PointerAuthIndirectGotos;
 }
 
@@ -1518,7 +1524,8 @@ static void parsePointerAuthOptions(PointerAuthOptions &Opts,
                                     const LangOptions &LangOpts,
                                     const llvm::Triple &Triple,
                                     DiagnosticsEngine &Diags) {
-  if (!LangOpts.PointerAuthCalls && !LangOpts.PointerAuthIndirectGotos)
+  if (!LangOpts.PointerAuthCalls && !LangOpts.PointerAuthReturns &&
+      !LangOpts.PointerAuthAuthTraps && !LangOpts.PointerAuthIndirectGotos)
     return;
 
   CompilerInvocation::setDefaultPointerAuthOptions(Opts, LangOpts, Triple);
@@ -3137,7 +3144,7 @@ std::string CompilerInvocation::GetResourcesPath(const char *Argv0,
                                                  void *MainAddr) {
   std::string ClangExecutable =
       llvm::sys::fs::getMainExecutable(Argv0, MainAddr);
-  return Driver::GetResourcesPath(ClangExecutable, CLANG_RESOURCE_DIR);
+  return Driver::GetResourcesPath(ClangExecutable);
 }
 
 static void GenerateHeaderSearchArgs(const HeaderSearchOptions &Opts,
@@ -3441,11 +3448,12 @@ static void GeneratePointerAuthArgs(const LangOptions &Opts,
     GenerateArg(Consumer, OPT_fptrauth_vtable_pointer_type_discrimination);
   if (Opts.PointerAuthTypeInfoVTPtrDiscrimination)
     GenerateArg(Consumer, OPT_fptrauth_type_info_vtable_pointer_discrimination);
-
-  if (Opts.PointerAuthInitFini)
-    GenerateArg(Consumer, OPT_fptrauth_init_fini);
   if (Opts.PointerAuthFunctionTypeDiscrimination)
     GenerateArg(Consumer, OPT_fptrauth_function_pointer_type_discrimination);
+  if (Opts.PointerAuthInitFini)
+    GenerateArg(Consumer, OPT_fptrauth_init_fini);
+  if (Opts.PointerAuthInitFiniAddressDiscrimination)
+    GenerateArg(Consumer, OPT_fptrauth_init_fini_address_discrimination);
 }
 
 static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
@@ -3461,10 +3469,11 @@ static void ParsePointerAuthArgs(LangOptions &Opts, ArgList &Args,
       Args.hasArg(OPT_fptrauth_vtable_pointer_type_discrimination);
   Opts.PointerAuthTypeInfoVTPtrDiscrimination =
       Args.hasArg(OPT_fptrauth_type_info_vtable_pointer_discrimination);
-
-  Opts.PointerAuthInitFini = Args.hasArg(OPT_fptrauth_init_fini);
   Opts.PointerAuthFunctionTypeDiscrimination =
       Args.hasArg(OPT_fptrauth_function_pointer_type_discrimination);
+  Opts.PointerAuthInitFini = Args.hasArg(OPT_fptrauth_init_fini);
+  Opts.PointerAuthInitFiniAddressDiscrimination =
+      Args.hasArg(OPT_fptrauth_init_fini_address_discrimination);
 }
 
 /// Check if input file kind and language standard are compatible.
@@ -3667,6 +3676,11 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
       GenerateArg(Consumer, OPT_ftrigraphs);
   }
 
+  if (T.isOSzOS() && !Opts.ZOSExt)
+    GenerateArg(Consumer, OPT_fno_zos_extensions);
+  else if (Opts.ZOSExt)
+    GenerateArg(Consumer, OPT_fzos_extensions);
+
   if (Opts.Blocks && !(Opts.OpenCL && Opts.OpenCLVersion == 200))
     GenerateArg(Consumer, OPT_fblocks);
 
@@ -3744,7 +3758,7 @@ void CompilerInvocationBase::GenerateLangArgs(const LangOptions &Opts,
     llvm::interleave(
         Opts.OMPTargetTriples, OS,
         [&OS](const llvm::Triple &T) { OS << T.str(); }, ",");
-    GenerateArg(Consumer, OPT_fopenmp_targets_EQ, OS.str());
+    GenerateArg(Consumer, OPT_fopenmp_targets_EQ, Targets);
   }
 
   if (!Opts.OMPHostIRFile.empty())
@@ -4213,6 +4227,9 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
   Opts.Trigraphs =
       Args.hasFlag(OPT_ftrigraphs, OPT_fno_trigraphs, Opts.Trigraphs);
 
+  Opts.ZOSExt =
+      Args.hasFlag(OPT_fzos_extensions, OPT_fno_zos_extensions, T.isOSzOS());
+
   Opts.Blocks = Args.hasArg(OPT_fblocks) || (Opts.OpenCL
     && Opts.OpenCLVersion == 200);
 
@@ -4418,6 +4435,24 @@ bool CompilerInvocation::ParseLangArgs(LangOptions &Opts, ArgList &Args,
       Opts.setDefaultFPContractMode(LangOptions::FPM_FastHonorPragmas);
     else
       Diags.Report(diag::err_drv_invalid_value) << A->getAsString(Args) << Val;
+  }
+
+  if (auto *A =
+          Args.getLastArg(OPT_fsanitize_undefined_ignore_overflow_pattern_EQ)) {
+    for (int i = 0, n = A->getNumValues(); i != n; ++i) {
+      Opts.OverflowPatternExclusionMask |=
+          llvm::StringSwitch<unsigned>(A->getValue(i))
+              .Case("none", LangOptionsBase::None)
+              .Case("all", LangOptionsBase::All)
+              .Case("add-unsigned-overflow-test",
+                    LangOptionsBase::AddUnsignedOverflowTest)
+              .Case("add-signed-overflow-test",
+                    LangOptionsBase::AddSignedOverflowTest)
+              .Case("negated-unsigned-const", LangOptionsBase::NegUnsignedConst)
+              .Case("unsigned-post-decr-while",
+                    LangOptionsBase::PostDecrInWhile)
+              .Default(0);
+    }
   }
 
   // Parse -fsanitize= arguments.

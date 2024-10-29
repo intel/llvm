@@ -1,4 +1,6 @@
-// REQUIRES: (opencl || level_zero)
+// REQUIRES: (opencl || level_zero) && ocloc
+// UNSUPPORTED: accelerator
+
 // RUN: %{build} -o %t.out
 // RUN: env NEOReadDebugKeys=1 CreateMultipleRootDevices=3 %{run} %t.out
 
@@ -20,6 +22,12 @@ __kernel void Kernel2(short in, __global short *out) {
 int main() {
   sycl::platform Platform;
   auto Context = Platform.ext_oneapi_get_default_context();
+
+  {
+    auto devices = Context.get_devices();
+    sycl::device d = devices[0];
+    assert(d.ext_oneapi_cl_profile() != std::string{});
+  }
 
   auto SourceKB =
       sycl::ext::oneapi::experimental::create_kernel_bundle_from_source(

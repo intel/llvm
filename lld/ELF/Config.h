@@ -42,8 +42,35 @@ class ELFFileBase;
 class SharedFile;
 class InputSectionBase;
 class EhInputSection;
+class Defined;
 class Symbol;
 class BitcodeCompiler;
+class OutputSection;
+class LinkerScript;
+class TargetInfo;
+struct Ctx;
+struct Partition;
+struct PhdrEntry;
+
+class BssSection;
+class GdbIndexSection;
+class GotPltSection;
+class GotSection;
+class IBTPltSection;
+class IgotPltSection;
+class InputSection;
+class IpltSection;
+class MipsGotSection;
+class MipsRldMapSection;
+class PPC32Got2Section;
+class PPC64LongBranchTargetSection;
+class PltSection;
+class RelocationBaseSection;
+class RelroPaddingSection;
+class StringTableSection;
+class SymbolTableBaseSection;
+class SymtabShndxSection;
+class SyntheticSection;
 
 enum ELFKind : uint8_t {
   ELFNoneKind,
@@ -123,11 +150,14 @@ struct VersionDefinition {
 
 class LinkerDriver {
 public:
+  LinkerDriver(Ctx &ctx);
+  LinkerDriver(LinkerDriver &) = delete;
   void linkerMain(ArrayRef<const char *> args);
   void addFile(StringRef path, bool withLOption);
   void addLibrary(StringRef name);
 
 private:
+  Ctx &ctx;
   void createFiles(llvm::opt::InputArgList &args);
   void inferMachineType();
   template <class ELFT> void link(llvm::opt::InputArgList &args);
@@ -218,7 +248,8 @@ struct Config {
   bool allowMultipleDefinition;
   bool fatLTOObjects;
   bool androidPackDynRelocs = false;
-  bool armThumbPLTs = false;
+  bool armHasArmISA = false;
+  bool armHasThumb2ISA = false;
   bool armHasBlx = false;
   bool armHasMovtMovw = false;
   bool armJ1J2BranchEncoding = false;
@@ -476,8 +507,106 @@ struct DuplicateSymbol {
   uint64_t value;
 };
 
+// Linker generated sections which can be used as inputs and are not specific to
+// a partition.
+struct InStruct {
+  std::unique_ptr<InputSection> attributes;
+  std::unique_ptr<SyntheticSection> riscvAttributes;
+  std::unique_ptr<BssSection> bss;
+  std::unique_ptr<BssSection> bssRelRo;
+  std::unique_ptr<GotSection> got;
+  std::unique_ptr<GotPltSection> gotPlt;
+  std::unique_ptr<IgotPltSection> igotPlt;
+  std::unique_ptr<RelroPaddingSection> relroPadding;
+  std::unique_ptr<SyntheticSection> armCmseSGSection;
+  std::unique_ptr<PPC64LongBranchTargetSection> ppc64LongBranchTarget;
+  std::unique_ptr<SyntheticSection> mipsAbiFlags;
+  std::unique_ptr<MipsGotSection> mipsGot;
+  std::unique_ptr<SyntheticSection> mipsOptions;
+  std::unique_ptr<SyntheticSection> mipsReginfo;
+  std::unique_ptr<MipsRldMapSection> mipsRldMap;
+  std::unique_ptr<SyntheticSection> partEnd;
+  std::unique_ptr<SyntheticSection> partIndex;
+  std::unique_ptr<PltSection> plt;
+  std::unique_ptr<IpltSection> iplt;
+  std::unique_ptr<PPC32Got2Section> ppc32Got2;
+  std::unique_ptr<IBTPltSection> ibtPlt;
+  std::unique_ptr<RelocationBaseSection> relaPlt;
+  // Non-SHF_ALLOC sections
+  std::unique_ptr<SyntheticSection> debugNames;
+  std::unique_ptr<GdbIndexSection> gdbIndex;
+  std::unique_ptr<StringTableSection> shStrTab;
+  std::unique_ptr<StringTableSection> strTab;
+  std::unique_ptr<SymbolTableBaseSection> symTab;
+  std::unique_ptr<SymtabShndxSection> symTabShndx;
+
+  void reset();
+};
+
 struct Ctx {
+  Config &arg;
   LinkerDriver driver;
+  LinkerScript *script;
+  TargetInfo *target;
+
+  // These variables are initialized by Writer and should not be used before
+  // Writer is initialized.
+  uint8_t *bufferStart;
+  Partition *mainPart;
+  PhdrEntry *tlsPhdr;
+  struct OutSections {
+    OutputSection *elfHeader;
+    OutputSection *programHeaders;
+    OutputSection *preinitArray;
+    OutputSection *initArray;
+    OutputSection *finiArray;
+  };
+  OutSections out;
+  SmallVector<OutputSection *, 0> outputSections;
+  std::vector<Partition> partitions;
+
+  InStruct in;
+
+  // Some linker-generated symbols need to be created as
+  // Defined symbols.
+  struct ElfSym {
+    // __bss_start
+    Defined *bss;
+
+    // etext and _etext
+    Defined *etext1;
+    Defined *etext2;
+
+    // edata and _edata
+    Defined *edata1;
+    Defined *edata2;
+
+    // end and _end
+    Defined *end1;
+    Defined *end2;
+
+    // The _GLOBAL_OFFSET_TABLE_ symbol is defined by target convention to
+    // be at some offset from the base of the .got section, usually 0 or
+    // the end of the .got.
+    Defined *globalOffsetTable;
+
+    // _gp, _gp_disp and __gnu_local_gp symbols. Only for MIPS.
+    Defined *mipsGp;
+    Defined *mipsGpDisp;
+    Defined *mipsLocalGp;
+
+    // __global_pointer$ for RISC-V.
+    Defined *riscvGlobalPointer;
+
+    // __rel{,a}_iplt_{start,end} symbols.
+    Defined *relaIpltStart;
+    Defined *relaIpltEnd;
+
+    // _TLS_MODULE_BASE_ on targets that support TLSDESC.
+    Defined *tlsModuleBase;
+  };
+  ElfSym sym;
+
   SmallVector<std::unique_ptr<MemoryBuffer>> memoryBuffers;
   SmallVector<ELFFileBase *, 0> objectFiles;
   SmallVector<SharedFile *, 0> sharedFiles;
@@ -523,6 +652,12 @@ struct Ctx {
   unsigned scriptSymOrderCounter = 1;
   llvm::DenseMap<const Symbol *, unsigned> scriptSymOrder;
 
+  // The set of TOC entries (.toc + addend) for which we should not apply
+  // toc-indirect to toc-relative relaxation. const Symbol * refers to the
+  // STT_SECTION symbol associated to the .toc input section.
+  llvm::DenseSet<std::pair<const Symbol *, uint64_t>> ppc64noTocRelax;
+
+  Ctx();
   void reset();
 
   llvm::raw_fd_ostream openAuxiliaryFile(llvm::StringRef, std::error_code &);

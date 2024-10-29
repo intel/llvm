@@ -129,19 +129,19 @@ int main() {
 }
 
 // CHECK: start testFill_Buffer1D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer1D -- OFFSET
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 
 // CHECK: start testFill_Buffer2D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer2D -- OFFSET
-// CHECK: urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 
 // CHECK: start testFill_Buffer3D
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill
 // CHECK: start testFill_Buffer3D -- OFFSET
-// CHECK: urEnqueueKernelLaunch
+// CHECK: <--- urEnqueueKernelLaunch
 
 // CHECK: start testFill_ZeroDim
-// CHECK: urEnqueueMemBufferFill
+// CHECK: <--- urEnqueueMemBufferFill

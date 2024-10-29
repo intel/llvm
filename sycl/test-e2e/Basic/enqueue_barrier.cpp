@@ -56,7 +56,7 @@ int main() {
   return 0;
 }
 
-// CHECK:---> urEnqueueEventsWaitWithBarrier
-// CHECK:---> urEnqueueEventsWaitWithBarrier
-// CHECK:---> urEnqueueEventsWaitWithBarrier
-// CHECK:---> urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier
+// CHECK: <--- urEnqueueEventsWaitWithBarrier

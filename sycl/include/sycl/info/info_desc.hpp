@@ -247,6 +247,8 @@ struct work_item_progress_capabilities;
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 } // namespace _V1

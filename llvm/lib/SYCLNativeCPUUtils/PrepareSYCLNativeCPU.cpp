@@ -338,47 +338,21 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     SmallSet<Function *, 5> RemovableFuncs;
     SmallVector<Function *, 5> WrapperFuncs;
 
-    // Retrieve the wrapper functions created by the WorkItemLoop pass.
     for (auto &OldF : OldKernels) {
-      std::optional<compiler::utils::LinkMetadataResult> VeczR =
-          compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
-      if (VeczR && VeczR.value().first) {
-        WrapperFuncs.push_back(OldF);
-      } else {
-        auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-        if (Name != OldF->getName()) {
-          WrapperFuncs.push_back(OldF);
-        }
-      }
-    }
-
-    for (auto &OldF : WrapperFuncs) {
       // If vectorization occurred, at this point we have a wrapper function
-      // that runs the vectorized kernel and peels using the scalar kernel. We
-      // make it so this wrapper steals the original kernel name.
-      std::optional<compiler::utils::LinkMetadataResult> VeczR =
-          compiler::utils::parseVeczToOrigFnLinkMetadata(*OldF);
-      if (VeczR && VeczR.value().first) {
-        auto ScalarF = VeczR.value().first;
-        OldF->takeName(ScalarF);
-        if (ScalarF->use_empty())
-          RemovableFuncs.insert(ScalarF);
-      } else {
-        // The WorkItemLoops pass created a wrapper function for the original
-        // kernel. If we have a kernel named foo(), the wrapper will be called
-        // foo-wrapper(), and will have the original kernel name retrieved by
-        // getBaseFnNameOrFnName. We set the name of the wrapper function
-        // to the original kernel name and add the original kernel to the
-        // list of functions that can be removed from the module.
-        auto Name = compiler::utils::getBaseFnNameOrFnName(*OldF);
-        Function *OrigF = M.getFunction(Name);
+      // that runs the vectorized kernel and peels using the scalar kernel.
+      // There may also be a wrapper for local variables replacement. We make it
+      // so this wrapper steals the original kernel name. Otherwise we will have
+      // a wrapper function from the work item loops. In this case we also steal
+      // the original kernel name.
+      auto Name = compiler::utils::getOrigFnName(*OldF);
+      Function *OrigF = M.getFunction(Name);
+      if (Name != OldF->getName()) {
         if (OrigF != nullptr) {
-          // The original kernel is inlined by the WorkItemLoops
-          // pass if it contained barriers or group collectives, otherwise
-          // we don't want to (and can't) remove it.
-          if (OrigF->use_empty())
-            RemovableFuncs.insert(OrigF);
           OldF->takeName(OrigF);
+          if (OrigF->use_empty()) {
+            RemovableFuncs.insert(OrigF);
+          }
         } else {
           OldF->setName(Name);
         }
@@ -490,13 +464,17 @@ PreservedAnalyses PrepareSYCLNativeCPUPass::run(Module &M,
     F->eraseFromParent();
     ModuleChanged = true;
   }
-  for (auto It = M.begin(); It != M.end();) {
-    auto Curr = It++;
-    Function &F = *Curr;
-    if (F.getNumUses() == 0 && F.isDeclaration() &&
-        F.getName().starts_with("__mux_")) {
-      F.eraseFromParent();
-      ModuleChanged = true;
+
+  // We do these twice because we create abi wrappers for mux which may show up
+  // before we've removed their user
+  for (unsigned int i = 0; i < 2; i++) {
+    for (auto It = M.begin(); It != M.end();) {
+      auto Curr = It++;
+      Function &F = *Curr;
+      if (F.getNumUses() == 0 && F.getName().starts_with("__mux_")) {
+        F.eraseFromParent();
+        ModuleChanged = true;
+      }
     }
   }
 

@@ -12,15 +12,20 @@ int N;
 void
 bar() {}
 
-[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
 static void
 func1() {}
 
 namespace {
-[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a static function or function in an anonymous namespace}}
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
 void
 func2() {}
+
+struct UnnX {};
 }
+
+[[intel::device_indirectly_callable]] // expected-error {{'device_indirectly_callable' attribute cannot be applied to a function without external linkage}}
+void func4(UnnX) {}
 
 class A {
   [[intel::device_indirectly_callable]] A() {}

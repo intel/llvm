@@ -123,9 +123,11 @@ void calls_kernel_4() {
   sycl::kernel_single_task<class Kernel4>([]() { // #Kernel4
     // integer-error@#AttrFunc2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}
+    // expected-warning@#AttrFunc2 {{'sub_group_size' attribute can only be applied to a SYCL kernel function}}
     AttrFunc2();
     // integer-error@#AttrExternalDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}
+    // expected-warning@#AttrExternalDefined2 {{'sub_group_size' attribute can only be applied to a SYCL kernel function}}
     AttrExternalDefined2();
     // integer-error@#AttrExternalNotDefined2{{kernel-called function must have a sub group size that matches the size specified for the kernel}}
     // integer-note@#Kernel4{{kernel declared here}}

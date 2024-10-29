@@ -237,17 +237,16 @@ inline backend_return_t<backend::ext_oneapi_cuda, context> get_native<
 #if SYCL_EXT_ONEAPI_BACKEND_HIP
 
 template <>
-__SYCL_DEPRECATED(
-    "Context interop is deprecated for HIP. If a native context is required,"
-    " use hipDevicePrimaryCtxRetain with a native device")
-inline backend_return_t<backend::ext_oneapi_hip, context> get_native<
-    backend::ext_oneapi_hip, context>(const context &Obj) {
+inline backend_return_t<backend::ext_oneapi_hip, context>
+get_native<backend::ext_oneapi_hip, context>(const context &Obj) {
   if (Obj.get_backend() != backend::ext_oneapi_hip) {
     throw sycl::exception(make_error_code(errc::backend_mismatch),
                           "Backends mismatch");
   }
-  return reinterpret_cast<backend_return_t<backend::ext_oneapi_hip, context>>(
-      Obj.getNative());
+  throw sycl::exception(
+      make_error_code(sycl::errc::feature_not_supported),
+      "Context interop is not supported for HIP. If a native context is "
+      "required, use hipDevicePrimaryCtxRetain with a native device");
 }
 
 #endif // SYCL_EXT_ONEAPI_BACKEND_HIP

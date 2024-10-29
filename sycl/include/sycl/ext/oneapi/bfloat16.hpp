@@ -182,7 +182,7 @@ public:
   explicit operator bool() { return to_float(value) != 0.0f; }
 
   // Unary minus operator overloading
-  friend bfloat16 operator-(bfloat16 &lhs) {
+  friend bfloat16 operator-(const bfloat16 &lhs) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__) &&                     \
     (__SYCL_CUDA_ARCH__ >= 800)
     detail::Bfloat16StorageT res;

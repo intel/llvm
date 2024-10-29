@@ -1,10 +1,10 @@
-; Test that when the -support-dynamic-linking option is used with source splitting,
+; Test that when the -allow-device-image-dependencies option is used with source splitting,
 ; dependencies to a function that can be imported do not cause the function
 ; to be added to a device image.
 ; Also ensure that functions in the same source that can be imported do not get split into
 ; different images.
 
-; RUN: sycl-post-link -properties -symbols -support-dynamic-linking -split=source -S < %s -o %t.table
+; RUN: sycl-post-link -properties -symbols -allow-device-image-dependencies -split=source -S < %s -o %t.table
 
 target triple = "spir64-unknown-unknown"
 

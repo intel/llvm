@@ -64,6 +64,11 @@ static constexpr size_t MATRIX_K = TK * 2;
 float A[MATRIX_M][MATRIX_K];
 
 int main() {
+  queue q;
+  if (!is_type_supported_by_device(q, matrix_type::tf32)) {
+    std::cout << "Joint Matrix TF32 is not supported by this device.\n";
+    return 0;
+  }
 
   big_matrix<float, MATRIX_M, MATRIX_K> MA((float *)&A);
 

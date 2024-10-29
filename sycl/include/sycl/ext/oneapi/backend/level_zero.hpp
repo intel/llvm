@@ -83,8 +83,6 @@ inline std::optional<sycl::device> find_matching_descendent_device(
           return maybe_device;
       }
     }
-
-    assert(false && "Unexpected partitioning scheme for a Level-Zero device!");
   }
 
   return {};

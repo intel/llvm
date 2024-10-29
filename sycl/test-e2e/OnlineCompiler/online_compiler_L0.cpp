@@ -7,8 +7,8 @@
 // All Level-Zero specific code is kept here and the common part that can be
 // re-used by other backends is kept in online_compiler_common.hpp file.
 
-#include <sycl/ext/intel/experimental/online_compiler.hpp>
 #include <sycl/detail/core.hpp>
+#include <sycl/ext/intel/experimental/online_compiler.hpp>
 
 #include <vector>
 
@@ -20,6 +20,10 @@
 using byte = unsigned char;
 
 #ifdef RUN_KERNELS
+bool testSupported(sycl::queue &Queue) {
+  return Queue.get_backend() == sycl::backend::ext_oneapi_level_zero;
+}
+
 sycl::kernel getSYCLKernelWithIL(sycl::queue &Queue,
                                  const std::vector<byte> &IL) {
 

@@ -496,8 +496,8 @@ __SYCL_EXPORT kernel_id get_kernel_id_impl(string_view KernelName);
 template <typename KernelName> kernel_id get_kernel_id() {
   // FIXME: This must fail at link-time if KernelName not in any available
   // translation units.
-  using KI = sycl::detail::KernelInfo<KernelName>;
-  return detail::get_kernel_id_impl(detail::string_view{KI::getName()});
+  return detail::get_kernel_id_impl(
+      detail::string_view{detail::getKernelName<KernelName>()});
 }
 
 /// \returns a vector with all kernel_id's defined in the application

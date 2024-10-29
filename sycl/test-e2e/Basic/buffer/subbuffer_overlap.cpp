@@ -16,13 +16,13 @@ int main() {
   for (auto &e : sycl::host_accessor{b})
     e = idx++ % size;
 
-  // CHECK: urMemBufferPartition
+  // CHECK: <--- urMemBufferPartition
   // CHECK: .origin = 256, .size = 64
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{sub1, cgh};
     cgh.parallel_for(size, [=](auto id) { acc[id] += 1; });
   });
-  // CHECK: urMemBufferPartition
+  // CHECK: <--- urMemBufferPartition
   // CHECK: .origin = 256, .size = 128
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{sub2, cgh};

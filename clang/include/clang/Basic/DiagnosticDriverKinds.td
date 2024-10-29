@@ -102,8 +102,10 @@ def warn_drv_amdgpu_cov6: Warning<
   "code object v6 is still in development and not ready for production use yet;"
   " use at your own risk">;
 def err_drv_undetermined_gpu_arch : Error<
-  "cannot determine %0 architecture: %1; consider passing it via "
-  "'%2'">;
+  "cannot determine %0 architecture: %1; consider passing it via '%2'; "
+  "environment variable CLANG_TOOLCHAIN_PROGRAM_TIMEOUT specifies the tool "
+  "timeout (integer secs, <=0 is infinite)">;
+
 def warn_drv_multi_gpu_arch : Warning<
   "multiple %0 architectures are detected: %1; only the first one is used for "
   "'%2'">, InGroup<MultiGPU>;
@@ -396,6 +398,10 @@ def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
 def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
+def err_drv_sycl_offload_arch_new_driver: Error<
+  "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_sycl_offload_arch_missing_value : Error<
+  "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
@@ -520,6 +526,9 @@ def warn_drv_no_floating_point_registers: Warning<
   InGroup<UnsupportedABI>;
 def warn_ignoring_ftabstop_value : Warning<
   "ignoring invalid -ftabstop value '%0', using default value %1">;
+def warn_ignoring_value_using_default : Warning<
+  "ignoring invalid '%0' value '%1', using default value '%2'">,
+  InGroup<UnusedCommandLineArgument>;
 def warn_drv_overriding_option : Warning<
   "overriding '%0' option with '%1'">,
   InGroup<DiagGroup<"overriding-option">>;
@@ -672,9 +681,6 @@ def warn_drv_unsupported_gpopt : Warning<
   "ignoring '-mgpopt' option as it cannot be used with %select{|the implicit"
   " usage of }0-mabicalls">,
   InGroup<UnsupportedGPOpt>;
-def warn_drv_unsupported_sdata : Warning<
-  "ignoring '-msmall-data-limit=' with -mcmodel=large for -fpic or RV64">,
-  InGroup<OptionIgnored>;
 def warn_drv_unsupported_longcalls : Warning<
   "ignoring '-mlong-calls' option as it is not currently supported with "
   "%select{|the implicit usage of }0-mabicalls">,
@@ -883,6 +889,8 @@ def warn_drv_missing_multilib : Warning<
   InGroup<DiagGroup<"missing-multilib">>;
 def note_drv_available_multilibs : Note<
   "available multilibs are:%0">;
+def err_drv_multilib_custom_error : Error<
+  "multilib configuration error: %0">;
 
 def err_drv_experimental_crel : Error<
   "-Wa,--allow-experimental-crel must be specified to use -Wa,--crel. "

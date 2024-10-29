@@ -378,6 +378,7 @@ static bool shouldPinPassToLegacyPM(StringRef Pass) {
       "expand-large-fp-convert",
       "fpbuiltin-fn-selection",
       "callbrprepare",
+      "scalarizer",
   };
   for (const auto &P : PassNamePrefix)
     if (Pass.starts_with(P))
@@ -446,7 +447,6 @@ extern "C" int optMain(
   initializePostInlineEntryExitInstrumenterPass(Registry);
   initializeUnreachableBlockElimLegacyPassPass(Registry);
   initializeExpandReductionsPass(Registry);
-  initializeExpandVectorPredicationPass(Registry);
   initializeWasmEHPreparePass(Registry);
   initializeWriteBitcodePassPass(Registry);
   initializeReplaceWithVeclibLegacyPass(Registry);
@@ -740,11 +740,11 @@ extern "C" int optMain(
                ? OK_OutputAssembly
                : (OutputThinLTOBC ? OK_OutputThinLTOBitcode : OK_OutputBitcode);
 
-    VerifierKind VK = VK_VerifyOut;
+    VerifierKind VK = VerifierKind::InputOutput;
     if (NoVerify)
-      VK = VK_NoVerifier;
+      VK = VerifierKind::None;
     else if (VerifyEach)
-      VK = VK_VerifyEachPass;
+      VK = VerifierKind::EachPass;
 
     // The user has asked to use the new pass manager and provided a pipeline
     // string. Hand off the rest of the functionality to the new code for that

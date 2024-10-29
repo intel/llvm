@@ -33,7 +33,8 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class plugin;
+class Adapter;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
@@ -90,7 +91,7 @@ public:
 
   virtual ~SYCLMemObjT() = default;
 
-  const PluginPtr &getPlugin() const;
+  const AdapterPtr &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -353,7 +354,7 @@ protected:
   // Indicates if memory object should write memory to the host on destruction.
   bool MNeedWriteBack;
   // Size of memory.
-  size_t MSizeInBytes;
+  size_t MSizeInBytes = 0;
   // User's pointer passed to constructor.
   void *MUserPtr;
   // Copy of memory passed by user to constructor.

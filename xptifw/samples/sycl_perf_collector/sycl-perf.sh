@@ -32,7 +32,7 @@ help()
     echo "          -c,--color       Boolean option, if provided will display output in color for stack data"
     echo "          -s,--streams     Streams to monitor in the SYCL runtime. Multiple streams can be provided"
     echo -e "                           as comma separated values for ${yellow}<Value4>${green}"
-    echo -e "                           Example:- ${yellow}sycl,sycl.pi,sycl.perf ${clear}${green}"
+    echo -e "                           Example:- ${yellow}sycl,ur.call,sycl.perf ${clear}${green}"
     echo "          -e,--calibrate   Boolean option, if provided will run the application with an empty collector."
     echo "          -v,--verbose     Boolean option, if provided will display verbose output of the collector status"
     echo "          -d,--debug       Boolean option, if provided will display debug output, including saved record information."

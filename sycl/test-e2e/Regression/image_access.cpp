@@ -45,5 +45,5 @@ int main() {
   return 0;
 }
 
-// CHECK:---> urMemImageCreate
-// CHECK:---> urEnqueueMemImageRead
+// CHECK: <--- urMemImageCreate
+// CHECK: <--- urEnqueueMemImageRead
