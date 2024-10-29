@@ -529,8 +529,7 @@ public:
     std::string XsFlags = extractXsFlags(BuildOptions);
     auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
         UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
-    if (Res ==
-        UR_RESULT_ERROR_UNSUPPORTED_FEATURE) { // (Res != UR_RESULT_SUCCESS) {
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
       Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
           ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
     }

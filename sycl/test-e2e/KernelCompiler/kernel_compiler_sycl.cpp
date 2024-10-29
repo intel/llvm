@@ -182,6 +182,8 @@ void test_build_and_run(bool readingFromCache) {
       syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
 
+  // If the kernel was restored from cache, there will not have been
+  // any warning issued by the compilation of the kernel.
   if (!readingFromCache) {
     assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
            std::string::npos);
