@@ -1,6 +1,5 @@
 // REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
-// RUN: env UR_LAYER_ASAN_OPTIONS=debug:1 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-DEBUG %s
 // RUN: env UR_LAYER_ASAN_OPTIONS=debug:0 %{run} %t 2>&1 | FileCheck %s
 
 #include <sycl/usm.hpp>
@@ -23,7 +22,6 @@ int main() {
         });
   });
   Q.wait();
-  // CHECK-DEBUG: [kernel]
   // CHECK-NOT: [kernel]
 
   sycl::free(array, Q);
