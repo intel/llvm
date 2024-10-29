@@ -2404,6 +2404,11 @@ ur_result_t UR_APICALL urUSMSharedAlloc(
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Free the USM memory object
 ///
+/// @details
+///     - Note that implementations are required to wait for previously enqueued
+///       commands that may be accessing `pMem` to finish before freeing the
+///       memory.
+///
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
 ///     - ::UR_RESULT_ERROR_UNINITIALIZED
