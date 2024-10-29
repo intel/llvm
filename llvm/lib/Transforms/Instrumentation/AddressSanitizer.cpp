@@ -1308,11 +1308,11 @@ static void DisableSanitizerForAllCalledFunctions(Function *F, CallGraph &CG) {
   }
 }
 
+static StringMap<GlobalVariable *> GlobalStringMap;
+
 static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
                                                StringRef Value,
                                                unsigned AddressSpace) {
-  static StringMap<GlobalVariable *> GlobalStringMap;
-
   GlobalVariable *StringGV = nullptr;
   if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
     return GlobalStringMap.at(Value.str());
@@ -1370,12 +1370,12 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
   }
 
-  // Create metadata global to record spirv kernels' information
+  // Create global variable to record spirv kernels' information
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
   Constant *MetadataInitializer =
       ConstantArray::get(ArrayTy, SpirKernelsMetadata);
   GlobalVariable *AsanSpirKernelMetadata = new GlobalVariable(
-      M, MetadataInitializer->getType(), false, GlobalValue::ExternalLinkage,
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
       MetadataInitializer, "__AsanSpirKernelMetadata", nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
@@ -1480,7 +1480,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         auto *CurF = CI->getFunction();
         Args.push_back(CurF->getArg(CurF->arg_size() - 1));
 
-        CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+        CallInst *NewCI =
+            CallInst::Create(NewF, Args, CI->getName(), CI->getIterator());
         NewCI->setCallingConv(CI->getCallingConv());
         NewCI->setAttributes(CI->getAttributes());
         NewCI->setDebugLoc(CI->getDebugLoc());
@@ -1546,6 +1547,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   Modified |= ModuleSanitizer.instrumentModule();
   if (!Modified)
     return PreservedAnalyses::all();
+
+  GlobalStringMap.clear();
 
   PreservedAnalyses PA = PreservedAnalyses::none();
   // GlobalsAA is considered stateless and does not get invalidated unless
