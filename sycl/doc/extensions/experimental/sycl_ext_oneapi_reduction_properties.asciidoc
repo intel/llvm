@@ -151,10 +151,6 @@ reduction algorithm selection based on desired behavior(s). Compile-time
 properties corresponding to existing runtime properties are also introduced to
 ensure that all information can be passed via a single property list.
 
-If a reduction kernel is submitted to a device that cannot satisfy the
-request for specific reduction behavior(s), the implementation must throw an
-`exception` with the `errc::feature_not_supported` error code.
-
 [source,c++]
 ----
 namespace sycl::ext::oneapi::experimental {
