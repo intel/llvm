@@ -48,6 +48,8 @@ params:
 returns:
     - $X_RESULT_ERROR_INVALID_SIZE:
         - "`NumEntries == 0 && phPlatforms != NULL`"
+    - $X_RESULT_ERROR_INVALID_VALUE:
+        - "`pNumPlatforms == NULL && phPlatforms == NULL`"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Supported platform info"
