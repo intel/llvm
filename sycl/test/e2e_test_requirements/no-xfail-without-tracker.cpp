@@ -56,10 +56,7 @@
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
 //
-// CHECK: Adapters/interop-cuda-experimental.cpp
-// CHECK-NEXT: Adapters/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
-// CHECK-NEXT: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/accessor/accessor.cpp
+// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
 // CHECK-NEXT: Basic/built-ins.cpp
