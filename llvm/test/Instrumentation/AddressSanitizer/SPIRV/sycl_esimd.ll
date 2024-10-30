@@ -8,7 +8,7 @@ define spir_kernel void @sycl_kernel(ptr addrspace(1) %p) #0 {
 entry:
   %0 = load i32, ptr addrspace(1) %p, align 4
   ; CHECK: store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
-  ; CHECK: call void @__asan_load4
+  ; CHECK: call void @__asan_load4_as1
   ret void
 }
 
