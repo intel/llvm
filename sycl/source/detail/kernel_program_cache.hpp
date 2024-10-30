@@ -194,7 +194,7 @@ public:
                    << reinterpret_cast<uintptr_t>(Device) << ",";
 
       std::string Identifier = "[Key:{imageId = " + std::to_string(ImageId) +
-                               ",urDevice = " + DeviceList.str() + "]}: ";
+                               ",urDevice = " + DeviceList.str() + "}]: ";
 
       // Get TID of current thread.
       thread_local std::thread::id this_id = std::this_thread::get_id();
@@ -212,8 +212,8 @@ public:
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache();
     if (traceEnabled) {
       std::string Identifier =
-          "[IsFastCache: " + std::to_string(IsKernelFastCache)
-                           + "][Key:{Name = " + KernelName + "]}: ";
+          "[IsFastCache: " + std::to_string(IsKernelFastCache) +
+          "][Key:{Name = " + KernelName + "}]: ";
 
       // Get TID of current thread.
       thread_local std::thread::id this_id = std::this_thread::get_id();
@@ -284,7 +284,7 @@ public:
       traceKernel("Kernel inserted.", KernelName);
     }
     else
-      traceKernel("Kernel fetched", KernelName);
+      traceKernel("Kernel fetched.", KernelName);
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -293,7 +293,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
-      traceKernel("Kernel fetched", std::get<3>(CacheKey), true);
+      traceKernel("Kernel fetched.", std::get<3>(CacheKey), true);
       return It->second;
     }
     return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
