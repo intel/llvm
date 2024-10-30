@@ -1382,8 +1382,6 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
 
   // Handle SpirFixupKernels
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
-  auto *IntptrAS1Ty =
-      M.getDataLayout().getIntPtrType(M.getContext(), kSpirOffloadGlobalAS);
 
   for (auto *F : SpirFixupKernels) {
     SmallVector<Type *, 16> Types;
@@ -1393,7 +1391,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     }
 
     // New argument: uintptr_t as(1)*, which is allocated in shared USM buffer
-    Types.push_back(IntptrAS1Ty->getPointerTo(kSpirOffloadGlobalAS));
+    Types.push_back(IntptrTy->getPointerTo(kSpirOffloadGlobalAS));
 
     FunctionType *NewFTy = FunctionType::get(F->getReturnType(), Types, false);
 
