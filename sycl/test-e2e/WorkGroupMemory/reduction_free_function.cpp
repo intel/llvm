@@ -38,7 +38,6 @@ context ctx = q.get_context();
 
 constexpr size_t SIZE = 128;
 constexpr size_t VEC_SIZE = 16;
-constexpr float tolerance = 0.01f;
 
 template <typename T>
 void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem,
