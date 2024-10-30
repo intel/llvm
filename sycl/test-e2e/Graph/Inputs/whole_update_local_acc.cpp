@@ -9,12 +9,12 @@ auto add_graph_node(
     exp_ext::command_graph<exp_ext::graph_state::modifiable> &Graph,
     queue &Queue, size_t Size, size_t LocalSize, T *Ptr) {
   return add_node(Graph, Queue, [&](handler &CGH) {
-    local_accessor<T, 1> localMem(LocalSize, CGH);
+    local_accessor<T, 1> LocalMem(LocalSize, CGH);
 
     CGH.parallel_for(nd_range({Size}, {LocalSize}), [=](nd_item<1> Item) {
-      localMem[Item.get_local_linear_id()] = Item.get_global_linear_id() * 2;
+      LocalMem[Item.get_local_linear_id()] = Item.get_global_linear_id() * 2;
       Ptr[Item.get_global_linear_id()] +=
-          localMem[Item.get_local_linear_id()] + Item.get_local_range(0);
+          LocalMem[Item.get_local_linear_id()] + Item.get_local_range(0);
     });
   });
 }
@@ -61,8 +61,8 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     T RefA = 10 + i + (i * 2) + LocalSize / 2;
     T RefB = 10 + i;
-    (check_value(i, RefA, ReferenceA[i], "PtrA"));
-    (check_value(i, RefB, ReferenceB[i], "PtrB"));
+    check_value(i, RefA, ReferenceA[i], "PtrA");
+    check_value(i, RefB, ReferenceB[i], "PtrB");
   }
 
   // Update GraphExecA using whole graph update
@@ -83,8 +83,8 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     T RefA = 10 + i + (i * 2) + LocalSize / 2;
     T RefB = 10 + i + (i * 2) + LocalSize;
-    (check_value(i, RefA, ReferenceA[i], "PtrA"));
-    (check_value(i, RefB, ReferenceB[i], "PtrB"));
+    check_value(i, RefA, ReferenceA[i], "PtrA");
+    check_value(i, RefB, ReferenceB[i], "PtrB");
   }
 
   free(PtrA, Queue);

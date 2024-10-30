@@ -24,11 +24,11 @@ int main() {
   Queue.wait_and_throw();
 
   auto node = add_node(Graph, Queue, [&](handler &CGH) {
-    local_accessor<T, 1> localMem(LocalSize, CGH);
+    local_accessor<T, 1> LocalMem(LocalSize, CGH);
 
     CGH.parallel_for(nd_range({Size}, {LocalSize}), [=](nd_item<1> Item) {
-      localMem[Item.get_local_linear_id()] = Item.get_global_linear_id() * 2;
-      PtrA[Item.get_global_linear_id()] += localMem[Item.get_local_linear_id()];
+      LocalMem[Item.get_local_linear_id()] = Item.get_global_linear_id() * 2;
+      PtrA[Item.get_global_linear_id()] += LocalMem[Item.get_local_linear_id()];
     });
   });
 
@@ -47,7 +47,7 @@ int main() {
 
   for (size_t i = 0; i < Size; i++) {
     T Ref = 10 + i + (i * 2);
-    (check_value(i, Ref, ReferenceA[i], "PtrA"));
+    check_value(i, Ref, ReferenceA[i], "PtrA");
   }
 
   return 0;
