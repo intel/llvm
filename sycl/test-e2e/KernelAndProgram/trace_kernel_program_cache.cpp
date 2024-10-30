@@ -5,15 +5,13 @@
 // There should be no tracing output when SYCL_CACHE_IN_MEM is not set
 // or SYCL_CACHE_TRACE is set to 0.
 
-// RUN: env SYCL_CACHE_IN_MEM=0 %{run} %t.out \
-// RUN: | FileCheck --allow-empty --check-prefix=CHECK-NO-TRACE %s
-// RUN: env SYCL_CACHE_TRACE=0 %{run} %t.out \
-// RUN: | FileCheck --allow-empty --check-prefix=CHECK-NO-TRACE %s
+// RUN: env SYCL_CACHE_IN_MEM=0 %{run} %t.out 2> %t.trace1
+// RUN: FileCheck --allow-empty --input-file=%t.trace1 --implicit-check-not "In-Memory Cache" %s
+// RUN: env SYCL_CACHE_TRACE=0 %{run} %t.out 2> %t.trace2
+// RUN: FileCheck --allow-empty --input-file=%t.trace2 --implicit-check-not "In-Memory Cache" %s
 
-// CHECK-NO-TRACE-NOT: [In-Memory Cache]{{.*}}
-
-// RUN: env SYCL_CACHE_TRACE=2 %{run} %t.out 2> %t.trace
-// RUN: FileCheck %s --input-file=%t.trace --check-prefix=CHECK-CACHE-TRACE
+// RUN: env SYCL_CACHE_TRACE=2 %{run} %t.out 2> %t.trace3
+// RUN: FileCheck %s --input-file=%t.trace3 --check-prefix=CHECK-CACHE-TRACE
 
 #include <sycl/detail/core.hpp>
 

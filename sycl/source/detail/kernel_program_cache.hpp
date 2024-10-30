@@ -179,47 +179,50 @@ public:
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
-  /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
-   * set.*/
+  // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
+  // set.
   static inline void traceProgram(const std::string &Msg,
                                   const ProgramCacheKeyT &CacheKey) {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache();
-    if (traceEnabled) {
 
-      int ImageId = CacheKey.first.second;
-      std::stringstream DeviceList;
-      for (const auto &Device : CacheKey.second)
-        DeviceList << "0x" << std::setbase(16)
-                   << reinterpret_cast<uintptr_t>(Device) << ",";
+    if (!traceEnabled)
+      return;
 
-      std::string Identifier = "[Key:{imageId = " + std::to_string(ImageId) +
-                               ",urDevice = " + DeviceList.str() + "}]: ";
+    int ImageId = CacheKey.first.second;
+    std::stringstream DeviceList;
+    for (const auto &Device : CacheKey.second)
+      DeviceList << "0x" << std::setbase(16)
+                 << reinterpret_cast<uintptr_t>(Device) << ",";
 
-      // Get TID of current thread.
-      thread_local std::thread::id this_id = std::this_thread::get_id();
-      std::cerr << "[In-Memory Cache][Thread Id:" << this_id
-                << "][Program Cache]" << Identifier << Msg << std::endl;
-    }
+    std::string Identifier = "[Key:{imageId = " + std::to_string(ImageId) +
+                             ",urDevice = " + DeviceList.str() + "}]: ";
+
+    // Get TID of current thread.
+    thread_local std::thread::id this_id = std::this_thread::get_id();
+    std::cerr << "[In-Memory Cache][Thread Id:" << this_id << "][Program Cache]"
+              << Identifier << Msg << std::endl;
   }
 
-  /* Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
-   * set.*/
+  // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
+  // set.
   static inline void traceKernel(const std::string &Msg,
                                  const std::string &KernelName,
                                  bool IsKernelFastCache = false) {
     static const bool traceEnabled =
         SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache();
-    if (traceEnabled) {
-      std::string Identifier =
-          "[IsFastCache: " + std::to_string(IsKernelFastCache) +
-          "][Key:{Name = " + KernelName + "}]: ";
 
-      // Get TID of current thread.
-      thread_local std::thread::id this_id = std::this_thread::get_id();
-      std::cerr << "[In-Memory Cache][Thread Id:" << this_id
-                << "][Kernel Cache]" << Identifier << Msg << std::endl;
-    }
+    if (!traceEnabled)
+      return;
+
+    std::string Identifier =
+        "[IsFastCache: " + std::to_string(IsKernelFastCache) +
+        "][Key:{Name = " + KernelName + "}]: ";
+
+    // Get TID of current thread.
+    thread_local std::thread::id this_id = std::this_thread::get_id();
+    std::cerr << "[In-Memory Cache][Thread Id:" << this_id << "][Kernel Cache]"
+              << Identifier << Msg << std::endl;
   }
 
   Locked<ProgramCache> acquireCachedPrograms() {
