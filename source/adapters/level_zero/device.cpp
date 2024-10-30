@@ -186,7 +186,7 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
           }
         }
       };
-  return Device->ZeGlobalMemSize.operator->()->value;
+  return Device->ZeGlobalMemSize.get().value;
 }
 
 ur_result_t urDeviceGetInfo(
