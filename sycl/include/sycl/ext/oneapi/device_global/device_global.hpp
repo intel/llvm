@@ -40,6 +40,8 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <typename T, typename PropertyListT> class device_global;
+
 namespace detail {
 // Type-trait for checking if a type defines `operator->`.
 template <typename T, typename = void>
@@ -49,10 +51,19 @@ struct HasArrowOperator<T,
                         std::void_t<decltype(std::declval<T>().operator->())>>
     : std::true_type {};
 
+template <typename T, typename PropertyListT, typename>
+class device_global_base;
+
 // Checks that T is a reference to either device_global or
 // device_global_base. This is used by the variadic ctor to allow copy ctors to
 // take preference.
 template <typename T> struct IsDeviceGlobalOrBaseRef : std::false_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global_base<T, PropertyListT, void> &>
+    : std::true_type {};
+template <typename T, typename PropertyListT>
+struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
+    : std::true_type {};
 
 // Base class for device_global.
 template <typename T, typename PropertyListT, typename = void>
@@ -179,10 +190,6 @@ public:
   }
 };
 
-template <typename T, typename PropertyListT>
-struct IsDeviceGlobalOrBaseRef<const device_global_base<T, PropertyListT> &>
-    : std::true_type {};
-
 } // namespace detail
 
 template <typename T, typename PropertyListT = empty_properties_t>
@@ -304,12 +311,6 @@ public:
     return property_list_t::template get_property<propertyT>();
   }
 };
-
-namespace detail {
-template <typename T, typename PropertyListT>
-struct IsDeviceGlobalOrBaseRef<device_global<T, PropertyListT> &>
-    : std::true_type {};
-} // namespace detail
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1
