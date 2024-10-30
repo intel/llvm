@@ -839,7 +839,7 @@ struct AddressSanitizer {
                                        ArrayRef<Instruction *> RetVec);
   bool instrumentSyclDynamicLocalMemory(Function &F,
                                         ArrayRef<Instruction *> RetVec);
-  void instrumentInitAsanLaunchInfo(Function &F);
+  void instrumentInitAsanLaunchInfo(Function &F, const TargetLibraryInfo *TLI);
 
   void AppendDebugInfoToArgs(Instruction *InsertBefore, Value *Addr,
                              SmallVectorImpl<Value *> &Args);
@@ -1536,9 +1536,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
         Options.UseAfterScope, Options.UseAfterReturn);
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
-    if (Triple(M.getTargetTriple()).isSPIROrSPIRV() &&
-        F.getCallingConv() == CallingConv::SPIR_KERNEL) {
-      FunctionSanitizer.instrumentInitAsanLaunchInfo(F);
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+      FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
       Modified = true;
     }
   }
@@ -1809,7 +1808,8 @@ bool AddressSanitizer::instrumentSyclDynamicLocalMemory(
 
 // Initialize the value of local memory "__AsanLaunchInfo",  store
 // "__asan_launch" if it's an extended kernel, and store 0 if not
-void AddressSanitizer::instrumentInitAsanLaunchInfo(Function &F) {
+void AddressSanitizer::instrumentInitAsanLaunchInfo(
+    Function &F, const TargetLibraryInfo *TLI) {
   InstrumentationIRBuilder IRB(F.getEntryBlock().getFirstNonPHI());
   if (F.arg_size()) {
     auto *LastArg = F.getArg(F.arg_size() - 1);
@@ -1818,6 +1818,7 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(Function &F) {
       return;
     }
   }
+  initializeCallbacks(TLI);
   IRB.CreateStore(
       ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
       AsanLaunchInfo);
