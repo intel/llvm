@@ -1512,23 +1512,45 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static bool containsTargetExtType(const Type *Ty) {
-  if (isa<TargetExtType>(Ty))
-    return true;
+static TargetExtType *getTargetExtType(Type *Ty) {
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
+    return TargetTy;
 
   if (Ty->isVectorTy())
-    return containsTargetExtType(Ty->getScalarType());
+    return getTargetExtType(Ty->getScalarType());
 
   if (Ty->isArrayTy())
-    return containsTargetExtType(Ty->getArrayElementType());
+    return getTargetExtType(Ty->getArrayElementType());
 
   if (auto *STy = dyn_cast<StructType>(Ty)) {
     for (unsigned int i = 0; i < STy->getNumElements(); i++)
-      if (containsTargetExtType(STy->getElementType(i)))
-        return true;
-    return false;
+      if (auto *TargetTy = getTargetExtType(STy->getElementType(i)))
+        return TargetTy;
+    return nullptr;
   }
 
+  return nullptr;
+}
+
+// Skip pointer operand that is sycl joint matrix access since it isn't from
+// user code, e.g. %call:
+// clang-format off
+// %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
+// %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
+// %call = call spir_func ptr
+// @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
+// %1 = load float, ptr %call, align 4
+// store float %1, ptr %call, align 4
+// clang-format on
+static bool isJointMatrixAccess(Value *V) {
+  if (auto *CI = dyn_cast<CallInst>(V)) {
+    for (Value *Op : CI->args()) {
+      if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
+        if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
+          return TargetTy->getName().startswith("spirv.") &&
+                 TargetTy->getName().contains("Matrix");
+    }
+  }
   return false;
 }
 
@@ -1551,13 +1573,15 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
 
   // Ignore load/store for target ext type since we can't know exactly what size
   // it is.
-  if (isa<StoreInst>(Inst) &&
-      containsTargetExtType(
-          cast<StoreInst>(Inst)->getValueOperand()->getType()))
-    return true;
+  if (auto *SI = dyn_cast<StoreInst>(Inst))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
 
-  if (isa<LoadInst>(Inst) && containsTargetExtType(Inst->getType()))
-    return true;
+  if (auto *LI = dyn_cast<LoadInst>(Inst))
+    if (getTargetExtType(Inst->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
@@ -1806,7 +1830,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        !(SSGI && SSGI->isSafe(AI)) &&
        // ignore alloc contains target ext type since we can't know exactly what
        // size it is.
-       !containsTargetExtType(AI.getAllocatedType()));
+       !getTargetExtType(AI.getAllocatedType()));
 
   ProcessedAllocas[&AI] = IsInteresting;
   return IsInteresting;
