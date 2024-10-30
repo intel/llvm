@@ -139,8 +139,9 @@ TEST_P(urEnqueueKernelLaunchTest, InvalidKernelArgs) {
                                      nullptr));
 
     if (backend == UR_PLATFORM_BACKEND_CUDA ||
-        backend == UR_PLATFORM_BACKEND_HIP) {
-        GTEST_FAIL() << "AMD and Nvidia can't check kernel arguments.";
+        backend == UR_PLATFORM_BACKEND_HIP ||
+        backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+        GTEST_FAIL() << "AMD, L0 and Nvidia can't check kernel arguments.";
     }
 
     // Enqueue kernel without setting any args
@@ -471,6 +472,8 @@ struct urEnqueueKernelLaunchMultiDeviceTest : public urEnqueueKernelLaunchTest {
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchMultiDeviceTest);
 
+// TODO: rewrite this test, right now it only works for a single queue
+// (the context is only created for one device)
 TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
     ur_mem_handle_t buffer = nullptr;
     AddBuffer1DArg(sizeof(val) * global_size, &buffer);
@@ -561,8 +564,8 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
     }
 
     // Build linked list with USM allocations
-    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, pool,
-                                    sizeof(Node),
+    ur_usm_desc_t desc{UR_STRUCTURE_TYPE_USM_DESC, nullptr, 0, alignof(Node)};
+    ASSERT_SUCCESS(urUSMSharedAlloc(context, device, &desc, pool, sizeof(Node),
                                     reinterpret_cast<void **>(&list_head)));
     ASSERT_NE(list_head, nullptr);
     Node *list_cur = list_head;
@@ -570,7 +573,7 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
         list_cur->num = i * 2;
         if (i < num_nodes - 1) {
             ASSERT_SUCCESS(
-                urUSMSharedAlloc(context, device, nullptr, pool, sizeof(Node),
+                urUSMSharedAlloc(context, device, &desc, pool, sizeof(Node),
                                  reinterpret_cast<void **>(&list_cur->next)));
             ASSERT_NE(list_cur->next, nullptr);
         } else {
@@ -578,6 +581,11 @@ TEST_P(urEnqueueKernelLaunchUSMLinkedList, Success) {
         }
         list_cur = list_cur->next;
     }
+
+    ur_bool_t indirect = true;
+    ASSERT_SUCCESS(urKernelSetExecInfo(kernel,
+                                       UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS,
+                                       sizeof(indirect), nullptr, &indirect));
 
     // Run kernel which will iterate the list and modify the values
     ASSERT_SUCCESS(urKernelSetArgPointer(kernel, 0, nullptr, list_head));
