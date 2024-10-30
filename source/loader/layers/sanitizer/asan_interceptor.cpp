@@ -682,28 +682,6 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                      LocalWorkSize[Dim];
         }
 
-        auto EnqueueAllocateShadowMemory = [Context = ContextInfo->Handle,
-                                            Device = DeviceInfo->Handle,
-                                            Queue](size_t Size, uptr &Ptr) {
-            void *Allocated = nullptr;
-            auto URes = getContext()->urDdiTable.USM.pfnDeviceAlloc(
-                Context, Device, nullptr, nullptr, Size, &Allocated);
-            if (URes != UR_RESULT_SUCCESS) {
-                return URes;
-            }
-            // Initialize shadow memory
-            URes = EnqueueUSMBlockingSet(Queue, Allocated, 0, Size);
-            if (URes != UR_RESULT_SUCCESS) {
-                [[maybe_unused]] auto URes =
-                    getContext()->urDdiTable.USM.pfnFree(Context, Allocated);
-                assert(URes == UR_RESULT_SUCCESS &&
-                       "urUSMFree failed at allocating shadow memory");
-                Allocated = nullptr;
-            }
-            Ptr = (uptr)Allocated;
-            return URes;
-        };
-
         auto LocalMemoryUsage =
             GetKernelLocalMemorySize(Kernel, DeviceInfo->Handle);
         auto PrivateMemoryUsage =
@@ -715,86 +693,45 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
 
         // Write shadow memory offset for local memory
         if (getOptions().DetectLocals) {
-            // CPU needn't this
-            if (DeviceInfo->Type == DeviceType::GPU_PVC ||
-                DeviceInfo->Type == DeviceType::GPU_DG2) {
-                const size_t LocalMemorySize =
-                    GetDeviceLocalMemorySize(DeviceInfo->Handle);
-                const size_t LocalShadowMemorySize =
-                    (NumWG * LocalMemorySize) >> ASAN_SHADOW_SCALE;
-
-                getContext()->logger.debug(
-                    "LocalMemory(WorkGroup={}, LocalMemorySize={}, "
-                    "LocalShadowMemorySize={})",
-                    NumWG, LocalMemorySize, LocalShadowMemorySize);
-
-                if (EnqueueAllocateShadowMemory(
-                        LocalShadowMemorySize,
-                        LaunchInfo.Data->LocalShadowOffset) !=
-                    UR_RESULT_SUCCESS) {
-                    getContext()->logger.warning(
-                        "Failed to allocate shadow memory for local "
-                        "memory, maybe the number of workgroup ({}) is too "
-                        "large",
-                        NumWG);
-                    getContext()->logger.warning(
-                        "Skip checking local memory of kernel <{}>",
-                        GetKernelName(Kernel));
-                } else {
-                    LaunchInfo.Data->LocalShadowOffsetEnd =
-                        LaunchInfo.Data->LocalShadowOffset +
-                        LocalShadowMemorySize - 1;
-
-                    ContextInfo->Stats.UpdateShadowMalloced(
-                        LocalShadowMemorySize);
-
-                    getContext()->logger.info(
-                        "ShadowMemory(Local, {} - {})",
-                        (void *)LaunchInfo.Data->LocalShadowOffset,
-                        (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
-                }
+            if (DeviceInfo->Shadow->AllocLocalShadow(
+                    Queue, NumWG, LaunchInfo.Data->LocalShadowOffset,
+                    LaunchInfo.Data->LocalShadowOffsetEnd) !=
+                UR_RESULT_SUCCESS) {
+                getContext()->logger.warning(
+                    "Failed to allocate shadow memory for local "
+                    "memory, maybe the number of workgroup ({}) is too "
+                    "large",
+                    NumWG);
+                getContext()->logger.warning(
+                    "Skip checking local memory of kernel <{}>",
+                    GetKernelName(Kernel));
+            } else {
+                getContext()->logger.info(
+                    "ShadowMemory(Local, WorkGroup{}, {} - {})", NumWG,
+                    (void *)LaunchInfo.Data->LocalShadowOffset,
+                    (void *)LaunchInfo.Data->LocalShadowOffsetEnd);
             }
         }
 
         // Write shadow memory offset for private memory
         if (getOptions().DetectPrivates) {
-            if (DeviceInfo->Type == DeviceType::CPU) {
-                LaunchInfo.Data->PrivateShadowOffset =
-                    DeviceInfo->Shadow->ShadowBegin;
-            } else if (DeviceInfo->Type == DeviceType::GPU_PVC ||
-                       DeviceInfo->Type == DeviceType::GPU_DG2) {
-                const size_t PrivateShadowMemorySize =
-                    (NumWG * ASAN_PRIVATE_SIZE) >> ASAN_SHADOW_SCALE;
-
-                getContext()->logger.debug("PrivateMemory(WorkGroup={}, "
-                                           "PrivateShadowMemorySize={})",
-                                           NumWG, PrivateShadowMemorySize);
-
-                if (EnqueueAllocateShadowMemory(
-                        PrivateShadowMemorySize,
-                        LaunchInfo.Data->PrivateShadowOffset) !=
-                    UR_RESULT_SUCCESS) {
-                    getContext()->logger.warning(
-                        "Failed to allocate shadow memory for private "
-                        "memory, maybe the number of workgroup ({}) is too "
-                        "large",
-                        NumWG);
-                    getContext()->logger.warning(
-                        "Skip checking private memory of kernel <{}>",
-                        GetKernelName(Kernel));
-                } else {
-                    LaunchInfo.Data->PrivateShadowOffsetEnd =
-                        LaunchInfo.Data->PrivateShadowOffset +
-                        PrivateShadowMemorySize - 1;
-
-                    ContextInfo->Stats.UpdateShadowMalloced(
-                        PrivateShadowMemorySize);
-
-                    getContext()->logger.info(
-                        "ShadowMemory(Private, {} - {})",
-                        (void *)LaunchInfo.Data->PrivateShadowOffset,
-                        (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
-                }
+            if (DeviceInfo->Shadow->AllocPrivateShadow(
+                    Queue, NumWG, LaunchInfo.Data->PrivateShadowOffset,
+                    LaunchInfo.Data->PrivateShadowOffsetEnd) !=
+                UR_RESULT_SUCCESS) {
+                getContext()->logger.warning(
+                    "Failed to allocate shadow memory for private "
+                    "memory, maybe the number of workgroup ({}) is too "
+                    "large",
+                    NumWG);
+                getContext()->logger.warning(
+                    "Skip checking private memory of kernel <{}>",
+                    GetKernelName(Kernel));
+            } else {
+                getContext()->logger.info(
+                    "ShadowMemory(Private, WorkGroup{}, {} - {})", NumWG,
+                    (void *)LaunchInfo.Data->PrivateShadowOffset,
+                    (void *)LaunchInfo.Data->PrivateShadowOffsetEnd);
             }
         }
     } while (false);
@@ -878,25 +815,7 @@ ur_result_t USMLaunchInfo::updateKernelInfo(const KernelInfo &KI) {
 USMLaunchInfo::~USMLaunchInfo() {
     [[maybe_unused]] ur_result_t Result;
     if (Data) {
-        auto Type = GetDeviceType(Context, Device);
         auto ContextInfo = getContext()->interceptor->getContextInfo(Context);
-        if (Type == DeviceType::GPU_PVC || Type == DeviceType::GPU_DG2) {
-            if (Data->PrivateShadowOffset) {
-                ContextInfo->Stats.UpdateShadowFreed(
-                    Data->PrivateShadowOffsetEnd - Data->PrivateShadowOffset +
-                    1);
-                Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data->PrivateShadowOffset);
-                assert(Result == UR_RESULT_SUCCESS);
-            }
-            if (Data->LocalShadowOffset) {
-                ContextInfo->Stats.UpdateShadowFreed(
-                    Data->LocalShadowOffsetEnd - Data->LocalShadowOffset + 1);
-                Result = getContext()->urDdiTable.USM.pfnFree(
-                    Context, (void *)Data->LocalShadowOffset);
-                assert(Result == UR_RESULT_SUCCESS);
-            }
-        }
         if (Data->LocalArgs) {
             Result = getContext()->urDdiTable.USM.pfnFree(
                 Context, (void *)Data->LocalArgs);
