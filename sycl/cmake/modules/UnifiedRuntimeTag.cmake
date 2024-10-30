@@ -1,7 +1,7 @@
-# commit 58abf8fa778376546274c52304b9f924314d65e6
-# Merge: a96fddec a97df490
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 24 13:37:02 2024 +0100
-#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
-#     Query out and use local size set in program IL in CL adapter
-set(UNIFIED_RUNTIME_TAG 58abf8fa778376546274c52304b9f924314d65e6)
+# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
+# Merge: 694c1b9a 27ad3f7d
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Mon Oct 28 16:29:45 2024 +0100
+#   Merge pull request #2242 from nrspruit/sysman_env_disable
+#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
+set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)

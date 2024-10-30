@@ -1,5 +1,6 @@
-// This test is intended to ensure that we have no trackers marked as XFAIL
+// This test is intended to ensure that we have no tests marked as XFAIL
 // without a tracker information added to a test.
+// For more info see: sycl/test-e2e/README.md
 //
 // The format we check is:
 // XFAIL: lit,features
@@ -25,10 +26,10 @@
 //   verify that against the reference
 // - ...and check if the list of improperly XFAIL-ed tests needs to be updated.
 //
-// RUN: grep -rI "XFAIL:" %S/../test-e2e \
+// RUN: grep -rI "XFAIL:" %S/../../test-e2e \
 // RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
-// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t | \
+// RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
 // RUN: cat %t | sed 's/\.cpp.*/.cpp/' | sort | FileCheck %s
 //
