@@ -101,11 +101,14 @@ public:
   constexpr device_global_base(
       const device_global_base<OtherT, OtherProps> &DGB)
       : init_val{ExtractInitialVal(DGB)} {}
+  constexpr device_global_base(const device_global_base &DGB)
+      : init_val{DGB.init_val} {}
 #else
   template <typename OtherT, typename OtherProps,
             typename = std::enable_if_t<std::is_convertible_v<OtherT, T>>>
   constexpr device_global_base(const device_global_base<OtherT, OtherProps> &) {
   }
+  constexpr device_global_base(const device_global_base &) {}
 #endif // __SYCL_DEVICE_ONLY__
 
   template <access::decorated IsDecorated>
