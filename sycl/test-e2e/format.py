@@ -98,55 +98,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         except ValueError as e:
             raise ValueError("Error in UNSUPPORTED list:\n%s" % str(e))
 
-    def make_default_features_list(self, expr, triple, add_default=True):
-        # Dictionaries of features which we know are always/never present for a
-        # given triple (or the system in general).
-        always_has_feature = {
-            "spir64": set(),
-            "system": {"linux"},
-        }
-        never_has_feature = {
-            "spir64": {
-                "cuda", "hip", "hip_amd", "hip_nvidia", "native_cpu"
-            },
-            "system": {
-                "windows", "system-windows", "run-mode", "TEMPORARY_DISABLED",
-            },
-        }
-        features_queried_by_test = []
-        for f in expr:
-            features_queried_by_test = features_queried_by_test + re.findall(
-                "[-+=._a-zA-Z0-9]+", f
-            )
-        features = set()
-        exceptions = {}
-        if add_default:
-            exceptions = never_has_feature[triple].union(never_has_feature["system"])
-        else:
-            exceptions = always_has_feature[triple].union(always_has_feature["system"])
-        for f in features_queried_by_test:
-            if (not add_default if f in exceptions else add_default):
-                features.add(f)
-        return features
-
-    def select_triples_for_test(self, test):
-        # Check Triples
-        triples = set()
-        possible_triples = ["spir64"]
-        for triple in possible_triples:
-            unsupported = self.make_default_features_list(
-                test.unsupported, triple, False
-            )
-            required = self.make_default_features_list(test.requires, triple)
-            features = unsupported.union(required)
-            if test.getMissingRequiredFeaturesFromList(features):
-                continue
-            if self.getMatchedFromList(features, test.unsupported):
-                continue
-            triples.add(triple)
-
-        return triples
-
     def select_devices_for_test(self, test):
         devices = []
         for d in test.config.sycl_devices:
@@ -206,12 +157,16 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         unsplit_test = False
+        for l in test.requires:
+            if "run-mode" in re.findall("[-+=._a-zA-Z0-9]+", l):
+                unsplit_test = True
+                break
         if "run-mode" not in test.config.available_features:
-            triples = self.select_triples_for_test(test)
-            if not triples:
+            if unsplit_test:
                 return lit.Test.Result(
-                    lit.Test.UNSUPPORTED, "No supported backend to build for"
+                    lit.Test.UNSUPPORTED, "Tests unsupported on split build"
                 )
+            triples = {"spir64"}
         else:
             devices_for_test = self.select_devices_for_test(test)
             if not devices_for_test:
@@ -222,11 +177,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             for sycl_device in devices_for_test:
                 (backend, _) = sycl_device.split(":")
                 triples.add(get_triple(test, backend))
-            for l in test.config.requires:
-                if "run-mode" in re.findall("[-+=._a-zA-Z0-9]+", l):
-                    unsplit_test = True
-                    break
-
 
         substitutions = lit.TestRunner.getDefaultSubstitutions(test, tmpDir, tmpBase)
         substitutions.append(("%{sycl_triple}", format(",".join(triples))))
