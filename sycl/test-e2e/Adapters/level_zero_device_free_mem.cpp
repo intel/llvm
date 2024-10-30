@@ -1,6 +1,6 @@
 // https://github.com/intel/llvm/issues/14244
-// sycl-ls --verbose shows the "ext_intel_free_memory" aspect if 
-// ZES_ENABLE_SYSMAN=1 is set, but also is sysman init is supported, 
+// sycl-ls --verbose shows the "ext_intel_free_memory" aspect if
+// ZES_ENABLE_SYSMAN=1 is set, but also is sysman init is supported,
 // so this test is missed if it requires aspect-ext_intel_free_memory.
 
 // Since gen9 and get12 don't support this query,

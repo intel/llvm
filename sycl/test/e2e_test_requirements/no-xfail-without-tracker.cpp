@@ -56,7 +56,9 @@
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
 //
-// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
+// CHECK: Adapters/interop-cuda-experimental.cpp
+// CHECK-NEXT: Adapters/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
+// CHECK-NEXT: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/accessor/accessor.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
@@ -177,8 +179,6 @@
 // CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp
 // CHECK-NEXT: OptionalKernelFeatures/throw-exception-for-out-of-registers-on-kernel-launch.cpp
 // CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
-// CHECK-NEXT: Plugin/interop-cuda-experimental.cpp
-// CHECK-NEXT: Plugin/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp

@@ -415,7 +415,7 @@ int main() {
 
 // CHECK-LABEL: start copyH2D-buffer
 // CHECK: <--- urEnqueueMemBufferWrite({{.*}} .size = 64,
-// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64, 
+// CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}, .bufferRowPitch = 64, .bufferSlicePitch = 0, .hostRowPitch = 64,
 // CHECK: <--- urEnqueueMemBufferWriteRect({{.*}} .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 3}, .bufferRowPitch = 64, .bufferSlicePitch = 320, .hostRowPitch = 64, .hostSlicePitch = 320,
 // CHECK: end copyH2D-buffer
 
