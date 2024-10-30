@@ -29,7 +29,10 @@ struct ur_command_list_handler_t {
                             const ur_queue_properties_t *pProps,
                             queue_group_type type, event_pool *eventPool);
 
-  raii::cache_borrowed_command_list_t commandList;
+  ur_command_list_handler_t(ze_command_list_handle_t hZeCommandList,
+                            event_pool *eventPool, bool ownZeHandle);
+
+  raii::command_list_unique_handle commandList;
   std::unique_ptr<ur_event_handle_t_, std::function<void(ur_event_handle_t)>>
       internalEvent;
 
@@ -88,6 +91,10 @@ private:
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
                                 const ur_queue_properties_t *);
+  ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
+                                ur_native_handle_t, ur_queue_flags_t,
+                                bool ownZeQueue);
+
   ~ur_queue_immediate_in_order_t() {}
 
   ur_result_t queueGetInfo(ur_queue_info_t propName, size_t propSize,

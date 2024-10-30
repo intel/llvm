@@ -64,18 +64,20 @@ struct ze_handle_wrapper {
       return;
     }
 
-    auto zeResult = ZE_CALL_NOCHECK(destroy, (handle));
-    // Gracefully handle the case that L0 was already unloaded.
-    if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
-      throw ze2urResult(zeResult);
+    if (ownZeHandle) {
+      auto zeResult = ZE_CALL_NOCHECK(destroy, (handle));
+      // Gracefully handle the case that L0 was already unloaded.
+      if (zeResult && zeResult != ZE_RESULT_ERROR_UNINITIALIZED)
+        throw ze2urResult(zeResult);
+    }
 
     handle = nullptr;
   }
 
-  ZeHandleT release() {
+  std::pair<ZeHandleT, bool> release() {
     auto handle = this->handle;
     this->handle = nullptr;
-    return handle;
+    return {handle, ownZeHandle};
   }
 
   ZeHandleT get() const { return handle; }
