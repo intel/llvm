@@ -11,8 +11,8 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include <helpers/MockKernelInfo.hpp>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>

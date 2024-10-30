@@ -10,8 +10,8 @@
 #include <detail/kernel_bundle_impl.hpp>
 #include <sycl/sycl.hpp>
 
-#include <helpers/MockKernelInfo.hpp>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>

@@ -10,8 +10,8 @@
 
 #include <detail/queue_impl.hpp>
 
-#include <helpers/MockKernelInfo.hpp>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>

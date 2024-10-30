@@ -11,8 +11,8 @@
 #define __SYCL_INTERNAL_API
 #endif
 
-#include <helpers/MockKernelInfo.hpp>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 

@@ -454,7 +454,8 @@ inline void setKernelUsesAssert(const std::vector<std::string> &Names,
 ///
 /// This function overrides the default spec constant values.
 inline void addSpecConstants(std::vector<MockProperty> &&SpecConstants,
-                             std::vector<char> ValData, MockPropertySet &Props) {
+                             std::vector<char> ValData,
+                             MockPropertySet &Props) {
   Props.insert(__SYCL_PROPERTY_SET_SPEC_CONST_MAP, std::move(SpecConstants));
 
   MockProperty Prop{"all", std::move(ValData), SYCL_PROPERTY_TYPE_BYTE_ARRAY};

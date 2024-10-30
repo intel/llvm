@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include "MockKernelInfo.hpp"
 #include "MockDeviceImage.hpp"
+#include "MockKernelInfo.hpp"
 
 template <size_t KernelSize = 1> class TestKernel;
 

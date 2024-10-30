@@ -8,8 +8,8 @@
 
 #include <gtest/gtest.h>
 
-#include <helpers/MockKernelInfo.hpp>
 #include <helpers/MockDeviceImage.hpp>
+#include <helpers/MockKernelInfo.hpp>
 #include <helpers/UrMock.hpp>
 
 class TestKernelWithMemObj;
