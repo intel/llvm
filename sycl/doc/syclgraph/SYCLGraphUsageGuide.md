@@ -505,7 +505,9 @@ parameters in a node can be updated.
 ```cpp
 size_t n = 1024;
 queue Queue{};
-exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+auto myContext = Queue.get_context();
+auto myDevice = Queue.get_device();
+exp_ext::command_graph Graph{myContext, myDevice};
 
 int *PtrA = malloc_device<int>(n, Queue);
 int *PtrB = malloc_device<int>(n, Queue)​;
