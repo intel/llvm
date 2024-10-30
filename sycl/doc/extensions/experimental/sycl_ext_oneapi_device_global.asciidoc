@@ -346,7 +346,7 @@ Available if `PropertyListT::has_property<device_image_scope_key>() == false`.
 
 Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
 
-The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call this constructor.
+The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call to this constructor.
 
 // --- ROW BREAK ---
 a|
@@ -361,7 +361,7 @@ Available if `PropertyListT::has_property<device_image_scope_key>() == false` an
 
 Constructs a `device_global` object, and implicit storage for `T` in the global address space on each device that may access it.
 
-The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call this constructor.
+The storage on each device for `T` is initialized with a copy of the initial value of `other`. The behavior is undefined if `other` has been written to prior to a call to this constructor.
 
 // --- ROW BREAK ---
 a|
