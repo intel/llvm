@@ -595,6 +595,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemFlags(enum ur_physical_mem
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemProperties(const struct ur_physical_mem_properties_t params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_physical_mem_info_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemInfo(enum ur_physical_mem_info_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_program_metadata_type_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
@@ -1849,6 +1857,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemRetainParams(const struct 
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
 ///         - `buff_size < out_size`
 UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemReleaseParams(const struct ur_physical_mem_release_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_physical_mem_get_info_params_t struct
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintPhysicalMemGetInfoParams(const struct ur_physical_mem_get_info_params_t *params, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_adapter_get_params_t struct

@@ -613,6 +613,9 @@ etors:
 - name: TENSOR_MAP_ENCODE_TILED_EXP
   desc: Enumerator for $xTensorMapEncodeTiledExp
   value: '248'
+- name: PHYSICAL_MEM_GET_INFO
+  desc: Enumerator for $xPhysicalMemGetInfo
+  value: '249'
 ---
 type: enum
 desc: Defines structure types

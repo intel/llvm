@@ -979,11 +979,21 @@ typedef ur_result_t(UR_APICALL *ur_pfnPhysicalMemRelease_t)(
     ur_physical_mem_handle_t);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Function-pointer for urPhysicalMemGetInfo
+typedef ur_result_t(UR_APICALL *ur_pfnPhysicalMemGetInfo_t)(
+    ur_physical_mem_handle_t,
+    ur_physical_mem_info_t,
+    size_t,
+    void *,
+    size_t *);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Table of PhysicalMem functions pointers
 typedef struct ur_physical_mem_dditable_t {
     ur_pfnPhysicalMemCreate_t pfnCreate;
     ur_pfnPhysicalMemRetain_t pfnRetain;
     ur_pfnPhysicalMemRelease_t pfnRelease;
+    ur_pfnPhysicalMemGetInfo_t pfnGetInfo;
 } ur_physical_mem_dditable_t;
 
 ///////////////////////////////////////////////////////////////////////////////
