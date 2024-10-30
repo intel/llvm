@@ -691,7 +691,7 @@ class ObjectFileHandler final : public FileHandler {
         // llvm.used and llvm.compiler.used to the list of defined symbols.
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
-             Name == "__AsanSpirKernelMetadata"))
+             Name == "__AsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.

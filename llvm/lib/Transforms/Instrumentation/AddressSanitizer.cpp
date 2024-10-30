@@ -1820,7 +1820,9 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(Function &F) {
       return;
     }
   }
-  IRB.CreateStore(ConstantInt::get(IntptrTy, 0), AsanLaunchInfo);
+  IRB.CreateStore(
+      ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
+      AsanLaunchInfo);
 }
 
 // Instrument memset/memmove/memcpy
