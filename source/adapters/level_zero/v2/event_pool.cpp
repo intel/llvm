@@ -15,7 +15,7 @@ namespace v2 {
 
 static constexpr size_t EVENTS_BURST = 64;
 
-ur_event_handle_t_ *event_pool::allocate() {
+ur_event_handle_t_ *event_pool::allocate(ur_queue_handle_t hQueue) {
   TRACK_SCOPE_LATENCY("event_pool::allocate");
 
   std::unique_lock<std::mutex> lock(*mutex);
@@ -31,6 +31,8 @@ ur_event_handle_t_ *event_pool::allocate() {
 
   auto event = freelist.back();
   freelist.pop_back();
+
+  event->resetQueue(hQueue);
 
   return event;
 }

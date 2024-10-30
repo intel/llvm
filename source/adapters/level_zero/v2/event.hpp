@@ -27,11 +27,18 @@ public:
   ur_event_handle_t_(v2::raii::cache_borrowed_event eventAllocation,
                      v2::event_pool *pool);
 
+  // Set the queue that this event is associated with
+  void resetQueue(ur_queue_handle_t hQueue);
+
   void reset();
   ze_event_handle_t getZeEvent() const;
 
   ur_result_t retain();
   ur_result_t release();
+
+  // releases a signaled and no longer in-use event, that's on the
+  // deffered events list in the queue
+  ur_result_t releaseDeferred();
 
   // Tells if this event was created as a timestamp event, allowing profiling
   // info even if profiling is not enabled.
@@ -44,12 +51,16 @@ public:
   ur_device_handle_t getDevice() const;
 
   void recordStartTimestamp();
-  uint64_t *getEventEndTimestampPtr();
+
+  // Get pointer to the end timestamp, and ze event handle.
+  // Caller is responsible for signaling the event once the timestamp is ready.
+  std::pair<uint64_t *, ze_event_handle_t> getEventEndTimestampAndHandle();
 
   uint64_t getEventStartTimestmap() const;
   uint64_t getEventEndTimestamp();
 
 private:
+  ur_queue_handle_t hQueue = nullptr;
   v2::raii::cache_borrowed_event zeEvent;
   v2::event_pool *pool;
 
