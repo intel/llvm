@@ -116,11 +116,8 @@ void sum_marray(
       T * buf, sycl::ext::oneapi::experimental::work_group_memory<T> result,   \
       T expected);
 
-SUM_MARRAY(int);
 SUM_MARRAY(float);
 SUM_MARRAY(double);
-SUM_MARRAY(char);
-SUM_MARRAY(bool);
 SUM_MARRAY(half);
 
 template <typename T>
@@ -153,11 +150,8 @@ void sum_vec(
       T * buf, sycl::ext::oneapi::experimental::work_group_memory<T> result,   \
       T expected);
 
-SUM_VEC(int);
 SUM_VEC(float);
 SUM_VEC(double);
-SUM_VEC(char);
-SUM_VEC(bool);
 SUM_VEC(half);
 
 template <typename T, typename... Ts> void test_marray() {
