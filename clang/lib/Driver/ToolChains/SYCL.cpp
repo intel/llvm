@@ -508,7 +508,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
+                   options::OPT_fno_sycl_instrument_device_code, false))
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)
