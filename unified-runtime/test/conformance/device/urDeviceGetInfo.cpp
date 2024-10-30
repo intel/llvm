@@ -129,7 +129,8 @@ static std::unordered_map<ur_device_info_t, size_t> device_info_size_map = {
     {UR_DEVICE_INFO_ESIMD_SUPPORT, sizeof(ur_bool_t)},
     {UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t)},
     {UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT, sizeof(ur_bool_t)},
-    {UR_DEVICE_INFO_NUM_COMPUTE_UNITS, sizeof(uint32_t)}};
+    {UR_DEVICE_INFO_NUM_COMPUTE_UNITS, sizeof(uint32_t)},
+    {UR_DEVICE_INFO_USE_NATIVE_ASSERT, sizeof(ur_bool_t)}};
 
 using urDeviceGetInfoTest = uur::urDeviceTestWithParam<ur_device_info_t>;
 
@@ -255,7 +256,8 @@ UUR_DEVICE_TEST_SUITE_WITH_PARAM(
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_HALF,            //
         UR_DEVICE_INFO_PREFERRED_VECTOR_WIDTH_INT,             //
         UR_DEVICE_INFO_NUM_COMPUTE_UNITS,                      //
-        UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS    //
+        UR_DEVICE_INFO_PROGRAM_SET_SPECIALIZATION_CONSTANTS,   //
+        UR_DEVICE_INFO_USE_NATIVE_ASSERT                       //
         ),
     uur::deviceTestWithParamPrinter<ur_device_info_t>);
 

@@ -1227,6 +1227,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(false);
   case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_USE_NATIVE_ASSERT: {
+    bool Supported = false;
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_intel_devicelib_assert"},
+        Supported));
+    return ReturnValue(Supported);
+  }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
