@@ -9,6 +9,9 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// TODO: enable on Windows (via SYCL_ENABLE_EXTENSION_JIT in CMakeLists).
+// UNSUPPORTED: windows
+
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
