@@ -462,7 +462,7 @@ queue Queue{};
 exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
 int *PtrA = malloc_device<int>(1024, Queue);
-int *PtrB = malloc_device<int>(1024, Queue)​
+int *PtrB = malloc_device<int>(1024, Queue)​;
 
 auto CgfA = [&](handler &cgh) {
   cgh.parallel_for(1024, [=](item<1> Item) {
@@ -514,7 +514,7 @@ int *PtrB = malloc_device<int>(n, Queue)​;
 const std::vector<kernel_id> builtinKernelIds =
       myDevice.get_info<info::device::built_in_kernel_ids>();
 kernel_bundle<bundle_state::executable> myBundle =
-      get_kernel_bundle(myContext, { myDevice }, builtinKernelIds);
+      get_kernel_bundle<sycl::bundle_state::executable>(myContext, { myDevice }, builtinKernelIds);
 
 kernel builtinKernelA = myBundle.get_kernel(builtinKernelIds[0]);
 kernel builtinKernelB = myBundle.get_kernel(builtinKernelIds[1]);
