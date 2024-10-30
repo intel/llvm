@@ -20,7 +20,8 @@ enum class cache_level { L1 = 0, L2 = 1, L3 = 2, L4 = 3 };
 
 struct nontemporal;
 
-struct prefetch_hint_key {
+struct prefetch_hint_key
+    : detail::compile_time_property_key<detail::PropKind::Prefetch> {
   template <cache_level Level, typename Hint>
   using value_t =
       property_value<prefetch_hint_key,
@@ -50,8 +51,6 @@ inline constexpr prefetch_hint_key::value_t<cache_level::L4, nontemporal>
 
 namespace detail {
 using namespace sycl::detail;
-
-template <> struct IsCompileTimeProperty<prefetch_hint_key> : std::true_type {};
 
 template <cache_level Level, typename Hint>
 struct PropertyMetaInfo<prefetch_hint_key::value_t<Level, Hint>> {
