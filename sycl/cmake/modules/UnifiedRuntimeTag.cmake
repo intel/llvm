@@ -1,7 +1,7 @@
-# commit 58abf8fa778376546274c52304b9f924314d65e6
-# Merge: a96fddec a97df490
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 24 13:37:02 2024 +0100
-#     Merge pull request #2160 from aarongreig/aaron/clQuerySourceWGSize
-#     Query out and use local size set in program IL in CL adapter
-set(UNIFIED_RUNTIME_TAG 4f1fd54e4d5bfb480f7ca3ea58ee85334809a641)
+# commit e3d127d69061c942b37c8e18b876281f5a9b3857
+# Merge: 884b646 4f1fd54
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Tue Oct 29 17:22:22 2024 +0100
+#     Merge pull request #2246 from JackAKirk/p2p-fix-impl
+#     [spec][usm-p2p] p2p info query return int instead of uint32_t, fix l0 impl
+set(UNIFIED_RUNTIME_TAG e3d127d69061c942b37c8e18b876281f5a9b3857)
