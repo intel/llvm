@@ -744,7 +744,7 @@ inline constexpr auto decoration_space =
 #else
 inline constexpr auto decoration_space = Space;
 #endif
-}
+} // namespace detail
 
 // Legacy specialization of multi_ptr.
 // TODO: Add deprecation warning here when possible.
