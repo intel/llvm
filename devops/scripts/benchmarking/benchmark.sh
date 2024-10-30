@@ -41,11 +41,13 @@ build_compute_bench() {
 
     if [ "$?" -eq 0 ]; then
         tail -n +2 $TESTS_CONFIG | while IFS= read -r case; do
-            make -n $COMPUTE_BENCH_COMPILE_FLAGS "$case"
+            make $COMPUTE_BENCH_COMPILE_FLAGS "$case"
         done
     fi
     echo "###"
     ls $COMPUTE_BENCH_PATH/build/bin
+    echo "###"
+    ls $COMPUTE_BENCH_PATH/build/
     echo "###"
     # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
