@@ -9,8 +9,9 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
-// TODO: enable on Windows (via SYCL_ENABLE_EXTENSION_JIT in CMakeLists).
 // UNSUPPORTED: windows
+// UNSUPPORTED-INTENDED: To Do: enable on Windows (via SYCL_ENABLE_EXTENSION_JIT
+// in CMakeLists).
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
