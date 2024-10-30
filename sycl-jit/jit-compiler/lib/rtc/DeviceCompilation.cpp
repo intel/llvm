@@ -156,15 +156,15 @@ Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module &Module,
   // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
   // (no AoT, no third-party GPUs, no native CPU).
 
-  bool DeviceInstrumentationEnabled = true;
+  bool DeviceInstrumentationEnabled = false;
   for (StringRef UA : UserArgs) {
     // Check instrumentation-related flags (last occurence determines outcome).
-    if (UA == "-fno-sycl-instrument-device-code") {
-      DeviceInstrumentationEnabled = false;
-      continue;
-    }
     if (UA == "-fsycl-instrument-device-code") {
       DeviceInstrumentationEnabled = true;
+      continue;
+    }
+    if (UA == "-fno-sycl-instrument-device-code") {
+      DeviceInstrumentationEnabled = false;
       continue;
     }
 
