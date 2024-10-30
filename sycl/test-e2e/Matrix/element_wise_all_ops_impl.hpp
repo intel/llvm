@@ -40,7 +40,7 @@ void verify_op_ab(const T l, const T r, const float ref, OP op) {
                      {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -80,7 +80,7 @@ void verify_op_c(const T l, const T r, const float ref, OP op) {
                      {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
