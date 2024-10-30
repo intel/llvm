@@ -180,10 +180,6 @@ struct ur_device_handle_t_ : _ur_object {
 
   bool isSubDevice() { return RootDevice != nullptr; }
 
-  // Is this a Data Center GPU Max series (aka PVC)?
-  // TODO: change to use
-  // https://spec.oneapi.io/level-zero/latest/core/api.html#ze-device-ip-version-ext-t
-  // when that is stable.
   bool isPVC() {
     return (ZeDeviceProperties->deviceId & 0xff0) == 0xbd0 ||
            (ZeDeviceProperties->deviceId & 0xff0) == 0xb60;
@@ -191,6 +187,11 @@ struct ur_device_handle_t_ : _ur_object {
 
   // Checks if this GPU is an Intel Flex GPU or Intel Arc Alchemist
   bool isDG2() { return (ZeDeviceProperties->deviceId & 0xff00) == 0x5600; }
+
+  bool isIntelDG2OrNewer() {
+    return (ZeDeviceProperties->vendorId == 0x8086 &&
+            ZeDeviceIpVersionExt->ipVersion >= 0x030dc000);
+  }
 
   bool isIntegrated() {
     return (ZeDeviceProperties->flags & ZE_DEVICE_PROPERTY_FLAG_INTEGRATED);
