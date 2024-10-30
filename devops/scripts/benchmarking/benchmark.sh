@@ -37,7 +37,13 @@ clone_compute_bench() {
 build_compute_bench() {
     echo "### Building compute-benchmarks ($COMPUTE_BENCH_GIT_REPO:$COMPUTE_BENCH_BRANCH) ###"
     mkdir $COMPUTE_BENCH_PATH/build && cd $COMPUTE_BENCH_PATH/build &&
-    cmake .. -DBUILD_SYCL=ON  -DCCACHE_ALLOWED=FALSE && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+    cmake .. -DBUILD_SYCL=ON  -DCCACHE_ALLOWED=FALSE # && cmake --build . $COMPUTE_BENCH_COMPILE_FLAGS
+
+    if [ "$?" -eq 0 ]; then
+        tail -n +2 $TESTS_CONFIG | while IFS= read -r case; do
+            make -n $COMPUTE_BENCH_COMPILE_FLAGS "$case"
+        done
+    fi
     # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
     cd -
@@ -123,7 +129,7 @@ process_benchmarks() {
         grep "^[^#]" "$TESTS_CONFIG" | while read -r testcase; do
             echo "# Running $testcase..."
             test_csv_output="$OUTPUT_PATH/$testcase-$TIMESTAMP.csv"
-            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv | tail +8 > "$test_csv_output"
+            $COMPUTE_BENCH_PATH/build/bin/$testcase --csv --iterations="$COMPUTE_BENCH_ITERATIONS" | tail +8 > "$test_csv_output"
             # The tail +8 filters out initial debug prints not in csv format
             if [ "$?" -eq 0 ] && [ -s "$test_csv_output" ]; then 
                 check_and_cache $testcase $test_csv_output
@@ -161,7 +167,7 @@ cleanup() {
 }
 
 _sanitize_configs() {
-    echo "$1" | sed 's/[^a-zA-Z0-9_.:/-]//g'
+    echo "$1" | sed 's/[^a-zA-Z0-9_.:/%-]//g'
 }
 
 load_configs() {
@@ -173,9 +179,9 @@ load_configs() {
     # configs and scripts are reachable. 
     [ -z "$BENCHMARKING_ROOT" ] && BENCHMARKING_ROOT="$(dirname $0)"
 
-    BENCHMARK_CI_CONFIG="$BENCHMARKING_ROOT/benchmark-ci.conf"
-    TESTS_CONFIG="$BENCHMARKING_ROOT/enabled_tests.conf"
-    COMPARE_PATH="$BENCHMARKING_ROOT/compare.py"
+    BENCHMARK_CI_CONFIG="$(realpath $BENCHMARKING_ROOT/benchmark-ci.conf)"
+    TESTS_CONFIG="$(realpath $BENCHMARKING_ROOT/enabled_tests.conf)"
+    COMPARE_PATH="$(realpath $BENCHMARKING_ROOT/compare.py)"
 
     for file in "$BENCHMARK_CI_CONFIG" "$TESTS_CONFIG" "$COMPARE_PATH"; do
         if [ ! -f "$file" ]; then
@@ -195,6 +201,7 @@ load_configs() {
             'COMPUTE_BENCH_BRANCH') export COMPUTE_BENCH_BRANCH="$sanitized_value" ;;
             'COMPUTE_BENCH_PATH') export COMPUTE_BENCH_PATH="$sanitized_value" ;;
             'COMPUTE_BENCH_COMPILE_FLAGS') export COMPUTE_BENCH_COMPILE_FLAGS="$sanitized_value" ;;
+            'COMPUTE_BENCH_ITERATIONS') export COMPUTE_BENCH_ITERATIONS="$sanitized_value" ;;
             'OUTPUT_PATH') export OUTPUT_PATH="$sanitized_value" ;;
             # 'METRICS_VARIANCE') export METRICS_VARIANCE="$sanitized_value" ;;
             # 'METRICS_RECORDED') export METRICS_RECORDED="$sanitized_value" ;;
@@ -203,7 +210,7 @@ load_configs() {
             'TIMESTAMP_FORMAT') export TIMESTAMP_FORMAT="$sanitized_value" ;;
             'BENCHMARK_SLOW_LOG') export BENCHMARK_SLOW_LOG="$sanitized_value" ;;
             'BENCHMARK_ERROR_LOG') export BENCHMARK_ERROR_LOG="$sanitized_value" ;;
-            *) echo "Unknown key: $sanitized_key" ;;
+            # *) echo "Unknown key: $sanitized_key" ;;
         esac
     done < "$BENCHMARK_CI_CONFIG"
 
