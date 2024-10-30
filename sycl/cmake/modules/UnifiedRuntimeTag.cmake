@@ -1,6 +1,7 @@
-# commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
-# Author: Artur Gainullin <artur.gainullin@intel.com>
-# Date:   Tue Oct 22 03:30:08 2024 -0700
-#
-#     Support UR program creation from multiple device binaries (#2147)
-set(UNIFIED_RUNTIME_TAG 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb)
+# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
+# Merge: 694c1b9a 27ad3f7d
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Mon Oct 28 16:29:45 2024 +0100
+#   Merge pull request #2242 from nrspruit/sysman_env_disable
+#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
+set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
