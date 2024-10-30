@@ -27,8 +27,8 @@ public:
   ur_event_handle_t_(v2::raii::cache_borrowed_event eventAllocation,
                      v2::event_pool *pool);
 
-  // Set the queue that this event is associated with
-  void resetQueue(ur_queue_handle_t hQueue);
+  // Set the queue and command that this event is associated with
+  void resetQueueAndCommand(ur_queue_handle_t hQueue, ur_command_t commandType);
 
   void reset();
   ze_event_handle_t getZeEvent() const;
@@ -50,6 +50,12 @@ public:
   // Device associated with this event
   ur_device_handle_t getDevice() const;
 
+  // Queue associated with this event
+  ur_queue_handle_t getQueue() const;
+
+  // Get the type of the command that this event is associated with
+  ur_command_t getCommandType() const;
+
   void recordStartTimestamp();
 
   // Get pointer to the end timestamp, and ze event handle.
@@ -61,6 +67,7 @@ public:
 
 private:
   ur_queue_handle_t hQueue = nullptr;
+  ur_command_t commandType = UR_COMMAND_FORCE_UINT32;
   v2::raii::cache_borrowed_event zeEvent;
   v2::event_pool *pool;
 

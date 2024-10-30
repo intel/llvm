@@ -25,8 +25,10 @@ ur_event_handle_t_::ur_event_handle_t_(
       zeTimerResolution(getDevice()->ZeDeviceProperties->timerResolution),
       timestampMaxValue(getDevice()->getTimestampMask()) {}
 
-void ur_event_handle_t_::resetQueue(ur_queue_handle_t hQueue) {
+void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
+                                              ur_command_t commandType) {
   this->hQueue = hQueue;
+  this->commandType = commandType;
 }
 
 void ur_event_handle_t_::reset() {
@@ -39,6 +41,7 @@ void ur_event_handle_t_::reset() {
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
   assert(hQueue);
+  assert(commandType != UR_COMMAND_FORCE_UINT32);
   return zeEvent.get();
 }
 
@@ -145,6 +148,10 @@ ur_event_handle_t_::getEventEndTimestampAndHandle() {
   return {&recordEventEndTimestamp, zeEvent.get()};
 }
 
+ur_queue_handle_t ur_event_handle_t_::getQueue() const { return hQueue; }
+
+ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
+
 namespace ur::level_zero {
 ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
 
@@ -178,6 +185,19 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   }
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return returnValue(hEvent->RefCount.load());
+  }
+  case UR_EVENT_INFO_COMMAND_QUEUE: {
+    return returnValue(ur_queue_handle_t{hEvent->getQueue()});
+  }
+  case UR_EVENT_INFO_CONTEXT: {
+    ur_context_handle_t hContext;
+    UR_CALL(::ur::level_zero::urQueueGetInfo(
+        hEvent->getQueue(), UR_QUEUE_INFO_CONTEXT, sizeof(hContext),
+        reinterpret_cast<void *>(&hContext), nullptr));
+    return returnValue(hContext);
+  }
+  case UR_EVENT_INFO_COMMAND_TYPE: {
+    return returnValue(hEvent->getCommandType());
   }
   default:
     logger::error(
