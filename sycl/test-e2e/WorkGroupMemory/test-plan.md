@@ -77,7 +77,7 @@ other types of kernels (`single_task` and `parallel_for(range)`).
 #### Consistency of address-taking operations
 
 The test need to check that `operator&()` and `get_multi_ptr().get_raw()` both
-return the same address
+return the same address.
 
 #### Copy constructors and assignment operator
 
