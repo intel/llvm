@@ -25,6 +25,10 @@
 // RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
+// RUN: %clang_cc1 %{common_opts_spirv32} -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN:-fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
@@ -32,6 +36,28 @@
 // RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
 // RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math -foffload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
 
 //
 
@@ -50,6 +76,10 @@
 // RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
+// RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
@@ -57,6 +87,25 @@
 // RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
 
 //
 
@@ -75,6 +124,10 @@
 // RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
+// RUN: %clang_cc1 %{common_opts_spir} -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
@@ -82,6 +135,25 @@
 // RUN: %clang_cc1 %{common_opts_spir} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
+// RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spir} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
 
 //
 
@@ -100,6 +172,10 @@
 // RUN: %clang_cc1 %{common_opts_spir64} -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
+// RUN: %clang_cc1 %{common_opts_spirv64} -fno-offload-fp32-prec-div \
+// RUN: -fno-offload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT %s
+
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-SQRT-FAST %s
@@ -107,6 +183,25 @@
 // RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -fno-offload-fp32-prec-div \
 // RUN: -fno-offload-fp32-prec-sqrt %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix PREC-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt %s -o - \
+// RUN: | FileCheck --check-prefix PREC-SQRT-FAST %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-sqrt -foffload-fp32-prec-div \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-SQRT-PREC-DIV %s
+
+// RUN: %clang_cc1 %{common_opts_spir64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -foffload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-PREC-SQRT %s
+
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffast-math \
+// RUN: -fno-offload-fp32-prec-div -fno-offload-fp32-prec-sqrt \
+// RUN: %s -o - | FileCheck --check-prefix ROUNDED-DIV-ROUNDED-SQRT-FAST %s
 
 #include "sycl.hpp"
 
@@ -128,6 +223,12 @@ int main() {
       // PREC-SQRT: call spir_func float @sqrt(float noundef {{.*}})
       // ROUNDED-SQRT: call float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
       // ROUNDED-DIV:  call spir_func float @sqrt(float noundef {{.*}})
+      // ROUNDED-DIV-ROUNDED-SQRT: call float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
+      // PREC-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt(float noundef nofpclass(nan inf) {{.*}})
+      // PREC-SQRT-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt(float noundef nofpclass(nan inf) {{.*}})
+      // ROUNDED-SQRT-PREC-DIV: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
+      // ROUNDED-DIV-PREC-SQRT: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt(float noundef nofpclass(nan inf) {{.*}})
+      // ROUNDED-DIV-ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
       (void)sqrt(Value1);
     });
   });
@@ -137,12 +238,16 @@ int main() {
     [=](id<1> wiID) {
       // PREC-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
       // ROUNDED-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
-
       // ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
-
       // PREC-DIV: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
       // ROUNDED-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // ROUNDED-DIV-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
+      // PREC-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(float noundef nofpclass(nan inf) {{.*}}, float noundef nofpclass(nan inf) {{.*}})
+      // ROUNDED-DIV-ROUNDED-SQRT: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
+      // PREC-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
+      // ROUNDED-SQRT-PREC-DIV: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(float noundef nofpclass(nan inf) {{.*}}, float noundef nofpclass(nan inf) {{.*}})
+      // ROUNDED-DIV-PREC-SQRT: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
+      // ROUNDED-DIV-ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       (void)fdiv(Value1, Value1);
     });
   });
@@ -154,3 +259,5 @@ return 0;
 // ROUNDED-SQRT-FAST: attributes #[[ATTR_SQRT]] = {{.*}}"fpbuiltin-max-error"="3.0"
 // ROUNDED-DIV: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"
 // ROUNDED-DIV-FAST: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"
+// ROUNDED-DIV-ROUNDED-SQRT-FAST: attributes #[[ATTR_SQRT]] = {{.*}}"fpbuiltin-max-error"="3.0"
+// ROUNDED-DIV-ROUNDED-SQRT-FAST: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"

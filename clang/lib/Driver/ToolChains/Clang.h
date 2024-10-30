@@ -47,8 +47,7 @@ private:
 
   void RenderTargetOptions(const llvm::Triple &EffectiveTriple,
                            const llvm::opt::ArgList &Args, bool KernelOrKext,
-                           llvm::opt::ArgStringList &CmdArgs,
-                           const JobAction &JA) const;
+                           llvm::opt::ArgStringList &CmdArgs) const;
 
   void AddAArch64TargetArgs(const llvm::opt::ArgList &Args,
                             llvm::opt::ArgStringList &CmdArgs) const;
