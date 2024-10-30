@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 487
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 486
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been propely UNSUPPORTED.
@@ -64,7 +64,6 @@
 // CHECK-NEXT: AOT/multiple-devices.cpp
 // CHECK-NEXT: AddressCast/dynamic_address_cast.cpp
 // CHECK-NEXT: AddressCast/static_address_cast.cpp
-// CHECK-NEXT: AddressSanitizer/nullpointer/global_nullptr.cpp
 // CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
