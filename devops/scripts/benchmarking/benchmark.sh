@@ -44,6 +44,9 @@ build_compute_bench() {
             make -n $COMPUTE_BENCH_COMPILE_FLAGS "$case"
         done
     fi
+    echo "###"
+    ls $COMPUTE_BENCH_PATH/build/bin
+    echo "###"
     # No reason to turn on ccache, if this docker image will be disassembled later on
     #compute_bench_build_stat=$?
     cd -
