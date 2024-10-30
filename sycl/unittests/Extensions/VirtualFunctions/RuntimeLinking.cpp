@@ -49,7 +49,7 @@ KERNEL_INFO(KernelG)
 static sycl::unittest::MockDeviceImage
 generateImage(std::initializer_list<std::string> KernelNames,
               const std::string &VFSets, bool UsesVFSets, unsigned char Magic) {
-  sycl::unittest::UrPropertySet PropSet;
+  sycl::unittest::MockPropertySet PropSet;
   std::vector<sycl::unittest::MockProperty> Props;
   uint64_t PropSize = VFSets.size();
   std::vector<char> Storage(/* bytes for size */ 8 + PropSize +
