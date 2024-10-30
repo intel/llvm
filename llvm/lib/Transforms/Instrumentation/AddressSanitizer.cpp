@@ -2782,7 +2782,7 @@ void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
   SmallVector<GlobalVariable *, 8> GlobalsToRemove;
   SmallVector<Constant *, 8> DeviceGlobalMetadata;
 
-  Type *IntptrTy = Type::getIntNTy(M.getContext(), DL.getPointerSizeInBits());
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
 
   // Device global meta data is described by a structure
   //  size_t device_global_size
