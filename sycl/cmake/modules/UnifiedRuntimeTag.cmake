@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
+# commit a9c7aef861988d4b8421f3e760e63f4e3da9398d (HEAD, origin/main, origin/HEAD)
+# Merge: dbd168c 3142142
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Oct 28 15:56:46 2024 +0000
+#    Merge pull request #2152 from Bensuo/fabio/binary_update_fix
+#    Fix command-buffer binary update implementation
+set(UNIFIED_RUNTIME_TAG a9c7aef861988d4b8421f3e760e63f4e3da9398d)
