@@ -46,11 +46,15 @@ private:
 
   std::vector<ze_event_handle_t> waitList;
 
+  std::vector<ur_event_handle_t> deferredEvents;
+
   std::pair<ze_event_handle_t *, uint32_t>
   getWaitListView(const ur_event_handle_t *phWaitEvents,
                   uint32_t numWaitEvents);
 
   ur_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent);
+
+  void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueRegionCopyUnlocked(
       ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking,

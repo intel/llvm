@@ -104,7 +104,7 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
 ur_event_handle_t
 ur_queue_immediate_in_order_t::getSignalEvent(ur_event_handle_t *hUserEvent) {
   if (hUserEvent) {
-    *hUserEvent = eventPool->allocate();
+    *hUserEvent = eventPool->allocate(this);
     return *hUserEvent;
   } else {
     return nullptr;
@@ -156,6 +156,11 @@ ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
   return UR_RESULT_SUCCESS;
 }
 
+void ur_queue_immediate_in_order_t::deferEventFree(ur_event_handle_t hEvent) {
+  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+  deferredEvents.push_back(hEvent);
+}
+
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
@@ -174,6 +179,12 @@ ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
       "ur_queue_immediate_in_order_t::zeCommandListHostSynchronize");
   ZE2UR_CALL(zeCommandListHostSynchronize,
              (handler.commandList.get(), UINT64_MAX));
+
+  // Free deferred events
+  for (auto &hEvent : deferredEvents) {
+    hEvent->releaseDeferred();
+  }
+  deferredEvents.clear();
 
   return UR_RESULT_SUCCESS;
 }
@@ -983,9 +994,12 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
 
   signalEvent->recordStartTimestamp();
 
+  auto [timestampPtr, zeSignalEvent] =
+      signalEvent->getEventEndTimestampAndHandle();
+
   ZE2UR_CALL(zeCommandListAppendWriteGlobalTimestamp,
-             (handler.commandList.get(), signalEvent->getEventEndTimestampPtr(),
-              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
+             (handler.commandList.get(), timestampPtr, zeSignalEvent,
+              numWaitEvents, pWaitEvents));
 
   if (blocking) {
     ZE2UR_CALL(zeCommandListHostSynchronize,
