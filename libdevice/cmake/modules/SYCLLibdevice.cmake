@@ -269,6 +269,24 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
                                 ${sanitizer_generic_compile_opts}
                                 ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
+
+  set(asan_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_pvc_target_opt}
+                                            -D__LIBDEVICE_PVC__)
+
+  set(asan_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_cpu_target_opt}
+                                            -D__LIBDEVICE_CPU__)
+
+  set(asan_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_dg2_target_opt}
+                                            -D__LIBDEVICE_DG2__)
 endif()
 
 if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
@@ -335,37 +353,18 @@ else()
       SRC sanitizer_utils.cpp
       DEPENDENCIES ${sanitizer_obj_deps}
       EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
-    compile_lib_ext(libsycl-asan-pvc
-      SRC sanitizer_utils.cpp
-      FILETYPE obj
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_pvc_compile_opts_obj})
-    compile_lib_ext(libsycl-asan-cpu
-      SRC sanitizer_utils.cpp
-      FILETYPE obj
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_cpu_compile_opts_obj})
-    compile_lib_ext(libsycl-asan-dg2
-      SRC sanitizer_utils.cpp
-      FILETYPE obj
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_dg2_compile_opts_obj})
-    compile_lib_ext(libsycl-asan-pvc
-      SRC sanitizer_utils.cpp
-      FILETYPE bc
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_pvc_compile_opts_bc})
-    compile_lib_ext(libsycl-asan-cpu
-      SRC sanitizer_utils.cpp
-      FILETYPE bc
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_cpu_compile_opts_bc})
-    compile_lib_ext(libsycl-asan-dg2
-      SRC sanitizer_utils.cpp
-      FILETYPE bc
-      DEPENDENCIES ${sanitizer_obj_deps}
-      OPTS ${asan_dg2_compile_opts_bc})
-    endif()
+    set(asan_filetypes obj obj-new-offload bc)
+    set(asan_devicetypes pvc cpu dg2)
+    foreach(asan_ft IN LISTS asan_filetypes)
+      foreach(asan_device IN LISTS asan_devicetypes)
+        compile_lib_ext(libsycl-asan-${asan_device}
+        SRC sanitizer_utils.cpp
+        FILETYPE ${asan_ft}
+        DEPENDENCIES ${sanitizer_obj_deps}
+        OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
+      endforeach()
+    endforeach()
+  endif()
 endif()
 
 add_devicelibs(libsycl-fallback-cassert
