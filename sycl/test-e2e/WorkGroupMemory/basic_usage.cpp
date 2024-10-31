@@ -5,6 +5,8 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/half_type.hpp>
+
 namespace syclexp = sycl::ext::oneapi::experimental;
 
 sycl::queue q;
@@ -50,7 +52,9 @@ template <typename T> void swap_scalar(T &a, T &b) {
       sycl::nd_range<1> ndr{size, wgsize};
       cgh.parallel_for(ndr, [=](sycl::nd_item<1> it) {
         syclexp::work_group_memory<T> temp2;
-        temp2 = temp; // temp and temp2 have the same underlying data
+        temp2 = temp;            // temp and temp2 have the same underlying data
+        assert(&temp2 == &temp); // check that both objects return same
+                                 // underlying address after assignment
         temp = acc_a[0];
         acc_a[0] = acc_b[0];
         acc_b[0] = temp2; // safe to use temp2
@@ -86,6 +90,8 @@ template <typename T> void swap_scalar(T &a, T &b) {
   assert(a == old_b && b == old_a && "Incorrect swap!");
 
   // Same as above but instead of using multi_ptr, use address-of operator.
+  // Also verify that get_multi_ptr() returns the same address as address-of
+  // operator.
   {
     sycl::buffer<T, 1> buf_a{&a, 1};
     sycl::buffer<T, 1> buf_b{&b, 1};
@@ -96,6 +102,7 @@ template <typename T> void swap_scalar(T &a, T &b) {
       syclexp::work_group_memory<T> temp2{cgh};
       sycl::nd_range<1> ndr{size, wgsize};
       cgh.parallel_for(ndr, [=](sycl::nd_item<> it) {
+        assert(&temp == temp.get_multi_ptr().get());
         temp = acc_a[0];
         acc_a[0] = acc_b[0];
         temp2 = *(&temp);
@@ -294,6 +301,8 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
         temp[i][j] = acc_a[i][j];
         acc_a[i][j] = acc_b[i][j];
         syclexp::work_group_memory<T[N][N]> temp2{temp};
+        assert(&temp2 == &temp); // check both objects return same underlying
+                                 // address after copy construction.
         acc_b[i][j] = temp2[i][j];
       });
     });
@@ -342,28 +351,28 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
 // so we can verify that each work-item sees the value written by its leader.
 // The test also is a sanity check that different work groups get different
 // work group memory locations as otherwise we'd have data races.
-void coherency(size_t size, size_t wgsize) {
+template <typename T> void coherency(size_t size, size_t wgsize) {
   q.submit([&](sycl::handler &cgh) {
-    syclexp::work_group_memory<int> data{cgh};
+    syclexp::work_group_memory<T> data{cgh};
     sycl::nd_range<1> ndr{size, wgsize};
     cgh.parallel_for(ndr, [=](sycl::nd_item<1> it) {
       if (it.get_group().leader()) {
-        data = it.get_global_id() / wgsize;
+        data = T(it.get_global_id() / wgsize);
       }
       sycl::group_barrier(it.get_group());
-      assert(data == it.get_global_id() / wgsize);
+      assert(data == T(it.get_global_id() / wgsize));
     });
   });
 }
 
 constexpr size_t N = 32;
-int main() {
-  int intarr1[N][N];
-  int intarr2[N][N];
+template <typename T> void test() {
+  T intarr1[N][N];
+  T intarr2[N][N];
   for (int i = 0; i < N; ++i) {
     for (int j = 0; j < N; ++j) {
-      intarr1[i][j] = i + j;
-      intarr2[i][j] = i * j;
+      intarr1[i][j] = T(i) + T(j);
+      intarr2[i][j] = T(i) * T(j);
     }
   }
   for (int i = 0; i < N; ++i) {
@@ -373,10 +382,37 @@ int main() {
     swap_array_1d(intarr1[i], intarr2[i], 8);
   }
   swap_array_2d(intarr1, intarr2, 8);
-  coherency(N, N / 2);
-  coherency(N, N / 4);
-  coherency(N, N / 8);
-  coherency(N, N / 16);
-  coherency(N, N / 32);
+  coherency<T>(N, N / 2);
+  coherency<T>(N, N / 4);
+  coherency<T>(N, N / 8);
+  coherency<T>(N, N / 16);
+  coherency<T>(N, N / 32);
+}
+
+template <typename T> void test_ptr() {
+  T arr1[N][N];
+  T arr2[N][N];
+  for (int i = 0; i < N; ++i) {
+    for (int j = 0; j < N; ++j) {
+      swap_scalar(arr1[i][j], arr2[i][j]);
+    }
+    swap_array_1d(arr1[i], arr2[i], 8);
+  }
+  swap_array_2d(arr1, arr2, 8);
+}
+
+int main() {
+  test<int>();
+  test<char>();
+  test<uint16_t>();
+  if (q.get_device().has(sycl::aspect::fp16))
+    test<sycl::half>();
+  test_ptr<float *>();
+  test_ptr<int *>();
+  test_ptr<char *>();
+  test_ptr<uint16_t *>();
+  if (q.get_device().has(sycl::aspect::fp16))
+    test_ptr<sycl::half *>();
+  test_ptr<float *>();
   return 0;
 }
