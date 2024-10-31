@@ -306,7 +306,8 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff, StringRef Target = "") {
+                                 StringRef Suff, StringRef Target = "",
+                                 bool IsDummy = false) {
   auto PropSet =
       computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
 
@@ -316,6 +317,10 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
                 Target);
     NewSuff += "_";
     NewSuff += Target;
+  }
+
+  if (IsDummy) {
+    PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS, "dummy", 1);
   }
 
   std::error_code EC;
@@ -416,7 +421,8 @@ void addTableRow(util::SimpleTable &Table,
 //   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
 void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+                module_split::ModuleDesc &MD, int I, StringRef IRFilename,
+                bool IsDummy = false) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
@@ -440,8 +446,8 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitExportedSymbols, EmitImportedSymbols,
                                    DeviceGlobals};
-      CopyTriple.Prop =
-          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+      CopyTriple.Prop = saveModuleProperties(MD, Props, I, Suffix,
+                                             OutputFile.Target, IsDummy);
     }
     addTableRow(*Table, CopyTriple);
   }
@@ -741,6 +747,36 @@ bool isTargetCompatibleWithModule(const std::string &Target,
   return true;
 }
 
+std::optional<module_split::ModuleDesc>
+makeDummy(module_split::ModuleDesc &MD) {
+  bool hasVirtualFunctions = false;
+  bool hasOptionalKernelFeatures = false;
+  for (Function &F : MD.getModule().functions()) {
+    if (F.hasFnAttribute("indirectly-callable"))
+      hasVirtualFunctions = true;
+    if (F.getMetadata("sycl_used_aspects"))
+      hasOptionalKernelFeatures = true;
+    if (hasVirtualFunctions && hasOptionalKernelFeatures)
+      break;
+  }
+  if (!hasVirtualFunctions || !hasOptionalKernelFeatures)
+    return {};
+
+  auto MDCopy = MD.clone();
+
+  for (Function &F : MDCopy.getModule().functions()) {
+    if (!F.hasFnAttribute("indirectly-callable"))
+      continue;
+
+    F.erase(F.begin(), F.end());
+    BasicBlock *newBB = BasicBlock::Create(F.getContext(), "entry", &F);
+    IRBuilder<> builder(newBB);
+    builder.CreateRetVoid();
+  }
+
+  return MDCopy;
+}
+
 std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
@@ -893,6 +929,16 @@ processInputModule(std::unique_ptr<Module> M) {
 
       ++ID;
     }
+
+    bool dummyEmitted = false;
+    for (module_split::ModuleDesc &IrMD : MMs) {
+      if (auto Dummy = makeDummy(IrMD)) {
+        saveModule(Tables, *Dummy, ID, OutIRFileName, /*IsDummy*/ true);
+        dummyEmitted = true;
+      }
+    }
+    if (dummyEmitted)
+      ++ID;
   }
   return Tables;
 }
