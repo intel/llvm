@@ -460,7 +460,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     StringRef DeviceLibOption;
   };
 
-  enum {JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC};
+  enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
 
   // Currently, all SYCL device libraries will be linked by default.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
