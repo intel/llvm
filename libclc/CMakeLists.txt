@@ -34,8 +34,14 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   r600/lib/SOURCES;
   r600/libspirv/SOURCES;
   spirv/lib/SOURCES;
-  spirv64/lib/SOURCES
-  native_cpu-unknown-linux/libspirv/SOURCES
+  spirv64/lib/SOURCES;
+  native_cpu-unknown-linux/libspirv/SOURCES;
+  # CLC internal libraries
+  clc/lib/generic/SOURCES;
+  clc/lib/clspv/SOURCES;
+  clc/lib/clspv64/SOURCES;
+  clc/lib/spirv/SOURCES;
+  clc/lib/spirv64/SOURCES;
 )
 
 set( LIBCLC_MIN_LLVM 3.9.0 )
@@ -329,6 +335,14 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       " configuration, some SYCL programs may fail to build.")
   endif()
 
+  set( clc_lib_files )
+  libclc_configure_lib_source(
+    clc_lib_files
+    CLC_INTERNAL
+    LIB_ROOT_DIR clc
+    DIRS ${dirs} ${DARCH} ${DARCH}-${OS} ${DARCH}-${VENDOR}-${OS}
+  )
+
   set( opencl_lib_files )
   set( opencl_gen_files )
 
@@ -474,7 +488,8 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     list( APPEND build_flags
       -D__CLC_INTERNAL
       -D${CLC_TARGET_DEFINE}
-      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+      # All libclc builtin libraries see CLC headers
+      -I${CMAKE_CURRENT_SOURCE_DIR}/clc/include
       # FIXME: Fix libclc to not require disabling this noisy warning
       -Wno-bitwise-conditional-parentheses
     )
@@ -482,6 +497,20 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
     if( NOT "${cpu}" STREQUAL "" )
       list( APPEND build_flags -mcpu=${cpu} )
     endif()
+
+    add_libclc_builtin_set(
+      CLC_INTERNAL
+      ARCH ${ARCH}
+      ARCH_SUFFIX clc-${arch_suffix}
+      TRIPLE ${clang_triple}
+      COMPILE_FLAGS ${build_flags}
+      OPT_FLAGS ${opt_flags}
+      LIB_FILES ${clc_lib_files}
+    )
+
+    list( APPEND build_flags
+      -I${CMAKE_CURRENT_SOURCE_DIR}/generic/include
+    )
 
     add_libclc_builtin_set(
       ARCH ${ARCH}
@@ -493,8 +522,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${libspirv_lib_files}
       GEN_FILES ${libspirv_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
       PARENT_TARGET libspirv-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
     )
 
     add_libclc_builtin_set(
@@ -506,8 +536,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${opencl_lib_files}
       GEN_FILES ${opencl_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_clc.cl"
       PARENT_TARGET libopencl-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
     )
   endforeach( d )
 endforeach( t )
