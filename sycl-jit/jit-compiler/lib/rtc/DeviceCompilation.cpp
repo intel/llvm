@@ -301,10 +301,6 @@ getDeviceLibraries(const ArgList &Args, DiagnosticsEngine &Diags) {
 
 Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
                                         const InputArgList &UserArgList) {
-  // This function mimics the device library selection process
-  // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
-  // (no AoT, no third-party GPUs, no native CPU).
-
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
