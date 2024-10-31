@@ -7,10 +7,10 @@
 // FIXME: Force linux targets to allow for the libraries to be found.  Dummy
 // inputs for --sysroot should be updated to work better for Windows.
 
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV,CHECK-HOST %s
 // -fno-sycl-device-lib mustn't affect the linkage of ITT libraries
-// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver --sysroot=%S/Inputs/SYCL -fno-sycl-device-lib=all -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: %clangxx -target x86_64-unknown-linux-gnu -fsycl --no-offload-new-driver -fsycl-instrument-device-code --sysroot=%S/Inputs/SYCL -fno-sycl-device-lib=all -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-SPIRV %s
 
 // CHECK-SPIRV: "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-instrument-device-code"
@@ -19,6 +19,12 @@
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-compiler-wrappers.bc"
 // CHECK-SPIRV-SAME: "{{.*}}libsycl-itt-stubs.bc"
 // CHECK-HOST-NOT: "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-instrument-device-code"
+
+// ITT annotations in device code are disabled by default.
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=spir64 -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
+// RUN: %clangxx -fsycl --no-offload-new-driver -fsycl-targets=nvptx64-nvidia-cuda -nocudalib -### %s 2>&1 \
+// RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
 
 // RUN: %clangxx -fsycl --no-offload-new-driver -fno-sycl-instrument-device-code -fsycl-targets=spir64 -### %s 2>&1 \
 // RUN: | FileCheck -check-prefixes=CHECK-NONPASSED %s
