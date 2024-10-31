@@ -672,6 +672,9 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
       uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (!__AsanLaunchInfo) {                                                   \
+      return;                                                                  \
+    }                                                                          \
     if (addr & AlignMask(size)) {                                              \
       __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
                                    func);                                      \
@@ -684,6 +687,9 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
       uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (!__AsanLaunchInfo) {                                                   \
+      return;                                                                  \
+    }                                                                          \
     if (addr & AlignMask(size)) {                                              \
       __asan_report_misalign_error(addr, as, size, is_write, addr, file, line, \
                                    func, true);                                \
@@ -709,6 +715,9 @@ ASAN_REPORT_ERROR(store, true, 16)
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N(                              \
       uptr addr, size_t size, uint32_t as, const char __SYCL_CONSTANT__ *file, \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (!__AsanLaunchInfo) {                                                   \
+      return;                                                                  \
+    }                                                                          \
     if (auto poisoned_addr = __asan_region_is_poisoned(addr, as, size)) {      \
       __asan_report_access_error(addr, as, size, is_write, poisoned_addr,      \
                                  file, line, func);                            \
@@ -717,6 +726,9 @@ ASAN_REPORT_ERROR(store, true, 16)
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_noabort(                      \
       uptr addr, size_t size, uint32_t as, const char __SYCL_CONSTANT__ *file, \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+    if (!__AsanLaunchInfo) {                                                   \
+      return;                                                                  \
+    }                                                                          \
     if (auto poisoned_addr = __asan_region_is_poisoned(addr, as, size)) {      \
       __asan_report_access_error(addr, as, size, is_write, poisoned_addr,      \
                                  file, line, func, true);                      \
@@ -731,6 +743,9 @@ ASAN_REPORT_ERROR_N(store, true)
 ///
 
 DEVICE_EXTERN_C_NOINLINE uptr __asan_mem_to_shadow(uptr ptr, uint32_t as) {
+  if (!__AsanLaunchInfo) {
+    return 0;
+  }
   return MemToShadow(ptr, as);
 }
 
@@ -744,6 +759,10 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_local[] =
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_shadow_static_local(uptr ptr, size_t size,
                                size_t size_with_redzone) {
+  if (!__AsanLaunchInfo) {
+    return;
+  }
+
   // Since ptr is aligned to ASAN_SHADOW_GRANULARITY,
   // if size != aligned_size, then the buffer tail of ptr is not aligned
   uptr aligned_size = RoundUpTo(size, ASAN_SHADOW_GRANULARITY);
@@ -783,6 +802,10 @@ static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_static_local_end[] =
 DEVICE_EXTERN_C_NOINLINE void
 __asan_unpoison_shadow_static_local(uptr ptr, size_t size,
                                     size_t size_with_redzone) {
+  if (!__AsanLaunchInfo) {
+    return;
+  }
+
   ASAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_static_local_begin));
 
   auto shadow_begin = MemToShadow(ptr + size, ADDRESS_SPACE_LOCAL);
@@ -816,6 +839,10 @@ static __SYCL_CONSTANT__ const char __mem_report_arg_count_incorrect[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __asan_set_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
+  if (!__AsanLaunchInfo) {
+    return;
+  }
+
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_dynamic_local_begin));
 
   auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
@@ -847,6 +874,10 @@ static __SYCL_CONSTANT__ const char __mem_unpoison_shadow_dynamic_local_end[] =
 
 DEVICE_EXTERN_C_NOINLINE void
 __asan_unpoison_shadow_dynamic_local(uptr ptr, uint32_t num_args) {
+  if (!__AsanLaunchInfo) {
+    return;
+  }
+
   ASAN_DEBUG(__spirv_ocl_printf(__mem_unpoison_shadow_dynamic_local_begin));
 
   auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
@@ -883,6 +914,10 @@ static __SYCL_CONSTANT__ const char __mem_set_shadow_private[] =
 
 DEVICE_EXTERN_C_NOINLINE void __asan_set_shadow_private(uptr begin, uptr size,
                                                         char val) {
+  if (!__AsanLaunchInfo) {
+    return;
+  }
+
   ASAN_DEBUG(__spirv_ocl_printf(__mem_set_shadow_private_begin));
 
   auto *launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
