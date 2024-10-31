@@ -226,8 +226,10 @@ template <typename ValueT> void test_syclcompat_relu() {
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<relu_kernel<ValueT>>(op1, res1);
 
-  const ValueT op2 = static_cast<ValueT>(-3);
-  const ValueT res2 = static_cast<ValueT>(0);
+  const ValueT op2 = std::is_signed_v<ValueT> ? static_cast<ValueT>(-3)
+                                              : static_cast<ValueT>(2);
+  const ValueT res2 = std::is_signed_v<ValueT> ? static_cast<ValueT>(0)
+                                               : static_cast<ValueT>(2);
   UnaryOpTestLauncher<ValueT>(grid, threads)
       .template launch_test<relu_kernel<ValueT>>(op2, res2);
 
@@ -374,7 +376,7 @@ int main() {
   test_syclcompat_pow<float, int>();
   test_syclcompat_pow<double, int>();
 
-  INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_relu);
+  INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_relu);
   INSTANTIATE_ALL_TYPES(fp_type_list_no_bfloat16, test_syclcompat_cbrt);
 
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_isnan);
