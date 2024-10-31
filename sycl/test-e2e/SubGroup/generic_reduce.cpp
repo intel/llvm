@@ -5,7 +5,7 @@
 // by the reduce functions in SYCL 2020, but the standard C++ syntax is used for
 // forward compatibility with future SYCL versions.
 //
-// REQUIRES: TEMPORARY_DISABLED
+// REQUIRES: TEMPORARY_DISABLED, run-mode
 
 #include "helper.hpp"
 #include <complex>

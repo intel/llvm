@@ -1,5 +1,5 @@
 // UNSUPPORTED: windows
-// REQUIRES: cuda || hip
+// REQUIRES: (cuda || hip) && run-mode
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.

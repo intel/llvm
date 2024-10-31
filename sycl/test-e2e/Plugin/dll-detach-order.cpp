@@ -1,4 +1,4 @@
-// REQUIRES: windows
+// REQUIRES: windows, run-mode
 // RUN: env SYCL_UR_TRACE=-1 sycl-ls | FileCheck %s
 
 // ensure that the plugins are detached AFTER urLoaderTearDown is done executing

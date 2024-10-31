@@ -1,5 +1,5 @@
 // FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
+// REQUIRES: TEMPORARY_DISABLED, run-mode
 // UNSUPPORTED: cuda || hip
 // CUDA and HIP compilation and runtime do not yet support sub-groups.
 //

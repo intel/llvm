@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
-// REQUIRES: cuda, cuda_dev_kit
+// REQUIRES: cuda, cuda_dev_kit, run-mode
 
 #include <iostream>
 #include <sycl/backend.hpp>

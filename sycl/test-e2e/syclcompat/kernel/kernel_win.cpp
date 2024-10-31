@@ -1,4 +1,4 @@
-// REQUIRES: windows
+// REQUIRES: windows, run-mode
 
 // DEFINE: %{sharedflag} = %if cl_options %{/clang:-shared%} %else %{-shared%}
 

@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: vulkan
+// REQUIRES: vulkan, run-mode
 
 // RUN: %{build} %link-vulkan -o %t.out
 // RUN: %{run} %t.out
