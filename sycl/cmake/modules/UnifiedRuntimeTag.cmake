@@ -1,7 +1,7 @@
-# commit 884b646ca3b4c17c4efc56937d34ddcdc81de9a9
-# Merge: f31bec36 9989d97b
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Tue Oct 29 10:38:34 2024 +0000
-#    Merge pull request #2227 from RossBrunton/ross/platformget
-#    Handle INVALID_VALUE in OCL urPlatformGet
-set(UNIFIED_RUNTIME_TAG 884b646ca3b4c17c4efc56937d34ddcdc81de9a9)
+# commit 6ade245ef11de42f91e1a35e67c38389788abb3d
+# Merge: 8c0cc4cd 9d1d3ac4
+# Author: Piotr Balcer <piotr.balcer@intel.com>
+# Date:   Thu Oct 31 09:17:21 2024 +0100
+#    Merge pull request #2230 from pbalcer/check-xpti-enabled
+#    don't call xpti if there are no subscribers
+set(UNIFIED_RUNTIME_TAG 6ade245ef11de42f91e1a35e67c38389788abb3d)
