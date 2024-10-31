@@ -1,5 +1,3 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem
-
 // This test checks whether data can be correctly written to and read from
 // virtual memory.
 
