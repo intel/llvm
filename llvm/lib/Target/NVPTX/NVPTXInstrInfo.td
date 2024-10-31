@@ -1923,7 +1923,7 @@ def imem : Operand<iPTR> {
   let PrintMethod = "printOperand";
 }
 
-def imemAny : Operand<iPTRAny> {
+def imemAny : Operand<pAny> {
   let PrintMethod = "printOperand";
 }
 
