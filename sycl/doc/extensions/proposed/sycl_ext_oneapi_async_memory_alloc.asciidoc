@@ -10,6 +10,7 @@
 :encoding: utf-8
 :lang: en
 :dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
 
 // Set the default source code type in this document to C++,
 // for syntax highlighting purposes.  This is needed because
@@ -354,11 +355,17 @@ class memory_pool {
   template <typename Properties = empty_properties_t>
   memory_pool(context ctx, device dev, usm::alloc kind, Properties props = {});
 
+  template <typename Properties = empty_properties_t>
+  memory_pool(queue q, usm::alloc kind, Properties props = {});
+
+  template <typename Properties = empty_properties_t>
+  memory_pool(context ctx, void *ptr, size_t size, Properties props = {});
+
   ~memory_pool();
 
   context get_context() const;
 
-  std::vector<device> get_devices() const;
+  device get_device() const;
 
   usm::alloc get_alloc_kind() const;
 
@@ -397,6 +404,37 @@ _Throws_: An exception with the `errc::invalid` error code if `kind` is
 
 [source, c++]
 ----
+template <typename Properties = empty_properties_t>
+memory_pool(queue q, usm::alloc kind, Properties props = {});
+----
+
+_Effects_: Constructs a memory pool associated with the SYCL context and device
+from `q` and `dev`, with the allocation kind `kind` and applying any properties
+in `props`. If `kind` is `usm::alloc::host` this is equivelant to calling
+`memory_pool(queue.get_context(), props)` otherwise this is equivelant to
+calling `memory_pool(queue.get_context(), queue.get_device(), props)`.
+
+[source, c++]
+----
+template <typename Properties = empty_properties_t>
+memory_pool(context ctx, void *ptr, size_t size, Properties props = {});
+----
+
+_Effects_: Constructs a memory pool associated with `ctx` which uses an existing
+USM memory allocation `ptr` of size (in bytes) `size`, and applying any
+properties in `props`. The memory pool will use the existing USM memory
+allocation instead of allocating from the SYCL runtime. The associated SYCL
+device and allocation kind of the memory pool is inferred from the `ptr`. If
+`ptr` is not a valid USM pointer of kind `usm::alloc::host`,
+`usm::alloc::device` or `usm::alloc::shared` the result is undefined behavior.
+The maximum size and initial threshold of the memory pool are set to `size`.
+
+_Throws_: An exception with the `errc::invalid` error code if `props` contains
+the `maximum_size` or `initial_threshold` properties.
+
+
+[source, c++]
+----
 ~memory_pool();
 ----
 
@@ -413,10 +451,15 @@ _Returns_: The SYCL context associated with the memory pool.
 
 [source, c++]
 ----
-std::vector<device> get_devices() const;
+device get_device() const;
 ----
 
-_Returns_: The SYCL device(s) associated with the memory pool.
+_Returns_: The SYCL device associated with the memory pool. If the memory pool
+allocates memory of kind `usm::alloc::device` or `usm::alloc::host::shared` the
+device returned is the same device which was passed when constructing the memory
+pool. If the memory pool allocates memory of kind `usm::alloc::host` the device
+returned is the first of the devices associated with the context, which is
+associated with the memory pool.
 
 [source, c++]
 ----
@@ -462,41 +505,29 @@ object.
 ----
 namespace ext::oneapi::experimental {
 
-struct initial_threshold_key {
-  using value_t = property_value<initial_threshold_key>;
-
-  initial_threshold_key(size_t initialThreshold);
+struct initial_threshold {
+  initial_threshold(size_t initialThreshold);
 };
 
-struct maximum_size_key {
-  using value_t = property_value<maximum_size_key>;
+using initial_threshold_key = initial_threshold;
 
-  initial_threshold_key(size_t maxSize);
+struct maximum_size {
+  maximum_size(size_t maxSize);
 };
 
-struct read_only_key {
-  using value_t = property_value<read_only_key>;
+using maximum_size_key = maximum_size;
 
-  read_only_key(bool readOnly);
+struct read_only {
+  read_only();
 };
 
-struct zero_init_key {
-  using value_t = property_value<zero_init_key>;
+using read_only_key = read_only;
 
-  read_only_key(bool zeroInit);
+struct zero_init {
+  zero_init();
 };
 
-struct use_existing_memory_key {
-  using value_t = property_value<use_existing_memory_key>;
-
-  use_existing_memory_key(void *ptr, size_t size);
-};
-
-inline constexpr initial_threshold_key::value_t initial_threshold;
-inline constexpr maximum_size_key::value_t maximum_size;
-inline constexpr read_only_key::value_t read_only;
-inline constexpr zero_init_key::value_t zero_init;
-inline constexpr use_existing_memory_key::value_t use_existing_memory;
+using zero_init_key = zero_init;
 
 }  // ext::oneapi::experimental
 ----
@@ -530,18 +561,6 @@ inline constexpr use_existing_memory_key::value_t use_existing_memory;
  re-initialize memory to zero if they wish for later allocations to have this
  behavior.
 
-|`use_existing_memory`
-|The `use_existing_memory` property adds the requirement that the memory pool
- will use an existing USM memory allocation provided by the user instead of
- allocating from the SYCL runtime. This property takes a pointer to a valid USM
- memory allocation of the same allocation kind as the memory pool is initialized
- with and the size of that memory allocation. Using this property will
- implicitly set the `maximum_size` and `initial_threshold` property to be that
- of the size provided, and as such using the `maximum_size` or
- `initial_threshold` properties in conjunction with this property will cause the
- `memory_pool` constructor to throw an exception with the `errc::invalid` error
- code.
-
 |===
 
 
@@ -563,7 +582,8 @@ class context {
 
   memory_pool context::ext_oneapi_get_default_memory_pool() const;
 
-  memory_pool context::ext_oneapi_get_default_memory_pool(device dev) const;
+  memory_pool context::ext_oneapi_get_default_memory_pool(device dev,
+    usm::alloc kind) const;
 
 }; // context
 ----
@@ -578,11 +598,15 @@ with the allocation kind `usm::alloc::host`.
 
 [source, c++]
 ----
-memory_pool context::ext_oneapi_get_default_memory_pool(device dev) const;
+memory_pool context::ext_oneapi_get_default_memory_pool(device dev,
+  usm::alloc kind) const;
 ----
 
 _Returns_: The default memory pool associated with the context and `dev` for
-allocating with the allocation kind `usm::alloc::device`.
+allocating with the allocations of kind `kind`.
+
+_Throws_: An exception with the `errc::invalid` error code if `kind` is
+`usm::alloc::host`.
 
 
 === Asynchronous malloc & free
@@ -603,9 +627,9 @@ functions.
 ----
 namespace ext::oneapi::experimental {
 
-void *async_malloc(queue q, size_t size);
+void *async_malloc(queue q, usm::alloc kind, size_t size);
 
-void *async_malloc(handler h, size_t size);
+void *async_malloc(handler h, usm::alloc kind, size_t size);
 
 void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
 
@@ -620,9 +644,9 @@ void async_free(handler h, void *ptr);
 
 [source, c++]
 ----
-void *async_malloc(queue q, size_t size);
+void *async_malloc(queue q, usm::alloc kind, size_t size);
 
-void *async_malloc(handler h, size_t size);
+void *async_malloc(handler h, usm::alloc kind, size_t size);
 
 void *async_malloc_from_pool(queue q, size_t size, memory_pool pool);
 
@@ -633,11 +657,15 @@ _Effects_: Enqueues a command to `q` or the SYCL queue associated with `h` which
 will asynchronously allocate memory of size `size` in bytes, allocating from the
 memory pool `pool` if provided, otherwise allocation from the default memory
 pool associated with the SYCL context and device associated with `q` or `h`.
-Memory is first allocated from the memory pool if possible, otherwise memory is
-allocated from the source to the memory pool to provide enough memory in the
-memory pool for the allocation. Accessing the memory at the address of the
-pointer returned by asynchronous malloc functions before the command has
-completed execution is undefined behavior.
+If a memory pool `pool` is provided the allocation kind is that of the memory
+pool, otherwise if an allocation kind `kind` parameter is provided, this is the
+allocation kind which is used. If a memory pool `pool` is provided, this must be
+associated with the same SYCL context and device as `q` or the SYCL queue
+associated with `h`. Memory is first allocated from the memory pool if possible,
+otherwise memory is allocated from the source to the memory pool to provide
+enough memory in the memory pool for the allocation. Accessing the memory at the
+address of the pointer returned by asynchronous malloc functions before the
+command has completed execution is undefined behavior.
 
 _Returns_: A pointer to the address of a memory reservation if `size` is
 non-zero, otherwise returns `nullptr`.
@@ -659,11 +687,9 @@ will be freed from the memory pool to be used by other asynchronous malloc
 commands which execute later, and will not free to the source until the SYCL
 queue associated with the asynchronous allocation command has been synchronized
 with. Accessing the memory at the address of `ptr` after the asynchronous free
-command has completed execution is undefined behavior.
-
-_Throws_: An exception with the `errc::invalid` error code if `ptr` is not the
-address of a memory allocation allocated to a memory pool.
-
+command has completed execution is undefined behavior. If `ptr` is not the
+address of a memory allocation allocated to a memory pool this is undefined
+behavior. 
 
 === Memory pool lifetimes
 
@@ -722,25 +748,6 @@ capability to SYCL?
 *UNRESOLVED*: Should we allow a memory allocation allocated with an asynchronous
 malloc command from one queue to be freed by an asynchronous free command from
 another queue?
---
-
-. How should we treat an asynchronous malloc command with a memory pool that is
-not associated with that queue?
-+
---
-*UNRESOLVED*: If an asynchronous malloc command is enqueued with a memory pool
-that is not associated with the queue that the command is enqueued from, should
-this result in an error?
---
-
-. Should we have a default memory pool for `usm::alloc::shared`?
-+
---
-*UNRESOLVED*: Currently the proposed API means that there cannot be default
-memory pool for allocations of allocation kind `usm::alloc::shared`, and
-therefore a user must create their own explicit memory pool to do so. Is this
-reasonable or should we extend the API to include a default memory pool for
-allocations of allocation kind `usm::alloc::shared`?
 --
 
 . Should we allow setting a new threshold that is lower?
