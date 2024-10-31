@@ -20,13 +20,9 @@ context ctx = q.get_context();
 
 constexpr size_t SIZE = 128;
 
-template <typename T> struct S {
-  T val;
-};
+template <typename T> struct S { T val; };
 
-template <typename T> struct M {
-  T val;
-};
+template <typename T> struct M { T val; };
 
 union U {
   S<int> s;
@@ -35,6 +31,11 @@ union U {
 
 template <typename T, typename... Ts>
 void test_struct(size_t SIZE, size_t WGSIZE) {
+  if (std::is_same_v<T, half> && !q.get_device().has(aspect::fp16))
+    return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   S<T> *buf = malloc_shared<S<T>>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
@@ -44,7 +45,7 @@ void test_struct(size_t SIZE, size_t WGSIZE) {
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
   q.submit([&](sycl::handler &cgh) {
-     ext::oneapi::experimental::work_group_memory<S<T>[]> mem{WGSIZE, cgh};
+     ext::oneapi::experimental::work_group_memory<S<T>[]> mem { WGSIZE, cgh };
      ext::oneapi::experimental ::work_group_memory<T> result{cgh};
      cgh.parallel_for(ndr, [=](nd_item<> it) {
        size_t local_id = it.get_local_id();
@@ -108,6 +109,9 @@ template <typename T, typename... Ts>
 void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
@@ -144,12 +148,15 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
 template <typename T, typename... Ts> void test_marray() {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   constexpr size_t WGSIZE = SIZE;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = T(i);
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
@@ -182,12 +189,15 @@ template <typename T, typename... Ts> void test_marray() {
 template <typename T, typename... Ts> void test_vec() {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   constexpr size_t WGSIZE = 8;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = ext::intel::math::sqrt(T(i));
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
@@ -217,6 +227,8 @@ template <typename T, typename... Ts> void test_vec() {
 template <typename T, typename... Ts> void test_atomic_ref() {
   assert(sizeof(T) == 4 ||
          (sizeof(T) == 8 && q.get_device().has(aspect::atomic64)));
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
   constexpr size_t WGSIZE = 8;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
