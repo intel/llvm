@@ -1,7 +1,7 @@
-# commit e3d127d69061c942b37c8e18b876281f5a9b3857
-# Merge: 884b646 4f1fd54
+# commit 6ade245ef11de42f91e1a35e67c38389788abb3d
+# Merge: 8c0cc4cd 9d1d3ac4
 # Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Tue Oct 29 17:22:22 2024 +0100
-#     Merge pull request #2246 from JackAKirk/p2p-fix-impl
-#     [spec][usm-p2p] p2p info query return int instead of uint32_t, fix l0 impl
-set(UNIFIED_RUNTIME_TAG e3d127d69061c942b37c8e18b876281f5a9b3857)
+# Date:   Thu Oct 31 09:17:21 2024 +0100
+#    Merge pull request #2230 from pbalcer/check-xpti-enabled
+#    don't call xpti if there are no subscribers
+set(UNIFIED_RUNTIME_TAG 6ade245ef11de42f91e1a35e67c38389788abb3d)
