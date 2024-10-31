@@ -361,7 +361,6 @@ function(add_libclc_builtin_set)
 
   set( builtins_link_lib_tgt builtins.link.${ARG_ARCH_SUFFIX} )
 
-
   if( NOT ARG_INTERNAL_LINK_DEPENDENCIES )
     link_bc(
       TARGET ${builtins_link_lib_tgt}

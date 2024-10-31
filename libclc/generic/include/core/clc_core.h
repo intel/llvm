@@ -30,8 +30,8 @@
 
 #include <as_type.h>
 #include <clc/clcfunc.h>
-#include <macros.h>
 #include <clc/clctypes.h>
+#include <macros.h>
 
 #include <clc/float/definitions.h>
 #include <clc/integer/definitions.h>

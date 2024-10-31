@@ -35,7 +35,7 @@ set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
   r600/libspirv/SOURCES;
   spirv/lib/SOURCES;
   spirv64/lib/SOURCES;
-  native_cpu-unknown-linux/libspirv/SOURCES
+  native_cpu-unknown-linux/libspirv/SOURCES;
   # CLC internal libraries
   clc/lib/generic/SOURCES;
   clc/lib/clspv/SOURCES;
@@ -534,8 +534,9 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${libspirv_lib_files}
       GEN_FILES ${libspirv_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_spirv.cl" "generate_convert_core.cl"
       PARENT_TARGET libspirv-builtins
+      # Link in the CLC builtins and internalize their symbols
+      INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
     )
 
     add_libclc_builtin_set(
@@ -547,7 +548,6 @@ foreach( t ${LIBCLC_TARGETS_TO_BUILD} )
       LIB_FILES ${opencl_lib_files}
       GEN_FILES ${opencl_gen_files}
       ALIASES ${${d}_aliases}
-      GENERATE_TARGET "generate_convert_clc.cl"
       PARENT_TARGET libopencl-builtins
       # Link in the CLC builtins and internalize their symbols
       INTERNAL_LINK_DEPENDENCIES $<TARGET_PROPERTY:builtins.link.clc-${arch_suffix},TARGET_FILE>
