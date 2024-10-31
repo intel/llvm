@@ -72,6 +72,9 @@ void sum(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem, T *buf,
 }
 
 // Explicit instantiations for the relevant data types.
+// These are needed because free function kernel support is not fully
+// implemented yet. 
+// TODO: Remove these once free function kernel support is fully there.
 #define SUM(T)                                                                 \
   template void sum<T>(                                                        \
       sycl::ext::oneapi::experimental::work_group_memory<T[]> mem, T * buf,    \
