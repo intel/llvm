@@ -5,7 +5,6 @@
 #include <cassert>
 #include <sycl/atomic_ref.hpp>
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/intel/math.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
