@@ -243,6 +243,12 @@ ProgramManager::createURProgram(const RTDeviceBinaryImage &Img,
           : createBinaryProgram(Ctx, Devices, Binaries.data(), Lengths.data(),
                                 ProgMetadata);
 
+  {
+    std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
+    // associate the UR program with the image it was created for
+    NativePrograms.insert({Res, &Img});
+  }
+
   Ctx->addDeviceGlobalInitializer(Res, Devices, &Img);
 
   if constexpr (DbgProgMgr > 1)
@@ -744,8 +750,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void
-CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -821,6 +826,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // Should always come last!
     appendCompileEnvironmentVariablesThatAppend(CompileOpts);
     appendLinkEnvironmentVariablesThatAppend(LinkOpts);
+    // getOrCreateURProgram adds NativePrg to NativePrograms storage.
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
         Img, AllImages, Context, {Device}, CompileOpts + LinkOpts, SpecConsts);
 
@@ -862,6 +868,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         SerializedObj ImgSpecConsts =
             DeviceImageImpl->get_spec_const_blob_ref();
 
+        // adds NativePrg to NativePrograms
         ur_program_handle_t NativePrg =
             createURProgram(*BinImg, Context, {Device});
 
@@ -874,6 +881,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     std::vector<ur_device_handle_t> Devs = {
         getSyclObjImpl(Device).get()->getHandleRef()};
     ;
+    // build adds BuiltProgram to NativePrograms storage
     ProgramPtr BuiltProgram = build(
         std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
         DeviceLibReqMask, ProgramsToLink,
@@ -886,10 +894,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
-      // NativePrograms map does not intend to keep reference to program handle,
-      // so keys in the map can be invalid (reference count went to zero and the
-      // underlying program disposed of). Protecting from incorrect values by
-      // removal of map entries with same handle (obviously invalid entries).
+      // NativePrograms map does not intend to keep reference to program handle, so keys in the map can be invalid (reference count went to zero and the underlying program disposed of).
+      // Protecting from incorrect values by removal of map entries with same handle (obviously invalid entries).
       std::ignore = NativePrograms.erase(BuiltProgram.get());
       NativePrograms.insert({BuiltProgram.get(), &Img});
       for (RTDeviceBinaryImage *LinkedImg : DeviceImagesToLink) {
@@ -2655,6 +2661,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Device is not used when creating program from SPIRV, so passing only one
     // device is OK.
+    // getOrCreateURProgram adds NativePrg to NativePrograms storage (no extra ref).
     auto [NativePrg, DeviceCodeWasInCache] = getOrCreateURProgram(
         Img, {&Img}, Context, Devs, CompileOpts + LinkOpts, SpecConsts);
 
@@ -2688,7 +2695,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
               URDevices, DeviceLibReqMask, ExtraProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
-
+ 
     {
       std::lock_guard<std::mutex> Lock(MNativeProgramsMutex);
       NativePrograms.insert({BuiltProgram.get(), &Img});
