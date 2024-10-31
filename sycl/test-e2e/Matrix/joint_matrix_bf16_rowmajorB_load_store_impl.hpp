@@ -18,7 +18,7 @@ void joint_B_rowmajor_load_store(Tb *B, Tb *OutB, queue &q) {
     h.parallel_for<class Load>(
         nd_range<1>{global, local}, [=](nd_item<1> it)
 #ifdef SG_SZ
-                                        [[intel::reqd_sub_group_size(SG_SZ)]]
+                                        [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
         {
           auto pB =

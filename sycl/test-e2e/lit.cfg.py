@@ -23,7 +23,7 @@ config.available_features.add("run-mode")
 config.name = "SYCL"
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".c", ".cpp"]
+config.suffixes = [".cpp"]
 
 config.excludes = ["Inputs"]
 
