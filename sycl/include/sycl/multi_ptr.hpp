@@ -1285,7 +1285,6 @@ public:
 
   static constexpr access::address_space address_space = Space;
 
-public:
   // Constructors
   multi_ptr() : m_Pointer(nullptr) {}
   multi_ptr(const multi_ptr &) = default;
