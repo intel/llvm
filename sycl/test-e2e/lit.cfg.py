@@ -789,10 +789,13 @@ for sycl_device in config.sycl_devices:
     aspect_features = set("aspect-" + a for a in aspects)
     sg_size_features = set("sg-" + s for s in sg_sizes)
     architecture_feature = set("arch-" + s for s in architectures)
+    # keywords to use with UNSUPPORTED to completely disable the test
+    unsupported_feature = {"hangs", "flaky", "overall"}
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
     features.update(architecture_feature)
+    features.update(unsupported_feature)
 
     be, dev = sycl_device.split(":")
     features.add(dev.replace("fpga", "accelerator"))

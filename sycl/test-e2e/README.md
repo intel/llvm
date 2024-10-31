@@ -348,7 +348,7 @@ If you add `XFAIL` without `XFAIL-TRACKER` directive,
 
 Some tests may be considered unsupported, e.g.:
 * the test checks the feature that is not supported by some
-  backend / device / OS / etc.
+  backend / device / OS / overall.
 * the test is flaky or hangs, so it can't be marked with `XFAIL`.
 
 In these cases the test can be marked with `UNSUPPORTED`. This mark should be
@@ -369,3 +369,12 @@ temporarily disabled due to some issue.
 If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` or `UNSUPPORTED-INTENDED`
 directive, the `no-unsupported-without-tracker.cpp` test will fail, notifying
 you about that.
+
+To disable the test completely, you can use:
+```
+// USNUPPORTED: overall *OR* hangs *OR* flaky
+```
+See `unsupported_feature` set in sycl/test-e2e/lit.cfg.py for these features.
+
+Note: please do not use `REQUIRES: TEMPORARY_DISABLED`. Use `UNSUPPORTED`
+instead.
