@@ -1,5 +1,5 @@
-#ifndef CLC_FUNC
-#define CLC_FUNC
+#ifndef __CLC_CLCFUNC_H_
+#define __CLC_CLCFUNC_H_
 
 #define _CLC_OVERLOAD __attribute__((overloadable))
 #define _CLC_DECL
@@ -12,9 +12,10 @@
 #else
 #define _CLC_DEF __attribute__((always_inline))
 #endif
+
 #define _CLC_INLINE __attribute__((always_inline)) inline
 #define _CLC_CONVERGENT __attribute__((convergent))
 #define _CLC_PURE __attribute__((pure))
 #define _CLC_CONSTFN __attribute__((const))
 
-#endif // CLC_FUNC
+#endif // __CLC_CLCFUNC_H_
