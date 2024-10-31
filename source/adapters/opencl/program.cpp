@@ -99,16 +99,15 @@ UR_APIEXPORT ur_result_t UR_APICALL urProgramCreateWithIL(
       }
     }
 
-    using ApiFuncT =
-        cl_program(CL_API_CALL *)(cl_context, const void *, size_t, cl_int *);
-    ApiFuncT FuncPtr =
-        reinterpret_cast<ApiFuncT>(clGetExtensionFunctionAddressForPlatform(
-            CurPlatform, "clCreateProgramWithILKHR"));
+    cl_ext::clCreateProgramWithILKHR_fn CreateProgramWithIL = nullptr;
 
-    assert(FuncPtr != nullptr);
+    UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
+        cl_adapter::cast<cl_context>(hContext),
+        cl_ext::ExtFuncPtrCache->clCreateProgramWithILKHRCache,
+        cl_ext::CreateProgramWithILName, &CreateProgramWithIL));
 
-    *phProgram = cl_adapter::cast<ur_program_handle_t>(
-        FuncPtr(cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
+    *phProgram = cl_adapter::cast<ur_program_handle_t>(CreateProgramWithIL(
+        cl_adapter::cast<cl_context>(hContext), pIL, length, &Err));
   }
 
   // INVALID_VALUE is only returned in three circumstances according to the cl

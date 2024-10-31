@@ -192,10 +192,7 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
 
   // We need to allow for the possibility that this device runs an older CL and
   // supports the original khr subgroup extension.
-  using ApiFuncT =
-      cl_int(CL_API_CALL *)(cl_kernel, cl_device_id, cl_kernel_sub_group_info,
-                            size_t, const void *, size_t, void *, size_t *);
-  ApiFuncT GetKernelSubGroupInfo = nullptr;
+  cl_ext::clGetKernelSubGroupInfoKHR_fn GetKernelSubGroupInfo = nullptr;
 
   oclv::OpenCLVersion DevVer;
   CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
@@ -210,16 +207,13 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     if (!SubgroupExtSupported) {
       return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
     }
-    cl_platform_id Platform;
-    CL_RETURN_ON_FAILURE(clGetDeviceInfo(
-        cl_adapter::cast<cl_device_id>(hDevice), CL_DEVICE_PLATFORM,
-        sizeof(Platform), &Platform, nullptr));
-    GetKernelSubGroupInfo =
-        reinterpret_cast<ApiFuncT>(clGetExtensionFunctionAddressForPlatform(
-            Platform, "clGetKernelSubGroupInfoKHR"));
-    if (!GetKernelSubGroupInfo) {
-      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-    }
+    cl_context Context = nullptr;
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                         CL_KERNEL_CONTEXT, sizeof(Context),
+                                         &Context, nullptr));
+    UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
+        Context, cl_ext::ExtFuncPtrCache->clGetKernelSubGroupInfoKHRCache,
+        cl_ext::GetKernelSubGroupInfoName, &GetKernelSubGroupInfo));
   } else {
     GetKernelSubGroupInfo = clGetKernelSubGroupInfo;
   }
