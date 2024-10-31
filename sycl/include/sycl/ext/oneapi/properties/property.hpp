@@ -10,7 +10,7 @@
 //  1. Add a new enumerator to
 //     `sycl::ext::oneapi::experimental::detail::PropKind` representing the new
 //     property. Increment
-//     `sycl::ext::oneapi::experimental::detail::PropKind::PropKindSize`
+//     `sycl::ext::oneapi::experimental::detail::PropKind::PropKindSize`.
 //  2. Define property key class inherited from
 //     `detail::compile_time_property_key` with `value_t` that must be
 //     `property_value` with the first template argument being the property
