@@ -5802,12 +5802,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (FD && FD->getNameInfo().getName().isIdentifier()) {
       StringRef FuncName = FD->getName();
       const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
-      if (!getLangOpts().FPAccuracyFuncMap.empty() ||
-          !getLangOpts().FPAccuracyVal.empty() ||
+      bool hasFPAccuracyFuncMap = !getLangOpts().FPAccuracyFuncMap.empty();
+      bool hasFPAccuracyVal = !getLangOpts().FPAccuracyVal.empty();
+      bool isFp32SqrtFunction =
           (FuncName == "sqrt" && !getLangOpts().OffloadFp32PrecSqrt &&
-           IsFloat32Type) ||
+           IsFloat32Type);
+      bool isFP32FdivFunction =
           (FuncName == "fdiv" && !getLangOpts().OffloadFp32PrecDiv &&
-           IsFloat32Type)) {
+           IsFloat32Type);
+      if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction ||
+          isFP32FdivFunction) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());
         if (CI)
