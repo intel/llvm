@@ -1,6 +1,7 @@
-# commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
-# Author: Artur Gainullin <artur.gainullin@intel.com>
-# Date:   Tue Oct 22 03:30:08 2024 -0700
-#
-#     Support UR program creation from multiple device binaries (#2147)
-set(UNIFIED_RUNTIME_TAG 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb)
+# commit a9c7aef861988d4b8421f3e760e63f4e3da9398d (HEAD, origin/main, origin/HEAD)
+# Merge: dbd168c 3142142
+# Author: aarongreig <aaron.greig@codeplay.com>
+# Date:   Mon Oct 28 15:56:46 2024 +0000
+#    Merge pull request #2152 from Bensuo/fabio/binary_update_fix
+#    Fix command-buffer binary update implementation
+set(UNIFIED_RUNTIME_TAG a9c7aef861988d4b8421f3e760e63f4e3da9398d)

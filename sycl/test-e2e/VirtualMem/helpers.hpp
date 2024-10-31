@@ -23,3 +23,9 @@ size_t GetLCMGranularity(
   }
   return (DevGranularity / GCD) * CtxGranularity;
 }
+
+size_t GetAlignedByteSize(const size_t UnalignedBytes,
+                          const size_t AligmentGranularity) {
+  return ((UnalignedBytes + AligmentGranularity - 1) / AligmentGranularity) *
+         AligmentGranularity;
+}

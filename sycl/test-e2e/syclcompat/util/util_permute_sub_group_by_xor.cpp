@@ -112,7 +112,7 @@ void test_permute_sub_group_by_xor() {
 
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             permute_sub_group_by_xor1(dev_data_u, item_ct1);
                           });
 
@@ -139,7 +139,7 @@ void test_permute_sub_group_by_xor() {
       .wait();
   q_ct1->parallel_for(sycl::nd_range<3>(GridSize * BlockSize, BlockSize),
                       [=](sycl::nd_item<3> item_ct1)
-                          [[intel::reqd_sub_group_size(32)]] {
+                          [[sycl::reqd_sub_group_size(32)]] {
                             permute_sub_group_by_xor2(dev_data_u, item_ct1);
                           });
 
