@@ -245,7 +245,7 @@ bool device::ext_oneapi_can_access_peer(const device &peer,
                           "Unrecognized peer access attribute.");
   }();
   auto Adapter = impl->getAdapter();
-  int value;
+  int value = 0;
   Adapter->call<detail::UrApiKind::urUsmP2PPeerAccessGetInfoExp>(
       Device, Peer, UrAttr, sizeof(int), &value, nullptr);
 
