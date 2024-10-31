@@ -13719,8 +13719,8 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
                                     "");
   }
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
-    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel",
-                                    "", /*CheckNDRangeDim=*/true);
+    return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel", "",
+                                    /*CheckNDRangeDim=*/true);
   }
   }
 }

@@ -6339,7 +6339,7 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
     return EmitSYCLFreeFunctionKernelBuiltin(*this, E, "sycl-nd-range-kernel",
-                                              "", /*CheckNDRangeDim=*/true);
+                                             "", /*CheckNDRangeDim=*/true);
   }
   }
 
