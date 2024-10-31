@@ -72,7 +72,7 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 };
 
 int test_write_mem() {
-  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32});
+  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32}, syclcompat::dim3{32});
 
   const int memsize = 1024;
   int *d_a = (int *)syclcompat::malloc(memsize);
