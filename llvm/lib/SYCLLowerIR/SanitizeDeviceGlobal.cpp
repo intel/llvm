@@ -50,6 +50,9 @@ static bool instrumentDeviceGlobal(Module &M) {
     if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
       continue;
 
+    if (G.getName().starts_with("__Asan"))
+      continue;
+
     Type *Ty = G.getValueType();
     const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
     const uint64_t RightRedzoneSize = [&] {

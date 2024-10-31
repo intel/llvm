@@ -59,6 +59,7 @@
 #include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/Mangler.h"
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/Type.h"
@@ -1327,13 +1328,25 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
   return StringGV;
 }
 
+static std::string SYCLUniqueStableId(const GlobalValue *GV,
+                                      const DataLayout &DL) {
+  std::string Buffer;
+  llvm::raw_string_ostream Out(Buffer);
+
+  Mangler Mgl;
+  Mgl.getNameWithPrefix(Out, GV, true);
+
+  return Out.str();
+}
+
 // Append a new argument "launch_data" to user's spir_kernels
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
   CallGraph CG(M);
 
-  Type *IntptrTy = M.getDataLayout().getIntPtrType(M.getContext());
+  auto DL = M.getDataLayout();
+  Type *IntptrTy = DL.getIntPtrType(M.getContext());
 
   // SpirKernelsMetadata only saves fixed kernels, and is described by
   // following structure:
@@ -1379,6 +1392,13 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
       MetadataInitializer, "__AsanKernelMetadata", nullptr,
       GlobalValue::NotThreadLocal, 1);
   AsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  AsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  AsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  AsanSpirKernelMetadata->addAttribute("sycl-host-access", "2");
+  AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__AsanKernelMetadata");
 
   // Handle SpirFixupKernels
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;
