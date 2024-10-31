@@ -8,10 +8,13 @@
 
 #include "DeviceCompilation.h"
 
+#include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
 #include <clang/Driver/Compilation.h>
+#include <clang/Driver/Options.h>
 #include <clang/Frontend/CompilerInstance.h>
+#include <clang/Frontend/TextDiagnosticBuffer.h>
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
@@ -23,7 +26,9 @@
 using namespace clang;
 using namespace clang::tooling;
 using namespace clang::driver;
+using namespace clang::driver::options;
 using namespace llvm;
+using namespace llvm::opt;
 
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
@@ -106,16 +111,33 @@ struct GetLLVMModuleAction : public ToolAction {
 Expected<std::unique_ptr<llvm::Module>>
 jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
                                 View<InMemoryFile> IncludeFiles,
-                                View<const char *> UserArgs) {
+                                const InputArgList &UserArgList) {
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
   }
 
-  SmallVector<std::string> CommandLine = {"-fsycl-device-only"};
-  CommandLine.append(UserArgs.begin(), UserArgs.end());
-  FixedCompilationDatabase DB{".", CommandLine};
+  DerivedArgList DAL{UserArgList};
+  const auto &OptTable = getDriverOptTable();
+  DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+  DAL.AddJoinedArg(
+      nullptr, OptTable.getOption(OPT_resource_dir_EQ),
+      (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
+  for (auto *Arg : UserArgList) {
+    DAL.append(Arg);
+  }
+  // Remove args that will trigger an unused command line argument warning for
+  // the FrontendAction invocation, but are handled later (e.g. during device
+  // linking).
+  DAL.eraseArg(OPT_fsycl_device_lib_EQ);
+  DAL.eraseArg(OPT_fno_sycl_device_lib_EQ);
 
+  SmallVector<std::string> CommandLine;
+  for (auto *Arg : DAL) {
+    CommandLine.emplace_back(Arg->getAsString(DAL));
+  }
+
+  FixedCompilationDatabase DB{".", CommandLine};
   ClangTool Tool{DB, {SourceFile.Path}};
 
   // Set up in-memory filesystem.
@@ -127,17 +149,14 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   // Reset argument adjusters to drop the `-fsyntax-only` flag which is added by
   // default by this API.
   Tool.clearArgumentsAdjusters();
-  // Then, modify argv[0] and set the resource directory so that the driver
-  // picks up the correct SYCL environment.
+  // Then, modify argv[0] so that the driver picks up the correct SYCL
+  // environment. We've already set the resource directory above.
   Tool.appendArgumentsAdjuster(
       [&DPCPPRoot](const CommandLineArguments &Args,
                    StringRef Filename) -> CommandLineArguments {
         (void)Filename;
         CommandLineArguments NewArgs = Args;
         NewArgs[0] = (Twine(DPCPPRoot) + "/bin/clang++").str();
-        NewArgs.push_back((Twine("-resource-dir=") + DPCPPRoot + "/lib/clang/" +
-                           Twine(CLANG_VERSION_MAJOR))
-                              .str());
         return NewArgs;
       });
 
@@ -150,87 +169,197 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   return createStringError("Unable to obtain LLVM module");
 }
 
-Error jit_compiler::linkDefaultDeviceLibraries(llvm::Module &Module,
-                                               View<const char *> UserArgs) {
+// This function is a simplified copy of the device library selection process in
+// `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
+// (no AoT, no third-party GPUs, no native CPU). Keep in sync!
+static SmallVector<std::string, 8>
+getDeviceLibraries(const ArgList &Args, DiagnosticsEngine &Diags) {
+  struct DeviceLibOptInfo {
+    StringRef DeviceLibName;
+    StringRef DeviceLibOption;
+  };
+
+  // Currently, all SYCL device libraries will be linked by default.
+  llvm::StringMap<bool> DeviceLibLinkInfo = {
+      {"libc", true},          {"libm-fp32", true},   {"libm-fp64", true},
+      {"libimf-fp32", true},   {"libimf-fp64", true}, {"libimf-bf16", true},
+      {"libm-bfloat16", true}, {"internal", true}};
+
+  // If -fno-sycl-device-lib is specified, its values will be used to exclude
+  // linkage of libraries specified by DeviceLibLinkInfo. Linkage of "internal"
+  // libraries cannot be affected via -fno-sycl-device-lib.
+  bool ExcludeDeviceLibs = false;
+
+  if (Arg *A = Args.getLastArg(OPT_fsycl_device_lib_EQ,
+                               OPT_fno_sycl_device_lib_EQ)) {
+    if (A->getValues().size() == 0) {
+      Diags.Report(diag::warn_drv_empty_joined_argument)
+          << A->getAsString(Args);
+    } else {
+      if (A->getOption().matches(OPT_fno_sycl_device_lib_EQ)) {
+        ExcludeDeviceLibs = true;
+      }
+
+      for (StringRef Val : A->getValues()) {
+        if (Val == "all") {
+          for (const auto &K : DeviceLibLinkInfo.keys()) {
+            DeviceLibLinkInfo[K] = (K == "internal") || !ExcludeDeviceLibs;
+          }
+          break;
+        }
+        auto LinkInfoIter = DeviceLibLinkInfo.find(Val);
+        if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
+          Diags.Report(diag::err_drv_unsupported_option_argument)
+              << A->getSpelling() << Val;
+          return {};
+        }
+        DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
+      }
+    }
+  }
+
+  using SYCLDeviceLibsList = SmallVector<DeviceLibOptInfo, 5>;
+
+  const SYCLDeviceLibsList SYCLDeviceWrapperLibs = {
+      {"libsycl-crt", "libc"},
+      {"libsycl-complex", "libm-fp32"},
+      {"libsycl-complex-fp64", "libm-fp64"},
+      {"libsycl-cmath", "libm-fp32"},
+      {"libsycl-cmath-fp64", "libm-fp64"},
+      {"libsycl-imf", "libimf-fp32"},
+      {"libsycl-imf-fp64", "libimf-fp64"},
+      {"libsycl-imf-bf16", "libimf-bf16"}};
+  // ITT annotation libraries are linked in separately whenever the device
+  // code instrumentation is enabled.
+  const SYCLDeviceLibsList SYCLDeviceAnnotationLibs = {
+      {"libsycl-itt-user-wrappers", "internal"},
+      {"libsycl-itt-compiler-wrappers", "internal"},
+      {"libsycl-itt-stubs", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
+      {"libsycl-sanitizer", "internal"}};
+
+  SmallVector<std::string, 8> LibraryList;
+  StringRef LibSuffix = ".bc";
+  auto AddLibraries = [&](const SYCLDeviceLibsList &LibsList) {
+    for (const DeviceLibOptInfo &Lib : LibsList) {
+      if (!DeviceLibLinkInfo[Lib.DeviceLibOption]) {
+        continue;
+      }
+      SmallString<128> LibName(Lib.DeviceLibName);
+      llvm::sys::path::replace_extension(LibName, LibSuffix);
+      LibraryList.push_back(Args.MakeArgString(LibName));
+    }
+  };
+
+  AddLibraries(SYCLDeviceWrapperLibs);
+
+  if (Args.hasFlag(OPT_fsycl_instrument_device_code,
+                   OPT_fno_sycl_instrument_device_code, false)) {
+    AddLibraries(SYCLDeviceAnnotationLibs);
+  }
+
+  if (Arg *A = Args.getLastArg(OPT_fsanitize_EQ, OPT_fno_sanitize_EQ)) {
+    if (A->getOption().matches(OPT_fsanitize_EQ) &&
+        A->getValues().size() == 1) {
+      std::string SanitizeVal = A->getValue();
+      if (SanitizeVal == "address") {
+        AddLibraries(SYCLDeviceSanitizerLibs);
+      }
+    }
+  } else {
+    // User can pass -fsanitize=address to device compiler via
+    // -Xsycl-target-frontend, sanitize device library must be
+    // linked with user's device image if so.
+    bool IsDeviceAsanEnabled = false;
+    auto SyclFEArg = Args.getAllArgValues(OPT_Xsycl_frontend);
+    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
+                                      "-fsanitize=address") > 0);
+    if (!IsDeviceAsanEnabled) {
+      auto SyclFEArgEq = Args.getAllArgValues(OPT_Xsycl_frontend_EQ);
+      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
+                                        "-fsanitize=address") > 0);
+    }
+
+    // User can also enable asan for SYCL device via -Xarch_device option.
+    if (!IsDeviceAsanEnabled) {
+      auto DeviceArchVals = Args.getAllArgValues(OPT_Xarch_device);
+      for (auto DArchVal : DeviceArchVals) {
+        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
+          IsDeviceAsanEnabled = true;
+          break;
+        }
+      }
+    }
+
+    if (IsDeviceAsanEnabled) {
+      AddLibraries(SYCLDeviceSanitizerLibs);
+    }
+  }
+
+  return LibraryList;
+}
+
+Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
+                                        const InputArgList &UserArgList) {
   // This function mimics the device library selection process
   // `clang::driver::tools::SYCL::getDeviceLibraries`, assuming a SPIR-V target
   // (no AoT, no third-party GPUs, no native CPU).
-
-  bool DeviceInstrumentationEnabled = false;
-  for (StringRef UA : UserArgs) {
-    // Check instrumentation-related flags (last occurence determines outcome).
-    if (UA == "-fsycl-instrument-device-code") {
-      DeviceInstrumentationEnabled = true;
-      continue;
-    }
-    if (UA == "-fno-sycl-instrument-device-code") {
-      DeviceInstrumentationEnabled = false;
-      continue;
-    }
-
-    // Issue warning for `-fsycl-device-lib` or `-fno-sycl-device-lib`.
-    // TODO: Is it worth supporting these flags? We're using `LinkOnlyNeeded`
-    //       mode anyways!
-    // TODO: If we keep the warning, it must go into the build log, not onto the
-    //       console.
-    // TODO: The FrontendAction emits a warning that these flags are unused. We
-    //       should probably silence that by removing the argument occurence for
-    //       the compilation step.
-    if (UA.contains("sycl-device-lib")) {
-      errs() << "warning: device library selection with '" << UA
-             << "' is ignored\n";
-    }
-
-    // TODO: Presence of `-fsanitize=address` would require linking
-    //       `libsycl-sanitizer`, but currently compilation fails earlier.
-    assert(!UA.contains("-fsanitize=address") && "Device ASAN unsupported");
-  }
 
   const std::string &DPCPPRoot = getDPCPPRoot();
   if (DPCPPRoot == InvalidDPCPPRoot) {
     return createStringError("Could not locate DPCPP root directory");
   }
 
-  constexpr std::array<llvm::StringLiteral, 8> SYCLDeviceWrapperLibs = {
-      "libsycl-crt",      "libsycl-complex",    "libsycl-complex-fp64",
-      "libsycl-cmath",    "libsycl-cmath-fp64", "libsycl-imf",
-      "libsycl-imf-fp64", "libsycl-imf-bf16"};
+  // TODO: Seems a bit excessive to set up this machinery for one warning and
+  //       one error. Rethink when implementing the build log/error reporting as
+  //       mandated by the extension.
+  IntrusiveRefCntPtr<DiagnosticIDs> DiagID{new DiagnosticIDs};
+  IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
+  TextDiagnosticBuffer *DiagBuffer = new TextDiagnosticBuffer;
+  DiagnosticsEngine Diags(DiagID, DiagOpts, DiagBuffer);
 
-  constexpr std::array<llvm::StringLiteral, 3> SYCLDeviceAnnotationLibs = {
-      "libsycl-itt-user-wrappers", "libsycl-itt-compiler-wrappers",
-      "libsycl-itt-stubs"};
+  auto LibNames = getDeviceLibraries(UserArgList, Diags);
+  if (LibNames.empty()) {
+    assert(std::distance(DiagBuffer->err_begin(), DiagBuffer->err_end()) == 1);
+    return createStringError("Could not determine list of device libraries: %s",
+                             DiagBuffer->err_begin()->second.c_str());
+  }
+  // TODO: Add warnings to build log.
 
   LLVMContext &Context = Module.getContext();
-  auto Link = [&](ArrayRef<llvm::StringLiteral> LibNames) -> Error {
-    for (const auto &LibName : LibNames) {
-      std::string LibPath = (DPCPPRoot + "/lib/" + LibName + ".bc").str();
+  for (const std::string &LibName : LibNames) {
+    std::string LibPath = DPCPPRoot + "/lib/" + LibName;
 
-      SMDiagnostic Diag;
-      std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
-      if (!Lib) {
-        std::string DiagMsg;
-        raw_string_ostream SOS(DiagMsg);
-        Diag.print(/*ProgName=*/nullptr, SOS);
-        return createStringError(DiagMsg);
-      }
-
-      if (Linker::linkModules(Module, std::move(Lib), Linker::LinkOnlyNeeded)) {
-        // TODO: `linkModules` always prints errors to the console.
-        return createStringError("Unable to link device library: %s",
-                                 LibPath.c_str());
-      }
+    SMDiagnostic Diag;
+    std::unique_ptr<llvm::Module> Lib = parseIRFile(LibPath, Diag, Context);
+    if (!Lib) {
+      std::string DiagMsg;
+      raw_string_ostream SOS(DiagMsg);
+      Diag.print(/*ProgName=*/nullptr, SOS);
+      return createStringError(DiagMsg);
     }
 
-    return Error::success();
-  };
-
-  if (auto Error = Link(SYCLDeviceWrapperLibs)) {
-    return Error;
-  }
-  if (DeviceInstrumentationEnabled) {
-    if (auto Error = Link(SYCLDeviceAnnotationLibs)) {
-      return Error;
+    if (Linker::linkModules(Module, std::move(Lib), Linker::LinkOnlyNeeded)) {
+      // TODO: Obtain detailed error message from the context's diagnostics
+      //       handler.
+      return createStringError("Unable to link device library: %s",
+                               LibPath.c_str());
     }
   }
+
   return Error::success();
+}
+
+Expected<InputArgList>
+jit_compiler::parseUserArgs(View<const char *> UserArgs) {
+  unsigned MissingArgIndex, MissingArgCount;
+  auto UserArgsRef = UserArgs.to<ArrayRef>();
+  auto AL = getDriverOptTable().ParseArgs(UserArgsRef, MissingArgIndex,
+                                          MissingArgCount);
+  if (MissingArgCount) {
+    return createStringError(
+        "User option '%s' at index %d is missing an argument",
+        UserArgsRef[MissingArgIndex], MissingArgIndex);
+  }
+  return AL;
 }
