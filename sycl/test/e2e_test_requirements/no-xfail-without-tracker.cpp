@@ -1,5 +1,6 @@
-// This test is intended to ensure that we have no trackers marked as XFAIL
+// This test is intended to ensure that we have no tests marked as XFAIL
 // without a tracker information added to a test.
+// For more info see: sycl/test-e2e/README.md
 //
 // The format we check is:
 // XFAIL: lit,features
@@ -26,7 +27,7 @@
 // - ...and check if the list of improperly XFAIL-ed tests needs to be updated.
 //
 // RUN: grep -rI "XFAIL:" %S/../../test-e2e \
-// RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
+// RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
 // RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
@@ -50,20 +51,17 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 156
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 143
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been propely XFAIL-ed.
 //
 // CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/accessor/accessor.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
 // CHECK-NEXT: Basic/built-ins.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
-// CHECK-NEXT: Basic/fpga_tests/fpga_pipes_mixed_usage.cpp
-// CHECK-NEXT: Basic/image/srgba-read.cpp
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
 // CHECK-NEXT: Basic/max_work_group_size_props.cpp
 // CHECK-NEXT: Basic/partition_supported.cpp
@@ -72,12 +70,9 @@
 // CHECK-NEXT: Basic/span.cpp
 // CHECK-NEXT: Basic/stream/auto_flush.cpp
 // CHECK-NEXT: DeprecatedFeatures/queue_old_interop.cpp
-// CHECK-NEXT: DeprecatedFeatures/set_arg_interop.cpp
-// CHECK-NEXT: DeviceArchitecture/device_architecture_comparison_on_device_aot.cpp
 // CHECK-NEXT: DeviceCodeSplit/split-per-kernel.cpp
 // CHECK-NEXT: DeviceCodeSplit/split-per-source-main.cpp
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
-// CHECK-NEXT: ESIMD/assert.cpp
 // CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: GroupLocalMemory/group_local_memory.cpp
@@ -92,7 +87,6 @@
 // CHECK-NEXT: InvokeSimd/Spec/tuple_return.cpp
 // CHECK-NEXT: InvokeSimd/Spec/tuple_vadd.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
-// CHECK-NEXT: LLVMIntrinsicLowering/sub_byte_bitreverse.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
@@ -176,8 +170,6 @@
 // CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp
 // CHECK-NEXT: OptionalKernelFeatures/throw-exception-for-out-of-registers-on-kernel-launch.cpp
 // CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
-// CHECK-NEXT: Plugin/interop-cuda-experimental.cpp
-// CHECK-NEXT: Plugin/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp
@@ -207,7 +199,3 @@
 // CHECK-NEXT: Scheduler/MultipleDevices.cpp
 // CHECK-NEXT: Scheduler/ReleaseResourcesTest.cpp
 // CHECK-NEXT: Tracing/buffer_printers.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs-and-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs.cpp
-// CHECK-NEXT: syclcompat/launch/launch_policy_lmem.cpp
