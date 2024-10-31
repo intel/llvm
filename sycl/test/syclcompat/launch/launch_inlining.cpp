@@ -85,14 +85,10 @@ int test_write_mem() {
 }
 
 int test_lmem_launch() {
-  using T = int;
-  // A property constructed at runtime:
-  sycl_intel_exp::cache_config my_cache_config{sycl_intel_exp::large_slm};
+  int local_mem_size = LOCAL_MEM_SIZE;
 
-  int local_mem_size = LOCAL_MEM_SIZE; // rt value
-
-  size_t num_elements = local_mem_size / sizeof(T);
-  T *d_a = (T *)syclcompat::malloc(local_mem_size);
+  size_t num_elements = local_mem_size / sizeof(int);
+  int *d_a = (int *)syclcompat::malloc(local_mem_size);
 
   compat_exp::launch_policy my_config(
       sycl::nd_range<1>{{256}, {256}},
