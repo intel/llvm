@@ -245,8 +245,7 @@ public:
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
       traceProgram("Program inserted.", CacheKey);
-    }
-    else
+    } else
       traceProgram("Program fetched.", CacheKey);
     return std::make_pair(It->second, DidInsert);
   }
@@ -270,8 +269,7 @@ public:
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
       traceProgram("Program inserted.", CacheKey);
-    }
-    else
+    } else
       traceProgram("Program fetched.", CacheKey);
     return DidInsert;
   }
@@ -285,8 +283,7 @@ public:
     if (DidInsert) {
       It->second = std::make_shared<KernelBuildResult>(getAdapter());
       traceKernel("Kernel inserted.", KernelName);
-    }
-    else
+    } else
       traceKernel("Kernel fetched.", KernelName);
     return std::make_pair(It->second, DidInsert);
   }
