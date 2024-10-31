@@ -11,10 +11,10 @@ void test(sycl::queue &Q, size_t N) {
   auto *array = sycl::malloc_device<char>(N, Q);
 
   Q.submit([&](sycl::handler &h) {
-    h.parallel_for<class MyKernelR_4>(
-        sycl::nd_range<1>(N, 1),
-        [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
-  }).wait();
+     h.parallel_for<class MyKernelR_4>(
+         sycl::nd_range<1>(N, 1),
+         [=](sycl::nd_item<1> item) { ++array[item.get_global_id(0)]; });
+   }).wait();
 }
 
 #else
