@@ -2666,18 +2666,20 @@ static RValue EmitSYCLFreeFunctionKernelBuiltin(CodeGenFunction &CGF,
         if (!NVPair.first.compare(NameStr1) ||
             (!NameStr2.empty() && !!NVPair.first.compare(NameStr2))) {
           if (CheckNDRangeDim) {
-            uint64_t Dim = E->getArg(1)->EvaluateKnownConstInt(CGF.CGM.getContext()).getZExtValue();
+            uint64_t Dim = E->getArg(1)
+                               ->EvaluateKnownConstInt(CGF.CGM.getContext())
+                               .getZExtValue();
             // Return true only if the dimensions match.
             if (std::stoul(NVPair.second) == Dim)
-              return RValue::get(llvm::ConstantInt::getTrue(
-                                     CGF.ConvertType(E->getType())));
+              return RValue::get(
+                  llvm::ConstantInt::getTrue(CGF.ConvertType(E->getType())));
             else
-              return RValue::get(llvm::ConstantInt::getFalse(
-                                     CGF.ConvertType(E->getType())));
+              return RValue::get(
+                  llvm::ConstantInt::getFalse(CGF.ConvertType(E->getType())));
           }
           // Return true if the kernel type matches.
-          return RValue::get(llvm::ConstantInt::getTrue(
-                                 CGF.ConvertType(E->getType())));
+          return RValue::get(
+              llvm::ConstantInt::getTrue(CGF.ConvertType(E->getType())));
         }
       }
     }
@@ -6329,15 +6331,15 @@ RValue CodeGenFunction::EmitBuiltinExpr(const GlobalDecl GD, unsigned BuiltinID,
   }
   case Builtin::BI__builtin_sycl_is_kernel: {
     return EmitSYCLFreeFunctionKernelBuiltin(
-               *this, E, "sycl-single-task-kernel", "sycl-nd-range-kernel");
+        *this, E, "sycl-single-task-kernel", "sycl-nd-range-kernel");
   }
   case Builtin::BI__builtin_sycl_is_single_task_kernel: {
-    return EmitSYCLFreeFunctionKernelBuiltin(
-               *this, E, "sycl-single-task-kernel", "");
+    return EmitSYCLFreeFunctionKernelBuiltin(*this, E,
+                                             "sycl-single-task-kernel", "");
   }
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
-    return EmitSYCLFreeFunctionKernelBuiltin(
-               *this, E, "sycl-nd-range-kernel", "", /*CheckNDRangeDim=*/true);
+    return EmitSYCLFreeFunctionKernelBuiltin(*this, E, "sycl-nd-range-kernel",
+                                              "", /*CheckNDRangeDim=*/true);
   }
   }
 

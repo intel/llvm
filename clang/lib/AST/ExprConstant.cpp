@@ -12727,10 +12727,8 @@ static bool getBuiltinAlignArguments(const CallExpr *E, EvalInfo &Info,
 }
 
 static bool isSYCLFreeFunctionKernel(IntExprEvaluator &IEV,
-                                     const EvalInfo &Info,
-                                     const CallExpr *E,
-                                     StringRef NameStr1,
-                                     StringRef NameStr2,
+                                     const EvalInfo &Info, const CallExpr *E,
+                                     StringRef NameStr1, StringRef NameStr2,
                                      bool CheckNDRangeKernelDim = false) {
   const Expr *ArgExpr = E->getArg(0)->IgnoreParenImpCasts();
   while (isa<CastExpr>(ArgExpr))
@@ -12748,13 +12746,13 @@ static bool isSYCLFreeFunctionKernel(IntExprEvaluator &IEV,
         if (!NVPair.first.compare(NameStr1) ||
             (!NameStr2.empty() && !NVPair.first.compare(NameStr2))) {
           if (CheckNDRangeKernelDim) {
-            uint64_t Dim = E->getArg(1)->EvaluateKnownConstInt(Info.Ctx).
-                                             getZExtValue();
+            uint64_t Dim =
+                E->getArg(1)->EvaluateKnownConstInt(Info.Ctx).getZExtValue();
             // Return true only if the dimensions match.
             if (std::stoul(NVPair.second) == Dim)
-               return IEV.Success(true, E);
+              return IEV.Success(true, E);
             else
-               return IEV.Success(false, E);
+              return IEV.Success(false, E);
           }
           // Return true if it has the sycl-single-task-kernel or the
           // sycl-nd-range-kernel attribute.
@@ -13714,15 +13712,15 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
 
   case Builtin::BI__builtin_sycl_is_kernel: {
     return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
-                                        "sycl-nd-range-kernel");
+                                    "sycl-nd-range-kernel");
   }
   case Builtin::BI__builtin_sycl_is_single_task_kernel: {
     return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",
-                                         "");
+                                    "");
   }
   case Builtin::BI__builtin_sycl_is_nd_range_kernel: {
     return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-nd-range-kernel",
-                                         "", /*CheckNDRangeDim=*/true);
+                                    "", /*CheckNDRangeDim=*/true);
   }
   }
 }
