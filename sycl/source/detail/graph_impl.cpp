@@ -405,7 +405,7 @@ std::set<std::shared_ptr<node_impl>> graph_impl::getCGEdges(
     }
   }
 
-  return std::move(UniqueDeps);
+  return UniqueDeps;
 }
 
 void graph_impl::markCGMemObjs(
@@ -1563,7 +1563,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
-  UpdateDesc.hNewKernel = nullptr;
+  UpdateDesc.hNewKernel = UrKernel;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
@@ -1852,24 +1852,7 @@ void dynamic_parameter_impl::updateValue(const raw_kernel_arg *NewRawValue,
   size_t RawArgSize = NewRawValue->MArgSize;
   const void *RawArgData = NewRawValue->MArgData;
 
-  for (auto &[NodeWeak, ArgIndex] : MNodes) {
-    auto NodeShared = NodeWeak.lock();
-    if (NodeShared) {
-      dynamic_parameter_impl::updateCGArgValue(
-          NodeShared->MCommandGroup, ArgIndex, RawArgData, RawArgSize);
-    }
-  }
-
-  for (auto &DynCGInfo : MDynCGs) {
-    auto DynCG = DynCGInfo.DynCG.lock();
-    if (DynCG) {
-      auto &CG = DynCG->MKernels[DynCGInfo.CGIndex];
-      dynamic_parameter_impl::updateCGArgValue(CG, DynCGInfo.ArgIndex,
-                                               RawArgData, RawArgSize);
-    }
-  }
-
-  std::memcpy(MValueStorage.data(), RawArgData, RawArgSize);
+  updateValue(RawArgData, RawArgSize);
 }
 
 void dynamic_parameter_impl::updateValue(const void *NewValue, size_t Size) {
@@ -1987,7 +1970,6 @@ dynamic_command_group_impl::dynamic_command_group_impl(
 
 void dynamic_command_group_impl::finalizeCGFList(
     const std::vector<std::function<void(handler &)>> &CGFList) {
-  // True if kernels use sycl::nd_range, and false if using sycl::range
   for (size_t CGFIndex = 0; CGFIndex < CGFList.size(); CGFIndex++) {
     const auto &CGF = CGFList[CGFIndex];
     // Handler defined inside the loop so it doesn't appear to the runtime

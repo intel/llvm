@@ -417,7 +417,7 @@ public:
       throw sycl::exception(sycl::errc::invalid,
                             "Cannot update execution range of a node with an "
                             "execution range of different dimensions than what "
-                            "the node was original created with.");
+                            "the node was originally created with.");
     }
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
@@ -438,7 +438,7 @@ public:
       throw sycl::exception(sycl::errc::invalid,
                             "Cannot update execution range of a node with an "
                             "execution range of different dimensions than what "
-                            "the node was original created with.");
+                            "the node was originally created with.");
     }
 
     NDRDesc = sycl::detail::NDRDescT{ExecutionRange};
@@ -1173,11 +1173,6 @@ private:
   /// @param Deps List of dependent nodes
   void addDepsToNode(std::shared_ptr<node_impl> Node,
                      std::vector<std::shared_ptr<node_impl>> &Deps) {
-    // Remove empty shared pointers from the list
-    auto EmptyElementIter =
-        std::remove(Deps.begin(), Deps.end(), std::shared_ptr<node_impl>());
-    Deps.erase(EmptyElementIter, Deps.end());
-
     if (!Deps.empty()) {
       for (auto &N : Deps) {
         N->registerSuccessor(Node);
