@@ -42,7 +42,7 @@
 //
 // That number *must not* increase. Any PR which causes this number to grow
 // should be rejected and it should be updated to either keep the number as-is
-// or have it reduced (preferrably, down to zero).
+// or have it reduced (preferably, down to zero).
 //
 // If you see this test failed for your patch, it means that you either
 // introduced XFAIL directive to a test improperly, or broke the format of an
@@ -54,7 +54,7 @@
 // NUMBER-OF-XFAIL-WITHOUT-TRACKER: 143
 //
 // List of improperly XFAIL-ed tests.
-// Remove the CHECK once the test has been propely XFAIL-ed.
+// Remove the CHECK once the test has been properly XFAIL-ed.
 //
 // CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/aspects.cpp
