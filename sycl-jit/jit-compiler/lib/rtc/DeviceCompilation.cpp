@@ -357,5 +357,5 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
         "User option '%s' at index %d is missing an argument",
         UserArgsRef[MissingArgIndex], MissingArgIndex);
   }
-  return AL;
+  return Expected<InputArgList>{std::move(AL)};
 }
