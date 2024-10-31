@@ -27,7 +27,7 @@ using namespace sycl;
 // A global buffer is allocated using USM and it is passed to the kernel on the
 // device. On the device, a work group memory buffer is allocated and each item
 // copies the correspondng element of the global buffer to the corresponding
-// element of the work group memory buffer using its global index. The leader of
+// element of the work group memory buffer using its lcoal index. The leader of
 // every work-group, after waiting for every work-item to complete, then sums
 // these values storing the result in another work group memory object. Finally,
 // each work item then verifies that the sum of the work group memory elements
