@@ -6,6 +6,7 @@
 
 // Hits an assertion and kernel page fault with AMD:
 // UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14404
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>

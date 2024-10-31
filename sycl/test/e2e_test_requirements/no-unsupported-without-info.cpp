@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 488
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 487
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -76,7 +76,6 @@
 // CHECK-NEXT: Basic/buffer/buffer_create.cpp
 // CHECK-NEXT: Basic/buffer/subbuffer.cpp
 // CHECK-NEXT: Basic/build_log.cpp
-// CHECK-NEXT: Basic/built-ins.cpp
 // CHECK-NEXT: Basic/code_location_e2e.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
