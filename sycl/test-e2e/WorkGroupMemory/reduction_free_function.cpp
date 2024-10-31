@@ -2,8 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: The name mangling for free function kernels currently does not work with PTX.
 
 // Usage of work group memory parameters in free function kernels is not yet
 // implemented.
