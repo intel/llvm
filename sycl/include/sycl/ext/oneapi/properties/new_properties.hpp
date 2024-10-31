@@ -208,6 +208,10 @@ public:
   template <template <auto...> typename> static constexpr bool has_property() {
     return false;
   }
+  template <template <typename...> typename>
+  static constexpr bool has_property() {
+    return false;
+  }
 
   // TODO: How does this work without qualified name?
   template <typename other_property_t>
