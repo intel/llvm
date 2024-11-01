@@ -560,8 +560,9 @@ ur_result_t urCommandBufferCommandGetInfoExp(
 }
 
 ur_result_t urKernelSuggestMaxCooperativeGroupCountExp(
-    ur_kernel_handle_t hKernel, uint32_t workDim, const size_t *pLocalWorkSize,
-    size_t dynamicSharedMemorySize, uint32_t *pGroupCountRet) {
+    ur_kernel_handle_t hKernel, ur_device_handle_t hDevice, uint32_t workDim,
+    const size_t *pLocalWorkSize, size_t dynamicSharedMemorySize,
+    uint32_t *pGroupCountRet) {
   logger::error("{} function not implemented!", __FUNCTION__);
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
