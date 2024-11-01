@@ -211,7 +211,6 @@ getDeviceLibraries(const ArgList &Args, DiagnosticsEngine &Diags) {
         if (LinkInfoIter == DeviceLibLinkInfo.end() || Val == "internal") {
           Diags.Report(diag::err_drv_unsupported_option_argument)
               << A->getSpelling() << Val;
-          return {};
         }
         DeviceLibLinkInfo[Val] = !ExcludeDeviceLibs;
       }
@@ -275,10 +274,15 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   DiagnosticsEngine Diags(DiagID, DiagOpts, DiagBuffer);
 
   auto LibNames = getDeviceLibraries(UserArgList, Diags);
-  if (LibNames.empty()) {
-    assert(std::distance(DiagBuffer->err_begin(), DiagBuffer->err_end()) == 1);
+  if (auto NumErr =
+          std::distance(DiagBuffer->err_begin(), DiagBuffer->err_end())) {
+    std::string DiagMsg;
+    raw_string_ostream SOS{DiagMsg};
+    interleave(
+        DiagBuffer->err_begin(), DiagBuffer->err_end(),
+        [&](const auto &D) { SOS << D.second; }, [&]() { SOS << '\n'; });
     return createStringError("Could not determine list of device libraries: %s",
-                             DiagBuffer->err_begin()->second.c_str());
+                             DiagMsg.c_str());
   }
   // TODO: Add warnings to build log.
 

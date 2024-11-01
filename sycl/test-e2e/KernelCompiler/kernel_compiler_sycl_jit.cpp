@@ -134,7 +134,7 @@ void test_unsupported_options() {
     try {
       syclex::build(kbSrc, devs,
                     syclex::properties{syclex::build_options{flags}});
-      assert(false && "Unsupported option not detected");
+      assert(false && "unsupported option not detected");
     } catch (sycl::exception &e) {
       assert(e.code() == sycl::errc::build);
       assert(std::string(e.what()).find("Parsing of user arguments failed") !=
