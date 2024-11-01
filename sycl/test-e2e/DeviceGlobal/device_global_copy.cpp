@@ -1,6 +1,7 @@
 // RUN: %{build} -std=c++23 -o %t.out
 // RUN: %{run} %t.out
 //
+// REQUIRES: run-mode
 // UNSUPPORTED: opencl && gpu
 // UNSUPPORTED-TRACKER: GSD-4287
 //
