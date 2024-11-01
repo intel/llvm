@@ -274,8 +274,7 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   DiagnosticsEngine Diags(DiagID, DiagOpts, DiagBuffer);
 
   auto LibNames = getDeviceLibraries(UserArgList, Diags);
-  if (auto NumErr =
-          std::distance(DiagBuffer->err_begin(), DiagBuffer->err_end())) {
+  if (std::distance(DiagBuffer->err_begin(), DiagBuffer->err_end()) > 0) {
     std::string DiagMsg;
     raw_string_ostream SOS{DiagMsg};
     interleave(
