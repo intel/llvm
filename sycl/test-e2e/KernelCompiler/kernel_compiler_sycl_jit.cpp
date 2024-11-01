@@ -70,7 +70,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   sycl::free(usmPtr, Queue);
 }
 
-void test_build_and_run() {
+int test_build_and_run() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -85,7 +85,7 @@ void test_build_and_run() {
                  "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
-    return;
+    return -1;
   }
 
   // Create from source.
@@ -116,12 +116,14 @@ void test_build_and_run() {
 
   // Test the kernels.
   test_1(q, k, 37 + 5); // ff_cp seeds 37. AddEm will add 5 more.
+
+  return 0;
 }
 
 int main() {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  test_build_and_run();
+  return test_build_and_run();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

@@ -30,6 +30,7 @@ static inline void printPerformanceWarning(const std::string &Message) {
 
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
+    // TODO: For Windows, we need to look for a libary by a different name.
     static const std::string JITLibraryName = "libsycl-jit.so";
 
     void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
@@ -625,6 +626,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
+#ifndef _WIN32
   if (!BinImage) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
@@ -716,6 +718,13 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   }
 
   return NewKernel;
+#else  // _WIN32
+  (void)Queue;
+  (void)BinImage;
+  (void)KernelName;
+  (void)SpecConstBlob;
+  return nullptr;
+#endif // _WIN32
 }
 
 std::unique_ptr<detail::CG>
