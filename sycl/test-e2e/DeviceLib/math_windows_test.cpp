@@ -1,4 +1,4 @@
-// REQUIRES: windows, run-mode
+// REQUIRES: windows
 
 // TODO: Add hypotf case back when the missing symbol is fixed.
 

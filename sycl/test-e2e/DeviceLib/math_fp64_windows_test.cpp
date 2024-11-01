@@ -1,4 +1,4 @@
-// REQUIRES: aspect-fp64, windows, run-mode
+// REQUIRES: aspect-fp64, windows
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
