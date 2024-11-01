@@ -349,7 +349,7 @@ if(MSVC)
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
-    add_devicelibs(libsycl-sanitizer
+    add_devicelibs(libsycl-asan
       SRC sanitizer_utils.cpp
       DEPENDENCIES ${sanitizer_obj_deps}
       EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})

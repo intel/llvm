@@ -540,8 +540,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
 #if !defined(_WIN32)
-  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
-      {"libsycl-sanitizer", "internal"},
+  const SYCLDeviceLibsList SYCLDeviceAsanLibs = {
+      {"libsycl-asan", "internal"},
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
@@ -659,7 +659,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         A->getValues().size() == 1) {
       std::string SanitizeVal = A->getValue();
       if (SanitizeVal == "address")
-        addSingleLibrary(SYCLDeviceSanitizerLibs[sanitizer_lib_idx]);
+        addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
     }
   } else {
     // User can pass -fsanitize=address to device compiler via
@@ -687,7 +687,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
 
     if (IsDeviceAsanEnabled)
-      addSingleLibrary(SYCLDeviceSanitizerLibs[sanitizer_lib_idx]);
+      addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   }
 #endif
 
@@ -804,7 +804,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
 #if defined(_WIN32)
     "msvc-math",
 #else
-    "sanitizer",
+    "asan",
     "asan-pvc",
     "asan-cpu",
     "asan-dg2",
