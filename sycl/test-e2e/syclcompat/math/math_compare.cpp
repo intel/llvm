@@ -397,5 +397,5 @@ int main() {
                                   test_unordered_compare_mask);
 
   std::cerr << "If this is printed, the test was successful" << std::endl;
-  return 1;
+  return 0;
 }

@@ -422,5 +422,5 @@ int main() {
                                   test_container_clamp);
 
   std::cerr << "If this is printed, the test was successful" << std::endl;
-  return 1; // INFO: Making it fail temporarily to trigger the CI log
+  return 0; // INFO: Making it fail temporarily to trigger the CI log
 }
