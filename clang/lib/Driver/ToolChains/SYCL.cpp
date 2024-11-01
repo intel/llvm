@@ -589,7 +589,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   // (PVC or DG2) specified in AOT compilation mode. If yes, we can use
   // corresponding libsycl-asan-* to improve device sanitizer performance,
   // otherwise stick to fallback device sanitizer library used in  JIT mode.
-  auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs)->size_t {
+  auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs) -> size_t {
     std::string DeviceArg = getDeviceArg(CmdArgs);
     if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
       return JIT;
