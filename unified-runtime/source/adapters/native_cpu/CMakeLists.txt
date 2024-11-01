@@ -71,14 +71,6 @@ if(NATIVECPU_WITH_TBB)
   set(TBB_INSTALL ON CACHE INTERNAL "" FORCE)
   set (CMAKE_INCLUDE_CURRENT_DIR OFF)
   FetchContent_MakeAvailable(tbb)
-
-  FetchContent_GetProperties(tbb)
-
-  if(NOT tbb_POPULATED)
-    FetchContent_Populate(tbb)
-  endif()
-  set(TBB_SOURCE_DIR_INTERNAL ${tbb_SOURCE_DIR}/include)
-  set(TBB_BINARY_DIR_INTERNAL ${tbb_BINARY_DIR})
 endif()
 
 find_package(Threads REQUIRED)
