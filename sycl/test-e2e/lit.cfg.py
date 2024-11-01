@@ -20,7 +20,7 @@ from lit.llvm.subst import ToolSubst, FindTool
 config.name = "SYCL"
 
 # suffixes: A list of file extensions to treat as test files.
-config.suffixes = [".c", ".cpp"]
+config.suffixes = [".cpp"]
 
 config.excludes = ["Inputs"]
 

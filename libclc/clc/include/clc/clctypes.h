@@ -1,5 +1,5 @@
-#ifndef CLC_TYPES
-#define CLC_TYPES
+#ifndef __CLC_CLCTYPES_H_
+#define __CLC_CLCTYPES_H_
 
 /* 6.1.1 Built-in Scalar Data Types */
 
@@ -12,12 +12,12 @@ typedef unsigned long ulong;
 typedef __SIZE_TYPE__ size_t;
 typedef __PTRDIFF_TYPE__ ptrdiff_t;
 
-#define __stdint_join3(a,b,c) a ## b ## c
+#define __stdint_join3(a, b, c) a##b##c
 
-#define  __intn_t(n) __stdint_join3(__INT, n, _TYPE__)
+#define __intn_t(n) __stdint_join3(__INT, n, _TYPE__)
 #define __uintn_t(n) __stdint_join3(unsigned __INT, n, _TYPE__)
 
-typedef  __intn_t(__INTPTR_WIDTH__)  intptr_t;
+typedef __intn_t(__INTPTR_WIDTH__) intptr_t;
 typedef __uintn_t(__INTPTR_WIDTH__) uintptr_t;
 
 #undef __uintn_t
@@ -104,4 +104,4 @@ typedef __attribute__((ext_vector_type(8))) half half8;
 typedef __attribute__((ext_vector_type(16))) half half16;
 #endif
 
-#endif // CLC_TYPES
+#endif // __CLC_CLCTYPES_H_
