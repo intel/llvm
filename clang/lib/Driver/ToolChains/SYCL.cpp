@@ -424,27 +424,6 @@ static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
   return false;
 }
 
-// Checks whether there is only one kind of GPU sepcified by '-device'.
-// Currently, we only check for PVC and DG2 since device sanitizer currently
-// only supports these 2 kinds of Intel GPU.
-static size_t isSpecificGPUOnly(const ArgStringList &CmdArgs) {
-  std::string DeviceArg = getDeviceArg(CmdArgs);
-  if (DeviceArg.empty())
-    return 0;
-
-  if (DeviceArg.find(",") != std::string::npos)
-    return 0;
-
-  std::string Temp;
-  if (checkPVCDevice(DeviceArg, Temp))
-    return 2;
-
-  if (DeviceArg == "dg2")
-    return 1;
-
-  return 0;
-}
-
 SmallVector<std::string, 8>
 SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
@@ -606,6 +585,25 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     LibraryList.push_back(Args.MakeArgString(LibName));
   };
 
+  // This function is used to check whether there is only one GPU device
+  // (PVC or DG2) specified in AOT compilation mode. If yes, we can use
+  // corresponding libsycl-asan-* to improve device sanitizer performance,
+  // otherwise stick to fallback device sanitizer library used in  JIT mode.
+  auto getSpecificGPUTarget = [] (const ArgStringList &CmdArgs)->size_t {
+    std::string DeviceArg = getDeviceArg(CmdArgs);
+    if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
+      return JIT;
+
+    std::string Temp;
+    if (checkPVCDevice(DeviceArg, Temp))
+      return AOT_PVC;
+
+    if (DeviceArg == "dg2")
+      return AOT_DG2;
+
+    return JIT;
+  };
+
   auto getSingleBuildTarget = [&]() -> size_t {
     if (!IsSpirvAOT)
       return JIT;
@@ -630,9 +628,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
           StringRef(A->getValue()).starts_with("spir64_gen"))
         TargArgs.push_back(A->getValue(1));
 
-      auto TargetType = isSpecificGPUOnly(TargArgs);
-      if (TargetType != 0)
-        return (TargetType == 2) ? AOT_PVC : AOT_DG2;
+      return getSpecificGPUTarget(TargArgs);
     }
 
     return JIT;
