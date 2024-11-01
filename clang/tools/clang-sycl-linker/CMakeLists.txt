@@ -1,9 +1,16 @@
 set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
+<<<<<<< HEAD
   Support
   BinaryFormat
   TargetParser
+=======
+  BinaryFormat
+>>>>>>> 0d499f9043fed14ff8c7f9e24e19206c93aee5dd
   Option
+  Object
+  TargetParser
+  Support
   )
 
 set(LLVM_TARGET_DEFINITIONS SYCLLinkOpts.td)
