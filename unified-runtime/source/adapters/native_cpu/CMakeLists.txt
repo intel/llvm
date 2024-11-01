@@ -98,6 +98,11 @@ if(NATIVECPU_WITH_TBB)
   target_link_libraries(${TARGET_NAME} PRIVATE
         TBB::tbb
   )
+  if (MSVC)
+  else()
+    # oneTBB currently casts away some const qualifiers
+    target_compile_options(tbb PRIVATE -Wno-cast-qual)
+  endif()
 
   target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
 endif()
