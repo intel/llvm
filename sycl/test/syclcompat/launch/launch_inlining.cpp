@@ -34,7 +34,7 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
 template <typename T>
-T dummy_fn(T input){
+__syclcompat_inline__ T dummy_fn(T input){
   return -input;
 }
 
