@@ -188,16 +188,21 @@ void test_container_syclcompat_fmax_nan() {
             << std::bitset<8 * sizeof(ValueTU)>(op5[1]) << std::endl;
   std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueTU)>(res2[0]) << " "
             << std::bitset<8 * sizeof(ValueTU)>(res2[1]) << std::endl;
+
   BinaryOpTestLauncher<ContT, ContU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ContT, ContU>>(op4, op5, res2);
 
   std::cerr << "Second container test: " << std::endl;
+  std::cerr << "Op4: " << op4[0] << " " << op4[1] << std::endl;
+  std::cerr << "Op6: " << op6[0] << " " << op6[1] << std::endl;
+  std::cerr << "Res: " << op6_res[0] << " " << op6_res[1] << std::endl;
   std::cerr << "Op4: " << std::bitset<8 * sizeof(ValueTU)>(op4[0]) << " "
             << std::bitset<8 * sizeof(ValueTU)>(op4[1]) << std::endl;
   std::cerr << "Op6: " << std::bitset<8 * sizeof(ValueTU)>(op6[0]) << " "
             << std::bitset<8 * sizeof(ValueTU)>(op6[1]) << std::endl;
   std::cerr << "Res: " << std::bitset<8 * sizeof(ValueTU)>(op6_res[0]) << " "
             << std::bitset<8 * sizeof(ValueTU)>(op6_res[1]) << std::endl;
+
   BinaryOpTestLauncher<ContT, ContU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ContT, ContU>>(op4, op6, op6_res);
 }
