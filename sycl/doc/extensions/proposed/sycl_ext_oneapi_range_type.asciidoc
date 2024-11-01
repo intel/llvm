@@ -1,0 +1,168 @@
+= sycl_ext_oneapi_range_type
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+This extension also depends on the following other SYCL extensions:
+
+* link:../experimental/sycl_ext_oneapi_kernel_properties.asciidoc[
+  sycl_ext_oneapi_kernel_properties]
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+The maximum number of work-items that can be launched in a single kernel
+depends on multiple factors.
+SYCL 2020 says that the total number of work-items must be representable as a
+`size_t`, but several implementations (including {dpcpp}) provide optimization
+options to assert that kernels will not require the full range of a `size_t`.
+
+This extension proposes a new kernel property that allows developers to declare
+the range requirements of individual kernels, providing more fine-grained
+control than existing compiler options and improved error behavior.
+
+The property described in this extension is an advanced feature that most
+applications should not need to use.
+In most cases, applications get the best performance without using this
+property.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_RANGE_TYPE` to one of the values defined in the table
+below.  Applications can test for the existence of this macro to determine if
+the implementation supports this feature, or applications can test the macro's
+value to determine which of the extension's features the implementation
+supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
+|===
+
+=== New kernel property
+
+```c++
+namespace sycl::ext::oneapi::experimental {
+
+struct range_type_key {
+  template <typename T>
+  using value_t = property_value<range_type_key, T>;
+};
+
+template <typename T>
+inline constexpr range_type_key::value_t<T> range_type;
+
+} // namespace sycl::ext::oneapi::experimental
+```
+
+|===
+|Property|Description
+
+|`range_type`
+|The `range_type` property adds the requirement that the kernel must be
+compatible with kernel launches where the linear index of a work-item lies
+in the range [0, `std::numeric_limits<T>::max()`).
+
+If the implementation cannot satisfy this requirement, the implementation
+must throw an `exception` with the `errc::kernel_not_supported` error code,
+regardless of launch configuration.
+If the implementation can satisfy this requirement, but the kernel is
+launched with an incompatible configuration, the implementation must throw
+an `exception` with the `errc::nd_range` error code.
+
+`T` must be an integral type.
+
+|===
+
+== Usage example
+
+```c++
+namespace syclex = sycl::ext::oneapi::experimental;
+
+struct SmallKernel
+{
+  // Declare that this kernel supports [0, 2^31-1) work-items.
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{syclex::range_type<int>};
+  }
+};
+
+struct LargeKernel
+{
+  // Declare that this kernel supports [0, 2^64-1) work-items.
+  auto get(syclex::properties_tag) const {
+    return syclex::properties{syclex::range_type<size_t>};
+  }
+};
+
+...
+
+// Throws an exception with errc::nd_range error code.
+// (because 2147483648 > 2147483647)
+q.parallel_for(2147483648, SmallKernel());
+
+// May throw an exception with errc::kernel_not_supported error code.
+// (if implementation/device doesn't support 64-bit ranges)
+q.parallel_for(2147483648, LargeKernel());
+```
+
+== Issues
+
+None.
