@@ -1541,7 +1541,7 @@ static bool isJointMatrixAccess(Value *V) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
-          return TargetTy->getName().startswith("spirv.") &&
+          return TargetTy->getName().starts_with("spirv.") &&
                  TargetTy->getName().contains("Matrix");
     }
   }
