@@ -9,8 +9,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/13887
 // XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/13887
 // If users need to use host pipe feature provided by experimental::pipe, all
 // pipes in their design should use the experimental::pipe (as a workround).
 

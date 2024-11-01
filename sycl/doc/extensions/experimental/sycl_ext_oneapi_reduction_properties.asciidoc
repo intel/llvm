@@ -49,12 +49,12 @@ This extension also depends on the following other SYCL extensions:
 
 == Status
 
-This is a proposed extension specification, intended to gather community
-feedback.  Interfaces defined in this specification may not be implemented yet
-or may be in a preliminary state.  The specification itself may also change in
-incompatible ways before it is finalized.  *Shipping software products should
-not rely on APIs defined in this specification.*
-
+This is an experimental extension specification, intended to provide early
+access to features and gather community feedback.  Interfaces defined in this
+specification are implemented in {dpcpp}, but they are not finalized and may
+change incompatibly in future versions of {dpcpp} without prior notice.
+*Shipping software products should not rely on APIs defined in this
+specification.*
 
 == Overview
 
@@ -87,7 +87,8 @@ implementation supports.
 |Description
 
 |1
-|Initial version of this extension.
+|The APIs of this experimental extension are not versioned, so the
+ feature-test macro always has this value.
 |===
 
 === `reduction` overload
@@ -111,7 +112,7 @@ template <typename T, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(T* var, BinaryOperation combiner,
                           PropertyList properties);
 
-template <typename T, typename Extent, typename BinaryOperation, typename PropertyList>
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(span<T, Extent> vars, BinaryOperation combiner,
                           PropertyList properties);
 
@@ -124,13 +125,24 @@ template <typename T, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(T* var, const T& identity, BinaryOperation combiner,
                           PropertyList properties);
 
-template <typename T, typename Extent, typename BinaryOperation, typename PropertyList>
+template <typename T, size_t Extent, typename BinaryOperation, typename PropertyList>
 __unspecified__ reduction(span<T, Extent> vars, const T& identity,
                           BinaryOperation combiner,
                           PropertyList properties);
 
 }
 ----
+
+_Constraints_: Available only when `PropertyList` is an instance of
+`sycl::ext::oneapi::experimental::properties` which contains no properties
+other than those listed below in the section "Reduction properties".
+
+The `reduction` functions that take no `identity` parameter have the following
+clause:
+
+_Mandates_: If `properties` contains the `initialize_to_identity` property,
+then the identity of the `BinaryOperation` operation must be identifiable via
+the `known_identity` trait class.
 
 === Reduction properties
 
@@ -139,13 +151,9 @@ reduction algorithm selection based on desired behavior(s). Compile-time
 properties corresponding to existing runtime properties are also introduced to
 ensure that all information can be passed via a single property list.
 
-If a reduction kernel is submitted to a device that cannot satisfy the
-request for specific reduction behavior(s), the implementation must throw an
-`exception` with the `errc::feature_not_supported` error code.
-
 [source,c++]
 ----
-namespace sycl::ext::oneapi {
+namespace sycl::ext::oneapi::experimental {
 
 struct deterministic_key {
   using value_t = property_value<deterministic_key>;
@@ -192,7 +200,7 @@ use of atomic operations, etc. _{endnote}_]
 
 [source,c++]
 ----
-using syclex = sycl::ext::oneapi::experimental;
+namespace syclex = sycl::ext::oneapi::experimental;
 
 float sum(sycl::queue q, float* input, size_t N) {
 
@@ -205,10 +213,10 @@ float sum(sycl::queue q, float* input, size_t N) {
       h.parallel_for(N, reduction, [=](size_t i, auto& reducer) {
         reducer += input[i];
       });
-    }
+    });
   }
   return result;
-  
+
 }
 
 ...

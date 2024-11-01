@@ -1,9 +1,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// The OpenCL GPU backends do not currently support device_global backend
-// calls.
 // UNSUPPORTED: opencl && gpu
+// UNSUPPORTED-TRACKER: GSD-4287
 //
 // Tests operator[] on device_global.
 

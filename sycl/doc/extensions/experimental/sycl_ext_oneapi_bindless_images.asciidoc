@@ -241,7 +241,9 @@ descriptor against the limitations outlined below. If the given descriptor is
 deemed invalid, then a `sycl::exception` will be thrown with error code 
 `sycl::errc::invalid`.
 
-For all image types, the value of `num_channels` must be `1`, `2`, or `4`.
+The value of `num_channels` supported by all image types and backends
+is  `1`, `2`, or `4`.
+Some backends also support `num_channels` to be `3`.
 
 For the `standard` image type, the value of `num_levels` and `array_size` must
 both be `1`.
@@ -2107,6 +2109,12 @@ There are dimension specific limitations:
 * 3D - No support at the moment. Possible support in non CUDA backends in the 
        future.
 
+=== 3 channel format support
+
+The ability to create an image with 3 channels depends on the backend.
+There is currently no way to query a backend whether it supports this feature.
+This query should be added in a later revision of the proposal.
+
 === Not supported yet
 
 These features still need to be handled:
@@ -2319,4 +2327,5 @@ These features still need to be handled:
                    sub-region copies.
 |6.4|2024-10-15| - Fix bindless spec examples and include examples in bindless
                    spec using asciidoc include.
+|6.5|2024-10-22| - Allow 3-channel image formats on some backends.
 |======================

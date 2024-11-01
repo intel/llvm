@@ -1,5 +1,5 @@
-#include "func.h"
-#include "types.h"
+#include <clc/clcfunc.h>
+#include <clc/clctypes.h>
 
 #ifdef cl_khr_fp16
 #pragma OPENCL EXTENSION cl_khr_fp16 : enable

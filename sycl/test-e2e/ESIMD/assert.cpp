@@ -6,8 +6,8 @@
 //
 // The test still fails after GPU driver update on Linux. Temporary marking it
 // as expected to fail, whilst it is being investigated, see intel/llvm#11359
-// FIXME: remove that XFAIL
 // XFAIL: linux
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11359
 //
 // Hanging on gen12, remove when internal tracker fixed
 // UNSUPPORTED: gpu-intel-gen12

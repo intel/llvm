@@ -66,6 +66,9 @@ JITResult materializeSpecConstants(const char *KernelName,
                                    jit_compiler::SYCLKernelBinaryInfo &BinInfo,
                                    View<unsigned char> SpecConstBlob);
 
+JITResult compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+                      View<const char *> UserArgs);
+
 /// Clear all previously set options.
 void resetJITConfiguration();
 

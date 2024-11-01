@@ -6,7 +6,8 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-struct indirectly_callable_key {
+struct indirectly_callable_key
+    : detail::compile_time_property_key<detail::PropKind::IndirectlyCallable> {
   template <typename Set>
   using value_t =
       sycl::ext::oneapi::experimental::property_value<indirectly_callable_key,
@@ -18,7 +19,8 @@ inline constexpr indirectly_callable_key::value_t<void> indirectly_callable;
 template <typename Set>
 inline constexpr indirectly_callable_key::value_t<Set> indirectly_callable_in;
 
-struct calls_indirectly_key {
+struct calls_indirectly_key
+    : detail::compile_time_property_key<detail::PropKind::CallsIndirectly> {
   template <typename... SetIds>
   using value_t =
       sycl::ext::oneapi::experimental::property_value<calls_indirectly_key,
@@ -31,23 +33,7 @@ template <typename... SetIds>
 inline constexpr calls_indirectly_key::value_t<SetIds...>
     assume_indirect_calls_to;
 
-template <> struct is_property_key<indirectly_callable_key> : std::true_type {};
-template <> struct is_property_key<calls_indirectly_key> : std::true_type {};
-
 namespace detail {
-
-template <>
-struct IsCompileTimeProperty<indirectly_callable_key> : std::true_type {};
-template <>
-struct IsCompileTimeProperty<calls_indirectly_key> : std::true_type {};
-
-template <> struct PropertyToKind<indirectly_callable_key> {
-  static constexpr PropKind Kind = PropKind::IndirectlyCallable;
-};
-
-template <> struct PropertyToKind<calls_indirectly_key> {
-  static constexpr PropKind Kind = PropKind::CallsIndirectly;
-};
 
 template <typename Set>
 struct PropertyMetaInfo<indirectly_callable_key::value_t<Set>> {

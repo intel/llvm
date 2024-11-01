@@ -683,6 +683,11 @@ private:
   ///                   kernel bundle contains.
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
 
+  // TODO: Legacy symbol, remove when ABI breaking is allowed.
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  }
+
   /// Stores lambda to the template-free object
   ///
   /// Also initializes kernel name, list of arguments and requirements using

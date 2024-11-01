@@ -82,7 +82,7 @@ needed in function documentation.
 NOTE: The first version of this extension only supports partitioning of
 sub-groups. It is expected that in the future, these functions will be expanded
 to also allow partitioning of
-link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[root-groups],
+link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc[root-groups],
 work-groups and user-constructed groups.
 
 
@@ -161,7 +161,7 @@ model topology used by SYCL kernels. These groups are implicitly created by an
 implementation when a SYCL kernel function is enqueued. The following group
 types are fixed topology groups:
 
-- `root_group` (if link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/proposed/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group] is supported)
+- `root_group` (if link:https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_root_group.asciidoc[sycl_ext_oneapi_root_group] is supported)
 - `group`
 - `sub_group`
 

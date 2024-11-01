@@ -95,19 +95,36 @@ void submit_impl(queue &Q, CommandGroupFunc &&CGF,
 }
 } // namespace detail
 
+template <typename CommandGroupFunc, typename PropertiesT>
+void submit(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+            const sycl::detail::code_location &CodeLoc =
+                sycl::detail::code_location::current()) {
+  std::ignore = Props;
+  sycl::ext::oneapi::experimental::detail::submit_impl(
+      Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
+
 template <typename CommandGroupFunc>
 void submit(queue Q, CommandGroupFunc &&CGF,
             const sycl::detail::code_location &CodeLoc =
                 sycl::detail::code_location::current()) {
-  sycl::ext::oneapi::experimental::detail::submit_impl(
-      Q, std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  submit(Q, empty_properties_t{}, std::forward<CommandGroupFunc>(CGF), CodeLoc);
+}
+
+template <typename CommandGroupFunc, typename PropertiesT>
+event submit_with_event(queue Q, PropertiesT Props, CommandGroupFunc &&CGF,
+                        const sycl::detail::code_location &CodeLoc =
+                            sycl::detail::code_location::current()) {
+  std::ignore = Props;
+  return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename CommandGroupFunc>
 event submit_with_event(queue Q, CommandGroupFunc &&CGF,
                         const sycl::detail::code_location &CodeLoc =
                             sycl::detail::code_location::current()) {
-  return Q.submit(std::forward<CommandGroupFunc>(CGF), CodeLoc);
+  return submit_with_event(Q, empty_properties_t{},
+                           std::forward<CommandGroupFunc>(CGF), CodeLoc);
 }
 
 template <typename KernelName = sycl::detail::auto_name, typename KernelType>

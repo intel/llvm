@@ -350,6 +350,11 @@ struct SYCLKernelInfo {
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
+struct InMemoryFile {
+  const char *Path;
+  const char *Contents;
+};
+
 } // namespace jit_compiler
 
 #endif // SYCL_FUSION_COMMON_KERNEL_H

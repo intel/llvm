@@ -31,7 +31,7 @@ void matrix_multiply(big_matrix<T1, M, N> &C, big_matrix<T2, M, K> &A,
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a

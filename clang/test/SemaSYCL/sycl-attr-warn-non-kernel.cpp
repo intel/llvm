@@ -7,7 +7,7 @@
 [[sycl::reqd_work_group_size(16)]] void f1(){ // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 }
 
-[[intel::reqd_sub_group_size(12)]] void f3(){ // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+[[sycl::reqd_sub_group_size(12)]] void f3(){ // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 }
 
 [[sycl::reqd_work_group_size(16)]] void f4(){ // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
@@ -41,7 +41,7 @@ public:
 
 class FunctorSubGroupSize4 {
 public:
-  [[intel::reqd_sub_group_size(4)]] void operator()() const{}  // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
+  [[sycl::reqd_sub_group_size(4)]] void operator()() const{}  // expected-warning {{'reqd_sub_group_size' attribute can only be applied to a SYCL kernel function}}
 };
 
 class Functor8 {

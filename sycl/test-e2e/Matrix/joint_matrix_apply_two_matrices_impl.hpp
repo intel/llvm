@@ -39,7 +39,7 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, queue q) {
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);

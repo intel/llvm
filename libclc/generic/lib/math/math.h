@@ -23,9 +23,9 @@
 #ifndef __CLC_MATH_H_
 #define __CLC_MATH_H_
 
-#include "func.h"
 #include "as_type.h"
 #include "config.h"
+#include <clc/clcfunc.h>
 
 #define SNAN 0x001
 #define QNAN 0x002

@@ -17,7 +17,7 @@ int main() {
   });
   gpu_queue.wait();
   // CHECK: DeviceSanitizer: invalid-argument on kernel
-  // CHECK: The 1th argument {{.*}} is allocated in other context
+  // CHECK: The {{[0-9]+}}th argument {{.*}} is allocated in other context
   // CHECK: {{.*}} is located inside of Device USM region
 
   sycl::free(data, cpu_queue);

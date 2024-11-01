@@ -36,7 +36,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 7 specification.  All
+This extension is written against the SYCL 2020 revision 9 specification.  All
 references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
@@ -47,8 +47,10 @@ This extension is implemented and fully supported by DPC++.
 == Backend support status
 
 This extension is currently implemented in DPC++ for all GPU devices and
-backends, however, only the CUDA backend allows peer to peer memory access.
-Other backends report false from the `ext_oneapi_can_access_peer` query.
+backends; however, only the CUDA, HIP and Level Zero backends allows peer to
+peer memory access. Other backends report false from the
+`ext_oneapi_can_access_peer` query. Peer-Peer memory access is only possible
+between two devices from the same backend.
 
 == Overview
 
