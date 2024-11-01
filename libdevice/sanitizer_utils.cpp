@@ -223,14 +223,10 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
 
   auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
   if (as == ADDRESS_SPACE_GLOBAL) { // global
-    uptr shadow_ptr;
-    if (addr & 0xFF00000000000000) { // Device USM
-      shadow_ptr = launch_info->GlobalShadowOffset + 0x80000000000 +
-                   ((addr & 0xFFFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
-    } else { // Only consider 47bit VA
-      shadow_ptr = launch_info->GlobalShadowOffset +
-                   ((addr & 0x7FFFFFFFFFFF) >> ASAN_SHADOW_SCALE);
-    }
+    uptr shadow_ptr = launch_info->GlobalShadowOffset +
+                      (((((addr & 0x8000'0000'0000'0000) >> 16) + addr) &
+                        0xf'ffff'ffff'ffff) >>
+                       ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(
         const auto shadow_offset_end = launch_info->GlobalShadowOffsetEnd;
