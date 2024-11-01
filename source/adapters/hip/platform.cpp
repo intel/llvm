@@ -77,6 +77,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             for (auto i = 0u; i < static_cast<uint32_t>(NumDevices); ++i) {
               hipDevice_t Device;
               UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              UR_CHECK_ERROR(hipSetDevice(i));
               hipEvent_t EvBase;
               UR_CHECK_ERROR(hipEventCreate(&EvBase));
 
