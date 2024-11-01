@@ -102,6 +102,7 @@ if(NATIVECPU_WITH_TBB)
   else()
     # oneTBB currently casts away some const qualifiers
     target_compile_options(tbb PRIVATE -Wno-cast-qual)
+    target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
 
   target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
