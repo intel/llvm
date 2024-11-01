@@ -1,6 +1,8 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
+#define __SYCL_EBO
 #include <sycl/ext/oneapi/properties/new_properties.hpp>
+#include <sycl/detail/type_traits.hpp>
 
 using namespace sycl::ext::oneapi::experimental::new_properties;
 

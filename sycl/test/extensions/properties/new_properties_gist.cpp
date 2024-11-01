@@ -2,6 +2,8 @@
 
 #include <sycl/ext/oneapi/properties/new_properties.hpp>
 
+#include <cassert>
+
 using namespace sycl::ext::oneapi::experimental::new_properties;
 
 namespace feature_one {

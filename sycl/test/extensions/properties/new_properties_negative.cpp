@@ -2,6 +2,8 @@
 
 #include <sycl/ext/oneapi/properties/new_properties.hpp>
 
+#include <tuple>
+
 using namespace sycl::ext::oneapi::experimental::new_properties;
 
 using mock_property_sort_key_t = int;

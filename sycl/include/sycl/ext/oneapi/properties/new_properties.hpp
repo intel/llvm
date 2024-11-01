@@ -13,8 +13,9 @@
 #include <type_traits>
 #include <utility>
 
+#ifndef __SYCL_EBO
 #include <sycl/detail/defines_elementary.hpp>
-#include <sycl/detail/type_traits.hpp>
+#endif
 
 namespace sycl {
 inline namespace _V1 {
