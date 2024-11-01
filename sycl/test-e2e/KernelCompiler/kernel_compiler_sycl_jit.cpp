@@ -10,7 +10,7 @@
 // UNSUPPORTED: accelerator
 
 // UNSUPPORTED: windows
-// UNSUPPORTED-INTENDED: To Do: enable on Windows (via SYCL_ENABLE_EXTENSION_JIT
+// UNSUPPORTED-TRACKER: CMPLRLLVM-63166
 // in CMakeLists).
 
 // RUN: %{build} -o %t.out
