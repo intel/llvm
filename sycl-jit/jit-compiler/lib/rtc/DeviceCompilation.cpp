@@ -235,8 +235,6 @@ getDeviceLibraries(const ArgList &Args, DiagnosticsEngine &Diags) {
       {"libsycl-itt-user-wrappers", "internal"},
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
-  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
-      {"libsycl-sanitizer", "internal"}};
 
   SmallVector<std::string, 8> LibraryList;
   StringRef LibSuffix = ".bc";
@@ -256,44 +254,6 @@ getDeviceLibraries(const ArgList &Args, DiagnosticsEngine &Diags) {
   if (Args.hasFlag(OPT_fsycl_instrument_device_code,
                    OPT_fno_sycl_instrument_device_code, false)) {
     AddLibraries(SYCLDeviceAnnotationLibs);
-  }
-
-  if (Arg *A = Args.getLastArg(OPT_fsanitize_EQ, OPT_fno_sanitize_EQ)) {
-    if (A->getOption().matches(OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1) {
-      std::string SanitizeVal = A->getValue();
-      if (SanitizeVal == "address") {
-        AddLibraries(SYCLDeviceSanitizerLibs);
-      }
-    }
-  } else {
-    // User can pass -fsanitize=address to device compiler via
-    // -Xsycl-target-frontend, sanitize device library must be
-    // linked with user's device image if so.
-    bool IsDeviceAsanEnabled = false;
-    auto SyclFEArg = Args.getAllArgValues(OPT_Xsycl_frontend);
-    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
-                                      "-fsanitize=address") > 0);
-    if (!IsDeviceAsanEnabled) {
-      auto SyclFEArgEq = Args.getAllArgValues(OPT_Xsycl_frontend_EQ);
-      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
-                                        "-fsanitize=address") > 0);
-    }
-
-    // User can also enable asan for SYCL device via -Xarch_device option.
-    if (!IsDeviceAsanEnabled) {
-      auto DeviceArchVals = Args.getAllArgValues(OPT_Xarch_device);
-      for (auto DArchVal : DeviceArchVals) {
-        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
-          IsDeviceAsanEnabled = true;
-          break;
-        }
-      }
-    }
-
-    if (IsDeviceAsanEnabled) {
-      AddLibraries(SYCLDeviceSanitizerLibs);
-    }
   }
 
   return LibraryList;
@@ -357,5 +317,48 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
         "User option '%s' at index %d is missing an argument",
         UserArgsRef[MissingArgIndex], MissingArgIndex);
   }
+
+  // Check for unsupported options.
+  // TODO: There are probably more, e.g. requesting non-SPIR-V targets.
+  {
+    // -fsanitize=address
+    bool IsDeviceAsanEnabled = false;
+    if (Arg *A = AL.getLastArg(OPT_fsanitize_EQ, OPT_fno_sanitize_EQ)) {
+      if (A->getOption().matches(OPT_fsanitize_EQ) &&
+          A->getValues().size() == 1) {
+        std::string SanitizeVal = A->getValue();
+        IsDeviceAsanEnabled = SanitizeVal == "address";
+      }
+    } else {
+      // User can pass -fsanitize=address to device compiler via
+      // -Xsycl-target-frontend.
+      auto SyclFEArg = AL.getAllArgValues(OPT_Xsycl_frontend);
+      IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
+                                        "-fsanitize=address") > 0);
+      if (!IsDeviceAsanEnabled) {
+        auto SyclFEArgEq = AL.getAllArgValues(OPT_Xsycl_frontend_EQ);
+        IsDeviceAsanEnabled =
+            (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
+                        "-fsanitize=address") > 0);
+      }
+
+      // User can also enable asan for SYCL device via -Xarch_device option.
+      if (!IsDeviceAsanEnabled) {
+        auto DeviceArchVals = AL.getAllArgValues(OPT_Xarch_device);
+        for (auto DArchVal : DeviceArchVals) {
+          if (DArchVal.find("-fsanitize=address") != std::string::npos) {
+            IsDeviceAsanEnabled = true;
+            break;
+          }
+        }
+      }
+    }
+
+    if (IsDeviceAsanEnabled) {
+      return createStringError(
+          "Device ASAN is not supported for runtime compilation");
+    }
+  }
+
   return Expected<InputArgList>{std::move(AL)};
 }

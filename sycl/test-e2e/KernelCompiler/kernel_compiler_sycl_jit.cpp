@@ -119,10 +119,40 @@ void test_build_and_run() {
   test_1(q, k, 37 + 5); // ff_cp seeds 37. AddEm will add 5 more.
 }
 
+void test_unsupported_options() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, "");
+  std::vector<sycl::device> devs = kbSrc.get_devices();
+
+  auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
+    try {
+      syclex::build(kbSrc, devs,
+                    syclex::properties{syclex::build_options{flags}});
+      assert(false && "Unsupported option not detected");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::build);
+      assert(std::string(e.what()).find("Parsing of user arguments failed") !=
+             std::string::npos);
+    }
+  };
+
+  CheckUnsupported({"-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
+  CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+}
+
 int main() {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run();
+  test_unsupported_options();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
