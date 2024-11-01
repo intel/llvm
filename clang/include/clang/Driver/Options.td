@@ -1858,12 +1858,6 @@ defm debug_info_for_profiling : BoolFOption<"debug-info-for-profiling",
   PosFlag<SetTrue, [], [ClangOption, CC1Option],
           "Emit extra debug info to make sample profile more accurate">,
   NegFlag<SetFalse>>;
-def fprofile_generate_cold_function_coverage : Flag<["-"], "fprofile-generate-cold-function-coverage">, 
-    Group<f_Group>, Visibility<[ClangOption, CLOption]>,
-    HelpText<"Generate instrumented code to collect coverage info for cold functions into default.profraw file (overridden by '=' form of option or LLVM_PROFILE_FILE env var)">;
-def fprofile_generate_cold_function_coverage_EQ : Joined<["-"], "fprofile-generate-cold-function-coverage=">, 
-    Group<f_Group>, Visibility<[ClangOption, CLOption]>, MetaVarName<"<directory>">,
-    HelpText<"Generate instrumented code to collect coverage info for cold functions into <directory>/default.profraw (overridden by LLVM_PROFILE_FILE env var)">; 
 def fprofile_instr_generate : Flag<["-"], "fprofile-instr-generate">,
     Group<f_Group>, Visibility<[ClangOption, CLOption]>,
     HelpText<"Generate instrumented code to collect execution counts into default.profraw file (overridden by '=' form of option or LLVM_PROFILE_FILE env var)">;
@@ -6886,6 +6880,10 @@ def fsycl : Flag<["-"], "fsycl">,
   HelpText<"Enables SYCL kernels compilation for device">;
 def fno_sycl : Flag<["-"], "fno-sycl">,
   HelpText<"Disables SYCL kernels compilation for device">;
+def sycl_link : Flag<["--"], "sycl-link">, Flags<[HelpHidden]>,
+  Visibility<[ClangOption, CLOption]>,
+  HelpText<"Perform link through clang-sycl-linker via the target "
+  "offloading toolchain.">;
 defm sycl_early_optimizations :
   OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard "
                  "optimization pipeline for SYCL device compiler",
