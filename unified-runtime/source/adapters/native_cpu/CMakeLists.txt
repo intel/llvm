@@ -69,6 +69,7 @@ if(NATIVECPU_WITH_TBB)
   set(TBB_FIND_PACKAGE OFF CACHE INTERNAL "" FORCE)
   set(TBB_FUZZ_TESTING OFF CACHE INTERNAL "" FORCE)
   set(TBB_INSTALL ON CACHE INTERNAL "" FORCE)
+  set (CMAKE_INCLUDE_CURRENT_DIR OFF)
   FetchContent_MakeAvailable(tbb)
 
   FetchContent_GetProperties(tbb)
@@ -97,8 +98,6 @@ if(NATIVECPU_WITH_TBB)
   target_link_libraries(${TARGET_NAME} PRIVATE
         TBB::tbb
   )
-#  target_include_directories(${TARGET_NAME} PRIVATE
-#        "${TBB_SOURCE_DIR_INTERNAL}"
-#  )
+
   target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
 endif()
