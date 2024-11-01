@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
-// XFAIL: arch-intel_gpu_pvc
 
 // RUN: %{build} -o %t_runtime_dim_vnni.out %fp-model-precise -DRUNTIME_DIM -DVNNI
 // RUN: %{run} %t_runtime_dim_vnni.out 256

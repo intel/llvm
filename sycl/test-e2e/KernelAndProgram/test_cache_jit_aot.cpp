@@ -66,8 +66,8 @@
 // RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 | FileCheck %s --check-prefixes RESULT1
 // ******************************
 
-// CHECK-CACHE-WRITE: Code caching: device binary has been cached
-// CHECK-CACHE-READ: Code caching: using cached device binary
+// CHECK-CACHE-WRITE: [Persistent Cache]: device binary has been cached
+// CHECK-CACHE-READ: [Persistent Cache]: using cached device binary
 
 // RESULT1: Result (0): 1
 // RESULT1: Result (1): 1

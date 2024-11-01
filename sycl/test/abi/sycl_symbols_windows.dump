@@ -4214,6 +4214,7 @@
 ?select_device@filter_selector@oneapi@ext@_V1@sycl@@UEBA?AVdevice@45@XZ
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVraw_kernel_arg@experimental@oneapi@ext@23@@Z
 ?setArgHelper@handler@_V1@sycl@@AEAAXH$$QEAVsampler@23@@Z
+?setArgHelper@handler@_V1@sycl@@AEAAXHAEAVwork_group_memory_impl@detail@23@@Z
 ?setArgsHelper@handler@_V1@sycl@@AEAAXH@Z
 ?setArgsToAssociatedAccessors@handler@_V1@sycl@@AEAAXXZ
 ?setHandlerKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@@Z
@@ -4285,6 +4286,7 @@
 ?verifyDeviceHasProgressGuarantee@handler@_V1@sycl@@AEAAXW4forward_progress_guarantee@experimental@oneapi@ext@23@W4execution_scope@56723@1@Z
 ?verifyReductionProps@detail@_V1@sycl@@YAXAEBVproperty_list@23@@Z
 ?verifyUSMAllocatorProperties@_V1@sycl@@YAXAEBVproperty_list@12@@Z
+?verifyUsedKernelBundle@handler@_V1@sycl@@AEAAXAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?verifyUsedKernelBundleInternal@handler@_V1@sycl@@AEAAXVstring_view@detail@23@@Z
 ?wait@event@_V1@sycl@@QEAAXXZ
 ?wait@event@_V1@sycl@@SAXAEBV?$vector@Vevent@_V1@sycl@@V?$allocator@Vevent@_V1@sycl@@@std@@@std@@@Z
