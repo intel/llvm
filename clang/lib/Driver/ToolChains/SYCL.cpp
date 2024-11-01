@@ -388,7 +388,6 @@ static std::string getDeviceArg(const ArgStringList &CmdArgs) {
 }
 
 static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
-  StringRef OclocTarget;
   // Handle shortened versions.
   bool CheckShortVersion = true;
   for (auto Char : SingleArg) {
