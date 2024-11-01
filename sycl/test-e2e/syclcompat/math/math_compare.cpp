@@ -96,15 +96,14 @@ void compare_not_equal_vec_kernel(Container *a, Container *b, Container *r) {
   *r = syclcompat::compare(*a, *b, std::not_equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_compare_vec() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_compare_vec() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
   Container op2 = {static_cast<ValueT>(1.0),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -178,15 +177,15 @@ void unordered_compare_not_equal_vec_kernel(Container *a, Container *b,
   *r = syclcompat::unordered_compare(*a, *b, std::not_equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_unordered_compare_vec() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_unordered_compare_vec() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
+  std::cerr << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
   Container op2 = {static_cast<ValueT>(1.0),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -194,11 +193,31 @@ typename ValueT> void test_unordered_compare_vec() {
   // and false instead.
   //  1.0 == 1.0, 2.0 == NaN -> {true, true}
   const Container res1 = {1.0, 1.0};
+  std::cerr << "- 1.0 == 1.0, 2.0 == NaN -> {true, true}: " << std::endl;
+  std::cerr << "Op1: " << op1[0] << " " << op1[1] << std::endl;
+  std::cerr << "op2: " << op2[0] << " " << op2[1] << std::endl;
+  std::cerr << "Res: " << res1[0] << " " << res1[1] << std::endl;
+  std::cerr << "BitSet:    " << std::bitset<8 * sizeof(ValueT)>(op1[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(op1[1]) << std::endl;
+  std::cerr << "BitSet2:   " << std::bitset<8 * sizeof(ValueT)>(op2[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(op2[1]) << std::endl;
+  std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueT)>(res1[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(res1[1]) << std::endl;
   BinaryOpTestLauncher<Container, Container>(grid, threads)
       .template launch_test<unordered_compare_equal_vec_kernel<Container>>(
           op1, op2, res1);
   //  1.0 != 1.0, 2.0 != NaN -> {false, true}
   const Container res2 = {0.0, 1.0};
+  std::cerr << "- 1.0 != 1.0, 2.0 != NaN -> {false, true}: " << std::endl;
+  std::cerr << "Op1: " << op1[0] << " " << op1[1] << std::endl;
+  std::cerr << "op2: " << op2[0] << " " << op2[1] << std::endl;
+  std::cerr << "Res: " << res2[0] << " " << res2[1] << std::endl;
+  std::cerr << "BitSet:    " << std::bitset<8 * sizeof(ValueT)>(op1[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(op1[1]) << std::endl;
+  std::cerr << "BitSet2:   " << std::bitset<8 * sizeof(ValueT)>(op2[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(op2[1]) << std::endl;
+  std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueT)>(res2[0]) << " "
+            << std::bitset<8 * sizeof(ValueT)>(res2[1]) << std::endl;
   BinaryOpTestLauncher<Container, Container>(grid, threads)
       .template launch_test<unordered_compare_not_equal_vec_kernel<Container>>(
           op1, op2, res2);
@@ -209,15 +228,14 @@ void compare_both_kernel(Container *a, Container *b, bool *r) {
   *r = syclcompat::compare_both(*a, *b, std::equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_compare_both() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_compare_both() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
   Container op2 = {static_cast<ValueT>(1.0),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -239,15 +257,14 @@ void unordered_compare_both_kernel(Container *a, Container *b, bool *r) {
   *r = syclcompat::unordered_compare_both(*a, *b, std::equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_unordered_compare_both() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_unordered_compare_both() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
   Container op2 = {static_cast<ValueT>(1.0),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -270,21 +287,17 @@ void compare_mask_kernel(Container *a, Container *b, unsigned *r) {
   *r = syclcompat::compare_mask(*a, *b, std::equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_compare_mask() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_compare_mask() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
-  const Container op2 = {static_cast<ValueT>(2.0),
-                             static_cast<ValueT>(1.0)};
-  const Container op3 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(3.0)};
-  const Container op4 = {static_cast<ValueT>(3.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
+  const Container op2 = {static_cast<ValueT>(2.0), static_cast<ValueT>(1.0)};
+  const Container op3 = {static_cast<ValueT>(1.0), static_cast<ValueT>(3.0)};
+  const Container op4 = {static_cast<ValueT>(3.0), static_cast<ValueT>(2.0)};
   Container op5 = {sycl::nan(static_cast<unsigned int>(0)),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -319,21 +332,17 @@ void unordered_compare_mask_kernel(Container *a, Container *b, unsigned *r) {
   *r = syclcompat::unordered_compare_mask(*a, *b, std::equal_to<>());
 }
 
-template <template <typename T, int Dim> typename ContainerT,
-typename ValueT> void test_unordered_compare_mask() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT>
+void test_unordered_compare_mask() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
-  const Container op1 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(2.0)};
-  const Container op2 = {static_cast<ValueT>(2.0),
-                             static_cast<ValueT>(1.0)};
-  const Container op3 = {static_cast<ValueT>(1.0),
-                             static_cast<ValueT>(3.0)};
-  const Container op4 = {static_cast<ValueT>(3.0),
-                             static_cast<ValueT>(2.0)};
+  const Container op1 = {static_cast<ValueT>(1.0), static_cast<ValueT>(2.0)};
+  const Container op2 = {static_cast<ValueT>(2.0), static_cast<ValueT>(1.0)};
+  const Container op3 = {static_cast<ValueT>(1.0), static_cast<ValueT>(3.0)};
+  const Container op4 = {static_cast<ValueT>(3.0), static_cast<ValueT>(2.0)};
   Container op5 = {sycl::nan(static_cast<unsigned int>(0)),
                    sycl::nan(static_cast<unsigned int>(0))};
 
@@ -368,16 +377,24 @@ int main() {
   INSTANTIATE_ALL_TYPES(fp_type_list, test_unordered_compare);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_vec);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_vec);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_vec);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_vec);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec,
+                                  test_unordered_compare_vec);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
+                                  test_unordered_compare_vec);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_both);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_both);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_both);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_both);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
+                                  test_compare_both);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec,
+                                  test_unordered_compare_both);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
+                                  test_unordered_compare_both);
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_compare_mask);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_compare_mask);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_unordered_compare_mask);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_unordered_compare_mask);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
+                                  test_compare_mask);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec,
+                                  test_unordered_compare_mask);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
+                                  test_unordered_compare_mask);
 
-  return 0;
+  return 1;
 }
