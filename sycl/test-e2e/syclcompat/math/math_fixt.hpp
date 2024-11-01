@@ -209,8 +209,8 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK(ResultT, res_h_, expected);
     CHECK_PRINT(ResultT, res_h_, expected);
+    CHECK(ResultT, res_h_, expected);
   };
 
   template <auto Kernel>
@@ -223,8 +223,8 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK(ResultT, res_h_, expected);
     CHECK_PRINT(ResultT, res_h_, expected);
+    CHECK(ResultT, res_h_, expected);
   };
   template <auto Kernel>
   void launch_test(ValueT op1, ValueU op2, ResultT expected, bool expected_hi,
@@ -241,8 +241,8 @@ public:
     syclcompat::memcpy<bool>(&res_hi_h_, res_hi_, 1);
     syclcompat::memcpy<bool>(&res_lo_h_, res_lo_, 1);
 
-    // CHECK(ResultT, res_h_, expected);
     CHECK_PRINT(ResultT, res_h_, expected);
+    CHECK(ResultT, res_h_, expected);
     assert(res_hi_h_ == expected_hi);
     assert(res_lo_h_ == expected_lo);
   };
