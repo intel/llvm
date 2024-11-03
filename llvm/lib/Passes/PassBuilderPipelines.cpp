@@ -300,7 +300,14 @@ static cl::opt<bool> UseLoopVersioningLICM(
     "enable-loop-versioning-licm", cl::init(false), cl::Hidden,
     cl::desc("Enable the experimental Loop Versioning LICM pass"));
 
+static cl::opt<std::string> InstrumentColdFuncOnlyPath(
+    "instrument-cold-function-only-path", cl::init(""),
+    cl::desc("File path for cold function only instrumentation(requires use "
+             "with --pgo-instrument-cold-function-only)"),
+    cl::Hidden);
+
 extern cl::opt<std::string> UseCtxProfile;
+extern cl::opt<bool> PGOInstrumentColdFunctionOnly;
 
 namespace llvm {
 extern cl::opt<bool> EnableMemProfContextDisambiguation;
@@ -1206,8 +1213,16 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
   const bool IsCtxProfUse =
       !UseCtxProfile.empty() && Phase == ThinOrFullLTOPhase::ThinLTOPreLink;
 
+  assert(
+      (InstrumentColdFuncOnlyPath.empty() || PGOInstrumentColdFunctionOnly) &&
+      "--instrument-cold-function-only-path is provided but "
+      "--pgo-instrument-cold-function-only is not enabled");
+  const bool IsColdFuncOnlyInstrGen = PGOInstrumentColdFunctionOnly &&
+                                      IsPGOPreLink &&
+                                      !InstrumentColdFuncOnlyPath.empty();
+
   if (IsPGOInstrGen || IsPGOInstrUse || IsMemprofUse || IsCtxProfGen ||
-      IsCtxProfUse)
+      IsCtxProfUse || IsColdFuncOnlyInstrGen)
     addPreInlinerPasses(MPM, Level, Phase);
 
   // Add all the requested passes for instrumentation PGO, if requested.
@@ -1229,6 +1244,11 @@ PassBuilder::buildModuleSimplificationPipeline(OptimizationLevel Level,
       return MPM;
     addPostPGOLoopRotation(MPM, Level);
     MPM.addPass(PGOCtxProfLoweringPass());
+  } else if (IsColdFuncOnlyInstrGen) {
+    addPGOInstrPasses(
+        MPM, Level, /* RunProfileGen */ true, /* IsCS */ false,
+        /* AtomicCounterUpdate */ false, InstrumentColdFuncOnlyPath,
+        /* ProfileRemappingFile */ "", IntrusiveRefCntPtr<vfs::FileSystem>());
   }
 
   if (IsPGOInstrGen || IsPGOInstrUse || IsCtxProfGen)
@@ -1655,6 +1675,13 @@ PassBuilder::buildFatLTODefaultPipeline(OptimizationLevel Level, bool ThinLTO,
   else
     MPM.addPass(buildLTOPreLinkDefaultPipeline(Level));
   MPM.addPass(EmbedBitcodePass(ThinLTO, EmitSummary));
+
+  // If we're doing FatLTO w/ CFI enabled, we don't want the type tests in the
+  // object code, only in the bitcode section, so drop it before we run
+  // module optimization and generate machine code. If llvm.type.test() isn't in
+  // the IR, this won't do anything.
+  MPM.addPass(
+      LowerTypeTestsPass(nullptr, nullptr, lowertypetests::DropTestKind::All));
 
   // Use the ThinLTO post-link pipeline with sample profiling
   if (ThinLTO && PGOOpt && PGOOpt->Action == PGOOptions::SampleUse)

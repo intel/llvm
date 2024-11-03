@@ -18082,6 +18082,8 @@ CreateNewDecl:
             << Name;
         Invalid = true;
       }
+      if (TUK == TagUseKind::Declaration)
+        Invalid = true;
     } else if (!PrevDecl) {
       Diag(Loc, diag::warn_decl_in_param_list) << Context.getTagDeclType(New);
     }
