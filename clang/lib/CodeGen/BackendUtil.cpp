@@ -1140,8 +1140,10 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
     }
 
     if (CodeGenOpts.DisableSYCLEarlyOpts) {
-      MPM.addPass(PB.buildO0DefaultPipeline(OptimizationLevel::O0,
-                                      PrepareForLTO || PrepareForThinLTO));
+      MPM.addPass(PB.buildO0DefaultPipeline(
+          OptimizationLevel::O0, (PrepareForLTO || PrepareForThinLTO)
+                                     ? ThinOrFullLTOPhase::ThinLTOPreLink
+                                     : ThinOrFullLTOPhase::None));
     } else if (CodeGenOpts.FatLTO) {
       MPM.addPass(PB.buildFatLTODefaultPipeline(
           Level, PrepareForThinLTO,
