@@ -167,7 +167,42 @@ if(LLVM_USE_STATIC_ZSTD AND NOT TARGET zstd::libzstd_static)
   endif()
 set(LLVM_ENABLE_ZSTD OFF)
 else()
-set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
+  # Check if the zstd static library is usable when BUILD_SHARED_LIBS is ON
+  # Test linking zstd::libzstd_static with a shared library. This is to ensure
+  # that the static library is built with -fPIC flag.
+  if(zstd_FOUND AND LLVM_USE_STATIC_ZSTD AND TARGET zstd::libzstd_static AND BUILD_SHARED_LIBS)
+    cmake_push_check_state()
+
+    set(CMAKE_REQUIRED_FLAGS "-fPIC -shared")
+    set(CMAKE_REQUIRED_INCLUDES ${ZSTD_INCLUDE_DIRS})
+    set(CMAKE_REQUIRED_LIBRARIES zstd::libzstd_static)
+    check_c_source_compiles("
+      #include <zstd.h>
+      int main() {
+        ZSTD_CCtx* cctx = ZSTD_createCCtx();
+        ZSTD_freeCCtx(cctx);
+        return 0;
+      }"
+      IS_ZSTD_STATIC_LIB_USABLE_WITH_SHARED_LIBRARIES
+      OUTPUT_VARIABLE CMAKE_ERROR_MESSAGE)
+
+      cmake_pop_check_state()
+
+    # If the test program failed to compile, disable zstd or fail if LLVM_ENABLE_ZSTD is FORCE_ON.
+    if(NOT IS_ZSTD_STATIC_LIB_USABLE_WITH_SHARED_LIBRARIES)
+      message(WARNING "ZSTD static library is not usable. Error compiling the test program.")
+      message(WARNING "Build log:\n ${CMAKE_ERROR_MESSAGE}")
+
+      # Fail if LLVM_ENABLE_ZSTD is FORCE_ON.
+      if(LLVM_ENABLE_ZSTD STREQUAL FORCE_ON)
+          message(FATAL_ERROR "zstd static library is not usable, but LLVM_USE_STATIC_ZSTD=ON and LLVM_ENABLE_ZSTD=FORCE_ON.")
+      endif()
+    endif()
+
+    set(LLVM_ENABLE_ZSTD IS_ZSTD_STATIC_LIB_USABLE_WITH_SHARED_LIBRARIES)
+  else()
+    set(LLVM_ENABLE_ZSTD ${zstd_FOUND})
+  endif()
 endif()
 
 if(LLVM_ENABLE_LIBXML2)
