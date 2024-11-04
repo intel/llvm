@@ -126,6 +126,16 @@ void test_unsupported_options() {
   sycl::queue q;
   sycl::context ctx = q.get_context();
 
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return;
+  }
+
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl_jit, "");
   std::vector<sycl::device> devs = kbSrc.get_devices();
