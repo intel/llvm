@@ -1,4 +1,5 @@
 # Note: This file is only for use with cts_exe.py
+{{OPT}}urMemBufferMultiQueueMemBufferTest.WriteBack
 urMemBufferPartitionTest.InvalidValueCreateType/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urMemGetInfoImageTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_SIZE

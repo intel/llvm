@@ -1639,6 +1639,9 @@ typedef enum ur_device_info_t {
     UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT = 118,                    ///< [::ur_bool_t] return true if the device supports the
                                                                      ///< `EnqueueDeviceGlobalVariableWrite` and
                                                                      ///< `EnqueueDeviceGlobalVariableRead` entry points.
+    UR_DEVICE_INFO_USM_POOL_SUPPORT = 119,                           ///< [::ur_bool_t] return true if the device supports USM pooling. Pertains
+                                                                     ///< to the `USMPool` entry points and usage of the `pool` parameter of the
+                                                                     ///< USM alloc entry points.
     UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP = 0x1000,              ///< [::ur_bool_t] Returns true if the device supports the use of
                                                                      ///< command-buffers.
     UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP = 0x1001,  ///< [::ur_device_command_buffer_update_capability_flags_t] Command-buffer
@@ -3503,7 +3506,6 @@ typedef struct ur_usm_pool_limits_desc_t {
 /// @brief USM allocate host memory
 ///
 /// @details
-///     - This function must support memory pooling.
 ///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
 ///       will be served from a specified memory pool.
 ///     - Otherwise, the behavior is implementation-defined.
@@ -3536,6 +3538,8 @@ typedef struct ur_usm_pool_limits_desc_t {
 ///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for ::UR_DEVICE_INFO_USM_POOL_SUPPORT
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMHostAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
@@ -3549,7 +3553,6 @@ urUSMHostAlloc(
 /// @brief USM allocate device memory
 ///
 /// @details
-///     - This function must support memory pooling.
 ///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
 ///       will be served from a specified memory pool.
 ///     - Otherwise, the behavior is implementation-defined.
@@ -3583,6 +3586,8 @@ urUSMHostAlloc(
 ///         + `size` is greater than ::UR_DEVICE_INFO_MAX_MEM_ALLOC_SIZE.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for ::UR_DEVICE_INFO_USM_POOL_SUPPORT
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMDeviceAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
@@ -3597,7 +3602,6 @@ urUSMDeviceAlloc(
 /// @brief USM allocate shared memory
 ///
 /// @details
-///     - This function must support memory pooling.
 ///     - If pUSMDesc is not NULL and pUSMDesc->pool is not NULL the allocation
 ///       will be served from a specified memory pool.
 ///     - Otherwise, the behavior is implementation-defined.
@@ -3632,6 +3636,8 @@ urUSMDeviceAlloc(
 ///         + If `UR_DEVICE_INFO_USM_SINGLE_SHARED_SUPPORT` and `UR_DEVICE_INFO_USM_CROSS_SHARED_SUPPORT` are both false.
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for ::UR_DEVICE_INFO_USM_POOL_SUPPORT
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMSharedAlloc(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
@@ -3713,6 +3719,8 @@ urUSMGetMemAllocInfo(
 ///         + `::UR_USM_POOL_FLAGS_MASK & pPoolDesc->flags`
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
+///         + If any device associated with `hContext` reports `false` for ::UR_DEVICE_INFO_USM_POOL_SUPPORT
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolCreate(
     ur_context_handle_t hContext,  ///< [in] handle of the context object
@@ -3731,6 +3739,7 @@ urUSMPoolCreate(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRetain(
     ur_usm_pool_handle_t pPool ///< [in][retain] pointer to USM memory pool
@@ -3753,6 +3762,7 @@ urUSMPoolRetain(
 ///     - ::UR_RESULT_ERROR_ADAPTER_SPECIFIC
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == pPool`
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolRelease(
     ur_usm_pool_handle_t pPool ///< [in][release] pointer to USM memory pool
@@ -3794,6 +3804,7 @@ typedef enum ur_usm_pool_info_t {
 ///         + `pPropValue == NULL && pPropSizeRet == NULL`
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
+///     - ::UR_RESULT_ERROR_UNSUPPORTED_FEATURE
 UR_APIEXPORT ur_result_t UR_APICALL
 urUSMPoolGetInfo(
     ur_usm_pool_handle_t hPool,  ///< [in] handle of the USM memory pool

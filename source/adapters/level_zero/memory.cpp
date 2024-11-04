@@ -57,6 +57,27 @@ bool IsSharedPointer(ur_context_handle_t Context, const void *Ptr) {
   return (ZeMemoryAllocationProperties.type == ZE_MEMORY_TYPE_SHARED);
 }
 
+// Helper Function to check if the Copy Engine should be preferred given the
+// types of memory used.
+bool PreferCopyEngineUsage(ur_device_handle_t Device,
+                           ur_context_handle_t Context, const void *Src,
+                           void *Dst) {
+  bool PreferCopyEngine = false;
+  // Given Integrated Devices, Copy Engines are not preferred for any Copy
+  // operations.
+  if (!Device->isIntegrated()) {
+    // Given non D2D Copies, for better performance, Copy Engines are preferred
+    // only if one has both the Main and Link Copy Engines.
+    if (Device->hasLinkCopyEngine() && Device->hasMainCopyEngine() &&
+        (!IsDevicePointer(Context, Src) || !IsDevicePointer(Context, Dst))) {
+      PreferCopyEngine = true;
+    }
+  }
+  // Temporary option added to use force engine for D2D copy
+  PreferCopyEngine |= UseCopyEngineForD2DCopy;
+  return PreferCopyEngine;
+}
+
 // Shared by all memory read/write/copy PI interfaces.
 // PI interfaces must have queue's and destination buffer's mutexes locked for
 // exclusive use and source buffer's mutex locked for shared use on entry.
@@ -1189,23 +1210,10 @@ ur_result_t urEnqueueUSMMemcpy(
 ) {
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  // Device to Device copies are found to execute slower on copy engine
-  // (versus compute engine).
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
-                          !IsDevicePointer(Queue->Context, Dst);
-  // For better performance, Copy Engines are not preferred given Shared
-  // pointers on DG2.
-  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
-                                 IsSharedPointer(Queue->Context, Dst))) {
-    PreferCopyEngine = false;
-  }
-
-  // Temporary option added to use copy engine for D2D copy
-  PreferCopyEngine |= UseCopyEngineForD2DCopy;
-
   return enqueueMemCopyHelper( // TODO: do we need a new command type for this?
       UR_COMMAND_MEM_BUFFER_COPY, Queue, Dst, Blocking, Size, Src,
-      NumEventsInWaitList, EventWaitList, OutEvent, PreferCopyEngine);
+      NumEventsInWaitList, EventWaitList, OutEvent,
+      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
 }
 
 ur_result_t urEnqueueUSMPrefetch(
@@ -1396,26 +1404,13 @@ ur_result_t urEnqueueUSMMemcpy2D(
 
   std::scoped_lock<ur_shared_mutex> lock(Queue->Mutex);
 
-  // Device to Device copies are found to execute slower on copy engine
-  // (versus compute engine).
-  bool PreferCopyEngine = !IsDevicePointer(Queue->Context, Src) ||
-                          !IsDevicePointer(Queue->Context, Dst);
-  // For better performance, Copy Engines are not preferred given Shared
-  // pointers on DG2.
-  if (Queue->Device->isDG2() && (IsSharedPointer(Queue->Context, Src) ||
-                                 IsSharedPointer(Queue->Context, Dst))) {
-    PreferCopyEngine = false;
-  }
-
-  // Temporary option added to use copy engine for D2D copy
-  PreferCopyEngine |= UseCopyEngineForD2DCopy;
-
   return enqueueMemCopyRectHelper( // TODO: do we need a new command type for
                                    // this?
       UR_COMMAND_MEM_BUFFER_COPY_RECT, Queue, Src, Dst, ZeroOffset, ZeroOffset,
       Region, SrcPitch, DstPitch, 0, /*SrcSlicePitch=*/
       0,                             /*DstSlicePitch=*/
-      Blocking, NumEventsInWaitList, EventWaitList, Event, PreferCopyEngine);
+      Blocking, NumEventsInWaitList, EventWaitList, Event,
+      PreferCopyEngineUsage(Queue->Device, Queue->Context, Src, Dst));
 }
 
 static ur_result_t ur2zeImageDesc(const ur_image_format_t *ImageFormat,
@@ -1746,28 +1741,19 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
   // Get base of the allocation
-  void *Base = nullptr;
-  size_t Size = 0;
   void *Ptr = ur_cast<void *>(NativeMem);
+
+  void *Base;
+  size_t Size;
   ZE2UR_CALL(zeMemGetAddressRange, (Context->ZeContext, Ptr, &Base, &Size));
+
   UR_ASSERT(Ptr == Base, UR_RESULT_ERROR_INVALID_VALUE);
 
-  ZeStruct<ze_memory_allocation_properties_t> ZeMemProps;
-  ze_device_handle_t ZeDevice = nullptr;
-  ZE2UR_CALL(zeMemGetAllocProperties,
-             (Context->ZeContext, Ptr, &ZeMemProps, &ZeDevice));
-
-  // Check type of the allocation
-  switch (ZeMemProps.type) {
-  case ZE_MEMORY_TYPE_HOST:
-  case ZE_MEMORY_TYPE_SHARED:
-  case ZE_MEMORY_TYPE_DEVICE:
-    break;
-  case ZE_MEMORY_TYPE_UNKNOWN:
-    // Memory allocation is unrelated to the context
-    return UR_RESULT_ERROR_INVALID_CONTEXT;
-  default:
-    die("Unexpected memory type");
+  ze_device_handle_t ZeDevice;
+  ZeStruct<ze_memory_allocation_properties_t> MemoryAttrs;
+  UR_CALL(getMemoryAttrs(Context->ZeContext, Ptr, &ZeDevice, &MemoryAttrs));
+  if (MemoryAttrs.type == ZE_MEMORY_TYPE_UNKNOWN) {
+    return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
   ur_device_handle_t Device{};

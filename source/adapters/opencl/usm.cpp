@@ -703,3 +703,28 @@ urUSMReleaseExp([[maybe_unused]] ur_context_handle_t Context,
                 [[maybe_unused]] void *HostPtr) {
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolCreate([[maybe_unused]] ur_context_handle_t hContext,
+                [[maybe_unused]] ur_usm_pool_desc_t *pPoolDesc,
+                [[maybe_unused]] ur_usm_pool_handle_t *ppPool) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolRetain([[maybe_unused]] ur_usm_pool_handle_t pPool) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL
+urUSMPoolRelease([[maybe_unused]] ur_usm_pool_handle_t pPool) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}
+
+UR_APIEXPORT ur_result_t UR_APICALL urUSMPoolGetInfo(
+    [[maybe_unused]] ur_usm_pool_handle_t hPool,
+    [[maybe_unused]] ur_usm_pool_info_t propName,
+    [[maybe_unused]] size_t propSize, [[maybe_unused]] void *pPropValue,
+    [[maybe_unused]] size_t *pPropSizeRet) {
+  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+}

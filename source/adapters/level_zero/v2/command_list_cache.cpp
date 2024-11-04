@@ -76,8 +76,7 @@ command_list_cache_t::createCommandList(const command_list_descriptor_t &desc) {
   }
 }
 
-raii::cache_borrowed_command_list_t
-command_list_cache_t::getImmediateCommandList(
+raii::command_list_unique_handle command_list_cache_t::getImmediateCommandList(
     ze_device_handle_t ZeDevice, bool IsInOrder, uint32_t Ordinal,
     ze_command_queue_mode_t Mode, ze_command_queue_priority_t Priority,
     std::optional<uint32_t> Index) {
@@ -91,14 +90,14 @@ command_list_cache_t::getImmediateCommandList(
   Desc.Priority = Priority;
   Desc.Index = Index;
 
-  auto CommandList = getCommandList(Desc).release();
-  return raii::cache_borrowed_command_list_t(
+  auto [CommandList, _] = getCommandList(Desc).release();
+  return raii::command_list_unique_handle(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
         Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
       });
 }
 
-raii::cache_borrowed_command_list_t
+raii::command_list_unique_handle
 command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
                                             bool IsInOrder, uint32_t Ordinal) {
   TRACK_SCOPE_LATENCY("command_list_cache_t::getRegularCommandList");
@@ -108,9 +107,9 @@ command_list_cache_t::getRegularCommandList(ze_device_handle_t ZeDevice,
   Desc.IsInOrder = IsInOrder;
   Desc.Ordinal = Ordinal;
 
-  auto CommandList = getCommandList(Desc).release();
+  auto [CommandList, _] = getCommandList(Desc).release();
 
-  return raii::cache_borrowed_command_list_t(
+  return raii::command_list_unique_handle(
       CommandList, [Cache = this, Desc](ze_command_list_handle_t CmdList) {
         Cache->addCommandList(Desc, raii::ze_command_list_handle_t(CmdList));
       });
