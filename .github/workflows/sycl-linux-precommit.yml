@@ -86,7 +86,7 @@ jobs:
             image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
-            extra_lit_opts: --filter syclcompat/math --param gpu-intel-gen12=True
+            extra_lit_opts: --filter syclcompat --param gpu-intel-gen12=True
           # - name: E2E tests on Intel Arc A-Series Graphics
           #   runner: '["Linux", "arc"]'
           #   image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
