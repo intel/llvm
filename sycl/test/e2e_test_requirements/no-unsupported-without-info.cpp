@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 478
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 477
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -113,7 +113,6 @@
 // CHECK-NEXT: DeviceLib/cmath-aot.cpp
 // CHECK-NEXT: DeviceLib/cmath_fp64_test.cpp
 // CHECK-NEXT: DeviceLib/complex-fpga.cpp
-// CHECK-NEXT: DeviceLib/exp/exp-std-complex-double-edge-cases.cpp
 // CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
 // CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
 // CHECK-NEXT: DeviceLib/imf_double2bfloat16.cpp

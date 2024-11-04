@@ -2,6 +2,7 @@
 // in SYCL kernels.
 //
 // UNSUPPORTED: hip || cuda
+// UNSUPPORTED-INTENDED: This test is intended for backends with SPIR-V support.
 //
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
