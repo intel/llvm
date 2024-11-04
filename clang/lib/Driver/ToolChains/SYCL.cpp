@@ -618,6 +618,9 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     if (SYCLTargetStr == "intel_gpu_pvc")
       return AOT_PVC;
 
+    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+      return AOT_DG2;
+
     if (SYCLTargetStr.starts_with("spir64_gen")) {
       ArgStringList TargArgs;
       Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
