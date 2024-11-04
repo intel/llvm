@@ -49,6 +49,8 @@ private:
   // At the moment we do not have a way to set properties nor property values to
   // set for work group memory. So, we check here for diagnostic purposes that
   // the property list is empty.
+  // TODO: Remove this function and its occurrences in this file once properties
+  // have been created for work group memory.
   void check_props_empty() const {
     static_assert(std::is_same_v<PropertyListT, empty_properties_t> &&
                   "Work group memory class does not support properties yet!");
