@@ -237,7 +237,7 @@ using threadpool_t = simple_threadpool_t;
 
 } // namespace native_cpu
 
-#ifdef NATIVECPU_USE_TBB
+#ifdef NATIVECPU_WITH_ONETBB
 // Simple TBB backend
 #include "oneapi/tbb.h"
 namespace native_cpu {

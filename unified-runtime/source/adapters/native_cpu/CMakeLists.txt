@@ -51,8 +51,8 @@ set_target_properties(${TARGET_NAME} PROPERTIES
 )
 
 # oneTBB is an optional NativeCPU backend and disabled by default.
-option(NATIVECPU_WITH_TBB "Use oneTBB as backend for Native CPU" OFF)
-if(NATIVECPU_WITH_TBB)
+option(NATIVECPU_WITH_ONETBB "Use oneTBB as backend for Native CPU" OFF)
+if(NATIVECPU_WITH_ONETBB)
   message(STATUS "Configuring Native CPU adapter with TBB backend.")
 
   include(FetchContent)
@@ -98,5 +98,5 @@ if(NATIVECPU_WITH_TBB)
     target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
 
-  target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_USE_TBB)
+  target_compile_definitions(${TARGET_NAME} PRIVATE NATIVECPU_WITH_ONETBB)
 endif()

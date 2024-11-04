@@ -14,7 +14,7 @@
 #include <ur/ur.hpp>
 
 struct ur_device_handle_t_ {
-#ifdef NATIVECPU_USE_TBB
+#ifdef NATIVECPU_WITH_ONETBB
   native_cpu::TBB_threadpool tp;
 #else
   native_cpu::threadpool_t tp;
