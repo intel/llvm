@@ -1450,8 +1450,14 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ExtendSpirKernelArgs(M, FAM);
+    // FIXME: W/A skip instrumentation if this module has ESIMD
+    for (auto &F : M) {
+      if (F.hasMetadata("sycl_explicit_simd"))
+        return PreservedAnalyses::all();
+    }
+  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
