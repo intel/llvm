@@ -31,7 +31,11 @@ static inline void printPerformanceWarning(const std::string &Message) {
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     // TODO: For Windows, we need to look for a libary by a different name.
+#ifdef _WIN32
+    static const std::string JITLibraryName = "sycl-jit.dll";
+#else
     static const std::string JITLibraryName = "libsycl-jit.so";
+#endif
 
     void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
