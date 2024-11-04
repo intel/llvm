@@ -87,7 +87,7 @@ target_include_directories(${TARGET_NAME} PRIVATE
         "${CMAKE_CURRENT_SOURCE_DIR}/../../"
 )
 
-if(NATIVECPU_WITH_TBB)
+if(NATIVECPU_WITH_ONETBB)
   target_link_libraries(${TARGET_NAME} PRIVATE
         TBB::tbb
   )
