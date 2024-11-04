@@ -7,17 +7,16 @@ import os
 import csv
 import io
 from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark
+from .base import Benchmark, Suite
 from .result import Result
 from .options import options
 
-class ComputeBench:
+class ComputeBench(Suite):
     def __init__(self, directory):
         self.directory = directory
-        self.built = False
 
     def setup(self):
-        if self.built:
+        if options.sycl is None:
             return
 
         repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "aa6a3b2108bb86202b654ad28129156fa746d41d")
@@ -31,9 +30,13 @@ class ComputeBench:
             f"-DBUILD_SYCL=ON",
             f"-DSYCL_COMPILER_ROOT={options.sycl}",
             f"-DALLOW_WARNINGS=ON",
-            f"-DBUILD_UR=ON",
-            f"-Dunified-runtime_DIR={options.ur_dir}/lib/cmake/unified-runtime",
         ]
+
+        if options.ur is not None:
+            configure_command += [
+                f"-DBUILD_UR=ON",
+                f"-Dunified-runtime_DIR={options.ur}/lib/cmake/unified-runtime",
+            ]
 
         print(f"{self.__class__.__name__}: Run {configure_command}")
         run(configure_command, add_sycl=True)
@@ -41,6 +44,36 @@ class ComputeBench:
         run(f"cmake --build {build_path} -j", add_sycl=True)
 
         self.built = True
+
+    def benchmarks(self) -> list[Benchmark]:
+        if options.sycl is None:
+            return []
+
+        benches = [
+            SubmitKernelSYCL(self, 0),
+            SubmitKernelSYCL(self, 1),
+            QueueInOrderMemcpy(self, 0, 'Device', 'Device', 1024),
+            QueueInOrderMemcpy(self, 0, 'Host', 'Device', 1024),
+            QueueMemcpy(self, 'Device', 'Device', 1024),
+            StreamMemory(self, 'Triad', 10 * 1024, 'Device'),
+            ExecImmediateCopyQueue(self, 0, 1, 'Device', 'Device', 1024),
+            ExecImmediateCopyQueue(self, 1, 1, 'Device', 'Host', 1024),
+            VectorSum(self),
+            MemcpyExecute(self, 400, 8, 1024, 100),
+            MemcpyExecute(self, 400, 8, 102400, 10),
+            MemcpyExecute(self, 500, 8, 102400, 10),
+            MemcpyExecute(self, 400, 1, 1024, 1000),
+            MemcpyExecute(self, 10, 16, 1024, 1000),
+            MemcpyExecute(self, 10, 16, 102400, 100),
+        ]
+
+        if options.ur is not None:
+            benches += [
+                SubmitKernelUR(self, 0),
+                SubmitKernelUR(self, 1),
+            ]
+
+        return benches
 
 class ComputeBenchmark(Benchmark):
     def __init__(self, bench, name, test):
@@ -60,7 +93,6 @@ class ComputeBenchmark(Benchmark):
 
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.directory, 'compute-benchmarks-build', 'bin', self.bench_name)
-        self.bench.setup()
 
     def run(self, env_vars) -> list[Result]:
         command = [
@@ -75,7 +107,7 @@ class ComputeBenchmark(Benchmark):
 
         result = self.run_bench(command, env_vars)
         (label, mean) = self.parse_output(result)
-        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result, lower_is_better=self.lower_is_better()) ]
+        return [ Result(label=self.name(), value=mean, command=command, env=env_vars, stdout=result) ]
 
     def parse_output(self, output):
         csv_file = io.StringIO(output)
