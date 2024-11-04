@@ -36,6 +36,9 @@ private:
 } // namespace detail
 namespace ext::oneapi::experimental {
 
+struct indeterminate_t {};
+inline constexpr indeterminate_t indeterminate;
+
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
@@ -43,22 +46,40 @@ public:
   using value_type = std::remove_all_extents_t<DataT>;
 
 private:
+  // At the moment we do not have a way to set properties nor property values to
+  // set for work group memory. So, we check here for diagnostic purposes that
+  // the property list is empty.
+  void check_props_empty() const {
+    static_assert(std::is_same_v<PropertyListT, empty_properties_t> &&
+                  "Work group memory class does not support properties yet!");
+  }
   using decoratedPtr = typename sycl::detail::DecoratedType<
       value_type, access::address_space::local_space>::type *;
 
 public:
+// Frontend requires special types to have a default constructor in device
+// compilation mode in order to have a unified way of initializing an object and
+// then calling init method on it. This is an implementation detail and not part
+// of the spec.
+#ifdef __SYCL_DEVICE_ONLY__
   work_group_memory() = default;
+#endif
+  work_group_memory(const indeterminate_t &) { check_props_empty(); }
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
             typename = std::enable_if_t<!sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(handler &)
-      : sycl::detail::work_group_memory_impl(sizeof(DataT)) {}
+      : sycl::detail::work_group_memory_impl(sizeof(DataT)) {
+    check_props_empty();
+  }
   template <typename T = DataT,
             typename = std::enable_if_t<sycl::detail::is_unbounded_array_v<T>>>
   work_group_memory(size_t num, handler &)
       : sycl::detail::work_group_memory_impl(
-            num * sizeof(std::remove_extent_t<DataT>)) {}
+            num * sizeof(std::remove_extent_t<DataT>)) {
+    check_props_empty();
+  }
   template <access::decorated IsDecorated = access::decorated::no>
   multi_ptr<value_type, access::address_space::local_space, IsDecorated>
   get_multi_ptr() const {
