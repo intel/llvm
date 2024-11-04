@@ -1,4 +1,4 @@
-// XFAIL: any-device-is-opencl, any-device-is-cuda, any-device-is-level_zero, gpu-intel-dg2, hip_amd
+// XFAIL: any-device-is-opencl, any-device-is-cuda, any-device-is-level_zero
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15819
 // RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
 // RUN: %if any-device-is-level_zero %{ %{build} -DBUILD_FOR_L0 -o %t-l0.out %}
@@ -12,7 +12,6 @@
 using namespace sycl;
 
 #ifdef BUILD_FOR_CUDA
-#include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_cuda;
 using nativeDevice = CUdevice;
 using nativeQueue = CUstream;
@@ -20,9 +19,9 @@ using nativeEvent = CUevent;
 #elif defined(BUILD_FOR_HIP)
 #include <sycl/ext/oneapi/backend/hip.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_hip;
-using nativeDevice = hipDevice_t;
-using nativeQueue = hipStream_t;
-using nativeEvent = hipEvent_t;
+using nativeDevice = device;
+using nativeQueue = ihipStream_t;
+using nativeEvent = ihipEvent_t;
 #elif defined(BUILD_FOR_L0)
 constexpr auto BACKEND = backend::ext_oneapi_level_zero;
 using nativeDevice = ze_device_handle_t;
@@ -30,7 +29,7 @@ using nativeQueue = ze_command_queue_handle_t;
 using nativeEvent = ze_event_handle_t;
 #else
 constexpr auto BACKEND = backend::opencl;
-using nativeDevice = cl_device;
+using nativeDevice = cl_device_id;
 using nativeQueue = cl_command_queue;
 using nativeEvent = cl_event;
 #endif
