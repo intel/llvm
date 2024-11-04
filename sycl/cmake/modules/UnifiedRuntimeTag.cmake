@@ -4,4 +4,4 @@
 # Date:   Mon Nov 4 10:00:08 2024 +0000
 #     Merge pull request #2165 from aarongreig/aaron/makeUSMPoolsOptional
 #     Make USM pools optional with a device query to report support.
-set(UNIFIED_RUNTIME_TAG b0a9e2be61ad42d3447f1f246120ab25119a03e0)
+set(UNIFIED_RUNTIME_TAG georgi/hip-max-version-for-usmmemcpy2d-workaround)
