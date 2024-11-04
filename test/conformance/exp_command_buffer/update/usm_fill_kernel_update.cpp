@@ -199,6 +199,46 @@ TEST_P(USMFillCommandTest, UpdateBeforeEnqueue) {
     Validate((uint32_t *)new_shared_ptr, global_size, new_val);
 }
 
+// Test using a different global size to fill and larger USM output buffer
+TEST_P(USMFillCommandTest, UpdateNull) {
+    // Run command-buffer prior to update an verify output
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    Validate((uint32_t *)shared_ptr, global_size, val);
+
+    // Set nullptr as kernel output at index 0
+    void *null_ptr = nullptr;
+    ur_exp_command_buffer_update_pointer_arg_desc_t new_output_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_POINTER_ARG_DESC, // stype
+        nullptr,                                                      // pNext
+        0,         // argIndex
+        nullptr,   // pProperties
+        &null_ptr, // pArgValue
+    };
+
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        kernel,           // hNewKernel
+        0,                // numNewMemObjArgs
+        1,                // numNewPointerArgs
+        0,                // numNewValueArgs
+        n_dimensions,     // newWorkDim
+        nullptr,          // pNewMemObjArgList
+        &new_output_desc, // pNewPointerArgList
+        nullptr,          // pNewValueArgList
+        nullptr,          // pNewGlobalWorkOffset
+        nullptr,          // pNewGlobalWorkSize
+        nullptr,          // pNewLocalWorkSize
+    };
+
+    // Verify update kernel succeeded but don't run to avoid dereferencing
+    // the nullptr.
+    ASSERT_SUCCESS(
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+}
+
 // Test updating a command-buffer with multiple USM fill kernel commands
 struct USMMultipleFillCommandTest
     : uur::command_buffer::urUpdatableCommandBufferExpExecutionTest {
