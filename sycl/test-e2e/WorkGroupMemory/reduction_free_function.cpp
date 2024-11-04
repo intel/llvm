@@ -165,7 +165,7 @@ template <typename T, typename... Ts> void test_marray() {
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = ext::intel::math::sqrt(T(i));
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
@@ -194,7 +194,7 @@ template <typename T, typename... Ts> void test_vec() {
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = ext::intel::math::sqrt(T(i));
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};

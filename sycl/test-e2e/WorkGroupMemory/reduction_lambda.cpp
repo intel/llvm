@@ -19,13 +19,9 @@ context ctx = q.get_context();
 
 constexpr size_t SIZE = 128;
 
-template <typename T> struct S {
-  T val;
-};
+template <typename T> struct S { T val; };
 
-template <typename T> struct M {
-  T val;
-};
+template <typename T> struct M { T val; };
 
 union U {
   S<int> s;
@@ -43,7 +39,7 @@ void test_struct(size_t SIZE, size_t WGSIZE) {
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
   q.submit([&](sycl::handler &cgh) {
-     ext::oneapi::experimental::work_group_memory<S<T>[]> mem{WGSIZE, cgh};
+     ext::oneapi::experimental::work_group_memory<S<T>[]> mem { WGSIZE, cgh };
      ext::oneapi::experimental ::work_group_memory<T> result{cgh};
      cgh.parallel_for(ndr, [=](nd_item<> it) {
        size_t local_id = it.get_local_id();
@@ -148,7 +144,7 @@ template <typename T, typename... Ts> void test_marray() {
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = T(i);
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
@@ -186,7 +182,7 @@ template <typename T, typename... Ts> void test_vec() {
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
   for (int i = 0; i < WGSIZE; ++i) {
-    buf[i] = ext::intel::math::sqrt(T(i));
+    buf[i] = T(i) / WGSIZE;
     expected = expected + buf[i];
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
