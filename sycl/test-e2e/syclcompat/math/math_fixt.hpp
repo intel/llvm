@@ -282,6 +282,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
+    CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   }
 };
@@ -333,6 +334,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
+    CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
 };
