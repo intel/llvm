@@ -2,8 +2,9 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-INTENDED: The name mangling for free function kernels currently
+// does not work with PTX.
 
 // Usage of work group memory parameters in free function kernels is not yet
 // implemented.
@@ -14,7 +15,6 @@
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/intel/math.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
@@ -26,7 +26,7 @@ using namespace sycl;
 // A global buffer is allocated using USM and it is passed to the kernel on the
 // device. On the device, a work group memory buffer is allocated and each item
 // copies the correspondng element of the global buffer to the corresponding
-// element of the work group memory buffer using its global index. The leader of
+// element of the work group memory buffer using its lcoal index. The leader of
 // every work-group, after waiting for every work-item to complete, then sums
 // these values storing the result in another work group memory object. Finally,
 // each work item then verifies that the sum of the work group memory elements
@@ -72,6 +72,9 @@ void sum(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem, T *buf,
 }
 
 // Explicit instantiations for the relevant data types.
+// These are needed because free function kernel support is not fully
+// implemented yet.
+// TODO: Remove these once free function kernel support is fully there.
 #define SUM(T)                                                                 \
   template void sum<T>(                                                        \
       sycl::ext::oneapi::experimental::work_group_memory<T[]> mem, T * buf,    \
