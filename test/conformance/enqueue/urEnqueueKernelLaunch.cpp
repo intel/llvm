@@ -517,6 +517,11 @@ struct urEnqueueKernelLaunchUSMLinkedList
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      0};
         if (use_pool) {
+            ur_bool_t poolSupport = false;
+            ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
+            if (!poolSupport) {
+                GTEST_SKIP() << "USM pools are not supported.";
+            }
             ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
         }
     }
