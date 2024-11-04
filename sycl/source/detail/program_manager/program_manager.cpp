@@ -1759,8 +1759,8 @@ void ProgramManager::cacheKernelImplicitLocalArg(RTDeviceBinaryImage &Img) {
     }
 }
 
-std::optional<int> ProgramManager::kernelImplicitLocalArgPos(
-    const std::string &KernelName) const {
+std::optional<int>
+ProgramManager::kernelImplicitLocalArgPos(const std::string &KernelName) const {
   auto it = m_KernelImplicitLocalArgPos.find(KernelName);
   if (it != m_KernelImplicitLocalArgPos.end())
     return it->second;

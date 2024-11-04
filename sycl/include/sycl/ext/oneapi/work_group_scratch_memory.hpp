@@ -7,8 +7,8 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/exception.hpp>                 // for exception
+#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_ALWAYS_INLINE
+#include <sycl/exception.hpp>                        // for exception
 #include <sycl/ext/oneapi/properties/properties.hpp> // for properties
 
 namespace sycl {
@@ -17,7 +17,7 @@ namespace ext::oneapi {
 namespace experimental {
 
 __SYCL_ALWAYS_INLINE
-inline void* get_work_group_scratch_memory() {
+inline void *get_work_group_scratch_memory() {
 #ifdef __SYCL_DEVICE_ONLY__
   return __sycl_dynamicLocalMemoryPlaceholder();
 #else

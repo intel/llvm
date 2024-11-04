@@ -30,7 +30,7 @@ int main() {
   Q.submit([&](handler &Cgh) {
     auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
     sycl_ext::work_group_scratch_size static_size(WgSize * RepeatWG *
-                                                 sizeof(int));
+                                                  sizeof(int));
     sycl_ext::properties properties{static_size};
     auto LocalAccessor =
         sycl::local_accessor<int>(WgSize * RepeatWG * sizeof(int), Cgh);

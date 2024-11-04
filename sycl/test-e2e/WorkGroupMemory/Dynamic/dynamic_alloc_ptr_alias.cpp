@@ -30,7 +30,7 @@ int main() {
   Q.submit([&](handler &Cgh) {
     auto Acc = Buf.get_access<access::mode::read_write>(Cgh);
     sycl_ext::work_group_scratch_size static_size(WgSize * RepeatWG *
-                                                 sizeof(int));
+                                                  sizeof(int));
     sycl_ext::properties properties{static_size};
     Cgh.parallel_for(nd_range<1>(range<1>(Size), range<1>(WgSize)), properties,
                      [=](nd_item<1> Item) {

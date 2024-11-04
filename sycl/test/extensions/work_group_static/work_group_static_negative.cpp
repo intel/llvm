@@ -7,8 +7,8 @@
 using namespace sycl::ext::oneapi::experimental;
 
 class InvalidCtorDtor {
-    InvalidCtorDtor() {}
-    ~InvalidCtorDtor() {}
+  InvalidCtorDtor() {}
+  ~InvalidCtorDtor() {}
 };
 
 SYCL_EXTERNAL void test(int *p) {

@@ -289,7 +289,8 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
-  std::optional<int> kernelImplicitLocalArgPos(const std::string &KernelName) const;
+  std::optional<int>
+  kernelImplicitLocalArgPos(const std::string &KernelName) const;
 
   bool kernelUsesAsan() const { return m_AsanFoundInImage; }
 

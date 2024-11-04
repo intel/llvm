@@ -42,9 +42,8 @@ public:
 
   operator T &() noexcept { return data; }
 
-  template <class TArg = T,
-            typename = std::enable_if_t<!std::is_array_v<TArg>>>
-  work_group_static& operator=(const T &value) noexcept {
+  template <class TArg = T, typename = std::enable_if_t<!std::is_array_v<TArg>>>
+  work_group_static &operator=(const T &value) noexcept {
     data = value;
     return *this;
   }
