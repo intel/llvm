@@ -87,6 +87,8 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
   case UGF::sycl_ext_codeplay_enqueue_native_command:
     return "sycl_ext_codeplay_enqueue_native_command";
+  case UGF::sycl_ext_oneapi_work_group_scratch_memory:
+    return "sycl_ext_oneapi_work_group_scratch_memory";
   }
 
   assert(false && "Unhandled graphs feature");
