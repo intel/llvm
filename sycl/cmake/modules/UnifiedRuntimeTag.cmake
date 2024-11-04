@@ -1,7 +1,7 @@
-# commit fa8cc8ec16c1a2cf0926cc64026edc6a254ff0c2
-# Merge: 3d58884b 1984ceb1
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Fri Nov 1 10:03:37 2024 +0000
-#     Merge pull request #1833 from ayylol/old-opencl-check
-#     [OpenCL] Add OpenCL version check for independent forward progress query
-set(UNIFIED_RUNTIME_TAG fa8cc8ec16c1a2cf0926cc64026edc6a254ff0c2)
+# commit b0a9e2be61ad42d3447f1f246120ab25119a03e0
+# Merge: fa8cc8ec a0cf2ce2
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Mon Nov 4 10:00:08 2024 +0000
+#     Merge pull request #2165 from aarongreig/aaron/makeUSMPoolsOptional
+#     Make USM pools optional with a device query to report support.
+set(UNIFIED_RUNTIME_TAG b0a9e2be61ad42d3447f1f246120ab25119a03e0)
