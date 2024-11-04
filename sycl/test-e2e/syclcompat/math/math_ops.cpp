@@ -54,7 +54,7 @@ void test_syclcompat_max() {
 template <typename ValueT, typename ValueU>
 inline void min_kernel(ValueT *a, ValueU *b,
                        std::common_type_t<ValueT, ValueU> *r) {
-  *r = syclcompat::min<ValueT, ValueU>(*a, *b);
+  *r = syclcompat::min<ValueT,ValueU>(*a, *b);
 }
 
 template <typename ValueT, typename ValueU = ValueT>
@@ -90,7 +90,8 @@ void test_syclcompat_fmin_nan() {
   const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  const ValueTU res = static_cast<ValueTU>(5);
+  const ValueTU res =
+      static_cast<ValueTU>(5);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op2, res);
@@ -99,9 +100,8 @@ void test_syclcompat_fmin_nan() {
       .template launch_test<fmin_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
 }
 
-template <template <typename T, int Dim> typename ContainerT, typename ValueT,
-          typename ValueU = ValueT>
-void test_container_syclcompat_fmin_nan() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT, typename ValueU = ValueT>
+void test_container_syclcompat_fmin_nan(){
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -114,10 +114,8 @@ void test_container_syclcompat_fmin_nan() {
 
   const ContT op4 = {static_cast<ValueT>(5), static_cast<ValueT>(10)};
   const ContU op5 = {static_cast<ValueU>(10), static_cast<ValueU>(5)};
-  const ContU op6 = {sycl::nan(static_cast<unsigned int>(0)),
-                     sycl::nan(static_cast<unsigned int>(0))};
-  const ContTU op6_res = {sycl::nan(static_cast<unsigned int>(0)),
-                          sycl::nan(static_cast<unsigned int>(0))};
+  const ContU op6 = {sycl::nan(static_cast<unsigned int>(0)), sycl::nan(static_cast<unsigned int>(0))};
+  const ContTU op6_res = {sycl::nan(static_cast<unsigned int>(0)), sycl::nan(static_cast<unsigned int>(0))};
 
   const ContTU res2{static_cast<ValueTU>(5), static_cast<ValueTU>(5)};
 
@@ -146,7 +144,8 @@ void test_syclcompat_fmax_nan() {
   const ValueU op2 = static_cast<ValueU>(10);
   ValueU op3 = sycl::nan(static_cast<unsigned int>(0));
 
-  const ValueTU res = static_cast<ValueTU>(10);
+  const ValueTU res =
+      static_cast<ValueTU>(10);
 
   BinaryOpTestLauncher<ValueT, ValueU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op2, res);
@@ -155,9 +154,8 @@ void test_syclcompat_fmax_nan() {
       .template launch_test<fmax_nan_kernel<ValueT, ValueU>>(op1, op3, op3);
 }
 
-template <template <typename T, int Dim> typename ContainerT, typename ValueT,
-          typename ValueU = ValueT>
-void test_container_syclcompat_fmax_nan() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT, typename ValueU = ValueT>
+void test_container_syclcompat_fmax_nan(){
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -170,10 +168,8 @@ void test_container_syclcompat_fmax_nan() {
 
   const ContT op4 = {static_cast<ValueT>(5), static_cast<ValueT>(10)};
   const ContU op5 = {static_cast<ValueU>(10), static_cast<ValueU>(5)};
-  const ContU op6 = {sycl::nan(static_cast<unsigned int>(0)),
-                     sycl::nan(static_cast<unsigned int>(0))};
-  const ContTU op6_res = {sycl::nan(static_cast<unsigned int>(0)),
-                          sycl::nan(static_cast<unsigned int>(0))};
+  const ContU op6 = {sycl::nan(static_cast<unsigned int>(0)), sycl::nan(static_cast<unsigned int>(0))};
+  const ContTU op6_res = {sycl::nan(static_cast<unsigned int>(0)), sycl::nan(static_cast<unsigned int>(0))};
 
   const ContTU res2{static_cast<ValueTU>(10), static_cast<ValueTU>(10)};
 
@@ -271,7 +267,8 @@ template <typename ValueT> void test_syclcompat_cbrt() {
       .template launch_test<cbrt_kernel<ValueT>>(op2, res2);
 }
 
-template <typename T> void isnan_kernel(T *a, T *r) {
+template <typename T>
+void isnan_kernel(T *a, T *r) {
   *r = syclcompat::isnan(*a);
 }
 
@@ -322,8 +319,7 @@ template <typename ValueT> void test_clamp() {
       .template launch_test<clamp_kernel<ValueT>>(op3, expect3);
 }
 
-template <template <typename T, int Dim> typename ContainerT, typename ValueT>
-void test_container_clamp() {
+template <template <typename T, int Dim> typename ContainerT, typename ValueT> void test_container_clamp() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
@@ -359,27 +355,21 @@ int main() {
 #endif
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmin_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec,
-                                  test_container_syclcompat_fmin_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
-                                  test_container_syclcompat_fmin_nan);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_container_syclcompat_fmin_nan);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmin_nan);
   test_syclcompat_fmin_nan<double, float>();
   test_container_syclcompat_fmin_nan<sycl::vec, float, double>();
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-  test_container_syclcompat_fmin_nan<sycl::vec, sycl::ext::oneapi::bfloat16,
-                                     double>();
+  test_container_syclcompat_fmin_nan<sycl::vec, sycl::ext::oneapi::bfloat16, double>();
 #endif
 
   INSTANTIATE_ALL_TYPES(fp_type_list, test_syclcompat_fmax_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec,
-                                  test_container_syclcompat_fmax_nan);
-  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
-                                  test_container_syclcompat_fmax_nan);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::vec, test_container_syclcompat_fmax_nan);
+  INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_container_syclcompat_fmax_nan);
   test_syclcompat_fmax_nan<double, float>();
   test_container_syclcompat_fmax_nan<sycl::vec, float, double>();
 #ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
-  test_container_syclcompat_fmax_nan<sycl::vec, sycl::ext::oneapi::bfloat16,
-                                     double>();
+  test_container_syclcompat_fmax_nan<sycl::vec, sycl::ext::oneapi::bfloat16, double>();
 #endif
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_syclcompat_pow);
@@ -393,10 +383,8 @@ int main() {
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray, test_isnan);
 
   INSTANTIATE_ALL_TYPES(value_type_list, test_clamp);
-  INSTANTIATE_ALL_CONTAINER_TYPES(vec_type_list, sycl::vec,
-                                  test_container_clamp);
-  INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray,
-                                  test_container_clamp);
+  INSTANTIATE_ALL_CONTAINER_TYPES(vec_type_list, sycl::vec, test_container_clamp);
+  INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray, test_container_clamp);
 
   return 0;
 }
