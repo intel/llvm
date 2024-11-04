@@ -6,7 +6,7 @@
 // RUN: %{run} %t.out
 // The test is failing when writing directly to output buffer.
 // If temporary variable is used (see TO_PASS mode) the test succeeded.
-// XFAIL: gpu
+// XFAIL: gpu && run-mode
 #include "include/asmhelper.h"
 #include <iostream>
 #include <vector>
