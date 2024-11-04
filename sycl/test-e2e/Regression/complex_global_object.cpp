@@ -7,7 +7,7 @@
 // and the last call is in global destructor.
 
 // Disable test due to flacky failures
-// UNSUPPORTED: flaky
+// UNSUPPORTED: true
 
 #include <sycl/detail/core.hpp>
 

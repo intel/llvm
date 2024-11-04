@@ -372,9 +372,8 @@ you about that.
 
 To disable the test completely, you can use:
 ```
-// USNUPPORTED: overall *OR* hangs *OR* flaky
+// USNUPPORTED: true
 ```
-See `unsupported_feature` set in sycl/test-e2e/lit.cfg.py for these features.
 
-Note: please do not use `REQUIRES: TEMPORARY_DISABLED`. Use `UNSUPPORTED`
-instead.
+Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
+a non-standard mechanism. Use `UNSUPPORTED: true` instead.
