@@ -1068,6 +1068,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(false);
   }
+
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT: {
+    return ReturnValue(false);
+  }
+
   /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in

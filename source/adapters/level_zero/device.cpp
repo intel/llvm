@@ -1149,6 +1149,8 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
     return ReturnValue(true);
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT:
+    return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
     logger::error("ParamNameParamName={}(0x{})", ParamName,
