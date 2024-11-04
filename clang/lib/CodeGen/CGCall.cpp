@@ -1879,9 +1879,10 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   // the 'FPAccuracyFuncMap'; if no accuracy is mapped to Name (FuncAttrs
   // is empty), then set its accuracy from the TU's accuracy value.
   if (!getLangOpts().FPAccuracyFuncMap.empty()) {
+    StringRef FPAccuracyVal;
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-      StringRef FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+      FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
           ID, FuncType, convertFPAccuracy(FuncMapIt->second));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
@@ -1899,9 +1900,9 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
     }
-    if (Name == "sqrt" && !getLangOpts().OffloadFp32PrecSqrt)
+    if (Name == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt)
       FPAccuracyVal = "3.0";
-    if (Name == "fdiv" && !getLangOpts().OffloadFp32PrecDiv)
+    if (Name == "fdiv" && !getLangOpts().OffloadFP32PrecDiv)
       FPAccuracyVal = "2.5";
     if (!FPAccuracyVal.empty())
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
@@ -5802,13 +5803,13 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     if (FD && FD->getNameInfo().getName().isIdentifier()) {
       StringRef FuncName = FD->getName();
       const bool IsFloat32Type = FD->getReturnType()->isFloat32Type();
-      bool hasFPAccuracyFuncMap = !getLangOpts().FPAccuracyFuncMap.empty();
+      bool hasFPAccuracyFuncMap = hasAccuracyRequirement(FuncName);
       bool hasFPAccuracyVal = !getLangOpts().FPAccuracyVal.empty();
       bool isFp32SqrtFunction =
-          (FuncName == "sqrt" && !getLangOpts().OffloadFp32PrecSqrt &&
+          (FuncName == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt &&
            IsFloat32Type);
       bool isFP32FdivFunction =
-          (FuncName == "fdiv" && !getLangOpts().OffloadFp32PrecDiv &&
+          (FuncName == "fdiv" && !getLangOpts().OffloadFP32PrecDiv &&
            IsFloat32Type);
       if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction ||
           isFP32FdivFunction) {

@@ -122,6 +122,13 @@ clang::ToConstrainedExceptMD(LangOptions::FPExceptionModeKind Kind) {
   }
 }
 
+bool CodeGenFunction::hasAccuracyRequirement(StringRef Name) {
+  if (!getLangOpts().FPAccuracyVal.empty())
+    return true;
+  auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
+  return FuncMapIt != getLangOpts().FPAccuracyFuncMap.end();
+}
+
 void CodeGenFunction::SetFastMathFlags(FPOptions FPFeatures) {
   llvm::FastMathFlags FMF;
   FMF.setAllowReassoc(FPFeatures.getAllowFPReassociate());

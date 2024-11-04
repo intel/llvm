@@ -521,13 +521,6 @@ static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
              : CGF.CGM.getIntrinsic(IntrinsicID, Src0->getType());
 }
 
-static bool hasAccuracyRequirement(CodeGenFunction &CGF, StringRef Name) {
-  if (!CGF.getLangOpts().FPAccuracyVal.empty())
-    return true;
-  auto FuncMapIt = CGF.getLangOpts().FPAccuracyFuncMap.find(Name.str());
-  return FuncMapIt != CGF.getLangOpts().FPAccuracyFuncMap.end();
-}
-
 static Function *emitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
                                     unsigned FPAccuracyIntrinsicID,
                                     unsigned IntrinsicID, llvm::Value *Src0,
@@ -546,7 +539,7 @@ static Function *emitMaybeIntrinsic(CodeGenFunction &CGF, const CallExpr *E,
             CGF.CGM.getContext().BuiltinInfo.getName(CGF.getCurrentBuiltinID());
         // Use fpbuiltin intrinsic only when needed.
         Func = getIntrinsic(CGF, Src0, FPAccuracyIntrinsicID, IntrinsicID,
-                            hasAccuracyRequirement(CGF, Name));
+                            CGF.hasAccuracyRequirement(Name));
       }
     }
   }
@@ -24201,8 +24194,8 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
   // a TU fp-accuracy requested.
   const LangOptions &LangOpts = getLangOpts();
   if (hasFuncNameRequestedFPAccuracy(Name, LangOpts) ||
-      !LangOpts.FPAccuracyVal.empty() || !LangOpts.OffloadFp32PrecDiv ||
-      !LangOpts.OffloadFp32PrecSqrt) {
+      !LangOpts.FPAccuracyVal.empty() || !LangOpts.OffloadFP32PrecDiv ||
+      !LangOpts.OffloadFP32PrecSqrt) {
     llvm::Function *Func =
         CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
     return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),

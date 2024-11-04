@@ -5213,6 +5213,8 @@ public:
   /// CodeGenOpts.
   void SetDivFPAccuracy(llvm::Value *Val);
 
+  bool hasAccuracyRequirement(StringRef Name);
+
   /// Set the codegen fast-math flags.
   void SetFastMathFlags(FPOptions FPFeatures);
 
