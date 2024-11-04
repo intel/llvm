@@ -3503,10 +3503,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
       return false;
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (F.hasMetadata("sycl_explicit_simd"))
-      return false;
   }
 
   bool FunctionModified = false;
