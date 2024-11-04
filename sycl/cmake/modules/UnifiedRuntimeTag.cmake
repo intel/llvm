@@ -1,7 +1,7 @@
-# commit 6ade245ef11de42f91e1a35e67c38389788abb3d
-# Merge: 8c0cc4cd 9d1d3ac4
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Thu Oct 31 09:17:21 2024 +0100
-#    Merge pull request #2230 from pbalcer/check-xpti-enabled
-#    don't call xpti if there are no subscribers
-set(UNIFIED_RUNTIME_TAG 6ade245ef11de42f91e1a35e67c38389788abb3d)
+# commit b0a9e2be61ad42d3447f1f246120ab25119a03e0
+# Merge: fa8cc8ec a0cf2ce2
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Mon Nov 4 10:00:08 2024 +0000
+#     Merge pull request #2165 from aarongreig/aaron/makeUSMPoolsOptional
+#     Make USM pools optional with a device query to report support.
+set(UNIFIED_RUNTIME_TAG b0a9e2be61ad42d3447f1f246120ab25119a03e0)
