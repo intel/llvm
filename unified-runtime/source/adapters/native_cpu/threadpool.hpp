@@ -244,7 +244,9 @@ namespace native_cpu {
 
 struct TBB_threadpool {
   oneapi::tbb::task_group tasks;
-  inline size_t num_threads() const noexcept { return 32; }
+  inline size_t num_threads() const noexcept {
+    return oneapi::tbb::info::default_concurrency();
+  }
 };
 template <> struct Scheduler<TBB_threadpool> : SchedulerBase<TBB_threadpool> {
   using SchedulerBase<TBB_threadpool>::SchedulerBase;
