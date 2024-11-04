@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import collections, re
-from benches.base import Result
+from benches.result import Result
 from benches.options import options
 import math
 
@@ -126,7 +126,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
             if oln.diff != None:
                 oln.row += f" | {(oln.diff - 1)*100:.2f}%"
                 delta = oln.diff - 1
-                oln.bars = round(10*(oln.diff - 1)/max_diff)
+                oln.bars = round(10*(oln.diff - 1)/max_diff) if max_diff != 0.0 else 0
                 if oln.bars == 0 or abs(delta) < options.epsilon:
                     oln.row += " | . |"
                 elif oln.bars > 0:
@@ -154,7 +154,6 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
             oln.row += " |   |"
             if options.verbose: print(oln.row)
             summary_table += oln.row + "\n"
-
 
     grouped_objects = collections.defaultdict(list)
 
@@ -211,7 +210,7 @@ def generate_summary_table_and_chart(chart_data: dict[str, list[Result]]):
 
     return summary_line, summary_table
 
-def generate_markdown(chart_data: dict[str, list[Result]]):
+def generate_markdown(name: str, chart_data: dict[str, list[Result]]):
     (summary_line, summary_table) = generate_summary_table_and_chart(chart_data)
 
     return f"""
@@ -220,5 +219,5 @@ def generate_markdown(chart_data: dict[str, list[Result]]):
 (<ins>result</ins> is better)\n
 {summary_table}
 # Details
-{generate_markdown_details(chart_data["This PR"])}
+{generate_markdown_details(chart_data[name])}
 """

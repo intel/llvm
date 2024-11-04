@@ -20,7 +20,7 @@ class Benchmark:
     def get_adapter_full_path():
         for libs_dir_name in ['lib', 'lib64']:
             adapter_path = os.path.join(
-                options.ur_dir, libs_dir_name, f"libur_adapter_{options.ur_adapter_name}.so")
+                options.ur, libs_dir_name, f"libur_adapter_{options.ur_adapter}.so")
             if os.path.isfile(adapter_path):
                 return adapter_path
         assert False, \
@@ -28,8 +28,10 @@ class Benchmark:
 
     def run_bench(self, command, env_vars):
         env_vars_with_forced_adapter = env_vars.copy()
-        env_vars_with_forced_adapter.update(
-            {'UR_ADAPTERS_FORCE_LOAD': Benchmark.get_adapter_full_path()})
+        if options.ur is not None:
+            env_vars_with_forced_adapter.update(
+                {'UR_ADAPTERS_FORCE_LOAD': Benchmark.get_adapter_full_path()})
+
         return run(
             command=command,
             env_vars=env_vars_with_forced_adapter,
@@ -76,3 +78,10 @@ class Benchmark:
 
     def teardown(self):
         raise NotImplementedError()
+
+class Suite:
+    def benchmarks(self) -> list[Benchmark]:
+        raise NotImplementedError()
+
+    def setup(self):
+        return
