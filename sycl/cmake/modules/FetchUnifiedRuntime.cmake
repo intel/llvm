@@ -117,11 +117,8 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/Naghasan/unified-runtime.git")
-  # commit af7e275b509b41f54a66743ebf748dfb51668abf
-  # Author: Maosu Zhao <maosu.zhao@intel.com>
-  # Date:   Thu Oct 17 16:31:21 2024 +0800
-  #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
-  set(UNIFIED_RUNTIME_TAG c15e107069e3b0664f2f2f2368db0b824fb7fc81)
+  set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need

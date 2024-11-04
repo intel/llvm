@@ -110,27 +110,22 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
   return SortedImgs;
 }
 
-/* Stores built program in persistent cache
- */
-void PersistentDeviceCodeCache::putItemToDisc(
-    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
-    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
-    const ur_program_handle_t &NativePrg) {
+// Utility function to get a non-yet-existing unique filename.
+std::string getUniqueFilename(const std::string &base_name) {
+  size_t i = 0;
+  std::string filename = base_name + "/" + std::to_string(i++);
+  while (OSUtil::isPathPresent(filename + ".bin") ||
+         OSUtil::isPathPresent(filename + ".lock")) {
+    filename = base_name + "/" + std::to_string(i++);
+  }
+  return filename;
+}
 
-  if (!areImagesCacheable(Imgs))
-    return;
-
-  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
-  std::string DirName =
-      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
-
-  if (DirName.empty())
-    return;
-
+std::vector<std::vector<char>>
+getProgramBinaryData(const ur_program_handle_t &NativePrg,
+                     const device &Device) {
   auto Adapter = detail::getSyclObjImpl(Device)->getAdapter();
-
   unsigned int DeviceNum = 0;
-
   Adapter->call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
       nullptr);
@@ -150,19 +145,34 @@ void PersistentDeviceCodeCache::putItemToDisc(
   Adapter->call<UrApiKind::urProgramGetInfo>(
       NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
       Pointers.data(), nullptr);
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin") ||
-           OSUtil::isPathPresent(FileName + ".lock"));
+  return Result;
+}
+
+/* Stores built program in persistent cache
+ */
+void PersistentDeviceCodeCache::putItemToDisc(
+    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
+    const ur_program_handle_t &NativePrg) {
+
+  if (!areImagesCacheable(Imgs))
+    return;
+
+  std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
+  std::string DirName =
+      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
+
+  if (DirName.empty())
+    return;
 
   try {
     OSUtil::makeDir(DirName.c_str());
+    std::string FileName = getUniqueFilename(DirName);
     LockCacheItem Lock{FileName};
     if (Lock.isOwned()) {
       std::string FullFileName = FileName + ".bin";
-      writeBinaryDataToFile(FullFileName, Result);
+      writeBinaryDataToFile(FullFileName,
+                            getProgramBinaryData(NativePrg, Device));
       trace("device binary has been cached: " + FullFileName);
       writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
                       BuildOptionsString);
@@ -177,6 +187,36 @@ void PersistentDeviceCodeCache::putItemToDisc(
     PersistentDeviceCodeCache::trace(
         std::string("error outputting persistent cache: ") +
         std::strerror(errno));
+  }
+}
+
+void PersistentDeviceCodeCache::putCompiledKernelToDisc(
+    const device &Device, const std::string &BuildOptionsString,
+    const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
+
+  std::string DirName =
+      getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
+
+  try {
+    OSUtil::makeDir(DirName.c_str());
+    std::string FileName = getUniqueFilename(DirName);
+    LockCacheItem Lock{FileName};
+    if (Lock.isOwned()) {
+      std::string FullFileName = FileName + ".bin";
+      writeBinaryDataToFile(FullFileName,
+                            getProgramBinaryData(NativePrg, Device));
+      PersistentDeviceCodeCache::trace_KernelCompiler(
+          "binary has been cached: " + FullFileName);
+    } else {
+      PersistentDeviceCodeCache::trace_KernelCompiler("cache lock not owned " +
+                                                      FileName);
+    }
+  } catch (std::exception &e) {
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("exception encountered making cache: ") + e.what());
+  } catch (...) {
+    PersistentDeviceCodeCache::trace_KernelCompiler(
+        std::string("error outputting cache: ") + std::strerror(errno));
   }
 }
 
@@ -218,6 +258,43 @@ std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
       }
     }
     FileName = Path + "/" + std::to_string(++i);
+  }
+  return {};
+}
+
+/*  kernel_compiler extension uses slightly different format for path
+    and does not cache a .src separate from the binary.
+ */
+std::vector<std::vector<char>>
+PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+    const device &Device, const std::string &BuildOptionsString,
+    const std::string SourceStr) {
+
+  std::string DirName =
+      getCompiledKernelItemPath(Device, BuildOptionsString, SourceStr);
+
+  if (DirName.empty() || !OSUtil::isPathPresent(DirName))
+    return {};
+
+  int i = 0;
+
+  std::string FileName{DirName + "/" + std::to_string(i)};
+  while (OSUtil::isPathPresent(FileName + ".bin") ||
+         OSUtil::isPathPresent(FileName + ".src")) {
+
+    if (!LockCacheItem::isLocked(FileName)) {
+      try {
+        std::string FullFileName = FileName + ".bin";
+        std::vector<std::vector<char>> res =
+            readBinaryDataFromFile(FullFileName);
+        PersistentDeviceCodeCache::trace_KernelCompiler(
+            "using cached binary: " + FullFileName);
+        return res; // subject for NRVO
+      } catch (...) {
+        // If read was unsuccessfull try the next item
+      }
+    }
+    FileName = DirName + "/" + std::to_string(++i);
   }
   return {};
 }
@@ -394,6 +471,25 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
          std::to_string(StringHasher(ImgsString)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
          std::to_string(StringHasher(BuildOptionsString));
+}
+
+std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
+    const device &Device, const std::string &BuildOptionsString,
+    const std::string SourceString) {
+
+  std::string cache_root{getRootDir()};
+  if (cache_root.empty()) {
+    trace("Disable persistent cache due to unconfigured cache root.");
+    return {};
+  }
+
+  std::string DeviceString{getDeviceIDString(Device)};
+  std::hash<std::string> StringHasher{};
+
+  return cache_root + "/ext_kernel_compiler" + "/" +
+         std::to_string(StringHasher(DeviceString)) + "/" +
+         std::to_string(StringHasher(BuildOptionsString)) + "/" +
+         std::to_string(StringHasher(SourceString));
 }
 
 /* Returns true if persistent cache is enabled.
