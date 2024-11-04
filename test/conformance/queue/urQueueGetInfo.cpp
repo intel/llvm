@@ -55,10 +55,28 @@ TEST_P(urQueueGetInfoTestWithInfoParam, Success) {
             ASSERT_EQ(*returned_device, device);
             break;
         }
+        case UR_QUEUE_INFO_DEVICE_DEFAULT: {
+            auto returned_default_queue =
+                reinterpret_cast<ur_queue_handle_t *>(data.data());
+            ASSERT_EQ(*returned_default_queue, queue);
+            break;
+        }
+        case UR_QUEUE_INFO_FLAGS: {
+            auto returned_flags =
+                reinterpret_cast<ur_queue_flags_t *>(data.data());
+            EXPECT_EQ(*returned_flags, *returned_flags & UR_QUEUE_FLAGS_MASK);
+            break;
+        }
         case UR_QUEUE_INFO_REFERENCE_COUNT: {
             auto returned_reference_count =
                 reinterpret_cast<uint32_t *>(data.data());
             ASSERT_GT(*returned_reference_count, 0U);
+            break;
+        }
+        case UR_QUEUE_INFO_EMPTY: {
+            auto returned_empty_queue =
+                reinterpret_cast<ur_bool_t *>(data.data());
+            ASSERT_TRUE(returned_empty_queue);
             break;
         }
         default:
@@ -98,35 +116,6 @@ struct urQueueGetInfoDeviceQueueTestWithInfoParam
         UR_QUEUE_FLAG_ON_DEVICE | UR_QUEUE_FLAG_ON_DEVICE_DEFAULT |
             UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE};
 };
-
-UUR_TEST_SUITE_P(urQueueGetInfoDeviceQueueTestWithInfoParam,
-                 ::testing::Values(UR_QUEUE_INFO_CONTEXT, UR_QUEUE_INFO_DEVICE,
-                                   UR_QUEUE_INFO_DEVICE_DEFAULT,
-                                   UR_QUEUE_INFO_FLAGS,
-                                   UR_QUEUE_INFO_REFERENCE_COUNT,
-                                   UR_QUEUE_INFO_SIZE, UR_QUEUE_INFO_EMPTY),
-                 uur::deviceTestWithParamPrinter<ur_queue_info_t>);
-
-TEST_P(urQueueGetInfoDeviceQueueTestWithInfoParam, Success) {
-    ur_queue_info_t info_type = getParam();
-    size_t size = 0;
-    auto result = urQueueGetInfo(queue, info_type, 0, nullptr, &size);
-
-    if (result == UR_RESULT_SUCCESS) {
-        ASSERT_NE(size, 0);
-
-        if (const auto expected_size = queue_info_size_map.find(info_type);
-            expected_size != queue_info_size_map.end()) {
-            ASSERT_EQ(expected_size->second, size);
-        }
-
-        std::vector<uint8_t> data(size);
-        ASSERT_SUCCESS(
-            urQueueGetInfo(queue, info_type, size, data.data(), nullptr));
-    } else {
-        ASSERT_EQ_RESULT(result, UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
-    }
-}
 
 using urQueueGetInfoTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urQueueGetInfoTest);
