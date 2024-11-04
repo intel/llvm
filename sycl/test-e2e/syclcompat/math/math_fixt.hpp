@@ -142,7 +142,9 @@ template <typename... ValueT> struct should_skip {
       if (syclcompat::detail::isnan(RESULT[i])) {                              \
         assert(syclcompat::detail::isnan(EXPECTED[i]));                        \
       } else {                                                                 \
-        assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);               \
+        assert((fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE) ||            \
+               !(std::cerr << "-- " << RESULT[i] << " - " << EXPECTED[i]       \
+                           << " < " << ERROR_TOLERANCE << "-- "));             \
       }                                                                        \
     }                                                                          \
   } else {                                                                     \
@@ -209,7 +211,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK_PRINT(ResultT, res_h_, expected);
+    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
 
@@ -223,7 +225,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK_PRINT(ResultT, res_h_, expected);
+    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
   template <auto Kernel>
@@ -241,7 +243,7 @@ public:
     syclcompat::memcpy<bool>(&res_hi_h_, res_hi_, 1);
     syclcompat::memcpy<bool>(&res_lo_h_, res_lo_, 1);
 
-    CHECK_PRINT(ResultT, res_h_, expected);
+    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
     assert(res_hi_h_ == expected_hi);
     assert(res_lo_h_ == expected_lo);
@@ -282,7 +284,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK_PRINT(ResultT, res_h_, expected);
+    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   }
 };
@@ -334,7 +336,7 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    CHECK_PRINT(ResultT, res_h_, expected);
+    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
 };

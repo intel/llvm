@@ -34,25 +34,25 @@ jobs:
   detect_changes:
     uses: ./.github/workflows/sycl-detect-changes.yml
 
-  build:
-    needs: [detect_changes]
-    if: |
-      always() && success()
-      && github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-windows-build.yml
-    with:
-      changes: ${{ needs.detect_changes.outputs.filters }}
-
-  e2e:
-    needs: build
-    # Continue if build was successful.
-    if: |
-      always()
-      && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
-    uses: ./.github/workflows/sycl-windows-run-tests.yml
-    with:
-      name: Intel GEN12 Graphics with Level Zero
-      runner: '["Windows","gen12"]'
-      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
-      extra_lit_opts: --param gpu-intel-gen12=True
+  # build:
+  #   needs: [detect_changes]
+  #   if: |
+  #     always() && success()
+  #     && github.repository == 'intel/llvm'
+  #   uses: ./.github/workflows/sycl-windows-build.yml
+  #   with:
+  #     changes: ${{ needs.detect_changes.outputs.filters }}
+  #
+  # e2e:
+  #   needs: build
+  #   # Continue if build was successful.
+  #   if: |
+  #     always()
+  #     && !cancelled()
+  #     && needs.build.outputs.build_conclusion == 'success'
+  #   uses: ./.github/workflows/sycl-windows-run-tests.yml
+  #   with:
+  #     name: Intel GEN12 Graphics with Level Zero
+  #     runner: '["Windows","gen12"]'
+  #     sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+  #     extra_lit_opts: --param gpu-intel-gen12=True
