@@ -21,6 +21,7 @@
  */
 
 #include <clc/clcmacro.h>
+#include <clc/integer/clc_abs.h>
 #include <config.h>
 #include <core/clc_core.h>
 #include <math/math.h>
