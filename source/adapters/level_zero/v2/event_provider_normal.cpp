@@ -68,7 +68,7 @@ raii::cache_borrowed_event provider_pool::allocate() {
   auto e = std::move(freelist.back());
   freelist.pop_back();
   return raii::cache_borrowed_event(
-      e.release(),
+      e.release().first,
       [this](ze_event_handle_t handle) { freelist.push_back(handle); });
 }
 

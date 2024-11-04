@@ -84,6 +84,19 @@ ur_command_list_handler_t::ur_command_list_handler_t(
         ur::level_zero::urEventRelease(event);
       }) {}
 
+ur_command_list_handler_t::ur_command_list_handler_t(
+    ze_command_list_handle_t hZeCommandList, event_pool *eventPool,
+    bool ownZeHandle)
+    : commandList(hZeCommandList,
+                  [ownZeHandle](ze_command_list_handle_t hZeCommandList) {
+                    if (ownZeHandle) {
+                      zeCommandListDestroy(hZeCommandList);
+                    }
+                  }),
+      internalEvent(eventPool->allocate(), [=](ur_event_handle_t event) {
+        ur::level_zero::urEventRelease(event);
+      }) {}
+
 static event_flags_t eventFlagsFromQueueFlags(ur_queue_flags_t flags) {
   event_flags_t eventFlags = EVENT_FLAGS_COUNTER;
   if (flags & UR_QUEUE_FLAG_PROFILING_ENABLE)
@@ -101,6 +114,17 @@ ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
                   eventPool.get()),
       computeHandler(hContext, hDevice, pProps, queue_group_type::Compute,
                      eventPool.get()) {}
+
+ur_queue_immediate_in_order_t::ur_queue_immediate_in_order_t(
+    ur_context_handle_t hContext, ur_device_handle_t hDevice,
+    ur_native_handle_t hNativeHandle, ur_queue_flags_t flags, bool ownZeQueue)
+    : hContext(hContext), hDevice(hDevice), flags(flags),
+      eventPool(hContext->eventPoolCache.borrow(
+          hDevice->Id.value(), eventFlagsFromQueueFlags(flags))),
+      copyHandler(
+          reinterpret_cast<ze_command_list_handle_t>(hNativeHandle), eventPool.get(), false /* we're using a single command list for both handlers, only own it by one of them */),
+      computeHandler(reinterpret_cast<ze_command_list_handle_t>(hNativeHandle),
+                     eventPool.get(), ownZeQueue) {}
 
 ur_command_list_handler_t *
 ur_queue_immediate_in_order_t::getCommandListHandlerForCompute() {
@@ -139,7 +163,6 @@ ur_result_t
 ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
                                             size_t propSize, void *pPropValue,
                                             size_t *pPropSizeRet) {
-  std::shared_lock<ur_shared_mutex> Lock(Mutex);
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
   // TODO: consider support for queue properties and size
   switch ((uint32_t)propName) { // cast to avoid warnings on EXT enum values
@@ -158,12 +181,13 @@ ur_queue_immediate_in_order_t::queueGetInfo(ur_queue_info_t propName,
     // We can exit early if we have in-order queue.
     if (!lastHandler)
       return ReturnValue(true);
-    [[fallthrough]];
+    else
+      return ReturnValue(false);
   }
   default:
-    logger::error(
-        "Unsupported ParamName in urQueueGetInfo: ParamName=ParamName={}(0x{})",
-        propName, logger::toHex(propName));
+    logger::error("Unsupported ParamName in urQueueGetInfo: "
+                  "ParamName=ParamName={}(0x{})",
+                  propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
 
@@ -186,8 +210,9 @@ ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
 ur_result_t ur_queue_immediate_in_order_t::queueGetNativeHandle(
     ur_queue_native_desc_t *pDesc, ur_native_handle_t *phNativeQueue) {
   std::ignore = pDesc;
-  std::ignore = phNativeQueue;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  *phNativeQueue = reinterpret_cast<ur_native_handle_t>(
+      this->computeHandler.commandList.get());
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::finalizeHandler(
@@ -211,6 +236,7 @@ ur_result_t ur_queue_immediate_in_order_t::finalizeHandler(
 
 ur_result_t ur_queue_immediate_in_order_t::queueFinish() {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::queueFinish");
+
   std::unique_lock<ur_shared_mutex> lock(this->Mutex);
 
   if (!lastHandler) {
@@ -248,35 +274,45 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueKernelLaunch(
 
   ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
 
-  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> Lock(
-      hKernel->Mutex, hKernel->getProgramHandle()->Mutex, this->Mutex);
-
-  if (pGlobalWorkOffset != NULL) {
-    UR_CALL(
-        setKernelGlobalOffset(hContext, hZeKernel, workDim, pGlobalWorkOffset));
-  }
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(this->Mutex,
+                                                          hKernel->Mutex);
 
   ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
-  uint32_t WG[3];
+  uint32_t WG[3]{};
   UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice,
                                         zeThreadGroupDimensions, WG, workDim,
                                         pGlobalWorkSize, pLocalWorkSize));
 
-  ZE2UR_CALL(zeKernelSetGroupSize, (hZeKernel, WG[0], WG[1], WG[2]));
-
   auto handler = getCommandListHandlerForCompute();
   auto signalEvent = getSignalEvent(handler, phEvent);
 
-  auto [pWaitEvents, numWaitEvents] =
+  auto waitList =
       getWaitListView(phEventWaitList, numEventsInWaitList, handler);
 
-  // TODO: consider migrating memory to the device if memory buffers are used
+  bool memoryMigrated = false;
+  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
+    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                      (handler->commandList.get(), dst, src, size, nullptr,
+                       waitList.second, waitList.first));
+    memoryMigrated = true;
+  };
+
+  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
+                                        workDim, WG[0], WG[1], WG[2],
+                                        memoryMigrate));
+
+  if (memoryMigrated) {
+    // If memory was migrated, we don't need to pass the wait list to
+    // the copy command again.
+    waitList.first = nullptr;
+    waitList.second = 0;
+  }
 
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::zeCommandListAppendLaunchKernel");
   ZE2UR_CALL(zeCommandListAppendLaunchKernel,
              (handler->commandList.get(), hZeKernel, &zeThreadGroupDimensions,
-              signalEvent->getZeEvent(), numWaitEvents, pWaitEvents));
+              signalEvent->getZeEvent(), waitList.second, waitList.first));
 
   return finalizeHandler(handler);
 }
@@ -286,7 +322,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueEventsWait");
 
-  std::unique_lock<ur_shared_mutex> lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto handler = getCommandListHandlerForCompute();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -323,8 +359,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
 
   bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, srcOffset, size,
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, srcOffset,
+      size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -332,8 +368,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
       }));
 
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::write_only, dstOffset, size,
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::write_only, dstOffset,
+      size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -362,9 +398,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferRead(
 
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
-
   ur_usm_handle_t_ dstHandle(hContext, size, pDst);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
+
   return enqueueGenericCopyUnlocked(hBuffer, &dstHandle, blockingRead, offset,
                                     0, size, numEventsInWaitList,
                                     phEventWaitList, phEvent);
@@ -378,9 +416,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWrite(
 
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
-
   ur_usm_handle_t_ srcHandle(hContext, size, pSrc);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
+
   return enqueueGenericCopyUnlocked(&srcHandle, hBuffer, blockingWrite, 0,
                                     offset, size, numEventsInWaitList,
                                     phEventWaitList, phEvent);
@@ -403,16 +443,16 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueRegionCopyUnlocked(
 
   bool memoryMigrated = false;
   auto pSrc = ur_cast<char *>(src->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, 0, src->getSize(),
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, 0,
+      src->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
         memoryMigrated = true;
       }));
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::write_only, 0, dst->getSize(),
-      [&](void *src, void *dst, size_t size) {
+      hDevice, ur_mem_handle_t_::device_access_mode_t::write_only, 0,
+      dst->getSize(), [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -444,9 +484,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferReadRect(
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueMemBufferReadRect");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
-
   ur_usm_handle_t_ dstHandle(hContext, 0, pDst);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
+
   return enqueueRegionCopyUnlocked(
       hBuffer, &dstHandle, blockingRead, bufferOrigin, hostOrigin, region,
       bufferRowPitch, bufferSlicePitch, hostRowPitch, hostSlicePitch,
@@ -462,9 +504,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect(
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueMemBufferWriteRect");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
-
   ur_usm_handle_t_ srcHandle(hContext, 0, pSrc);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
+
   return enqueueRegionCopyUnlocked(
       &srcHandle, hBuffer, blockingWrite, hostOrigin, bufferOrigin, region,
       hostRowPitch, hostSlicePitch, bufferRowPitch, bufferSlicePitch,
@@ -482,7 +526,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopy(
   UR_ASSERT(dstOffset + size <= hBufferDst->getSize(),
             UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
+      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return enqueueGenericCopyUnlocked(hBufferSrc, hBufferDst, false, srcOffset,
                                     dstOffset, size, numEventsInWaitList,
@@ -498,7 +543,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect(
   TRACK_SCOPE_LATENCY(
       "ur_queue_immediate_in_order_t::enqueueMemBufferCopyRect");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex, ur_shared_mutex> lock(
+      this->Mutex, hBufferSrc->getMutex(), hBufferDst->getMutex());
 
   return enqueueRegionCopyUnlocked(
       hBufferSrc, hBufferDst, false, srcOrigin, dstOrigin, region, srcRowPitch,
@@ -514,7 +560,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferFill(
 
   UR_ASSERT(offset + size <= hBuffer->getSize(), UR_RESULT_ERROR_INVALID_SIZE);
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
 
   return enqueueGenericFillUnlocked(hBuffer, offset, patternSize, pPattern,
                                     size, numEventsInWaitList, phEventWaitList,
@@ -573,20 +620,6 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemImageCopy(
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-static ur_mem_handle_t_::access_mode_t getAccessMode(ur_map_flags_t mapFlags) {
-  if (mapFlags & UR_MAP_FLAG_WRITE_INVALIDATE_REGION) {
-    return ur_mem_handle_t_::access_mode_t::write_invalidate;
-  } else if ((mapFlags & UR_MAP_FLAG_READ) && (mapFlags & UR_MAP_FLAG_WRITE)) {
-    return ur_mem_handle_t_::access_mode_t::read_write;
-  } else if (mapFlags & UR_MAP_FLAG_READ) {
-    return ur_mem_handle_t_::access_mode_t::read_only;
-  } else if (mapFlags & UR_MAP_FLAG_WRITE) {
-    return ur_mem_handle_t_::access_mode_t::write_only;
-  } else {
-    throw UR_RESULT_ERROR_INVALID_VALUE;
-  }
-}
-
 ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
     ur_mem_handle_t hBuffer, bool blockingMap, ur_map_flags_t mapFlags,
     size_t offset, size_t size, uint32_t numEventsInWaitList,
@@ -594,9 +627,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
     void **ppRetMap) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemBufferMap");
 
-  ur_mem_handle_t_::access_mode_t accessMode = getAccessMode(mapFlags);
-
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> lock(this->Mutex,
+                                                          hBuffer->getMutex());
 
   auto handler = getCommandListHandlerForCopy();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -606,7 +638,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemBufferMap(
 
   bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(hBuffer->mapHostPtr(
-      accessMode, offset, size, [&](void *src, void *dst, size_t size) {
+      mapFlags, offset, size, [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
                            waitList.second, waitList.first));
@@ -632,7 +664,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueMemUnmap(
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueMemUnmap");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto handler = getCommandListHandlerForCopy();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -675,7 +707,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueGenericFillUnlocked(
 
   bool memoryMigrated = false;
   auto pDst = ur_cast<char *>(dst->getDevicePtr(
-      hDevice, ur_mem_handle_t_::access_mode_t::read_only, offset, size,
+      hDevice, ur_mem_handle_t_::device_access_mode_t::read_only, offset, size,
       [&](void *src, void *dst, size_t size) {
         ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
                           (handler->commandList.get(), dst, src, size, nullptr,
@@ -707,7 +739,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMFill(
     ur_event_handle_t *phEvent) {
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMFill");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   ur_usm_handle_t_ dstHandle(hContext, size, pMem);
   return enqueueGenericFillUnlocked(&dstHandle, 0, patternSize, pPattern, size,
@@ -722,7 +754,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMMemcpy(
   // TODO: parametrize latency tracking with 'blocking'
   TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMMemcpy");
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto handler = getCommandListHandlerForCopy();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -741,9 +773,11 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
     const void *pMem, size_t size, ur_usm_migration_flags_t flags,
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMPrefetch");
+
   std::ignore = flags;
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto handler = getCommandListHandlerForCompute();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -768,11 +802,13 @@ ur_result_t
 ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
                                                 ur_usm_advice_flags_t advice,
                                                 ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::enqueueUSMAdvise");
+
   std::ignore = flags;
 
-  auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
-  std::scoped_lock<ur_shared_mutex> Lock(this->Mutex);
+  auto zeAdvice = ur_cast<ze_memory_advice_t>(advice);
 
   auto handler = getCommandListHandlerForCompute();
   auto signalEvent = getSignalEvent(handler, phEvent);
@@ -848,6 +884,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableWrite(
     ur_program_handle_t hProgram, const char *name, bool blockingWrite,
     size_t count, size_t offset, const void *pSrc, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableWrite");
+
   // TODO: make getZeModuleHandle thread-safe
   ze_module_handle_t zeModule =
       hProgram->getZeModuleHandle(this->hDevice->ZeDevice);
@@ -855,6 +894,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableWrite(
   // Find global variable pointer
   auto globalVarPtr = getGlobalPointerFromModule(zeModule, offset, count, name);
 
+  // Locking is done inside enqueueUSMMemcpy
   return enqueueUSMMemcpy(blockingWrite, ur_cast<char *>(globalVarPtr) + offset,
                           pSrc, count, numEventsInWaitList, phEventWaitList,
                           phEvent);
@@ -864,6 +904,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableRead(
     ur_program_handle_t hProgram, const char *name, bool blockingRead,
     size_t count, size_t offset, void *pDst, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableRead");
+
   // TODO: make getZeModuleHandle thread-safe
   ze_module_handle_t zeModule =
       hProgram->getZeModuleHandle(this->hDevice->ZeDevice);
@@ -871,6 +914,7 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueDeviceGlobalVariableRead(
   // Find global variable pointer
   auto globalVarPtr = getGlobalPointerFromModule(zeModule, offset, count, name);
 
+  // Locking is done inside enqueueUSMMemcpy
   return enqueueUSMMemcpy(blockingRead, pDst,
                           ur_cast<char *>(globalVarPtr) + offset, count,
                           numEventsInWaitList, phEventWaitList, phEvent);
@@ -975,6 +1019,9 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
 ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(
     bool blocking, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp");
+
   std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   auto handler = getCommandListHandlerForCompute();

@@ -32,8 +32,8 @@ TEST_P(CommandListCacheTest, CanStoreAndRetriveImmediateAndRegularCmdLists) {
     ze_command_queue_priority_t Priority = ZE_COMMAND_QUEUE_PRIORITY_NORMAL;
 
     static constexpr int numListsPerType = 3;
-    std::vector<v2::raii::cache_borrowed_command_list_t> regCmdListOwners;
-    std::vector<v2::raii::cache_borrowed_command_list_t> immCmdListOwners;
+    std::vector<v2::raii::command_list_unique_handle> regCmdListOwners;
+    std::vector<v2::raii::command_list_unique_handle> immCmdListOwners;
 
     std::unordered_set<ze_command_list_handle_t> regCmdLists;
     std::unordered_set<ze_command_list_handle_t> immCmdLists;

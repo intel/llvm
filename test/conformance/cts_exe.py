@@ -13,6 +13,7 @@
 import os
 import sys
 import argparse
+import signal
 import subprocess  # nosec B404
 
 
@@ -59,6 +60,20 @@ def _print_environ(env):
     _print_end_header()
 
 
+def _print_failure(code, stdout):
+    # Display some context in the CI log so the user doesn't have to click down the lines
+    if _ci():
+        _print_format("stdout/stderr of failure:")
+        print(stdout)
+
+    signalname = "???"
+    try:
+        signalname = signal.strsignal(abs(code))
+    except ValueError:
+        pass
+    _print_format("Got error code {} ({})", code, signalname)
+
+
 def _check_filter(cmd, filter):
     """
     Checks that the filter matches at least one test for the given cmd
@@ -83,17 +98,20 @@ def _run_cmd(cmd, comment, filter):
     if not _check_filter(cmd, filter):
         _print_end_header()
         _print_error("Could not find any tests with this filter")
-        return 2
+        return (2, "")
 
     sys.stdout.flush()
-    result = subprocess.call(  # nosec B603
+    proc = subprocess.Popen(  # nosec B603
         cmd,
-        stdout=sys.stdout,
-        stderr=sys.stdout,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
         env=(os.environ | {"GTEST_FILTER": filter}),
     )
+    stdout = proc.communicate()[0].decode("utf-8")
+    returncode = proc.wait()
+    print(stdout)
     _print_end_header()
-    return result
+    return (returncode, stdout)
 
 
 if __name__ == "__main__":
@@ -155,16 +173,17 @@ if __name__ == "__main__":
     # First, run all the known good tests
     gtest_filter = "-" + (":".join(map(lambda x: x["pattern"], fail_patterns)))
     if _check_filter(base_invocation, gtest_filter):
-        result = _run_cmd(base_invocation, "known good tests", gtest_filter)
+        (result, stdout) = _run_cmd(base_invocation, "known good tests", gtest_filter)
         if result != 0:
             _print_error("Tests we expected to pass have failed")
+            _print_failure(result, stdout)
             final_result = result
     else:
         _print_format("Note: No tests in this suite are expected to pass")
 
     # Then run each known failing tests
     for fail in fail_patterns:
-        result = _run_cmd(
+        (result, stdout) = _run_cmd(
             base_invocation, "failing test {}".format(fail["pattern"]), fail["pattern"]
         )
 
@@ -172,6 +191,7 @@ if __name__ == "__main__":
             _print_error(
                 "Test {} is passing when we expect it to fail!", fail["pattern"]
             )
+            _print_failure(result, stdout)
             final_result = 1
 
     sys.exit(final_result)

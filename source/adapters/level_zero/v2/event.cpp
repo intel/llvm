@@ -93,8 +93,6 @@ static uint64_t adjustEndEventTimestamp(uint64_t adjustedStartTimestamp,
 }
 
 uint64_t ur_event_handle_t_::getEventEndTimestamp() {
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
-
   // If adjustedEventEndTimestamp on the event is non-zero it means it has
   // collected the result of the queue already. In that case it has been
   // adjusted and is ready for immediate return.
@@ -119,8 +117,6 @@ void ur_event_handle_t_::recordStartTimestamp() {
   uint64_t deviceStartTimestamp = 0;
   UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
       getDevice(), &deviceStartTimestamp, nullptr));
-
-  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
 
   adjustedEventStartTimestamp = deviceStartTimestamp;
 }
@@ -183,6 +179,8 @@ ur_result_t urEventGetProfilingInfo(
     size_t *pPropValueSizeRet ///< [out][optional] pointer to the actual size in
                               ///< bytes returned in propValue
 ) {
+  std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
+
   // The event must either have profiling enabled or be recording timestamps.
   bool isTimestampedEvent = hEvent->isTimestamped();
   if (!hEvent->isProfilingEnabled() && !isTimestampedEvent) {

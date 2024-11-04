@@ -384,6 +384,8 @@ ur_result_t GetDeviceUSMCrossSharedSupport(
 ur_result_t GetDeviceUSMSystemSharedSupport(
     ur_device_handle_t device,
     ur_device_usm_access_capability_flags_t &support);
+ur_result_t GetDeviceUSMPoolSupport(ur_device_handle_t device,
+                                    ur_bool_t &support);
 ur_result_t GetDeviceUUID(ur_device_handle_t device, std::string &uuid);
 ur_result_t GetDevicePCIAddress(ur_device_handle_t device,
                                 std::string &address);

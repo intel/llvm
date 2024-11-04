@@ -887,8 +887,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
-  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC:
-  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+  case UR_DEVICE_INFO_PREFERRED_INTEROP_USER_SYNC: {
     /* CL type: cl_bool
      * UR type: ur_bool_t */
 
@@ -899,6 +898,27 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
 
     /* cl_bool is uint32_t and ur_bool_t is bool */
     return ReturnValue(static_cast<ur_bool_t>(CLValue));
+  }
+  case UR_DEVICE_INFO_SUB_GROUP_INDEPENDENT_FORWARD_PROGRESS: {
+    /* CL type: cl_bool
+     * UR type: ur_bool_t */
+
+    oclv::OpenCLVersion DevVer;
+    CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+        cl_adapter::cast<cl_device_id>(hDevice), DevVer));
+    /* Independent forward progress query is only supported as of OpenCL 2.1
+     * if version is older we return a default false. */
+    if (DevVer >= oclv::V2_1) {
+      cl_bool CLValue;
+      CL_RETURN_ON_FAILURE(
+          clGetDeviceInfo(cl_adapter::cast<cl_device_id>(hDevice), CLPropName,
+                          sizeof(cl_bool), &CLValue, nullptr));
+
+      /* cl_bool is uint32_t and ur_bool_t is bool */
+      return ReturnValue(static_cast<ur_bool_t>(CLValue));
+    } else {
+      return ReturnValue(false);
+    }
   }
   case UR_DEVICE_INFO_VENDOR_ID:
   case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
@@ -1048,6 +1068,11 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS: {
     return ReturnValue(false);
   }
+
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT: {
+    return ReturnValue(false);
+  }
+
   /* TODO: Check regularly to see if support is enabled in OpenCL. Intel GPU
    * EU device-specific information extensions. Some of the queries are
    * enabled by cl_intel_device_attribute_query extension, but it's not yet in
