@@ -759,7 +759,7 @@ SPIRVType *LLVMToSPIRVBase::transPointerType(SPIRVType *ET, unsigned AddrSpc) {
     return transPointerType(ET, SPIRAS_Private);
   if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers) &&
       !(ET->isTypeArray() || ET->isTypeVector() || ET->isTypeStruct() ||
-        ET->isTypeImage() || ET->isTypeSampler() || ET->isTypePipe())) {
+        ET->isSPIRVOpaqueType())) {
     TranslatedTy = BM->addUntypedPointerKHRType(
         SPIRSPIRVAddrSpaceMap::map(static_cast<SPIRAddressSpace>(AddrSpc)));
   } else {
@@ -2228,11 +2228,11 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       MemoryAccess.clear();
     if (BM->isAllowedToUseExtension(ExtensionID::SPV_KHR_untyped_pointers)) {
       SPIRVValue *Source = transValue(LD->getPointerOperand(), BB);
+      SPIRVType *PtrElTy = Source->getType()->getPointerElementType();
       SPIRVType *LoadTy = transType(LD->getType());
-      // For images do not use explicit load type, but rather use the source
-      // type (calculated in SPIRVLoad constructor)
-      if (LoadTy->isTypeUntypedPointerKHR() &&
-          (Source->getType()->getPointerElementType()->isTypeImage())) {
+      // For special types (images, pipes, etc.) do not use explicit load type,
+      // but rather use the source type (calculated in SPIRVLoad constructor)
+      if (LoadTy->isTypeUntypedPointerKHR() && PtrElTy->isSPIRVOpaqueType()) {
         LoadTy = nullptr;
       }
       return mapValue(V, BM->addLoadInst(Source, MemoryAccess, BB, LoadTy));
