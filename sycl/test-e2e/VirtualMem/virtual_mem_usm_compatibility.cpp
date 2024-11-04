@@ -86,11 +86,13 @@ int main() {
     }
   }
 
-  //Check that can use memset on virtual memorys
+  // Check that can use memset on virtual memorys
   int ExpectedResultAfterMemSetOperation{0};
-  std::memset(&ExpectedResultAfterMemSetOperation, ValueSetInMemSetOperationPerByte, sizeof(int));
-  Queue.memset(MappedPtr,ValueSetInMemSetOperationPerByte, AlignedByteSize).wait_and_throw();
-  
+  std::memset(&ExpectedResultAfterMemSetOperation,
+              ValueSetInMemSetOperationPerByte, sizeof(int));
+  Queue.memset(MappedPtr, ValueSetInMemSetOperationPerByte, AlignedByteSize)
+      .wait_and_throw();
+
   Queue.parallel_for(NumberOfElements, [=](sycl::id<1> Idx) {
          CopyBack[Idx] = DataPtr[Idx];
   }).wait_and_throw();
@@ -99,14 +101,13 @@ int main() {
     if (CopyBack[i] != ExpectedResultAfterMemSetOperation) {
       std::cout << "Comparison failed after memset operation on virtual memory "
                    "at index "
-                << i << ": " << CopyBack[i] << " != " << ExpectedResultAfterMemSetOperation
-                << std::endl;
+                << i << ": " << CopyBack[i]
+                << " != " << ExpectedResultAfterMemSetOperation << std::endl;
       ++Failed;
     }
   }
 
   // Check that can use fill on virtual memory
-
   Queue.fill(DataPtr, ValueSetInFillOperation, NumberOfElements)
       .wait_and_throw();
 
