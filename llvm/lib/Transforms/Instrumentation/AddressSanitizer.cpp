@@ -1450,8 +1450,14 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ExtendSpirKernelArgs(M, FAM);
+    // FIXME: W/A skip instrumentation if this module has ESIMD
+    for (auto &F : M) {
+      if (F.hasMetadata("sycl_explicit_simd"))
+        return PreservedAnalyses::all();
+    }
+  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -3496,10 +3502,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (F.hasMetadata("sycl_explicit_simd"))
       return false;
   }
 
