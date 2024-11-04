@@ -96,7 +96,7 @@ int main() {
   Queue
       .parallel_for(NumberOfElements,
                     [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();  
+      .wait_and_throw();
 
   for (size_t i = 0; i < NumberOfElements; i++) {
     if (CopyBack[i] != ExpectedResultAfterMemSetOperation) {
