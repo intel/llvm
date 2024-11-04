@@ -90,42 +90,6 @@ template <typename... ValueT> struct should_skip {
   }
 };
 
-#define CHECK_PRINT(ResultT, RESULT, EXPECTED)                                 \
-  if constexpr (std::is_integral_v<ResultT>) {                                 \
-    std::cerr << "RESULT == EXPECTED" << std::endl;                            \
-    std::cerr << RESULT << " == " << EXPECTED << std::endl;                    \
-  } else if constexpr (contained_is_integral_v<ResultT>) {                     \
-    for (size_t i = 0; i < RESULT.size(); i++) {                               \
-      std::cerr << i << " RESULT[i] == EXPECTED[i]" << std::endl;              \
-      std::cerr << i << " " << RESULT[i] << " == " << EXPECTED[i]              \
-                << std::endl;                                                  \
-    }                                                                          \
-  } else if constexpr (syclcompat::is_floating_point_v<ResultT>) {             \
-    if (syclcompat::detail::isnan(RESULT)) {                                   \
-      std::cerr << "syclcompat::detail::isnan(EXPECTED)" << std::endl;         \
-      std::cerr << syclcompat::detail::isnan(EXPECTED) << std::endl;           \
-    } else {                                                                   \
-      std::cerr << "fabs(RESULT - EXPECTED) < ERROR_TOLERANCE" << std::endl;   \
-      std::cerr << fabs(RESULT - EXPECTED) << " < " << ERROR_TOLERANCE         \
-                << std::endl;                                                  \
-    }                                                                          \
-  } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
-    for (size_t i = 0; i < RESULT.size(); i++) {                               \
-      if (syclcompat::detail::isnan(RESULT[i])) {                              \
-        std::cerr << i << " syclcompat::detail::isnan(EXPECTED[i])"            \
-                  << std::endl;                                                \
-        std::cerr << syclcompat::detail::isnan(EXPECTED[i]) << std::endl;      \
-      } else {                                                                 \
-        std::cerr << i << " fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE"   \
-                  << std::endl;                                                \
-        std::cerr << i << " " << fabs(RESULT[i] - EXPECTED[i]) << " < "        \
-                  << ERROR_TOLERANCE << std::endl;                             \
-      }                                                                        \
-    }                                                                          \
-  } else {                                                                     \
-    static_assert(0, "math_fixt.hpp should not have arrived here.");           \
-  }
-
 #define CHECK(ResultT, RESULT, EXPECTED)                                       \
   if constexpr (std::is_integral_v<ResultT>) {                                 \
     assert(RESULT == EXPECTED);                                                \
@@ -211,10 +175,8 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
-
   template <auto Kernel>
   void launch_test(ValueT op1, ValueU op2, ResultT expected, bool need_relu) {
     if (skip_)
@@ -225,7 +187,6 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
   template <auto Kernel>
@@ -243,7 +204,6 @@ public:
     syclcompat::memcpy<bool>(&res_hi_h_, res_hi_, 1);
     syclcompat::memcpy<bool>(&res_lo_h_, res_lo_, 1);
 
-    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
     assert(res_hi_h_ == expected_hi);
     assert(res_lo_h_ == expected_lo);
@@ -284,7 +244,6 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   }
 };
@@ -336,7 +295,6 @@ public:
     syclcompat::wait();
     syclcompat::memcpy<ResultT>(&res_h_, res_, data_size_);
 
-    // CHECK_PRINT(ResultT, res_h_, expected);
     CHECK(ResultT, res_h_, expected);
   };
 };

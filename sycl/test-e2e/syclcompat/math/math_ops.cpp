@@ -159,7 +159,6 @@ template <template <typename T, int Dim> typename ContainerT, typename ValueT,
           typename ValueU = ValueT>
 void test_container_syclcompat_fmax_nan() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  std::cerr << __PRETTY_FUNCTION__ << std::endl;
 
   constexpr syclcompat::dim3 grid{1};
   constexpr syclcompat::dim3 threads{1};
@@ -178,30 +177,8 @@ void test_container_syclcompat_fmax_nan() {
 
   const ContTU res2{static_cast<ValueTU>(10), static_cast<ValueTU>(10)};
 
-  std::cerr << "- First container test: " << std::endl;
-  std::cerr << "Op4: " << op4[0] << " " << op4[1] << std::endl;
-  std::cerr << "Op5: " << op5[0] << " " << op5[1] << std::endl;
-  std::cerr << "Res: " << res2[0] << " " << res2[1] << std::endl;
-  std::cerr << "BitSet:    " << std::bitset<8 * sizeof(ValueTU)>(op4[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(op4[1]) << std::endl;
-  std::cerr << "BitSet2:   " << std::bitset<8 * sizeof(ValueTU)>(op5[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(op5[1]) << std::endl;
-  std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueTU)>(res2[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(res2[1]) << std::endl;
-
   BinaryOpTestLauncher<ContT, ContU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ContT, ContU>>(op4, op5, res2);
-
-  std::cerr << "Second container test: " << std::endl;
-  std::cerr << "Op4: " << op4[0] << " " << op4[1] << std::endl;
-  std::cerr << "Op6: " << op6[0] << " " << op6[1] << std::endl;
-  std::cerr << "Res: " << op6_res[0] << " " << op6_res[1] << std::endl;
-  std::cerr << "Op4: " << std::bitset<8 * sizeof(ValueTU)>(op4[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(op4[1]) << std::endl;
-  std::cerr << "Op6: " << std::bitset<8 * sizeof(ValueTU)>(op6[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(op6[1]) << std::endl;
-  std::cerr << "Res: " << std::bitset<8 * sizeof(ValueTU)>(op6_res[0]) << " "
-            << std::bitset<8 * sizeof(ValueTU)>(op6_res[1]) << std::endl;
 
   BinaryOpTestLauncher<ContT, ContU>(grid, threads)
       .template launch_test<fmax_nan_kernel<ContT, ContU>>(op4, op6, op6_res);
@@ -421,6 +398,5 @@ int main() {
   INSTANTIATE_ALL_CONTAINER_TYPES(marray_type_list, sycl::marray,
                                   test_container_clamp);
 
-  std::cerr << "If this is printed, the test was successful" << std::endl;
-  return 0; // INFO: Making it fail temporarily to trigger the CI log
+  return 0;
 }

@@ -180,7 +180,6 @@ void unordered_compare_not_equal_vec_kernel(Container *a, Container *b,
 template <template <typename T, int Dim> typename ContainerT, typename ValueT>
 void test_unordered_compare_vec() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
-  std::cerr << __PRETTY_FUNCTION__ << std::endl;
   using Container = ContainerT<ValueT, 2>;
 
   constexpr syclcompat::dim3 grid{1};
@@ -193,31 +192,11 @@ void test_unordered_compare_vec() {
   // and false instead.
   //  1.0 == 1.0, 2.0 == NaN -> {true, true}
   const Container res1 = {1.0, 1.0};
-  std::cerr << "- 1.0 == 1.0, 2.0 == NaN -> {true, true}: " << std::endl;
-  std::cerr << "Op1: " << op1[0] << " " << op1[1] << std::endl;
-  std::cerr << "op2: " << op2[0] << " " << op2[1] << std::endl;
-  std::cerr << "Res: " << res1[0] << " " << res1[1] << std::endl;
-  std::cerr << "BitSet:    " << std::bitset<8 * sizeof(ValueT)>(op1[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(op1[1]) << std::endl;
-  std::cerr << "BitSet2:   " << std::bitset<8 * sizeof(ValueT)>(op2[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(op2[1]) << std::endl;
-  std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueT)>(res1[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(res1[1]) << std::endl;
   BinaryOpTestLauncher<Container, Container>(grid, threads)
       .template launch_test<unordered_compare_equal_vec_kernel<Container>>(
           op1, op2, res1);
   //  1.0 != 1.0, 2.0 != NaN -> {false, true}
   const Container res2 = {0.0, 1.0};
-  std::cerr << "- 1.0 != 1.0, 2.0 != NaN -> {false, true}: " << std::endl;
-  std::cerr << "Op1: " << op1[0] << " " << op1[1] << std::endl;
-  std::cerr << "op2: " << op2[0] << " " << op2[1] << std::endl;
-  std::cerr << "Res: " << res2[0] << " " << res2[1] << std::endl;
-  std::cerr << "BitSet:    " << std::bitset<8 * sizeof(ValueT)>(op1[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(op1[1]) << std::endl;
-  std::cerr << "BitSet2:   " << std::bitset<8 * sizeof(ValueT)>(op2[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(op2[1]) << std::endl;
-  std::cerr << "ResBitset: " << std::bitset<8 * sizeof(ValueT)>(res2[0]) << " "
-            << std::bitset<8 * sizeof(ValueT)>(res2[1]) << std::endl;
   BinaryOpTestLauncher<Container, Container>(grid, threads)
       .template launch_test<unordered_compare_not_equal_vec_kernel<Container>>(
           op1, op2, res2);
@@ -396,6 +375,5 @@ int main() {
   INSTANTIATE_ALL_CONTAINER_TYPES(fp_type_list, sycl::marray,
                                   test_unordered_compare_mask);
 
-  std::cerr << "If this is printed, the test was successful" << std::endl;
   return 0;
 }
