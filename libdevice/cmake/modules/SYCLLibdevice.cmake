@@ -257,17 +257,14 @@ if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
 
   set(asan_pvc_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
-                                ${sycl_pvc_target_opt}
                                 -D__LIBDEVICE_PVC__)
 
   set(asan_cpu_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
-                                ${sycl_cpu_target_opt}
                                 -D__LIBDEVICE_CPU__)
 
   set(asan_dg2_compile_opts_bc  ${bc_device_compile_opts}
                                 ${sanitizer_generic_compile_opts}
-                                ${sycl_dg2_target_opt}
                                 -D__LIBDEVICE_DG2__)
 
   set(asan_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
