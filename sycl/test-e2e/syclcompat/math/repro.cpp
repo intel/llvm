@@ -42,7 +42,9 @@ void test_container_syclcompat_fmax_nan() {
 
   constexpr float ERROR_TOLERANCE = 1e-6;
   for (size_t i = 0; i < 2; i++) {
-    assert((res[i] - expected[i]) < ERROR_TOLERANCE);
+    assert((res[i] - expected[i]) < ERROR_TOLERANCE ||
+           !(std::cerr << "-- " << res[i] << " - " << expected[i] << " < "
+                       << ERROR_TOLERANCE << " --"));
   }
 
   const sycl::vec<float, 2> op3 = {sycl::nan(static_cast<unsigned int>(0)),

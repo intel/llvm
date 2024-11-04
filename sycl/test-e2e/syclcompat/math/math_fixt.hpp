@@ -92,15 +92,20 @@ template <typename... ValueT> struct should_skip {
 
 #define CHECK(ResultT, RESULT, EXPECTED)                                       \
   if constexpr (std::is_integral_v<ResultT>) {                                 \
-    assert(RESULT == EXPECTED);                                                \
+    assert(RESULT == EXPECTED ||                                               \
+           !(std::cerr << "-- " << RESULT << " - " << EXPECTED << " --"));     \
   } else if constexpr (contained_is_integral_v<ResultT>) {                     \
     for (size_t i = 0; i < RESULT.size(); i++)                                 \
-      assert(RESULT[i] == EXPECTED[i]);                                        \
+      assert(RESULT[i] == EXPECTED[i] ||                                       \
+             !(std::cerr << "-- " << RESULT[i] << " - " << EXPECTED[i]         \
+                         << " --"));                                           \
   } else if constexpr (syclcompat::is_floating_point_v<ResultT>) {             \
     if (syclcompat::detail::isnan(RESULT))                                     \
       assert(syclcompat::detail::isnan(EXPECTED));                             \
     else                                                                       \
-      assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE);                       \
+      assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE ||                      \
+             !(std::cerr << "-- " << RESULT << " - " << EXPECTED << " < "      \
+                         << ERROR_TOLERANCE << "-- "));                        \
   } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
     for (size_t i = 0; i < RESULT.size(); i++) {                               \
       if (syclcompat::detail::isnan(RESULT[i])) {                              \
