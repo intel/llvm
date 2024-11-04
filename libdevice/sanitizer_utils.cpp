@@ -143,14 +143,8 @@ inline uptr MemToShadow_DG2(uptr addr, uint32_t as) {
 
   auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
   if (as == ADDRESS_SPACE_GLOBAL) { // global
-    uptr shadow_ptr;
-    if (addr & 0xFFFF000000000000ULL) { // Device USM
-      shadow_ptr = launch_info->GlobalShadowOffset + 0x80000000000ULL +
-                   ((addr & 0x7FFFFFFFFFFFULL) >> ASAN_SHADOW_SCALE);
-    } else { // Host/Shared USM
-      shadow_ptr =
-          launch_info->GlobalShadowOffset + (addr >> ASAN_SHADOW_SCALE);
-    }
+    uptr shadow_ptr = launch_info->GlobalShadowOffset +
+                      ((addr & 0x0000'FFFF'FFFF'FFFFULL) >> ASAN_SHADOW_SCALE);
 
     ASAN_DEBUG(
         const auto shadow_offset_end = launch_info->GlobalShadowOffsetEnd;
