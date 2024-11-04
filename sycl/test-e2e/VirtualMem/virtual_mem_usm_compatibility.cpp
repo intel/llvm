@@ -86,7 +86,7 @@ int main() {
     }
   }
 
-  // Check that can use memset on virtual memorys
+  // Check that can use memset on virtual memory
   int ExpectedResultAfterMemSetOperation{0};
   std::memset(&ExpectedResultAfterMemSetOperation,
               ValueSetInMemSetOperationPerByte, sizeof(int));
