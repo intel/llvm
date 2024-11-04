@@ -50,7 +50,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES
         SOVERSION "${PROJECT_VERSION_MAJOR}"
 )
 
-# oneTBB is an optional NativeCPU backend and disabled by default.
+# oneTBB is used as an optional NativeCPU backend and disabled by default.
 option(NATIVECPU_WITH_ONETBB "Use oneTBB as backend for Native CPU" OFF)
 if(NATIVECPU_WITH_ONETBB)
   message(STATUS "Configuring Native CPU adapter with TBB backend.")
