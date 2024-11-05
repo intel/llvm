@@ -1,3 +1,4 @@
+// RUN: %clangxx -fsycl -fsyntax-only %s
 #include <cassert>
 #include <sycl/sycl.hpp>
 #include <type_traits>
@@ -82,7 +83,7 @@ void test_helper(syclexp::work_group_memory<DataT> mem) {
 }
 
 template <typename Type, typename... rest> void test() {
-  syclexp::work_group_memory<Type> mem;
+  syclexp::work_group_memory<Type> mem{syclexp::indeterminate};
   test_constness<Type>();
   test_helper(mem);
   if constexpr (sizeof...(rest))
