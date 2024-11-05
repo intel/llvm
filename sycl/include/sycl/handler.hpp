@@ -163,6 +163,8 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
+template <typename, typename>
+class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -171,6 +173,7 @@ class graph_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
+class work_group_memory_impl;
 class handler_impl;
 class kernel_impl;
 class queue_impl;
@@ -564,8 +567,8 @@ private:
   // The version for regular(standard layout) argument.
   template <typename T, typename... Ts>
   void setArgsHelper(int ArgIndex, T &&Arg, Ts &&...Args) {
-    set_arg(ArgIndex, std::move(Arg));
-    setArgsHelper(++ArgIndex, std::move(Args)...);
+    set_arg(ArgIndex, std::forward<T>(Arg));
+    setArgsHelper(++ArgIndex, std::forward<Ts>(Args)...);
   }
 
   void setArgsHelper(int) {}
@@ -602,6 +605,8 @@ private:
     setLocalAccessorArgHelper(ArgIndex, Arg);
 #endif
   }
+
+  void setArgHelper(int ArgIndex, detail::work_group_memory_impl &Arg);
 
   // setArgHelper for non local accessor argument.
   template <typename DataT, int Dims, access::mode AccessMode,
@@ -677,6 +682,11 @@ private:
   /// \param KernelName is the name of the SYCL kernel to check that the used
   ///                   kernel bundle contains.
   void verifyUsedKernelBundleInternal(detail::string_view KernelName);
+
+  // TODO: Legacy symbol, remove when ABI breaking is allowed.
+  void verifyUsedKernelBundle(const std::string &KernelName) {
+    verifyUsedKernelBundleInternal(detail::string_view{KernelName});
+  }
 
   /// Stores lambda to the template-free object
   ///
@@ -1096,7 +1106,7 @@ private:
                                 KernelType KernelFunc) {
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     if (!range_size_fits_in_size_t(UserRange))
       throw sycl::exception(make_error_code(errc::runtime),
                             "The total number of work-items in "
@@ -1641,7 +1651,7 @@ private:
     kernel_single_task_wrapper<NameT, KernelType, PropertiesT>(KernelFunc);
 #ifndef __SYCL_DEVICE_ONLY__
     throwIfActionIsCreated();
-    throwOnLocalAccessorMisuse<KernelName, KernelType>();
+    throwOnKernelParameterMisuse<KernelName, KernelType>();
     verifyUsedKernelBundleInternal(
         detail::string_view{detail::getKernelName<NameT>()});
     // No need to check if range is out of INT_MAX limits as it's compile-time
@@ -1840,6 +1850,14 @@ public:
     setArgHelper(ArgIndex, std::move(Arg));
   }
 
+  template <typename DataT, typename PropertyListT =
+                                ext::oneapi::experimental::empty_properties_t>
+  void set_arg(
+      int ArgIndex,
+      ext::oneapi::experimental::work_group_memory<DataT, PropertyListT> &Arg) {
+    setArgHelper(ArgIndex, Arg);
+  }
+
   // set_arg for graph dynamic_parameters
   template <typename T>
   void set_arg(int argIndex,
@@ -1858,9 +1876,8 @@ public:
   ///
   /// \param Args are argument values to be set.
   template <typename... Ts> void set_args(Ts &&...Args) {
-    setArgsHelper(0, std::move(Args)...);
+    setArgsHelper(0, std::forward<Ts>(Args)...);
   }
-
   /// Defines and invokes a SYCL kernel function as a function object type.
   ///
   /// If it is a named function object and the function object type is
@@ -3233,7 +3250,6 @@ public:
 private:
   std::shared_ptr<detail::handler_impl> impl;
   std::shared_ptr<detail::queue_impl> MQueue;
-
   std::vector<detail::LocalAccessorImplPtr> MLocalAccStorage;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreamStorage;
   detail::string MKernelName;
@@ -3554,7 +3570,7 @@ private:
   /// must not be used in a SYCL kernel function that is invoked via single_task
   /// or via the simple form of parallel_for that takes a range parameter.
   template <typename KernelName, typename KernelType>
-  void throwOnLocalAccessorMisuse() const {
+  void throwOnKernelParameterMisuse() const {
     using NameT =
         typename detail::get_kernel_name_t<KernelName, KernelType>::name;
     for (unsigned I = 0; I < detail::getKernelNumParams<NameT>(); ++I) {
@@ -3570,6 +3586,12 @@ private:
             "A local accessor must not be used in a SYCL kernel function "
             "that is invoked via single_task or via the simple form of "
             "parallel_for that takes a range parameter.");
+      if (Kind == detail::kernel_param_kind_t::kind_work_group_memory)
+        throw sycl::exception(
+            make_error_code(errc::kernel_argument),
+            "A work group memory object must not be used in a SYCL kernel "
+            "function that is invoked via single_task or via the simple form "
+            "of parallel_for that takes a range parameter.");
     }
   }
 
