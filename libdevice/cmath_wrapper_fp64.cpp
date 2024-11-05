@@ -394,9 +394,9 @@ short _Exp(double *px, double y,
   _Dconst _Inf = {INIT(_DMAX << _DOFF)};
   short ret = 0;
   if (*px < -HUGE_EXP || y == 0.0) // certain underflow
-    *px = 0.0;
+    *px = __spirv_ocl_copysign(0.0, y);
   else if (HUGE_EXP < *px) { // certain overflow
-    *px = _Inf._Double * (y < 0.F ? -1.F : 1.F);
+    *px = __spirv_ocl_copysign(_Inf._Double, y);
     ret = _INFCODE;
   } else { // xexp won't overflow
     double g = *px * invln2;

@@ -1513,7 +1513,8 @@ static void InitializePredefinedMacros(const TargetInfo &TI,
     const llvm::Triple::SubArchType DeviceSubArch = DeviceTriple.getSubArch();
     if (DeviceTriple.isNVPTX() || DeviceTriple.isAMDGPU() ||
         (DeviceTriple.isSPIR() &&
-         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga))
+         DeviceSubArch != llvm::Triple::SPIRSubArch_fpga) ||
+        LangOpts.SYCLIsNativeCPU)
       Builder.defineMacro("SYCL_USE_NATIVE_FP_ATOMICS");
     // Enable generation of USM address spaces for FPGA.
     if (DeviceSubArch == llvm::Triple::SPIRSubArch_fpga) {
@@ -1661,6 +1662,13 @@ void clang::InitializePreprocessor(Preprocessor &PP,
   for (unsigned i = 0, e = InitOpts.Includes.size(); i != e; ++i) {
     const std::string &Path = InitOpts.Includes[i];
     AddImplicitInclude(Builder, Path);
+  }
+
+  // Process -include-internal-header directive.
+  if (!LangOpts.SYCLIsDevice) {
+    if (!InitOpts.IncludeHeader.empty()) {
+      AddImplicitInclude(Builder, InitOpts.IncludeHeader);
+    }
   }
 
   // Instruct the preprocessor to skip the preamble.
