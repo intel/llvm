@@ -116,16 +116,12 @@ inline constexpr range_type_key::value_t<T> range_type;
 |Property|Description
 
 |`range_type`
-|The `range_type` property adds the requirement that the kernel must be
-compatible with kernel launches where the linear index of a work-item lies
-in the range [0, `std::numeric_limits<T>::max()`).
-
-If the implementation cannot satisfy this requirement, the implementation
-must throw an `exception` with the `errc::kernel_not_supported` error code,
-regardless of launch configuration.
-If the implementation can satisfy this requirement, but the kernel is
-launched with an incompatible configuration, the implementation must throw
-an `exception` with the `errc::nd_range` error code.
+|The `range_type` property is an assertion by the application that the kernel
+will never be launched with more than `std::numeric_limits<T>::max()`
+work-items.
+If the kernel is launched with more than this many work-items, the
+implementation must throw a synchronous `exception` with the `errc::nd_range`
+error code.
 
 `T` must be an integral type.
 
@@ -138,17 +134,9 @@ namespace syclex = sycl::ext::oneapi::experimental;
 
 struct SmallKernel
 {
-  // Declare that this kernel supports [0, 2^31-1) work-items.
+  // Declare that this kernel supports at most 2^31-1 work-items.
   auto get(syclex::properties_tag) const {
     return syclex::properties{syclex::range_type<int>};
-  }
-};
-
-struct LargeKernel
-{
-  // Declare that this kernel supports [0, 2^64-1) work-items.
-  auto get(syclex::properties_tag) const {
-    return syclex::properties{syclex::range_type<size_t>};
   }
 };
 
@@ -157,10 +145,6 @@ struct LargeKernel
 // Throws an exception with errc::nd_range error code.
 // (because 2147483648 > 2147483647)
 q.parallel_for(2147483648, SmallKernel());
-
-// May throw an exception with errc::kernel_not_supported error code.
-// (if implementation/device doesn't support 64-bit ranges)
-q.parallel_for(2147483648, LargeKernel());
 ```
 
 == Issues
