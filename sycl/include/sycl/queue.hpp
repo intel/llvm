@@ -2747,6 +2747,7 @@ private:
       queue &Q, CommandGroupFunc &&CGF,
       const sycl::detail::code_location &CodeLoc);
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
   /// TODO: Unused. Remove these when ABI-break window is open.
   event submit_impl(std::function<void(handler &)> CGH,
                     const detail::code_location &CodeLoc);
@@ -2777,6 +2778,7 @@ private:
                                     const detail::code_location &CodeLoc,
                                     const detail::SubmitPostProcessF &PostProcess,
                                     bool IsTopCodeLoc);
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free versions of submit.
   event submit_with_event_impl(std::function<void(handler &)> CGH,

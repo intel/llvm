@@ -180,6 +180,8 @@ event queue::mem_advise(const void *Ptr, size_t Length, int Advice,
                           /*CallerNeedsEvent=*/true);
 }
 
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+/// TODO: Unused. Remove these when ABI-break window is open.
 event queue::submit_impl(std::function<void(handler &)> CGH,
                          const detail::code_location &CodeLoc) {
   return submit_with_event_impl(CGH, {}, CodeLoc, true);
@@ -238,6 +240,7 @@ event queue::submit_impl_and_postprocess(
   return impl->submit(CGH, impl, SecondQueue.impl, CodeLoc, IsTopCodeLoc,
                       &PostProcess);
 }
+#endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
 event queue::submit_with_event_impl(std::function<void(handler &)> CGH,
                                     const detail::SubmissionInfo &SubmitInfo,
