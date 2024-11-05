@@ -147,6 +147,19 @@ struct SmallKernel
 q.parallel_for(2147483648, SmallKernel());
 ```
 
+== Interaction with the {dpcpp} "-fsycl-id-queries-fit-in-int" option
+
+The `-fsycl-id-queries-fit-in-int` option is specific to the {dpcpp}
+implementation.
+Therefore, this section that describes the interaction between this extension
+and that option is non-normative and does not apply to other SYCL
+implementations that may support this extension.
+
+If a translation unit is compiled with the `-fsycl-id-queries-fit-in-int`
+option, all kernels and `SYCL_EXTERNAL` functions without an explicitly
+specified `range_type` property are compiled as-if `range_type<int>` was
+specified as a property of that kernel or function.
+
 == Issues
 
 None.
