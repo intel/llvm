@@ -62,7 +62,7 @@ in order to use a local checkout of the oneAPI Construction Kit. The CMake varia
 
 The SYCL Native CPU device needs to be selected at runtime by setting the environment variable `ONEAPI_DEVICE_SELECTOR=native_cpu:cpu`. 
 
-# oneTBB integration
+### oneTBB integration
 
 SYCL Native CPU can use oneTBB as an optional backend for task scheduling. oneTBB with SYCL Native CPU is enabled by setting `NATIVECPU_WITH_ONETBB=On` at configure time:
 
