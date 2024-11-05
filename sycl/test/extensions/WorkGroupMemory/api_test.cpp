@@ -25,7 +25,7 @@ template <typename DataT> void test_constness() {
   Q.submit([&](sycl::handler &cgh) {
     nd_range<1> ndr{1, 1};
     syclexp::work_group_memory<DataT>
-        mem; // technically undefined behavior but this is a syntax only test.
+        mem{ syclexp::indeterminate };
     cgh.parallel_for(ndr, [=](nd_item<1> it) {
       const auto mem1 = mem;
       // since mem1 is const, all of the following should succeed.

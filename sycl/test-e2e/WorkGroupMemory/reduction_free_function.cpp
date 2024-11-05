@@ -98,7 +98,7 @@ void sum_marray(
     T expected) {
   const auto it = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
   size_t local_id = it.get_local_id();
-  constexpr float tolerance = 0.01f;
+  constexpr T tolerance = 0.0001;
   sycl::marray<T, 16> &data = mem;
   data[local_id] = buf[local_id];
   group_barrier(it.get_group());
@@ -132,7 +132,7 @@ void sum_vec(
     T expected) {
   const auto it = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
   size_t local_id = it.get_local_id();
-  constexpr float tolerance = 0.01f;
+  constexpr T tolerance = 0.0001;
   sycl::vec<T, 16> &data = mem;
   data[local_id] = buf[local_id];
   group_barrier(it.get_group());
@@ -160,6 +160,9 @@ SUM_VEC(half);
 template <typename T, typename... Ts> void test_marray() {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   constexpr size_t WGSIZE = VEC_SIZE;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
@@ -189,6 +192,9 @@ template <typename T, typename... Ts> void test_marray() {
 template <typename T, typename... Ts> void test_vec() {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   constexpr size_t WGSIZE = VEC_SIZE;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
@@ -219,6 +225,9 @@ template <typename T, typename... Ts>
 void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
   if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
     return;
+  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+    return;
+
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
   T expected = 0;
