@@ -20,7 +20,8 @@
  *    Ensure kernels are inlined
  **************************************************************************/
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fgpu-inline-threshold=0 %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} %s -o - | FileCheck %s
-// We set -fgpu-inline-threshold=0 to disable heuristic inlining for the purposes of the test
+// We set -fgpu-inline-threshold=0 to disable heuristic inlining for the
+// purposes of the test
 #include <sycl/detail/core.hpp>
 #include <sycl/group_barrier.hpp>
 #include <syclcompat/launch.hpp>
@@ -64,12 +65,13 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
 };
 
 int test_write_mem() {
-  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32}, syclcompat::dim3{32});
+  compat_exp::launch_policy my_dim3_config(syclcompat::dim3{32},
+                                           syclcompat::dim3{32});
 
   const int memsize = 1024;
   int *d_a = (int *)syclcompat::malloc(memsize);
   compat_exp::launch<write_mem_kernel<int>>(my_dim3_config, d_a,
-                                              memsize / sizeof(int))
+                                            memsize / sizeof(int))
       .wait();
 
   syclcompat::free(d_a);
@@ -93,4 +95,3 @@ int test_lmem_launch() {
 
   return 0;
 }
-
