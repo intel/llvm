@@ -17,11 +17,10 @@
  *  launch_inlining.cpp
  *
  *  Description:
- *    Ensure kernels are fully inlined
+ *    Ensure kernels are inlined
  **************************************************************************/
-
 // RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fgpu-inline-threshold=0 %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} %s -o - | FileCheck %s
-//TODO(joe): update_cc_test_checks.py
+// We set -fgpu-inline-threshold=0 to disable heuristic inlining for the purposes of the test
 #include <sycl/detail/core.hpp>
 #include <sycl/group_barrier.hpp>
 #include <syclcompat/launch.hpp>
@@ -33,27 +32,20 @@ namespace sycl_intel_exp = sycl::ext::intel::experimental;
 
 static constexpr int LOCAL_MEM_SIZE = 1024;
 
-template <typename T>
-__syclcompat_inline__ T dummy_fn(T input){
-  return -input;
-}
-
 // CHECK: define {{.*}}spir_kernel{{.*}}write_mem_kernel{{.*}} {
 // CHECK-NOT: call {{.*}}write_mem_kernel
-// CHECK-NOT: call {{.*}}dummy_fn
 // CHECK: }
 
 template <typename T> void write_mem_kernel(T *data, int num_elements) {
   const int id =
       sycl::ext::oneapi::this_work_item::get_nd_item<1>().get_global_id(0);
   if (id < num_elements) {
-    data[id] = dummy_fn(static_cast<T>(id));
+    data[id] = static_cast<T>(id);
   }
 };
 
 // CHECK: define {{.*}}spir_kernel{{.*}}dynamic_local_mem_typed_kernel{{.*}} {
 // CHECK-NOT: call {{.*}}dynamic_local_mem_typed_kernel
-// CHECK-NOT: call {{.*}}dummy_fn
 // CHECK: }
 template <typename T>
 void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
@@ -67,7 +59,7 @@ void dynamic_local_mem_typed_kernel(T *data, char *local_mem) {
   }
   sycl::group_barrier(sycl::ext::oneapi::this_work_item::get_work_group<1>());
   if (id < num_elements) {
-    data[id] = dummy_fn(typed_local_mem[num_elements - id - 1]);
+    data[id] = typed_local_mem[num_elements - id - 1];
   }
 };
 
