@@ -67,6 +67,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_tan(double x)
     return __spirv_IsNan(x) || __spirv_IsInf(x) ? as_double(QNANBITPATT_DP64) : as_double(t);
 }
 _CLC_UNARY_VECTORIZE(_CLC_DEF _CLC_OVERLOAD, double, __clc_tan, double);
+
 #endif
 
 #ifdef cl_khr_fp16
