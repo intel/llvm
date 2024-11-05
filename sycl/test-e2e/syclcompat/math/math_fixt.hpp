@@ -68,7 +68,7 @@ template <typename T, typename U> struct container_common_type<T, U> {
 template <typename T, typename U>
 using container_common_type_t = typename container_common_type<T, U>::type;
 
-template <typename ...ValueT> struct should_skip {
+template <typename... ValueT> struct should_skip {
   bool operator()(const sycl::device &dev) const {
     if constexpr ((std::is_same_v<ValueT, double> || ...) ||
                   (contained_is_same_v<ValueT, double> || ...)) {
@@ -92,21 +92,28 @@ template <typename ...ValueT> struct should_skip {
 
 #define CHECK(ResultT, RESULT, EXPECTED)                                       \
   if constexpr (std::is_integral_v<ResultT>) {                                 \
-    assert(RESULT == EXPECTED);                                                \
+    assert(RESULT == EXPECTED ||                                               \
+           !(std::cerr << "-- " << RESULT << " - " << EXPECTED << " --"));     \
   } else if constexpr (contained_is_integral_v<ResultT>) {                     \
     for (size_t i = 0; i < RESULT.size(); i++)                                 \
-      assert(RESULT[i] == EXPECTED[i]);                                        \
+      assert(RESULT[i] == EXPECTED[i] ||                                       \
+             !(std::cerr << "-- " << RESULT[i] << " - " << EXPECTED[i]         \
+                         << " --"));                                           \
   } else if constexpr (syclcompat::is_floating_point_v<ResultT>) {             \
     if (syclcompat::detail::isnan(RESULT))                                     \
       assert(syclcompat::detail::isnan(EXPECTED));                             \
     else                                                                       \
-      assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE);                       \
+      assert(fabs(RESULT - EXPECTED) < ERROR_TOLERANCE ||                      \
+             !(std::cerr << "-- " << RESULT << " - " << EXPECTED << " < "      \
+                         << ERROR_TOLERANCE << "-- "));                        \
   } else if constexpr (contained_is_floating_point_v<ResultT>) {               \
     for (size_t i = 0; i < RESULT.size(); i++) {                               \
       if (syclcompat::detail::isnan(RESULT[i])) {                              \
         assert(syclcompat::detail::isnan(EXPECTED[i]));                        \
       } else {                                                                 \
-        assert(fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE);               \
+        assert((fabs(RESULT[i] - EXPECTED[i]) < ERROR_TOLERANCE) ||            \
+               !(std::cerr << "-- " << RESULT[i] << " - " << EXPECTED[i]       \
+                           << " < " << ERROR_TOLERANCE << "-- "));             \
       }                                                                        \
     }                                                                          \
   } else {                                                                     \

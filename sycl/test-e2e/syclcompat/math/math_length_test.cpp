@@ -69,7 +69,10 @@ public:
     float sum =
         std::inner_product(result.begin(), result.end(), result.begin(), 0.0f);
     float diff = fabs(sqrtf(sum)) - host_result_;
-    assert(diff <= 1.e-5);
+    assert(diff <= 1.e-5 || !(std::cerr << "-- " << fabs(sqrtf(sum)) << " - "
+                                        << host_result_ << " < "
+                                        << "1.e-5"
+                                        << " --"));
   }
 
   template <auto F> void launch(std::vector<float> vec) {
