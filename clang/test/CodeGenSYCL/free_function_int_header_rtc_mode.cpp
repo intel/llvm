@@ -4,8 +4,8 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -sycl-std=2020 -fno-sycl-rtc-mode -fsycl-int-header=%t.nortc.h %s
 // RUN: FileCheck -input-file=%t.nortc.h --check-prefixes=CHECK,CHECK-NORTC %s
 
-// This test checks that free-function kernel information is included or 
-// excluded from the integration header, depending on the '-fsycl-rtc-mode' 
+// This test checks that free-function kernel information is included or
+// excluded from the integration header, depending on the '-fsycl-rtc-mode'
 // flag.
 
 #include "sycl.hpp"

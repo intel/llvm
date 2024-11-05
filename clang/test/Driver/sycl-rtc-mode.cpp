@@ -2,7 +2,7 @@
 /// Perform driver test for SYCL RTC mode.
 ///
 
-/// Check that the '-fsycl-rtc-mode' is correctly forwarded to the device 
+/// Check that the '-fsycl-rtc-mode' is correctly forwarded to the device
 /// compilation and only to the device compilation.
 
 // RUN: %clangxx -fsycl -fsycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \
@@ -17,7 +17,7 @@
 // CHECK-NOT: -fsycl-rtc-mode
 
 
-/// Check that the '-fno-sycl-rtc-mode' is correctly forwarded to the device 
+/// Check that the '-fno-sycl-rtc-mode' is correctly forwarded to the device
 /// compilation and only to the device compilation.
 
 // RUN: %clangxx -fsycl -fno-sycl-rtc-mode --no-offload-new-driver %s -### 2>&1 \

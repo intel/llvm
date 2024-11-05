@@ -1150,10 +1150,10 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_MP);
   Args.AddLastArg(CmdArgs, options::OPT_MV);
 
-  // Add offload include arguments specific for CUDA/HIP.  This must happen
+  // Add offload include arguments specific for CUDA/HIP/SYCL.  This must happen
   // before we -I or -include anything else, because we must pick up the
-  // CUDA/HIP headers from the particular CUDA/ROCm installation, rather than
-  // from e.g. /usr/local/include.
+  // CUDA/HIP/SYCL headers from the particular CUDA/ROCm/SYCL installation,
+  // rather than from e.g. /usr/local/include.
   if (JA.isOffloading(Action::OFK_Cuda))
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
   if (JA.isOffloading(Action::OFK_HIP))
@@ -5518,138 +5518,213 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
 
   Arg *SYCLStdArg = Args.getLastArg(options::OPT_sycl_std_EQ);
 
-  if (IsSYCLDevice) {
-    if (Triple.isNVPTX()) {
-      StringRef GPUArchName = JA.getOffloadingArch();
-      // TODO: Once default arch is moved to at least SM_53, empty arch should
-      // also result in the flag added.
-      if (!GPUArchName.empty() &&
-          StringToOffloadArch(GPUArchName) >= OffloadArch::SM_53)
-        CmdArgs.push_back("-fnative-half-type");
-    }
-    // Pass the triple of host when doing SYCL
-    llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
-    std::string NormalizedTriple = AuxT.normalize();
-    CmdArgs.push_back("-aux-triple");
-    CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
-
-    // We want to compile sycl kernels.
-    CmdArgs.push_back("-fsycl-is-device");
-    CmdArgs.push_back("-fdeclare-spirv-builtins");
-
-    // Default value for FPGA is false, for all other targets is true.
-    if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
-                      options::OPT_fno_sycl_early_optimizations,
-                      !IsFPGASYCLOffloadDevice))
-      CmdArgs.push_back("-fno-sycl-early-optimizations");
-    else if (RawTriple.isSPIROrSPIRV()) {
-      // Set `sycl-opt` option to configure LLVM passes for SPIR/SPIR-V target
-      CmdArgs.push_back("-mllvm");
-      CmdArgs.push_back("-sycl-opt");
-    }
-    if (IsSYCLNativeCPU) {
-      CmdArgs.push_back("-fsycl-is-native-cpu");
-      CmdArgs.push_back("-D");
-      CmdArgs.push_back("__SYCL_NATIVE_CPU__");
-      CmdArgs.push_back("-fno-autolink");
-    }
-
-    // Turn on Dead Parameter Elimination Optimization with early optimizations
-    // TODO: Enable DAE by default without the Optimization level check in the
-    // driver.  The enabling can be done in CodeGenOpt, and we can pass an
-    // option to explicitly disable/disable here.
-    if (!(RawTriple.isAMDGCN()) &&
-        Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
-                     options::OPT_fno_sycl_dead_args_optimization,
-                     isSYCLOptimizationO2orHigher(Args)))
-      CmdArgs.push_back("-fenable-sycl-dae");
-    if (IsWindowsMSVC) {
-      CmdArgs.push_back("-fms-extensions");
-      CmdArgs.push_back("-fms-compatibility");
-      CmdArgs.push_back("-fdelayed-template-parsing");
-      VersionTuple MSVT = C.getDefaultToolChain().computeMSVCVersion(&D, Args);
-      if (!MSVT.empty())
-        CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
-                                             MSVT.getAsString()));
-      else {
-        const char *LowestMSVCSupported = "19.16.27023"; // VS2017 v15.9
-        CmdArgs.push_back(Args.MakeArgString(
-            Twine("-fms-compatibility-version=") + LowestMSVCSupported));
-      }
-    }
-
-    if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
-                     options::OPT_fno_sycl_allow_func_ptr, false)) {
-      CmdArgs.push_back("-fsycl-allow-func-ptr");
-    }
-
-    Args.AddLastArg(CmdArgs, options::OPT_fsycl_rtc_mode,
-                    options::OPT_fno_sycl_rtc_mode);
-
-    Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
-                    options::OPT_fno_sycl_decompose_functor);
-
-    // Forward -fsycl-instrument-device-code option to cc1. This option will
-    // only be used for SPIR/SPIR-V based targets.
-    if (Triple.isSPIROrSPIRV())
-      if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                       options::OPT_fno_sycl_instrument_device_code, true))
-        CmdArgs.push_back("-fsycl-instrument-device-code");
-
-    if (!SYCLStdArg) {
-      // The user had not pass SYCL version, thus we'll employ no-sycl-strict
-      // to allow address-space unqualified pointers in function params/return
-      // along with marking the same function with explicit SYCL_EXTERNAL
-      CmdArgs.push_back("-Wno-sycl-strict");
-    }
-
-    // Set O2 optimization level by default
-    if (!Args.getLastArg(options::OPT_O_Group))
-      CmdArgs.push_back("-O2");
-
-    // Add the integration header option to generate the header.
-    StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
-    if (!Header.empty()) {
-      SmallString<128> HeaderOpt("-fsycl-int-header=");
-      HeaderOpt.append(Header);
-      CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
-    }
-
-    if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
-      // Add the integration footer option to generated the footer.
-      StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
-      if (!Footer.empty()) {
-        SmallString<128> FooterOpt("-fsycl-int-footer=");
-        FooterOpt.append(Footer);
-        CmdArgs.push_back(Args.MakeArgString(FooterOpt));
-      }
-    }
-
-    // Forward -fsycl-default-sub-group-size if in SYCL mode.
-    Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
-
-    if (Args.hasArg(options::OPT_fsycl_optimize_non_user_code)) {
-      const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
-      if (!OArg || !OArg->getOption().matches(options::OPT_O0)) {
-        bool isCLMode = C.getDriver().IsCLMode();
-        // Linux and Windows have different debug options.
-        const StringRef Option = isCLMode ? "-Od" : "-O0";
-        D.Diag(diag::err_drv_fsycl_wrong_optimization_options) << Option;
-      }
-
-      CmdArgs.push_back("-fsycl-optimize-non-user-code");
-    }
-  }
-
   if (IsSYCL) {
+    if (IsSYCLDevice) {
+      if (Triple.isNVPTX()) {
+        StringRef GPUArchName = JA.getOffloadingArch();
+        // TODO: Once default arch is moved to at least SM_53, empty arch should
+        // also result in the flag added.
+        if (!GPUArchName.empty() &&
+            StringToOffloadArch(GPUArchName) >= OffloadArch::SM_53)
+          CmdArgs.push_back("-fnative-half-type");
+      }
+      // Pass the triple of host when doing SYCL
+      llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
+      std::string NormalizedTriple = AuxT.normalize();
+      CmdArgs.push_back("-aux-triple");
+      CmdArgs.push_back(Args.MakeArgString(NormalizedTriple));
+
+      // We want to compile sycl kernels.
+      CmdArgs.push_back("-fsycl-is-device");
+      CmdArgs.push_back("-fdeclare-spirv-builtins");
+
+      // Default value for FPGA is false, for all other targets is true.
+      if (!Args.hasFlag(options::OPT_fsycl_early_optimizations,
+                        options::OPT_fno_sycl_early_optimizations,
+                        !IsFPGASYCLOffloadDevice))
+        CmdArgs.push_back("-fno-sycl-early-optimizations");
+      else if (RawTriple.isSPIROrSPIRV()) {
+        // Set `sycl-opt` option to configure LLVM passes for SPIR/SPIR-V target
+        CmdArgs.push_back("-mllvm");
+        CmdArgs.push_back("-sycl-opt");
+      }
+      if (IsSYCLNativeCPU) {
+        CmdArgs.push_back("-fsycl-is-native-cpu");
+        CmdArgs.push_back("-D");
+        CmdArgs.push_back("__SYCL_NATIVE_CPU__");
+        CmdArgs.push_back("-fno-autolink");
+      }
+
+      // Turn on Dead Parameter Elimination Optimization with early
+      // optimizations
+      // TODO: Enable DAE by default without the Optimization level check in the
+      // driver.  The enabling can be done in CodeGenOpt, and we can pass an
+      // option to explicitly disable/disable here.
+      if (!(RawTriple.isAMDGCN()) &&
+          Args.hasFlag(options::OPT_fsycl_dead_args_optimization,
+                       options::OPT_fno_sycl_dead_args_optimization,
+                       isSYCLOptimizationO2orHigher(Args)))
+        CmdArgs.push_back("-fenable-sycl-dae");
+      if (IsWindowsMSVC) {
+        CmdArgs.push_back("-fms-extensions");
+        CmdArgs.push_back("-fms-compatibility");
+        CmdArgs.push_back("-fdelayed-template-parsing");
+        VersionTuple MSVT =
+            C.getDefaultToolChain().computeMSVCVersion(&D, Args);
+        if (!MSVT.empty())
+          CmdArgs.push_back(Args.MakeArgString("-fms-compatibility-version=" +
+                                               MSVT.getAsString()));
+        else {
+          const char *LowestMSVCSupported = "19.16.27023"; // VS2017 v15.9
+          CmdArgs.push_back(Args.MakeArgString(
+              Twine("-fms-compatibility-version=") + LowestMSVCSupported));
+        }
+      }
+
+      if (Args.hasFlag(options::OPT_fsycl_allow_func_ptr,
+                       options::OPT_fno_sycl_allow_func_ptr, false)) {
+        CmdArgs.push_back("-fsycl-allow-func-ptr");
+      }
+
+      Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
+                      options::OPT_fno_sycl_decompose_functor);
+
+      Args.AddLastArg(CmdArgs, options::OPT_fsycl_rtc_mode,
+                      options::OPT_fno_sycl_rtc_mode);
+
+      // Forward -fsycl-instrument-device-code option to cc1. This option will
+      // only be used for SPIR/SPIR-V based targets.
+      if (Triple.isSPIROrSPIRV())
+        if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                         options::OPT_fno_sycl_instrument_device_code, false))
+          CmdArgs.push_back("-fsycl-instrument-device-code");
+
+      if (!SYCLStdArg) {
+        // The user had not pass SYCL version, thus we'll employ no-sycl-strict
+        // to allow address-space unqualified pointers in function params/return
+        // along with marking the same function with explicit SYCL_EXTERNAL
+        CmdArgs.push_back("-Wno-sycl-strict");
+      }
+
+      // Set O2 optimization level by default
+      if (!Args.getLastArg(options::OPT_O_Group))
+        CmdArgs.push_back("-O2");
+
+      // Add the integration header option to generate the header.
+      StringRef Header(D.getIntegrationHeader(Input.getBaseInput()));
+      if (!Header.empty()) {
+        SmallString<128> HeaderOpt("-fsycl-int-header=");
+        HeaderOpt.append(Header);
+        CmdArgs.push_back(Args.MakeArgString(HeaderOpt));
+      }
+
+      if (!Args.hasArg(options::OPT_fno_sycl_use_footer)) {
+        // Add the integration footer option to generated the footer.
+        StringRef Footer(D.getIntegrationFooter(Input.getBaseInput()));
+        if (!Footer.empty()) {
+          SmallString<128> FooterOpt("-fsycl-int-footer=");
+          FooterOpt.append(Footer);
+          CmdArgs.push_back(Args.MakeArgString(FooterOpt));
+        }
+      }
+
+      // Forward -fsycl-default-sub-group-size if in SYCL mode.
+      Args.AddLastArg(CmdArgs, options::OPT_fsycl_default_sub_group_size);
+
+      if (Args.hasArg(options::OPT_fsycl_optimize_non_user_code)) {
+        const Arg *OArg = Args.getLastArg(options::OPT_O_Group);
+        if (!OArg || !OArg->getOption().matches(options::OPT_O0)) {
+          bool isCLMode = C.getDriver().IsCLMode();
+          // Linux and Windows have different debug options.
+          const StringRef Option = isCLMode ? "-Od" : "-O0";
+          D.Diag(diag::err_drv_fsycl_wrong_optimization_options) << Option;
+        }
+
+        CmdArgs.push_back("-fsycl-optimize-non-user-code");
+      }
+      // Add any predefined macros associated with intel_gpu* type targets
+      // passed in with -fsycl-targets
+      // TODO: Macros are populated during device compilations and saved for
+      // addition to the host compilation. There is no dependence connection
+      // between device and host where we should be able to use the offloading
+      // arch to add the macro to the host compile.
+      auto addTargetMacros = [&](const llvm::Triple &Triple) {
+        if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
+          return;
+        SmallString<64> Macro;
+        if ((Triple.isSPIR() &&
+             Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
+            Triple.isNVPTX() || Triple.isAMDGCN()) {
+          StringRef Device = JA.getOffloadingArch();
+          if (!Device.empty() &&
+              !SYCL::gen::getGenDeviceMacro(Device).empty()) {
+            Macro = "-D";
+            Macro += SYCL::gen::getGenDeviceMacro(Device);
+          }
+        } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
+          Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
+        if (Macro.size()) {
+          CmdArgs.push_back(Args.MakeArgString(Macro));
+          D.addSYCLTargetMacroArg(Args, Macro);
+        }
+      };
+      addTargetMacros(RawTriple);
+    } else {
+      // Add any options that are needed specific to SYCL offload while
+      // performing the host side compilation.
+
+      // Let the front-end host compilation flow know about SYCL offload
+      // compilation
+      CmdArgs.push_back("-fsycl-is-host");
+
+      // Add the -include option to add the integration header
+      StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
+      // Do not add the integration header if we are compiling after the
+      // integration footer has been applied.  Check for the append job
+      // action to determine this.
+      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
+          !Header.empty()) {
+        // Add the -include-internal-header option to add the integration header
+        CmdArgs.push_back("-include-internal-header");
+        CmdArgs.push_back(Args.MakeArgString(Header));
+        // When creating dependency information, filter out the generated
+        // header file.
+        CmdArgs.push_back("-dependency-filter");
+        CmdArgs.push_back(Args.MakeArgString(Header));
+
+        // Since this is a host compilation and the integration header is
+        // included, enable the integration header based diagnostics.
+        CmdArgs.push_back("-fsycl-enable-int-header-diags");
+      }
+
+      StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
+      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
+          !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
+        // Add the -include-internal-footer option to add the integration footer
+        CmdArgs.push_back("-include-internal-footer");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+        // When creating dependency information, filter out the generated
+        // integration footer file.
+        CmdArgs.push_back("-dependency-filter");
+        CmdArgs.push_back(Args.MakeArgString(Footer));
+      }
+
+      if (!D.IsCLMode() && IsWindowsMSVC &&
+          !Args.hasArg(options::OPT_fms_runtime_lib_EQ)) {
+        // SYCL library is guaranteed to work correctly only with dynamic
+        // MSVC runtime.
+        CmdArgs.push_back("-D_MT");
+        CmdArgs.push_back("-D_DLL");
+      }
+      // Add the SYCL target macro arguments that were generated during the
+      // device compilation step.
+      for (auto &Macro : D.getSYCLTargetMacroArgs())
+        CmdArgs.push_back(Args.MakeArgString(Macro));
+      if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
+        CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
+    }
+
     // Set options for both host and device
-    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
-                                 options::OPT_fno_sycl_id_queries_fit_in_int))
-      A->render(Args, CmdArgs);
-
-    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
-      CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
-
     if (SYCLStdArg) {
       SYCLStdArg->render(Args, CmdArgs);
       CmdArgs.push_back("-fsycl-std-layout-kernel-params");
@@ -5657,6 +5732,13 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // Ensure the default version in SYCL mode is 2020.
       CmdArgs.push_back("-sycl-std=2020");
     }
+
+    if (Arg *A = Args.getLastArg(options::OPT_fsycl_id_queries_fit_in_int,
+                                 options::OPT_fno_sycl_id_queries_fit_in_int))
+      A->render(Args, CmdArgs);
+
+    if (Args.hasArg(options::OPT_fpreview_breaking_changes))
+      CmdArgs.push_back("-D__INTEL_PREVIEW_BREAKING_CHANGES");
 
     bool DisableSYCLForceInlineKernelLambda = false;
     if (Arg *A = Args.getLastArg(options::OPT_O_Group))
@@ -5732,87 +5814,6 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
     if (HasFPGA) {
       // Pass -fintelfpga to both the host and device SYCL compilations if set.
       CmdArgs.push_back("-fintelfpga");
-    }
-
-    // Add any options that are needed specific to SYCL offload while
-    // performing the host side compilation.
-    if (!IsSYCLDevice) {
-      // Add the -include option to add the integration header
-      StringRef Header = D.getIntegrationHeader(Input.getBaseInput());
-      // Do not add the integration header if we are compiling after the
-      // integration footer has been applied.  Check for the append job
-      // action to determine this.
-      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Header.empty()) {
-        // Add the -include-internal-header option to add the integration header
-        CmdArgs.push_back("-include-internal-header");
-        CmdArgs.push_back(Args.MakeArgString(Header));
-        // When creating dependency information, filter out the generated
-        // header file.
-        CmdArgs.push_back("-dependency-filter");
-        CmdArgs.push_back(Args.MakeArgString(Header));
-
-        // Since this is a host compilation and the integration header is
-        // included, enable the integration header based diagnostics.
-        CmdArgs.push_back("-fsycl-enable-int-header-diags");
-      }
-
-      StringRef Footer = D.getIntegrationFooter(Input.getBaseInput());
-      if (types::getPreprocessedType(Input.getType()) != types::TY_INVALID &&
-          !Args.hasArg(options::OPT_fno_sycl_use_footer) && !Footer.empty()) {
-        // Add the -include-internal-footer option to add the integration footer
-        CmdArgs.push_back("-include-internal-footer");
-        CmdArgs.push_back(Args.MakeArgString(Footer));
-        // When creating dependency information, filter out the generated
-        // integration footer file.
-        CmdArgs.push_back("-dependency-filter");
-        CmdArgs.push_back(Args.MakeArgString(Footer));
-      }
-
-      // Let the FE know we are doing a SYCL offload compilation, but we are
-      // doing the host pass.
-      CmdArgs.push_back("-fsycl-is-host");
-
-      if (!D.IsCLMode() && IsWindowsMSVC &&
-          !Args.hasArg(options::OPT_fms_runtime_lib_EQ)) {
-        // SYCL library is guaranteed to work correctly only with dynamic
-        // MSVC runtime.
-        CmdArgs.push_back("-D_MT");
-        CmdArgs.push_back("-D_DLL");
-      }
-    }
-    // Add any predefined macros associated with intel_gpu* type targets
-    // passed in with -fsycl-targets
-    // TODO: Macros are populated during device compilations and saved for
-    // addition to the host compilation. There is no dependence connection
-    // between device and host where we should be able to use the offloading
-    // arch to add the macro to the host compile.
-    auto addTargetMacros = [&](const llvm::Triple &Triple) {
-      if (!Triple.isSPIR() && !Triple.isNVPTX() && !Triple.isAMDGCN())
-        return;
-      SmallString<64> Macro;
-      if ((Triple.isSPIR() &&
-           Triple.getSubArch() == llvm::Triple::SPIRSubArch_gen) ||
-          Triple.isNVPTX() || Triple.isAMDGCN()) {
-        StringRef Device = JA.getOffloadingArch();
-        if (!Device.empty() && !SYCL::gen::getGenDeviceMacro(Device).empty()) {
-          Macro = "-D";
-          Macro += SYCL::gen::getGenDeviceMacro(Device);
-        }
-      } else if (Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64)
-        Macro = "-D__SYCL_TARGET_INTEL_X86_64__";
-      if (Macro.size()) {
-        CmdArgs.push_back(Args.MakeArgString(Macro));
-        D.addSYCLTargetMacroArg(Args, Macro);
-      }
-    };
-    if (IsSYCLDevice)
-      addTargetMacros(RawTriple);
-    else {
-      for (auto &Macro : D.getSYCLTargetMacroArgs())
-        CmdArgs.push_back(Args.MakeArgString(Macro));
-      if (Args.hasArg(options::OPT_fno_sycl_esimd_build_host_code))
-        CmdArgs.push_back("-fno-sycl-esimd-build-host-code");
     }
 
     const auto DeviceTraitsMacrosArgs = D.getDeviceTraitsMacrosArgs();
@@ -8653,7 +8654,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       }
     } else
       // Use the default.
-      TargetInfo += C.getDriver().MakeSYCLDeviceTriple().normalize();
+      TargetInfo += C.getDriver().getSYCLDeviceTriple().normalize();
     CmdArgs.push_back(Args.MakeArgString(TargetInfo.str()));
   }
 
@@ -9999,7 +10000,7 @@ void OffloadBundler::ConstructJobMultipleOutputs(
         TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
       StringRef Val(
           TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
-      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
       Triples += TT.normalize();
     } else
       Triples += Dep.DependentToolChain->getTriple().normalize();
@@ -10551,7 +10552,7 @@ void OffloadDeps::constructJob(Compilation &C, const JobAction &JA,
         TCArgs.hasArg(options::OPT_fsycl_force_target_EQ)) {
       StringRef Val(
           TCArgs.getLastArg(options::OPT_fsycl_force_target_EQ)->getValue());
-      llvm::Triple TT(C.getDriver().MakeSYCLDeviceTriple(Val));
+      llvm::Triple TT(C.getDriver().getSYCLDeviceTriple(Val));
       Targets += TT.normalize();
     } else {
       std::string NormalizedTriple =

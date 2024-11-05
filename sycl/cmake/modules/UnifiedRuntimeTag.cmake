@@ -1,5 +1,7 @@
-# commit 66ba7970a6badf781226b75a98c9585ef30ea93a
-# Author: Maosu Zhao <maosu.zhao@intel.com>
-# Date:   Mon Oct 28 18:39:57 2024 +0800
-#     [DeviceSanitizer] Add a report flag to LaunchInfo (#2069)
-set(UNIFIED_RUNTIME_TAG 66ba7970a6badf781226b75a98c9585ef30ea93a)
+# commit b0a9e2be61ad42d3447f1f246120ab25119a03e0
+# Merge: fa8cc8ec a0cf2ce2
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Mon Nov 4 10:00:08 2024 +0000
+#     Merge pull request #2165 from aarongreig/aaron/makeUSMPoolsOptional
+#     Make USM pools optional with a device query to report support.
+set(UNIFIED_RUNTIME_TAG b0a9e2be61ad42d3447f1f246120ab25119a03e0)
