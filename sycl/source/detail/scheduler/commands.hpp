@@ -684,8 +684,9 @@ private:
 #ifdef XPTI_ENABLE_INSTRUMENTATION
 std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
     int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, const std::string &SyclKernelName,
-    const QueueImplPtr &Queue, const NDRDescT &NDRDesc,
+    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
+    const std::string &SyclKernelName, const QueueImplPtr &Queue,
+    const NDRDescT &NDRDesc,
     const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
     std::vector<ArgDesc> &CGArgs);
 #endif

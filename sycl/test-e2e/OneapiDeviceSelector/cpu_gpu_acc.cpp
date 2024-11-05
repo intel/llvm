@@ -2,15 +2,15 @@
 
 // RUN: %{build} -o %t.out
 
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga %t.out | FileCheck %s --check-prefixes=CHECK-ACC-ONLY
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out | FileCheck %s --check-prefixes=CHECK-GPU-ONLY
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:cpu %t.out | FileCheck %s --check-prefixes=CHECK-CPU-ONLY
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:fpga %t.out | FileCheck %s --check-prefixes=CHECK-ACC-ONLY
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:gpu %t.out | FileCheck %s --check-prefixes=CHECK-GPU-ONLY
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:cpu %t.out | FileCheck %s --check-prefixes=CHECK-CPU-ONLY
 
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga,gpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:fpga,cpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-CPU
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:fpga,gpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:fpga,cpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-CPU
 
-// RUN: env ONEAPI_DEVICE_SELECTOR=opencl:cpu,fpga,gpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
-// RUN: env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR=opencl:cpu,fpga,gpu %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
+// RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="opencl:*" %t.out | FileCheck %s --check-prefixes=CHECK-ACC-GPU-CPU
 //
 // CHECK-ACC-ONLY-NOT: Device: cpu
 // CHECK-ACC-ONLY-NOT: Device: gpu

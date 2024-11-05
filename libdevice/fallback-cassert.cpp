@@ -100,7 +100,7 @@ DEVICE_EXTERN_C void __devicelib_assert_fail(const char *expr, const char *file,
 }
 #endif // __SPIR__ || __SPIRV__
 
-#ifdef __NVPTX__
+#if defined(__NVPTX__) || defined(__AMDGCN__)
 
 DEVICE_EXTERN_C void __assertfail(const char *__message, const char *__file,
                                   unsigned __line, const char *__function,
@@ -119,4 +119,4 @@ DEVICE_EXTERN_C void _wassert(const char *_Message, const char *_File,
   __assertfail(_Message, _File, _Line, 0, 1);
 }
 
-#endif
+#endif // __NVPTX__ || __AMDGCN__

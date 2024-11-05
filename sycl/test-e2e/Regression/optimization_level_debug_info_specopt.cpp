@@ -1,7 +1,6 @@
-// DEFINE: %{ffpflags} = %if cl_options %{/clang:-ffp-model=fast%} %else %{-ffp-model=fast%}
 // DEFINE: %{Oz} = %if cl_options %{/clang:-Oz%} %else %{-Oz%}
 // DEFINE: %{O} = %if cl_options %{/clang:-O%} %else %{-O%}
-// RUN: %{build} %debug_option %{ffpflags} -o %t.out
+// RUN: %{build} %debug_option %fp-model-fast -o %t.out
 // RUN: %{build} %debug_option -Os -o %t.out
 // RUN: %{build} %debug_option %{Oz} -o %t.out
 // RUN: %{build} %debug_option -Og -o %t.out

@@ -317,9 +317,68 @@ void check_sub_group_size() {
       KernelFunctorWithSGSize<2>{});
 }
 
+void check_max_work_group_size() {
+  sycl::queue Q;
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size and max_work_group_size dimensionality must match}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2, 2>,
+          sycl::ext::oneapi::experimental::max_work_group_size<1>},
+      []() {});
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2>,
+          sycl::ext::oneapi::experimental::max_work_group_size<1>},
+      []() {});
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2, 2>,
+          sycl::ext::oneapi::experimental::max_work_group_size<2, 1>},
+      []() {});
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2, 2, 2>,
+          sycl::ext::oneapi::experimental::max_work_group_size<2, 2, 1>},
+      []() {});
+}
+
+void check_max_linear_work_group_size() {
+  sycl::queue Q;
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_linear_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2>,
+          sycl::ext::oneapi::experimental::max_linear_work_group_size<1>},
+      []() {});
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_linear_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2, 4>,
+          sycl::ext::oneapi::experimental::max_linear_work_group_size<7>},
+      []() {});
+
+  // expected-error-re@sycl/ext/oneapi/kernel_properties/properties.hpp:* {{static assertion failed due to requirement {{.+}}: work_group_size must not exceed max_linear_work_group_size}}
+  Q.single_task(
+      sycl::ext::oneapi::experimental::properties{
+          sycl::ext::oneapi::experimental::work_group_size<2, 4, 2>,
+          sycl::ext::oneapi::experimental::max_linear_work_group_size<15>},
+      []() {});
+}
+
 int main() {
   check_work_group_size();
   check_work_group_size_hint();
   check_sub_group_size();
+  check_max_work_group_size();
+  check_max_linear_work_group_size();
   return 0;
 }

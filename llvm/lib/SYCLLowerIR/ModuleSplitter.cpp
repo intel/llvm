@@ -26,6 +26,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -798,6 +799,23 @@ void ModuleDesc::dump() const {
 }
 #endif // NDEBUG
 
+void ModuleDesc::saveSplitInformationAsMetadata() {
+  // Add metadata to the module so we can identify what kind of SYCL/ESIMD split
+  // later.
+  auto *SplitMD = M->getOrInsertNamedMetadata(SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMDOp = MDNode::get(
+      M->getContext(), ConstantAsMetadata::get(ConstantInt::get(
+                           Type::getInt8Ty(M->getContext()),
+                           static_cast<uint8_t>(EntryPoints.Props.HasESIMD))));
+  SplitMD->addOperand(SplitMDOp);
+
+  // Add metadata to the module so we can identify it as the default value spec
+  // constants split later.
+  if (isSpecConstantDefault())
+    M->getOrInsertNamedMetadata(
+        SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
+}
+
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
   std::transform(Functions.begin(), Functions.end(),
@@ -1291,6 +1309,7 @@ static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
                                             bool OutputAssembly) {
   SplitModule SM;
   Prefix += OutputAssembly ? ".ll" : ".bc";
+  MD.saveSplitInformationAsMetadata();
   Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
   if (E)
     return E;

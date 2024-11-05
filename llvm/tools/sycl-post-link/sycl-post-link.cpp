@@ -419,6 +419,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
                 module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
+  MD.saveSplitInformationAsMetadata();
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
     BaseTriple.Ir = IRFilename.str();
@@ -509,10 +510,6 @@ processSpecConstantsWithDefaultValues(const module_split::ModuleDesc &MD) {
   assert(NewModuleDesc->Props.SpecConstsMet &&
          "This property should be true since the presence of SpecConsts "
          "has been checked before the run of the pass");
-  // Add metadata to the module so we can identify it as the default value split
-  // later.
-  NewModuleDesc->getModule().getOrInsertNamedMetadata(
-      SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
   NewModuleDesc->rebuildEntryPoints();
   return NewModuleDesc;
 }
@@ -791,7 +788,7 @@ processInputModule(std::unique_ptr<Module> M) {
   // to keep the optimizer from wrongfully removing them. llvm.compiler.used
   // symbols are usually removed at backend lowering, but this is handled here
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  if (auto Triple = M->getTargetTriple().find("spir") != std::string::npos)
+  if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
   // Instrument each image scope device globals if the module has been

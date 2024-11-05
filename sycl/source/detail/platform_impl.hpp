@@ -10,6 +10,7 @@
 
 #include <detail/adapter.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/backend.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
@@ -123,11 +124,6 @@ public:
   ///
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
-
-  /// Returns all unsupported (non-SYCL) platforms in the system.
-  ///
-  /// \return a vector of all unsupported (non-SYCL) platforms.
-  static std::vector<platform> get_unsupported_platforms();
 
   // \return the Adapter associated with this platform.
   const AdapterPtr &getAdapter() const { return MAdapter; }

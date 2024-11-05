@@ -91,7 +91,7 @@ int main(int argc, char **argv) {
 }
 
 // --- Check that only two JIT compilation happened:
-// CHECK-COUNT-2: ---> urProgramBuildExp
-// CHECK-NOT: ---> urProgramBuildExp
+// CHECK-COUNT-2: <--- urProgramBuildExp
+// CHECK-NOT: <--- urProgramBuildExp
 // --- Check that the test completed with expected results:
 // CHECK: passed

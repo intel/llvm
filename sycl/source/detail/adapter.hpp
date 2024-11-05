@@ -9,11 +9,11 @@
 #pragma once
 
 #include <detail/config.hpp>
+#include <detail/ur.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/type_traits.hpp>
-#include <sycl/detail/ur.hpp>
 
 #include <ur_api.h>
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -100,8 +100,10 @@ public:
       uint32_t platformCount = 0;
       call<UrApiKind::urPlatformGet>(&MAdapter, 1, 0, nullptr, &platformCount);
       UrPlatforms.resize(platformCount);
-      call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
-                                     UrPlatforms.data(), nullptr);
+      if (platformCount) {
+        call<UrApiKind::urPlatformGet>(&MAdapter, 1, platformCount,
+                                       UrPlatforms.data(), nullptr);
+      }
       // We need one entry in this per platform
       LastDeviceIds.resize(platformCount);
     });

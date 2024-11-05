@@ -11,8 +11,8 @@
 #include <detail/device_image_impl.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -37,33 +37,26 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateImageWithSpecConsts() {
+static sycl::unittest::MockDeviceImage generateImageWithSpecConsts() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  UrProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
-  UrProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
+  MockProperty SC1 =
+      makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  MockProperty SC2 = makeSpecConstant<int>(SpecConstData, "SC2", {1}, {0}, {8});
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addSpecConstants({SC1, SC2}, std::move(SpecConstData), PropSet);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({"SpecializationConstant_TestKernel"});
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage Img = generateImageWithSpecConsts();
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Img = generateImageWithSpecConsts();
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST(SpecializationConstant, DefaultValuesAreSet) {
   sycl::unittest::UrMock<> Mock;

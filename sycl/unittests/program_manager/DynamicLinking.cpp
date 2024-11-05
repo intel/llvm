@@ -1,8 +1,8 @@
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
 #include <helpers/RuntimeLinkingCommon.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -37,10 +37,10 @@ KERNEL_INFO(AOTCaseKernel)
 } // namespace sycl
 
 namespace {
-sycl::unittest::UrArray<sycl::unittest::UrProperty>
+std::vector<sycl::unittest::MockProperty>
 createPropertySet(const std::vector<std::string> &Symbols) {
-  sycl::unittest::UrPropertySet PropSet;
-  sycl::unittest::UrArray<sycl::unittest::UrProperty> Props;
+  sycl::unittest::MockPropertySet PropSet;
+  std::vector<sycl::unittest::MockProperty> Props;
   for (const std::string &Symbol : Symbols) {
     std::vector<char> Storage(sizeof(uint32_t));
     uint32_t Val = 1;
@@ -48,20 +48,21 @@ createPropertySet(const std::vector<std::string> &Symbols) {
     std::uninitialized_copy(DataPtr, DataPtr + sizeof(uint32_t),
                             Storage.data());
 
-    sycl::unittest::UrProperty Prop(Symbol, Storage, SYCL_PROPERTY_TYPE_UINT32);
+    sycl::unittest::MockProperty Prop(Symbol, Storage,
+                                      SYCL_PROPERTY_TYPE_UINT32);
 
     Props.push_back(Prop);
   }
   return Props;
 }
 
-sycl::unittest::UrImage generateImage(
+sycl::unittest::MockDeviceImage generateImage(
     std::initializer_list<std::string> KernelNames,
     const std::vector<std::string> &ExportedSymbols,
     const std::vector<std::string> &ImportedSymbols, unsigned char Magic,
     sycl::detail::ur::DeviceBinaryType BinType = SYCL_DEVICE_BINARY_TYPE_SPIRV,
     const char *DeviceTargetSpec = __SYCL_DEVICE_BINARY_TARGET_SPIRV64) {
-  sycl::unittest::UrPropertySet PropSet;
+  sycl::unittest::MockPropertySet PropSet;
   if (!ExportedSymbols.empty())
     PropSet.insert(__SYCL_PROPERTY_SET_SYCL_EXPORTED_SYMBOLS,
                    createPropertySet(ExportedSymbols));
@@ -70,16 +71,16 @@ sycl::unittest::UrImage generateImage(
                    createPropertySet(ImportedSymbols));
   std::vector<unsigned char> Bin{Magic};
 
-  sycl::unittest::UrArray<sycl::unittest::UrOffloadEntry> Entries =
+  std::vector<sycl::unittest::MockOffloadEntry> Entries =
       sycl::unittest::makeEmptyKernels(KernelNames);
 
-  sycl::unittest::UrImage Img{BinType,
-                              DeviceTargetSpec,
-                              "", // Compile options
-                              "", // Link options
-                              std::move(Bin),
-                              std::move(Entries),
-                              std::move(PropSet)};
+  sycl::unittest::MockDeviceImage Img{BinType,
+                                      DeviceTargetSpec,
+                                      "", // Compile options
+                                      "", // Link options
+                                      std::move(Bin),
+                                      std::move(Entries),
+                                      std::move(PropSet)};
 
   return Img;
 }
@@ -94,7 +95,7 @@ static constexpr unsigned MUTUAL_DEP_PRG_B = 17;
 static constexpr unsigned AOT_CASE_PRG_NATIVE = 23;
 static constexpr unsigned AOT_CASE_PRG_DEP_NATIVE = 29;
 
-static sycl::unittest::UrImage Imgs[] = {
+static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"BasicCaseKernel"}, {}, {"BasicCaseKernelDep"},
                   BASIC_CASE_PRG),
     generateImage({"BasicCaseKernelDep"}, {"BasicCaseKernelDep"},
@@ -121,7 +122,7 @@ static sycl::unittest::UrImage Imgs[] = {
                   __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN)};
 
 // Registers mock devices images in the SYCL RT
-static sycl::unittest::UrImageArray<9> ImgArray{Imgs};
+static sycl::unittest::MockDeviceImageArray<9> ImgArray{Imgs};
 
 TEST(DynamicLinking, BasicCase) {
   sycl::unittest::UrMock<> Mock;

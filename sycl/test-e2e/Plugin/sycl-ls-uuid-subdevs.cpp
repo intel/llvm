@@ -2,8 +2,6 @@
  * devices. */
 // REQUIRES:  gpu, level_zero
 
-// UNSUPPORTED: gpu-intel-pvc-1T
-
 // As of now, ZEX_NUMBER_OF_CCS is not working with FLAT hierachy,
 // which is the new default on PVC.
 

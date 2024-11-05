@@ -117,13 +117,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55
-  # Merge: 7384e2d7 59e5e405
-  # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Mon Sep 23 10:58:51 2024 +0200
-  #   Merge pull request #2113 from oneapi-src/revert-1698-counter-based-2 
-  #   Revert "[L0] Phase 2 of Counter-Based Event Implementation"
-  set(UNIFIED_RUNTIME_TAG 9ca3ec7a9c1d2f4a362d7e5add103b30271a8a55)
+  include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules/UnifiedRuntimeTag.cmake)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
@@ -232,14 +226,10 @@ find_package(Threads REQUIRED)
 
 if(TARGET UnifiedRuntimeLoader)
   # Install the UR loader.
-  # TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
-  # When UR is moved to its separate repo perhaps we should introduce new component,
-  # e.g. unified-runtime-sycl-dev.
-  # See github issue #14598
   install(TARGETS ur_loader
-    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-    RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev
+    LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-runtime-loader
+    RUNTIME DESTINATION "bin" COMPONENT unified-runtime-loader
   )
 endif()
 
@@ -303,8 +293,7 @@ if("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   endif()
 endif()
 
-# TODO: this is piggy-backing on the existing target component level-zero-sycl-dev
 install(TARGETS umf
-  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT level-zero-sycl-dev
-  RUNTIME DESTINATION "bin" COMPONENT level-zero-sycl-dev)
+  LIBRARY DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  ARCHIVE DESTINATION "lib${LLVM_LIBDIR_SUFFIX}" COMPONENT unified-memory-framework
+  RUNTIME DESTINATION "bin" COMPONENT unified-memory-framework)

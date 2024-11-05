@@ -127,7 +127,7 @@ ToolChain::executeToolChainProgram(StringRef Executable) const {
                                      "CLANG_TOOLCHAIN_PROGRAM_TIMEOUT expected "
                                      "an integer, got '" +
                                          *Str + "'");
-    SecondsToWait = std::min(SecondsToWait, 0); // infinite
+    SecondsToWait = std::max(SecondsToWait, 0); // infinite
   }
   if (llvm::sys::ExecuteAndWait(Executable, {}, {}, Redirects, SecondsToWait,
                                 /*MemoryLimit=*/0, &ErrorMessage))
@@ -1519,6 +1519,9 @@ void ToolChain::AddCudaIncludeArgs(const ArgList &DriverArgs,
 void ToolChain::AddHIPIncludeArgs(const ArgList &DriverArgs,
                                   ArgStringList &CC1Args) const {}
 
+void ToolChain::AddSYCLIncludeArgs(const ArgList &DriverArgs,
+                                   ArgStringList &CC1Args) const {}
+
 llvm::SmallVector<ToolChain::BitCodeLibraryInfo, 12>
 ToolChain::getDeviceLibs(
     const ArgList &DriverArgs,
@@ -1657,7 +1660,7 @@ llvm::opt::DerivedArgList *ToolChain::TranslateOffloadTargetArgs(
         A->getOption().matches(options::OPT_Xsycl_frontend);
       if (A->getOption().matches(options::OPT_Xsycl_frontend_EQ)) {
         // Passing device args: -Xsycl-target-frontend=<triple> -opt=val.
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue(0)) == getTriple())
+        if (getDriver().getSYCLDeviceTriple(A->getValue(0)) == getTriple())
           Index = Args.getBaseArgs().MakeIndex(A->getValue(1));
         else
           continue;

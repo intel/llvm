@@ -4,7 +4,7 @@
 // Test to check that we don't insert unnecessary urEnqueueEventsWaitWithBarrier
 // calls if queue is in-order and wait list is empty.
 
-// CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier
+// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrier
 
 #include <condition_variable>
 

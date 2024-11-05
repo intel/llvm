@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL -DVNNI
+// RUN: %{build} -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t.out
 
 // -mllvm -inline-threshold=2000 added as a workaround,

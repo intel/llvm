@@ -9,12 +9,12 @@
 
 #include "kernel-bundle-merge-options.hpp"
 
-// CHECK: urProgramBuild
+// CHECK: <--- urProgramBuild
 // CHECK-SAME: -g
 
 // TODO: Uncomment when build options are properly passed to compile and link
 //       commands for kernel_bundle
-// xCHECK: urProgramCompile(
+// xCHECK: <--- urProgramCompile(
 // xCHECK-SAME: -g
-// xCHECK: urProgramLink(
+// xCHECK: <--- urProgramLink(
 // xCHECK-SAME: -g

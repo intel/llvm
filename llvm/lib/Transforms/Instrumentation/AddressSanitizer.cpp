@@ -72,11 +72,11 @@
 #include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
-#include "llvm/Transforms/Instrumentation.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerCommon.h"
 #include "llvm/Transforms/Instrumentation/AddressSanitizerOptions.h"
 #include "llvm/Transforms/Utils/ASanStackFrameLayout.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Transforms/Utils/Instrumentation.h"
 #include "llvm/Transforms/Utils/Local.h"
 #include "llvm/Transforms/Utils/ModuleUtils.h"
 #include "llvm/Transforms/Utils/PromoteMemToReg.h"
@@ -183,6 +183,7 @@ const char kAsanMemToShadow[] = "__asan_mem_to_shadow";
 
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
 static const size_t kNumberOfAccessSizes = 5;
+static const size_t kNumberOfAddressSpace = 5;
 
 static const uint64_t kAllocaRzSize = 32;
 
@@ -518,7 +519,7 @@ static ShadowMapping getShadowMapping(const Triple &TargetTriple, int LongSize,
                  TargetTriple.getArch() == Triple::ppc64le;
   bool IsSystemZ = TargetTriple.getArch() == Triple::systemz;
   bool IsX86_64 = TargetTriple.getArch() == Triple::x86_64;
-  bool IsMIPSN32ABI = TargetTriple.getEnvironment() == Triple::GNUABIN32;
+  bool IsMIPSN32ABI = TargetTriple.isABIN32();
   bool IsMIPS32 = TargetTriple.isMIPS32();
   bool IsMIPS64 = TargetTriple.isMIPS64();
   bool IsArmOrThumb = TargetTriple.isARM() || TargetTriple.isThumb();
@@ -897,10 +898,13 @@ private:
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
   FunctionCallee AsanMemoryAccessCallback[2][2][kNumberOfAccessSizes];
+  FunctionCallee AsanMemoryAccessCallbackAS[2][2][kNumberOfAccessSizes]
+                                           [kNumberOfAddressSpace];
 
   // These arrays is indexed by AccessIsWrite and Experiment.
   FunctionCallee AsanErrorCallbackSized[2][2];
   FunctionCallee AsanMemoryAccessCallbackSized[2][2];
+  FunctionCallee AsanMemoryAccessCallbackSizedAS[2][2][kNumberOfAddressSpace];
 
   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
   Value *LocalDynamicShadow = nullptr;
@@ -1403,7 +1407,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         auto *CurF = CI->getFunction();
         Args.push_back(CurF->getArg(CurF->arg_size() - 1));
 
-        CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+        CallInst *NewCI =
+            CallInst::Create(NewF, Args, CI->getName(), CI->getIterator());
         NewCI->setCallingConv(CI->getCallingConv());
         NewCI->setAttributes(CI->getAttributes());
         NewCI->setDebugLoc(CI->getDebugLoc());
@@ -1450,8 +1455,14 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ExtendSpirKernelArgs(M, FAM);
+    // FIXME: W/A skip instrumentation if this module has ESIMD
+    for (auto &F : M) {
+      if (F.hasMetadata("sycl_explicit_simd"))
+        return PreservedAnalyses::all();
+    }
+  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -1506,11 +1517,65 @@ static bool isUnsupportedAMDGPUAddrspace(Value *Addr) {
   return false;
 }
 
-static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
+static TargetExtType *getTargetExtType(Type *Ty) {
+  if (auto *TargetTy = dyn_cast<TargetExtType>(Ty))
+    return TargetTy;
+
+  if (Ty->isVectorTy())
+    return getTargetExtType(Ty->getScalarType());
+
+  if (Ty->isArrayTy())
+    return getTargetExtType(Ty->getArrayElementType());
+
+  if (auto *STy = dyn_cast<StructType>(Ty)) {
+    for (unsigned int i = 0; i < STy->getNumElements(); i++)
+      if (auto *TargetTy = getTargetExtType(STy->getElementType(i)))
+        return TargetTy;
+    return nullptr;
+  }
+
+  return nullptr;
+}
+
+// Skip pointer operand that is sycl joint matrix access since it isn't from
+// user code, e.g. %call:
+// clang-format off
+// %a = alloca %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", align 8
+// %0 = getelementptr inbounds %"struct.sycl::_V1::ext::oneapi::experimental::matrix::joint_matrix", ptr %a, i64 0, i32 0
+// %call = call spir_func ptr
+// @_Z19__spirv_AccessChainIfN4sycl3_V13ext6oneapi12experimental6matrix9precision4tf32ELm8ELm8ELN5__spv9MatrixUseE0ELNS8_5Scope4FlagE3EEPT_PPNS8_28__spirv_CooperativeMatrixKHRIT0_XT4_EXT1_EXT2_EXT3_EEEm(ptr %0, i64 0)
+// %1 = load float, ptr %call, align 4
+// store float %1, ptr %call, align 4
+// clang-format on
+static bool isJointMatrixAccess(Value *V) {
+  if (auto *CI = dyn_cast<CallInst>(V)) {
+    for (Value *Op : CI->args()) {
+      if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
+        if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
+          return TargetTy->getName().starts_with("spirv.") &&
+                 TargetTy->getName().contains("Matrix");
+    }
+  }
+  return false;
+}
+
+static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
     return true;
+
+  // Ignore load/store for target ext type since we can't know exactly what size
+  // it is.
+  if (auto *SI = dyn_cast<StoreInst>(Inst))
+    if (getTargetExtType(SI->getValueOperand()->getType()) ||
+        isJointMatrixAccess(SI->getPointerOperand()))
+      return true;
+
+  if (auto *LI = dyn_cast<LoadInst>(Inst))
+    if (getTargetExtType(Inst->getType()) ||
+        isJointMatrixAccess(LI->getPointerOperand()))
+      return true;
 
   Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
   switch (PtrTy->getPointerAddressSpace()) {
@@ -1518,7 +1583,7 @@ static bool isUnsupportedSPIRAccess(Value *Addr, Function *Func) {
     if (!ClSpirOffloadPrivates)
       return true;
     // Skip kernel arguments
-    return Func->getCallingConv() == CallingConv::SPIR_KERNEL &&
+    return Inst->getFunction()->getCallingConv() == CallingConv::SPIR_KERNEL &&
            isa<Argument>(Addr);
   }
   case kSpirOffloadGlobalAS: {
@@ -1562,11 +1627,6 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   // SPIR constant address space
   PointerType *ConstASPtrTy =
       Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
-
-  // Address Space
-  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  Args.push_back(
-      ConstantInt::get(Type::getInt32Ty(C), PtrTy->getPointerAddressSpace()));
 
   // File & Line
   if (Loc) {
@@ -1756,7 +1816,10 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
        // swifterror allocas are register promoted by ISel
        !AI.isSwiftError() &&
        // safe allocas are not interesting
-       !(SSGI && SSGI->isSafe(AI)));
+       !(SSGI && SSGI->isSafe(AI)) &&
+       // ignore alloc contains target ext type since we can't know exactly what
+       // size it is.
+       !getTargetExtType(AI.getAllocatedType()));
 
   ProcessedAllocas[&AI] = IsInteresting;
   return IsInteresting;
@@ -1765,7 +1828,7 @@ bool AddressSanitizer::isInterestingAlloca(const AllocaInst &AI) {
 bool AddressSanitizer::ignoreAccess(Instruction *Inst, Value *Ptr) {
   // SPIR has its own rules to filter the instrument accesses
   if (TargetTriple.isSPIROrSPIRV()) {
-    if (isUnsupportedSPIRAccess(Ptr, Inst->getFunction()))
+    if (isUnsupportedSPIRAccess(Ptr, Inst))
       return true;
   } else {
     // Instrument accesses from different address spaces only for AMDGPU.
@@ -2259,10 +2322,13 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
     if (Exp == 0) {
       if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 5> Args;
+        auto AS = cast<PointerType>(Addr->getType()->getScalarType())
+                      ->getPointerAddressSpace();
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
         RTCI.createRuntimeCall(
-            IRB, AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex], Args);
+            IRB, AsanMemoryAccessCallbackAS[IsWrite][0][AccessSizeIndex][AS],
+            Args);
       } else {
         RTCI.createRuntimeCall(
           IRB, AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex], AddrLong);
@@ -2341,11 +2407,13 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     if (Exp == 0) {
       if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 6> Args;
+        auto AS = cast<PointerType>(Addr->getType()->getScalarType())
+                      ->getPointerAddressSpace();
         Args.push_back(AddrLong);
         Args.push_back(Size);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
-        RTCI.createRuntimeCall(IRB, AsanMemoryAccessCallbackSized[IsWrite][0],
-                               Args);
+        RTCI.createRuntimeCall(
+            IRB, AsanMemoryAccessCallbackSizedAS[IsWrite][0][AS], Args);
       } else {
         RTCI.createRuntimeCall(IRB, AsanMemoryAccessCallbackSized[IsWrite][0],
                                {AddrLong, Size});
@@ -3223,7 +3291,6 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
 
       // __asan_loadX/__asan_storeX(
       //   ...
-      //   int32_t as, // Address Space
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -3232,15 +3299,39 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
         auto *Int8PtrTy =
             Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
-        Args1.push_back(Type::getInt32Ty(*C)); // address_space
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
-        Args2.push_back(Type::getInt32Ty(*C)); // address_space
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
+
+        for (size_t AddressSpaceIndex = 0;
+             AddressSpaceIndex < kNumberOfAddressSpace; AddressSpaceIndex++) {
+          AsanMemoryAccessCallbackSizedAS
+              [AccessIsWrite][Exp][AddressSpaceIndex] = M.getOrInsertFunction(
+                  ClMemoryAccessCallbackPrefix + ExpStr + TypeStr + "N" +
+                      "_as" + itostr(AddressSpaceIndex) + EndingStr,
+                  FunctionType::get(IRB.getVoidTy(), Args2, false), AL2);
+
+          for (size_t AccessSizeIndex = 0;
+               AccessSizeIndex < kNumberOfAccessSizes; AccessSizeIndex++) {
+            const std::string Suffix = TypeStr +
+                                       itostr(1ULL << AccessSizeIndex) + "_as" +
+                                       itostr(AddressSpaceIndex);
+            AsanMemoryAccessCallbackAS[AccessIsWrite][Exp][AccessSizeIndex]
+                                      [AddressSpaceIndex] =
+                                          M.getOrInsertFunction(
+                                              ClMemoryAccessCallbackPrefix +
+                                                  ExpStr + Suffix + EndingStr,
+                                              FunctionType::get(IRB.getVoidTy(),
+                                                                Args1, false),
+                                              AL1);
+          }
+        }
+
+        continue;
       }
       AsanErrorCallbackSized[AccessIsWrite][Exp] = M.getOrInsertFunction(
           kAsanReportErrorTemplate + ExpStr + TypeStr + "_n" + EndingStr,
@@ -3440,13 +3531,13 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
       return false;
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (F.hasMetadata("sycl_explicit_simd"))
-      return false;
   }
 
   bool FunctionModified = false;
+
+  // Do not apply any instrumentation for naked functions.
+  if (F.hasFnAttribute(Attribute::Naked))
+    return FunctionModified;
 
   // If needed, insert __asan_init before checking for SanitizeAddress attr.
   // This function needs to be called even if the function body is not
@@ -3554,9 +3645,7 @@ bool AddressSanitizer::instrumentFunction(Function &F,
                    OperandsToInstrument.size() + IntrinToInstrument.size() >
                        (unsigned)InstrumentationWithCallsThreshold);
   const DataLayout &DL = F.getDataLayout();
-  ObjectSizeOpts ObjSizeOpts;
-  ObjSizeOpts.RoundToAlign = true;
-  ObjectSizeOffsetVisitor ObjSizeVis(DL, TLI, F.getContext(), ObjSizeOpts);
+  ObjectSizeOffsetVisitor ObjSizeVis(DL, TLI, F.getContext());
 
   // Instrument.
   int NumInstrumented = 0;

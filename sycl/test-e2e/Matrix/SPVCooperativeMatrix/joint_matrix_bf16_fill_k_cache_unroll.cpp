@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 // REQUIRES: aspect-ext_intel_matrix
 
-// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -mllvm -inline-threshold=2000 -ffp-model=precise -o %t.out -DMANUAL_UNROLL -DVNNI
+// RUN: %{build} -D__SPIRV_USE_COOPERATIVE_MATRIX -mllvm -inline-threshold=2000 %fp-model-precise -o %t.out -DMANUAL_UNROLL -DVNNI
 // RUN: %{run} %t.out
 
 // XFAIL: cpu

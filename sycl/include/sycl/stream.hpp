@@ -17,7 +17,6 @@
 #include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/item_base.hpp>          // for id, range
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
 #include <sycl/group.hpp>                     // for group
