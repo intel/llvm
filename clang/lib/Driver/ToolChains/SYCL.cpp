@@ -1672,16 +1672,16 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       if (IsGenTriple) {
         if (Device != GenDevice && !Device.empty())
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple &&
             GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple &&
             !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
+      } else if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple)
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -1787,7 +1787,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     for (auto *A : Args) {
       if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
         continue;
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple)
+      if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple)
         TargArgs.push_back(A->getValue(1));
     }
     // Check for any -device settings.
