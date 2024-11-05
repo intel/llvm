@@ -85,7 +85,7 @@ int main() {
                                       syclext::address_access_mode::read_write);
 
     assert(MappedPtr == reinterpret_cast<void *>(VirtualMemoryPtr) &&
-           "ptrs arent equal");
+           "value returned from a valid call to map() must be equal reinterpret_cast<void *>(ptr)");
 
     syclext::unmap(MappedPtr, AlignedByteSize, Context);
     syclext::free_virtual_mem(VirtualMemoryPtr, AlignedByteSize, Context);
