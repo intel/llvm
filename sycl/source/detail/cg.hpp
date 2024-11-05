@@ -17,6 +17,7 @@
 #include <sycl/exception_list.hpp>  // for queue_impl
 #include <sycl/kernel.hpp>          // for kernel_impl
 #include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
+#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp> // for migration_direction
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -390,14 +391,16 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
+  ext::oneapi::experimental::migration_direction MDirection;
 
 public:
-  CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+  CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData, ext::oneapi::experimental::migration_direction Direction,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length) {}
+        MDst(DstPtr), MLength(Length), MDirection(Direction) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
+  ext::oneapi::experimental::migration_direction getDirection() { return MDirection; }
 };
 
 /// "Advise USM" command group class.

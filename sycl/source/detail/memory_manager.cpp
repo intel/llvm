@@ -964,16 +964,19 @@ void MemoryManager::fill_usm(void *Mem, QueueImplPtr Queue, size_t Length,
       DepEvents.size(), DepEvents.data(), OutEvent);
 }
 
-void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length,
+void MemoryManager::prefetch_usm(void *Mem, QueueImplPtr Queue, size_t Length, sycl::ext::oneapi::experimental::migration_direction Direction,
                                  std::vector<ur_event_handle_t> DepEvents,
                                  ur_event_handle_t *OutEvent,
                                  const detail::EventImplPtr &OutEventImpl) {
   assert(Queue && "USM prefetch must be called with a valid device queue");
   const AdapterPtr &Adapter = Queue->getAdapter();
+  ur_usm_migration_flags_t migration_flag = UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
+  if (Direction == sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST)
+    migration_flag = UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   if (OutEventImpl != nullptr)
     OutEventImpl->setHostEnqueueTime();
   Adapter->call<UrApiKind::urEnqueueUSMPrefetch>(Queue->getHandleRef(), Mem,
-                                                 Length, 0, DepEvents.size(),
+                                                 Length, migration_flag, DepEvents.size(),
                                                  DepEvents.data(), OutEvent);
 }
 
@@ -1610,12 +1613,15 @@ void MemoryManager::ext_oneapi_fill_cmd_buffer(
 
 void MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer(
     sycl::detail::ContextImplPtr Context,
-    ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
+    ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length, sycl::ext::oneapi::experimental::migration_direction Direction,
     std::vector<ur_exp_command_buffer_sync_point_t> Deps,
     ur_exp_command_buffer_sync_point_t *OutSyncPoint) {
   const AdapterPtr &Adapter = Context->getAdapter();
+  ur_usm_migration_flags_t migration_flag = UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE;
+  if (Direction == sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST)
+    migration_flag = UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST;
   Adapter->call<UrApiKind::urCommandBufferAppendUSMPrefetchExp>(
-      CommandBuffer, Mem, Length, ur_usm_migration_flags_t(0), Deps.size(),
+      CommandBuffer, Mem, Length, migration_flag, Deps.size(),
       Deps.data(), 0, nullptr, OutSyncPoint, nullptr, nullptr);
 }
 

@@ -14,6 +14,7 @@
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
+#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 
 #include <ur_api.h>
 
@@ -149,7 +150,7 @@ public:
                        ur_event_handle_t *OutEvent,
                        const detail::EventImplPtr &OutEventImpl);
 
-  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len, sycl::ext::oneapi::experimental::migration_direction Direction,
                            std::vector<ur_event_handle_t> DepEvents,
                            ur_event_handle_t *OutEvent,
                            const detail::EventImplPtr &OutEventImpl);
@@ -250,6 +251,7 @@ public:
   static void ext_oneapi_prefetch_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,
       ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
+      sycl::ext::oneapi::experimental::migration_direction Direction,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
       ur_exp_command_buffer_sync_point_t *OutSyncPoint);
 
