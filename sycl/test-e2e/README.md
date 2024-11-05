@@ -348,7 +348,7 @@ If you add `XFAIL` without `XFAIL-TRACKER` directive,
 
 Some tests may be considered unsupported, e.g.:
 * the test checks the feature that is not supported by some
-  backend / device / OS / overall.
+  backend / device / OS / etc.
 * the test is flaky or hangs, so it can't be marked with `XFAIL`.
 
 In these cases the test can be marked with `UNSUPPORTED`. This mark should be
@@ -376,4 +376,6 @@ To disable the test completely, you can use:
 ```
 
 Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
-a non-standard mechanism. Use `UNSUPPORTED: true` instead.
+a non-standard mechanism. Use `UNSUPPORTED: true` instead, we track
+`UNSUPPORTED` tests using the mechanism described above. Otherwise the test
+risks remaining untraceable.
