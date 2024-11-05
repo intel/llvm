@@ -1,7 +1,3 @@
-{{NONDETERMINISTIC}}
-{{OPT}}QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___IN_ORDER_QUEUE
-{{OPT}}QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___OUT_OF_ORDER_QUEUE
-{{OPT}}QueueUSMTestWithParam.QueueUSMTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___IN_ORDER_QUEUE
-{{OPT}}QueueUSMTestWithParam.QueueUSMTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___OUT_OF_ORDER_QUEUE
-{{OPT}}QueueBufferTestWithParam.QueueBufferTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___IN_ORDER_QUEUE
-{{OPT}}QueueBufferTestWithParam.QueueBufferTest/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___OUT_OF_ORDER_QUEUE
+{{OPT}}QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/*
+{{OPT}}QueueUSMTestWithParam.QueueUSMTest/*
+{{OPT}}QueueBufferTestWithParam.QueueBufferTest/*
