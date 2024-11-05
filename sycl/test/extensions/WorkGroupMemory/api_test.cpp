@@ -1,5 +1,3 @@
-// RUN: %clangxx -fsycl -fsyntax-only %s
-
 #include <cassert>
 #include <sycl/sycl.hpp>
 #include <type_traits>
@@ -24,8 +22,7 @@ template <typename DataT> void convertToDataT(DataT &data) {}
 template <typename DataT> void test_constness() {
   Q.submit([&](sycl::handler &cgh) {
     nd_range<1> ndr{1, 1};
-    syclexp::work_group_memory<DataT>
-        mem{ syclexp::indeterminate };
+    syclexp::work_group_memory<DataT> mem{syclexp::indeterminate};
     cgh.parallel_for(ndr, [=](nd_item<1> it) {
       const auto mem1 = mem;
       // since mem1 is const, all of the following should succeed.
@@ -85,7 +82,7 @@ void test_helper(syclexp::work_group_memory<DataT> mem) {
 }
 
 template <typename Type, typename... rest> void test() {
-  syclexp::work_group_memory<Type> mem{ syclexp::indeterminate };
+  syclexp::work_group_memory<Type> mem;
   test_constness<Type>();
   test_helper(mem);
   if constexpr (sizeof...(rest))
