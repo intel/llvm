@@ -370,8 +370,8 @@ public:
           SubmitInfo.impl->MSecondaryQueue;
       try {
         ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
-                              /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
-                              SubmitInfo);
+                               /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
+                               SubmitInfo);
       } catch (...) {
         ResEvent = SecondQueue->submit_impl(CGF, SecondQueue, Self, SecondQueue,
                                             /*CallerNeedsEvent=*/true, Loc,

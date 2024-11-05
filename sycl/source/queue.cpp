@@ -34,7 +34,7 @@ void SubmissionInfo::SetSecondaryQueue(
     impl = std::make_shared<SubmissionInfoImpl>();
   impl->MSecondaryQueue = SecondaryQueue;
 }
-}
+} // namespace detail
 
 queue::queue(const context &SyclContext, const device_selector &DeviceSelector,
              const async_handler &AsyncHandler, const property_list &PropList) {

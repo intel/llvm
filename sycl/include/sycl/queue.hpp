@@ -2762,22 +2762,22 @@ private:
   void submit_without_event_impl(std::function<void(handler &)> CGH,
                                  const detail::code_location &CodeLoc,
                                  bool IsTopCodeLoc);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    const detail::code_location &CodeLoc,
-                                    const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    const detail::code_location &CodeLoc,
-                                    const detail::SubmitPostProcessF &PostProcess,
-                                    bool IsTopCodeLoc);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    queue secondQueue,
-                                    const detail::code_location &CodeLoc,
-                                    const detail::SubmitPostProcessF &PostProcess);
-  event submit_impl_and_postprocess(std::function<void(handler &)> CGH,
-                                    queue secondQueue,
-                                    const detail::code_location &CodeLoc,
-                                    const detail::SubmitPostProcessF &PostProcess,
-                                    bool IsTopCodeLoc);
+  event
+  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                              const detail::code_location &CodeLoc,
+                              const detail::SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(
+      std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
+      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
+  event
+  submit_impl_and_postprocess(std::function<void(handler &)> CGH,
+                              queue secondQueue,
+                              const detail::code_location &CodeLoc,
+                              const detail::SubmitPostProcessF &PostProcess);
+  event submit_impl_and_postprocess(
+      std::function<void(handler &)> CGH, queue secondQueue,
+      const detail::code_location &CodeLoc,
+      const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc);
 #endif // __INTEL_PREVIEW_BREAKING_CHANGES
 
   /// A template-free versions of submit.
