@@ -33,9 +33,6 @@ set(UR_BUILD_XPTI_LIBS OFF)
 set(UR_ENABLE_SYMBOLIZER ON CACHE BOOL "Enable symbolizer for sanitizer layer.")
 set(UR_ENABLE_TRACING ON)
 
-# enabling oneTBB in NativeCPU
-set(NATIVECPU_WITH_ONETBB ON CACHE BOOL "Use TBB as backend for Native CPU" FORCE)
-
 if("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(UR_BUILD_ADAPTER_L0 ON)
 endif()
