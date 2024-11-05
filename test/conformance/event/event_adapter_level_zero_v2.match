@@ -1,7 +1,7 @@
-urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_QUEUED
-urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_SUBMIT
-urEventGetProfilingInfoWithTimingComparisonTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEventSetCallbackTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEventSetCallbackTest.ValidateParameters/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEventSetCallbackTest.AllStates/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urEventSetCallbackTest.EventAlreadyCompleted/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_QUEUED
+urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_SUBMIT
+urEventGetProfilingInfoWithTimingComparisonTest.Success/*
+urEventSetCallbackTest.Success/*
+urEventSetCallbackTest.ValidateParameters/*
+urEventSetCallbackTest.AllStates/*
+urEventSetCallbackTest.EventAlreadyCompleted/*
