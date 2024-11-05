@@ -255,6 +255,8 @@
 
 /// ###########################################################################
 /// test behavior of linking libsycl-asan-dg2 for DG2 target AOT compilation when asan flag is applied.
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
+// RUN: -Xarch_device -fsanitize=address -### 2>&1 | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen --offload-new-driver %s --sysroot=%S/Inputs/SYCL \
 // RUN: -Xarch_device -fsanitize=address -Xsycl-target-backend "-device dg2" -### 2>&1 \
 // RUN: | FileCheck %s -check-prefix=SYCL_DEVICE_LIB_ASAN_DG2
