@@ -10693,8 +10693,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
             TCArgs.hasFlag(options::OPT_fno_offload_fp32_prec_div,
                            options::OPT_foffload_fp32_prec_div, false));
   };
-  if (IsCPU && hasNoOffloadFP32PrecOption(TCArgs) ||
-      !IsCPU && shouldUseOffloadFP32PrecOption(TCArgs)) {
+  if ((IsCPU && hasNoOffloadFP32PrecOption(TCArgs)) ||
+      shouldUseOffloadFP32PrecOption(TCArgs)) {
     ExtArg += ",+SPV_INTEL_fp_max_error";
   }
 
