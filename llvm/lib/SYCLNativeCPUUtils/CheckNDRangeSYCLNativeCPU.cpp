@@ -1,4 +1,4 @@
-//===------ PrepareSYCLNativeCPU.cpp - SYCL Native CPU Preparation Pass ---===//
+//- CheckNDRangeSYCLNativeCPU.cpp - Check if a kernel uses nd_range features -//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -23,10 +23,19 @@
 
 using namespace llvm;
 
-// TODO: add other bts
-static std::array<const char *, 5> ndFunctions{
-    "_Z23__spirv_WorkgroupSize_xv", "_Z23__spirv_NumWorkgroups_xv",
-    "_Z21__spirv_WorkgroupId_xv", "_Z27__spirv_LocalInvocationId_xv",
+static std::array<const char *, 13> NdFunctions{
+    "_Z23__spirv_WorkgroupSize_xv",
+    "_Z23__spirv_WorkgroupSize_yv",
+    "_Z23__spirv_WorkgroupSize_zv",
+    "_Z23__spirv_NumWorkgroups_xv",
+    "_Z23__spirv_NumWorkgroups_yv",
+    "_Z23__spirv_NumWorkgroups_zv",
+    "_Z21__spirv_WorkgroupId_xv",
+    "_Z21__spirv_WorkgroupId_yv",
+    "_Z21__spirv_WorkgroupId_zv",
+    "_Z27__spirv_LocalInvocationId_xv",
+    "_Z27__spirv_LocalInvocationId_yv",
+    "_Z27__spirv_LocalInvocationId_zv",
     "_Z22__spirv_ControlBarrierjjj"};
 
 static void addNDRangeMetadata(Function &F, bool Value) {
@@ -56,8 +65,8 @@ CheckNDRangeSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
         for (auto &I : BB) {
           if (auto CI = dyn_cast<CallInst>(&I)) {
             auto CalleeName = CI->getCalledFunction()->getName();
-            if (std::find(ndFunctions.begin(), ndFunctions.end(), CalleeName) !=
-                ndFunctions.end()) {
+            if (std::find(NdFunctions.begin(), NdFunctions.end(), CalleeName) !=
+                NdFunctions.end()) {
               IsNDRange = true;
               break;
             }

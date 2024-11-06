@@ -11,12 +11,18 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 #include "llvm/ADT/Twine.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/Passes/OptimizationLevel.h"
 
 namespace llvm {
 namespace sycl {
 namespace utils {
+
+
+// Used to schedule passes in the device compiler cc1 invocation for
+// Native CPU.
+void addSYCLNativeCPUEarlyPasses(ModulePassManager &MPM);
 
 void addSYCLNativeCPUBackendPasses(ModulePassManager &MPM,
                                    ModuleAnalysisManager &MAM,
