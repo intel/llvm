@@ -652,6 +652,7 @@ public:
                                 Expr **Exprs, unsigned Size);
   void addIntelReqdSubGroupSizeAttr(Decl *D, const AttributeCommonInfo &CI,
                                     Expr *E);
+  void handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL);
 };
 
 } // namespace clang
