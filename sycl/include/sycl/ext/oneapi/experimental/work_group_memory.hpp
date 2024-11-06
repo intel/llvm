@@ -55,8 +55,9 @@ public:
 // special type to then call the __init method on it. This is purely an
 // implementation detail and not part of the spec.
 #ifdef __SYCL_DEVICE_ONLY__
-  work_group_memory(const indeterminate_t &);
+  work_group_memory() = default;
 #endif
+  work_group_memory(const indeterminate_t &);
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
