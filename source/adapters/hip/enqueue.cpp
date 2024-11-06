@@ -1561,8 +1561,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMMemcpy2D(
     // which makes the HIP runtime not correctly derive the copy kind
     // (direction) for the copies since ROCm 5.6.0+. See:
     // https://github.com/ROCm/clr/issues/40
-    // TODO: Add maximum HIP_VERSION when bug has been fixed.
-#if HIP_VERSION >= 50600000
+    // Fixed by commit
+    // https://github.com/ROCm/clr/commit/d3bfb55d7a934355257a72fab538a0a634b43cad
+    // included in releases starting from ROCm 6.1.0.
+#if HIP_VERSION >= 50600000 && HIP_VERSION < 60100000
     hipPointerAttribute_t srcAttribs{};
     hipPointerAttribute_t dstAttribs{};
 
