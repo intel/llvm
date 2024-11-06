@@ -32,11 +32,9 @@ template <typename DataT> void test_unbounded_arr() {
   });
 }
 
-template <typename DataT, typename... DataTs> void test() {
-  test_bounded_arr<DataT>();
-  test_unbounded_arr<DataT>();
-  if constexpr (sizeof...(DataTs))
-    test<DataTs...>();
+template <typename... DataTs> void test() {
+  (test_bounded_arr<DataTs>(), ...);
+  (test_unbounded_arr<DataTs>(), ...);
 }
 
 int main() {
