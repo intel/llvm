@@ -22,6 +22,9 @@
 
 #include <clc/clcmacro.h>
 #include <clc/integer/clc_abs.h>
+#include <clc/relational/clc_isinf.h>
+#include <clc/relational/clc_isnan.h>
+#include <clc/shared/clc_max.h>
 #include <config.h>
 #include <core/clc_core.h>
 #include <math/math.h>
@@ -35,12 +38,12 @@ struct fp {
 
 _CLC_DEF _CLC_OVERLOAD float __clc_sw_fma(float a, float b, float c) {
   /* special cases */
-  if (__spirv_IsNan(a) || __spirv_IsNan(b) || __spirv_IsNan(c) ||
-      __spirv_IsInf(a) || __spirv_IsInf(b))
+  if (__clc_isnan(a) || __clc_isnan(b) || __clc_isnan(c) || __clc_isinf(a) ||
+      __clc_isinf(b))
     return __spirv_ocl_mad(a, b, c);
 
   /* If only c is inf, and both a,b are regular numbers, the result is c*/
-  if (__spirv_IsInf(c))
+  if (__clc_isinf(c))
     return c;
 
   a = __clc_flush_denormal_if_not_supported(a);
