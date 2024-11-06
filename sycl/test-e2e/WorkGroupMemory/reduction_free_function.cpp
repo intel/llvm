@@ -3,13 +3,8 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda
-// UNSUPPORTED-INTENDED: The name mangling for free function kernels currently
-// does not work with PTX.
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16004
 
-// Usage of work group memory parameters in free function kernels is not yet
-// implemented.
-// TODO: Remove the following directive once
-// https://github.com/intel/llvm/pull/15861 is merged.
 // XFAIL: *
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15927
 
