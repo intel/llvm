@@ -71,7 +71,7 @@ struct LocalArgsInfo {
     uint64_t SizeWithRedZone = 0;
 };
 
-constexpr std::size_t ASAN_MAX_NUM_REPORTS = 10;
+constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct LaunchInfo {
     uintptr_t GlobalShadowOffset = 0;
@@ -98,7 +98,7 @@ constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
 // Based on the observation, only the last 24 bits of the address of the private
 // variable have changed
-constexpr std::size_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
+constexpr uint64_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
 // These magic values are written to shadow for better error
 // reporting.
