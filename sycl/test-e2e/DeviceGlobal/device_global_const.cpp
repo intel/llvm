@@ -25,7 +25,7 @@ int main() {
       CGH.single_task([=]() { OutAcc[0] = DeviceGlobalVar.get(); });
     });
   }
-  
+
   assert(OutVal == 42 && "Read value does not match.");
   return 0;
 }
