@@ -2218,15 +2218,6 @@ static void printArgument(const TemplateArgument &A, const PrintingPolicy &PP,
   A.print(PP, OS, IncludeType);
 }
 
-static void printArgument(const TemplateArgumentLoc &A,
-                          const PrintingPolicy &PP, llvm::raw_ostream &OS,
-                          bool IncludeType) {
-  const TemplateArgument::ArgKind &Kind = A.getArgument().getKind();
-  if (Kind == TemplateArgument::ArgKind::Type)
-    return A.getTypeSourceInfo()->getType().print(OS, PP);
-  return A.getArgument().print(PP, OS, IncludeType);
-}
-
 static bool isSubstitutedTemplateArgument(ASTContext &Ctx, TemplateArgument Arg,
                                           TemplateArgument Pattern,
                                           ArrayRef<TemplateArgument> Args,
@@ -2397,30 +2388,35 @@ template <typename TA>
 static void
 printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
         const TemplateParameterList *TPL, bool IsPack, unsigned ParmIndex) {
-  llvm::SmallVector<TemplateArgument, 8> OrigArgs;
+  llvm::SmallVector<TemplateArgument, 8> ArgsToPrint;
   for (const TA &A : Args)
-    OrigArgs.push_back(getArgument(A));
+    ArgsToPrint.push_back(getArgument(A));
   if (TPL && !Policy.PrintCanonicalTypes && !IsPack &&
       Args.size() <= TPL->size()) {
     // Drop trailing template arguments that match default arguments.
     if (Policy.SuppressDefaultTemplateArgs) {
-      while (!OrigArgs.empty() && getArgument(OrigArgs.back()).getIsDefaulted())
-        OrigArgs.pop_back();
+      while (!ArgsToPrint.empty() &&
+             getArgument(ArgsToPrint.back()).getIsDefaulted())
+        ArgsToPrint.pop_back();
     } else if (Policy.EnforceDefaultTemplateArgs) {
       for (unsigned I = Args.size(); I < TPL->size(); ++I) {
         auto Param = TPL->getParam(I);
         if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(Param)) {
+          // If we met a non default-argument past provided list of arguments,
+          // it is either a pack which must be the last arguments, or provided
+          // argument list was problematic. Bail out either way. Do the same
+          // for each kind of template argument.
           if (!TTPD->hasDefaultArgument())
             break;
-          OrigArgs.push_back(getArgument(TTPD->getDefaultArgument()));
+          ArgsToPrint.push_back(getArgument(TTPD->getDefaultArgument()));
         } else if (auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(Param)) {
           if (!TTPD->hasDefaultArgument())
             break;
-          OrigArgs.push_back(getArgument(TTPD->getDefaultArgument()));
+          ArgsToPrint.push_back(getArgument(TTPD->getDefaultArgument()));
         } else if (auto *NTTPD = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
           if (!NTTPD->hasDefaultArgument())
             break;
-          OrigArgs.push_back(getArgument(NTTPD->getDefaultArgument()));
+          ArgsToPrint.push_back(getArgument(NTTPD->getDefaultArgument()));
         } else {
           llvm_unreachable("unexpected template parameter");
         }
@@ -2434,7 +2430,7 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
 
   bool NeedSpace = false;
   bool FirstArg = true;
-  for (const auto &Arg : OrigArgs) {
+  for (const auto &Arg : ArgsToPrint) {
     // Print the argument into a string.
     SmallString<128> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);
