@@ -5759,9 +5759,15 @@ LangAS CodeGenModule::GetGlobalVarAddressSpace(const VarDecl *D) {
     if (Scope && Scope->isWorkGroup())
       return LangAS::sycl_local;
 
-    const RecordDecl *RD = D->getType()->getAsRecordDecl();
-    if (getTriple().isNVPTX() && RD && RD->hasAttr<SYCLDeviceGlobalAttr>() && D->getType().isConstQualified())
-      return LangAS::cuda_constant;
+    if (getTriple().isNVPTX() || getTriple().isAMDGPU()) {
+      const RecordDecl *RD = D->getType()->getAsRecordDecl();
+      if (RD && RD->hasAttr<SYCLDeviceGlobalAttr>()) {
+        clang::CXXRecordDecl *record = D->getType()->getAsCXXRecordDecl();
+        const auto *Spec = cast<ClassTemplateSpecializationDecl>(record);
+        if (Spec->getTemplateArgs().get(0).getAsType().isConstQualified())
+          return LangAS::opencl_constant;
+      }
+    }
   }
 
   if (LangOpts.SYCLIsDevice &&
