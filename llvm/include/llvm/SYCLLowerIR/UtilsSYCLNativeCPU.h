@@ -19,7 +19,6 @@ namespace llvm {
 namespace sycl {
 namespace utils {
 
-
 // Used to schedule passes in the device compiler cc1 invocation for
 // Native CPU.
 void addSYCLNativeCPUEarlyPasses(ModulePassManager &MPM);

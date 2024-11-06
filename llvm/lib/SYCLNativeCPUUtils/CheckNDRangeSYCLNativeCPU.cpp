@@ -24,18 +24,12 @@
 using namespace llvm;
 
 static std::array<const char *, 13> NdFunctions{
-    "_Z23__spirv_WorkgroupSize_xv",
-    "_Z23__spirv_WorkgroupSize_yv",
-    "_Z23__spirv_WorkgroupSize_zv",
-    "_Z23__spirv_NumWorkgroups_xv",
-    "_Z23__spirv_NumWorkgroups_yv",
-    "_Z23__spirv_NumWorkgroups_zv",
-    "_Z21__spirv_WorkgroupId_xv",
-    "_Z21__spirv_WorkgroupId_yv",
-    "_Z21__spirv_WorkgroupId_zv",
-    "_Z27__spirv_LocalInvocationId_xv",
-    "_Z27__spirv_LocalInvocationId_yv",
-    "_Z27__spirv_LocalInvocationId_zv",
+    "_Z23__spirv_WorkgroupSize_xv",     "_Z23__spirv_WorkgroupSize_yv",
+    "_Z23__spirv_WorkgroupSize_zv",     "_Z23__spirv_NumWorkgroups_xv",
+    "_Z23__spirv_NumWorkgroups_yv",     "_Z23__spirv_NumWorkgroups_zv",
+    "_Z21__spirv_WorkgroupId_xv",       "_Z21__spirv_WorkgroupId_yv",
+    "_Z21__spirv_WorkgroupId_zv",       "_Z27__spirv_LocalInvocationId_xv",
+    "_Z27__spirv_LocalInvocationId_yv", "_Z27__spirv_LocalInvocationId_zv",
     "_Z22__spirv_ControlBarrierjjj"};
 
 static void addNDRangeMetadata(Function &F, bool Value) {

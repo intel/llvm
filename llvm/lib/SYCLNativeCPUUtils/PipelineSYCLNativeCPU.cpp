@@ -133,5 +133,5 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
 }
 
 void llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(ModulePassManager &MPM) {
-        MPM.addPass(CheckNDRangeSYCLNativeCPUPass());
+  MPM.addPass(CheckNDRangeSYCLNativeCPUPass());
 }
