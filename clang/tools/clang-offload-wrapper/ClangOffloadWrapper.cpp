@@ -728,9 +728,9 @@ private:
     }
 
     // Create the nativecpu_program struct.
-    // We add it to a ConstantArray of length 1 because the SYCL runtime expects a
-    // non-zero sized binary image, and this allows it to point the end of the binary
-    // image to the end of the array.
+    // We add it to a ConstantArray of length 1 because the SYCL runtime expects
+    // a non-zero sized binary image, and this allows it to point the end of the
+    // binary image to the end of the array.
     auto *Program = ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
     ArrayType *ProgramATy = ArrayType::get(NCPUProgramT, 1);
     Constant *CPA = ConstantArray::get(ProgramATy, {Program});
