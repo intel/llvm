@@ -91,9 +91,9 @@ if(NATIVECPU_WITH_ONETBB)
   target_link_libraries(${TARGET_NAME} PRIVATE
         TBB::tbb
   )
-  if (MSVC)
-  else()
+  if (NOT MSVC)
     # oneTBB currently casts away some const qualifiers
+    # todo: check if compiler actually supports these options
     target_compile_options(tbb PRIVATE -Wno-cast-qual)
     target_compile_options(tbbmalloc PRIVATE -Wno-cast-qual)
   endif()
