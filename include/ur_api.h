@@ -8329,7 +8329,7 @@ typedef struct ur_exp_command_buffer_update_value_arg_desc_t {
                                                          ///< ::UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC
     const void *pNext;                                   ///< [in][optional] pointer to extension-specific structure
     uint32_t argIndex;                                   ///< [in] Argument index.
-    uint32_t argSize;                                    ///< [in] Argument size.
+    size_t argSize;                                      ///< [in] Argument size.
     const ur_kernel_arg_value_properties_t *pProperties; ///< [in][optional] Pointer to value properties.
     const void *pNewValueArg;                            ///< [in][optional] Argument value representing matching kernel arg type to
                                                          ///< set at argument index.
