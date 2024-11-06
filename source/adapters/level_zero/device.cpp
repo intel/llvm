@@ -186,7 +186,7 @@ uint64_t calculateGlobalMemSize(ur_device_handle_t Device) {
           }
         }
       };
-  return Device->ZeGlobalMemSize.operator->()->value;
+  return Device->ZeGlobalMemSize.get().value;
 }
 
 ur_result_t urDeviceGetInfo(
@@ -1053,9 +1053,7 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
   case UR_DEVICE_INFO_BINDLESS_IMAGES_SUPPORT_EXP: {
-    bool DeviceIsDG2OrNewer =
-        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
-    return ReturnValue(DeviceIsDG2OrNewer &&
+    return ReturnValue(Device->isIntelDG2OrNewer() &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0 &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0 &&
                        Device->ZeDeviceImageProperties->maxImageDims3D > 0);
@@ -1065,15 +1063,11 @@ ur_result_t urDeviceGetInfo(
     return ReturnValue(false);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_1D_USM_SUPPORT_EXP: {
-    bool DeviceIsDG2OrNewer =
-        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
-    return ReturnValue(DeviceIsDG2OrNewer &&
+    return ReturnValue(Device->isIntelDG2OrNewer() &&
                        Device->ZeDeviceImageProperties->maxImageDims1D > 0);
   }
   case UR_DEVICE_INFO_BINDLESS_IMAGES_2D_USM_SUPPORT_EXP: {
-    bool DeviceIsDG2OrNewer =
-        Device->ZeDeviceIpVersionExt->ipVersion >= 0x030dc000;
-    return ReturnValue(DeviceIsDG2OrNewer &&
+    return ReturnValue(Device->isIntelDG2OrNewer() &&
                        Device->ZeDeviceImageProperties->maxImageDims2D > 0);
   }
   case UR_DEVICE_INFO_IMAGE_PITCH_ALIGN_EXP:
@@ -1154,6 +1148,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_KERNEL_SET_SPECIALIZATION_CONSTANTS:
     return ReturnValue(false);
   case UR_DEVICE_INFO_GLOBAL_VARIABLE_SUPPORT:
+    return ReturnValue(true);
+  case UR_DEVICE_INFO_USM_POOL_SUPPORT:
     return ReturnValue(true);
   default:
     logger::error("Unsupported ParamName in urGetDeviceInfo");
@@ -1409,13 +1405,35 @@ ur_result_t urDeviceRelease(ur_device_handle_t Device) {
 }
 } // namespace ur::level_zero
 
-// Whether immediate commandlists will be used for kernel launches and copies.
-// The default is standard commandlists. Setting 1 or 2 specifies use of
-// immediate commandlists. Note: when immediate commandlists are used then
-// device-only events must be either AllHostVisible or OnDemandHostVisibleProxy.
-// (See env var UR_L0_DEVICE_SCOPE_EVENTS).
-
-// Get value of immediate commandlists env var setting or -1 if unset
+/**
+ * @brief Determines the mode of immediate command lists to be used.
+ *
+ * This function checks environment variables and device properties to decide
+ * the mode of immediate command lists. The mode can be influenced by the
+ * following environment variables:
+ * - `UR_L0_USE_IMMEDIATE_COMMANDLISTS`
+ * - `SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS`
+ *
+ * If neither environment variable is set, the function defaults to using the
+ * device's properties to determine the mode.
+ *
+ * @return The mode of immediate command lists, which can be one of the
+ * following:
+ * - `NotUsed`: Immediate command lists are not used.
+ * - `PerQueue`: Immediate command lists are used per queue.
+ * - `PerThreadPerQueue`: Immediate command lists are used per thread per queue.
+ *
+ * The decision process is as follows:
+ * 1. If the environment variables are not set, the function checks if the
+ * device is Intel DG2 or newer and if the driver version is supported. If both
+ *    conditions are met, or if the device is PVC, it returns `PerQueue`.
+ *    Otherwise, it returns `NotUsed`.
+ * 2. If the environment variable is set, it returns the corresponding mode:
+ *    - `0`: `NotUsed`
+ *    - `1`: `PerQueue`
+ *    - `2`: `PerThreadPerQueue`
+ *    - Any other value: `NotUsed`
+ */
 ur_device_handle_t_::ImmCmdlistMode
 ur_device_handle_t_::useImmediateCommandLists() {
   // If immediate commandlist setting is not explicitly set, then use the device
@@ -1433,9 +1451,10 @@ ur_device_handle_t_::useImmediateCommandLists() {
   }();
 
   if (ImmediateCommandlistsSetting == -1) {
+    bool isDG2OrNewer = this->isIntelDG2OrNewer();
     bool isDG2SupportedDriver =
         this->Platform->isDriverVersionNewerOrSimilar(1, 5, 30820);
-    if ((isDG2SupportedDriver && isDG2()) || isPVC()) {
+    if ((isDG2SupportedDriver && isDG2OrNewer) || isPVC()) {
       return PerQueue;
     } else {
       return NotUsed;

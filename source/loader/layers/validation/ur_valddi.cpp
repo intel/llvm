@@ -234,6 +234,10 @@ __urdlllocal ur_result_t UR_APICALL urPlatformGet(
         if (NumEntries == 0 && phPlatforms != NULL) {
             return UR_RESULT_ERROR_INVALID_SIZE;
         }
+
+        if (pNumPlatforms == NULL && phPlatforms == NULL) {
+            return UR_RESULT_ERROR_INVALID_VALUE;
+        }
     }
 
     ur_result_t result =
