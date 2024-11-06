@@ -179,11 +179,13 @@ template <class T> struct ZeCache : private T {
 
   ZeCache() : T{} {}
 
-  // Access to the fields of the original T data structure.
-  T *operator->() {
+  T &get() {
     std::call_once(Computed, Compute, static_cast<T &>(*this));
-    return this;
+    return *this;
   }
+
+  // Access to the fields of the original T data structure.
+  T *operator->() { return &get(); }
 };
 
 // Helper for one-liner validation

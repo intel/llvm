@@ -8,9 +8,9 @@
 struct urEventWaitTest : uur::urQueueTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTest::SetUp());
-        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
-                                         nullptr, &src_buffer));
         ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_READ_ONLY, size,
+                                         nullptr, &src_buffer));
+        ASSERT_SUCCESS(urMemBufferCreate(context, UR_MEM_FLAG_WRITE_ONLY, size,
                                          nullptr, &dst_buffer));
         input.assign(count, 42);
         ASSERT_SUCCESS(urEnqueueMemBufferWrite(queue, src_buffer, false, 0,
