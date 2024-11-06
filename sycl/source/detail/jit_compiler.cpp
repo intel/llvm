@@ -15,6 +15,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -32,7 +33,8 @@ jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
     // TODO: For Windows, we need to look for a libary by a different name.
 #ifdef _WIN32
-    static const std::string JITLibraryName = "sycl-jit.dll";
+    static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
+    static const std::string JITLibraryName = dir +  "\\" + "sycl-jit.dll";
 #else
     static const std::string JITLibraryName = "libsycl-jit.so";
 #endif
@@ -43,6 +45,7 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
+    /* - CP
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
@@ -51,6 +54,7 @@ jit_compiler::jit_compiler() {
           "Cannot resolve JIT library function entry point");
       return false;
     }
+    */
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
