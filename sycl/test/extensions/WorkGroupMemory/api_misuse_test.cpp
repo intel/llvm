@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=30 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
+// RUN: %clangxx -fsycl -fsyntax-only -ferror-limit=0 -Xclang -verify -Xclang -verify-ignore-unexpected=note,warning %s
 
 #include <sycl/sycl.hpp>
 
