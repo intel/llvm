@@ -1,5 +1,7 @@
-# commit 34b66fda1e32c5c8d1bd048e5b56202180d7fa76
-# Author: Rafal Bielski <rafal.bielski@codeplay.com>
-# Date:   Fri Nov 1 16:23:48 2024 +0000
+# commit 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d
+# Merge: a5a649f3 34b66fda
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 6 16:45:49 2024 +0000
+#     Merge pull request #2276 from rafbiels/rafbiels/fix-hip-evbase
 #     Set the right HIP device before creating base event counter
-set(UNIFIED_RUNTIME_TAG rafbiels/fix-hip-evbase)
+set(UNIFIED_RUNTIME_TAG 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d)
