@@ -1,5 +1,5 @@
 // REQUIRES: linux
-// RUN: %{build} %device_asan_flags -O2 -g -fsanitize-ignorelist=%p/ignorelist.txt -o %t
+// RUN: %{build} %device_asan_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t
 // RUN: %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -17,5 +17,8 @@ int main() {
   Q.wait();
 
   sycl::free(array, Q);
+  std::cout << "PASS" << std::endl;
   return 0;
 }
+
+// CHECK: PASS
