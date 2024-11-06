@@ -19,7 +19,7 @@
  *  Description:
  *    Ensure kernels are inlined
  **************************************************************************/
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple -fgpu-inline-threshold=0 %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} %s -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fgpu-inline-threshold=0 %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} %s -o - | FileCheck %s
 // We set -fgpu-inline-threshold=0 to disable heuristic inlining for the
 // purposes of the test
 #include <sycl/detail/core.hpp>
