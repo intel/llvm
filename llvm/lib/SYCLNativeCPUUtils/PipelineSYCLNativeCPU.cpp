@@ -131,3 +131,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     MPM.addPass(DumpIR());
   }
 }
+
+void llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(ModulePassManager &MPM) {
+        MPM.addPass(CheckNDRangeSYCLNativeCPUPass());
+}

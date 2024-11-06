@@ -47,7 +47,6 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Passes/StandardInstrumentations.h"
 #include "llvm/ProfileData/InstrProfCorrelator.h"
-#include "llvm/SYCLLowerIR/CheckNDRangeSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/CleanupSYCLMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDVerifier.h"
@@ -1166,11 +1165,8 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
       if (LangOpts.EnableDAEInSpirKernels)
         MPM.addPass(DeadArgumentEliminationSYCLPass());
 
-      // We have to schedule the pass here because the native cpu pipeline
-      // is ran as part of a separate clang invocation, but we want the information
-      // in sycl-post-link.
       if (LangOpts.SYCLIsNativeCPU)
-        MPM.addPass(CheckNDRangeSYCLNativeCPUPass());
+        llvm::sycl::utils::addSYCLNativeCPUEarlyPasses(MPM);
       // Rerun aspect propagation without warning diagnostics.
       MPM.addPass(
           SYCLPropagateAspectsUsagePass(/*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
