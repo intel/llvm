@@ -258,6 +258,10 @@ public:
   // Transform FP atomic opcode to corresponding OpenCL function name
   virtual std::string mapFPAtomicName(Op OC) = 0;
 
+  /// Transform integer dot product builtins to corresponding OpenCL builtins
+  /// examples: __spirv_SDotKHR => dot, __spirv_SDotAccSatKHR => dot_acc_sat
+  void visitCallSPIRVDot(CallInst *CI, Op OC, StringRef DemangledName);
+
   void translateOpaqueTypes();
 
 private:
