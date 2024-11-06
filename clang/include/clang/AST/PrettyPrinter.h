@@ -66,9 +66,10 @@ struct PrintingPolicy {
         SuppressLifetimeQualifiers(false), SuppressTypedefs(false),
         SuppressFinalSpecifier(false),
         SuppressTemplateArgsInCXXConstructors(false),
-        SuppressDefaultTemplateArgs(true), Bool(LO.Bool),
-        Nullptr(LO.CPlusPlus11 || LO.C23), NullptrTypeInNamespace(LO.CPlusPlus),
-        Restrict(LO.C99), Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
+        SuppressDefaultTemplateArgs(true), EnforceDefaultTemplateArgs(false),
+        Bool(LO.Bool), Nullptr(LO.CPlusPlus11 || LO.C23),
+        NullptrTypeInNamespace(LO.CPlusPlus), Restrict(LO.C99),
+        Alignof(LO.CPlusPlus11), UnderscoreAlignof(LO.C11),
         UseVoidForZeroParams(!LO.CPlusPlus),
         SplitTemplateClosers(!LO.CPlusPlus11), TerseOutput(false),
         PolishForDeclaration(false), Half(LO.Half),
@@ -236,6 +237,12 @@ struct PrintingPolicy {
   /// argument for the parameter.
   LLVM_PREFERRED_TYPE(bool)
   unsigned SuppressDefaultTemplateArgs : 1;
+
+
+  /// When true, print template arguments that match the default argument for
+  /// the parameter, even if they're not specified in the source.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned EnforceDefaultTemplateArgs : 1;
 
   /// Whether we can use 'bool' rather than '_Bool' (even if the language
   /// doesn't actually have 'bool', because, e.g., it is defined as a macro).

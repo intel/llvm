@@ -2397,15 +2397,35 @@ template <typename TA>
 static void
 printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
         const TemplateParameterList *TPL, bool IsPack, unsigned ParmIndex) {
-  // Drop trailing template arguments that match default arguments.
-  if (TPL && Policy.SuppressDefaultTemplateArgs &&
-      !Policy.PrintCanonicalTypes && !Args.empty() && !IsPack &&
+  llvm::SmallVector<TemplateArgument, 8> OrigArgs;
+  for (const TA &A : Args)
+    OrigArgs.push_back(getArgument(A));
+  if (TPL && !Policy.PrintCanonicalTypes && !IsPack &&
       Args.size() <= TPL->size()) {
-    llvm::SmallVector<TemplateArgument, 8> OrigArgs;
-    for (const TA &A : Args)
-      OrigArgs.push_back(getArgument(A));
-    while (!Args.empty() && getArgument(Args.back()).getIsDefaulted())
-      Args = Args.drop_back();
+    // Drop trailing template arguments that match default arguments.
+    if (Policy.SuppressDefaultTemplateArgs) {
+      while (!OrigArgs.empty() && getArgument(OrigArgs.back()).getIsDefaulted())
+        OrigArgs.pop_back();
+    } else if (Policy.EnforceDefaultTemplateArgs) {
+      for (unsigned I = Args.size(); I < TPL->size(); ++I) {
+        auto Param = TPL->getParam(I);
+        if (auto *TTPD = dyn_cast<TemplateTypeParmDecl>(Param)) {
+          if (!TTPD->hasDefaultArgument())
+            break;
+          OrigArgs.push_back(getArgument(TTPD->getDefaultArgument()));
+        } else if (auto *TTPD = dyn_cast<TemplateTemplateParmDecl>(Param)) {
+          if (!TTPD->hasDefaultArgument())
+            break;
+          OrigArgs.push_back(getArgument(TTPD->getDefaultArgument()));
+        } else if (auto *NTTPD = dyn_cast<NonTypeTemplateParmDecl>(Param)) {
+          if (!NTTPD->hasDefaultArgument())
+            break;
+          OrigArgs.push_back(getArgument(NTTPD->getDefaultArgument()));
+        } else {
+          llvm_unreachable("unexpected template parameter");
+        }
+      }
+    }
   }
 
   const char *Comma = Policy.MSVCFormatting ? "," : ", ";
@@ -2414,7 +2434,7 @@ printTo(raw_ostream &OS, ArrayRef<TA> Args, const PrintingPolicy &Policy,
 
   bool NeedSpace = false;
   bool FirstArg = true;
-  for (const auto &Arg : Args) {
+  for (const auto &Arg : OrigArgs) {
     // Print the argument into a string.
     SmallString<128> Buf;
     llvm::raw_svector_ostream ArgOS(Buf);

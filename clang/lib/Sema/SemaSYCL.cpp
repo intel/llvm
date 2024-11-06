@@ -6464,6 +6464,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
+    Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
@@ -6476,11 +6477,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         FirstParam = false;
       else
         ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString();
+      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
+    Policy.EnforceDefaultTemplateArgs = true;
     if (FTD) {
       FTD->print(O, Policy);
     } else {
@@ -6509,6 +6511,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << ";\n";
     O << "}\n";
+    Policy.SuppressDefaultTemplateArgs = true;
+    Policy.EnforceDefaultTemplateArgs = false;
 
     // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
     O << "namespace sycl {\n";
