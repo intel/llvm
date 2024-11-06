@@ -251,7 +251,12 @@ struct TBB_threadpool {
 template <> struct Scheduler<TBB_threadpool> : SchedulerBase<TBB_threadpool> {
   using SchedulerBase<TBB_threadpool>::SchedulerBase;
   template <class T> inline void schedule(T &&task) {
-    TPref.tasks.run(std::function<void()>([=]() mutable { task(0); }));
+    TPref.tasks.run(std::function<void()>([=]() mutable {
+      auto thread_id = tbb::this_task_arena::current_thread_index();
+      assert(thread_id >= 0 &&
+             thread_id < oneapi::tbb::info::default_concurrency());
+      task(thread_id);
+    }));
   }
   inline void wait() { TPref.tasks.wait(); }
 };
