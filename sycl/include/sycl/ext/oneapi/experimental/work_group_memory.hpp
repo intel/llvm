@@ -36,6 +36,9 @@ private:
 } // namespace detail
 namespace ext::oneapi::experimental {
 
+struct indeterminate_t {};
+inline constexpr indeterminate_t indeterminate;
+
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
@@ -47,7 +50,13 @@ private:
       value_type, access::address_space::local_space>::type *;
 
 public:
-  work_group_memory() = default;
+// Frontend requries special types to have a default constructor in device
+// compilation mode in order to have a uniform way of initializing an object of
+// special type to then call the __init method on it. This is purely an
+// implementation detail and not part of the spec.
+#ifdef __SYCL_DEVICE_ONLY__
+  work_group_memory(const indeterminate_t &);
+#endif
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
