@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
 
 _CLC_DEFINE_BINARY_BUILTIN(float, __spirv_ocl_copysign, __builtin_copysignf,

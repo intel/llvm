@@ -20,8 +20,8 @@
  * THE SOFTWARE.
  */
 
+#include <clc/utils.h>
 #include <spirv/spirv.h>
-#include <utils.h>
 
 #define __CLC_BODY <fract.inc>
 #include <clc/math/gentype.inc>

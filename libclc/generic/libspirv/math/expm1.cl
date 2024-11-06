@@ -9,7 +9,7 @@
 #include <spirv/spirv.h>
 
 #include "tables.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <math/math.h>
 
 /* Refer to the exp routine for the underlying algorithm */

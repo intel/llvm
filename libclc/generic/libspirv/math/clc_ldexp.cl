@@ -24,7 +24,7 @@
 #include <spirv/spirv.h>
 
 #include "tables.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <config.h>
 #include <math/math.h>
 

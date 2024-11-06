@@ -6,12 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <spirv/spirv.h>
-
 #include "../../include/libdevice.h"
-#include "utils.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
+#include <clc/utils.h>
 #include <math/math.h>
+#include <spirv/spirv.h>
 
 _CLC_DEFINE_UNARY_BUILTIN(int, __spirv_ocl_ilogb, __nv_ilogbf, float)
 

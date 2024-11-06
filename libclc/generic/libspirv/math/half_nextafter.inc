@@ -9,7 +9,7 @@
 #ifndef HALF_NEXTAFTER_INC
 #define HALF_NEXTAFTER_INC
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <math/math.h>
 #include <spirv/spirv.h>
 

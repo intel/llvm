@@ -20,10 +20,10 @@
  * THE SOFTWARE.
  */
 
-#include "math.h"
-#include <clcmacro.h>
-
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
+
+#include "math.h"
 
 _CLC_OVERLOAD _CLC_DEF float atan(float x)
 {

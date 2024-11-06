@@ -1,7 +1,6 @@
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
-
-#include <clcmacro.h>
 
 /*
  *log(x) = log2(x) * (1/log2(e))

@@ -8,7 +8,7 @@
 #include <spirv/spirv.h>
 
 #include "../../include/libdevice.h"
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 
 extern int __clc_nvvm_reflect_arch();
 

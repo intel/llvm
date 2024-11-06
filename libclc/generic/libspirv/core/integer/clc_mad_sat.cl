@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <clcmacro.h>
+#include <clc/clcmacro.h>
 #include <core/clc_core.h>
 
 _CLC_OVERLOAD _CLC_DEF long __clc_mad_sat(long x, long y, long z) {

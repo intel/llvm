@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <spirv/spirv.h>
-#include <utils.h>
+#include <clc/utils.h>
 
 #include <math/math.h>
 
