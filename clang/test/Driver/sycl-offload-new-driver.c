@@ -163,12 +163,12 @@
 // WRAPPER_OPTIONS_BACKEND_AOT-SAME: "--cpu-tool-arg=-backend-cpu-opt"
 
 /// Verify arch settings for nvptx and amdgcn targets
-// RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-gpu -fno-sycl-libspirv \
+// RUN: %clangxx -fsycl -### -fsycl-targets=amdgcn-amd-amdhsa -fno-sycl-libspirv \
 // RUN:          -nocudalib --offload-new-driver \
-// RUN:          -Xsycl-target-backend=amdgcn-amd-gpu --offload-arch=gfx600 \
+// RUN:          -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx600 \
 // RUN:          %s 2>&1 \
 // RUN:   | FileCheck -check-prefix AMD_ARCH %s
-// AMD_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=amdgcn-amd-gpu,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
+// AMD_ARCH: clang-offload-packager{{.*}} "--image=file={{.*}},triple=amdgcn-amd-amdhsa,arch=gfx600,kind=sycl,compile-opts=--offload-arch=gfx600"
 
 // RUN: %clangxx -fsycl -### -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN:          -fno-sycl-libspirv -nocudalib --offload-new-driver %s 2>&1 \
