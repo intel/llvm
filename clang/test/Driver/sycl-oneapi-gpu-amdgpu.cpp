@@ -150,7 +150,7 @@
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE_ENV
 // BAD_TARGET_TRIPLE_ENV: error: SYCL target is invalid: 'amdgcn-amd-amdhsa-sycl'
 
-// Check for invalid SYCL triple for NVidia GPUs.
+// Check for invalid SYCL triple for AMD GPUs.
 // RUN: not %clangxx -c -fsycl -fsycl-targets=amdgcn -### %s 2>&1 | \
 // RUN:   FileCheck %s --check-prefix=BAD_TARGET_TRIPLE
 // RUN: not %clang_cl -c -fsycl -fsycl-targets=amdgcn-amd -### %s 2>&1 | \
