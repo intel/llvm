@@ -1372,7 +1372,7 @@ ur_result_t validateCommandDesc(
   logger::debug("Mutable features supported by device {}", SupportedFeatures);
 
   // Kernel handle updates are not yet supported.
-  if (CommandDesc->hNewKernel != Command->Kernel) {
+  if (CommandDesc->hNewKernel && CommandDesc->hNewKernel != Command->Kernel) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
