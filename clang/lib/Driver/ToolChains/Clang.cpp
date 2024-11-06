@@ -10353,26 +10353,11 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
   if (OffloadingKind == Action::OFK_None &&
       C.getArgs().hasArg(options::OPT_fsycl_link_EQ)) {
 
-    // When compiling and linking separately, we need to propagate the
-    // compression related CLI options to offload-wrapper. Don't propagate
-    // these options when wrapping objects for FPGA.
-    if (!C.getArgs().hasArg(options::OPT_fintelfpga)) {
-
-      if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
-        CmdArgs.push_back(
-            C.getArgs().MakeArgString(Twine("-offload-compress")));
-        // -offload-compression-level=<>
-        if (Arg *A = C.getInputArgs().getLastArg(
-                options::OPT_offload_compression_level_EQ))
-          CmdArgs.push_back(C.getArgs().MakeArgString(
-              Twine("-offload-compression-level=") + A->getValue()));
-      }
-    }
-
     // For FPGA, we wrap the host objects before archiving them when using
     // -fsycl-link.  This allows for better extraction control from the
     // archive when we need the host objects for subsequent compilations.
-    else {
+    if (C.getArgs().hasArg(options::OPT_fintelfpga)) {
+
       // Add offload targets and inputs.
       CmdArgs.push_back(C.getArgs().MakeArgString(
           Twine("-kind=") + Action::GetOffloadKindName(OffloadingKind)));
@@ -10393,6 +10378,19 @@ void OffloadWrapper::ConstructJob(Compilation &C, const JobAction &JA,
           TCArgs.MakeArgString(getToolChain().GetProgramPath(getShortName())),
           CmdArgs, Inputs));
       return;
+    } else {
+      // When compiling and linking separately, we need to propagate the
+      // compression related CLI options to offload-wrapper. Don't propagate
+      // these options when wrapping objects for FPGA.
+      if (C.getInputArgs().getLastArg(options::OPT_offload_compress)) {
+        CmdArgs.push_back(
+            C.getArgs().MakeArgString(Twine("-offload-compress")));
+        // -offload-compression-level=<>
+        if (Arg *A = C.getInputArgs().getLastArg(
+                options::OPT_offload_compression_level_EQ))
+          CmdArgs.push_back(C.getArgs().MakeArgString(
+              Twine("-offload-compression-level=") + A->getValue()));
+      }
     }
   }
 
