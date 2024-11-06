@@ -5589,6 +5589,9 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.AddLastArg(CmdArgs, options::OPT_fsycl_decompose_functor,
                       options::OPT_fno_sycl_decompose_functor);
 
+      Args.AddLastArg(CmdArgs, options::OPT_fsycl_rtc_mode,
+                      options::OPT_fno_sycl_rtc_mode);
+
       // Forward -fsycl-instrument-device-code option to cc1. This option will
       // only be used for SPIR/SPIR-V based targets.
       if (Triple.isSPIROrSPIRV())
