@@ -21,6 +21,7 @@
 {{OPT}}USMSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}USMMultiSaxpyKernelTest.UpdateNullptrKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update3D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update2D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update1D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
