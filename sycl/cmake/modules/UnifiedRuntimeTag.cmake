@@ -1,7 +1,7 @@
-# commit 3d58884b4939d9bd095c917f8dd823ac8486684c
-# Merge: 6ade245e b0bd146a
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 31 14:05:55 2024 +0000
-#     Merge pull request #2228 from nrspruit/copy_engine_refactor
-#     [L0] Refactor Copy Engine Usage checks for Performance
-set(UNIFIED_RUNTIME_TAG b7d78ba6de853103e4bb6c8dddfe43ad3e65b3a9)
+# commit 5955bad3afc49612676d7c00566a3ac6f074c63c
+# Merge: f01741af b7d78ba6
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 6 10:46:25 2024 +0000
+#     Merge pull request #2264 from Bensuo/ben/cmdbuf-local-arg-fix
+#     [CMDBUF] Fix incorrect handling of shared local mem args in CUDA/HIP
+set(UNIFIED_RUNTIME_TAG 5955bad3afc49612676d7c00566a3ac6f074c63c)
