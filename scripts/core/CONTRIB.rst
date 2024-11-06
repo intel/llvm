@@ -129,7 +129,7 @@ Adapter Change Process
 .. _UNIFIED_RUNTIME_REPO:
    https://github.com/intel/llvm/blob/sycl/sycl/cmake/modules/FetchUnifiedRuntime.cmake#L119
 .. _UNIFIED_RUNTIME_TAG:
-   https://github.com/intel/llvm/blob/sycl/sycl/cmake/modules/FetchUnifiedRuntime.cmake#L126
+   https://github.com/intel/llvm/blob/sycl/sycl/cmake/modules/UnifiedRuntimeTag.cmake
 
 Build Environment
 =================

@@ -473,3 +473,30 @@ TEST_P(urCommandBufferValidUpdateParametersTest, UpdateOnlyLocalWorkSize) {
 
     ASSERT_NO_FATAL_FAILURE(SaxpyKernel->validate());
 }
+
+// Tests that passing nullptr to hNewKernel works.
+TEST_P(urCommandBufferValidUpdateParametersTest, SuccessNullptrHandle) {
+
+    std::vector<ur_kernel_handle_t> KernelAlternatives = {
+        FillUSM2DKernel->Kernel};
+
+    uur::raii::CommandBufferCommand CommandHandle;
+    ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
+        updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
+        &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
+        &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
+        KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
+        CommandHandle.ptr()));
+    ASSERT_NE(CommandHandle, nullptr);
+
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+
+    SaxpyKernel->UpdateDesc.hNewKernel = nullptr;
+    ASSERT_SUCCESS(urCommandBufferUpdateKernelLaunchExp(
+        CommandHandle, &SaxpyKernel->UpdateDesc));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    ASSERT_NO_FATAL_FAILURE(SaxpyKernel->validate());
+}

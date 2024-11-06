@@ -49,8 +49,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int major_version,
         return;
     }
     if (std::string_view(stream_name) != UR_STREAM_NAME) {
-        std::cout << "Invalid stream name: " << stream_name << ". Expected "
-                  << UR_STREAM_NAME << ". Aborting." << std::endl;
+        // we expect ur.call, but this can also be xpti.framework.
         return;
     }
 
