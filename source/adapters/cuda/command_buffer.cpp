@@ -1304,7 +1304,12 @@ updateKernelArguments(kernel_command_handle *Command,
 
     ur_result_t Result = UR_RESULT_SUCCESS;
     try {
-      Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      // Local memory args are passed as value args with nullptr value
+      if (ArgValue) {
+        Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      } else {
+        Kernel->setKernelLocalArg(ArgIndex, ArgSize);
+      }
     } catch (ur_result_t Err) {
       Result = Err;
       return Result;
