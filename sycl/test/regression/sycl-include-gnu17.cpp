@@ -1,7 +1,7 @@
 // RUN: %clangxx -std=gnu++17 -fsycl -fsycl-targets=%sycl_triple %s -o %t.out
 // RUN: %t.out
 
-// UNSUPPORTED: system-windows
+// UNSUPPORTED: windows
 
 #include <iostream>
 #include <sycl/sycl.hpp>
