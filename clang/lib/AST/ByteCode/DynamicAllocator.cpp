@@ -40,30 +40,27 @@ void DynamicAllocator::cleanup() {
 }
 
 Block *DynamicAllocator::allocate(const Expr *Source, PrimType T,
-                                  size_t NumElements, unsigned EvalID,
-                                  Form AllocForm) {
+                                  size_t NumElements, unsigned EvalID) {
   // Create a new descriptor for an array of the specified size and
   // element type.
   const Descriptor *D = allocateDescriptor(
       Source, T, Descriptor::InlineDescMD, NumElements, /*IsConst=*/false,
       /*IsTemporary=*/false, /*IsMutable=*/false);
 
-  return allocate(D, EvalID, AllocForm);
+  return allocate(D, EvalID);
 }
 
 Block *DynamicAllocator::allocate(const Descriptor *ElementDesc,
-                                  size_t NumElements, unsigned EvalID,
-                                  Form AllocForm) {
+                                  size_t NumElements, unsigned EvalID) {
   // Create a new descriptor for an array of the specified size and
   // element type.
   const Descriptor *D = allocateDescriptor(
       ElementDesc->asExpr(), ElementDesc, Descriptor::InlineDescMD, NumElements,
       /*IsConst=*/false, /*IsTemporary=*/false, /*IsMutable=*/false);
-  return allocate(D, EvalID, AllocForm);
+  return allocate(D, EvalID);
 }
 
-Block *DynamicAllocator::allocate(const Descriptor *D, unsigned EvalID,
-                                  Form AllocForm) {
+Block *DynamicAllocator::allocate(const Descriptor *D, unsigned EvalID) {
   assert(D);
   assert(D->asExpr());
 
@@ -87,7 +84,7 @@ Block *DynamicAllocator::allocate(const Descriptor *D, unsigned EvalID,
     It->second.Allocations.emplace_back(std::move(Memory));
   else
     AllocationSites.insert(
-        {D->asExpr(), AllocationSite(std::move(Memory), AllocForm)});
+        {D->asExpr(), AllocationSite(std::move(Memory), D->isArray())});
   return B;
 }
 

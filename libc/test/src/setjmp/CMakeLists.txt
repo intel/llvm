@@ -12,6 +12,7 @@ add_libc_unittest(
   SRCS
     setjmp_test.cpp
   DEPENDS
+    libc.include.setjmp
     libc.src.setjmp.longjmp
     libc.src.setjmp.setjmp
 )

@@ -84,7 +84,7 @@ public:
     assert(Index / PageSize < PageToDataPtrs.size());
     T *&PagePtr = PageToDataPtrs[Index / PageSize];
     // If the page was not yet allocated, allocate it.
-    if (LLVM_UNLIKELY(!PagePtr)) {
+    if (!PagePtr) {
       PagePtr = Allocator.getPointer()->template Allocate<T>(PageSize);
       // We need to invoke the default constructor on all the elements of the
       // page.

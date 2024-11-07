@@ -343,8 +343,9 @@ SmallPtrSet<Block *, 16> MemorySlotPromotionAnalyzer::computeSlotLiveIn(
   // blocks.
   SmallPtrSet<Block *, 16> visited;
   for (Operation *user : slot.ptr.getUsers()) {
-    if (!visited.insert(user->getBlock()).second)
+    if (visited.contains(user->getBlock()))
       continue;
+    visited.insert(user->getBlock());
 
     for (Operation &op : user->getBlock()->getOperations()) {
       if (auto memOp = dyn_cast<PromotableMemOpInterface>(op)) {

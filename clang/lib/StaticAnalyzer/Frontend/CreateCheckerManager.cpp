@@ -28,6 +28,7 @@ CheckerManager::CheckerManager(
                            AOptions, checkerRegistrationFns);
   Registry.initializeRegistry(*this);
   Registry.initializeManager(*this);
+  finishedCheckerRegistration();
 }
 
 CheckerManager::CheckerManager(AnalyzerOptions &AOptions,

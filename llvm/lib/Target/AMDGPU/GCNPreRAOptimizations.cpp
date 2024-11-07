@@ -159,7 +159,7 @@ bool GCNPreRAOptimizations::processReg(Register Reg) {
         if (Def0)
           return false;
         Def0 = &I;
-        Init |= Lo_32(I.getOperand(1).getImm());
+        Init |= I.getOperand(1).getImm() & 0xffffffff;
         break;
       case AMDGPU::sub1:
         if (Def1)

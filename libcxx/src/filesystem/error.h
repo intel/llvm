@@ -225,7 +225,7 @@ private:
   ErrorHandler& operator=(ErrorHandler const&) = delete;
 };
 
-} // namespace detail
+} // end namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 

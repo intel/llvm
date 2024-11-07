@@ -30,7 +30,7 @@ RuntimeVerifiableOpInterface::generateErrorMessage(Operation *op,
   stream << "\n^ " << msg;
   stream << "\nLocation: ";
   op->getLoc().print(stream);
-  return buffer;
+  return stream.str();
 }
 } // namespace mlir
 

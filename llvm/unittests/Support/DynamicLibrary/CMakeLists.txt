@@ -15,22 +15,11 @@ set_output_directory(DynamicLibraryLib
   LIBRARY_DIR ${LLVM_LIBRARY_OUTPUT_INTDIR}
   )
 
-# FIXME: Find out why AIX fails with new DynamicLibrary symbols behavior.
-if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-  add_llvm_unittest(DynamicLibraryTests
-    DynamicLibraryTest.cpp
-    )
-else()
-  add_llvm_unittest(DynamicLibraryTests
-    DynamicLibraryTest.cpp
-
-    EXPORT_SYMBOLS
-    )
-endif()
+add_llvm_unittest(DynamicLibraryTests
+  DynamicLibraryTest.cpp
+  )
 target_link_libraries(DynamicLibraryTests PRIVATE DynamicLibraryLib)
-if(${CMAKE_SYSTEM_NAME} MATCHES "AIX")
-  export_executable_symbols(DynamicLibraryTests)
-endif()
+export_executable_symbols(DynamicLibraryTests)
 
 function(dynlib_add_module NAME)
   add_library(${NAME} MODULE

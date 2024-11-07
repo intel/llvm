@@ -32,8 +32,7 @@ using namespace clang::driver::tools::arm;
 using tools::addMultilibFlag;
 using tools::addPathIfExists;
 
-static bool findOHOSMuslMultilibs(const Driver &D,
-                                  const Multilib::flags_list &Flags,
+static bool findOHOSMuslMultilibs(const Multilib::flags_list &Flags,
                                   DetectedMultilibs &Result) {
   MultilibSet Multilibs;
   Multilibs.push_back(Multilib());
@@ -51,7 +50,7 @@ static bool findOHOSMuslMultilibs(const Driver &D,
       Multilib("/a7_hard_neon-vfpv4", {}, {},
                {"-mcpu=cortex-a7", "-mfloat-abi=hard", "-mfpu=neon-vfpv4"}));
 
-  if (Multilibs.select(D, Flags, Result.SelectedMultilibs)) {
+  if (Multilibs.select(Flags, Result.SelectedMultilibs)) {
     Result.Multilibs = Multilibs;
     return true;
   }
@@ -82,7 +81,7 @@ static bool findOHOSMultilibs(const Driver &D,
   addMultilibFlag((ARMFloatABI == tools::arm::FloatABI::Hard),
                   "-mfloat-abi=hard", Flags);
 
-  return findOHOSMuslMultilibs(D, Flags, Result);
+  return findOHOSMuslMultilibs(Flags, Result);
 }
 
 std::string OHOS::getMultiarchTriple(const llvm::Triple &T) const {

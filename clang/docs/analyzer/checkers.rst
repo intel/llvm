@@ -1293,22 +1293,6 @@ security.insecureAPI.DeprecatedOrUnsafeBufferHandling (C)
    strncpy(buf, "a", 1); // warn
  }
 
-.. _security-MmapWriteExec:
-
-security.MmapWriteExec (C)
-""""""""""""""""""""""""""
-Warn on ``mmap()`` calls with both writable and executable access.
-
-.. code-block:: c
-
- void test(int n) {
-   void *c = mmap(NULL, 32, PROT_READ | PROT_WRITE | PROT_EXEC,
-                  MAP_PRIVATE | MAP_ANON, -1, 0);
-   // warn: Both PROT_WRITE and PROT_EXEC flags are set. This can lead to
-   //       exploitable memory regions, which could be overwritten with malicious
-   //       code
- }
-
 .. _security-putenv-stack-array:
 
 security.PutenvStackArray (C)
@@ -2571,8 +2555,8 @@ with the `offsetof` macro.
 
 .. _alpha-core-StackAddressAsyncEscape:
 
-alpha.core.StackAddressAsyncEscape (ObjC)
-"""""""""""""""""""""""""""""""""""""""""
+alpha.core.StackAddressAsyncEscape (C)
+""""""""""""""""""""""""""""""""""""""
 Check that addresses to stack memory do not escape the function that involves dispatch_after or dispatch_async.
 This checker is a part of ``core.StackAddressEscape``, but is temporarily disabled until some false positives are fixed.
 
@@ -2981,6 +2965,22 @@ Warn about buffer overflows (newer checker).
    char s[] = "abc";
    int x = getchar();
    char c = s[x]; // warn: index is tainted
+ }
+
+.. _alpha-security-MmapWriteExec:
+
+alpha.security.MmapWriteExec (C)
+""""""""""""""""""""""""""""""""
+Warn on mmap() calls that are both writable and executable.
+
+.. code-block:: c
+
+ void test(int n) {
+   void *c = mmap(NULL, 32, PROT_READ | PROT_WRITE | PROT_EXEC,
+                  MAP_PRIVATE | MAP_ANON, -1, 0);
+   // warn: Both PROT_WRITE and PROT_EXEC flags are set. This can lead to
+   //       exploitable memory regions, which could be overwritten with malicious
+   //       code
  }
 
 .. _alpha-security-ReturnPtrRange:

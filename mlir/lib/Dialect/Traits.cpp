@@ -223,7 +223,7 @@ static std::string getShapeString(ArrayRef<int64_t> shape) {
       },
       "x");
   ss << '\'';
-  return ret;
+  return ss.str();
 }
 
 LogicalResult OpTrait::impl::verifyCompatibleOperandBroadcast(Operation *op) {

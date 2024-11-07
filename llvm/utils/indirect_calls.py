@@ -31,7 +31,7 @@ def look_for_indirect(file):
 
     function = ""
     for line in stdout.splitlines():
-        if not line.startswith(" "):
+        if line.startswith(" ") == False:
             function = line
         result = re.search("(call|jmp).*\*", line)
         if result is not None:

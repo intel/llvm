@@ -137,8 +137,9 @@ public:
 private:
   ScopeType getScopeType(const FormatToken &Token) const {
     switch (Token.getType()) {
+    case TT_FunctionLBrace:
     case TT_LambdaLBrace:
-      return ST_ChildBlock;
+      return ST_Function;
     case TT_ClassLBrace:
     case TT_StructLBrace:
     case TT_UnionLBrace:
@@ -399,8 +400,7 @@ private:
                OpeningParen.Previous->MatchingParen->isOneOf(
                    TT_ObjCBlockLParen, TT_FunctionTypeLParen)) {
       Contexts.back().IsExpression = false;
-    } else if (!Line.MustBeDeclaration &&
-               (!Line.InPPDirective || (Line.InMacroBody && !Scopes.empty()))) {
+    } else if (!Line.MustBeDeclaration && !Line.InPPDirective) {
       bool IsForOrCatch =
           OpeningParen.Previous &&
           OpeningParen.Previous->isOneOf(tok::kw_for, tok::kw_catch);
@@ -2840,14 +2840,11 @@ private:
     if (AfterRParen->isOneOf(tok::identifier, tok::kw_this))
       return true;
 
-    // Look for a cast `( x ) (`, where x may be a qualified identifier.
-    if (AfterRParen->is(tok::l_paren)) {
-      for (const auto *Prev = BeforeRParen; Prev->is(tok::identifier);) {
-        Prev = Prev->Previous;
-        if (Prev->is(tok::coloncolon))
-          Prev = Prev->Previous;
-        if (Prev == LParen)
-          return true;
+    // Look for a cast `( x ) (`.
+    if (AfterRParen->is(tok::l_paren) && BeforeRParen->Previous) {
+      if (BeforeRParen->is(tok::identifier) &&
+          BeforeRParen->Previous->is(tok::l_paren)) {
+        return true;
       }
     }
 
@@ -2877,26 +2874,21 @@ private:
     if (Line.InPPDirective && AfterRParen->is(tok::minus))
       return false;
 
-    const auto *Prev = BeforeRParen;
-
-    // Look for a function pointer type, e.g. `(*)()`.
-    if (Prev->is(tok::r_paren)) {
-      if (Prev->is(TT_CastRParen))
-        return false;
-      Prev = Prev->MatchingParen;
-      if (!Prev)
-        return false;
-      Prev = Prev->Previous;
-      if (!Prev || Prev->isNot(tok::r_paren))
-        return false;
-      Prev = Prev->MatchingParen;
-      return Prev && Prev->is(TT_FunctionTypeLParen);
-    }
-
     // Search for unexpected tokens.
-    for (Prev = BeforeRParen; Prev != LParen; Prev = Prev->Previous)
+    for (auto *Prev = BeforeRParen; Prev != LParen; Prev = Prev->Previous) {
+      if (Prev->is(tok::r_paren)) {
+        if (Prev->is(TT_CastRParen))
+          return false;
+        Prev = Prev->MatchingParen;
+        if (!Prev)
+          return false;
+        if (Prev->is(TT_FunctionTypeLParen))
+          break;
+        continue;
+      }
       if (!Prev->isOneOf(tok::kw_const, tok::identifier, tok::coloncolon))
         return false;
+    }
 
     return true;
   }
@@ -3596,7 +3588,8 @@ static FormatToken *getFunctionName(const AnnotatedLine &Line,
 
     // Make sure the name is followed by a pair of parentheses.
     if (Name) {
-      if (Tok->is(tok::l_paren) && Tok->is(TT_Unknown) && Tok->MatchingParen) {
+      if (Tok->is(tok::l_paren) && Tok->isNot(TT_FunctionTypeLParen) &&
+          Tok->MatchingParen) {
         OpeningParen = Tok;
         return Name;
       }
@@ -3657,21 +3650,11 @@ static bool isCtorOrDtorName(const FormatToken *Tok) {
 }
 
 void TokenAnnotator::annotate(AnnotatedLine &Line) {
-  if (!Line.InMacroBody)
-    MacroBodyScopes.clear();
-
-  auto &ScopeStack = Line.InMacroBody ? MacroBodyScopes : Scopes;
-  AnnotatingParser Parser(Style, Line, Keywords, ScopeStack);
+  AnnotatingParser Parser(Style, Line, Keywords, Scopes);
   Line.Type = Parser.parseLine();
 
-  if (!Line.Children.empty()) {
-    ScopeStack.push_back(ST_ChildBlock);
-    for (auto &Child : Line.Children)
-      annotate(*Child);
-    // ScopeStack can become empty if Child has an unmatched `}`.
-    if (!ScopeStack.empty())
-      ScopeStack.pop_back();
-  }
+  for (auto &Child : Line.Children)
+    annotate(*Child);
 
   // With very deep nesting, ExpressionParser uses lots of stack and the
   // formatting algorithm is very slow. We're not going to do a good job here
@@ -3689,7 +3672,7 @@ void TokenAnnotator::annotate(AnnotatedLine &Line) {
   if (IsCpp) {
     FormatToken *OpeningParen = nullptr;
     auto *Tok = getFunctionName(Line, OpeningParen);
-    if (Tok && ((!ScopeStack.empty() && ScopeStack.back() == ST_Class) ||
+    if (Tok && ((!Scopes.empty() && Scopes.back() == ST_Class) ||
                 Line.endsWith(TT_FunctionLBrace) || isCtorOrDtorName(Tok))) {
       Tok->setFinalizedType(TT_CtorDtorDeclName);
       assert(OpeningParen);
@@ -3707,6 +3690,11 @@ void TokenAnnotator::annotate(AnnotatedLine &Line) {
   auto *First = Line.First;
   First->SpacesRequiredBefore = 1;
   First->CanBreakBefore = First->MustBreakBefore;
+
+  if (First->is(tok::eof) && First->NewlinesBefore == 0 &&
+      Style.InsertNewlineAtEOF) {
+    First->NewlinesBefore = 1;
+  }
 }
 
 // This function heuristically determines whether 'Current' starts the name of a
@@ -4416,29 +4404,31 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
       Right.MatchingParen == &Left && Line.Children.empty()) {
     return Style.SpaceInEmptyBlock;
   }
-  if (Style.SpacesInParens == FormatStyle::SIPO_Custom) {
-    if ((Left.is(tok::l_paren) && Right.is(tok::r_paren)) ||
-        (Left.is(tok::l_brace) && Left.isNot(BK_Block) &&
-         Right.is(tok::r_brace) && Right.isNot(BK_Block))) {
-      return Style.SpacesInParensOptions.InEmptyParentheses;
+  if ((Left.is(tok::l_paren) && Right.is(tok::r_paren)) ||
+      (Left.is(tok::l_brace) && Left.isNot(BK_Block) &&
+       Right.is(tok::r_brace) && Right.isNot(BK_Block))) {
+    return Style.SpacesInParensOptions.InEmptyParentheses;
+  }
+  if (Style.SpacesInParens == FormatStyle::SIPO_Custom &&
+      Style.SpacesInParensOptions.ExceptDoubleParentheses &&
+      Left.is(tok::r_paren) && Right.is(tok::r_paren)) {
+    auto *InnerLParen = Left.MatchingParen;
+    if (InnerLParen && InnerLParen->Previous == Right.MatchingParen) {
+      InnerLParen->SpacesRequiredBefore = 0;
+      return false;
     }
-    if (Style.SpacesInParensOptions.ExceptDoubleParentheses &&
-        Left.is(tok::r_paren) && Right.is(tok::r_paren)) {
-      auto *InnerLParen = Left.MatchingParen;
-      if (InnerLParen && InnerLParen->Previous == Right.MatchingParen) {
-        InnerLParen->SpacesRequiredBefore = 0;
-        return false;
-      }
-    }
+  }
+  if (Style.SpacesInParensOptions.InConditionalStatements) {
     const FormatToken *LeftParen = nullptr;
     if (Left.is(tok::l_paren))
       LeftParen = &Left;
     else if (Right.is(tok::r_paren) && Right.MatchingParen)
       LeftParen = Right.MatchingParen;
-    if (LeftParen && (LeftParen->is(TT_ConditionLParen) ||
-                      (LeftParen->Previous &&
-                       isKeywordWithCondition(*LeftParen->Previous)))) {
-      return Style.SpacesInParensOptions.InConditionalStatements;
+    if (LeftParen) {
+      if (LeftParen->is(TT_ConditionLParen))
+        return true;
+      if (LeftParen->Previous && isKeywordWithCondition(*LeftParen->Previous))
+        return true;
     }
   }
 

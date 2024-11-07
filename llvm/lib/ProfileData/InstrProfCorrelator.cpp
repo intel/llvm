@@ -91,31 +91,7 @@ InstrProfCorrelator::Context::get(std::unique_ptr<MemoryBuffer> Buffer,
 }
 
 llvm::Expected<std::unique_ptr<InstrProfCorrelator>>
-InstrProfCorrelator::get(StringRef Filename, ProfCorrelatorKind FileKind,
-                         const object::BuildIDFetcher *BIDFetcher,
-                         const ArrayRef<object::BuildID> BIs) {
-  std::optional<std::string> Path;
-  if (BIDFetcher) {
-    if (BIs.empty())
-      return make_error<InstrProfError>(
-          instrprof_error::unable_to_correlate_profile,
-          "unsupported profile binary correlation when there is no build ID "
-          "in a profile");
-    if (BIs.size() > 1)
-      return make_error<InstrProfError>(
-          instrprof_error::unable_to_correlate_profile,
-          "unsupported profile binary correlation when there are multiple "
-          "build IDs in a profile");
-
-    Path = BIDFetcher->fetch(BIs.front());
-    if (!Path)
-      return make_error<InstrProfError>(
-          instrprof_error::unable_to_correlate_profile,
-          "Missing build ID: " + llvm::toHex(BIs.front(),
-                                             /*LowerCase=*/true));
-    Filename = *Path;
-  }
-
+InstrProfCorrelator::get(StringRef Filename, ProfCorrelatorKind FileKind) {
   if (FileKind == DEBUG_INFO) {
     auto DsymObjectsOrErr =
         object::MachOObjectFile::findDsymObjectMembers(Filename);

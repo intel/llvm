@@ -315,11 +315,6 @@ toTemplateNameDependence(NestedNameSpecifierDependence D) {
   return Dependence(D).templateName();
 }
 
-inline TemplateNameDependence
-toTemplateNameDependence(TemplateArgumentDependence D) {
-  return Dependence(D).templateName();
-}
-
 LLVM_ENABLE_BITMASK_ENUMS_IN_NAMESPACE();
 
 } // namespace clang

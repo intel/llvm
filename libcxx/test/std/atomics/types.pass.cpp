@@ -19,7 +19,6 @@
 
 #include <atomic>
 #include <chrono>
-#include <cstdint>
 #include <memory>
 #include <type_traits>
 

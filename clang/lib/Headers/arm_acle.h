@@ -264,28 +264,28 @@ __rbitl(unsigned long __t) {
 }
 
 /* 8.3 16-bit multiplications */
-#if defined(__ARM_32BIT_STATE) && __ARM_32BIT_STATE
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+#if defined(__ARM_FEATURE_DSP) && __ARM_FEATURE_DSP
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smulbb(int32_t __a, int32_t __b) {
   return __builtin_arm_smulbb(__a, __b);
 }
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smulbt(int32_t __a, int32_t __b) {
   return __builtin_arm_smulbt(__a, __b);
 }
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smultb(int32_t __a, int32_t __b) {
   return __builtin_arm_smultb(__a, __b);
 }
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smultt(int32_t __a, int32_t __b) {
   return __builtin_arm_smultt(__a, __b);
 }
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smulwb(int32_t __a, int32_t __b) {
   return __builtin_arm_smulwb(__a, __b);
 }
-static __inline__ int32_t __attribute__((__always_inline__,__nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__,__nodebug__))
 __smulwt(int32_t __a, int32_t __b) {
   return __builtin_arm_smulwt(__a, __b);
 }
@@ -304,46 +304,46 @@ __smulwt(int32_t __a, int32_t __b) {
 #endif
 
 /* 8.4.2 Saturating addition and subtraction intrinsics */
-#if defined(__ARM_32BIT_STATE) && __ARM_32BIT_STATE
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+#if defined(__ARM_FEATURE_DSP) && __ARM_FEATURE_DSP
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __qadd(int32_t __t, int32_t __v) {
   return __builtin_arm_qadd(__t, __v);
 }
 
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __qsub(int32_t __t, int32_t __v) {
   return __builtin_arm_qsub(__t, __v);
 }
 
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __qdbl(int32_t __t) {
   return __builtin_arm_qadd(__t, __t);
 }
 #endif
 
 /* 8.4.3 Accumulating multiplications */
-#if defined(__ARM_32BIT_STATE) && __ARM_32BIT_STATE
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+#if defined(__ARM_FEATURE_DSP) && __ARM_FEATURE_DSP
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlabb(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlabb(__a, __b, __c);
 }
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlabt(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlabt(__a, __b, __c);
 }
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlatb(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlatb(__a, __b, __c);
 }
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlatt(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlatt(__a, __b, __c);
 }
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlawb(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlawb(__a, __b, __c);
 }
-static __inline__ int32_t __attribute__((__always_inline__, __nodebug__, target("dsp")))
+static __inline__ int32_t __attribute__((__always_inline__, __nodebug__))
 __smlawt(int32_t __a, int32_t __b, int32_t __c) {
   return __builtin_arm_smlawt(__a, __b, __c);
 }
@@ -621,6 +621,8 @@ __rintnf(float __a) {
 #endif
 
 /* 8.8 CRC32 intrinsics */
+#if (defined(__ARM_FEATURE_CRC32) && __ARM_FEATURE_CRC32) ||                   \
+    (defined(__ARM_64BIT_STATE) && __ARM_64BIT_STATE)
 static __inline__ uint32_t __attribute__((__always_inline__, __nodebug__, target("crc")))
 __crc32b(uint32_t __a, uint8_t __b) {
   return __builtin_arm_crc32b(__a, __b);
@@ -660,6 +662,7 @@ static __inline__ uint32_t __attribute__((__always_inline__, __nodebug__, target
 __crc32cd(uint32_t __a, uint64_t __b) {
   return __builtin_arm_crc32cd(__a, __b);
 }
+#endif
 
 /* 8.6 Floating-point data-processing intrinsics */
 /* Armv8.3-A Javascript conversion intrinsic */

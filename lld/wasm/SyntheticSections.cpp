@@ -38,6 +38,7 @@ public:
   explicit SubSection(uint32_t type) : type(type) {}
 
   void writeTo(raw_ostream &to) {
+    os.flush();
     writeUleb128(to, type, "subsection type");
     writeUleb128(to, body.size(), "subsection size");
     to.write(body.data(), body.size());
@@ -586,7 +587,8 @@ void ElemSection::writeBody() {
     initExpr.Inst.Value.Global = WasmSym::tableBase->getGlobalIndex();
   } else {
     bool is64 = config->is64.value_or(false);
-    initExpr = intConst(config->tableBase, is64);
+    initExpr.Inst.Opcode = is64 ? WASM_OPCODE_I64_CONST : WASM_OPCODE_I32_CONST;
+    initExpr.Inst.Value.Int32 = config->tableBase;
   }
   writeInitExpr(os, initExpr);
 

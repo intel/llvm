@@ -14,7 +14,7 @@
 #include "simple_packed_serialization_utils.h"
 #include "gtest/gtest.h"
 
-using namespace orc_rt;
+using namespace __orc_rt;
 
 TEST(SimplePackedSerializationTest, SPSOutputBuffer) {
   constexpr unsigned NumBytes = 8;

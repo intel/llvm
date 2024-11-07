@@ -46,6 +46,7 @@
 #include "llvm/Transforms/Utils/ValueMapper.h"
 #include <cassert>
 #include <memory>
+#include <set>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -722,7 +723,7 @@ class WorkloadImportsManager : public ModuleImportsManager {
       return;
     }
     const auto &CtxMap = *Ctx;
-    SetVector<GlobalValue::GUID> ContainedGUIDs;
+    DenseSet<GlobalValue::GUID> ContainedGUIDs;
     for (const auto &[RootGuid, Root] : CtxMap) {
       // Avoid ContainedGUIDs to get in/out of scope. Reuse its memory for
       // subsequent roots, but clear its contents.

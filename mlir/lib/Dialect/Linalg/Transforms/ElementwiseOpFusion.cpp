@@ -1254,7 +1254,7 @@ static SmallVector<ReassociationIndices>
 getCollapsableIterationSpaceDims(GenericOp genericOp, OpOperand *fusableOperand,
                                  ArrayRef<ReassociationIndices> reassociation) {
   // Some basic checks for this fusion to be valid.
-  if (!genericOp.hasPureTensorSemantics())
+  if (!genericOp.hasPureTensorSemantics() || genericOp.getNumDpsInits() != 1)
     return {};
 
   if (!llvm::all_of(genericOp.getIndexingMapsArray(), [](AffineMap map) {

@@ -33,11 +33,11 @@ class CodeGenTarget;
 class CodeGenSchedModels;
 class CodeGenInstruction;
 
-using ConstRecVec = std::vector<const Record *>;
-using ConstRecIter = ConstRecVec::const_iterator;
+using RecVec = std::vector<Record *>;
+using RecIter = std::vector<Record *>::const_iterator;
 
 using IdxVec = std::vector<unsigned>;
-using IdxIter = IdxVec::const_iterator;
+using IdxIter = std::vector<unsigned>::const_iterator;
 
 /// We have two kinds of SchedReadWrites. Explicitly defined and inferred
 /// sequences.  TheDef is nonnull for explicit SchedWrites, but Sequence may or
@@ -49,19 +49,19 @@ using IdxIter = IdxVec::const_iterator;
 struct CodeGenSchedRW {
   unsigned Index;
   std::string Name;
-  const Record *TheDef;
+  Record *TheDef;
   bool IsRead;
   bool IsAlias;
   bool HasVariants;
   bool IsVariadic;
   bool IsSequence;
   IdxVec Sequence;
-  ConstRecVec Aliases;
+  RecVec Aliases;
 
   CodeGenSchedRW()
       : Index(0), TheDef(nullptr), IsRead(false), IsAlias(false),
         HasVariants(false), IsVariadic(false), IsSequence(false) {}
-  CodeGenSchedRW(unsigned Idx, const Record *Def)
+  CodeGenSchedRW(unsigned Idx, Record *Def)
       : Index(Idx), TheDef(Def), IsAlias(false), IsVariadic(false) {
     Name = std::string(Def->getName());
     IsRead = Def->isSubClassOf("SchedRead");
@@ -100,7 +100,7 @@ struct CodeGenSchedRW {
 struct CodeGenSchedTransition {
   unsigned ToClassIdx;
   unsigned ProcIndex;
-  ConstRecVec PredTerm;
+  RecVec PredTerm;
 };
 
 /// Scheduling class.
@@ -130,7 +130,7 @@ struct CodeGenSchedTransition {
 struct CodeGenSchedClass {
   unsigned Index;
   std::string Name;
-  const Record *ItinClassDef;
+  Record *ItinClassDef;
 
   IdxVec Writes;
   IdxVec Reads;
@@ -143,15 +143,14 @@ struct CodeGenSchedClass {
   // Instruction no longer mapped to this class by InstrClassMap. These
   // Instructions should be ignored by this class because they have been split
   // off to join another inferred class.
-  ConstRecVec InstRWs;
+  RecVec InstRWs;
   // InstRWs processor indices. Filled in inferFromInstRWs
   DenseSet<unsigned> InstRWProcIndices;
 
-  CodeGenSchedClass(unsigned Index, std::string Name,
-                    const Record *ItinClassDef)
+  CodeGenSchedClass(unsigned Index, std::string Name, Record *ItinClassDef)
       : Index(Index), Name(std::move(Name)), ItinClassDef(ItinClassDef) {}
 
-  bool isKeyEqual(const Record *IC, ArrayRef<unsigned> W,
+  bool isKeyEqual(Record *IC, ArrayRef<unsigned> W,
                   ArrayRef<unsigned> R) const {
     return ItinClassDef == IC && ArrayRef(Writes) == W && ArrayRef(Reads) == R;
   }
@@ -171,10 +170,10 @@ struct CodeGenSchedClass {
 /// registers used by the register renamer. Register costs are defined at
 /// register class granularity.
 struct CodeGenRegisterCost {
-  const Record *RCDef;
+  Record *RCDef;
   unsigned Cost;
   bool AllowMoveElimination;
-  CodeGenRegisterCost(const Record *RC, unsigned RegisterCost,
+  CodeGenRegisterCost(Record *RC, unsigned RegisterCost,
                       bool AllowMoveElim = false)
       : RCDef(RC), Cost(RegisterCost), AllowMoveElimination(AllowMoveElim) {}
   CodeGenRegisterCost(const CodeGenRegisterCost &) = default;
@@ -188,14 +187,14 @@ struct CodeGenRegisterCost {
 /// stalls due to register pressure.
 struct CodeGenRegisterFile {
   std::string Name;
-  const Record *RegisterFileDef;
+  Record *RegisterFileDef;
   unsigned MaxMovesEliminatedPerCycle;
   bool AllowZeroMoveEliminationOnly;
 
   unsigned NumPhysRegs;
   std::vector<CodeGenRegisterCost> Costs;
 
-  CodeGenRegisterFile(StringRef name, const Record *def,
+  CodeGenRegisterFile(StringRef name, Record *def,
                       unsigned MaxMoveElimPerCy = 0,
                       bool AllowZeroMoveElimOnly = false)
       : Name(name), RegisterFileDef(def),
@@ -222,43 +221,42 @@ struct CodeGenRegisterFile {
 struct CodeGenProcModel {
   unsigned Index;
   std::string ModelName;
-  const Record *ModelDef;
-  const Record *ItinsDef;
+  Record *ModelDef;
+  Record *ItinsDef;
 
   // Derived members...
 
   // Array of InstrItinData records indexed by a CodeGenSchedClass index.
   // This list is empty if the Processor has no value for Itineraries.
   // Initialized by collectProcItins().
-  ConstRecVec ItinDefList;
+  RecVec ItinDefList;
 
   // Map itinerary classes to per-operand resources.
   // This list is empty if no ItinRW refers to this Processor.
-  ConstRecVec ItinRWDefs;
+  RecVec ItinRWDefs;
 
   // List of unsupported feature.
   // This list is empty if the Processor has no UnsupportedFeatures.
-  ConstRecVec UnsupportedFeaturesDefs;
+  RecVec UnsupportedFeaturesDefs;
 
   // All read/write resources associated with this processor.
-  ConstRecVec WriteResDefs;
-  ConstRecVec ReadAdvanceDefs;
+  RecVec WriteResDefs;
+  RecVec ReadAdvanceDefs;
 
   // Per-operand machine model resources associated with this processor.
-  ConstRecVec ProcResourceDefs;
+  RecVec ProcResourceDefs;
 
   // List of Register Files.
   std::vector<CodeGenRegisterFile> RegisterFiles;
 
   // Optional Retire Control Unit definition.
-  const Record *RetireControlUnit;
+  Record *RetireControlUnit;
 
   // Load/Store queue descriptors.
-  const Record *LoadQueue;
-  const Record *StoreQueue;
+  Record *LoadQueue;
+  Record *StoreQueue;
 
-  CodeGenProcModel(unsigned Idx, std::string Name, const Record *MDef,
-                   const Record *IDef)
+  CodeGenProcModel(unsigned Idx, std::string Name, Record *MDef, Record *IDef)
       : Index(Idx), ModelName(std::move(Name)), ModelDef(MDef), ItinsDef(IDef),
         RetireControlUnit(nullptr), LoadQueue(nullptr), StoreQueue(nullptr) {}
 
@@ -275,12 +273,12 @@ struct CodeGenProcModel {
            !RegisterFiles.empty();
   }
 
-  unsigned getProcResourceIdx(const Record *PRDef) const;
+  unsigned getProcResourceIdx(Record *PRDef) const;
 
   bool isUnsupported(const CodeGenInstruction &Inst) const;
 
   // Return true if the given write record is referenced by a ReadAdvance.
-  bool hasReadOfWrite(const Record *WriteDef) const;
+  bool hasReadOfWrite(Record *WriteDef) const;
 
 #ifndef NDEBUG
   void dump() const;
@@ -421,7 +419,7 @@ using ProcModelMapTy = DenseMap<const Record *, unsigned>;
 
 /// Top level container for machine model data.
 class CodeGenSchedModels {
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
   const CodeGenTarget &Target;
 
   // Map dag expressions to Instruction lists.
@@ -443,19 +441,19 @@ class CodeGenSchedModels {
   // Any inferred SchedClass has an index greater than NumInstrSchedClassses.
   unsigned NumInstrSchedClasses;
 
-  ConstRecVec ProcResourceDefs;
-  ConstRecVec ProcResGroups;
+  RecVec ProcResourceDefs;
+  RecVec ProcResGroups;
 
   // Map each instruction to its unique SchedClass index considering the
   // combination of it's itinerary class, SchedRW list, and InstRW records.
-  using InstClassMapTy = DenseMap<const Record *, unsigned>;
+  using InstClassMapTy = DenseMap<Record *, unsigned>;
   InstClassMapTy InstrClassMap;
 
   std::vector<STIPredicateFunction> STIPredicates;
   std::vector<unsigned> getAllProcIndices() const;
 
 public:
-  CodeGenSchedModels(const RecordKeeper &RK, const CodeGenTarget &TGT);
+  CodeGenSchedModels(RecordKeeper &RK, const CodeGenTarget &TGT);
 
   // iterator access to the scheduling classes.
   using class_iterator = std::vector<CodeGenSchedClass>::iterator;
@@ -477,9 +475,9 @@ public:
     return make_range(classes_begin(), classes_begin() + NumInstrSchedClasses);
   }
 
-  const Record *getModelOrItinDef(const Record *ProcDef) const {
-    const Record *ModelDef = ProcDef->getValueAsDef("SchedModel");
-    const Record *ItinsDef = ProcDef->getValueAsDef("ProcItin");
+  Record *getModelOrItinDef(Record *ProcDef) const {
+    Record *ModelDef = ProcDef->getValueAsDef("SchedModel");
+    Record *ItinsDef = ProcDef->getValueAsDef("ProcItin");
     if (!ItinsDef->getValueAsListOfDefs("IID").empty()) {
       assert(ModelDef->getValueAsBit("NoModel") &&
              "Itineraries must be defined within SchedMachineModel");
@@ -488,19 +486,19 @@ public:
     return ModelDef;
   }
 
-  const CodeGenProcModel &getModelForProc(const Record *ProcDef) const {
-    const Record *ModelDef = getModelOrItinDef(ProcDef);
+  const CodeGenProcModel &getModelForProc(Record *ProcDef) const {
+    Record *ModelDef = getModelOrItinDef(ProcDef);
     ProcModelMapTy::const_iterator I = ProcModelMap.find(ModelDef);
     assert(I != ProcModelMap.end() && "missing machine model");
     return ProcModels[I->second];
   }
 
-  CodeGenProcModel &getProcModel(const Record *ModelDef) {
+  CodeGenProcModel &getProcModel(Record *ModelDef) {
     ProcModelMapTy::const_iterator I = ProcModelMap.find(ModelDef);
     assert(I != ProcModelMap.end() && "missing machine model");
     return ProcModels[I->second];
   }
-  const CodeGenProcModel &getProcModel(const Record *ModelDef) const {
+  const CodeGenProcModel &getProcModel(Record *ModelDef) const {
     return const_cast<CodeGenSchedModels *>(this)->getProcModel(ModelDef);
   }
 
@@ -529,13 +527,13 @@ public:
   const CodeGenSchedRW &getSchedRW(unsigned Idx, bool IsRead) const {
     return IsRead ? getSchedRead(Idx) : getSchedWrite(Idx);
   }
-  CodeGenSchedRW &getSchedRW(const Record *Def) {
+  CodeGenSchedRW &getSchedRW(Record *Def) {
     bool IsRead = Def->isSubClassOf("SchedRead");
     unsigned Idx = getSchedRWIdx(Def, IsRead);
     return const_cast<CodeGenSchedRW &>(IsRead ? getSchedRead(Idx)
                                                : getSchedWrite(Idx));
   }
-  const CodeGenSchedRW &getSchedRW(const Record *Def) const {
+  const CodeGenSchedRW &getSchedRW(Record *Def) const {
     return const_cast<CodeGenSchedModels &>(*this).getSchedRW(Def);
   }
 
@@ -563,21 +561,20 @@ public:
 
   unsigned numInstrSchedClasses() const { return NumInstrSchedClasses; }
 
-  void findRWs(const ConstRecVec &RWDefs, IdxVec &Writes, IdxVec &Reads) const;
-  void findRWs(const ConstRecVec &RWDefs, IdxVec &RWs, bool IsRead) const;
+  void findRWs(const RecVec &RWDefs, IdxVec &Writes, IdxVec &Reads) const;
+  void findRWs(const RecVec &RWDefs, IdxVec &RWs, bool IsRead) const;
   void expandRWSequence(unsigned RWIdx, IdxVec &RWSeq, bool IsRead) const;
   void expandRWSeqForProc(unsigned RWIdx, IdxVec &RWSeq, bool IsRead,
                           const CodeGenProcModel &ProcModel) const;
 
-  unsigned addSchedClass(const Record *ItinDef, ArrayRef<unsigned> OperWrites,
+  unsigned addSchedClass(Record *ItinDef, ArrayRef<unsigned> OperWrites,
                          ArrayRef<unsigned> OperReads,
                          ArrayRef<unsigned> ProcIndices);
 
   unsigned findOrInsertRW(ArrayRef<unsigned> Seq, bool IsRead);
 
-  const Record *findProcResUnits(const Record *ProcResKind,
-                                 const CodeGenProcModel &PM,
-                                 ArrayRef<SMLoc> Loc) const;
+  Record *findProcResUnits(Record *ProcResKind, const CodeGenProcModel &PM,
+                           ArrayRef<SMLoc> Loc) const;
 
   ArrayRef<STIPredicateFunction> getSTIPredicates() const {
     return STIPredicates;
@@ -587,7 +584,7 @@ private:
   void collectProcModels();
 
   // Initialize a new processor model if it is unique.
-  void addProcModel(const Record *ProcDef);
+  void addProcModel(Record *ProcDef);
 
   void collectSchedRW();
 
@@ -602,11 +599,11 @@ private:
 
   void collectOptionalProcessorInfo();
 
-  std::string createSchedClassName(const Record *ItinClassDef,
+  std::string createSchedClassName(Record *ItinClassDef,
                                    ArrayRef<unsigned> OperWrites,
                                    ArrayRef<unsigned> OperReads);
-  std::string createSchedClassName(const ConstRecVec &InstDefs);
-  void createInstRWClass(const Record *InstRWDef);
+  std::string createSchedClassName(const RecVec &InstDefs);
+  void createInstRWClass(Record *InstRWDef);
 
   void collectProcItins();
 
@@ -628,15 +625,15 @@ private:
 
   void inferFromRW(ArrayRef<unsigned> OperWrites, ArrayRef<unsigned> OperReads,
                    unsigned FromClassIdx, ArrayRef<unsigned> ProcIndices);
-  void inferFromItinClass(const Record *ItinClassDef, unsigned FromClassIdx);
+  void inferFromItinClass(Record *ItinClassDef, unsigned FromClassIdx);
   void inferFromInstRWs(unsigned SCIdx);
 
-  bool hasSuperGroup(ConstRecVec &SubUnits, CodeGenProcModel &PM);
+  bool hasSuperGroup(RecVec &SubUnits, CodeGenProcModel &PM);
   void verifyProcResourceGroups(CodeGenProcModel &PM);
 
   void collectProcResources();
 
-  void collectItinProcResources(const Record *ItinClassDef);
+  void collectItinProcResources(Record *ItinClassDef);
 
   void collectRWResources(unsigned RWIdx, bool IsRead,
                           ArrayRef<unsigned> ProcIndices);
@@ -644,12 +641,12 @@ private:
   void collectRWResources(ArrayRef<unsigned> Writes, ArrayRef<unsigned> Reads,
                           ArrayRef<unsigned> ProcIndices);
 
-  void addProcResource(const Record *ProcResourceKind, CodeGenProcModel &PM,
+  void addProcResource(Record *ProcResourceKind, CodeGenProcModel &PM,
                        ArrayRef<SMLoc> Loc);
 
-  void addWriteRes(const Record *ProcWriteResDef, unsigned PIdx);
+  void addWriteRes(Record *ProcWriteResDef, unsigned PIdx);
 
-  void addReadAdvance(const Record *ProcReadAdvanceDef, unsigned PIdx);
+  void addReadAdvance(Record *ProcReadAdvanceDef, unsigned PIdx);
 };
 
 } // namespace llvm

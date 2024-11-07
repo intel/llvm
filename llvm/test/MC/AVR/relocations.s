@@ -3,7 +3,6 @@
 ; CHECK: RELOCATION RECORDS FOR
 
 .global bar
-
 bar:
   jmp bar
 

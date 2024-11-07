@@ -18,7 +18,6 @@
 
 #include <__hash_table>
 #include <cassert>
-#include <cstddef>
 
 #include "test_macros.h"
 

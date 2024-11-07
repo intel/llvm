@@ -63,7 +63,7 @@ struct MaskRolPair {
 
 /// CodeGenSubRegIndex - Represents a sub-register index.
 class CodeGenSubRegIndex {
-  const Record *const TheDef;
+  Record *const TheDef;
   std::string Name;
   std::string Namespace;
 
@@ -85,7 +85,7 @@ public:
   // indexes are not used to create new register classes.
   bool Artificial;
 
-  CodeGenSubRegIndex(const Record *R, unsigned Enum, const CodeGenHwModes &CGH);
+  CodeGenSubRegIndex(Record *R, unsigned Enum, const CodeGenHwModes &CGH);
   CodeGenSubRegIndex(StringRef N, StringRef Nspace, unsigned Enum);
   CodeGenSubRegIndex(CodeGenSubRegIndex &) = delete;
 
@@ -172,7 +172,7 @@ private:
 /// CodeGenRegister - Represents a register definition.
 class CodeGenRegister {
 public:
-  const Record *TheDef;
+  Record *TheDef;
   unsigned EnumValue;
   std::vector<int64_t> CostPerUse;
   bool CoveredBySubRegs = true;
@@ -184,7 +184,7 @@ public:
   typedef std::map<CodeGenSubRegIndex *, CodeGenRegister *, deref<std::less<>>>
       SubRegMap;
 
-  CodeGenRegister(const Record *R, unsigned Enum);
+  CodeGenRegister(Record *R, unsigned Enum);
 
   StringRef getName() const;
 
@@ -314,13 +314,13 @@ inline bool operator==(const CodeGenRegister &A, const CodeGenRegister &B) {
 class CodeGenRegisterClass {
   CodeGenRegister::Vec Members;
   // Allocation orders. Order[0] always contains all registers in Members.
-  std::vector<SmallVector<const Record *, 16>> Orders;
+  std::vector<SmallVector<Record *, 16>> Orders;
   // Bit mask of sub-classes including this, indexed by their EnumValue.
   BitVector SubClasses;
   // List of super-classes, topologocally ordered to have the larger classes
   // first.  This is the same as sorting by EnumValue.
   SmallVector<CodeGenRegisterClass *, 4> SuperClasses;
-  const Record *TheDef;
+  Record *TheDef;
   std::string Name;
 
   // For a synthesized class, inherit missing properties from the nearest
@@ -368,7 +368,7 @@ public:
 
   // Return the Record that defined this class, or NULL if the class was
   // created by TableGen.
-  const Record *getDef() const { return TheDef; }
+  Record *getDef() const { return TheDef; }
 
   std::string getNamespaceQualification() const;
   const std::string &getName() const { return Name; }
@@ -452,9 +452,7 @@ public:
   // Returns an ordered list of class members.
   // The order of registers is the same as in the .td file.
   // No = 0 is the default allocation order, No = 1 is the first alternative.
-  ArrayRef<const Record *> getOrder(unsigned No = 0) const {
-    return Orders[No];
-  }
+  ArrayRef<Record *> getOrder(unsigned No = 0) const { return Orders[No]; }
 
   // Return the total number of allocation orders available.
   unsigned getNumOrders() const { return Orders.size(); }
@@ -473,7 +471,7 @@ public:
   void buildRegUnitSet(const CodeGenRegBank &RegBank,
                        std::vector<unsigned> &RegUnits) const;
 
-  CodeGenRegisterClass(CodeGenRegBank &, const Record *R);
+  CodeGenRegisterClass(CodeGenRegBank &, Record *R);
   CodeGenRegisterClass(CodeGenRegisterClass &) = delete;
 
   // A key representing the parts of a register class used for forming
@@ -511,17 +509,17 @@ public:
 // register falls into (GPR, vector, fixed, etc.) without having to know
 // specific information about the target architecture.
 class CodeGenRegisterCategory {
-  const Record *TheDef;
+  Record *TheDef;
   std::string Name;
   std::list<CodeGenRegisterClass *> Classes;
 
 public:
-  CodeGenRegisterCategory(CodeGenRegBank &, const Record *R);
+  CodeGenRegisterCategory(CodeGenRegBank &, Record *R);
   CodeGenRegisterCategory(CodeGenRegisterCategory &) = delete;
 
   // Return the Record that defined this class, or NULL if the class was
   // created by TableGen.
-  const Record *getDef() const { return TheDef; }
+  Record *getDef() const { return TheDef; }
 
   std::string getName() const { return Name; }
   std::list<CodeGenRegisterClass *> getClasses() const { return Classes; }
@@ -585,7 +583,7 @@ class CodeGenRegBank {
   const CodeGenHwModes &CGH;
 
   std::deque<CodeGenSubRegIndex> SubRegIndices;
-  DenseMap<const Record *, CodeGenSubRegIndex *> Def2SubRegIdx;
+  DenseMap<Record *, CodeGenSubRegIndex *> Def2SubRegIdx;
 
   CodeGenSubRegIndex *createSubRegIndex(StringRef Name, StringRef NameSpace);
 
@@ -596,7 +594,7 @@ class CodeGenRegBank {
   // Registers.
   std::deque<CodeGenRegister> Registers;
   StringMap<CodeGenRegister *> RegistersByName;
-  DenseMap<const Record *, CodeGenRegister *> Def2Reg;
+  DenseMap<Record *, CodeGenRegister *> Def2Reg;
   unsigned NumNativeRegUnits;
 
   std::map<TopoSigId, unsigned> TopoSigs;
@@ -606,12 +604,13 @@ class CodeGenRegBank {
 
   // Register classes.
   std::list<CodeGenRegisterClass> RegClasses;
-  DenseMap<const Record *, CodeGenRegisterClass *> Def2RC;
+  DenseMap<Record *, CodeGenRegisterClass *> Def2RC;
   typedef std::map<CodeGenRegisterClass::Key, CodeGenRegisterClass *> RCKeyMap;
   RCKeyMap Key2RC;
 
   // Register categories.
   std::list<CodeGenRegisterCategory> RegCategories;
+  DenseMap<Record *, CodeGenRegisterCategory *> Def2RCat;
   using RCatKeyMap =
       std::map<CodeGenRegisterClass::Key, CodeGenRegisterCategory *>;
   RCatKeyMap Key2RCat;
@@ -676,7 +675,7 @@ class CodeGenRegBank {
   void computeRegUnitLaneMasks();
 
 public:
-  CodeGenRegBank(const RecordKeeper &, const CodeGenHwModes &);
+  CodeGenRegBank(RecordKeeper &, const CodeGenHwModes &);
   CodeGenRegBank(CodeGenRegBank &) = delete;
 
   SetTheory &getSets() { return Sets; }
@@ -692,7 +691,7 @@ public:
 
   // Find a SubRegIndex from its Record def or add to the list if it does
   // not exist there yet.
-  CodeGenSubRegIndex *getSubRegIdx(const Record *);
+  CodeGenSubRegIndex *getSubRegIdx(Record *);
 
   // Find a SubRegIndex from its Record def.
   const CodeGenSubRegIndex *findSubRegIdx(const Record *Def) const;
@@ -714,7 +713,7 @@ public:
   }
 
   // Find a register from its Record def.
-  CodeGenRegister *getReg(const Record *);
+  CodeGenRegister *getReg(Record *);
 
   // Get a Register's index into the Registers array.
   unsigned getRegIndex(const CodeGenRegister *Reg) const {
@@ -784,15 +783,14 @@ public:
   /// class, return null. If the register is in multiple classes, and the
   /// classes have a superset-subset relationship and the same set of types,
   /// return the superclass.  Otherwise return null.
-  const CodeGenRegisterClass *getRegClassForRegister(const Record *R);
+  const CodeGenRegisterClass *getRegClassForRegister(Record *R);
 
   // Analog of TargetRegisterInfo::getMinimalPhysRegClass. Unlike
   // getRegClassForRegister, this tries to find the smallest class containing
   // the physical register. If \p VT is specified, it will only find classes
   // with a matching type
   const CodeGenRegisterClass *
-  getMinimalPhysRegClass(const Record *RegRecord,
-                         ValueTypeByHwMode *VT = nullptr);
+  getMinimalPhysRegClass(Record *RegRecord, ValueTypeByHwMode *VT = nullptr);
 
   // Get the sum of unit weights.
   unsigned getRegUnitSetWeight(const std::vector<unsigned> &Units) const {
@@ -848,7 +846,7 @@ public:
   //
   // This is used to compute the mask of call-preserved registers from a list
   // of callee-saves.
-  BitVector computeCoveredRegisters(ArrayRef<const Record *> Regs);
+  BitVector computeCoveredRegisters(ArrayRef<Record *> Regs);
 
   // Bit mask of lanes that cover their registers. A sub-register index whose
   // LaneMask is contained in CoveringLanes will be completely covered by

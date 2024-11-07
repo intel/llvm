@@ -156,8 +156,10 @@ private:
     ProfiledCallGraphEdge Edge(ProfiledFunctions[CallerName],
                                CalleeIt->second, Weight);
     auto &Edges = ProfiledFunctions[CallerName]->Edges;
-    auto [EdgeIt, Inserted] = Edges.insert(Edge);
-    if (!Inserted) {
+    auto EdgeIt = Edges.find(Edge);
+    if (EdgeIt == Edges.end()) {
+      Edges.insert(Edge);
+    } else {
       // Accumulate weight to the existing edge.
       Edge.Weight += EdgeIt->Weight;
       Edges.erase(EdgeIt);

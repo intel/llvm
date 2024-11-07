@@ -1,6 +1,7 @@
 ; RUN: llvm-mc -triple avr -mattr=addsubiw -show-encoding < %s | FileCheck %s
 
 foo:
+
   sbiw r24,     1
   sbiw r25:r24, 2
   sbiw r24,     2

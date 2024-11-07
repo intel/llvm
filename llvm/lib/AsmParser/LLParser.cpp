@@ -948,7 +948,7 @@ bool LLParser::parseMDNodeID(MDNode *&Result) {
 
   // Otherwise, create MDNode forward reference.
   auto &FwdRef = ForwardRefMDNodes[MID];
-  FwdRef = std::make_pair(MDTuple::getTemporary(Context, {}), IDLoc);
+  FwdRef = std::make_pair(MDTuple::getTemporary(Context, std::nullopt), IDLoc);
 
   Result = FwdRef.first.get();
   NumberedMetadata[MID].reset(Result);
@@ -3530,12 +3530,7 @@ bool LLParser::parseTargetExtType(Type *&Result) {
   if (parseToken(lltok::rparen, "expected ')' in target extension type"))
     return true;
 
-  auto TTy =
-      TargetExtType::getOrError(Context, TypeName, TypeParams, IntParams);
-  if (auto E = TTy.takeError())
-    return tokError(toString(std::move(E)));
-
-  Result = *TTy;
+  Result = TargetExtType::get(Context, TypeName, TypeParams, IntParams);
   return false;
 }
 
@@ -8357,12 +8352,6 @@ int LLParser::parseAtomicRMW(Instruction *&Inst, PerFunctionState &PFS) {
   case lltok::kw_udec_wrap:
     Operation = AtomicRMWInst::UDecWrap;
     break;
-  case lltok::kw_usub_cond:
-    Operation = AtomicRMWInst::USubCond;
-    break;
-  case lltok::kw_usub_sat:
-    Operation = AtomicRMWInst::USubSat;
-    break;
   case lltok::kw_fadd:
     Operation = AtomicRMWInst::FAdd;
     IsFP = true;
@@ -9396,10 +9385,10 @@ bool LLParser::parseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
       /*Live=*/false, /*IsLocal=*/false, /*CanAutoHide=*/false,
       GlobalValueSummary::Definition);
   unsigned InstCount;
-  SmallVector<FunctionSummary::EdgeTy, 0> Calls;
+  std::vector<FunctionSummary::EdgeTy> Calls;
   FunctionSummary::TypeIdInfo TypeIdInfo;
   std::vector<FunctionSummary::ParamAccess> ParamAccesses;
-  SmallVector<ValueInfo, 0> Refs;
+  std::vector<ValueInfo> Refs;
   std::vector<CallsiteInfo> Callsites;
   std::vector<AllocInfo> Allocs;
   // Default is all-zeros (conservative values).
@@ -9453,8 +9442,8 @@ bool LLParser::parseFunctionSummary(std::string Name, GlobalValue::GUID GUID,
     return true;
 
   auto FS = std::make_unique<FunctionSummary>(
-      GVFlags, InstCount, FFlags, std::move(Refs), std::move(Calls),
-      std::move(TypeIdInfo.TypeTests),
+      GVFlags, InstCount, FFlags, /*EntryCount=*/0, std::move(Refs),
+      std::move(Calls), std::move(TypeIdInfo.TypeTests),
       std::move(TypeIdInfo.TypeTestAssumeVCalls),
       std::move(TypeIdInfo.TypeCheckedLoadVCalls),
       std::move(TypeIdInfo.TypeTestAssumeConstVCalls),
@@ -9487,7 +9476,7 @@ bool LLParser::parseVariableSummary(std::string Name, GlobalValue::GUID GUID,
                                         /* WriteOnly */ false,
                                         /* Constant */ false,
                                         GlobalObject::VCallVisibilityPublic);
-  SmallVector<ValueInfo, 0> Refs;
+  std::vector<ValueInfo> Refs;
   VTableFuncList VTableFuncs;
   if (parseToken(lltok::colon, "expected ':' here") ||
       parseToken(lltok::lparen, "expected '(' here") ||
@@ -9685,8 +9674,7 @@ bool LLParser::parseOptionalFFlags(FunctionSummary::FFlags &FFlags) {
 /// Call ::= '(' 'callee' ':' GVReference
 ///            [( ',' 'hotness' ':' Hotness | ',' 'relbf' ':' UInt32 )]?
 ///            [ ',' 'tail' ]? ')'
-bool LLParser::parseOptionalCalls(
-    SmallVectorImpl<FunctionSummary::EdgeTy> &Calls) {
+bool LLParser::parseOptionalCalls(std::vector<FunctionSummary::EdgeTy> &Calls) {
   assert(Lex.getKind() == lltok::kw_calls);
   Lex.Lex();
 
@@ -9994,7 +9982,7 @@ bool LLParser::parseOptionalParamAccesses(
 
 /// OptionalRefs
 ///   := 'refs' ':' '(' GVReference [',' GVReference]* ')'
-bool LLParser::parseOptionalRefs(SmallVectorImpl<ValueInfo> &Refs) {
+bool LLParser::parseOptionalRefs(std::vector<ValueInfo> &Refs) {
   assert(Lex.getKind() == lltok::kw_refs);
   Lex.Lex();
 

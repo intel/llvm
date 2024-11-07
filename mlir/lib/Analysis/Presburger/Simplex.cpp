@@ -2153,16 +2153,9 @@ void SimplexBase::print(raw_ostream &os) const {
   for (unsigned col = 2, e = getNumColumns(); col < e; ++col)
     os << ", c" << col << ": " << colUnknown[col];
   os << '\n';
-  PrintTableMetrics ptm = {0, 0, "-"};
-  for (unsigned row = 0, numRows = getNumRows(); row < numRows; ++row)
-    for (unsigned col = 0, numCols = getNumColumns(); col < numCols; ++col)
-      updatePrintMetrics<DynamicAPInt>(tableau(row, col), ptm);
-  unsigned MIN_SPACING = 1;
   for (unsigned row = 0, numRows = getNumRows(); row < numRows; ++row) {
-    for (unsigned col = 0, numCols = getNumColumns(); col < numCols; ++col) {
-      printWithPrintMetrics<DynamicAPInt>(os, tableau(row, col), MIN_SPACING,
-                                          ptm);
-    }
+    for (unsigned col = 0, numCols = getNumColumns(); col < numCols; ++col)
+      os << tableau(row, col) << '\t';
     os << '\n';
   }
   os << '\n';

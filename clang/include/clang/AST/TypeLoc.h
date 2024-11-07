@@ -942,7 +942,6 @@ public:
 
 struct HLSLAttributedResourceLocInfo {
   SourceRange Range;
-  TypeSourceInfo *ContainedTyInfo;
 };
 
 /// Type source information for HLSL attributed resource type.
@@ -952,23 +951,12 @@ class HLSLAttributedResourceTypeLoc
                              HLSLAttributedResourceLocInfo> {
 public:
   TypeLoc getWrappedLoc() const { return getInnerTypeLoc(); }
-
-  TypeSourceInfo *getContainedTypeSourceInfo() const {
-    return getLocalData()->ContainedTyInfo;
-  }
-  void setContainedTypeSourceInfo(TypeSourceInfo *TSI) const {
-    getLocalData()->ContainedTyInfo = TSI;
-  }
-
   void setSourceRange(const SourceRange &R) { getLocalData()->Range = R; }
   SourceRange getLocalSourceRange() const { return getLocalData()->Range; }
   void initializeLocal(ASTContext &Context, SourceLocation loc) {
     setSourceRange(SourceRange());
   }
   QualType getInnerType() const { return getTypePtr()->getWrappedType(); }
-  unsigned getLocalDataSize() const {
-    return sizeof(HLSLAttributedResourceLocInfo);
-  }
 };
 
 struct ObjCObjectTypeLocInfo {

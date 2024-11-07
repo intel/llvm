@@ -14,7 +14,7 @@
 // Unlike 'std::is_convertible' which only allows checking for single argument
 // conversions.
 
-#include <utility>
+#include <type_traits>
 
 #include "test_macros.h"
 

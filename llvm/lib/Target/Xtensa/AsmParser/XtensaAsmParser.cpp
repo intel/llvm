@@ -45,9 +45,9 @@ class XtensaAsmParser : public MCTargetAsmParser {
 
   ParseStatus parseDirective(AsmToken DirectiveID) override;
   bool parseRegister(MCRegister &Reg, SMLoc &StartLoc, SMLoc &EndLoc) override;
-  bool parseInstruction(ParseInstructionInfo &Info, StringRef Name,
+  bool ParseInstruction(ParseInstructionInfo &Info, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override;
-  bool matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+  bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                OperandVector &Operands, MCStreamer &Out,
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override;
@@ -425,7 +425,7 @@ bool XtensaAsmParser::processInstruction(MCInst &Inst, SMLoc IDLoc,
   return true;
 }
 
-bool XtensaAsmParser::matchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
+bool XtensaAsmParser::MatchAndEmitInstruction(SMLoc IDLoc, unsigned &Opcode,
                                               OperandVector &Operands,
                                               MCStreamer &Out,
                                               uint64_t &ErrorInfo,
@@ -730,7 +730,7 @@ bool XtensaAsmParser::ParseInstructionWithSR(ParseInstructionInfo &Info,
   return false;
 }
 
-bool XtensaAsmParser::parseInstruction(ParseInstructionInfo &Info,
+bool XtensaAsmParser::ParseInstruction(ParseInstructionInfo &Info,
                                        StringRef Name, SMLoc NameLoc,
                                        OperandVector &Operands) {
   if (Name.starts_with("wsr") || Name.starts_with("rsr") ||

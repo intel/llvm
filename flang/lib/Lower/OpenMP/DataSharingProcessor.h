@@ -68,7 +68,9 @@ private:
                           lower::pft::Evaluation &eval) const;
   };
 
+  bool hasLastPrivateOp;
   mlir::OpBuilder::InsertPoint lastPrivIP;
+  mlir::OpBuilder::InsertPoint insPt;
   llvm::SmallVector<mlir::Value> loopIVs;
   // Symbols in private, firstprivate, and/or lastprivate clauses.
   llvm::SetVector<const semantics::Symbol *> explicitlyPrivatizedSymbols;
@@ -104,6 +106,12 @@ private:
   void collectImplicitSymbols();
   void collectPreDeterminedSymbols();
   void privatize(mlir::omp::PrivateClauseOps *clauseOps);
+  void defaultPrivatize(
+      mlir::omp::PrivateClauseOps *clauseOps,
+      llvm::SmallVectorImpl<const semantics::Symbol *> *privateSyms);
+  void implicitPrivatize(
+      mlir::omp::PrivateClauseOps *clauseOps,
+      llvm::SmallVectorImpl<const semantics::Symbol *> *privateSyms);
   void doPrivatize(const semantics::Symbol *sym,
                    mlir::omp::PrivateClauseOps *clauseOps);
   void copyLastPrivatize(mlir::Operation *op);

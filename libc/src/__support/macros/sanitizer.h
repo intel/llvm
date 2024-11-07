@@ -15,25 +15,7 @@
 // Functions to unpoison memory
 //-----------------------------------------------------------------------------
 
-#if LIBC_HAS_FEATURE(address_sanitizer) || defined(__SANITIZE_ADDRESS__)
-#define LIBC_HAS_ADDRESS_SANITIZER
-#endif
-
 #if LIBC_HAS_FEATURE(memory_sanitizer)
-#define LIBC_HAS_MEMORY_SANITIZER
-#endif
-
-#if LIBC_HAS_FEATURE(undefined_behavior_sanitizer)
-#define LIBC_HAS_UNDEFINED_BEHAVIOR_SANITIZER
-#endif
-
-#if defined(LIBC_HAS_ADDRESS_SANITIZER) ||                                     \
-    defined(LIBC_HAS_MEMORY_SANITIZER) ||                                      \
-    defined(LIBC_HAS_UNDEFINED_BEHAVIOR_SANITIZER)
-#define LIBC_HAS_SANITIZER
-#endif
-
-#ifdef LIBC_HAS_MEMORY_SANITIZER
 // Only perform MSAN unpoison in non-constexpr context.
 #include <sanitizer/msan_interface.h>
 #define MSAN_UNPOISON(addr, size)                                              \
@@ -45,7 +27,8 @@
 #define MSAN_UNPOISON(ptr, size)
 #endif
 
-#ifdef LIBC_HAS_ADDRESS_SANITIZER
+#if LIBC_HAS_FEATURE(address_sanitizer)
+#define LIBC_HAVE_ADDRESS_SANITIZER
 #include <sanitizer/asan_interface.h>
 #define ASAN_POISON_MEMORY_REGION(addr, size)                                  \
   __asan_poison_memory_region((addr), (size))

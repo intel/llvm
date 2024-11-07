@@ -6,9 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "hdr/signal_macros.h"
 #include "src/__support/FPUtil/FPBits.h"
-#include "src/__support/macros/sanitizer.h"
 #include "src/__support/uint128.h"
 #include "src/math/nanf128.h"
 #include "test/UnitTest/FEnvSafeTest.h"
@@ -55,8 +53,9 @@ TEST_F(LlvmLibcNanf128Test, RandomString) {
            QUIET_NAN);
 }
 
-#if !defined(LIBC_HAS_ADDRESS_SANITIZER) && defined(LIBC_TARGET_OS_IS_LINUX)
+#if !defined(LIBC_HAVE_ADDRESS_SANITIZER) && defined(LIBC_TARGET_OS_IS_LINUX)
+#include <signal.h>
 TEST_F(LlvmLibcNanf128Test, InvalidInput) {
   EXPECT_DEATH([] { LIBC_NAMESPACE::nanf128(nullptr); }, WITH_SIGNAL(SIGSEGV));
 }
-#endif // LIBC_HAS_ADDRESS_SANITIZER
+#endif // LIBC_HAVE_ADDRESS_SANITIZER

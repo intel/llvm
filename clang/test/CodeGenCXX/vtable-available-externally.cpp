@@ -250,39 +250,28 @@ struct C : A {
   virtual void car();
 };
 
-// Inline definition outside body, so we can't emit vtable available_externally
-// (see previous).
-// CHECK-TEST10-DAG: @_ZTVN6Test101FE = external unnamed_addr constant
-struct F : A {
-  void foo();
-  virtual void cat();         // inline outside body
-};
-inline void F::cat() {}
-
 // no key function, vtable will be generated everywhere it will be used
 // CHECK-TEST10-DAG: @_ZTVN6Test101EE = linkonce_odr unnamed_addr constant
 // CHECK-FORCE-EMIT-DAG: @_ZTVN6Test101EE = linkonce_odr unnamed_addr constant
 
 struct E : A {};
 
-void h(A& a) {
+void g(A& a) {
   a.foo();
   a.bar();
 }
 
-void g() {
+void f() {
   A a;
-  h(a);
+  g(a);
   B b;
-  h(b);
+  g(b);
   C c;
-  h(c);
+  g(c);
   D d;
-  h(d);
+  g(d);
   E e;
-  h(e);
-  F f;
-  h(f);
+  g(e);
 }
 
 }  // Test10

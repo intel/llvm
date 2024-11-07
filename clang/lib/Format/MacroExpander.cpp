@@ -191,10 +191,9 @@ MacroExpander::expand(FormatToken *ID,
   auto expandArgument = [&](FormatToken *Tok) -> bool {
     // If the current token references a parameter, expand the corresponding
     // argument.
-    if (Tok->isNot(tok::identifier))
+    if (Tok->isNot(tok::identifier) || ExpandedArgs.contains(Tok->TokenText))
       return false;
-    if (!ExpandedArgs.insert(Tok->TokenText).second)
-      return false;
+    ExpandedArgs.insert(Tok->TokenText);
     auto I = Def.ArgMap.find(Tok->TokenText);
     if (I == Def.ArgMap.end())
       return false;

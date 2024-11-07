@@ -268,7 +268,7 @@ public:
   /// .dwo file. Things like a missing .dwo file, DWO ID mismatch, and other
   /// .dwo errors can be stored in each compile unit so the issues can be
   /// communicated to the user.
-  void SetDwoError(Status &&error) { m_dwo_error = std::move(error); }
+  void SetDwoError(const Status &error) { m_dwo_error = error; }
 
 protected:
   DWARFUnit(SymbolFileDWARF &dwarf, lldb::user_id_t uid,

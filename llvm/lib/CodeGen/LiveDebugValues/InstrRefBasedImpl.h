@@ -484,16 +484,22 @@ public:
 
 private:
   DbgOpID insertConstOp(MachineOperand &MO) {
-    auto [It, Inserted] = ConstOpToID.try_emplace(MO, true, ConstOps.size());
-    if (Inserted)
-      ConstOps.push_back(MO);
-    return It->second;
+    auto ExistingIt = ConstOpToID.find(MO);
+    if (ExistingIt != ConstOpToID.end())
+      return ExistingIt->second;
+    DbgOpID ID(true, ConstOps.size());
+    ConstOpToID.insert(std::make_pair(MO, ID));
+    ConstOps.push_back(MO);
+    return ID;
   }
   DbgOpID insertValueOp(ValueIDNum VID) {
-    auto [It, Inserted] = ValueOpToID.try_emplace(VID, false, ValueOps.size());
-    if (Inserted)
-      ValueOps.push_back(VID);
-    return It->second;
+    auto ExistingIt = ValueOpToID.find(VID);
+    if (ExistingIt != ValueOpToID.end())
+      return ExistingIt->second;
+    DbgOpID ID(false, ValueOps.size());
+    ValueOpToID.insert(std::make_pair(VID, ID));
+    ValueOps.push_back(VID);
+    return ID;
   }
 };
 

@@ -168,6 +168,8 @@ SPIRVGlobalRegistry::getOrCreateConstIntReg(uint64_t Val, SPIRVType *SpvType,
   ConstantInt *CI = ConstantInt::get(const_cast<IntegerType *>(LLVMIntTy), Val);
   Register Res = DT.find(CI, CurMF);
   if (!Res.isValid()) {
+    // TODO: handle cases where the type is not 32bit wide
+    // TODO: https://github.com/llvm/llvm-project/issues/88129
     Res =
         CurMF->getRegInfo().createGenericVirtualRegister(LLT::scalar(BitWidth));
     CurMF->getRegInfo().setRegClass(Res, &SPIRV::iIDRegClass);
@@ -195,6 +197,8 @@ SPIRVGlobalRegistry::getOrCreateConstFloatReg(APFloat Val, SPIRVType *SpvType,
   auto *const CI = ConstantFP::get(Ctx, Val);
   Register Res = DT.find(CI, CurMF);
   if (!Res.isValid()) {
+    // TODO: handle cases where the type is not 32bit wide
+    // TODO: https://github.com/llvm/llvm-project/issues/88129
     Res =
         CurMF->getRegInfo().createGenericVirtualRegister(LLT::scalar(BitWidth));
     CurMF->getRegInfo().setRegClass(Res, &SPIRV::fIDRegClass);
@@ -387,6 +391,8 @@ Register SPIRVGlobalRegistry::getOrCreateCompositeOrNull(
       SpvScalConst =
           getOrCreateBaseRegister(Val, I, SpvType, TII, BitWidth, ZeroAsNull);
 
+    // TODO: handle cases where the type is not 32bit wide
+    // TODO: https://github.com/llvm/llvm-project/issues/88129
     LLT LLTy = LLT::scalar(64);
     Register SpvVecConst =
         CurMF->getRegInfo().createGenericVirtualRegister(LLTy);
@@ -496,7 +502,7 @@ Register SPIRVGlobalRegistry::getOrCreateIntCompositeOrNull(
     assignSPIRVTypeToVReg(SpvType, SpvVecConst, *CurMF);
     DT.add(CA, CurMF, SpvVecConst);
     if (EmitIR) {
-      MIRBuilder.buildSplatBuildVector(SpvVecConst, SpvScalConst);
+      MIRBuilder.buildSplatVector(SpvVecConst, SpvScalConst);
     } else {
       if (Val) {
         auto MIB = MIRBuilder.buildInstr(SPIRV::OpConstantComposite)

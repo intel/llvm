@@ -13,7 +13,6 @@
 
 #include "llvm-c/lto.h"
 #include "llvm/ADT/STLExtras.h"
-#include "llvm/ADT/SmallVector.h"
 #include "llvm/ADT/StringExtras.h"
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/CodeGen/CommandFlags.h"
@@ -89,8 +88,6 @@ struct LTOToolDiagnosticHandler : public DiagnosticHandler {
   }
 };
 
-static SmallVector<const char *> RuntimeLibcallSymbols;
-
 // Initialize the configured targets if they have not been initialized.
 static void lto_initialize() {
   if (!initialized) {
@@ -111,7 +108,6 @@ static void lto_initialize() {
     LTOContext = &Context;
     LTOContext->setDiagnosticHandler(
         std::make_unique<LTOToolDiagnosticHandler>(), true);
-    RuntimeLibcallSymbols = lto::LTO::getRuntimeLibcallSymbols(Triple());
     initialized = true;
   }
 }
@@ -695,6 +691,7 @@ extern const char *lto_input_get_dependent_library(lto_input_t input,
 }
 
 extern const char *const *lto_runtime_lib_symbols_list(size_t *size) {
-  *size = RuntimeLibcallSymbols.size();
-  return RuntimeLibcallSymbols.data();
+  auto symbols = lto::LTO::getRuntimeLibcallSymbols(Triple());
+  *size = symbols.size();
+  return symbols.data();
 }

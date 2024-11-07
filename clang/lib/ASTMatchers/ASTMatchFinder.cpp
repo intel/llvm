@@ -285,13 +285,12 @@ public:
     ScopedIncrement ScopedDepth(&CurrentDepth);
 
     for (unsigned I = 0, N = Node->capture_size(); I != N; ++I) {
-      const LambdaCapture *C = Node->capture_begin() + I;
+      const auto *C = Node->capture_begin() + I;
       if (!C->isExplicit())
         continue;
       if (Node->isInitCapture(C) && !match(*C->getCapturedVar()))
         return false;
-      const Expr *CIE = Node->capture_init_begin()[I];
-      if (CIE != nullptr && !match(*CIE))
+      if (!match(*Node->capture_init_begin()[I]))
         return false;
     }
 

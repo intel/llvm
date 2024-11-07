@@ -485,9 +485,7 @@ enum RMWOperations {
   RMW_FMAX = 13,
   RMW_FMIN = 14,
   RMW_UINC_WRAP = 15,
-  RMW_UDEC_WRAP = 16,
-  RMW_USUB_COND = 17,
-  RMW_USUB_SAT = 18
+  RMW_UDEC_WRAP = 16
 };
 
 /// OverflowingBinaryOperatorOptionalFlags - Flags for serializing
@@ -761,9 +759,6 @@ enum AttributeKindCodes {
   ATTR_KIND_INITIALIZES = 94,
   ATTR_KIND_HYBRID_PATCHABLE = 95,
   ATTR_KIND_SANITIZE_REALTIME = 96,
-  ATTR_KIND_SANITIZE_REALTIME_UNSAFE = 97,
-  ATTR_KIND_CORO_ELIDE_SAFE = 98,
-  ATTR_KIND_NO_EXT = 99,
 };
 
 enum ComdatSelectionKindCodes {

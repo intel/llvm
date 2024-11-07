@@ -68,7 +68,7 @@ static void emitDiagnostics(const BoundNodes &Nodes,
     Checker,
     /*Name=*/"OSObject C-Style Cast",
     categories::SecurityError,
-    Diagnostics,
+    OS.str(),
     PathDiagnosticLocation::createBegin(CE, BR.getSourceManager(), ADC),
     CE->getSourceRange());
 }

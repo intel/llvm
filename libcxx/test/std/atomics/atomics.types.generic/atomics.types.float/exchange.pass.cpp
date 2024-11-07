@@ -15,7 +15,6 @@
 #include <cassert>
 #include <concepts>
 #include <type_traits>
-#include <utility>
 
 #include "test_helper.h"
 #include "test_macros.h"

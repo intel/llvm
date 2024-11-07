@@ -142,30 +142,6 @@ private:
   size_t size;
 };
 
-// A chunk for ARM64EC auxiliary IAT.
-class AuxImportChunk : public NonSectionChunk {
-public:
-  explicit AuxImportChunk(ImportFile *file) : file(file) {
-    setAlignment(sizeof(uint64_t));
-  }
-  size_t getSize() const override { return sizeof(uint64_t); }
-
-  void writeTo(uint8_t *buf) const override {
-    uint64_t impchkVA = 0;
-    if (file->impchkThunk)
-      impchkVA = file->impchkThunk->getRVA() + file->ctx.config.imageBase;
-    write64le(buf, impchkVA);
-  }
-
-  void getBaserels(std::vector<Baserel> *res) override {
-    if (file->impchkThunk)
-      res->emplace_back(rva, file->ctx.config.machine);
-  }
-
-private:
-  ImportFile *file;
-};
-
 static std::vector<std::vector<DefinedImportData *>>
 binImports(COFFLinkerContext &ctx,
            const std::vector<DefinedImportData *> &imports) {
@@ -184,15 +160,7 @@ binImports(COFFLinkerContext &ctx,
     // Sort symbols by name for each group.
     std::vector<DefinedImportData *> &syms = kv.second;
     llvm::sort(syms, [](DefinedImportData *a, DefinedImportData *b) {
-      auto getBaseName = [](DefinedImportData *sym) {
-        StringRef name = sym->getName();
-        name.consume_front("__imp_");
-        // Skip aux_ part of ARM64EC function symbol name.
-        if (sym->file->impchkThunk)
-          name.consume_front("aux_");
-        return name;
-      };
-      return getBaseName(a) < getBaseName(b);
+      return a->getName() < b->getName();
     });
     v.push_back(std::move(syms));
   }
@@ -719,30 +687,16 @@ void IdataContents::create(COFFLinkerContext &ctx) {
       if (s->getExternalName().empty()) {
         lookups.push_back(make<OrdinalOnlyChunk>(ctx, ord));
         addresses.push_back(make<OrdinalOnlyChunk>(ctx, ord));
-      } else {
-        auto *c = make<HintNameChunk>(s->getExternalName(), ord);
-        lookups.push_back(make<LookupChunk>(ctx, c));
-        addresses.push_back(make<LookupChunk>(ctx, c));
-        hints.push_back(c);
+        continue;
       }
-
-      if (s->file->impECSym) {
-        auto chunk = make<AuxImportChunk>(s->file);
-        auxIat.push_back(chunk);
-        s->file->impECSym->setLocation(chunk);
-
-        chunk = make<AuxImportChunk>(s->file);
-        auxIatCopy.push_back(chunk);
-        s->file->auxImpCopySym->setLocation(chunk);
-      }
+      auto *c = make<HintNameChunk>(s->getExternalName(), ord);
+      lookups.push_back(make<LookupChunk>(ctx, c));
+      addresses.push_back(make<LookupChunk>(ctx, c));
+      hints.push_back(c);
     }
     // Terminate with null values.
     lookups.push_back(make<NullChunk>(ctx.config.wordsize));
     addresses.push_back(make<NullChunk>(ctx.config.wordsize));
-    if (ctx.config.machine == ARM64EC) {
-      auxIat.push_back(make<NullChunk>(ctx.config.wordsize));
-      auxIatCopy.push_back(make<NullChunk>(ctx.config.wordsize));
-    }
 
     for (int i = 0, e = syms.size(); i < e; ++i)
       syms[i]->setLocation(addresses[base + i]);

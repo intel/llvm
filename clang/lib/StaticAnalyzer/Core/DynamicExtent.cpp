@@ -120,7 +120,7 @@ DefinedOrUnknownSVal getDynamicElementCountWithOffset(ProgramStateRef State,
 }
 
 ProgramStateRef setDynamicExtent(ProgramStateRef State, const MemRegion *MR,
-                                 DefinedOrUnknownSVal Size) {
+                                 DefinedOrUnknownSVal Size, SValBuilder &SVB) {
   MR = MR->StripCasts();
 
   if (Size.isUnknown())

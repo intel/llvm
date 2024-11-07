@@ -61,23 +61,23 @@ protected:
     return *Result;
   }
 
-  FormatStyle getStyleWithColumns(FormatStyle Style,
-                                  unsigned ColumnLimit) const {
+  FormatStyle getStyleWithColumns(FormatStyle Style, unsigned ColumnLimit) {
     Style.ColumnLimit = ColumnLimit;
     return Style;
   }
 
-  FormatStyle getLLVMStyleWithColumns(unsigned ColumnLimit) const {
+  FormatStyle getLLVMStyleWithColumns(unsigned ColumnLimit) {
     return getStyleWithColumns(getLLVMStyle(), ColumnLimit);
   }
 
-  FormatStyle getGoogleStyleWithColumns(unsigned ColumnLimit) const {
+  FormatStyle getGoogleStyleWithColumns(unsigned ColumnLimit) {
     return getStyleWithColumns(getGoogleStyle(), ColumnLimit);
   }
 
-  FormatStyle getTextProtoStyleWithColumns(unsigned ColumnLimit) const {
-    return getStyleWithColumns(getGoogleStyle(FormatStyle::LK_TextProto),
-                               ColumnLimit);
+  FormatStyle getTextProtoStyleWithColumns(unsigned ColumnLimit) {
+    FormatStyle Style = getGoogleStyle(FormatStyle::FormatStyle::LK_TextProto);
+    Style.ColumnLimit = ColumnLimit;
+    return Style;
   }
 
   bool _verifyFormat(const char *File, int Line, StringRef Expected,

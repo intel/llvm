@@ -9,7 +9,7 @@
 #include "string_pool.h"
 #include "gtest/gtest.h"
 
-using namespace orc_rt;
+using namespace __orc_rt;
 
 namespace {
 

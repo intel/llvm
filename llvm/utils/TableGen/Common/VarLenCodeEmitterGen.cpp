@@ -67,7 +67,7 @@ using namespace llvm;
 namespace {
 
 class VarLenCodeEmitterGen {
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
 
   // Representaton of alternative encodings used for HwModes.
   using AltEncodingTy = int;
@@ -77,22 +77,21 @@ class VarLenCodeEmitterGen {
   // name suffix to improve readability of the generated code.
   std::map<AltEncodingTy, std::string> Modes;
 
-  DenseMap<const Record *, DenseMap<AltEncodingTy, VarLenInst>> VarLenInsts;
+  DenseMap<Record *, DenseMap<AltEncodingTy, VarLenInst>> VarLenInsts;
 
   // Emit based values (i.e. fixed bits in the encoded instructions)
   void emitInstructionBaseValues(
       raw_ostream &OS,
       ArrayRef<const CodeGenInstruction *> NumberedInstructions,
-      const CodeGenTarget &Target, AltEncodingTy Mode);
+      CodeGenTarget &Target, AltEncodingTy Mode);
 
-  std::string getInstructionCases(const Record *R, const CodeGenTarget &Target);
-  std::string getInstructionCaseForEncoding(const Record *R, AltEncodingTy Mode,
+  std::string getInstructionCases(Record *R, CodeGenTarget &Target);
+  std::string getInstructionCaseForEncoding(Record *R, AltEncodingTy Mode,
                                             const VarLenInst &VLI,
-                                            const CodeGenTarget &Target,
-                                            int Indent);
+                                            CodeGenTarget &Target, int I);
 
 public:
-  explicit VarLenCodeEmitterGen(const RecordKeeper &R) : Records(R) {}
+  explicit VarLenCodeEmitterGen(RecordKeeper &R) : Records(R) {}
 
   void run(raw_ostream &OS);
 };
@@ -223,11 +222,12 @@ void VarLenInst::buildRec(const DagInit *DI) {
 
 void VarLenCodeEmitterGen::run(raw_ostream &OS) {
   CodeGenTarget Target(Records);
+  auto Insts = Records.getAllDerivedDefinitions("Instruction");
 
   auto NumberedInstructions = Target.getInstructionsByEnumValue();
 
   for (const CodeGenInstruction *CGI : NumberedInstructions) {
-    const Record *R = CGI->TheDef;
+    Record *R = CGI->TheDef;
     // Create the corresponding VarLenInst instance.
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
         R->getValueAsBit("isPseudo"))
@@ -238,17 +238,19 @@ void VarLenCodeEmitterGen::run(raw_ostream &OS) {
       if (auto *DI = dyn_cast_or_null<DefInit>(RV->getValue())) {
         const CodeGenHwModes &HWM = Target.getHwModes();
         EncodingInfoByHwMode EBM(DI->getDef(), HWM);
-        for (const auto [Mode, EncodingDef] : EBM) {
+        for (auto &KV : EBM) {
+          AltEncodingTy Mode = KV.first;
           Modes.insert({Mode, "_" + HWM.getMode(Mode).Name.str()});
-          const RecordVal *RV = EncodingDef->getValue("Inst");
+          Record *EncodingDef = KV.second;
+          RecordVal *RV = EncodingDef->getValue("Inst");
           DagInit *DI = cast<DagInit>(RV->getValue());
           VarLenInsts[R].insert({Mode, VarLenInst(DI, RV)});
         }
         continue;
       }
     }
-    const RecordVal *RV = R->getValue("Inst");
-    const DagInit *DI = cast<DagInit>(RV->getValue());
+    RecordVal *RV = R->getValue("Inst");
+    DagInit *DI = cast<DagInit>(RV->getValue());
     VarLenInsts[R].insert({Universal, VarLenInst(DI, RV)});
   }
 
@@ -289,7 +291,7 @@ void VarLenCodeEmitterGen::run(raw_ostream &OS) {
   std::map<std::string, std::vector<std::string>> CaseMap;
 
   // Construct all cases statement for each opcode
-  for (const Record *R : Records.getAllDerivedDefinitions("Instruction")) {
+  for (Record *R : Insts) {
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
         R->getValueAsBit("isPseudo"))
       continue;
@@ -345,7 +347,7 @@ static void emitInstBits(raw_ostream &IS, raw_ostream &SS, const APInt &Bits,
 
 void VarLenCodeEmitterGen::emitInstructionBaseValues(
     raw_ostream &OS, ArrayRef<const CodeGenInstruction *> NumberedInstructions,
-    const CodeGenTarget &Target, AltEncodingTy Mode) {
+    CodeGenTarget &Target, AltEncodingTy Mode) {
   std::string IndexArray, StorageArray;
   raw_string_ostream IS(IndexArray), SS(StorageArray);
 
@@ -354,7 +356,7 @@ void VarLenCodeEmitterGen::emitInstructionBaseValues(
 
   unsigned NumFixedValueWords = 0U;
   for (const CodeGenInstruction *CGI : NumberedInstructions) {
-    const Record *R = CGI->TheDef;
+    Record *R = CGI->TheDef;
 
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
         R->getValueAsBit("isPseudo")) {
@@ -406,9 +408,8 @@ void VarLenCodeEmitterGen::emitInstructionBaseValues(
   OS << IndexArray << StorageArray;
 }
 
-std::string
-VarLenCodeEmitterGen::getInstructionCases(const Record *R,
-                                          const CodeGenTarget &Target) {
+std::string VarLenCodeEmitterGen::getInstructionCases(Record *R,
+                                                      CodeGenTarget &Target) {
   auto It = VarLenInsts.find(R);
   if (It == VarLenInsts.end())
     PrintFatalError(R, "Parsed encoding record not found");
@@ -420,8 +421,7 @@ VarLenCodeEmitterGen::getInstructionCases(const Record *R,
     // Universal, just pick the first mode.
     AltEncodingTy Mode = Modes.begin()->first;
     const auto &Encoding = Map.begin()->second;
-    return getInstructionCaseForEncoding(R, Mode, Encoding, Target,
-                                         /*Indent=*/6);
+    return getInstructionCaseForEncoding(R, Mode, Encoding, Target, 6);
   }
 
   std::string Case;
@@ -434,8 +434,8 @@ VarLenCodeEmitterGen::getInstructionCases(const Record *R,
       Case +=
           "        llvm_unreachable(\"Undefined encoding in this mode\");\n";
     } else {
-      Case += getInstructionCaseForEncoding(R, It->first, It->second, Target,
-                                            /*Indent=*/8);
+      Case +=
+          getInstructionCaseForEncoding(R, It->first, It->second, Target, 8);
     }
     Case += "        break;\n";
     Case += "      }\n";
@@ -445,14 +445,15 @@ VarLenCodeEmitterGen::getInstructionCases(const Record *R,
 }
 
 std::string VarLenCodeEmitterGen::getInstructionCaseForEncoding(
-    const Record *R, AltEncodingTy Mode, const VarLenInst &VLI,
-    const CodeGenTarget &Target, int Indent) {
+    Record *R, AltEncodingTy Mode, const VarLenInst &VLI, CodeGenTarget &Target,
+    int I) {
+
   CodeGenInstruction &CGI = Target.getInstruction(R);
 
   std::string Case;
   raw_string_ostream SS(Case);
   // Populate based value.
-  SS.indent(Indent) << "Inst = getInstBits" << Modes[Mode] << "(opcode);\n";
+  SS.indent(I) << "Inst = getInstBits" << Modes[Mode] << "(opcode);\n";
 
   // Process each segment in VLI.
   size_t Offset = 0U;
@@ -481,21 +482,19 @@ std::string VarLenCodeEmitterGen::getInstructionCaseForEncoding(
       if (ES.CustomEncoder.size())
         CustomEncoder = ES.CustomEncoder;
 
-      SS.indent(Indent) << "Scratch.clearAllBits();\n";
-      SS.indent(Indent) << "// op: " << OperandName.drop_front(1) << "\n";
+      SS.indent(I) << "Scratch.clearAllBits();\n";
+      SS.indent(I) << "// op: " << OperandName.drop_front(1) << "\n";
       if (CustomEncoder.empty())
-        SS.indent(Indent) << "getMachineOpValue(MI, MI.getOperand("
-                          << utostr(FlatOpIdx) << ")";
+        SS.indent(I) << "getMachineOpValue(MI, MI.getOperand("
+                     << utostr(FlatOpIdx) << ")";
       else
-        SS.indent(Indent) << CustomEncoder << "(MI, /*OpIdx=*/"
-                          << utostr(FlatOpIdx);
+        SS.indent(I) << CustomEncoder << "(MI, /*OpIdx=*/" << utostr(FlatOpIdx);
 
       SS << ", /*Pos=*/" << utostr(Offset) << ", Scratch, Fixups, STI);\n";
 
-      SS.indent(Indent) << "Inst.insertBits("
-                        << "Scratch.extractBits(" << utostr(NumBits) << ", "
-                        << utostr(LoBit) << ")"
-                        << ", " << Offset << ");\n";
+      SS.indent(I) << "Inst.insertBits(" << "Scratch.extractBits("
+                   << utostr(NumBits) << ", " << utostr(LoBit) << ")" << ", "
+                   << Offset << ");\n";
 
       HighScratchAccess = std::max(HighScratchAccess, NumBits + LoBit);
     }
@@ -504,20 +503,24 @@ std::string VarLenCodeEmitterGen::getInstructionCaseForEncoding(
 
   StringRef PostEmitter = R->getValueAsString("PostEncoderMethod");
   if (!PostEmitter.empty())
-    SS.indent(Indent) << "Inst = " << PostEmitter << "(MI, Inst, STI);\n";
+    SS.indent(I) << "Inst = " << PostEmitter << "(MI, Inst, STI);\n";
 
   // Resize the scratch buffer if it's to small.
   std::string ScratchResizeStr;
   if (VLI.size() && !VLI.isFixedValueOnly()) {
     raw_string_ostream RS(ScratchResizeStr);
-    RS.indent(Indent) << "if (Scratch.getBitWidth() < " << HighScratchAccess
-                      << ") { Scratch = Scratch.zext(" << HighScratchAccess
-                      << "); }\n";
+    RS.indent(I) << "if (Scratch.getBitWidth() < " << HighScratchAccess
+                 << ") { Scratch = Scratch.zext(" << HighScratchAccess
+                 << "); }\n";
   }
 
   return ScratchResizeStr + Case;
 }
 
-void llvm::emitVarLenCodeEmitter(const RecordKeeper &R, raw_ostream &OS) {
+namespace llvm {
+
+void emitVarLenCodeEmitter(RecordKeeper &R, raw_ostream &OS) {
   VarLenCodeEmitterGen(R).run(OS);
 }
+
+} // end namespace llvm

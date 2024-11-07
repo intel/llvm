@@ -14,7 +14,6 @@
 
 #include <memory>
 #include <cassert>
-#include <utility>
 
 #include "reset_helper.h"
 #include "test_macros.h"

@@ -16,17 +16,15 @@
 namespace llvm {
 enum class AlignStyle { Left, Center, Right };
 
-/// Helper class to format to a \p Width wide field, with alignment \p Where
-/// within that field.
 struct FmtAlign {
   support::detail::format_adapter &Adapter;
   AlignStyle Where;
-  unsigned Width;
+  size_t Amount;
   char Fill;
 
   FmtAlign(support::detail::format_adapter &Adapter, AlignStyle Where,
-           unsigned Width, char Fill = ' ')
-      : Adapter(Adapter), Where(Where), Width(Width), Fill(Fill) {}
+           size_t Amount, char Fill = ' ')
+      : Adapter(Adapter), Where(Where), Amount(Amount), Fill(Fill) {}
 
   void format(raw_ostream &S, StringRef Options) {
     // If we don't need to align, we can format straight into the underlying
@@ -34,7 +32,7 @@ struct FmtAlign {
     // in order to calculate how long the output is so we can align it.
     // TODO: Make the format method return the number of bytes written, that
     // way we can also skip the intermediate stream for left-aligned output.
-    if (Width == 0) {
+    if (Amount == 0) {
       Adapter.format(S, Options);
       return;
     }
@@ -42,19 +40,19 @@ struct FmtAlign {
     raw_svector_ostream Stream(Item);
 
     Adapter.format(Stream, Options);
-    if (Width <= Item.size()) {
+    if (Amount <= Item.size()) {
       S << Item;
       return;
     }
 
-    unsigned PadAmount = Width - static_cast<unsigned>(Item.size());
+    size_t PadAmount = Amount - Item.size();
     switch (Where) {
     case AlignStyle::Left:
       S << Item;
       fill(S, PadAmount);
       break;
     case AlignStyle::Center: {
-      unsigned X = PadAmount / 2;
+      size_t X = PadAmount / 2;
       fill(S, X);
       S << Item;
       fill(S, PadAmount - X);
@@ -68,8 +66,8 @@ struct FmtAlign {
   }
 
 private:
-  void fill(llvm::raw_ostream &S, unsigned Count) {
-    for (unsigned I = 0; I < Count; ++I)
+  void fill(llvm::raw_ostream &S, size_t Count) {
+    for (size_t I = 0; I < Count; ++I)
       S << Fill;
   }
 };

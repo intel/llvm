@@ -190,14 +190,13 @@ const Reloc *InputSection::getRelocAt(uint32_t off) const {
   return &*it;
 }
 
-void ConcatInputSection::foldIdentical(ConcatInputSection *copy,
-                                       Symbol::ICFFoldKind foldKind) {
+void ConcatInputSection::foldIdentical(ConcatInputSection *copy) {
   align = std::max(align, copy->align);
   copy->live = false;
   copy->wasCoalesced = true;
   copy->replacement = this;
   for (auto &copySym : copy->symbols)
-    copySym->identicalCodeFoldingKind = foldKind;
+    copySym->wasIdenticalCodeFolded = true;
 
   symbols.insert(symbols.end(), copy->symbols.begin(), copy->symbols.end());
   copy->symbols.clear();

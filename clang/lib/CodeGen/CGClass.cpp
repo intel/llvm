@@ -2193,11 +2193,15 @@ static bool canEmitDelegateCallArgs(CodeGenFunction &CGF,
   return true;
 }
 
-void CodeGenFunction::EmitCXXConstructorCall(
-    const CXXConstructorDecl *D, CXXCtorType Type, bool ForVirtualBase,
-    bool Delegating, Address This, CallArgList &Args,
-    AggValueSlot::Overlap_t Overlap, SourceLocation Loc,
-    bool NewPointerIsChecked, llvm::CallBase **CallOrInvoke) {
+void CodeGenFunction::EmitCXXConstructorCall(const CXXConstructorDecl *D,
+                                             CXXCtorType Type,
+                                             bool ForVirtualBase,
+                                             bool Delegating,
+                                             Address This,
+                                             CallArgList &Args,
+                                             AggValueSlot::Overlap_t Overlap,
+                                             SourceLocation Loc,
+                                             bool NewPointerIsChecked) {
   const CXXRecordDecl *ClassDecl = D->getParent();
 
   if (!NewPointerIsChecked)
@@ -2245,7 +2249,7 @@ void CodeGenFunction::EmitCXXConstructorCall(
   const CGFunctionInfo &Info = CGM.getTypes().arrangeCXXConstructorCall(
       Args, D, Type, ExtraArgs.Prefix, ExtraArgs.Suffix, PassPrototypeArgs);
   CGCallee Callee = CGCallee::forDirect(CalleePtr, GlobalDecl(D, Type));
-  EmitCall(Info, Callee, ReturnValueSlot(), Args, CallOrInvoke, false, Loc);
+  EmitCall(Info, Callee, ReturnValueSlot(), Args, nullptr, false, Loc);
 
   // Generate vtable assumptions if we're constructing a complete object
   // with a vtable.  We don't do this for base subobjects for two reasons:

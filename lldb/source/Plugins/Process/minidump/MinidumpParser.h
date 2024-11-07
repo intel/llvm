@@ -48,8 +48,6 @@ struct Range {
 };
 
 using FallibleMemory64Iterator = llvm::object::MinidumpFile::FallibleMemory64Iterator;
-using ExceptionStreamsIterator =
-    llvm::object::MinidumpFile::ExceptionStreamsIterator;
 
 class MinidumpParser {
 public:
@@ -86,7 +84,7 @@ public:
   // have the same name, it keeps the copy with the lowest load address.
   std::vector<const minidump::Module *> GetFilteredModuleList();
 
-  llvm::iterator_range<ExceptionStreamsIterator> GetExceptionStreams();
+  const llvm::minidump::ExceptionStream *GetExceptionStream();
 
   std::optional<Range> FindMemoryRange(lldb::addr_t addr);
 

@@ -22,14 +22,13 @@ class ValueListImpl {
 public:
   ValueListImpl() = default;
 
-  ValueListImpl(const ValueListImpl &rhs)
-      : m_values(rhs.m_values), m_error(rhs.m_error.Clone()) {}
+  ValueListImpl(const ValueListImpl &rhs) = default;
 
   ValueListImpl &operator=(const ValueListImpl &rhs) {
     if (this == &rhs)
       return *this;
     m_values = rhs.m_values;
-    m_error = rhs.m_error.Clone();
+    m_error = rhs.m_error;
     return *this;
   }
 
@@ -68,7 +67,7 @@ public:
 
   const Status &GetError() const { return m_error; }
 
-  void SetError(Status &&error) { m_error = std::move(error); }
+  void SetError(const Status &error) { m_error = error; }
 
 private:
   std::vector<lldb::SBValue> m_values;
@@ -206,10 +205,10 @@ lldb::SBError SBValueList::GetError() {
   LLDB_INSTRUMENT_VA(this);
   SBError sb_error;
   if (m_opaque_up)
-    sb_error.SetError(m_opaque_up->GetError().Clone());
+    sb_error.SetError(m_opaque_up->GetError());
   return sb_error;
 }
 
-void SBValueList::SetError(lldb_private::Status &&status) {
-  ref().SetError(std::move(status));
+void SBValueList::SetError(const lldb_private::Status &status) {
+  ref().SetError(status);
 }

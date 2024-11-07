@@ -6164,7 +6164,7 @@ void CFGBlock::printTerminatorJson(raw_ostream &Out, const LangOptions &LO,
 
   printTerminator(TempOut, LO);
 
-  Out << JsonFormat(Buf, AddQuotes);
+  Out << JsonFormat(TempOut.str(), AddQuotes);
 }
 
 // Returns true if by simply looking at the block, we can be sure that it
@@ -6345,9 +6345,10 @@ struct DOTGraphTraits<const CFG*> : public DefaultDOTGraphTraits {
   DOTGraphTraits(bool isSimple = false) : DefaultDOTGraphTraits(isSimple) {}
 
   static std::string getNodeLabel(const CFGBlock *Node, const CFG *Graph) {
-    std::string OutStr;
-    llvm::raw_string_ostream Out(OutStr);
+    std::string OutSStr;
+    llvm::raw_string_ostream Out(OutSStr);
     print_block(Out,Graph, *Node, *GraphHelper, false, false);
+    std::string& OutStr = Out.str();
 
     if (OutStr[0] == '\n') OutStr.erase(OutStr.begin());
 

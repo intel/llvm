@@ -288,15 +288,28 @@ public:
   ComplexPairTy EmitComplexBinOpLibCall(StringRef LibCallName,
                                         const BinOpInfo &Op);
 
+  QualType GetHigherPrecisionFPType(QualType ElementType) {
+    const auto *CurrentBT = cast<BuiltinType>(ElementType);
+    switch (CurrentBT->getKind()) {
+    case BuiltinType::Kind::Float16:
+      return CGF.getContext().FloatTy;
+    case BuiltinType::Kind::Float:
+    case BuiltinType::Kind::BFloat16:
+      return CGF.getContext().DoubleTy;
+    case BuiltinType::Kind::Double:
+      return CGF.getContext().LongDoubleTy;
+    default:
+      return ElementType;
+    }
+  }
+
   QualType HigherPrecisionTypeForComplexArithmetic(QualType ElementType,
                                                    bool IsDivOpCode) {
-    ASTContext &Ctx = CGF.getContext();
-    const QualType HigherElementType =
-        Ctx.GetHigherPrecisionFPType(ElementType);
+    QualType HigherElementType = GetHigherPrecisionFPType(ElementType);
     const llvm::fltSemantics &ElementTypeSemantics =
-        Ctx.getFloatTypeSemantics(ElementType);
+        CGF.getContext().getFloatTypeSemantics(ElementType);
     const llvm::fltSemantics &HigherElementTypeSemantics =
-        Ctx.getFloatTypeSemantics(HigherElementType);
+        CGF.getContext().getFloatTypeSemantics(HigherElementType);
     // Check that the promoted type can handle the intermediate values without
     // overflowing. This can be interpreted as:
     // (SmallerType.LargestFiniteVal * SmallerType.LargestFiniteVal) * 2 <=
@@ -307,10 +320,10 @@ public:
     if (llvm::APFloat::semanticsMaxExponent(ElementTypeSemantics) * 2 + 1 <=
         llvm::APFloat::semanticsMaxExponent(HigherElementTypeSemantics)) {
       FPHasBeenPromoted = true;
-      return Ctx.getComplexType(HigherElementType);
+      return CGF.getContext().getComplexType(HigherElementType);
     } else {
-      // The intermediate values can't be represented in the promoted type
-      // without overflowing.
+      DiagnosticsEngine &Diags = CGF.CGM.getDiags();
+      Diags.Report(diag::warn_next_larger_fp_type_same_size_than_fp);
       return QualType();
     }
   }

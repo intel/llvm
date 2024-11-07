@@ -570,13 +570,14 @@ SBError SBBreakpointName::SetScriptCallbackFunction(
         m_impl_up->GetTarget()->GetAPIMutex());
 
   BreakpointOptions &bp_options = bp_name->GetOptions();
-  Status error = m_impl_up->GetTarget()
-                     ->GetDebugger()
-                     .GetScriptInterpreter()
-                     ->SetBreakpointCommandCallbackFunction(
-                         bp_options, callback_function_name,
-                         extra_args.m_impl_up->GetObjectSP());
-  sb_error.SetError(std::move(error));
+  Status error;
+  error = m_impl_up->GetTarget()
+              ->GetDebugger()
+              .GetScriptInterpreter()
+              ->SetBreakpointCommandCallbackFunction(
+                  bp_options, callback_function_name,
+                  extra_args.m_impl_up->GetObjectSP());
+  sb_error.SetError(error);
   UpdateName(*bp_name);
   return sb_error;
 }
@@ -599,7 +600,7 @@ SBBreakpointName::SetScriptCallbackBody(const char *callback_body_text) {
                      .GetScriptInterpreter()
                      ->SetBreakpointCommandCallback(
                          bp_options, callback_body_text, /*is_callback=*/false);
-  sb_error.SetError(std::move(error));
+  sb_error.SetError(error);
   if (!sb_error.Fail())
     UpdateName(*bp_name);
 

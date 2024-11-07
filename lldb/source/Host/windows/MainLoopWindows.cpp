@@ -121,11 +121,10 @@ Status MainLoopWindows::Run() {
 
     llvm::Expected<size_t> signaled_event = Poll();
     if (!signaled_event)
-      return Status::FromError(signaled_event.takeError());
+      return Status(signaled_event.takeError());
 
     if (*signaled_event < m_read_fds.size()) {
       auto &KV = *std::next(m_read_fds.begin(), *signaled_event);
-      WSAResetEvent(KV.second.event);
       ProcessReadObject(KV.first);
     } else {
       assert(*signaled_event == m_read_fds.size());

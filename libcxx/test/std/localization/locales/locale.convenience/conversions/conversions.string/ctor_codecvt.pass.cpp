@@ -20,9 +20,8 @@
 // XFAIL: no-wide-characters
 
 #include <locale>
-#include <cassert>
 #include <codecvt>
-#include <type_traits>
+#include <cassert>
 
 #include "test_macros.h"
 #if TEST_STD_VER >= 11

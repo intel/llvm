@@ -33,7 +33,6 @@
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/TableGen/AArch64ImmCheck.h"
 #include "llvm/TableGen/Error.h"
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/SetTheory.h"
@@ -48,7 +47,6 @@
 #include <set>
 #include <sstream>
 #include <string>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
@@ -59,7 +57,7 @@ namespace {
 // While globals are generally bad, this one allows us to perform assertions
 // liberally and somehow still trace them back to the def they indirectly
 // came from.
-static const Record *CurrentRecord = nullptr;
+static Record *CurrentRecord = nullptr;
 static void assert_with_loc(bool Assertion, const std::string &Str) {
   if (!Assertion) {
     if (CurrentRecord)
@@ -308,7 +306,7 @@ public:
 /// a particular typespec and prototype.
 class Intrinsic {
   /// The Record this intrinsic was created from.
-  const Record *R;
+  Record *R;
   /// The unmangled name.
   std::string Name;
   /// The input and output typespecs. InTS == OutTS except when
@@ -335,8 +333,6 @@ class Intrinsic {
 
   /// The types of return value [0] and parameters [1..].
   std::vector<Type> Types;
-
-  SmallVector<ImmCheck, 2> ImmChecks;
   /// The index of the key type passed to CGBuiltin.cpp for polymorphic calls.
   int PolymorphicKeyType;
   /// The local variables defined.
@@ -371,15 +367,14 @@ class Intrinsic {
   }
 
 public:
-  Intrinsic(const Record *R, StringRef Name, StringRef Proto, TypeSpec OutTS,
+  Intrinsic(Record *R, StringRef Name, StringRef Proto, TypeSpec OutTS,
             TypeSpec InTS, ClassKind CK, ListInit *Body, NeonEmitter &Emitter,
-            StringRef ArchGuard, StringRef TargetGuard, bool IsUnavailable,
-            bool BigEndianSafe)
+            StringRef ArchGuard, StringRef TargetGuard, bool IsUnavailable, bool BigEndianSafe)
       : R(R), Name(Name.str()), OutTS(OutTS), InTS(InTS), CK(CK), Body(Body),
-        ArchGuard(ArchGuard.str()), TargetGuard(TargetGuard.str()),
-        IsUnavailable(IsUnavailable), BigEndianSafe(BigEndianSafe),
-        PolymorphicKeyType(0), NeededEarly(false), UseMacro(false),
-        BaseType(OutTS, "."), InBaseType(InTS, "."), Emitter(Emitter) {
+        ArchGuard(ArchGuard.str()), TargetGuard(TargetGuard.str()), IsUnavailable(IsUnavailable),
+        BigEndianSafe(BigEndianSafe), PolymorphicKeyType(0), NeededEarly(false),
+        UseMacro(false), BaseType(OutTS, "."), InBaseType(InTS, "."),
+        Emitter(Emitter) {
     // Modify the TypeSpec per-argument to get a concrete Type, and create
     // known variables for each.
     // Types[0] is the return value.
@@ -408,41 +403,10 @@ public:
           (Type.isScalar() && Type.isHalf()))
         UseMacro = true;
     }
-
-    int ArgIdx, Kind, TypeArgIdx;
-    std::vector<Record *> ImmCheckList = R->getValueAsListOfDefs("ImmChecks");
-    for (const auto *I : ImmCheckList) {
-      unsigned EltSizeInBits = 0, VecSizeInBits = 0;
-
-      ArgIdx = I->getValueAsInt("ImmArgIdx");
-      TypeArgIdx = I->getValueAsInt("TypeContextArgIdx");
-      Kind = I->getValueAsDef("Kind")->getValueAsInt("Value");
-
-      assert((ArgIdx >= 0 && Kind >= 0) &&
-             "ImmArgIdx and Kind must be nonnegative");
-
-      if (TypeArgIdx >= 0) {
-        Type ContextType = getParamType(TypeArgIdx);
-
-        // Element size cannot be set for intrinscs that map to polymorphic
-        // builtins.
-        if (CK != ClassB)
-          EltSizeInBits = ContextType.getElementSizeInBits();
-
-        VecSizeInBits = ContextType.getSizeInBits();
-      }
-
-      ImmChecks.emplace_back(ArgIdx, Kind, EltSizeInBits, VecSizeInBits);
-    }
-    sort(ImmChecks.begin(), ImmChecks.end(),
-         [](const ImmCheck &a, const ImmCheck &b) {
-           return a.getImmArgIdx() < b.getImmArgIdx();
-         }); // Sort for comparison with other intrinsics which map to the
-             // same builtin
   }
 
   /// Get the Record that this intrinsic is based off.
-  const Record *getRecord() const { return R; }
+  Record *getRecord() const { return R; }
   /// Get the set of Intrinsics that this intrinsic calls.
   /// this is the set of immediate dependencies, NOT the
   /// transitive closure.
@@ -450,19 +414,22 @@ public:
   /// Get the architectural guard string (#ifdef).
   std::string getArchGuard() const { return ArchGuard; }
   std::string getTargetGuard() const { return TargetGuard; }
-  ArrayRef<ImmCheck> getImmChecks() const { return ImmChecks; }
   /// Get the non-mangled name.
   std::string getName() const { return Name; }
 
   /// Return true if the intrinsic takes an immediate operand.
   bool hasImmediate() const {
-    return any_of(Types, [](const Type &T) { return T.isImmediate(); });
+    return llvm::any_of(Types, [](const Type &T) { return T.isImmediate(); });
   }
 
-  // Return if the supplied argument is an immediate
-  bool isArgImmediate(unsigned idx) const {
-    return Types[idx + 1].isImmediate();
+  /// Return the parameter index of the immediate operand.
+  unsigned getImmediateIdx() const {
+    for (unsigned Idx = 0; Idx < Types.size(); ++Idx)
+      if (Types[Idx].isImmediate())
+        return Idx - 1;
+    llvm_unreachable("Intrinsic has no immediate");
   }
+
 
   unsigned getNumParams() const { return Types.size() - 1; }
   Type getReturnType() const { return Types[0]; }
@@ -576,19 +543,17 @@ private:
 //===----------------------------------------------------------------------===//
 
 class NeonEmitter {
-  const RecordKeeper &Records;
-  DenseMap<const Record *, ClassKind> ClassMap;
+  RecordKeeper &Records;
+  DenseMap<Record *, ClassKind> ClassMap;
   std::map<std::string, std::deque<Intrinsic>> IntrinsicMap;
   unsigned UniqueNumber;
 
-  void createIntrinsic(const Record *R, SmallVectorImpl<Intrinsic *> &Out);
+  void createIntrinsic(Record *R, SmallVectorImpl<Intrinsic *> &Out);
   void genBuiltinsDef(raw_ostream &OS, SmallVectorImpl<Intrinsic *> &Defs);
   void genStreamingSVECompatibleList(raw_ostream &OS,
                                      SmallVectorImpl<Intrinsic *> &Defs);
   void genOverloadTypeCheckCode(raw_ostream &OS,
                                 SmallVectorImpl<Intrinsic *> &Defs);
-  bool areRangeChecksCompatible(const ArrayRef<ImmCheck> ChecksA,
-                                const ArrayRef<ImmCheck> ChecksB);
   void genIntrinsicRangeCheckCode(raw_ostream &OS,
                                   SmallVectorImpl<Intrinsic *> &Defs);
 
@@ -601,15 +566,15 @@ public:
   /// Called by Intrinsic - returns a globally-unique number.
   unsigned getUniqueNumber() { return UniqueNumber++; }
 
-  NeonEmitter(const RecordKeeper &R) : Records(R), UniqueNumber(0) {
-    const Record *SI = R.getClass("SInst");
-    const Record *II = R.getClass("IInst");
-    const Record *WI = R.getClass("WInst");
-    const Record *SOpI = R.getClass("SOpInst");
-    const Record *IOpI = R.getClass("IOpInst");
-    const Record *WOpI = R.getClass("WOpInst");
-    const Record *LOpI = R.getClass("LOpInst");
-    const Record *NoTestOpI = R.getClass("NoTestOpInst");
+  NeonEmitter(RecordKeeper &R) : Records(R), UniqueNumber(0) {
+    Record *SI = R.getClass("SInst");
+    Record *II = R.getClass("IInst");
+    Record *WI = R.getClass("WInst");
+    Record *SOpI = R.getClass("SOpInst");
+    Record *IOpI = R.getClass("IOpInst");
+    Record *WOpI = R.getClass("WOpInst");
+    Record *LOpI = R.getClass("LOpInst");
+    Record *NoTestOpI = R.getClass("NoTestOpInst");
 
     ClassMap[SI] = ClassS;
     ClassMap[II] = ClassI;
@@ -1066,7 +1031,7 @@ std::string Intrinsic::getBuiltinTypeStr() {
     if (LocalCK == ClassI && T.isInteger())
       T.makeSigned();
 
-    if (isArgImmediate(I))
+    if (hasImmediate() && getImmediateIdx() == I)
       T.makeImmediate(32);
 
     S += T.builtin_str();
@@ -1320,8 +1285,8 @@ void Intrinsic::emitShadowedArgs() {
 }
 
 bool Intrinsic::protoHasScalar() const {
-  return any_of(Types,
-                [](const Type &T) { return T.isScalar() && !T.isImmediate(); });
+  return llvm::any_of(
+      Types, [](const Type &T) { return T.isScalar() && !T.isImmediate(); });
 }
 
 void Intrinsic::emitBodyAsBuiltinCall() {
@@ -1505,7 +1470,7 @@ Intrinsic::DagEmitter::emitDagCall(DagInit *DI, bool MatchMangledName) {
     N = emitDagArg(DI->getArg(0), "").second;
   std::optional<std::string> MangledName;
   if (MatchMangledName) {
-    if (Intr.getRecord()->getValueAsString("Name").contains("laneq"))
+    if (Intr.getRecord()->getValueAsBit("isLaneQ"))
       N += "q";
     MangledName = Intr.mangleName(N, ClassS);
   }
@@ -1636,7 +1601,7 @@ std::pair<Type, std::string> Intrinsic::DagEmitter::emitDagShuffle(DagInit *DI){
       int64_t VectorSize = cast<IntInit>(Expr->getArg(0))->getValue();
       VectorSize /= ElementSize;
 
-      std::vector<const Record *> Revved;
+      std::vector<Record *> Revved;
       for (unsigned VI = 0; VI < Elts2.size(); VI += VectorSize) {
         for (int LI = VectorSize - 1; LI >= 0; --LI) {
           Revved.push_back(Elts2[VI + LI]);
@@ -1964,7 +1929,7 @@ Intrinsic &NeonEmitter::getIntrinsic(StringRef Name, ArrayRef<Type> Types,
       continue;
 
     unsigned ArgNum = 0;
-    bool MatchingArgumentTypes = all_of(Types, [&](const auto &Type) {
+    bool MatchingArgumentTypes = llvm::all_of(Types, [&](const auto &Type) {
       return Type == I.getParamType(ArgNum++);
     });
 
@@ -1979,12 +1944,12 @@ Intrinsic &NeonEmitter::getIntrinsic(StringRef Name, ArrayRef<Type> Types,
   return *GoodVec.front();
 }
 
-void NeonEmitter::createIntrinsic(const Record *R,
+void NeonEmitter::createIntrinsic(Record *R,
                                   SmallVectorImpl<Intrinsic *> &Out) {
   std::string Name = std::string(R->getValueAsString("Name"));
   std::string Proto = std::string(R->getValueAsString("Prototype"));
   std::string Types = std::string(R->getValueAsString("Types"));
-  const Record *OperationRec = R->getValueAsDef("Operation");
+  Record *OperationRec = R->getValueAsDef("Operation");
   bool BigEndianSafe  = R->getValueAsBit("BigEndianSafe");
   std::string ArchGuard = std::string(R->getValueAsString("ArchGuard"));
   std::string TargetGuard = std::string(R->getValueAsString("TargetGuard"));
@@ -2022,7 +1987,7 @@ void NeonEmitter::createIntrinsic(const Record *R,
     }
   }
 
-  sort(NewTypeSpecs);
+  llvm::sort(NewTypeSpecs);
   NewTypeSpecs.erase(std::unique(NewTypeSpecs.begin(), NewTypeSpecs.end()),
 		     NewTypeSpecs.end());
   auto &Entry = IntrinsicMap[Name];
@@ -2155,7 +2120,9 @@ void NeonEmitter::genOverloadTypeCheckCode(raw_ostream &OS,
     }
 
     if (Mask) {
-      OverloadInfo &OI = OverloadMap[Def->getMangledName()];
+      std::string Name = Def->getMangledName();
+      OverloadMap.insert(std::make_pair(Name, OverloadInfo()));
+      OverloadInfo &OI = OverloadMap[Name];
       OI.Mask |= Mask;
       OI.PtrArgNum |= PtrArgNum;
       OI.HasConstPtr = HasConstPtr;
@@ -2176,58 +2143,85 @@ void NeonEmitter::genOverloadTypeCheckCode(raw_ostream &OS,
   OS << "#endif\n\n";
 }
 
-inline bool
-NeonEmitter::areRangeChecksCompatible(const ArrayRef<ImmCheck> ChecksA,
-                                      const ArrayRef<ImmCheck> ChecksB) {
-  // If multiple intrinsics map to the same builtin, we must ensure that the
-  // intended range checks performed in SemaArm.cpp do not contradict each
-  // other, as these are emitted once per-buitlin.
-  //
-  // The arguments to be checked and type of each check to be performed must be
-  // the same. The element types may differ as they will be resolved
-  // per-intrinsic as overloaded types by SemaArm.cpp, though the vector sizes
-  // are not and so must be the same.
-  bool compat =
-      std::equal(ChecksA.begin(), ChecksA.end(), ChecksB.begin(), ChecksB.end(),
-                 [](const auto &A, const auto &B) {
-                   return A.getImmArgIdx() == B.getImmArgIdx() &&
-                          A.getKind() == B.getKind() &&
-                          A.getVecSizeInBits() == B.getVecSizeInBits();
-                 });
-
-  return compat;
-}
-
-void NeonEmitter::genIntrinsicRangeCheckCode(
-    raw_ostream &OS, SmallVectorImpl<Intrinsic *> &Defs) {
-  std::unordered_map<std::string, ArrayRef<ImmCheck>> Emitted;
-
+void NeonEmitter::genIntrinsicRangeCheckCode(raw_ostream &OS,
+                                        SmallVectorImpl<Intrinsic *> &Defs) {
   OS << "#ifdef GET_NEON_IMMEDIATE_CHECK\n";
-  for (auto &Def : Defs) {
-    // If the Def has a body (operation DAGs), it is not a __builtin_neon_
-    if (Def->hasBody() || !Def->hasImmediate())
+
+  std::set<std::string> Emitted;
+
+  for (auto *Def : Defs) {
+    if (Def->hasBody())
+      continue;
+    // Functions which do not have an immediate do not need to have range
+    // checking code emitted.
+    if (!Def->hasImmediate())
+      continue;
+    if (Emitted.find(Def->getMangledName()) != Emitted.end())
       continue;
 
-    // Sorted by immediate argument index
-    ArrayRef<ImmCheck> Checks = Def->getImmChecks();
+    std::string LowerBound, UpperBound;
 
-    const auto it = Emitted.find(Def->getMangledName());
-    if (it != Emitted.end()) {
-      assert(areRangeChecksCompatible(Checks, it->second) &&
-             "Neon intrinsics with incompatible immediate range checks cannot "
-             "share a builtin.");
-      continue; // Ensure this is emitted only once
+    Record *R = Def->getRecord();
+    if (R->getValueAsBit("isVXAR")) {
+      //VXAR takes an immediate in the range [0, 63]
+      LowerBound = "0";
+      UpperBound = "63";
+    } else if (R->getValueAsBit("isVCVT_N")) {
+      // VCVT between floating- and fixed-point values takes an immediate
+      // in the range [1, 32) for f32 or [1, 64) for f64 or [1, 16) for f16.
+      LowerBound = "1";
+	  if (Def->getBaseType().getElementSizeInBits() == 16 ||
+		  Def->getName().find('h') != std::string::npos)
+		// VCVTh operating on FP16 intrinsics in range [1, 16)
+		UpperBound = "15";
+	  else if (Def->getBaseType().getElementSizeInBits() == 32)
+        UpperBound = "31";
+	  else
+        UpperBound = "63";
+    } else if (R->getValueAsBit("isScalarShift")) {
+      // Right shifts have an 'r' in the name, left shifts do not. Convert
+      // instructions have the same bounds and right shifts.
+      if (Def->getName().find('r') != std::string::npos ||
+          Def->getName().find("cvt") != std::string::npos)
+        LowerBound = "1";
+
+      UpperBound = utostr(Def->getReturnType().getElementSizeInBits() - 1);
+    } else if (R->getValueAsBit("isShift")) {
+      // Builtins which are overloaded by type will need to have their upper
+      // bound computed at Sema time based on the type constant.
+
+      // Right shifts have an 'r' in the name, left shifts do not.
+      if (Def->getName().find('r') != std::string::npos)
+        LowerBound = "1";
+      UpperBound = "RFT(TV, true)";
+    } else if (Def->getClassKind(true) == ClassB) {
+      // ClassB intrinsics have a type (and hence lane number) that is only
+      // known at runtime.
+      if (R->getValueAsBit("isLaneQ"))
+        UpperBound = "RFT(TV, false, true)";
+      else
+        UpperBound = "RFT(TV, false, false)";
+    } else {
+      // The immediate generally refers to a lane in the preceding argument.
+      assert(Def->getImmediateIdx() > 0);
+      Type T = Def->getParamType(Def->getImmediateIdx() - 1);
+      UpperBound = utostr(T.getNumElements() - 1);
     }
 
-    // Emit builtin's range checks
-    OS << "case NEON::BI__builtin_neon_" << Def->getMangledName() << ":\n";
-    for (const auto &Check : Checks) {
-      OS << " ImmChecks.emplace_back(" << Check.getImmArgIdx() << ", "
-         << Check.getKind() << ", " << Check.getElementSizeInBits() << ", "
-         << Check.getVecSizeInBits() << ");\n"
-         << " break;\n";
-    }
-    Emitted[Def->getMangledName()] = Checks;
+    // Calculate the index of the immediate that should be range checked.
+    unsigned Idx = Def->getNumParams();
+    if (Def->hasImmediate())
+      Idx = Def->getGeneratedParamIdx(Def->getImmediateIdx());
+
+    OS << "case NEON::BI__builtin_neon_" << Def->getMangledName() << ": "
+       << "i = " << Idx << ";";
+    if (!LowerBound.empty())
+      OS << " l = " << LowerBound << ";";
+    if (!UpperBound.empty())
+      OS << " u = " << UpperBound << ";";
+    OS << " break;\n";
+
+    Emitted.insert(Def->getMangledName());
   }
 
   OS << "#endif\n\n";
@@ -2238,8 +2232,10 @@ void NeonEmitter::genIntrinsicRangeCheckCode(
 /// 2. the SemaChecking code for the type overload checking.
 /// 3. the SemaChecking code for validation of intrinsic immediate arguments.
 void NeonEmitter::runHeader(raw_ostream &OS) {
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
+
   SmallVector<Intrinsic *, 128> Defs;
-  for (const Record *R : Records.getAllDerivedDefinitions("Inst"))
+  for (auto *R : RV)
     createIntrinsic(R, Defs);
 
   // Generate shared BuiltinsXXX.def
@@ -2398,13 +2394,14 @@ void NeonEmitter::run(raw_ostream &OS) {
         "__nodebug__))\n\n";
 
   SmallVector<Intrinsic *, 128> Defs;
-  for (const Record *R : Records.getAllDerivedDefinitions("Inst"))
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
+  for (auto *R : RV)
     createIntrinsic(R, Defs);
 
   for (auto *I : Defs)
     I->indexBody();
 
-  stable_sort(Defs, deref<std::less<>>());
+  llvm::stable_sort(Defs, llvm::deref<std::less<>>());
 
   // Only emit a def when its requirements have been met.
   // FIXME: This loop could be made faster, but it's fast enough for now.
@@ -2417,7 +2414,7 @@ void NeonEmitter::run(raw_ostream &OS) {
          I != Defs.end(); /*No step*/) {
       bool DependenciesSatisfied = true;
       for (auto *II : (*I)->getDependencies()) {
-        if (is_contained(Defs, II))
+        if (llvm::is_contained(Defs, II))
           DependenciesSatisfied = false;
       }
       if (!DependenciesSatisfied) {
@@ -2505,13 +2502,14 @@ void NeonEmitter::runFP16(raw_ostream &OS) {
         "__nodebug__))\n\n";
 
   SmallVector<Intrinsic *, 128> Defs;
-  for (const Record *R : Records.getAllDerivedDefinitions("Inst"))
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
+  for (auto *R : RV)
     createIntrinsic(R, Defs);
 
   for (auto *I : Defs)
     I->indexBody();
 
-  stable_sort(Defs, deref<std::less<>>());
+  llvm::stable_sort(Defs, llvm::deref<std::less<>>());
 
   // Only emit a def when its requirements have been met.
   // FIXME: This loop could be made faster, but it's fast enough for now.
@@ -2524,7 +2522,7 @@ void NeonEmitter::runFP16(raw_ostream &OS) {
          I != Defs.end(); /*No step*/) {
       bool DependenciesSatisfied = true;
       for (auto *II : (*I)->getDependencies()) {
-        if (is_contained(Defs, II))
+        if (llvm::is_contained(Defs, II))
           DependenciesSatisfied = false;
       }
       if (!DependenciesSatisfied) {
@@ -2613,13 +2611,14 @@ void NeonEmitter::runBF16(raw_ostream &OS) {
         "__nodebug__))\n\n";
 
   SmallVector<Intrinsic *, 128> Defs;
-  for (const Record *R : Records.getAllDerivedDefinitions("Inst"))
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("Inst");
+  for (auto *R : RV)
     createIntrinsic(R, Defs);
 
   for (auto *I : Defs)
     I->indexBody();
 
-  stable_sort(Defs, deref<std::less<>>());
+  llvm::stable_sort(Defs, llvm::deref<std::less<>>());
 
   // Only emit a def when its requirements have been met.
   // FIXME: This loop could be made faster, but it's fast enough for now.
@@ -2632,7 +2631,7 @@ void NeonEmitter::runBF16(raw_ostream &OS) {
          I != Defs.end(); /*No step*/) {
       bool DependenciesSatisfied = true;
       for (auto *II : (*I)->getDependencies()) {
-        if (is_contained(Defs, II))
+        if (llvm::is_contained(Defs, II))
           DependenciesSatisfied = false;
       }
       if (!DependenciesSatisfied) {
@@ -2667,26 +2666,26 @@ void NeonEmitter::runBF16(raw_ostream &OS) {
   OS << "#endif\n";
 }
 
-void clang::EmitNeon(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeon(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).run(OS);
 }
 
-void clang::EmitFP16(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitFP16(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runFP16(OS);
 }
 
-void clang::EmitBF16(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitBF16(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runBF16(OS);
 }
 
-void clang::EmitNeonSema(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeonSema(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runHeader(OS);
 }
 
-void clang::EmitVectorTypes(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitVectorTypes(RecordKeeper &Records, raw_ostream &OS) {
   NeonEmitter(Records).runVectorTypes(OS);
 }
 
-void clang::EmitNeonTest(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitNeonTest(RecordKeeper &Records, raw_ostream &OS) {
   llvm_unreachable("Neon test generation no longer implemented!");
 }

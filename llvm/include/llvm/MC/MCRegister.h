@@ -91,6 +91,7 @@ public:
   /// Comparisons against register constants. E.g.
   /// * R == AArch64::WZR
   /// * R == 0
+  /// * R == VirtRegMap::NO_PHYS_REG
   constexpr bool operator==(unsigned Other) const { return Reg == Other; }
   constexpr bool operator!=(unsigned Other) const { return Reg != Other; }
   constexpr bool operator==(int Other) const { return Reg == unsigned(Other); }
@@ -106,17 +107,17 @@ public:
 
 // Provide DenseMapInfo for MCRegister
 template <> struct DenseMapInfo<MCRegister> {
-  static inline MCRegister getEmptyKey() {
+  static inline unsigned getEmptyKey() {
     return DenseMapInfo<unsigned>::getEmptyKey();
   }
-  static inline MCRegister getTombstoneKey() {
+  static inline unsigned getTombstoneKey() {
     return DenseMapInfo<unsigned>::getTombstoneKey();
   }
   static unsigned getHashValue(const MCRegister &Val) {
     return DenseMapInfo<unsigned>::getHashValue(Val.id());
   }
   static bool isEqual(const MCRegister &LHS, const MCRegister &RHS) {
-    return LHS == RHS;
+    return DenseMapInfo<unsigned>::isEqual(LHS.id(), RHS.id());
   }
 };
 

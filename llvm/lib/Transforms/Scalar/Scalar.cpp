@@ -21,7 +21,6 @@ using namespace llvm;
 void llvm::initializeScalarOpts(PassRegistry &Registry) {
   initializeConstantHoistingLegacyPassPass(Registry);
   initializeDCELegacyPassPass(Registry);
-  initializeScalarizerLegacyPassPass(Registry);
   initializeGVNLegacyPassPass(Registry);
   initializeEarlyCSELegacyPassPass(Registry);
   initializeEarlyCSEMemSSALegacyPassPass(Registry);

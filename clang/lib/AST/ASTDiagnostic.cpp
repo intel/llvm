@@ -1114,8 +1114,8 @@ class TemplateDiff {
   // These functions build up the template diff tree, including functions to
   // retrieve and compare template arguments.
 
-  static const TemplateSpecializationType *
-  GetTemplateSpecializationType(ASTContext &Context, QualType Ty) {
+  static const TemplateSpecializationType *GetTemplateSpecializationType(
+      ASTContext &Context, QualType Ty) {
     if (const TemplateSpecializationType *TST =
             Ty->getAs<TemplateSpecializationType>())
       return TST;
@@ -1159,7 +1159,7 @@ class TemplateDiff {
     if (!FromArgTST || !ToArgTST)
       return true;
 
-    if (!hasSameTemplate(Context, FromArgTST, ToArgTST))
+    if (!hasSameTemplate(FromArgTST, ToArgTST))
       return true;
 
     return false;
@@ -1371,17 +1371,11 @@ class TemplateDiff {
   /// argument info into a tree.
   void DiffTemplate(const TemplateSpecializationType *FromTST,
                     const TemplateSpecializationType *ToTST) {
-    // FIXME: With P3310R0, A TST formed from a DeducedTemplateName might
-    // differ in template arguments which were not written.
     // Begin descent into diffing template tree.
     TemplateParameterList *ParamsFrom =
-        FromTST->getTemplateName()
-            .getAsTemplateDecl(/*IgnoreDeduced=*/true)
-            ->getTemplateParameters();
+        FromTST->getTemplateName().getAsTemplateDecl()->getTemplateParameters();
     TemplateParameterList *ParamsTo =
-        ToTST->getTemplateName()
-            .getAsTemplateDecl(/*IgnoreDeduced=*/true)
-            ->getTemplateParameters();
+        ToTST->getTemplateName().getAsTemplateDecl()->getTemplateParameters();
     unsigned TotalArgs = 0;
     for (TSTiterator FromIter(Context, FromTST), ToIter(Context, ToTST);
          !FromIter.isEnd() || !ToIter.isEnd(); ++TotalArgs) {
@@ -1433,24 +1427,20 @@ class TemplateDiff {
 
   /// hasSameBaseTemplate - Returns true when the base templates are the same,
   /// even if the template arguments are not.
-  static bool hasSameBaseTemplate(ASTContext &Context,
-                                  const TemplateSpecializationType *FromTST,
+  static bool hasSameBaseTemplate(const TemplateSpecializationType *FromTST,
                                   const TemplateSpecializationType *ToTST) {
-    return Context.getCanonicalTemplateName(FromTST->getTemplateName(),
-                                            /*IgnoreDeduced=*/true) ==
-           Context.getCanonicalTemplateName(ToTST->getTemplateName(),
-                                            /*IgnoreDeduced=*/true);
+    return FromTST->getTemplateName().getAsTemplateDecl()->getCanonicalDecl() ==
+           ToTST->getTemplateName().getAsTemplateDecl()->getCanonicalDecl();
   }
 
   /// hasSameTemplate - Returns true if both types are specialized from the
   /// same template declaration.  If they come from different template aliases,
   /// do a parallel ascension search to determine the highest template alias in
   /// common and set the arguments to them.
-  static bool hasSameTemplate(ASTContext &Context,
-                              const TemplateSpecializationType *&FromTST,
+  static bool hasSameTemplate(const TemplateSpecializationType *&FromTST,
                               const TemplateSpecializationType *&ToTST) {
     // Check the top templates if they are the same.
-    if (hasSameBaseTemplate(Context, FromTST, ToTST))
+    if (hasSameBaseTemplate(FromTST, ToTST))
       return true;
 
     // Create vectors of template aliases.
@@ -1465,14 +1455,14 @@ class TemplateDiff {
         ToIter = ToTemplateList.rbegin(), ToEnd = ToTemplateList.rend();
 
     // Check if the lowest template types are the same.  If not, return.
-    if (!hasSameBaseTemplate(Context, *FromIter, *ToIter))
+    if (!hasSameBaseTemplate(*FromIter, *ToIter))
       return false;
 
     // Begin searching up the template aliases.  The bottom most template
     // matches so move up until one pair does not match.  Use the template
     // right before that one.
     for (; FromIter != FromEnd && ToIter != ToEnd; ++FromIter, ++ToIter) {
-      if (!hasSameBaseTemplate(Context, *FromIter, *ToIter))
+      if (!hasSameBaseTemplate(*FromIter, *ToIter))
         break;
     }
 
@@ -2133,7 +2123,7 @@ public:
       return;
 
     // Different base templates.
-    if (!hasSameTemplate(Context, FromOrigTST, ToOrigTST)) {
+    if (!hasSameTemplate(FromOrigTST, ToOrigTST)) {
       return;
     }
 
@@ -2141,11 +2131,10 @@ public:
     ToQual -= QualType(ToOrigTST, 0).getQualifiers();
 
     // Same base template, but different arguments.
-    Tree.SetTemplateDiff(
-        FromOrigTST->getTemplateName().getAsTemplateDecl(
-            /*IgnoreDeduced=*/true),
-        ToOrigTST->getTemplateName().getAsTemplateDecl(/*IgnoreDeduced=*/true),
-        FromQual, ToQual, false /*FromDefault*/, false /*ToDefault*/);
+    Tree.SetTemplateDiff(FromOrigTST->getTemplateName().getAsTemplateDecl(),
+                         ToOrigTST->getTemplateName().getAsTemplateDecl(),
+                         FromQual, ToQual, false /*FromDefault*/,
+                         false /*ToDefault*/);
 
     DiffTemplate(FromOrigTST, ToOrigTST);
   }

@@ -19,7 +19,6 @@
 #include "flang/Parser/parse-tree.h"
 #include "flang/Parser/tools.h"
 #include "flang/Semantics/expression.h"
-#include "flang/Semantics/symbol.h"
 #include "flang/Semantics/tools.h"
 #include <list>
 #include <map>
@@ -718,7 +717,7 @@ private:
   void CheckDataCopyingClause(
       const parser::Name &, const Symbol &, Symbol::Flag);
   void CheckAssocLoopLevel(std::int64_t level, const parser::OmpClause *clause);
-  void CheckObjectInNamelistOrAssociate(
+  void CheckObjectInNamelist(
       const parser::Name &, const Symbol &, Symbol::Flag);
   void CheckSourceLabel(const parser::Label &);
   void CheckLabelContext(const parser::CharBlock, const parser::CharBlock,
@@ -2122,14 +2121,11 @@ void OmpAttributeVisitor::CreateImplicitSymbols(
       }
       return lastDeclSymbol;
     };
-    auto makeSharedSymbol = [&](std::optional<Symbol::Flag> flag = {}) {
+    auto makeSharedSymbol = [&]() {
       const Symbol *hostSymbol =
           lastDeclSymbol ? lastDeclSymbol : &symbol->GetUltimate();
-      Symbol &assocSymbol = MakeAssocSymbol(symbol->name(), *hostSymbol,
+      MakeAssocSymbol(symbol->name(), *hostSymbol,
           context_.FindScope(dirContext.directiveSource));
-      if (flag) {
-        assocSymbol.set(*flag);
-      }
     };
     auto useLastDeclSymbol = [&]() {
       if (lastDeclSymbol) {
@@ -2144,9 +2140,8 @@ void OmpAttributeVisitor::CreateImplicitSymbols(
 
     if (dsa.has_value()) {
       if (dsa.value() == Symbol::Flag::OmpShared &&
-          (parallelDir || taskGenDir || teamsDir)) {
-        makeSharedSymbol(Symbol::Flag::OmpShared);
-      }
+          (parallelDir || taskGenDir || teamsDir))
+        makeSharedSymbol();
       // Private symbols will have been declared already.
       prevDSA = dsa;
       continue;
@@ -2157,14 +2152,11 @@ void OmpAttributeVisitor::CreateImplicitSymbols(
         dirContext.defaultDSA == Symbol::Flag::OmpShared) {
       // 1) default
       // Allowed only with parallel, teams and task generating constructs.
-      if (!parallelDir && !taskGenDir && !teamsDir) {
-        return;
-      }
-      if (dirContext.defaultDSA != Symbol::Flag::OmpShared) {
+      assert(parallelDir || taskGenDir || teamsDir);
+      if (dirContext.defaultDSA != Symbol::Flag::OmpShared)
         makePrivateSymbol(dirContext.defaultDSA);
-      } else {
+      else
         makeSharedSymbol();
-      }
       dsa = dirContext.defaultDSA;
     } else if (parallelDir) {
       // 2) parallel -> shared
@@ -2357,7 +2349,7 @@ void OmpAttributeVisitor::ResolveOmpObject(
                     CheckMultipleAppearances(*name, *symbol, ompFlag);
                   }
                   if (privateDataSharingAttributeFlags.test(ompFlag)) {
-                    CheckObjectInNamelistOrAssociate(*name, *symbol, ompFlag);
+                    CheckObjectInNamelist(*name, *symbol, ompFlag);
                   }
 
                   if (ompFlag == Symbol::Flag::OmpAllocate) {
@@ -2522,14 +2514,14 @@ void OmpAttributeVisitor::CheckMultipleAppearances(
       target = &details->symbol();
     }
   }
-  if (HasDataSharingAttributeObject(target->GetUltimate()) &&
+  if (HasDataSharingAttributeObject(*target) &&
       !WithMultipleAppearancesOmpException(symbol, ompFlag)) {
     context_.Say(name.source,
         "'%s' appears in more than one data-sharing clause "
         "on the same OpenMP directive"_err_en_US,
         name.ToString());
   } else {
-    AddDataSharingAttributeObject(target->GetUltimate());
+    AddDataSharingAttributeObject(*target);
     if (privateDataSharingAttributeFlags.test(ompFlag)) {
       AddPrivateDataSharingAttributeObjects(*target);
     }
@@ -2714,7 +2706,7 @@ void OmpAttributeVisitor::CheckDataCopyingClause(
   }
 }
 
-void OmpAttributeVisitor::CheckObjectInNamelistOrAssociate(
+void OmpAttributeVisitor::CheckObjectInNamelist(
     const parser::Name &name, const Symbol &symbol, Symbol::Flag ompFlag) {
   const auto &ultimateSymbol{symbol.GetUltimate()};
   llvm::StringRef clauseName{"PRIVATE"};
@@ -2727,12 +2719,6 @@ void OmpAttributeVisitor::CheckObjectInNamelistOrAssociate(
   if (ultimateSymbol.test(Symbol::Flag::InNamelist)) {
     context_.Say(name.source,
         "Variable '%s' in NAMELIST cannot be in a %s clause"_err_en_US,
-        name.ToString(), clauseName.str());
-  }
-
-  if (ultimateSymbol.has<AssocEntityDetails>()) {
-    context_.Say(name.source,
-        "Variable '%s' in ASSOCIATE cannot be in a %s clause"_err_en_US,
         name.ToString(), clauseName.str());
   }
 }

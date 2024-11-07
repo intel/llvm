@@ -47,10 +47,5 @@ test(
             "test_suite_guard": None,
             "libcxx_guard": None,
         },
-        "__cpp_lib_missing_FTM_in_older_standard": {
-            "headers": [],
-            "test_suite_guard": None,
-            "libcxx_guard": None,
-        },
     },
 )

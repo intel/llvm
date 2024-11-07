@@ -85,9 +85,9 @@ std::string llvm::getQualifiedName(const Record *R) {
 
 /// getTarget - Return the current instance of the Target class.
 ///
-CodeGenTarget::CodeGenTarget(const RecordKeeper &records)
-    : Records(records), CGH(records), Intrinsics(records) {
-  ArrayRef<const Record *> Targets = Records.getAllDerivedDefinitions("Target");
+CodeGenTarget::CodeGenTarget(RecordKeeper &records)
+    : Records(records), CGH(records) {
+  std::vector<Record *> Targets = Records.getAllDerivedDefinitions("Target");
   if (Targets.size() == 0)
     PrintFatalError("No 'Target' subclasses defined!");
   if (Targets.size() != 1)
@@ -223,19 +223,22 @@ std::optional<CodeGenRegisterClass *> CodeGenTarget::getSuperRegForSubReg(
   return Candidates[0];
 }
 
+void CodeGenTarget::ReadRegAltNameIndices() const {
+  RegAltNameIndices = Records.getAllDerivedDefinitions("RegAltNameIndex");
+  llvm::sort(RegAltNameIndices, LessRecord());
+}
+
 /// getRegisterByName - If there is a register with the specific AsmName,
 /// return it.
 const CodeGenRegister *CodeGenTarget::getRegisterByName(StringRef Name) const {
   return getRegBank().getRegistersByName().lookup(Name);
 }
 
-const CodeGenRegisterClass &
-CodeGenTarget::getRegisterClass(const Record *R) const {
+const CodeGenRegisterClass &CodeGenTarget::getRegisterClass(Record *R) const {
   return *getRegBank().getRegClass(R);
 }
 
-std::vector<ValueTypeByHwMode>
-CodeGenTarget::getRegisterVTs(const Record *R) const {
+std::vector<ValueTypeByHwMode> CodeGenTarget::getRegisterVTs(Record *R) const {
   const CodeGenRegister *Reg = getRegBank().getReg(R);
   std::vector<ValueTypeByHwMode> Result;
   for (const auto &RC : getRegBank().getRegClasses()) {
@@ -267,13 +270,12 @@ CodeGenSchedModels &CodeGenTarget::getSchedModels() const {
 }
 
 void CodeGenTarget::ReadInstructions() const {
-  ArrayRef<const Record *> Insts =
-      Records.getAllDerivedDefinitions("Instruction");
+  std::vector<Record *> Insts = Records.getAllDerivedDefinitions("Instruction");
   if (Insts.size() <= 2)
     PrintFatalError("No 'Instruction' subclasses defined!");
 
   // Parse the instructions defined in the .td file.
-  for (const Record *R : Insts) {
+  for (Record *R : Insts) {
     Instructions[R] = std::make_unique<CodeGenInstruction>(R);
     if (Instructions[R]->isVariableLengthEncoding())
       HasVariableLengthEncodings = true;
@@ -283,7 +285,7 @@ void CodeGenTarget::ReadInstructions() const {
 static const CodeGenInstruction *GetInstByName(
     const char *Name,
     const DenseMap<const Record *, std::unique_ptr<CodeGenInstruction>> &Insts,
-    const RecordKeeper &Records) {
+    RecordKeeper &Records) {
   const Record *Rec = Records.getDef(Name);
 
   const auto I = Insts.find(Rec);
@@ -355,8 +357,9 @@ void CodeGenTarget::reverseBitsForLittleEndianEncoding() {
   if (!isLittleEndianEncoding())
     return;
 
-  for (const Record *R :
-       Records.getAllDerivedDefinitions("InstructionEncoding")) {
+  std::vector<Record *> Insts =
+      Records.getAllDerivedDefinitions("InstructionEncoding");
+  for (Record *R : Insts) {
     if (R->getValueAsString("Namespace") == "TargetOpcode" ||
         R->getValueAsBit("isPseudo"))
       continue;
@@ -379,15 +382,11 @@ void CodeGenTarget::reverseBitsForLittleEndianEncoding() {
       NewBits[middle] = BI->getBit(middle);
     }
 
-    RecordKeeper &MutableRC = const_cast<RecordKeeper &>(Records);
-    BitsInit *NewBI = BitsInit::get(MutableRC, NewBits);
+    BitsInit *NewBI = BitsInit::get(Records, NewBits);
 
-    // Update the bits in reversed order so that emitters will get the correct
-    // endianness.
-    // FIXME: Eliminate mutation of TG records by creating a helper function
-    // to reverse bits and maintain a cache instead of mutating records.
-    Record *MutableR = const_cast<Record *>(R);
-    MutableR->getValue("Inst")->setValue(NewBI);
+    // Update the bits in reversed order so that emitInstrOpBits will get the
+    // correct endianness.
+    R->getValue("Inst")->setValue(NewBI);
   }
 }
 
@@ -403,11 +402,11 @@ bool CodeGenTarget::guessInstructionProperties() const {
 //===----------------------------------------------------------------------===//
 // ComplexPattern implementation
 //
-ComplexPattern::ComplexPattern(const Record *R) {
+ComplexPattern::ComplexPattern(Record *R) {
   Ty = R->getValueAsDef("Ty");
   NumOperands = R->getValueAsInt("NumOperands");
   SelectFunc = std::string(R->getValueAsString("SelectFunc"));
-  RootNodes = R->getValueAsListOfConstDefs("RootNodes");
+  RootNodes = R->getValueAsListOfDefs("RootNodes");
 
   // FIXME: This is a hack to statically increase the priority of patterns which
   // maps a sub-dag to a complex pattern. e.g. favors LEA over ADD. To get best

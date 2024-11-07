@@ -1601,19 +1601,6 @@ def StdC : StandardSpec<"stdc"> {
               ]
           >,
           FunctionSpec<
-              "ctime",
-              RetValSpec<CharPtr>,
-              [ArgSpec<TimeTTypePtr>]
-          >,
-          FunctionSpec<
-              "ctime_r",
-              RetValSpec<CharPtr>,
-              [
-                  ArgSpec<TimeTTypePtr>,
-                  ArgSpec<CharPtr>,
-              ]
-          >,
-          FunctionSpec<
               "clock",
               RetValSpec<ClockT>,
               [ArgSpec<VoidType>]

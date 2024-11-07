@@ -1211,19 +1211,18 @@ const arrowIndices = )<<<";
                      OS.str());
 }
 
-static std::string getSpanBeginForControl(const char *ClassName,
-                                          unsigned Index) {
+std::string getSpanBeginForControl(const char *ClassName, unsigned Index) {
   std::string Result;
   llvm::raw_string_ostream OS(Result);
   OS << "<span id=\"" << ClassName << Index << "\">";
   return Result;
 }
 
-static std::string getSpanBeginForControlStart(unsigned Index) {
+std::string getSpanBeginForControlStart(unsigned Index) {
   return getSpanBeginForControl("start", Index);
 }
 
-static std::string getSpanBeginForControlEnd(unsigned Index) {
+std::string getSpanBeginForControlEnd(unsigned Index) {
   return getSpanBeginForControl("end", Index);
 }
 

@@ -116,6 +116,9 @@ class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
 
     @skipIfDarwin
     @skipIfNetBSD  # Hangs on NetBSD as well
+    @skipIf(
+        archs=["arm", "aarch64"]
+    )  # Example of a flaky run http://lab.llvm.org:8011/builders/lldb-aarch64-ubuntu/builds/5527/steps/test/logs/stdio
     def test_commands(self):
         """
         Tests the "initCommands", "preRunCommands", "stopCommands",
@@ -149,7 +152,7 @@ class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
         initCommands = ["target list", "platform list"]
         preRunCommands = ["image list a.out", "image dump sections a.out"]
         postRunCommands = ["help trace", "help process trace"]
-        stopCommands = ["frame variable", "thread backtrace"]
+        stopCommands = ["frame variable", "bt"]
         exitCommands = ["expr 2+3", "expr 3+4"]
         terminateCommands = ["expr 4+2"]
         self.attach(
@@ -176,7 +179,7 @@ class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
         breakpoint_ids = self.set_function_breakpoints(functions)
         self.assertEqual(len(breakpoint_ids), len(functions), "expect one breakpoint")
         self.continue_to_breakpoints(breakpoint_ids)
-        output = self.collect_console(timeout_secs=10, pattern=stopCommands[-1])
+        output = self.get_console(timeout=1.0)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue after launch and hit the "pause()" call and stop the target.
@@ -186,7 +189,7 @@ class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
         time.sleep(0.5)
         self.dap_server.request_pause()
         self.dap_server.wait_for_stopped()
-        output = self.collect_console(timeout_secs=10, pattern=stopCommands[-1])
+        output = self.get_console(timeout=1.0)
         self.verify_commands("stopCommands", output, stopCommands)
 
         # Continue until the program exits
@@ -195,7 +198,7 @@ class TestDAP_attach(lldbdap_testcase.DAPTestCaseBase):
         # "exitCommands" that were run after the second breakpoint was hit
         # and the "terminateCommands" due to the debugging session ending
         output = self.collect_console(
-            timeout_secs=10.0,
+            timeout_secs=1.0,
             pattern=terminateCommands[0],
         )
         self.verify_commands("exitCommands", output, exitCommands)

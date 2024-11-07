@@ -142,7 +142,7 @@ static void validateArchitectureName(StringRef ArchitectureName) {
        << "\nValid architecture names are:";
     for (auto arch : MachOObjectFile::getValidArchs())
       OS << " " << arch;
-    reportError(Buf);
+    reportError(OS.str());
   }
 }
 
@@ -241,7 +241,7 @@ static Config parseLipoOptions(ArrayRef<const char *> ArgsArr) {
     OS << "only one of the following actions can be specified:";
     for (auto *Arg : ActionArgs)
       OS << " " << Arg->getSpelling();
-    reportError(Buf);
+    reportError(OS.str());
   }
 
   switch (ActionArgs[0]->getOption().getID()) {

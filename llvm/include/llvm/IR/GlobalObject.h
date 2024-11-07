@@ -40,9 +40,10 @@ public:
   };
 
 protected:
-  GlobalObject(Type *Ty, ValueTy VTy, AllocInfo AllocInfo, LinkageTypes Linkage,
-               const Twine &Name, unsigned AddressSpace = 0)
-      : GlobalValue(Ty, VTy, AllocInfo, Linkage, Name, AddressSpace) {
+  GlobalObject(Type *Ty, ValueTy VTy, Use *Ops, unsigned NumOps,
+               LinkageTypes Linkage, const Twine &Name,
+               unsigned AddressSpace = 0)
+      : GlobalValue(Ty, VTy, Ops, NumOps, Linkage, Name, AddressSpace) {
     setGlobalValueSubClassData(0);
   }
   ~GlobalObject();

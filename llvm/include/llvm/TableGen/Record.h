@@ -603,7 +603,6 @@ public:
 
   Init *convertInitializerTo(RecTy *Ty) const override;
   Init *convertInitializerBitRange(ArrayRef<unsigned> Bits) const override;
-  std::optional<int64_t> convertInitializerToInt() const;
 
   bool isComplete() const override {
     for (unsigned i = 0; i != getNumBits(); ++i)
@@ -1324,9 +1323,13 @@ public:
     return I->getKind() == IK_DefInit;
   }
 
+  static DefInit *get(Record*);
+
   Init *convertInitializerTo(RecTy *Ty) const override;
 
   Record *getDef() const { return Def; }
+
+  //virtual Init *convertInitializerBitRange(ArrayRef<unsigned> Bits);
 
   RecTy *getFieldType(StringInit *FieldName) const override;
 
@@ -1670,7 +1673,7 @@ private:
   RecordKeeper &TrackedRecords;
 
   // The DefInit corresponding to this record.
-  mutable DefInit *CorrespondingDefInit = nullptr;
+  DefInit *CorrespondingDefInit = nullptr;
 
   // Unique record ID.
   unsigned ID;
@@ -1734,10 +1737,10 @@ public:
   void updateClassLoc(SMLoc Loc);
 
   // Make the type that this record should have based on its superclasses.
-  RecordRecTy *getType() const;
+  RecordRecTy *getType();
 
   /// get the corresponding DefInit.
-  DefInit *getDefInit() const;
+  DefInit *getDefInit();
 
   bool isClass() const { return Kind == RK_Class; }
 
@@ -1754,7 +1757,7 @@ public:
   ArrayRef<AssertionInfo> getAssertions() const { return Assertions; }
   ArrayRef<DumpInfo> getDumps() const { return Dumps; }
 
-  ArrayRef<std::pair<Record *, SMRange>> getSuperClasses() const {
+  ArrayRef<std::pair<Record *, SMRange>>  getSuperClasses() const {
     return SuperClasses;
   }
 
@@ -1913,9 +1916,6 @@ public:
   /// vector of records, throwing an exception if the field does not exist or
   /// if the value is not the right type.
   std::vector<Record*> getValueAsListOfDefs(StringRef FieldName) const;
-  // Temporary function to help staged migration to const Record pointers.
-  std::vector<const Record *>
-  getValueAsListOfConstDefs(StringRef FieldName) const;
 
   /// This method looks up the specified field and returns its value as a
   /// vector of integers, throwing an exception if the field does not exist or
@@ -2036,7 +2036,7 @@ public:
   }
 
   /// Start timing a phase. Automatically stops any previous phase timer.
-  void startTimer(StringRef Name) const;
+  void startTimer(StringRef Name);
 
   /// Stop timing a phase.
   void stopTimer();
@@ -2057,32 +2057,21 @@ public:
   //===--------------------------------------------------------------------===//
   // High-level helper methods, useful for tablegen backends.
 
-  // Non-const methods return std::vector<Record *> by value or reference.
-  // Const methods return std::vector<const Record *> by value or
-  // ArrayRef<const Record *>.
-
   /// Get all the concrete records that inherit from the one specified
   /// class. The class must be defined.
-  ArrayRef<const Record *> getAllDerivedDefinitions(StringRef ClassName) const;
-  const std::vector<Record *> &getAllDerivedDefinitions(StringRef ClassName);
+  std::vector<Record *> getAllDerivedDefinitions(StringRef ClassName) const;
 
   /// Get all the concrete records that inherit from all the specified
   /// classes. The classes must be defined.
-  std::vector<const Record *>
-  getAllDerivedDefinitions(ArrayRef<StringRef> ClassNames) const;
-  std::vector<Record *>
-  getAllDerivedDefinitions(ArrayRef<StringRef> ClassNames);
+  std::vector<Record *> getAllDerivedDefinitions(
+      ArrayRef<StringRef> ClassNames) const;
 
   /// Get all the concrete records that inherit from specified class, if the
   /// class is defined. Returns an empty vector if the class is not defined.
-  ArrayRef<const Record *>
+  std::vector<Record *>
   getAllDerivedDefinitionsIfDefined(StringRef ClassName) const;
-  const std::vector<Record *> &
-  getAllDerivedDefinitionsIfDefined(StringRef ClassName);
 
   void dump() const;
-
-  void dumpAllocationStats(raw_ostream &OS) const;
 
 private:
   RecordKeeper(RecordKeeper &&) = delete;
@@ -2090,33 +2079,17 @@ private:
   RecordKeeper &operator=(RecordKeeper &&) = delete;
   RecordKeeper &operator=(const RecordKeeper &) = delete;
 
-  // Helper template functions for backend accessors.
-  template <typename VecTy>
-  const VecTy &
-  getAllDerivedDefinitionsImpl(StringRef ClassName,
-                               std::map<std::string, VecTy> &Cache) const;
-
-  template <typename VecTy>
-  VecTy getAllDerivedDefinitionsImpl(ArrayRef<StringRef> ClassNames) const;
-
-  template <typename VecTy>
-  const VecTy &getAllDerivedDefinitionsIfDefinedImpl(
-      StringRef ClassName, std::map<std::string, VecTy> &Cache) const;
-
   std::string InputFilename;
   RecordMap Classes, Defs;
-  mutable std::map<std::string, std::vector<const Record *>>
-      ClassRecordsMapConst;
-  mutable std::map<std::string, std::vector<Record *>> ClassRecordsMap;
+  mutable StringMap<std::vector<Record *>> ClassRecordsMap;
   GlobalMap ExtraGlobals;
 
-  // TODO: Move timing related code out of RecordKeeper.
   // These members are for the phase timing feature. We need a timer group,
   // the last timer started, and a flag to say whether the last timer
   // is the special "backend overall timer."
-  mutable TimerGroup *TimingGroup = nullptr;
-  mutable Timer *LastTimer = nullptr;
-  mutable bool BackendTimer = false;
+  TimerGroup *TimingGroup = nullptr;
+  Timer *LastTimer = nullptr;
+  bool BackendTimer = false;
 
   /// The internal uniquer implementation of the RecordKeeper.
   std::unique_ptr<detail::RecordKeeperImpl> Impl;

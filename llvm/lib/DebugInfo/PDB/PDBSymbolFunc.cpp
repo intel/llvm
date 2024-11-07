@@ -39,8 +39,11 @@ public:
     auto DataChildren = Func.findAllChildren<PDBSymbolData>();
     while (auto Child = DataChildren->getNext()) {
       if (Child->getDataKind() == PDB_DataKind::Param) {
-        if (SeenNames.insert(Child->getName()).second)
-          Args.push_back(std::move(Child));
+        std::string Name = Child->getName();
+        if (SeenNames.find(Name) != SeenNames.end())
+          continue;
+        Args.push_back(std::move(Child));
+        SeenNames.insert(Name);
       }
     }
     reset();

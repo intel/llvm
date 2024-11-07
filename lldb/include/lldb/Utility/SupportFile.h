@@ -72,8 +72,8 @@ public:
   virtual const FileSpec &Materialize() { return m_file_spec; }
 
 protected:
-  const FileSpec m_file_spec;
-  const Checksum m_checksum;
+  FileSpec m_file_spec;
+  Checksum m_checksum;
 };
 
 } // namespace lldb_private

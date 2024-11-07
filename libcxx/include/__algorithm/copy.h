@@ -14,10 +14,8 @@
 #include <__algorithm/iterator_operations.h>
 #include <__algorithm/min.h>
 #include <__config>
-#include <__iterator/iterator_traits.h>
 #include <__iterator/segmented_iterator.h>
 #include <__type_traits/common_type.h>
-#include <__type_traits/enable_if.h>
 #include <__utility/move.h>
 #include <__utility/pair.h>
 

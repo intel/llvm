@@ -33,47 +33,46 @@
 #include "llvm/TableGen/Record.h"
 #include "llvm/TableGen/TableGenBackend.h"
 
-using namespace llvm;
-
 namespace {
+using llvm::formatv;
 
 // The class hierarchy of Node types.
 // We assemble this in order to be able to define the NodeKind enum in a
 // stable and useful way, where abstract Node subclasses correspond to ranges.
 class Hierarchy {
 public:
-  Hierarchy(const RecordKeeper &Records) {
-    for (const Record *T : Records.getAllDerivedDefinitions("NodeType"))
+  Hierarchy(const llvm::RecordKeeper &Records) {
+    for (llvm::Record *T : Records.getAllDerivedDefinitions("NodeType"))
       add(T);
-    for (const Record *Derived : Records.getAllDerivedDefinitions("NodeType"))
-      if (const Record *Base = Derived->getValueAsOptionalDef("base"))
+    for (llvm::Record *Derived : Records.getAllDerivedDefinitions("NodeType"))
+      if (llvm::Record *Base = Derived->getValueAsOptionalDef("base"))
         link(Derived, Base);
     for (NodeType &N : AllTypes) {
-      sort(N.Derived, [](const NodeType *L, const NodeType *R) {
-        return L->Rec->getName() < R->Rec->getName();
+      llvm::sort(N.Derived, [](const NodeType *L, const NodeType *R) {
+        return L->Record->getName() < R->Record->getName();
       });
       // Alternatives nodes must have subclasses, External nodes may do.
-      assert(N.Rec->isSubClassOf("Alternatives") ||
-             N.Rec->isSubClassOf("External") || N.Derived.empty());
-      assert(!N.Rec->isSubClassOf("Alternatives") || !N.Derived.empty());
+      assert(N.Record->isSubClassOf("Alternatives") ||
+             N.Record->isSubClassOf("External") || N.Derived.empty());
+      assert(!N.Record->isSubClassOf("Alternatives") || !N.Derived.empty());
     }
   }
 
   struct NodeType {
-    const Record *Rec = nullptr;
+    const llvm::Record *Record = nullptr;
     const NodeType *Base = nullptr;
     std::vector<const NodeType *> Derived;
-    StringRef name() const { return Rec->getName(); }
+    llvm::StringRef name() const { return Record->getName(); }
   };
 
-  NodeType &get(StringRef Name = "Node") {
+  NodeType &get(llvm::StringRef Name = "Node") {
     auto NI = ByName.find(Name);
     assert(NI != ByName.end() && "no such node");
     return *NI->second;
   }
 
   // Traverse the hierarchy in pre-order (base classes before derived).
-  void visit(function_ref<void(const NodeType &)> CB,
+  void visit(llvm::function_ref<void(const NodeType &)> CB,
              const NodeType *Start = nullptr) {
     if (Start == nullptr)
       Start = &get();
@@ -83,15 +82,15 @@ public:
   }
 
 private:
-  void add(const Record *R) {
+  void add(const llvm::Record *R) {
     AllTypes.emplace_back();
-    AllTypes.back().Rec = R;
+    AllTypes.back().Record = R;
     bool Inserted = ByName.try_emplace(R->getName(), &AllTypes.back()).second;
     assert(Inserted && "Duplicate node name");
     (void)Inserted;
   }
 
-  void link(const Record *Derived, const Record *Base) {
+  void link(const llvm::Record *Derived, const llvm::Record *Base) {
     auto &CN = get(Derived->getName()), &PN = get(Base->getName());
     assert(CN.Base == nullptr && "setting base twice");
     PN.Derived.push_back(&CN);
@@ -99,7 +98,7 @@ private:
   }
 
   std::deque<NodeType> AllTypes;
-  DenseMap<StringRef, NodeType *> ByName;
+  llvm::DenseMap<llvm::StringRef, NodeType *> ByName;
 };
 
 const Hierarchy::NodeType &firstConcrete(const Hierarchy::NodeType &N) {
@@ -110,7 +109,7 @@ const Hierarchy::NodeType &lastConcrete(const Hierarchy::NodeType &N) {
 }
 
 struct SyntaxConstraint {
-  SyntaxConstraint(const Record &R) {
+  SyntaxConstraint(const llvm::Record &R) {
     if (R.isSubClassOf("Optional")) {
       *this = SyntaxConstraint(*R.getValueAsDef("inner"));
     } else if (R.isSubClassOf("AnyToken")) {
@@ -128,9 +127,9 @@ struct SyntaxConstraint {
 
 } // namespace
 
-void clang::EmitClangSyntaxNodeList(const RecordKeeper &Records,
-                                    raw_ostream &OS) {
-  emitSourceFileHeader("Syntax tree node list", OS, Records);
+void clang::EmitClangSyntaxNodeList(llvm::RecordKeeper &Records,
+                                    llvm::raw_ostream &OS) {
+  llvm::emitSourceFileHeader("Syntax tree node list", OS, Records);
   Hierarchy H(Records);
   OS << R"cpp(
 #ifndef NODE
@@ -175,21 +174,21 @@ void clang::EmitClangSyntaxNodeList(const RecordKeeper &Records,
 //    ///   widget.explode()
 // Leading and trailing whitespace lines are stripped.
 // The indentation of the first line is stripped from all lines.
-static void printDoc(StringRef Doc, raw_ostream &OS) {
+static void printDoc(llvm::StringRef Doc, llvm::raw_ostream &OS) {
   Doc = Doc.rtrim();
-  StringRef Line;
+  llvm::StringRef Line;
   while (Line.trim().empty() && !Doc.empty())
     std::tie(Line, Doc) = Doc.split('\n');
-  StringRef Indent = Line.take_while(isSpace);
+  llvm::StringRef Indent = Line.take_while(llvm::isSpace);
   for (; !Line.empty() || !Doc.empty(); std::tie(Line, Doc) = Doc.split('\n')) {
     Line.consume_front(Indent);
     OS << "/// " << Line << "\n";
   }
 }
 
-void clang::EmitClangSyntaxNodeClasses(const RecordKeeper &Records,
-                                       raw_ostream &OS) {
-  emitSourceFileHeader("Syntax tree node list", OS, Records);
+void clang::EmitClangSyntaxNodeClasses(llvm::RecordKeeper &Records,
+                                       llvm::raw_ostream &OS) {
+  llvm::emitSourceFileHeader("Syntax tree node list", OS, Records);
   Hierarchy H(Records);
 
   OS << "\n// Forward-declare node types so we don't have to carefully "
@@ -200,9 +199,9 @@ void clang::EmitClangSyntaxNodeClasses(const RecordKeeper &Records,
 
   OS << "\n// Node definitions\n\n";
   H.visit([&](const Hierarchy::NodeType &N) {
-    if (N.Rec->isSubClassOf("External"))
+    if (N.Record->isSubClassOf("External"))
       return;
-    printDoc(N.Rec->getValueAsString("documentation"), OS);
+    printDoc(N.Record->getValueAsString("documentation"), OS);
     OS << formatv("class {0}{1} : public {2} {{\n", N.name(),
                   N.Derived.empty() ? " final" : "", N.Base->name());
 
@@ -214,11 +213,11 @@ void clang::EmitClangSyntaxNodeClasses(const RecordKeeper &Records,
       OS << formatv("protected:\n  {0}(NodeKind K) : {1}(K) {{}\npublic:\n",
                     N.name(), N.Base->name());
 
-    if (N.Rec->isSubClassOf("Sequence")) {
+    if (N.Record->isSubClassOf("Sequence")) {
       // Getters for sequence elements.
-      for (const auto &C : N.Rec->getValueAsListOfDefs("children")) {
+      for (const auto &C : N.Record->getValueAsListOfDefs("children")) {
         assert(C->isSubClassOf("Role"));
-        StringRef Role = C->getValueAsString("role");
+        llvm::StringRef Role = C->getValueAsString("role");
         SyntaxConstraint Constraint(*C->getValueAsDef("syntax"));
         for (const char *Const : {"", "const "})
           OS << formatv(

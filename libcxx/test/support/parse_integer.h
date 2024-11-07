@@ -62,7 +62,7 @@ struct parse_integer_impl<unsigned long long> {
         return std::stoull(str);
     }
 };
-} // namespace detail
+} // end namespace detail
 
 template <class T, class CharT>
 T parse_integer(std::basic_string<CharT> const& str) {

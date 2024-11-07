@@ -16,7 +16,6 @@
 #ifndef LLVM_UTILS_TABLEGEN_COMMON_CODEGENTARGET_H
 #define LLVM_UTILS_TABLEGEN_COMMON_CODEGENTARGET_H
 
-#include "Basic/CodeGenIntrinsics.h"
 #include "Basic/SDNodeProperties.h"
 #include "CodeGenHwModes.h"
 #include "CodeGenInstruction.h"
@@ -56,18 +55,19 @@ std::string getQualifiedName(const Record *R);
 /// CodeGenTarget - This class corresponds to the Target class in the .td files.
 ///
 class CodeGenTarget {
-  const RecordKeeper &Records;
-  const Record *TargetRec;
+  RecordKeeper &Records;
+  Record *TargetRec;
 
   mutable DenseMap<const Record *, std::unique_ptr<CodeGenInstruction>>
       Instructions;
   mutable std::unique_ptr<CodeGenRegBank> RegBank;
-  mutable ArrayRef<const Record *> RegAltNameIndices;
+  mutable std::vector<Record *> RegAltNameIndices;
   mutable SmallVector<ValueTypeByHwMode, 8> LegalValueTypes;
   CodeGenHwModes CGH;
-  ArrayRef<const Record *> MacroFusions;
+  std::vector<Record *> MacroFusions;
   mutable bool HasVariableLengthEncodings = false;
 
+  void ReadRegAltNameIndices() const;
   void ReadInstructions() const;
   void ReadLegalValueTypes() const;
 
@@ -75,15 +75,13 @@ class CodeGenTarget {
 
   mutable StringRef InstNamespace;
   mutable std::vector<const CodeGenInstruction *> InstrsByEnum;
-  mutable CodeGenIntrinsicMap Intrinsics;
-
   mutable unsigned NumPseudoInstructions = 0;
 
 public:
-  CodeGenTarget(const RecordKeeper &Records);
+  CodeGenTarget(RecordKeeper &Records);
   ~CodeGenTarget();
 
-  const Record *getTargetRecord() const { return TargetRec; }
+  Record *getTargetRecord() const { return TargetRec; }
   StringRef getName() const;
 
   /// getInstNamespace - Return the target-specific instruction namespace.
@@ -134,17 +132,17 @@ public:
   /// return it.
   const CodeGenRegister *getRegisterByName(StringRef Name) const;
 
-  ArrayRef<const Record *> getRegAltNameIndices() const {
+  const std::vector<Record *> &getRegAltNameIndices() const {
     if (RegAltNameIndices.empty())
-      RegAltNameIndices = Records.getAllDerivedDefinitions("RegAltNameIndex");
+      ReadRegAltNameIndices();
     return RegAltNameIndices;
   }
 
-  const CodeGenRegisterClass &getRegisterClass(const Record *R) const;
+  const CodeGenRegisterClass &getRegisterClass(Record *R) const;
 
   /// getRegisterVTs - Find the union of all possible SimpleValueTypes for the
   /// specified physical register.
-  std::vector<ValueTypeByHwMode> getRegisterVTs(const Record *R) const;
+  std::vector<ValueTypeByHwMode> getRegisterVTs(Record *R) const;
 
   ArrayRef<ValueTypeByHwMode> getLegalValueTypes() const {
     if (LegalValueTypes.empty())
@@ -158,7 +156,7 @@ public:
 
   bool hasMacroFusion() const { return !MacroFusions.empty(); }
 
-  ArrayRef<const Record *> getMacroFusions() const { return MacroFusions; }
+  const std::vector<Record *> getMacroFusions() const { return MacroFusions; }
 
 private:
   DenseMap<const Record *, std::unique_ptr<CodeGenInstruction>> &
@@ -227,10 +225,6 @@ public:
   /// properties?
   bool guessInstructionProperties() const;
 
-  const CodeGenIntrinsic &getIntrinsic(const Record *Def) const {
-    return Intrinsics[Def];
-  }
-
 private:
   void ComputeInstrsByEnum() const;
 };
@@ -238,20 +232,20 @@ private:
 /// ComplexPattern - ComplexPattern info, corresponding to the ComplexPattern
 /// tablegen class in TargetSelectionDAG.td
 class ComplexPattern {
-  const Record *Ty;
+  Record *Ty;
   unsigned NumOperands;
   std::string SelectFunc;
-  std::vector<const Record *> RootNodes;
+  std::vector<Record *> RootNodes;
   unsigned Properties; // Node properties
   unsigned Complexity;
 
 public:
-  ComplexPattern(const Record *R);
+  ComplexPattern(Record *R);
 
-  const Record *getValueType() const { return Ty; }
+  Record *getValueType() const { return Ty; }
   unsigned getNumOperands() const { return NumOperands; }
   const std::string &getSelectFunc() const { return SelectFunc; }
-  const ArrayRef<const Record *> getRootNodes() const { return RootNodes; }
+  const std::vector<Record *> &getRootNodes() const { return RootNodes; }
   bool hasProperty(enum SDNP Prop) const { return Properties & (1 << Prop); }
   unsigned getComplexity() const { return Complexity; }
 };

@@ -18,8 +18,7 @@ exit:
 
 loop:
   %tmp3 = phi ptr [ %tmp6, %loop ], [ %addr, %entry ]
-  %l = load i64, ptr %tmp3
-  %tmp4 = freeze i64 %l
+  %tmp4 = freeze i64 0
   %tmp5 = add i64 0, 0
   %tmp6 = getelementptr inbounds ptr, ptr %tmp3, i64 1
   %tmp7 = icmp eq ptr %tmp6, null

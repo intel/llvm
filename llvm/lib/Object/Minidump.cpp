@@ -53,12 +53,6 @@ Expected<std::string> MinidumpFile::getString(size_t Offset) const {
   return Result;
 }
 
-iterator_range<llvm::object::MinidumpFile::ExceptionStreamsIterator>
-MinidumpFile::getExceptionStreams() const {
-  return make_range(ExceptionStreamsIterator(ExceptionStreams, this),
-                    ExceptionStreamsIterator({}, this));
-}
-
 Expected<iterator_range<MinidumpFile::MemoryInfoIterator>>
 MinidumpFile::getMemoryInfoList() const {
   std::optional<ArrayRef<uint8_t>> Stream =
@@ -134,7 +128,6 @@ MinidumpFile::create(MemoryBufferRef Source) {
     return ExpectedStreams.takeError();
 
   DenseMap<StreamType, std::size_t> StreamMap;
-  std::vector<Directory> ExceptionStreams;
   for (const auto &StreamDescriptor : llvm::enumerate(*ExpectedStreams)) {
     StreamType Type = StreamDescriptor.value().Type;
     const LocationDescriptor &Loc = StreamDescriptor.value().Location;
@@ -150,13 +143,6 @@ MinidumpFile::create(MemoryBufferRef Source) {
       continue;
     }
 
-    // Exceptions can be treated as a special case of streams. Other streams
-    // represent a list of entities, but exceptions are unique per stream.
-    if (Type == StreamType::Exception) {
-      ExceptionStreams.push_back(StreamDescriptor.value());
-      continue;
-    }
-
     if (Type == DenseMapInfo<StreamType>::getEmptyKey() ||
         Type == DenseMapInfo<StreamType>::getTombstoneKey())
       return createError("Cannot handle one of the minidump streams");
@@ -167,8 +153,7 @@ MinidumpFile::create(MemoryBufferRef Source) {
   }
 
   return std::unique_ptr<MinidumpFile>(
-      new MinidumpFile(Source, Hdr, *ExpectedStreams, std::move(StreamMap),
-                       std::move(ExceptionStreams)));
+      new MinidumpFile(Source, Hdr, *ExpectedStreams, std::move(StreamMap)));
 }
 
 iterator_range<MinidumpFile::FallibleMemory64Iterator>

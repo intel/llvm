@@ -70,7 +70,6 @@ int64x2_t test_svget_neonq_s64(svint64_t n) {
   return SVE_ACLE_FUNC(svget_neonq, _s64, , )(n);
 }
 
-//
 // CHECK-LABEL: @test_svget_neonq_u8(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call <16 x i8> @llvm.vector.extract.v16i8.nxv16i8(<vscale x 16 x i8> [[N:%.*]], i64 0)
@@ -155,6 +154,7 @@ float32x4_t test_svget_neonq_f32(svfloat32_t n) {
   return SVE_ACLE_FUNC(svget_neonq, _f32, , )(n);
 }
 
+//
 // CHECK-LABEL: @test_svget_neonq_f64(
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call <2 x double> @llvm.vector.extract.v2f64.nxv2f64(<vscale x 2 x double> [[N:%.*]], i64 0)

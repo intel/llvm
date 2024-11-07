@@ -1628,7 +1628,6 @@ multiclass OpcodeOperand<bits<32> value> {
   defm : SymbolicOperandWithRequirements<OpcodeOperand, value, NAME, 0, 0, [], []>;
 }
 // TODO: implement other mnemonics.
-defm InBoundsAccessChain : OpcodeOperand<66>;
 defm InBoundsPtrAccessChain : OpcodeOperand<70>;
 defm PtrCastToGeneric : OpcodeOperand<121>;
 defm Bitcast : OpcodeOperand<124>;

@@ -94,6 +94,7 @@ static std::string PrintValue(llvm::Value *V, bool truncate = false) {
   std::string s;
   raw_string_ostream rso(s);
   V->print(rso);
+  rso.flush();
   if (truncate)
     s.resize(s.length() - 1);
   return s;
@@ -551,6 +552,8 @@ bool IRDynamicChecks::runOnModule(llvm::Module &M) {
     raw_string_ostream oss(s);
 
     M.print(oss, nullptr);
+
+    oss.flush();
 
     LLDB_LOGF(log, "Module after dynamic checks: \n%s", s.c_str());
   }

@@ -2595,7 +2595,12 @@ void CoverageMappingModuleGen::emit() {
 }
 
 unsigned CoverageMappingModuleGen::getFileID(FileEntryRef File) {
-  return FileEntries.try_emplace(File, FileEntries.size() + 1).first->second;
+  auto It = FileEntries.find(File);
+  if (It != FileEntries.end())
+    return It->second;
+  unsigned FileID = FileEntries.size() + 1;
+  FileEntries.insert(std::make_pair(File, FileID));
+  return FileID;
 }
 
 void CoverageMappingGen::emitCounterMapping(const Decl *D,

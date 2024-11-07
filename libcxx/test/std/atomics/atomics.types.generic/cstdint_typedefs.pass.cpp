@@ -34,9 +34,8 @@
 // typedef atomic<uintmax_t> atomic_uintmax_t;
 
 #include <atomic>
-#include <cstddef>
-#include <cstdint>
 #include <type_traits>
+#include <cstdint>
 
 #include "test_macros.h"
 

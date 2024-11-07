@@ -11,10 +11,9 @@
 // integral-type fetch_xor(integral-type, memory_order = memory_order::seq_cst) const noexcept;
 
 #include <atomic>
-#include <cassert>
 #include <concepts>
+#include <cassert>
 #include <type_traits>
-#include <utility>
 
 #include "atomic_helpers.h"
 #include "test_macros.h"

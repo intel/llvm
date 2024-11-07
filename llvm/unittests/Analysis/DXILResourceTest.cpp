@@ -90,10 +90,10 @@ testing::AssertionResult MDTupleEq(const char *LHSExpr, const char *RHSExpr,
   return testing::AssertionFailure() << "Expected equality:\n"
                                      << "  " << LHSExpr << "\n"
                                      << "Which is:\n"
-                                     << "  " << LHSRepr << "\n\n"
+                                     << "  " << LHSS.str() << "\n\n"
                                      << "  " << RHSExpr << "\n"
                                      << "Which is:\n"
-                                     << "  " << RHSRepr;
+                                     << "  " << RHSS.str();
 }
 #define EXPECT_MDEQ(X, Y) EXPECT_PRED_FORMAT2(MDTupleEq, X, Y)
 } // namespace

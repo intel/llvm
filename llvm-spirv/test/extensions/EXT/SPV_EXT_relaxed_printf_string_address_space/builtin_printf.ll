@@ -18,7 +18,8 @@
 ; RUN: llvm-spirv -spirv-text %t.bc -o %t.spt --spirv-ext=+SPV_EXT_relaxed_printf_string_address_space
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_EXT_relaxed_printf_string_address_space
-; RUN: spirv-val %t.spv
+; Change TODO to RUN when spirv-val allows non-constant printf formats
+; TODO: spirv-val %t.spv
 
 
 ; CHECK-WO-EXT: RequiresExtension: Feature requires the following SPIR-V extension:

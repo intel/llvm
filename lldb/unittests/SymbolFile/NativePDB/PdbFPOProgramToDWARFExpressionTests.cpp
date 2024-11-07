@@ -43,7 +43,7 @@ CheckValidProgramTranslation(llvm::StringRef fpo_program,
       .print(os, llvm::DIDumpOptions(), nullptr);
 
   // actual check
-  ASSERT_EQ(expected_dwarf_expression, result);
+  ASSERT_EQ(expected_dwarf_expression, os.str());
 }
 
 TEST(PDBFPOProgramToDWARFExpressionTests, SingleAssignmentRegisterRef) {

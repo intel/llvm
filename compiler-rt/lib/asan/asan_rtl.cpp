@@ -478,6 +478,9 @@ static bool AsanInitInternal() {
   if (flags()->start_deactivated)
     AsanDeactivate();
 
+  // interceptors
+  InitTlsSize();
+
   // Create main thread.
   AsanThread *main_thread = CreateMainThread();
   CHECK_EQ(0, main_thread->tid());
@@ -577,8 +580,10 @@ static void UnpoisonDefaultStack() {
   } else {
     CHECK(!SANITIZER_FUCHSIA);
     // If we haven't seen this thread, try asking the OS for stack bounds.
-    uptr tls_begin, tls_end;
-    GetThreadStackAndTls(/*main=*/false, &bottom, &top, &tls_begin, &tls_end);
+    uptr tls_addr, tls_size, stack_size;
+    GetThreadStackAndTls(/*main=*/false, &bottom, &stack_size, &tls_addr,
+                         &tls_size);
+    top = bottom + stack_size;
   }
 
   UnpoisonStack(bottom, top, "default");

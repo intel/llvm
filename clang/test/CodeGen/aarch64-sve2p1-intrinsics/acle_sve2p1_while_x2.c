@@ -20,70 +20,57 @@
 #define ATTR
 #endif
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b8_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b8_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0:[0-9]+]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilege.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilege_b8_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilege_b8_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0:[0-9]+]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilege.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilege_b8_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b8,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b8_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b8_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilege_b8_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilege_b8_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilege_b8_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b8,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b16_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b16_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilege.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -91,14 +78,11 @@ svboolx2_t test_svwhilege_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b16_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b16_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilege.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -106,18 +90,15 @@ svboolx2_t test_svwhilege_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b16_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b16,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b16_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b16_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -125,14 +106,11 @@ svboolx2_t test_svwhilege_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b16_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b16_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -140,18 +118,15 @@ svboolx2_t test_svwhilege_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b16_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b16,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b32_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b32_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilege.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -159,14 +134,11 @@ svboolx2_t test_svwhilege_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b32_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b32_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilege.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -174,18 +146,15 @@ svboolx2_t test_svwhilege_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b32_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b32,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b32_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b32_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -193,14 +162,11 @@ svboolx2_t test_svwhilege_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b32_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b32_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -208,18 +174,15 @@ svboolx2_t test_svwhilege_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b32_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b32,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b64_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b64_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilege.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -227,14 +190,11 @@ svboolx2_t test_svwhilege_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b64_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b64_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilege.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -242,18 +202,15 @@ svboolx2_t test_svwhilege_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b64_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b64,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilege_b64_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilege_b64_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -261,14 +218,11 @@ svboolx2_t test_svwhilege_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilege_b64_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilege_b64_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilehs.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -276,78 +230,63 @@ svboolx2_t test_svwhilege_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilege_b64_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilege_b64,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b8_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b8_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilegt_b8_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilegt_b8_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilegt_b8_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b8,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b8_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b8_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilegt_b8_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilegt_b8_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilegt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b8,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b16_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b16_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -355,14 +294,11 @@ svboolx2_t test_svwhilegt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b16_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b16_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -370,18 +306,15 @@ svboolx2_t test_svwhilegt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b16_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b16,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b16_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b16_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -389,14 +322,11 @@ svboolx2_t test_svwhilegt_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b16_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b16_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -404,18 +334,15 @@ svboolx2_t test_svwhilegt_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b16,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b32_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b32_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -423,14 +350,11 @@ svboolx2_t test_svwhilegt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b32_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b32_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -438,18 +362,15 @@ svboolx2_t test_svwhilegt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b32_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b32,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b32_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b32_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -457,14 +378,11 @@ svboolx2_t test_svwhilegt_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b32_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b32_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -472,18 +390,15 @@ svboolx2_t test_svwhilegt_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b32,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b64_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b64_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -491,14 +406,11 @@ svboolx2_t test_svwhilegt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b64_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b64_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilegt.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -506,18 +418,15 @@ svboolx2_t test_svwhilegt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b64_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b64,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilegt_b64_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilegt_b64_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -525,14 +434,11 @@ svboolx2_t test_svwhilegt_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilegt_b64_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilegt_b64_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilehi.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -540,78 +446,63 @@ svboolx2_t test_svwhilegt_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilegt_b64_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilegt_b64,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b8_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b8_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilele.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilele_b8_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilele_b8_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilele.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilele_b8_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b8,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b8_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b8_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilels.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilele_b8_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilele_b8_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilels.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilele_b8_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b8,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b16_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b16_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilele.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -619,14 +510,11 @@ svboolx2_t test_svwhilele_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b16_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b16_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilele.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -634,18 +522,15 @@ svboolx2_t test_svwhilele_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b16_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b16,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b16_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b16_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilels.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -653,14 +538,11 @@ svboolx2_t test_svwhilele_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b16_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b16_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilels.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -668,18 +550,15 @@ svboolx2_t test_svwhilele_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b16_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b16,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b32_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b32_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilele.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -687,14 +566,11 @@ svboolx2_t test_svwhilele_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b32_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b32_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilele.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -702,18 +578,15 @@ svboolx2_t test_svwhilele_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b32_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b32,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b32_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b32_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilels.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -721,14 +594,11 @@ svboolx2_t test_svwhilele_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b32_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b32_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilels.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -736,18 +606,15 @@ svboolx2_t test_svwhilele_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b32_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b32,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b64_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b64_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilele.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -755,14 +622,11 @@ svboolx2_t test_svwhilele_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b64_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b64_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilele.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -770,18 +634,15 @@ svboolx2_t test_svwhilele_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b64_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b64,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilele_b64_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilele_b64_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilels.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -789,14 +650,11 @@ svboolx2_t test_svwhilele_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilele_b64_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilele_b64_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilels.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -804,78 +662,63 @@ svboolx2_t test_svwhilele_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilele_b64_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilele_b64,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b8_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b8_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilelt_b8_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilelt_b8_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilelt_b8_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b8,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b8_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b8_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z21test_svwhilelt_b8_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z21test_svwhilelt_b8_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 16 x i1>, <vscale x 16 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv16i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> poison, <vscale x 16 x i1> [[TMP1]], i64 0)
 // CPP-CHECK-NEXT:    [[TMP3:%.*]] = extractvalue { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP2]], <vscale x 16 x i1> [[TMP3]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP4]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP5:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP5]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP4]]
 //
 svboolx2_t test_svwhilelt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b8,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b16_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b16_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -883,14 +726,11 @@ svboolx2_t test_svwhilelt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b16_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b16_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -898,18 +738,15 @@ svboolx2_t test_svwhilelt_b8_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b16_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b16,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b16_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b16_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -917,14 +754,11 @@ svboolx2_t test_svwhilelt_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b16_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b16_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 8 x i1>, <vscale x 8 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv8i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP1]])
@@ -932,18 +766,15 @@ svboolx2_t test_svwhilelt_b16_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 8 x i1>, <vscale x 8 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv8i1(<vscale x 8 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b16,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b32_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b32_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -951,14 +782,11 @@ svboolx2_t test_svwhilelt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b32_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b32_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -966,18 +794,15 @@ svboolx2_t test_svwhilelt_b16_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b32_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b32,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b32_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b32_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -985,14 +810,11 @@ svboolx2_t test_svwhilelt_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b32_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b32_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 4 x i1>, <vscale x 4 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv4i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP1]])
@@ -1000,18 +822,15 @@ svboolx2_t test_svwhilelt_b32_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 4 x i1>, <vscale x 4 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv4i1(<vscale x 4 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b32,_u64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b64_s64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b64_s64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -1019,14 +838,11 @@ svboolx2_t test_svwhilelt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b64_s64ll(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b64_s64ll(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilelt.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -1034,18 +850,15 @@ svboolx2_t test_svwhilelt_b32_u64(uint64_t op1, uint64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b64_s64(int64_t op1, int64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b64,_s64,_x2)(op1, op2);
 }
 
-// CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @test_svwhilelt_b64_u64(
+// CHECK-LABEL: define dso_local <vscale x 32 x i1> @test_svwhilelt_b64_u64(
 // CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -1053,14 +866,11 @@ svboolx2_t test_svwhilelt_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
-// CPP-CHECK-LABEL: define dso_local { <vscale x 16 x i1>, <vscale x 16 x i1> } @_Z22test_svwhilelt_b64_u64mm(
+// CPP-CHECK-LABEL: define dso_local <vscale x 32 x i1> @_Z22test_svwhilelt_b64_u64mm(
 // CPP-CHECK-SAME: i64 noundef [[OP1:%.*]], i64 noundef [[OP2:%.*]]) #[[ATTR0]] {
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    [[RETVAL:%.*]] = alloca { <vscale x 16 x i1>, <vscale x 16 x i1> }, align 2
 // CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call { <vscale x 2 x i1>, <vscale x 2 x i1> } @llvm.aarch64.sve.whilelo.x2.nxv2i1(i64 [[OP1]], i64 [[OP2]])
 // CPP-CHECK-NEXT:    [[TMP1:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 0
 // CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP1]])
@@ -1068,9 +878,7 @@ svboolx2_t test_svwhilelt_b64_s64(int64_t op1, int64_t op2) ATTR {
 // CPP-CHECK-NEXT:    [[TMP4:%.*]] = extractvalue { <vscale x 2 x i1>, <vscale x 2 x i1> } [[TMP0]], 1
 // CPP-CHECK-NEXT:    [[TMP5:%.*]] = tail call <vscale x 16 x i1> @llvm.aarch64.sve.convert.to.svbool.nxv2i1(<vscale x 2 x i1> [[TMP4]])
 // CPP-CHECK-NEXT:    [[TMP6:%.*]] = tail call <vscale x 32 x i1> @llvm.vector.insert.nxv32i1.nxv16i1(<vscale x 32 x i1> [[TMP3]], <vscale x 16 x i1> [[TMP5]], i64 16)
-// CPP-CHECK-NEXT:    store <vscale x 32 x i1> [[TMP6]], ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    [[TMP7:%.*]] = load { <vscale x 16 x i1>, <vscale x 16 x i1> }, ptr [[RETVAL]], align 2
-// CPP-CHECK-NEXT:    ret { <vscale x 16 x i1>, <vscale x 16 x i1> } [[TMP7]]
+// CPP-CHECK-NEXT:    ret <vscale x 32 x i1> [[TMP6]]
 //
 svboolx2_t test_svwhilelt_b64_u64(uint64_t op1, uint64_t op2) ATTR {
   return SVE_ACLE_FUNC(svwhilelt_b64,_u64,_x2)(op1, op2);

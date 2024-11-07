@@ -123,13 +123,12 @@ LogicalResult CallIndirectOp::canonicalize(CallIndirectOp indirectCall,
 // ConstantOp
 //===----------------------------------------------------------------------===//
 
-LogicalResult ConstantOp::verifySymbolUses(SymbolTableCollection &symbolTable) {
+LogicalResult ConstantOp::verify() {
   StringRef fnName = getValue();
   Type type = getType();
 
   // Try to find the referenced function.
-  auto fn = symbolTable.lookupNearestSymbolFrom<FuncOp>(
-      this->getOperation(), StringAttr::get(getContext(), fnName));
+  auto fn = (*this)->getParentOfType<ModuleOp>().lookupSymbol<FuncOp>(fnName);
   if (!fn)
     return emitOpError() << "reference to undefined function '" << fnName
                          << "'";

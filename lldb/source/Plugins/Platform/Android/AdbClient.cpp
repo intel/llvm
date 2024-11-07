@@ -173,7 +173,7 @@ Status AdbClient::SetPortForwarding(const uint16_t local_port,
   snprintf(message, sizeof(message), "forward:tcp:%d;tcp:%d", local_port,
            remote_port);
 
-  Status error = SendDeviceMessage(message);
+  const auto error = SendDeviceMessage(message);
   if (error.Fail())
     return error;
 
@@ -192,7 +192,7 @@ AdbClient::SetPortForwarding(const uint16_t local_port,
   snprintf(message, sizeof(message), "forward:tcp:%d;%s:%s", local_port,
            sock_namespace_str, remote_socket_name.str().c_str());
 
-  Status error = SendDeviceMessage(message);
+  const auto error = SendDeviceMessage(message);
   if (error.Fail())
     return error;
 
@@ -203,7 +203,7 @@ Status AdbClient::DeletePortForwarding(const uint16_t local_port) {
   char message[32];
   snprintf(message, sizeof(message), "killforward:tcp:%d", local_port);
 
-  Status error = SendDeviceMessage(message);
+  const auto error = SendDeviceMessage(message);
   if (error.Fail())
     return error;
 
@@ -588,7 +588,7 @@ AdbClient::SyncService::executeCommand(const std::function<Status()> &cmd) {
   if (!m_conn)
     return Status::FromErrorString("SyncService is disconnected");
 
-  Status error = cmd();
+  const auto error = cmd();
   if (error.Fail())
     m_conn.reset();
 

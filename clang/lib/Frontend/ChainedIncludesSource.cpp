@@ -159,7 +159,7 @@ IntrusiveRefCntPtr<ExternalSemaSource> clang::createChainedIncludesSource(
       std::string pchName = includes[i-1];
       llvm::raw_string_ostream os(pchName);
       os << ".pch" << i-1;
-      serialBufNames.push_back(pchName);
+      serialBufNames.push_back(os.str());
 
       IntrusiveRefCntPtr<ASTReader> Reader;
       Reader = createASTReader(

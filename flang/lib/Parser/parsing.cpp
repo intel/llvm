@@ -42,9 +42,9 @@ const SourceFile *Parsing::Prescan(const std::string &path, Options options) {
     sourceFile =
         allSources.Open(path, fileError, "."s /*prepend to search path*/);
   }
-  if (!buf.empty()) {
+  if (!fileError.str().empty()) {
     ProvenanceRange range{allSources.AddCompilerInsertion(path)};
-    messages_.Say(range, "%s"_err_en_US, buf);
+    messages_.Say(range, "%s"_err_en_US, fileError.str());
     return sourceFile;
   }
   CHECK(sourceFile);

@@ -1,6 +1,6 @@
 CXX_SOURCES := main.cpp
 
-ifeq ($(CC_TYPE), icc)
+ifneq (,$(findstring icc,$(CC)))
     CXXFLAGS_EXTRAS := -debug inline-debug-info
 endif
 

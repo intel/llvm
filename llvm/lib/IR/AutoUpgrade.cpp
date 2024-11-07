@@ -4324,8 +4324,7 @@ void llvm::UpgradeIntrinsicCall(CallBase *CI, Function *NewFn) {
              "Must have same number of elements");
 
       SmallVector<Value *> Args(CI->args());
-      CallInst *NewCI = Builder.CreateCall(NewFn, Args);
-      NewCI->setAttributes(CI->getAttributes());
+      Value *NewCI = Builder.CreateCall(NewFn, Args);
       Value *Res = PoisonValue::get(OldST);
       for (unsigned Idx = 0; Idx < OldST->getNumElements(); ++Idx) {
         Value *Elem = Builder.CreateExtractValue(NewCI, Idx);

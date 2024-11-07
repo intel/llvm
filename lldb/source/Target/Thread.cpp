@@ -2078,8 +2078,7 @@ lldb::ValueObjectSP Thread::GetSiginfoValue() {
   llvm::Expected<std::unique_ptr<llvm::MemoryBuffer>> data =
       GetSiginfo(*type_size);
   if (!data)
-    return ValueObjectConstResult::Create(&target,
-                                          Status::FromError(data.takeError()));
+    return ValueObjectConstResult::Create(&target, Status(data.takeError()));
 
   DataExtractor data_extractor{data.get()->getBufferStart(), data.get()->getBufferSize(),
     process_sp->GetByteOrder(), arch.GetAddressByteSize()};

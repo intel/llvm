@@ -77,19 +77,6 @@ namespace foo {
   }
 }
 
-namespace extern_ovl {
-  extern "C" {
-    __attribute__((overloadable))
-    void ovl_decl(void); // expected-note {{previous}}
-
-    __attribute__((overloadable))
-    int ovl_decl(int);
-
-    __attribute__((overloadable))
-    int ovl_decl(void); // expected-error {{functions that differ only in their return type}}
-  }
-}
-
 namespace linkage {
   namespace redecl {
     extern "C" {
@@ -99,12 +86,6 @@ namespace linkage {
       void linkage_redecl(int); // ok, still not extern "C"
       void linkage_redecl(float); // expected-note {{previous}}
       void linkage_redecl(double); // expected-error {{conflicting types}}
-    }
-  }
-  namespace redecl_2 {
-    extern "C" {
-      void linkage_redecl_2(); // expected-note {{previous}}
-      int linkage_redecl_2(int); // expected-error {{conflicting types}}
     }
   }
   namespace from_outer {

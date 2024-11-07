@@ -645,7 +645,7 @@ static std::string getInstName(Value *Val) {
   std::string Result;
   raw_string_ostream OS(Result);
   Val->printAsOperand(OS, false);
-  return Result;
+  return OS.str();
 }
 
 void BlockGenerator::generateBeginStmtTrace(ScopStmt &Stmt, LoopToScevMapT &LTS,

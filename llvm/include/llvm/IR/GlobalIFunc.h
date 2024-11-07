@@ -34,8 +34,6 @@ template <typename ValueSubClass, typename... Args> class SymbolTableListTraits;
 class GlobalIFunc final : public GlobalObject, public ilist_node<GlobalIFunc> {
   friend class SymbolTableListTraits<GlobalIFunc>;
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{1};
-
   GlobalIFunc(Type *Ty, unsigned AddressSpace, LinkageTypes Linkage,
               const Twine &Name, Constant *Resolver, Module *Parent);
 
@@ -50,7 +48,7 @@ public:
                              Constant *Resolver, Module *Parent);
 
   // allocate space for exactly one operand
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 1); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Provide fast operand accessors

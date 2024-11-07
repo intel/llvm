@@ -74,7 +74,7 @@ protected:
 
   /// This location indicates end of function prologue and beginning of
   /// function body.
-  const MachineInstr *PrologEndLoc;
+  DebugLoc PrologEndLoc;
 
   /// This block includes epilogue instructions.
   const MachineBasicBlock *EpilogBeginBlock = nullptr;

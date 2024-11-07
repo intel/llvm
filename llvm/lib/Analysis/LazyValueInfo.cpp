@@ -1572,8 +1572,7 @@ ValueLatticeElement LazyValueInfoImpl::getValueAtUse(const Use &U) {
     // This also disallows looking through phi nodes: If the phi node is part
     // of a cycle, we might end up reasoning about values from different cycle
     // iterations (PR60629).
-    if (!CurrI->hasOneUse() ||
-        !isSafeToSpeculativelyExecuteWithVariableReplaced(CurrI))
+    if (!CurrI->hasOneUse() || !isSafeToSpeculativelyExecute(CurrI))
       break;
     CurrU = &*CurrI->use_begin();
   }

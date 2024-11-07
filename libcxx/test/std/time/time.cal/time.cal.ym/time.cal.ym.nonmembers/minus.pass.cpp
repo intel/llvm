@@ -21,9 +21,8 @@
 //                                       static_cast<int>(unsigned{y.month()})}
 
 #include <chrono>
-#include <cassert>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 

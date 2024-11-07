@@ -9,12 +9,12 @@
 #ifndef LLVM_ANALYSIS_CTXPROFANALYSIS_H
 #define LLVM_ANALYSIS_CTXPROFANALYSIS_H
 
+#include "llvm/ADT/DenseMap.h"
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/IntrinsicInst.h"
 #include "llvm/IR/PassManager.h"
 #include "llvm/ProfileData/PGOCtxProfReader.h"
-#include <optional>
 
 namespace llvm {
 
@@ -24,7 +24,7 @@ class CtxProfAnalysis;
 // counter, and then, because all contexts belonging to a function have the same
 // size, there'll be at most one other heap allocation.
 using CtxProfFlatProfile =
-    std::map<GlobalValue::GUID, SmallVector<uint64_t, 1>>;
+    DenseMap<GlobalValue::GUID, SmallVector<uint64_t, 1>>;
 
 /// The instrumented contextual profile, produced by the CtxProfAnalysis.
 class PGOContextualProfile {
@@ -40,7 +40,7 @@ class PGOContextualProfile {
   std::optional<PGOCtxProfContext::CallTargetMapTy> Profiles;
   // For the GUIDs in this module, associate metadata about each function which
   // we'll need when we maintain the profiles during IPO transformations.
-  std::map<GlobalValue::GUID, FunctionInfo> FuncInfo;
+  DenseMap<GlobalValue::GUID, FunctionInfo> FuncInfo;
 
   /// Get the GUID of this Function if it's defined in this module.
   GlobalValue::GUID getDefinedFunctionGUID(const Function &F) const;
@@ -61,16 +61,6 @@ public:
 
   bool isFunctionKnown(const Function &F) const {
     return getDefinedFunctionGUID(F) != 0;
-  }
-
-  uint32_t getNumCounters(const Function &F) const {
-    assert(isFunctionKnown(F));
-    return FuncInfo.find(getDefinedFunctionGUID(F))->second.NextCounterIndex;
-  }
-
-  uint32_t getNumCallsites(const Function &F) const {
-    assert(isFunctionKnown(F));
-    return FuncInfo.find(getDefinedFunctionGUID(F))->second.NextCallsiteIndex;
   }
 
   uint32_t allocateNextCounterIndex(const Function &F) {
@@ -101,11 +91,11 @@ public:
 };
 
 class CtxProfAnalysis : public AnalysisInfoMixin<CtxProfAnalysis> {
-  const std::optional<StringRef> Profile;
+  StringRef Profile;
 
 public:
   static AnalysisKey Key;
-  explicit CtxProfAnalysis(std::optional<StringRef> Profile = std::nullopt);
+  explicit CtxProfAnalysis(StringRef Profile = "");
 
   using Result = PGOContextualProfile;
 
@@ -123,7 +113,9 @@ class CtxProfAnalysisPrinterPass
     : public PassInfoMixin<CtxProfAnalysisPrinterPass> {
 public:
   enum class PrintMode { Everything, JSON };
-  explicit CtxProfAnalysisPrinterPass(raw_ostream &OS);
+  explicit CtxProfAnalysisPrinterPass(raw_ostream &OS,
+                                      PrintMode Mode = PrintMode::Everything)
+      : OS(OS), Mode(Mode) {}
 
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
   static bool isRequired() { return true; }

@@ -11,7 +11,6 @@
 #define _LIBCPP___MEMORY_ALLOCATOR_TRAITS_H
 
 #include <__config>
-#include <__fwd/memory.h>
 #include <__memory/construct_at.h>
 #include <__memory/pointer_traits.h>
 #include <__type_traits/enable_if.h>
@@ -276,13 +275,13 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits {
   };
 #endif // _LIBCPP_CXX03_LANG
 
-  [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
+  _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
   allocate(allocator_type& __a, size_type __n) {
     return __a.allocate(__n);
   }
 
   template <class _Ap = _Alloc, __enable_if_t<__has_allocate_hint<_Ap, size_type, const_void_pointer>::value, int> = 0>
-  [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
+  _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
   allocate(allocator_type& __a, size_type __n, const_void_pointer __hint) {
     _LIBCPP_SUPPRESS_DEPRECATED_PUSH
     return __a.allocate(__n, __hint);
@@ -291,7 +290,7 @@ struct _LIBCPP_TEMPLATE_VIS allocator_traits {
   template <class _Ap                                                                           = _Alloc,
             class                                                                               = void,
             __enable_if_t<!__has_allocate_hint<_Ap, size_type, const_void_pointer>::value, int> = 0>
-  [[__nodiscard__]] _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
+  _LIBCPP_NODISCARD _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 static pointer
   allocate(allocator_type& __a, size_type __n, const_void_pointer) {
     return __a.allocate(__n);
   }

@@ -57,8 +57,10 @@ except ImportError:
         raise
 
 # Automatic anchors for markdown titles
+from llvm_slug import make_slug
+
 myst_heading_anchors = 6
-myst_heading_slug_func = "llvm_slug.make_slug"
+myst_heading_slug_func = make_slug
 
 autodoc_default_options = {"special-members": True}
 

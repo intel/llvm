@@ -4,10 +4,9 @@
     .cpu invalid
     // CHECK: error: unknown CPU name
 
-    .cpu generic+fp+wibble+nowobble
-    // CHECK: error: unsupported architectural extension: wibble
-    // CHECK-NEXT: .cpu generic+fp+wibble+nowobble
-    // CHECK-NEXT:                 ^
+    .cpu generic+wibble+nowobble
+    // CHECK: :[[@LINE-1]]:18: error: unsupported architectural extension
+    // CHECK: :[[@LINE-2]]:25: error: unsupported architectural extension
 
     .cpu generic+nofp
     fminnm d0, d0, d1

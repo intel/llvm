@@ -225,6 +225,7 @@ public:
   llvm::StringRef getDescription() const override;
 
   void runOnOperation() override;
+  void runOnFunc(mlir::Operation *func);
 
 private:
   Statistic runCount{this, "stackArraysRunCount",
@@ -733,12 +734,28 @@ void AllocMemConversion::insertStackSaveRestore(
   auto mod = oldAlloc->getParentOfType<mlir::ModuleOp>();
   fir::FirOpBuilder builder{rewriter, mod};
 
+  mlir::func::FuncOp stackSaveFn = fir::factory::getLlvmStackSave(builder);
+  mlir::SymbolRefAttr stackSaveSym =
+      builder.getSymbolRefAttr(stackSaveFn.getName());
+
   builder.setInsertionPoint(oldAlloc);
-  mlir::Value sp = builder.genStackSave(oldAlloc.getLoc());
+  mlir::Value sp =
+      builder
+          .create<fir::CallOp>(oldAlloc.getLoc(), stackSaveSym,
+                               stackSaveFn.getFunctionType().getResults(),
+                               mlir::ValueRange{})
+          .getResult(0);
+
+  mlir::func::FuncOp stackRestoreFn =
+      fir::factory::getLlvmStackRestore(builder);
+  mlir::SymbolRefAttr stackRestoreSym =
+      builder.getSymbolRefAttr(stackRestoreFn.getName());
 
   auto createStackRestoreCall = [&](mlir::Operation *user) {
     builder.setInsertionPoint(user);
-    builder.genStackRestore(user->getLoc(), sp);
+    builder.create<fir::CallOp>(user->getLoc(), stackRestoreSym,
+                                stackRestoreFn.getFunctionType().getResults(),
+                                mlir::ValueRange{sp});
   };
 
   for (mlir::Operation *user : oldAlloc->getUsers()) {
@@ -765,7 +782,13 @@ llvm::StringRef StackArraysPass::getDescription() const {
 }
 
 void StackArraysPass::runOnOperation() {
-  mlir::func::FuncOp func = getOperation();
+  mlir::ModuleOp mod = getOperation();
+
+  mod.walk([this](mlir::func::FuncOp func) { runOnFunc(func); });
+}
+
+void StackArraysPass::runOnFunc(mlir::Operation *func) {
+  assert(mlir::isa<mlir::func::FuncOp>(func));
 
   auto &analysis = getAnalysis<StackArraysAnalysisWrapper>();
   const StackArraysAnalysisWrapper::AllocMemMap *candidateOps =

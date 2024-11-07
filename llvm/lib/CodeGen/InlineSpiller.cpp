@@ -1697,7 +1697,7 @@ void HoistSpillHelper::hoistAllSpills() {
           RMEnt->removeOperand(i - 1);
       }
     }
-    Edit.eliminateDeadDefs(SpillsToRm, {});
+    Edit.eliminateDeadDefs(SpillsToRm, std::nullopt);
   }
 }
 

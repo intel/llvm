@@ -18,7 +18,7 @@
 #include <string>
 #include <type_traits>
 
-namespace orc_rt {
+namespace __orc_rt {
 
 /// Base class for all errors.
 class ErrorInfoBase : public RTTIExtends<ErrorInfoBase, RTTIRoot> {
@@ -421,6 +421,6 @@ private:
   std::string ErrMsg;
 };
 
-} // namespace orc_rt
+} // end namespace __orc_rt
 
 #endif // ORC_RT_ERROR_H

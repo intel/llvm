@@ -11,5 +11,3 @@ add_llvm_tool(llvm-as
   DEPENDS
   intrinsics_gen
   )
-
-setup_host_tool(llvm-as LLVM_AS llvm_as_exe llvm_as_target)

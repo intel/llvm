@@ -158,7 +158,7 @@ RangeSet RangeSet::Factory::unite(RangeSet Original, llvm::APSInt From,
 }
 
 template <typename T>
-static void swapIterators(T &First, T &FirstEnd, T &Second, T &SecondEnd) {
+void swapIterators(T &First, T &FirstEnd, T &Second, T &SecondEnd) {
   std::swap(First, Second);
   std::swap(FirstEnd, SecondEnd);
 }
@@ -2624,7 +2624,7 @@ EquivalenceClass::removeMember(ProgramStateRef State, const SymbolRef Old) {
 }
 
 // Re-evaluate an SVal with top-level `State->assume` logic.
-[[nodiscard]] static ProgramStateRef
+[[nodiscard]] ProgramStateRef
 reAssume(ProgramStateRef State, const RangeSet *Constraint, SVal TheValue) {
   if (!Constraint)
     return State;

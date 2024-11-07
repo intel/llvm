@@ -342,7 +342,6 @@ public:
   bool isVariable() const {
     return OpCode == OpVariable || OpCode == OpUntypedVariableKHR;
   }
-  bool isUntypedVariable() const { return OpCode == OpUntypedVariableKHR; }
   bool isEndOfBlock() const;
   virtual bool isInst() const { return false; }
   virtual bool isOperandLiteral(unsigned Index) const {

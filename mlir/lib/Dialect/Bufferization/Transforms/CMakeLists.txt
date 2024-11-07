@@ -27,7 +27,6 @@ add_mlir_dialect_library(MLIRBufferizationTransforms
   LINK_LIBS PUBLIC
   MLIRArithDialect
   MLIRBufferizationDialect
-  MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRFuncDialect
   MLIRFunctionInterfaces
@@ -43,3 +42,4 @@ add_mlir_dialect_library(MLIRBufferizationTransforms
   MLIRViewLikeInterface
   MLIRSupport
 )
+

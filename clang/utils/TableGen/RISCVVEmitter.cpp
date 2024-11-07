@@ -95,11 +95,11 @@ public:
 
 class RVVEmitter {
 private:
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
   RVVTypeCache TypeCache;
 
 public:
-  RVVEmitter(const RecordKeeper &R) : Records(R) {}
+  RVVEmitter(RecordKeeper &R) : Records(R) {}
 
   /// Emit riscv_vector.h
   void createHeader(raw_ostream &o);
@@ -502,8 +502,8 @@ void RVVEmitter::createCodeGen(raw_ostream &OS) {
   std::vector<std::unique_ptr<RVVIntrinsic>> Defs;
   createRVVIntrinsics(Defs);
   // IR name could be empty, use the stable sort preserves the relative order.
-  stable_sort(Defs, [](const std::unique_ptr<RVVIntrinsic> &A,
-                       const std::unique_ptr<RVVIntrinsic> &B) {
+  llvm::stable_sort(Defs, [](const std::unique_ptr<RVVIntrinsic> &A,
+                             const std::unique_ptr<RVVIntrinsic> &B) {
     if (A->getIRName() == B->getIRName())
       return (A->getPolicyAttrs() < B->getPolicyAttrs());
     return (A->getIRName() < B->getIRName());
@@ -554,7 +554,8 @@ void RVVEmitter::createCodeGen(raw_ostream &OS) {
 void RVVEmitter::createRVVIntrinsics(
     std::vector<std::unique_ptr<RVVIntrinsic>> &Out,
     std::vector<SemaRecord> *SemaRecords) {
-  for (const Record *R : Records.getAllDerivedDefinitions("RVVBuiltin")) {
+  std::vector<Record *> RV = Records.getAllDerivedDefinitions("RVVBuiltin");
+  for (auto *R : RV) {
     StringRef Name = R->getValueAsString("Name");
     StringRef SuffixProto = R->getValueAsString("Suffix");
     StringRef OverloadedName = R->getValueAsString("OverloadedName");
@@ -564,10 +565,10 @@ void RVVEmitter::createRVVIntrinsics(
     bool HasMasked = R->getValueAsBit("HasMasked");
     bool HasMaskedOffOperand = R->getValueAsBit("HasMaskedOffOperand");
     bool HasVL = R->getValueAsBit("HasVL");
-    const Record *MPSRecord = R->getValueAsDef("MaskedPolicyScheme");
+    Record *MPSRecord = R->getValueAsDef("MaskedPolicyScheme");
     auto MaskedPolicyScheme =
         static_cast<PolicyScheme>(MPSRecord->getValueAsInt("Value"));
-    const Record *UMPSRecord = R->getValueAsDef("UnMaskedPolicyScheme");
+    Record *UMPSRecord = R->getValueAsDef("UnMaskedPolicyScheme");
     auto UnMaskedPolicyScheme =
         static_cast<PolicyScheme>(UMPSRecord->getValueAsInt("Value"));
     std::vector<int64_t> Log2LMULList = R->getValueAsListOfInts("Log2LMUL");
@@ -606,7 +607,7 @@ void RVVEmitter::createRVVIntrinsics(
         BasicPrototype, /*IsMasked=*/false,
         /*HasMaskedOffOperand=*/false, HasVL, NF, UnMaskedPolicyScheme,
         DefaultPolicy, IsTuple);
-    SmallVector<PrototypeDescriptor> MaskedPrototype;
+    llvm::SmallVector<PrototypeDescriptor> MaskedPrototype;
     if (HasMasked)
       MaskedPrototype = RVVIntrinsic::computeBuiltinTypes(
           BasicPrototype, /*IsMasked=*/true, HasMaskedOffOperand, HasVL, NF,
@@ -751,7 +752,9 @@ void RVVEmitter::createRVVIntrinsics(
 }
 
 void RVVEmitter::printHeaderCode(raw_ostream &OS) {
-  for (const Record *R : Records.getAllDerivedDefinitions("RVVHeader")) {
+  std::vector<Record *> RVVHeaders =
+      Records.getAllDerivedDefinitions("RVVHeader");
+  for (auto *R : RVVHeaders) {
     StringRef HeaderCodeStr = R->getValueAsString("HeaderCode");
     OS << HeaderCodeStr.str();
   }
@@ -819,19 +822,19 @@ void RVVEmitter::createSema(raw_ostream &OS) {
 }
 
 namespace clang {
-void EmitRVVHeader(const RecordKeeper &Records, raw_ostream &OS) {
+void EmitRVVHeader(RecordKeeper &Records, raw_ostream &OS) {
   RVVEmitter(Records).createHeader(OS);
 }
 
-void EmitRVVBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
+void EmitRVVBuiltins(RecordKeeper &Records, raw_ostream &OS) {
   RVVEmitter(Records).createBuiltins(OS);
 }
 
-void EmitRVVBuiltinCG(const RecordKeeper &Records, raw_ostream &OS) {
+void EmitRVVBuiltinCG(RecordKeeper &Records, raw_ostream &OS) {
   RVVEmitter(Records).createCodeGen(OS);
 }
 
-void EmitRVVBuiltinSema(const RecordKeeper &Records, raw_ostream &OS) {
+void EmitRVVBuiltinSema(RecordKeeper &Records, raw_ostream &OS) {
   RVVEmitter(Records).createSema(OS);
 }
 

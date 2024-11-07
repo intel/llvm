@@ -122,10 +122,6 @@ public:
     }
     return true;
   }
-  bool Pre(const parser::ConcurrentHeader &) {
-    // handled in CheckConcurrentHeader
-    return false;
-  }
   template <typename T> void Post(const T &) {}
 
   // C1140 -- Can't deallocate a polymorphic entity in a DO CONCURRENT.
@@ -379,13 +375,8 @@ private:
 // Find a DO or FORALL and enforce semantics checks on its body
 class DoContext {
 public:
-  DoContext(SemanticsContext &context, IndexVarKind kind,
-      const std::list<IndexVarKind> nesting)
-      : context_{context}, kind_{kind} {
-    if (!nesting.empty()) {
-      concurrentNesting_ = nesting.back();
-    }
-  }
+  DoContext(SemanticsContext &context, IndexVarKind kind, bool isNested)
+      : context_{context}, kind_{kind}, isNested_{isNested} {}
 
   // Mark this DO construct as a point of definition for the DO variables
   // or index-names it contains.  If they're already defined, emit an error
@@ -448,8 +439,8 @@ public:
             common::visitors{[&](const auto &x) { return GetAssignment(x); }},
             stmt.u)}) {
       CheckForallIndexesUsed(*assignment);
-      CheckForImpureCall(assignment->lhs, kind_);
-      CheckForImpureCall(assignment->rhs, kind_);
+      CheckForImpureCall(assignment->lhs);
+      CheckForImpureCall(assignment->rhs);
 
       if (IsVariable(assignment->lhs)) {
         if (const Symbol * symbol{GetLastSymbol(assignment->lhs)}) {
@@ -464,23 +455,23 @@ public:
 
       if (const auto *proc{
               std::get_if<evaluate::ProcedureRef>(&assignment->u)}) {
-        CheckForImpureCall(*proc, kind_);
+        CheckForImpureCall(*proc);
       }
       common::visit(
           common::visitors{
               [](const evaluate::Assignment::Intrinsic &) {},
               [&](const evaluate::ProcedureRef &proc) {
-                CheckForImpureCall(proc, kind_);
+                CheckForImpureCall(proc);
               },
               [&](const evaluate::Assignment::BoundsSpec &bounds) {
                 for (const auto &bound : bounds) {
-                  CheckForImpureCall(SomeExpr{bound}, kind_);
+                  CheckForImpureCall(SomeExpr{bound});
                 }
               },
               [&](const evaluate::Assignment::BoundsRemapping &bounds) {
                 for (const auto &bound : bounds) {
-                  CheckForImpureCall(SomeExpr{bound.first}, kind_);
-                  CheckForImpureCall(SomeExpr{bound.second}, kind_);
+                  CheckForImpureCall(SomeExpr{bound.first});
+                  CheckForImpureCall(SomeExpr{bound.second});
                 }
               },
           },
@@ -763,10 +754,12 @@ private:
       if (indexName.symbol) {
         indexNames.insert(*indexName.symbol);
       }
-      CheckForImpureCall(std::get<1>(control.t), concurrentNesting_);
-      CheckForImpureCall(std::get<2>(control.t), concurrentNesting_);
-      if (const auto &stride{std::get<3>(control.t)}) {
-        CheckForImpureCall(*stride, concurrentNesting_);
+      if (isNested_) {
+        CheckForImpureCall(std::get<1>(control.t));
+        CheckForImpureCall(std::get<2>(control.t));
+        if (const auto &stride{std::get<3>(control.t)}) {
+          CheckForImpureCall(*stride);
+        }
       }
     }
     if (!indexNames.empty()) {
@@ -826,29 +819,20 @@ private:
     CheckConcurrentHeader(std::get<parser::ConcurrentHeader>(concurrent.t));
   }
 
-  template <typename T>
-  void CheckForImpureCall(
-      const T &x, std::optional<IndexVarKind> nesting) const {
+  template <typename T> void CheckForImpureCall(const T &x) const {
     if (auto bad{FindImpureCall(context_.foldingContext(), x)}) {
-      if (nesting) {
-        context_.Say(
-            "Impure procedure '%s' may not be referenced in a %s"_err_en_US,
-            *bad, LoopKindName(*nesting));
-      } else {
-        context_.Say(
-            "Impure procedure '%s' should not be referenced in a %s header"_warn_en_US,
-            *bad, LoopKindName(kind_));
-      }
+      context_.Say(
+          "Impure procedure '%s' may not be referenced in a %s"_err_en_US, *bad,
+          LoopKindName());
     }
   }
-  void CheckForImpureCall(const parser::ScalarIntExpr &x,
-      std::optional<IndexVarKind> nesting) const {
+  void CheckForImpureCall(const parser::ScalarIntExpr &x) const {
     const auto &parsedExpr{x.thing.thing.value()};
     auto oldLocation{context_.location()};
     context_.set_location(parsedExpr.source);
     if (const auto &typedExpr{parsedExpr.typedExpr}) {
       if (const auto &expr{typedExpr->v}) {
-        CheckForImpureCall(*expr, nesting);
+        CheckForImpureCall(*expr);
       }
     }
     context_.set_location(oldLocation);
@@ -901,59 +885,54 @@ private:
   }
 
   // For messages where the DO loop must be DO CONCURRENT, make that explicit.
-  const char *LoopKindName(IndexVarKind kind) const {
-    return kind == IndexVarKind::DO ? "DO CONCURRENT" : "FORALL";
+  const char *LoopKindName() const {
+    return kind_ == IndexVarKind::DO ? "DO CONCURRENT" : "FORALL";
   }
-  const char *LoopKindName() const { return LoopKindName(kind_); }
 
   SemanticsContext &context_;
   const IndexVarKind kind_;
   parser::CharBlock currentStatementSourcePosition_;
-  std::optional<IndexVarKind> concurrentNesting_;
+  bool isNested_{false};
 }; // class DoContext
 
 void DoForallChecker::Enter(const parser::DoConstruct &doConstruct) {
-  DoContext doContext{context_, IndexVarKind::DO, nestedWithinConcurrent_};
-  if (doConstruct.IsDoConcurrent()) {
-    nestedWithinConcurrent_.push_back(IndexVarKind::DO);
-  }
+  DoContext doContext{context_, IndexVarKind::DO, constructNesting_ > 0};
   doContext.DefineDoVariables(doConstruct);
-  doContext.Check(doConstruct);
 }
 
 void DoForallChecker::Leave(const parser::DoConstruct &doConstruct) {
-  DoContext doContext{context_, IndexVarKind::DO, nestedWithinConcurrent_};
+  DoContext doContext{context_, IndexVarKind::DO, constructNesting_ > 0};
+  ++constructNesting_;
+  doContext.Check(doConstruct);
   doContext.ResetDoVariables(doConstruct);
-  if (doConstruct.IsDoConcurrent()) {
-    nestedWithinConcurrent_.pop_back();
-  }
+  --constructNesting_;
 }
 
 void DoForallChecker::Enter(const parser::ForallConstruct &construct) {
-  DoContext doContext{context_, IndexVarKind::FORALL, nestedWithinConcurrent_};
+  DoContext doContext{context_, IndexVarKind::FORALL, constructNesting_ > 0};
   doContext.ActivateIndexVars(GetControls(construct));
-  nestedWithinConcurrent_.push_back(IndexVarKind::FORALL);
+  ++constructNesting_;
   doContext.Check(construct);
 }
 void DoForallChecker::Leave(const parser::ForallConstruct &construct) {
-  DoContext doContext{context_, IndexVarKind::FORALL, nestedWithinConcurrent_};
+  DoContext doContext{context_, IndexVarKind::FORALL, constructNesting_ > 0};
   doContext.DeactivateIndexVars(GetControls(construct));
-  nestedWithinConcurrent_.pop_back();
+  --constructNesting_;
 }
 
 void DoForallChecker::Enter(const parser::ForallStmt &stmt) {
-  DoContext doContext{context_, IndexVarKind::FORALL, nestedWithinConcurrent_};
-  nestedWithinConcurrent_.push_back(IndexVarKind::FORALL);
+  DoContext doContext{context_, IndexVarKind::FORALL, constructNesting_ > 0};
+  ++constructNesting_;
   doContext.Check(stmt);
   doContext.ActivateIndexVars(GetControls(stmt));
 }
 void DoForallChecker::Leave(const parser::ForallStmt &stmt) {
-  DoContext doContext{context_, IndexVarKind::FORALL, nestedWithinConcurrent_};
+  DoContext doContext{context_, IndexVarKind::FORALL, constructNesting_ > 0};
   doContext.DeactivateIndexVars(GetControls(stmt));
-  nestedWithinConcurrent_.pop_back();
+  --constructNesting_;
 }
 void DoForallChecker::Leave(const parser::ForallAssignmentStmt &stmt) {
-  DoContext doContext{context_, IndexVarKind::FORALL, nestedWithinConcurrent_};
+  DoContext doContext{context_, IndexVarKind::FORALL, constructNesting_ > 0};
   doContext.Check(stmt);
 }
 

@@ -17,10 +17,8 @@
 // template<class U> reference<<=(U&& x) && noexcept;
 // template<class U> reference>>=(U&& x) && noexcept;
 
-#include <experimental/simd>
-#include <functional>
-
 #include "../test_utils.h"
+#include <experimental/simd>
 
 namespace ex = std::experimental::parallelism_v2;
 

@@ -7,7 +7,6 @@ add_mlir_dialect_library(MLIRTosaTransforms
   TosaLayerwiseConstantFoldPass.cpp
   TosaMakeBroadcastable.cpp
   TosaOptionalDecompositions.cpp
-  TosaReduceTransposes.cpp
   TosaTypeConverters.cpp
   TosaValidation.cpp
 

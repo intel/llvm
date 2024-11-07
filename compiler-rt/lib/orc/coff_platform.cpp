@@ -17,7 +17,6 @@
 
 #include "debug.h"
 #include "error.h"
-#include "jit_dispatch.h"
 #include "wrapper_function_utils.h"
 
 #include <array>
@@ -30,9 +29,9 @@
 
 #define DEBUG_TYPE "coff_platform"
 
-using namespace orc_rt;
+using namespace __orc_rt;
 
-namespace orc_rt {
+namespace __orc_rt {
 
 using COFFJITDylibDepInfo = std::vector<ExecutorAddr>;
 using COFFJITDylibDepInfoMap =
@@ -46,7 +45,7 @@ using SPSCOFFJITDylibDepInfo = SPSSequence<SPSExecutorAddr>;
 using SPSCOFFJITDylibDepInfoMap =
     SPSSequence<SPSTuple<SPSExecutorAddr, SPSCOFFJITDylibDepInfo>>;
 
-} // namespace orc_rt
+} // namespace __orc_rt
 
 ORC_RT_JIT_DISPATCH_TAG(__orc_rt_coff_symbol_lookup_tag)
 ORC_RT_JIT_DISPATCH_TAG(__orc_rt_coff_push_initializers_tag)
@@ -316,9 +315,9 @@ Error COFFPlatformRuntimeState::dlopenFull(JITDylibState &JDS) {
   // Call back to the JIT to push the initializers.
   Expected<COFFJITDylibDepInfoMap> DepInfoMap((COFFJITDylibDepInfoMap()));
   if (auto Err = WrapperFunction<SPSExpected<SPSCOFFJITDylibDepInfoMap>(
-          SPSExecutorAddr)>::
-          call(JITDispatch(&__orc_rt_coff_push_initializers_tag), DepInfoMap,
-               ExecutorAddr::fromPtr(JDS.Header)))
+          SPSExecutorAddr)>::call(&__orc_rt_coff_push_initializers_tag,
+                                  DepInfoMap,
+                                  ExecutorAddr::fromPtr(JDS.Header)))
     return Err;
   if (!DepInfoMap)
     return DepInfoMap.takeError();
@@ -446,9 +445,10 @@ COFFPlatformRuntimeState::lookupSymbolInJITDylib(void *header,
                                                  std::string_view Sym) {
   Expected<ExecutorAddr> Result((ExecutorAddr()));
   if (auto Err = WrapperFunction<SPSExpected<SPSExecutorAddr>(
-          SPSExecutorAddr,
-          SPSString)>::call(JITDispatch(&__orc_rt_coff_symbol_lookup_tag),
-                            Result, ExecutorAddr::fromPtr(header), Sym))
+          SPSExecutorAddr, SPSString)>::call(&__orc_rt_coff_symbol_lookup_tag,
+                                             Result,
+                                             ExecutorAddr::fromPtr(header),
+                                             Sym))
     return std::move(Err);
   return Result;
 }
@@ -752,7 +752,7 @@ ORC_RT_INTERFACE int64_t __orc_rt_coff_run_program(const char *JITDylibName,
   using MainTy = int (*)(int, char *[]);
 
   void *H =
-      __orc_rt_coff_jit_dlopen(JITDylibName, orc_rt::coff::ORC_RT_RTLD_LAZY);
+      __orc_rt_coff_jit_dlopen(JITDylibName, __orc_rt::coff::ORC_RT_RTLD_LAZY);
   if (!H) {
     __orc_rt_log_error(__orc_rt_coff_jit_dlerror());
     return -1;

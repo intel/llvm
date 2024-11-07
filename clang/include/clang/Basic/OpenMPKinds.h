@@ -15,7 +15,6 @@
 #define LLVM_CLANG_BASIC_OPENMPKINDS_H
 
 #include "clang/Basic/LangOptions.h"
-#include "llvm/ADT/Sequence.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Frontend/OpenMP/OMPConstants.h"
 
@@ -390,9 +389,5 @@ bool isOpenMPInformationalDirective(OpenMPDirectiveKind DKind);
 bool isOpenMPCapturingDirective(OpenMPDirectiveKind DKind);
 }
 
-template <>
-struct llvm::enum_iteration_traits<clang::OpenMPDefaultmapClauseKind> {
-  static constexpr bool is_iterable = true;
-};
 #endif
 

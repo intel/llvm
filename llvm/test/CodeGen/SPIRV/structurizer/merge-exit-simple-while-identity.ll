@@ -1,4 +1,3 @@
-; RUN: %if spirv-tools %{ llc -O0 -mtriple=spirv-unknown-vulkan-compute %s -o - -filetype=obj | spirv-val %}
 ; RUN: llc -mtriple=spirv-unknown-vulkan-compute -O0 %s -o - | FileCheck %s
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-G1"
@@ -22,6 +21,9 @@ while.cond:
   %cmp = icmp ne i32 %2, 0
   br i1 %cmp, label %while.body, label %while.end
 
+; CHECK:   %[[#while_end]] = OpLabel
+; CHECK-NEXT:                     OpReturn
+
 ; CHECK:   %[[#while_body]] = OpLabel
 ; CHECK:                      OpBranch %[[#while_cond]]
 while.body:
@@ -29,8 +31,6 @@ while.body:
   store i32 %3, ptr %idx, align 4
   br label %while.cond
 
-; CHECK:        %[[#while_end]] = OpLabel
-; CHECK-NEXT:                     OpReturn
 while.end:
   ret void
 }

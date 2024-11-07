@@ -157,7 +157,8 @@ ProcessMinidump::ProcessMinidump(lldb::TargetSP target_sp,
                                  const FileSpec &core_file,
                                  DataBufferSP core_data)
     : PostMortemProcess(target_sp, listener_sp, core_file),
-      m_core_data(std::move(core_data)), m_is_wow64(false) {}
+      m_core_data(std::move(core_data)), m_active_exception(nullptr),
+      m_is_wow64(false) {}
 
 ProcessMinidump::~ProcessMinidump() {
   Clear();
@@ -185,7 +186,7 @@ void ProcessMinidump::Terminate() {
 Status ProcessMinidump::DoLoadCore() {
   auto expected_parser = MinidumpParser::Create(m_core_data);
   if (!expected_parser)
-    return Status::FromError(expected_parser.takeError());
+    return Status(expected_parser.takeError());
   m_minidump_parser = std::move(*expected_parser);
 
   Status error;
@@ -208,20 +209,7 @@ Status ProcessMinidump::DoLoadCore() {
   GetTarget().SetArchitecture(arch, true /*set_platform*/);
 
   m_thread_list = m_minidump_parser->GetThreads();
-  auto exception_stream_it = m_minidump_parser->GetExceptionStreams();
-  for (auto exception_stream : exception_stream_it) {
-    // If we can't read an exception stream skip it
-    // We should probably serve a warning
-    if (!exception_stream)
-      continue;
-
-    if (!m_exceptions_by_tid
-             .try_emplace(exception_stream->ThreadId, exception_stream.get())
-             .second) {
-      return Status::FromErrorStringWithFormatv(
-          "Duplicate exception stream for tid {0}", exception_stream->ThreadId);
-    }
-  }
+  m_active_exception = m_minidump_parser->GetExceptionStream();
 
   SetUnixSignals(UnixSignals::Create(GetArchitecture()));
 
@@ -244,57 +232,60 @@ Status ProcessMinidump::DoDestroy() { return Status(); }
 
 void ProcessMinidump::RefreshStateAfterStop() {
 
-  for (const auto &[_, exception_stream] : m_exceptions_by_tid) {
-    constexpr uint32_t BreakpadDumpRequested = 0xFFFFFFFF;
-    if (exception_stream.ExceptionRecord.ExceptionCode ==
-        BreakpadDumpRequested) {
-      // This "ExceptionCode" value is a sentinel that is sometimes used
-      // when generating a dump for a process that hasn't crashed.
+  if (!m_active_exception)
+    return;
 
-      // TODO: The definition and use of this "dump requested" constant
-      // in Breakpad are actually Linux-specific, and for similar use
-      // cases on Mac/Windows it defines different constants, referring
-      // to them as "simulated" exceptions; consider moving this check
-      // down to the OS-specific paths and checking each OS for its own
-      // constant.
+  constexpr uint32_t BreakpadDumpRequested = 0xFFFFFFFF;
+  if (m_active_exception->ExceptionRecord.ExceptionCode ==
+      BreakpadDumpRequested) {
+    // This "ExceptionCode" value is a sentinel that is sometimes used
+    // when generating a dump for a process that hasn't crashed.
+
+    // TODO: The definition and use of this "dump requested" constant
+    // in Breakpad are actually Linux-specific, and for similar use
+    // cases on Mac/Windows it defines different constants, referring
+    // to them as "simulated" exceptions; consider moving this check
+    // down to the OS-specific paths and checking each OS for its own
+    // constant.
+    return;
+  }
+
+  lldb::StopInfoSP stop_info;
+  lldb::ThreadSP stop_thread;
+
+  Process::m_thread_list.SetSelectedThreadByID(m_active_exception->ThreadId);
+  stop_thread = Process::m_thread_list.GetSelectedThread();
+  ArchSpec arch = GetArchitecture();
+
+  if (arch.GetTriple().getOS() == llvm::Triple::Linux) {
+    uint32_t signo = m_active_exception->ExceptionRecord.ExceptionCode;
+
+    if (signo == 0) {
+      // No stop.
       return;
     }
 
-    lldb::StopInfoSP stop_info;
-    lldb::ThreadSP stop_thread;
-
-    Process::m_thread_list.SetSelectedThreadByID(exception_stream.ThreadId);
-    stop_thread = Process::m_thread_list.GetSelectedThread();
-    ArchSpec arch = GetArchitecture();
-
-    if (arch.GetTriple().getOS() == llvm::Triple::Linux) {
-      uint32_t signo = exception_stream.ExceptionRecord.ExceptionCode;
-      if (signo == 0) {
-        // No stop.
-        return;
-      }
-
-      stop_info = StopInfo::CreateStopReasonWithSignal(*stop_thread, signo);
-    } else if (arch.GetTriple().getVendor() == llvm::Triple::Apple) {
-      stop_info = StopInfoMachException::CreateStopReasonWithMachException(
-          *stop_thread, exception_stream.ExceptionRecord.ExceptionCode, 2,
-          exception_stream.ExceptionRecord.ExceptionFlags,
-          exception_stream.ExceptionRecord.ExceptionAddress, 0);
-    } else {
-      std::string desc;
-      llvm::raw_string_ostream desc_stream(desc);
-      desc_stream << "Exception "
-                  << llvm::format_hex(
-                         exception_stream.ExceptionRecord.ExceptionCode, 8)
-                  << " encountered at address "
-                  << llvm::format_hex(
-                         exception_stream.ExceptionRecord.ExceptionAddress, 8);
-      stop_info =
-          StopInfo::CreateStopReasonWithException(*stop_thread, desc.c_str());
-    }
-
-    stop_thread->SetStopInfo(stop_info);
+    stop_info = StopInfo::CreateStopReasonWithSignal(
+        *stop_thread, signo);
+  } else if (arch.GetTriple().getVendor() == llvm::Triple::Apple) {
+    stop_info = StopInfoMachException::CreateStopReasonWithMachException(
+        *stop_thread, m_active_exception->ExceptionRecord.ExceptionCode, 2,
+        m_active_exception->ExceptionRecord.ExceptionFlags,
+        m_active_exception->ExceptionRecord.ExceptionAddress, 0);
+  } else {
+    std::string desc;
+    llvm::raw_string_ostream desc_stream(desc);
+    desc_stream << "Exception "
+                << llvm::format_hex(
+                       m_active_exception->ExceptionRecord.ExceptionCode, 8)
+                << " encountered at address "
+                << llvm::format_hex(
+                       m_active_exception->ExceptionRecord.ExceptionAddress, 8);
+    stop_info = StopInfo::CreateStopReasonWithException(
+        *stop_thread, desc_stream.str().c_str());
   }
+
+  stop_thread->SetStopInfo(stop_info);
 }
 
 bool ProcessMinidump::IsAlive() { return true; }
@@ -396,9 +387,10 @@ bool ProcessMinidump::DoUpdateThreadList(ThreadList &old_thread_list,
     LocationDescriptor context_location = thread.Context;
 
     // If the minidump contains an exception context, use it
-    if (auto it = m_exceptions_by_tid.find(thread.ThreadId);
-        it != m_exceptions_by_tid.end())
-      context_location = it->second.ThreadContext;
+    if (m_active_exception != nullptr &&
+        m_active_exception->ThreadId == thread.ThreadId) {
+      context_location = m_active_exception->ThreadContext;
+    }
 
     llvm::ArrayRef<uint8_t> context;
     if (!m_is_wow64)

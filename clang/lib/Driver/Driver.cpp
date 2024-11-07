@@ -703,17 +703,11 @@ static llvm::Triple computeTargetTriple(const Driver &D,
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABI64)
           Target.setEnvironment(llvm::Triple::GNUABIN32);
-        else if (Target.getEnvironment() == llvm::Triple::Musl ||
-                 Target.getEnvironment() == llvm::Triple::MuslABI64)
-          Target.setEnvironment(llvm::Triple::MuslABIN32);
       } else if (ABIName == "64") {
         Target = Target.get64BitArchVariant();
         if (Target.getEnvironment() == llvm::Triple::GNU ||
             Target.getEnvironment() == llvm::Triple::GNUABIN32)
           Target.setEnvironment(llvm::Triple::GNUABI64);
-        else if (Target.getEnvironment() == llvm::Triple::Musl ||
-                 Target.getEnvironment() == llvm::Triple::MuslABIN32)
-          Target.setEnvironment(llvm::Triple::MuslABI64);
       }
     }
   }
@@ -2900,8 +2894,7 @@ bool Driver::HandleImmediateArgs(Compilation &C) {
 
   if (C.getArgs().hasArg(options::OPT_print_multi_lib)) {
     for (const Multilib &Multilib : TC.getMultilibs())
-      if (!Multilib.isFatalError())
-        llvm::outs() << Multilib << "\n";
+      llvm::outs() << Multilib << "\n";
     return false;
   }
 
@@ -4067,6 +4060,12 @@ class OffloadingActionBuilder final {
         // Set the flag to true, so that the builder acts on the current input.
         IsActive = true;
 
+        if (CompileHostOnly)
+          return ABRT_Success;
+
+        // Replicate inputs for each GPU architecture.
+        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
+                                                 : types::TY_CUDA_DEVICE;
         std::string CUID = FixedCUID.str();
         if (CUID.empty()) {
           if (UseCUID == CUID_Random)
@@ -4090,12 +4089,6 @@ class OffloadingActionBuilder final {
         }
         IA->setId(CUID);
 
-        if (CompileHostOnly)
-          return ABRT_Success;
-
-        // Replicate inputs for each GPU architecture.
-        auto Ty = IA->getType() == types::TY_HIP ? types::TY_HIP_DEVICE
-                                                 : types::TY_CUDA_DEVICE;
         for (unsigned I = 0, E = GpuArchList.size(); I != E; ++I) {
           CudaDeviceActions.push_back(
               C.MakeAction<InputAction>(IA->getInputArg(), Ty, IA->getId()));

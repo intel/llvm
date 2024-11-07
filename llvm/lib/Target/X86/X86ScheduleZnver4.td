@@ -1001,21 +1001,21 @@ def Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr : SchedWriteRes<[Zn4FPFMisc0]> {
   let ReleaseAtCycles = [1];
   let NumMicroOps = 1;
 }
-def : InstRW<[Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr], (instrs VEXTRACTF128rri, VEXTRACTI128rri)>;
+def : InstRW<[Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr], (instrs VEXTRACTF128rr, VEXTRACTI128rr)>;
 
 def Zn4WriteVEXTRACTI128mr : SchedWriteRes<[Zn4FPFMisc0, Zn4FPSt, Zn4Store]> {
   let Latency = !add(Znver4Model.LoadLatency, Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr.Latency);
   let ReleaseAtCycles = [1, 1, 1];
   let NumMicroOps = !add(Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr.NumMicroOps, 1);
 }
-def : InstRW<[Zn4WriteVEXTRACTI128mr], (instrs VEXTRACTI128mri, VEXTRACTF128mri)>;
+def : InstRW<[Zn4WriteVEXTRACTI128mr], (instrs VEXTRACTI128mr, VEXTRACTF128mr)>;
 
 def Zn4WriteVINSERTF128rmr : SchedWriteRes<[Zn4AGU012, Zn4Load, Zn4FPFMisc0]> {
   let Latency = !add(Znver4Model.LoadLatency, Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr.Latency);
   let ReleaseAtCycles = [1, 1, 1];
   let NumMicroOps = !add(Zn4WriteVEXTRACTF128rr_VEXTRACTI128rr.NumMicroOps, 0);
 }
-def : InstRW<[Zn4WriteVINSERTF128rmr], (instrs VINSERTF128rmi)>;
+def : InstRW<[Zn4WriteVINSERTF128rmr], (instrs VINSERTF128rm)>;
 
 defm : Zn4WriteResYMM<WriteVecStoreY, [Zn4FPSt, Zn4Store], Znver4Model.StoreLatency, [1, 1], 1>;
 defm : Zn4WriteResXMM<WriteVecStoreNT, [Zn4FPSt, Zn4Store], Znver4Model.StoreLatency, [1, 1], 1>;
@@ -1081,18 +1081,18 @@ def Zn4WriteVecOpMask : SchedWriteRes<[Zn4FPOpMask01]> {
   let ReleaseAtCycles = [1];
   let NumMicroOps = 1;
 }
-def : InstRW<[Zn4WriteVecOpMask], (instrs   KADDBkk, KADDDkk, KADDQkk, KADDWkk,
-                                            KANDBkk, KANDDkk, KANDQkk, KANDWkk,
-                                            KANDNBkk, KANDNDkk, KANDNQkk, KANDNWkk,
+def : InstRW<[Zn4WriteVecOpMask], (instrs   KADDBrr, KADDDrr, KADDQrr, KADDWrr,
+                                            KANDBrr, KANDDrr, KANDQrr, KANDWrr,
+                                            KANDNBrr, KANDNDrr, KANDNQrr, KANDNWrr,
                                             KMOVBkk, KMOVDkk, KMOVQkk, KMOVWkk,
                                             KMOVBrk, KMOVDrk, KMOVQrk, KMOVWrk,
-                                            KNOTBkk, KNOTDkk, KNOTQkk, KNOTWkk,
-                                            KORBkk, KORDkk, KORQkk, KORWkk,
-                                            KORTESTBkk, KORTESTDkk, KORTESTQkk, KORTESTWkk,
-                                            KTESTBkk, KTESTDkk, KTESTQkk, KTESTWkk,
-                                            KUNPCKBWkk, KUNPCKDQkk, KUNPCKWDkk,
-                                            KXNORBkk, KXNORDkk, KXNORQkk, KXNORWkk,
-                                            KXORBkk, KXORDkk, KXORQkk, KXORWkk)>;
+                                            KNOTBrr, KNOTDrr, KNOTQrr, KNOTWrr,
+                                            KORBrr, KORDrr, KORQrr, KORWrr,
+                                            KORTESTBrr, KORTESTDrr, KORTESTQrr, KORTESTWrr,
+                                            KTESTBrr, KTESTDrr, KTESTQrr, KTESTWrr,
+                                            KUNPCKBWrr, KUNPCKDQrr, KUNPCKWDrr,
+                                            KXNORBrr, KXNORDrr, KXNORQrr, KXNORWrr,
+                                            KXORBrr, KXORDrr, KXORQrr, KXORWrr)>;
 
 def Zn4WriteVecOpMaskMemMov : SchedWriteRes<[Zn4FPOpMask4]> {
   let Latency = 1;
@@ -1375,14 +1375,14 @@ def Zn4WriteVPERM2I128rr_VPERM2F128rr : SchedWriteRes<[Zn4FPVShuf]> {
   let ReleaseAtCycles = [1];
   let NumMicroOps = 1;
 }
-def : InstRW<[Zn4WriteVPERM2I128rr_VPERM2F128rr], (instrs VPERM2I128rri, VPERM2F128rri)>;
+def : InstRW<[Zn4WriteVPERM2I128rr_VPERM2F128rr], (instrs VPERM2I128rr, VPERM2F128rr)>;
 
 def Zn4WriteVPERM2F128rm : SchedWriteRes<[Zn4AGU012, Zn4Load, Zn4FPVShuf]> {
   let Latency = !add(Znver4Model.LoadLatency, Zn4WriteVPERM2I128rr_VPERM2F128rr.Latency);
   let ReleaseAtCycles = [1, 1, 1];
   let NumMicroOps = !add(Zn4WriteVPERM2I128rr_VPERM2F128rr.NumMicroOps, 0);
 }
-def : InstRW<[Zn4WriteVPERM2F128rm], (instrs VPERM2F128rmi)>;
+def : InstRW<[Zn4WriteVPERM2F128rm], (instrs VPERM2F128rm)>;
 
 def Zn4WriteVPERMPSYrr : SchedWriteRes<[Zn4FPVShuf]> {
   let Latency = 7;
@@ -1839,59 +1839,27 @@ def Zn4WriteFZeroIdiom : SchedWriteVariant<[
 ]>;
 // NOTE: XORPSrr, XORPDrr are not zero-cycle!
 def : InstRW<[Zn4WriteFZeroIdiom], (instrs VXORPSrr, VXORPDrr,
-                                           VXORPSZ128rr,
-                                           VXORPDZ128rr,
-                                           VANDNPSrr, VANDNPDrr,
-                                           VANDNPSZ128rr,
-                                           VANDNPDZ128rr)>;
+                                           VANDNPSrr, VANDNPDrr)>;
 
 def Zn4WriteFZeroIdiomY : SchedWriteVariant<[
     SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
     SchedVar<NoSchedPred,                          [WriteFLogicY]>
 ]>;
 def : InstRW<[Zn4WriteFZeroIdiomY], (instrs VXORPSYrr, VXORPDYrr,
-                                            VXORPSZ256rr,
-                                            VXORPDZ256rr,
-                                            VANDNPSYrr, VANDNPDYrr,
-                                            VANDNPSZ256rr,
-                                            VANDNPDZ256rr)>;
-
-def Zn4WriteFZeroIdiomZ : SchedWriteVariant<[
-    SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
-    SchedVar<NoSchedPred,                          [WriteFLogicZ]>
-]>;
-def : InstRW<[Zn4WriteFZeroIdiomZ], (instrs VXORPSZrr, VXORPDZrr,
-                                            VANDNPSZrr, VANDNPDZrr)>;
+                                            VANDNPSYrr, VANDNPDYrr)>;
 
 def Zn4WriteVZeroIdiomLogicX : SchedWriteVariant<[
     SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
     SchedVar<NoSchedPred,                          [WriteVecLogicX]>
 ]>;
 // NOTE: PXORrr,PANDNrr are not zero-cycle!
-def : InstRW<[Zn4WriteVZeroIdiomLogicX], (instrs VPXORrr,
-                                                 VPXORDZ128rr,
-                                                 VPXORQZ128rr,
-                                                 VPANDNrr,
-                                                 VPANDNDZ128rr,
-                                                 VPANDNQZ128rr)>;
+def : InstRW<[Zn4WriteVZeroIdiomLogicX], (instrs VPXORrr, VPANDNrr)>;
 
 def Zn4WriteVZeroIdiomLogicY : SchedWriteVariant<[
     SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
     SchedVar<NoSchedPred,                          [WriteVecLogicY]>
 ]>;
-def : InstRW<[Zn4WriteVZeroIdiomLogicY], (instrs VPXORYrr,
-                                                 VPXORDZ256rr,
-                                                 VPXORQZ256rr,
-                                                 VPANDNYrr,
-                                                 VPANDNDZ256rr,
-                                                 VPANDNQZ256rr)>;
-
-def Zn4WriteVZeroIdiomLogicZ : SchedWriteVariant<[
-    SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
-    SchedVar<NoSchedPred,                          [WriteVecLogicZ]>
-]>;
-def : InstRW<[Zn4WriteVZeroIdiomLogicZ], (instrs VPXORDZrr, VPXORQZrr,
-                                                 VPANDNDZrr, VPANDNQZrr)>;
+def : InstRW<[Zn4WriteVZeroIdiomLogicY], (instrs VPXORYrr, VPANDNYrr)>;
 
 def Zn4WriteVZeroIdiomALUX : SchedWriteVariant<[
     SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
@@ -1901,10 +1869,7 @@ def Zn4WriteVZeroIdiomALUX : SchedWriteVariant<[
 //       PCMPGTBrr, PCMPGTWrr, PCMPGTDrr, PCMPGTQrr are not zero-cycle!
 def : InstRW<[Zn4WriteVZeroIdiomALUX],
              (instrs VPSUBBrr, VPSUBWrr, VPSUBDrr, VPSUBQrr,
-                     VPSUBBZ128rr, VPSUBWZ128rr, VPSUBDZ128rr, VPSUBQZ128rr,
-                     VPCMPGTBrr, VPCMPGTWrr, VPCMPGTDrr, VPCMPGTQrr,
-                     VPCMPGTBZ128rr, VPCMPGTWZ128rr,
-                     VPCMPGTDZ128rr, VPCMPGTQZ128rr)>;
+                     VPCMPGTBrr, VPCMPGTWrr, VPCMPGTDrr, VPCMPGTQrr)>;
 
 def Zn4WriteVZeroIdiomALUY : SchedWriteVariant<[
     SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
@@ -1912,18 +1877,7 @@ def Zn4WriteVZeroIdiomALUY : SchedWriteVariant<[
 ]>;
 def : InstRW<[Zn4WriteVZeroIdiomALUY],
              (instrs VPSUBBYrr, VPSUBWYrr, VPSUBDYrr, VPSUBQYrr,
-                     VPSUBBZ256rr, VPSUBWZ256rr, VPSUBDZ256rr, VPSUBQZ256rr,
-                     VPCMPGTBYrr, VPCMPGTWYrr, VPCMPGTDYrr, VPCMPGTQYrr,
-                     VPCMPGTBZ256rr, VPCMPGTWZ256rr,
-                     VPCMPGTDZ256rr, VPCMPGTQZ256rr)>;
-
-def Zn4WriteVZeroIdiomALUZ : SchedWriteVariant<[
-    SchedVar<MCSchedPredicate<ZeroIdiomPredicate>, [Zn4WriteZeroLatency]>,
-    SchedVar<NoSchedPred,                          [WriteVecALUZ]>
-]>;
-def : InstRW<[Zn4WriteVZeroIdiomALUY],
-             (instrs VPSUBBZrr, VPSUBWZrr, VPSUBDZrr, VPSUBQZrr,
-                     VPCMPGTBZrr, VPCMPGTWZrr, VPCMPGTDZrr, VPCMPGTQZrr)>;
+                     VPCMPGTBYrr, VPCMPGTWYrr, VPCMPGTDYrr, VPCMPGTQYrr)>;
 
 def : IsZeroIdiomFunction<[
   // GPR Zero-idioms.
@@ -1975,27 +1929,6 @@ def : IsZeroIdiomFunction<[
     VPSUBSBYrr, VPSUBSWYrr,
     VPSUBUSBYrr, VPSUBUSWYrr,
     VPCMPGTBYrr, VPCMPGTWYrr, VPCMPGTDYrr, VPCMPGTQYrr
-  ], ZeroIdiomPredicate>,
-
-  // AVX ZMM Zero-idioms.
-  DepBreakingClass<[
-    // fp variants.
-    VXORPSZrr, VXORPDZrr,
-    VXORPSZ128rr, VXORPDZ128rr, VXORPSZ256rr, VXORPDZ256rr,
-    VANDNPSZrr, VANDNPDZrr,
-    VANDNPSZ128rr, VANDNPDZ128rr, VANDNPSZ256rr, VANDNPDZ256rr,
-
-    // int variants.
-    VPCMPGTBZrr, VPCMPGTWZrr, VPCMPGTDZrr, VPCMPGTQZrr,
-    VPCMPGTBZ128rr, VPCMPGTWZ128rr, VPCMPGTDZ128rr, VPCMPGTQZ128rr,
-    VPCMPGTBZ256rr, VPCMPGTWZ256rr, VPCMPGTDZ256rr, VPCMPGTQZ256rr,
-    VPANDNDZrr, VPANDNQZrr,
-    VPANDNDZ128rr, VPANDNQZ128rr, VPANDNDZ256rr, VPANDNQZ256rr,
-    VPXORDZrr, VPXORQZrr,
-    VPXORDZ128rr, VPXORQZ128rr, VPXORDZ256rr, VPXORQZ256rr,
-    VPSUBBZrr, VPSUBWZrr, VPSUBDZrr, VPSUBQZrr,
-    VPSUBBZ128rr, VPSUBWZ128rr, VPSUBDZ128rr, VPSUBQZ128rr,
-    VPSUBBZ256rr, VPSUBWZ256rr, VPSUBDZ256rr, VPSUBQZ256rr,
   ], ZeroIdiomPredicate>,
 ]>;
 

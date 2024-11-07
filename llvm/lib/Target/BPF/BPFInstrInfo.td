@@ -790,7 +790,7 @@ let Predicates = [BPFNoALU32] in {
 class ATOMIC_NOFETCH<BPFWidthModifer SizeOp, string OpType, RegisterClass RegTp,
                      BPFArithOp Opc, string Opstr>
     : TYPE_LD_ST<BPF_ATOMIC.Value, SizeOp.Value,
-                 (outs RegTp:$dst),
+                 (outs GPR:$dst),
                  (ins MEMri:$addr, RegTp:$val),
                  "lock *(" #OpType# " *)($addr) " #Opstr# "= $val",
                  []> {

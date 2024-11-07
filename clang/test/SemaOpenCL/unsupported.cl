@@ -17,7 +17,5 @@ void no_vla(int n) {
 }
 
 void no_logxor(int n) {
-  int logxor = n ^^ n; // expected-error {{^^ is a reserved operator in OpenCL}} \
-                          expected-error {{type name requires a specifier or qualifier}} \
-                          expected-error {{expected expression}}
+  int logxor = n ^^ n; // expected-error {{^^ is a reserved operator in OpenCL}}
 }

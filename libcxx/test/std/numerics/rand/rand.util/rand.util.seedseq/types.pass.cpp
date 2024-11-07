@@ -15,7 +15,6 @@
 //     typedef uint_least32_t result_type;
 
 #include <random>
-#include <cstdint>
 #include <type_traits>
 
 #include "test_macros.h"

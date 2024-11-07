@@ -20,7 +20,7 @@
 #include "executor_address.h"
 #include "simple_packed_serialization.h"
 
-namespace orc_rt {
+namespace __orc_rt {
 
 /// Flags for symbols in the JIT.
 class JITSymbolFlags {
@@ -146,6 +146,6 @@ public:
   }
 };
 
-} // End namespace orc_rt
+} // End namespace __orc_rt
 
 #endif // ORC_RT_EXECUTOR_SYMBOL_DEF_H

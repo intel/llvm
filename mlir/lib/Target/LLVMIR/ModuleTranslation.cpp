@@ -1021,6 +1021,7 @@ LogicalResult ModuleTranslation::convertGlobals() {
     }
 
     auto linkage = convertLinkageToLLVM(op.getLinkage());
+    auto addrSpace = op.getAddrSpace();
 
     // LLVM IR requires constant with linkage other than external or weak
     // external to have initializers. If MLIR does not provide an initializer,
@@ -1036,7 +1037,7 @@ LogicalResult ModuleTranslation::convertGlobals() {
         /*InsertBefore=*/nullptr,
         op.getThreadLocal_() ? llvm::GlobalValue::GeneralDynamicTLSModel
                              : llvm::GlobalValue::NotThreadLocal,
-        op.getAddrSpace(), op.getExternallyInitialized());
+        addrSpace);
 
     if (std::optional<mlir::SymbolRefAttr> comdat = op.getComdat()) {
       auto selectorOp = cast<ComdatSelectorOp>(

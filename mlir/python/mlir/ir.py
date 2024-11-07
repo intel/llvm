@@ -22,11 +22,6 @@ def _affineMapAttr(x, context):
     return AffineMapAttr.get(x)
 
 
-@register_attribute_builder("IntegerSetAttr")
-def _integerSetAttr(x, context):
-    return IntegerSetAttr.get(x)
-
-
 @register_attribute_builder("BoolAttr")
 def _boolAttr(x, context):
     return BoolAttr.get(x, context=context)

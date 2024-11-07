@@ -114,6 +114,7 @@ llvm::Error CommonOptionsParser::init(
   llvm::raw_string_ostream OS(ErrorMessage);
   // Stop initializing if command-line option parsing failed.
   if (!cl::ParseCommandLineOptions(argc, argv, Overview, &OS)) {
+    OS.flush();
     return llvm::make_error<llvm::StringError>(ErrorMessage,
                                                llvm::inconvertibleErrorCode());
   }

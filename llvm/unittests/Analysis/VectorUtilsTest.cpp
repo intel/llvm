@@ -35,7 +35,7 @@ protected:
 
     // A failure here means that the test itself is buggy.
     if (!M)
-      report_fatal_error(Twine(errMsg));
+      report_fatal_error(Twine(os.str()));
 
     Function *F = M->getFunction("test");
     if (F == nullptr)

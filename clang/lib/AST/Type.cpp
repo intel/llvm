@@ -3998,12 +3998,12 @@ void DependentDecltypeType::Profile(llvm::FoldingSetNodeID &ID,
 
 PackIndexingType::PackIndexingType(const ASTContext &Context,
                                    QualType Canonical, QualType Pattern,
-                                   Expr *IndexExpr, bool ExpandsToEmptyPack,
+                                   Expr *IndexExpr,
                                    ArrayRef<QualType> Expansions)
     : Type(PackIndexing, Canonical,
            computeDependence(Pattern, IndexExpr, Expansions)),
       Context(Context), Pattern(Pattern), IndexExpr(IndexExpr),
-      Size(Expansions.size()), ExpandsToEmptyPack(ExpandsToEmptyPack) {
+      Size(Expansions.size()) {
 
   std::uninitialized_copy(Expansions.begin(), Expansions.end(),
                           getTrailingObjects<QualType>());
@@ -4048,10 +4048,9 @@ PackIndexingType::computeDependence(QualType Pattern, Expr *IndexExpr,
 
 void PackIndexingType::Profile(llvm::FoldingSetNodeID &ID,
                                const ASTContext &Context, QualType Pattern,
-                               Expr *E, bool ExpandsToEmptyPack) {
+                               Expr *E) {
   Pattern.Profile(ID);
   E->Profile(ID, Context, true);
-  ID.AddBoolean(ExpandsToEmptyPack);
 }
 
 UnaryTransformType::UnaryTransformType(QualType BaseType,
@@ -4309,8 +4308,7 @@ TemplateSpecializationType::TemplateSpecializationType(
           T.getKind() == TemplateName::SubstTemplateTemplateParm ||
           T.getKind() == TemplateName::SubstTemplateTemplateParmPack ||
           T.getKind() == TemplateName::UsingTemplate ||
-          T.getKind() == TemplateName::QualifiedTemplate ||
-          T.getKind() == TemplateName::DeducedTemplate) &&
+          T.getKind() == TemplateName::QualifiedTemplate) &&
          "Unexpected template name for TemplateSpecializationType");
 
   auto *TemplateArgs = reinterpret_cast<TemplateArgument *>(this + 1);

@@ -34,7 +34,6 @@ enum AccessKinds {
   AK_TypeId,
   AK_Construct,
   AK_Destroy,
-  AK_IsWithinLifetime,
 };
 
 /// The order of this enum is important for diagnostics.
@@ -62,7 +61,6 @@ public:
   virtual bool checkingPotentialConstantExpression() const = 0;
   virtual bool noteUndefinedBehavior() = 0;
   virtual bool keepEvaluatingAfterFailure() const = 0;
-  virtual bool keepEvaluatingAfterSideEffect() const = 0;
   virtual Frame *getCurrentFrame() = 0;
   virtual const Frame *getBottomFrame() const = 0;
   virtual bool hasActiveDiagnostic() = 0;
@@ -72,7 +70,6 @@ public:
   virtual ASTContext &getASTContext() const = 0;
   virtual bool hasPriorDiagnostic() = 0;
   virtual unsigned getCallStackDepth() = 0;
-  virtual bool noteSideEffect() = 0;
 
 public:
   State() = default;

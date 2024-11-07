@@ -360,42 +360,51 @@ namespace clang {
     }
 
     template <typename TemplateParmDeclT>
-    Error importTemplateParameterDefaultArgument(const TemplateParmDeclT *D,
-                                                 TemplateParmDeclT *ToD) {
-      Error Err = Error::success();
-      if (D->hasDefaultArgument()) {
-        if (D->defaultArgumentWasInherited()) {
-          auto *ToInheritedFrom = const_cast<TemplateParmDeclT *>(
-              importChecked(Err, D->getDefaultArgStorage().getInheritedFrom()));
-          if (Err)
-            return Err;
-          if (!ToInheritedFrom->hasDefaultArgument()) {
-            // Resolve possible circular dependency between default value of the
-            // template argument and the template declaration.
-            const auto ToInheritedDefaultArg =
-                importChecked(Err, D->getDefaultArgStorage()
-                                       .getInheritedFrom()
-                                       ->getDefaultArgument());
-            if (Err)
-              return Err;
-            ToInheritedFrom->setDefaultArgument(Importer.getToContext(),
-                                                ToInheritedDefaultArg);
-          }
-          ToD->setInheritedDefaultArgument(ToD->getASTContext(),
-                                           ToInheritedFrom);
-        } else {
-          Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
-              import(D->getDefaultArgument());
-          if (!ToDefaultArgOrErr)
-            return ToDefaultArgOrErr.takeError();
-          // Default argument could have been set in the
-          // '!ToInheritedFrom->hasDefaultArgument()' branch above.
-          if (!ToD->hasDefaultArgument())
-            ToD->setDefaultArgument(Importer.getToContext(),
-                                    *ToDefaultArgOrErr);
+    void tryUpdateTemplateParmDeclInheritedFrom(NamedDecl *RecentParm,
+                                                NamedDecl *NewParm) {
+      if (auto *ParmT = dyn_cast<TemplateParmDeclT>(RecentParm)) {
+        if (ParmT->hasDefaultArgument()) {
+          auto *P = cast<TemplateParmDeclT>(NewParm);
+          P->removeDefaultArgument();
+          P->setInheritedDefaultArgument(Importer.ToContext, ParmT);
         }
       }
-      return Err;
+    }
+
+    // Update the parameter list `NewParams` of a template declaration
+    // by "inheriting" default argument values from `RecentParams`,
+    // which is the parameter list of an earlier declaration of the
+    // same template. (Note that "inheriting" default argument values
+    // is not related to object-oriented inheritance.)
+    //
+    // In the clang AST template parameters (NonTypeTemplateParmDec,
+    // TemplateTypeParmDecl, TemplateTemplateParmDecl) have a reference to the
+    // default value, if one is specified at the first declaration. The default
+    // value can be specified only once. The template parameters of the
+    // following declarations have a reference to the original default value
+    // through the "inherited" value. This value should be set for all imported
+    // template parameters that have a previous declaration (also a previous
+    // template declaration).
+    //
+    // In the `Visit*ParmDecl` functions the default value of these template
+    // arguments is always imported. At that location the previous declaration
+    // is not easily accessible, it is not possible to call
+    // `setInheritedDefaultArgument` at that place.
+    // `updateTemplateParametersInheritedFrom` is called later when the already
+    // imported default value is erased and changed to "inherited".
+    // It is important to change the mode to "inherited" otherwise false
+    // structural in-equivalences could be detected.
+    void updateTemplateParametersInheritedFrom(
+        const TemplateParameterList &RecentParams,
+        TemplateParameterList &NewParams) {
+      for (auto [Idx, Param] : enumerate(RecentParams)) {
+        tryUpdateTemplateParmDeclInheritedFrom<NonTypeTemplateParmDecl>(
+            Param, NewParams.getParam(Idx));
+        tryUpdateTemplateParmDeclInheritedFrom<TemplateTypeParmDecl>(
+            Param, NewParams.getParam(Idx));
+        tryUpdateTemplateParmDeclInheritedFrom<TemplateTemplateParmDecl>(
+            Param, NewParams.getParam(Idx));
+      }
     }
 
   public:
@@ -5952,8 +5961,8 @@ ASTNodeImporter::VisitObjCPropertyImplDecl(ObjCPropertyImplDecl *D) {
 ExpectedDecl
 ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   // For template arguments, we adopt the translation unit as our declaration
-  // context. This context will be fixed when (during) the actual template
-  // declaration is created.
+  // context. This context will be fixed when the actual template declaration
+  // is created.
 
   ExpectedSLoc BeginLocOrErr = import(D->getBeginLoc());
   if (!BeginLocOrErr)
@@ -5985,8 +5994,13 @@ ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
     ToD->setTypeConstraint(ToConceptRef, ToIDC);
   }
 
-  if (Error Err = importTemplateParameterDefaultArgument(D, ToD))
-    return Err;
+  if (D->hasDefaultArgument()) {
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(ToD->getASTContext(), *ToDefaultArgOrErr);
+  }
 
   return ToD;
 }
@@ -6012,9 +6026,13 @@ ASTNodeImporter::VisitNonTypeTemplateParmDecl(NonTypeTemplateParmDecl *D) {
                               D->isParameterPack(), ToTypeSourceInfo))
     return ToD;
 
-  Err = importTemplateParameterDefaultArgument(D, ToD);
-  if (Err)
-    return Err;
+  if (D->hasDefaultArgument()) {
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(Importer.getToContext(), *ToDefaultArgOrErr);
+  }
 
   return ToD;
 }
@@ -6045,8 +6063,13 @@ ASTNodeImporter::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
           *TemplateParamsOrErr))
     return ToD;
 
-  if (Error Err = importTemplateParameterDefaultArgument(D, ToD))
-    return Err;
+  if (D->hasDefaultArgument()) {
+    Expected<TemplateArgumentLoc> ToDefaultArgOrErr =
+        import(D->getDefaultArgument());
+    if (!ToDefaultArgOrErr)
+      return ToDefaultArgOrErr.takeError();
+    ToD->setDefaultArgument(Importer.getToContext(), *ToDefaultArgOrErr);
+  }
 
   return ToD;
 }
@@ -6184,6 +6207,9 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     }
 
     D2->setPreviousDecl(Recent);
+
+    updateTemplateParametersInheritedFrom(*(Recent->getTemplateParameters()),
+                                          **TemplateParamsOrErr);
   }
 
   return D2;
@@ -6498,6 +6524,9 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
         ToTemplated->setPreviousDecl(PrevTemplated);
     }
     ToVarTD->setPreviousDecl(Recent);
+
+    updateTemplateParametersInheritedFrom(*(Recent->getTemplateParameters()),
+                                          **TemplateParamsOrErr);
   }
 
   return ToVarTD;
@@ -6770,6 +6799,9 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
         TemplatedFD->setPreviousDecl(PrevTemplated);
     }
     ToFunc->setPreviousDecl(Recent);
+
+    updateTemplateParametersInheritedFrom(*(Recent->getTemplateParameters()),
+                                          *Params);
   }
 
   return ToFunc;
@@ -9941,8 +9973,6 @@ Expected<TemplateName> ASTImporter::Import(TemplateName From) {
       return UsingOrError.takeError();
     return TemplateName(cast<UsingShadowDecl>(*UsingOrError));
   }
-  case TemplateName::DeducedTemplate:
-    llvm_unreachable("Unexpected DeducedTemplate");
   }
 
   llvm_unreachable("Invalid template name kind");

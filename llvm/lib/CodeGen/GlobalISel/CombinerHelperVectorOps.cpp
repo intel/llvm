@@ -146,9 +146,9 @@ bool CombinerHelper::matchExtractVectorElementWithDifferentIndices(
 }
 
 bool CombinerHelper::matchExtractVectorElementWithBuildVector(
-    const MachineInstr &MI, const MachineInstr &MI2, BuildFnTy &MatchInfo) {
-  const GExtractVectorElement *Extract = cast<GExtractVectorElement>(&MI);
-  const GBuildVector *Build = cast<GBuildVector>(&MI2);
+    const MachineOperand &MO, BuildFnTy &MatchInfo) {
+  MachineInstr *Root = getDefIgnoringCopies(MO.getReg(), MRI);
+  GExtractVectorElement *Extract = cast<GExtractVectorElement>(Root);
 
   //
   //  %zero:_(s64) = G_CONSTANT i64 0
@@ -160,8 +160,23 @@ bool CombinerHelper::matchExtractVectorElementWithBuildVector(
   //  %extract:_(32) = COPY %arg1(s32)
   //
   //
+  //
+  //  %bv:_(<2 x s32>) = G_BUILD_VECTOR %arg1(s32), %arg2(s32)
+  //  %extract:_(s32) = G_EXTRACT_VECTOR_ELT %bv(<2 x s32>), %opaque(s64)
+  //
+  //  -->
+  //
+  //  %bv:_(<2 x s32>) = G_BUILD_VECTOR %arg1(s32), %arg2(s32)
+  //  %extract:_(s32) = G_EXTRACT_VECTOR_ELT %bv(<2 x s32>), %opaque(s64)
+  //
 
   Register Vector = Extract->getVectorReg();
+
+  // We expect a buildVector on the Vector register.
+  GBuildVector *Build = getOpcodeDef<GBuildVector>(Vector, MRI);
+  if (!Build)
+    return false;
+
   LLT VectorTy = MRI.getType(Vector);
 
   // There is a one-use check. There are more combines on build vectors.
@@ -170,7 +185,14 @@ bool CombinerHelper::matchExtractVectorElementWithBuildVector(
       !getTargetLowering().aggressivelyPreferBuildVectorSources(Ty))
     return false;
 
-  APInt Index = getIConstantFromReg(Extract->getIndexReg(), MRI);
+  Register Index = Extract->getIndexReg();
+
+  // If the Index is constant, then we can extract the element from the given
+  // offset.
+  std::optional<ValueAndVReg> MaybeIndex =
+      getIConstantVRegValWithLookThrough(Index, MRI);
+  if (!MaybeIndex)
+    return false;
 
   // We now know that there is a buildVector def'd on the Vector register and
   // the index is const. The combine will succeed.
@@ -178,7 +200,7 @@ bool CombinerHelper::matchExtractVectorElementWithBuildVector(
   Register Dst = Extract->getReg(0);
 
   MatchInfo = [=](MachineIRBuilder &B) {
-    B.buildCopy(Dst, Build->getSourceReg(Index.getZExtValue()));
+    B.buildCopy(Dst, Build->getSourceReg(MaybeIndex->Value.getZExtValue()));
   };
 
   return true;
@@ -252,9 +274,9 @@ bool CombinerHelper::matchExtractVectorElementWithBuildVectorTrunc(
 }
 
 bool CombinerHelper::matchExtractVectorElementWithShuffleVector(
-    const MachineInstr &MI, const MachineInstr &MI2, BuildFnTy &MatchInfo) {
-  const GExtractVectorElement *Extract = cast<GExtractVectorElement>(&MI);
-  const GShuffleVector *Shuffle = cast<GShuffleVector>(&MI2);
+    const MachineOperand &MO, BuildFnTy &MatchInfo) {
+  GExtractVectorElement *Extract =
+      cast<GExtractVectorElement>(getDefIgnoringCopies(MO.getReg(), MRI));
 
   //
   //  %zero:_(s64) = G_CONSTANT i64 0
@@ -280,12 +302,32 @@ bool CombinerHelper::matchExtractVectorElementWithShuffleVector(
   //  %extract:_(s32) = G_IMPLICIT_DEF
   //
   //
+  //
+  //
+  //
+  //  %sv:_(<4 x s32>) = G_SHUFFLE_SHUFFLE %arg1(<4 x s32>), %arg2(<4 x s32>),
+  //                     shufflemask(0, 0, 0, -1)
+  //  %extract:_(s32) = G_EXTRACT_VECTOR_ELT %sv(<4 x s32>), %opaque(s64)
+  //
+  //  -->
+  //
+  //  %sv:_(<4 x s32>) = G_SHUFFLE_SHUFFLE %arg1(<4 x s32>), %arg2(<4 x s32>),
+  //                     shufflemask(0, 0, 0, -1)
+  //  %extract:_(s32) = G_EXTRACT_VECTOR_ELT %sv(<4 x s32>), %opaque(s64)
+  //
 
-  APInt Index = getIConstantFromReg(Extract->getIndexReg(), MRI);
+  // We try to get the value of the Index register.
+  std::optional<ValueAndVReg> MaybeIndex =
+      getIConstantVRegValWithLookThrough(Extract->getIndexReg(), MRI);
+  if (!MaybeIndex)
+    return false;
+
+  GShuffleVector *Shuffle =
+      cast<GShuffleVector>(getDefIgnoringCopies(Extract->getVectorReg(), MRI));
 
   ArrayRef<int> Mask = Shuffle->getMask();
 
-  unsigned Offset = Index.getZExtValue();
+  unsigned Offset = MaybeIndex->Value.getZExtValue();
   int SrcIdx = Mask[Offset];
 
   LLT Src1Type = MRI.getType(Shuffle->getSrc1Reg());

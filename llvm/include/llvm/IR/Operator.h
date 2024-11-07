@@ -533,8 +533,8 @@ public:
 };
 
 template <>
-struct OperandTraits<GEPOperator> : public VariadicOperandTraits<GEPOperator> {
-};
+struct OperandTraits<GEPOperator>
+    : public VariadicOperandTraits<GEPOperator, 1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(GEPOperator, Value)
 

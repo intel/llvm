@@ -203,9 +203,9 @@ let Predicates = [HasVendorXCValu, IsRV32],
   // General ALU Operations
   def CV_ABS    : CVInstAluR<0b0101000, 0b011, "cv.abs">,
                   Sched<[]>;
-  def CV_SLE    : CVInstAluRR<0b0101001, 0b011, "cv.sle">,
+  def CV_SLET   : CVInstAluRR<0b0101001, 0b011, "cv.slet">,
                   Sched<[]>;
-  def CV_SLEU   : CVInstAluRR<0b0101010, 0b011, "cv.sleu">,
+  def CV_SLETU  : CVInstAluRR<0b0101010, 0b011, "cv.sletu">,
                   Sched<[]>;
   def CV_MIN    : CVInstAluRR<0b0101011, 0b011, "cv.min">,
                   Sched<[]>;
@@ -276,10 +276,6 @@ let Predicates = [HasVendorXCValu, IsRV32],
   //   hasSideEffects = 0, mayLoad = 0, mayStore = 0,
   //   Constraints = "$rd = $rd_wb"
 
-let Predicates = [HasVendorXCValu, IsRV32] in {
-  def : MnemonicAlias<"cv.slet", "cv.sle">;
-  def : MnemonicAlias<"cv.sletu", "cv.sleu">;
-}
 
 class CVInstSIMDRR<bits<5> funct5, bit F, bit funct1, bits<3> funct3,
                    RISCVOpcode opcode, dag outs,
@@ -782,8 +778,8 @@ multiclass PatCoreVAluGprGprImm<Intrinsic intr> {
 
 let Predicates = [HasVendorXCValu, IsRV32], AddedComplexity = 1 in {
   def : PatGpr<abs, CV_ABS>;
-  def : PatGprGpr<setle, CV_SLE>;
-  def : PatGprGpr<setule, CV_SLEU>;
+  def : PatGprGpr<setle, CV_SLET>;
+  def : PatGprGpr<setule, CV_SLETU>;
   def : PatGprGpr<smin, CV_MIN>;
   def : PatGprGpr<umin, CV_MINU>;
   def : PatGprGpr<smax, CV_MAX>;

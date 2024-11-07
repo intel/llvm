@@ -711,7 +711,7 @@ TEST(MinidumpFile, getMemoryInfoList) {
                                    0x0001000908000000u));
 }
 
-TEST(MinidumpFile, getExceptionStreams) {
+TEST(MinidumpFile, getExceptionStream) {
   std::vector<uint8_t> Data{
       // Header
       'M', 'D', 'M', 'P', 0x93, 0xa7, 0, 0, // Signature, Version
@@ -751,11 +751,8 @@ TEST(MinidumpFile, getExceptionStreams) {
   auto ExpectedFile = create(Data);
   ASSERT_THAT_EXPECTED(ExpectedFile, Succeeded());
   const MinidumpFile &File = **ExpectedFile;
-
-  auto ExceptionStreams = File.getExceptionStreams();
-  ASSERT_NE(ExceptionStreams.begin(), ExceptionStreams.end());
-  auto ExceptionIterator = ExceptionStreams.begin();
-  Expected<const ExceptionStream &> ExpectedStream = *ExceptionIterator;
+  Expected<const minidump::ExceptionStream &> ExpectedStream =
+      File.getExceptionStream();
   ASSERT_THAT_EXPECTED(ExpectedStream, Succeeded());
   EXPECT_EQ(0x04030201u, ExpectedStream->ThreadId);
   const minidump::Exception &Exception = ExpectedStream->ExceptionRecord;
@@ -770,6 +767,4 @@ TEST(MinidumpFile, getExceptionStreams) {
   }
   EXPECT_EQ(0x84838281, ExpectedStream->ThreadContext.DataSize);
   EXPECT_EQ(0x88878685, ExpectedStream->ThreadContext.RVA);
-  ++ExceptionIterator;
-  ASSERT_EQ(ExceptionIterator, ExceptionStreams.end());
 }

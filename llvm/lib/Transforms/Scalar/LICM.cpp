@@ -2804,13 +2804,14 @@ static bool hoistMulAddAssociation(Instruction &I, Loop &L,
 /// Reassociate associative binary expressions of the form
 ///
 /// 1. "(LV op C1) op C2" ==> "LV op (C1 op C2)"
-/// 2. "(C1 op LV) op C2" ==> "LV op (C1 op C2)"
-/// 3. "C2 op (C1 op LV)" ==> "LV op (C1 op C2)"
-/// 4. "C2 op (LV op C1)" ==> "LV op (C1 op C2)"
 ///
-/// where op is an associative BinOp, LV is a loop variant, and C1 and C2 are
-/// loop invariants that we want to hoist, noting that associativity implies
-/// commutativity.
+/// where op is an associative binary op, LV is a loop variant, and C1 and C2
+/// are loop invariants that we want to hoist.
+///
+/// TODO: This can be extended to more cases such as
+/// 2. "C1 op (C2 op LV)" ==> "(C1 op C2) op LV"
+/// 3. "(C1 op LV) op C2" ==> "LV op (C1 op C2)" if op is commutative
+/// 4. "C1 op (LV op C2)" ==> "(C1 op C2) op LV" if op is commutative
 static bool hoistBOAssociation(Instruction &I, Loop &L,
                                ICFLoopSafetyInfo &SafetyInfo,
                                MemorySSAUpdater &MSSAU, AssumptionCache *AC,
@@ -2819,43 +2820,36 @@ static bool hoistBOAssociation(Instruction &I, Loop &L,
   if (!BO || !BO->isAssociative())
     return false;
 
-  // TODO: Only hoist ADDs and MULs for now.
+  // Only fold ADDs for now.
   Instruction::BinaryOps Opcode = BO->getOpcode();
-  if (Opcode != Instruction::Add && Opcode != Instruction::Mul)
+  if (Opcode != Instruction::Add)
     return false;
 
-  bool LVInRHS = L.isLoopInvariant(BO->getOperand(0));
-  auto *BO0 = dyn_cast<BinaryOperator>(BO->getOperand(LVInRHS));
+  auto *BO0 = dyn_cast<BinaryOperator>(BO->getOperand(0));
   if (!BO0 || BO0->getOpcode() != Opcode || !BO0->isAssociative() ||
       BO0->hasNUsesOrMore(3))
     return false;
 
+  // Transform: "(LV op C1) op C2" ==> "LV op (C1 op C2)"
   Value *LV = BO0->getOperand(0);
   Value *C1 = BO0->getOperand(1);
-  Value *C2 = BO->getOperand(!LVInRHS);
+  Value *C2 = BO->getOperand(1);
 
-  assert(BO->isCommutative() && BO0->isCommutative() &&
-         "Associativity implies commutativity");
-  if (L.isLoopInvariant(LV) && !L.isLoopInvariant(C1))
-    std::swap(LV, C1);
   if (L.isLoopInvariant(LV) || !L.isLoopInvariant(C1) || !L.isLoopInvariant(C2))
     return false;
 
   auto *Preheader = L.getLoopPreheader();
   assert(Preheader && "Loop is not in simplify form?");
 
-  IRBuilder<> Builder(Preheader->getTerminator());
-  auto *Inv = Builder.CreateBinOp(Opcode, C1, C2, "invariant.op");
-
+  auto *Inv = BinaryOperator::Create(Opcode, C1, C2, "invariant.op",
+                                     Preheader->getTerminator()->getIterator());
   auto *NewBO = BinaryOperator::Create(
       Opcode, LV, Inv, BO->getName() + ".reass", BO->getIterator());
 
   // Copy NUW for ADDs if both instructions have it.
   if (Opcode == Instruction::Add && BO->hasNoUnsignedWrap() &&
       BO0->hasNoUnsignedWrap()) {
-    // If `Inv` was not constant-folded, a new Instruction has been created.
-    if (auto *I = dyn_cast<Instruction>(Inv))
-      I->setHasNoUnsignedWrap(true);
+    Inv->setHasNoUnsignedWrap(true);
     NewBO->setHasNoUnsignedWrap(true);
   }
 

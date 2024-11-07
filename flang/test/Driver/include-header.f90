@@ -51,7 +51,7 @@ program B
 end
 
 ! include-test-two.f90
-#include "basic-header-two.h"
+INCLUDE "basic-header-two.h"
 #ifdef Y
 program Y
 #else

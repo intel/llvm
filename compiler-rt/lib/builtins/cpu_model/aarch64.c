@@ -14,7 +14,7 @@
 
 #include "aarch64.h"
 
-#if !defined(__aarch64__) && !defined(__arm64__) && !defined(_M_ARM64)
+#if !defined(__aarch64__)
 #error This file is intended only for aarch64-based targets
 #endif
 

@@ -6,8 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "hdr/wchar_macros.h" // for WEOF
+#include <wchar.h> //for WEOF
+
 #include "src/wchar/btowc.h"
+
 #include "test/UnitTest/Test.h"
 
 TEST(LlvmLibcBtowc, DefaultLocale) {

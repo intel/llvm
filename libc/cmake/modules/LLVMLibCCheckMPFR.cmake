@@ -11,9 +11,7 @@ else()
     LIBC_TESTS_CAN_USE_MPFR
     ${CMAKE_CURRENT_BINARY_DIR}
     SOURCES
-      ${LIBC_SOURCE_DIR}/utils/MPFRWrapper/check_mpfr.cpp
-    COMPILE_DEFINITIONS
-      ${LIBC_COMPILE_OPTIONS_DEFAULT}
+    ${LIBC_SOURCE_DIR}/utils/MPFRWrapper/check_mpfr.cpp
     LINK_LIBRARIES
       -lmpfr -lgmp -latomic
   )

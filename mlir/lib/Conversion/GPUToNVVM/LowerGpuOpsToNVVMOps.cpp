@@ -29,7 +29,6 @@
 #include "mlir/Dialect/LLVMIR/NVVMDialect.h"
 #include "mlir/Dialect/Math/IR/Math.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
-#include "mlir/Dialect/NVGPU/IR/NVGPUDialect.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
@@ -210,15 +209,7 @@ struct GPULaneIdOpToNVVM : ConvertOpToLLVMPattern<gpu::LaneIdOp> {
                   ConversionPatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     MLIRContext *context = rewriter.getContext();
-    LLVM::ConstantRangeAttr bounds = nullptr;
-    if (std::optional<APInt> upperBound = op.getUpperBound())
-      bounds = rewriter.getAttr<LLVM::ConstantRangeAttr>(
-          /*bitWidth=*/32, /*lower=*/0, upperBound->getZExtValue());
-    else
-      bounds = rewriter.getAttr<LLVM::ConstantRangeAttr>(
-          /*bitWidth=*/32, /*lower=*/0, /*upper=*/kWarpSize);
-    Value newOp =
-        rewriter.create<NVVM::LaneIdOp>(loc, rewriter.getI32Type(), bounds);
+    Value newOp = rewriter.create<NVVM::LaneIdOp>(loc, rewriter.getI32Type());
     // Truncate or extend the result depending on the index bitwidth specified
     // by the LLVMTypeConverter options.
     const unsigned indexBitwidth = getTypeConverter()->getIndexTypeBitwidth();
@@ -349,40 +340,27 @@ void mlir::populateGpuSubgroupReduceOpLoweringPattern(
 
 void mlir::populateGpuToNVVMConversionPatterns(LLVMTypeConverter &converter,
                                                RewritePatternSet &patterns) {
-  using gpu::index_lowering::IndexKind;
-  using gpu::index_lowering::IntrType;
   populateWithGenerated(patterns);
   patterns.add<GPUPrintfOpToVPrintfLowering>(converter);
   patterns.add<
       gpu::index_lowering::OpLowering<gpu::ThreadIdOp, NVVM::ThreadIdXOp,
-                                      NVVM::ThreadIdYOp, NVVM::ThreadIdZOp>>(
-      converter, IndexKind::Block, IntrType::Id);
-  patterns.add<
+                                      NVVM::ThreadIdYOp, NVVM::ThreadIdZOp>,
       gpu::index_lowering::OpLowering<gpu::BlockDimOp, NVVM::BlockDimXOp,
-                                      NVVM::BlockDimYOp, NVVM::BlockDimZOp>>(
-      converter, IndexKind::Block, IntrType::Dim);
-  patterns.add<
+                                      NVVM::BlockDimYOp, NVVM::BlockDimZOp>,
       gpu::index_lowering::OpLowering<gpu::ClusterIdOp, NVVM::ClusterIdXOp,
-                                      NVVM::ClusterIdYOp, NVVM::ClusterIdZOp>>(
-      converter, IndexKind::Other, IntrType::Id);
-  patterns.add<gpu::index_lowering::OpLowering<
-      gpu::ClusterDimOp, NVVM::ClusterDimXOp, NVVM::ClusterDimYOp,
-      NVVM::ClusterDimZOp>>(converter, IndexKind::Other, IntrType::Dim);
-  patterns.add<gpu::index_lowering::OpLowering<
-      gpu::ClusterBlockIdOp, NVVM::BlockInClusterIdXOp,
-      NVVM::BlockInClusterIdYOp, NVVM::BlockInClusterIdZOp>>(
-      converter, IndexKind::Other, IntrType::Id);
-  patterns.add<gpu::index_lowering::OpLowering<
-      gpu::ClusterDimOp, NVVM::ClusterDimXOp, NVVM::ClusterDimYOp,
-      NVVM::ClusterDimZOp>>(converter, IndexKind::Other, IntrType::Dim);
-  patterns.add<gpu::index_lowering::OpLowering<
-      gpu::BlockIdOp, NVVM::BlockIdXOp, NVVM::BlockIdYOp, NVVM::BlockIdZOp>>(
-      converter, IndexKind::Grid, IntrType::Id);
-  patterns.add<gpu::index_lowering::OpLowering<
-      gpu::GridDimOp, NVVM::GridDimXOp, NVVM::GridDimYOp, NVVM::GridDimZOp>>(
-      converter, IndexKind::Grid, IntrType::Dim);
-  patterns.add<GPULaneIdOpToNVVM, GPUShuffleOpLowering, GPUReturnOpLowering>(
-      converter);
+                                      NVVM::ClusterIdYOp, NVVM::ClusterIdZOp>,
+      gpu::index_lowering::OpLowering<gpu::ClusterDimOp, NVVM::ClusterDimXOp,
+                                      NVVM::ClusterDimYOp, NVVM::ClusterDimZOp>,
+      gpu::index_lowering::OpLowering<
+          gpu::ClusterBlockIdOp, NVVM::BlockInClusterIdXOp,
+          NVVM::BlockInClusterIdYOp, NVVM::BlockInClusterIdZOp>,
+      gpu::index_lowering::OpLowering<gpu::ClusterDimOp, NVVM::ClusterDimXOp,
+                                      NVVM::ClusterDimYOp, NVVM::ClusterDimZOp>,
+      gpu::index_lowering::OpLowering<gpu::BlockIdOp, NVVM::BlockIdXOp,
+                                      NVVM::BlockIdYOp, NVVM::BlockIdZOp>,
+      gpu::index_lowering::OpLowering<gpu::GridDimOp, NVVM::GridDimXOp,
+                                      NVVM::GridDimYOp, NVVM::GridDimZOp>,
+      GPULaneIdOpToNVVM, GPUShuffleOpLowering, GPUReturnOpLowering>(converter);
 
   patterns.add<GPUDynamicSharedMemoryOpLowering>(
       converter, NVVM::kSharedMemoryAlignmentBit);

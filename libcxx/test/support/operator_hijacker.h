@@ -10,10 +10,9 @@
 #define SUPPORT_OPERATOR_HIJACKER_H
 
 #include <cstddef>
-#include <functional>
 #include <memory>
+#include <functional>
 #include <string>
-#include <type_traits>
 
 #include "test_macros.h"
 

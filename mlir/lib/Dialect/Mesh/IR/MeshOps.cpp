@@ -24,7 +24,6 @@
 #include "mlir/IR/Value.h"
 #include "mlir/Interfaces/ViewLikeInterface.h"
 #include "mlir/Support/LLVM.h"
-#include "mlir/Transforms/InliningUtils.h"
 #include "llvm/ADT/ArrayRef.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/ADT/SmallSet.h"
@@ -76,26 +75,6 @@ static DimensionSize operator*(DimensionSize lhs, DimensionSize rhs) {
 }
 
 //===----------------------------------------------------------------------===//
-// Inliner
-//===----------------------------------------------------------------------===//
-
-namespace {
-struct MeshInlinerInterface : public DialectInlinerInterface {
-  using DialectInlinerInterface::DialectInlinerInterface;
-  // Currently no restrictions are encoded for inlining.
-  bool isLegalToInline(Operation *, Operation *, bool) const final {
-    return true;
-  }
-  bool isLegalToInline(Region *, Region *, bool, IRMapping &) const final {
-    return true;
-  }
-  bool isLegalToInline(Operation *, Region *, bool, IRMapping &) const final {
-    return true;
-  }
-};
-} // namespace
-
-//===----------------------------------------------------------------------===//
 // Mesh dialect
 //===----------------------------------------------------------------------===//
 
@@ -112,7 +91,6 @@ void MeshDialect::initialize() {
 #define GET_TYPEDEF_LIST
 #include "mlir/Dialect/Mesh/IR/MeshTypes.cpp.inc"
       >();
-  addInterface<MeshInlinerInterface>();
 }
 
 Operation *MeshDialect::materializeConstant(OpBuilder &builder, Attribute value,

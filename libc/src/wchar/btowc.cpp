@@ -12,7 +12,6 @@
 #include "src/__support/wctype_utils.h"
 
 #include "hdr/stdio_macros.h" // for EOF.
-#include "hdr/types/wint_t.h"
 
 namespace LIBC_NAMESPACE_DECL {
 

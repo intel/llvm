@@ -2317,8 +2317,6 @@ StateType ProcessGDBRemote::SetThreadStopInfo(StringExtractor &stop_packet) {
         StreamString ostr;
         ostr.Printf("%" PRIu64, wp_addr);
         description = std::string(ostr.GetString());
-      } else if (key.compare("swbreak") == 0 || key.compare("hwbreak") == 0) {
-        reason = "breakpoint";
       } else if (key.compare("library") == 0) {
         auto error = LoadModules();
         if (error) {
@@ -3449,7 +3447,7 @@ Status ProcessGDBRemote::LaunchAndConnectToDebugserver(
     }
 #endif
 
-    shared_fd_t communication_fd = SharedSocket::kInvalidFD;
+    int communication_fd = -1;
 #ifdef USE_SOCKETPAIR_FOR_LOCAL_CONNECTION
     // Use a socketpair on non-Windows systems for security and performance
     // reasons.
@@ -5360,7 +5358,7 @@ std::string ProcessGDBRemote::HarmonizeThreadIdsForProfileData(
   output_stream << end_delimiter;
   m_thread_id_to_used_usec_map = new_thread_id_to_used_usec_map;
 
-  return output;
+  return output_stream.str();
 }
 
 void ProcessGDBRemote::HandleStopReply() {

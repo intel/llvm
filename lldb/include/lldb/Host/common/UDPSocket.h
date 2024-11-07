@@ -27,13 +27,7 @@ private:
   size_t Send(const void *buf, const size_t num_bytes) override;
   Status Connect(llvm::StringRef name) override;
   Status Listen(llvm::StringRef name, int backlog) override;
-
-  llvm::Expected<std::vector<MainLoopBase::ReadHandleUP>>
-  Accept(MainLoopBase &loop,
-         std::function<void(std::unique_ptr<Socket> socket)> sock_cb) override {
-    return llvm::errorCodeToError(
-        std::make_error_code(std::errc::operation_not_supported));
-  }
+  Status Accept(Socket *&socket) override;
 
   SocketAddress m_sockaddr;
 };

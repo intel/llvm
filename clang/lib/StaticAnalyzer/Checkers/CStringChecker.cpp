@@ -16,7 +16,6 @@
 #include "clang/Basic/Builtins.h"
 #include "clang/Basic/CharInfo.h"
 #include "clang/StaticAnalyzer/Checkers/BuiltinCheckerRegistration.h"
-#include "clang/StaticAnalyzer/Core/BugReporter/BugReporterVisitors.h"
 #include "clang/StaticAnalyzer/Core/BugReporter/BugType.h"
 #include "clang/StaticAnalyzer/Core/Checker.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
@@ -338,8 +337,7 @@ public:
                          const Stmt *S, StringRef WarningMsg) const;
   void emitAdditionOverflowBug(CheckerContext &C, ProgramStateRef State) const;
   void emitUninitializedReadBug(CheckerContext &C, ProgramStateRef State,
-                                const Expr *E, const MemRegion *R,
-                                StringRef Msg) const;
+                                const Expr *E, StringRef Msg) const;
   ProgramStateRef checkAdditionOverflow(CheckerContext &C,
                                             ProgramStateRef state,
                                             NonLoc left,
@@ -476,8 +474,7 @@ ProgramStateRef CStringChecker::checkInit(CheckerContext &C,
     OS << "The first element of the ";
     printIdxWithOrdinalSuffix(OS, Buffer.ArgumentIndex + 1);
     OS << " argument is undefined";
-    emitUninitializedReadBug(C, State, Buffer.Expression,
-                             FirstElementVal->getAsRegion(), OS.str());
+    emitUninitializedReadBug(C, State, Buffer.Expression, OS.str());
     return nullptr;
   }
 
@@ -541,8 +538,7 @@ ProgramStateRef CStringChecker::checkInit(CheckerContext &C,
     OS << ") in the ";
     printIdxWithOrdinalSuffix(OS, Buffer.ArgumentIndex + 1);
     OS << " argument is undefined";
-    emitUninitializedReadBug(C, State, Buffer.Expression,
-                             LastElementVal.getAsRegion(), OS.str());
+    emitUninitializedReadBug(C, State, Buffer.Expression, OS.str());
     return nullptr;
   }
   return State;
@@ -822,7 +818,7 @@ void CStringChecker::emitNullArgBug(CheckerContext &C, ProgramStateRef State,
 
 void CStringChecker::emitUninitializedReadBug(CheckerContext &C,
                                               ProgramStateRef State,
-                                              const Expr *E, const MemRegion *R,
+                                              const Expr *E,
                                               StringRef Msg) const {
   if (ExplodedNode *N = C.generateErrorNode(State)) {
     if (!BT_UninitRead)
@@ -835,7 +831,6 @@ void CStringChecker::emitUninitializedReadBug(CheckerContext &C,
                     Report->getLocation());
     Report->addRange(E->getSourceRange());
     bugreporter::trackExpressionValue(N, E, *Report);
-    Report->addVisitor<NoStoreFuncVisitor>(R->castAs<SubRegion>());
     C.emitReport(std::move(Report));
   }
 }

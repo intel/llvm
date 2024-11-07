@@ -12,7 +12,6 @@
 // concept three_way_comparable = // see below
 
 #include <compare>
-#include <cstddef>
 
 #include "compare_types.h"
 #include "test_macros.h"

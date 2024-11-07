@@ -37,7 +37,6 @@
 // typedef atomic<uint64_t>           atomic_uint64_t;
 
 #include <atomic>
-#include <cstdint>
 #include <type_traits>
 
 #include "test_macros.h"

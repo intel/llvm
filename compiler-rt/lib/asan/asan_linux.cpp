@@ -187,7 +187,10 @@ void AsanCheckIncompatibleRT() {
       MemoryMappedSegment segment(filename, sizeof(filename));
       while (proc_maps.Next(&segment)) {
         if (IsDynamicRTName(segment.filename)) {
-          ReportIncompatibleRT();
+          Report(
+              "Your application is linked against "
+              "incompatible ASan runtimes.\n");
+          Die();
         }
       }
       __asan_rt_version = ASAN_RT_VERSION_STATIC;

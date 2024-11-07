@@ -1560,10 +1560,8 @@ def PedanticMacros : DiagGroup<"pedantic-macros",
 def BranchProtection : DiagGroup<"branch-protection">;
 
 // HLSL diagnostic groups
-def HLSL202y : DiagGroup<"hlsl-202y-extensions">;
-
 // Warnings for HLSL Clang extensions
-def HLSLExtension : DiagGroup<"hlsl-extensions", [HLSL202y]>;
+def HLSLExtension : DiagGroup<"hlsl-extensions">;
 
 // Warning for mix packoffset and non-packoffset.
 def HLSLMixPackOffset : DiagGroup<"mix-packoffset">;
@@ -1585,8 +1583,7 @@ def ReadOnlyPlacementChecks : DiagGroup<"read-only-types">;
 
 // Warnings and fixes to support the "safe buffers" programming model.
 def UnsafeBufferUsageInContainer : DiagGroup<"unsafe-buffer-usage-in-container">;
-def UnsafeBufferUsageInLibcCall : DiagGroup<"unsafe-buffer-usage-in-libc-call">;
-def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer, UnsafeBufferUsageInLibcCall]>;
+def UnsafeBufferUsage : DiagGroup<"unsafe-buffer-usage", [UnsafeBufferUsageInContainer]>;
 
 // Warnings and notes related to the function effects system underlying
 // the nonblocking and nonallocating attributes.

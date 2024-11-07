@@ -14,9 +14,8 @@
 //  Returns: wd_.ok() && 1 <= index_ && index_ <= 5
 
 #include <chrono>
-#include <cassert>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 

@@ -276,29 +276,16 @@ Status ProcessDebugger::ReadMemory(lldb::addr_t vm_addr, void *buf, size_t size,
   LLDB_LOG(log, "attempting to read {0} bytes from address {1:x}", size,
            vm_addr);
 
-  lldb::process_t handle = m_session_data->m_debugger->GetProcess()
-                               .GetNativeProcess()
-                               .GetSystemHandle();
+  HostProcess process = m_session_data->m_debugger->GetProcess();
   void *addr = reinterpret_cast<void *>(vm_addr);
   SIZE_T num_of_bytes_read = 0;
-  if (::ReadProcessMemory(handle, addr, buf, size, &num_of_bytes_read)) {
+  if (!::ReadProcessMemory(process.GetNativeProcess().GetSystemHandle(), addr,
+                           buf, size, &num_of_bytes_read)) {
+    error = Status(GetLastError(), eErrorTypeWin32);
+    LLDB_LOG(log, "reading failed with error: {0}", error);
+  } else {
     bytes_read = num_of_bytes_read;
-    return Status();
   }
-  error = Status(GetLastError(), eErrorTypeWin32);
-  MemoryRegionInfo info;
-  if (GetMemoryRegionInfo(vm_addr, info).Fail() ||
-      info.GetMapped() != MemoryRegionInfo::OptionalBool::eYes)
-    return error;
-  size = info.GetRange().GetRangeEnd() - vm_addr;
-  LLDB_LOG(log, "retrying the read with size {0:x}", size);
-  if (::ReadProcessMemory(handle, addr, buf, size, &num_of_bytes_read)) {
-    LLDB_LOG(log, "success: read {0:x} bytes", num_of_bytes_read);
-    bytes_read = num_of_bytes_read;
-    return Status();
-  }
-  error = Status(GetLastError(), eErrorTypeWin32);
-  LLDB_LOG(log, "error: {0}", error);
   return error;
 }
 
@@ -560,7 +547,7 @@ void ProcessDebugger::OnDebuggerError(const Status &error, uint32_t type) {
     // If we haven't actually launched the process yet, this was an error
     // launching the process.  Set the internal error and signal the initial
     // stop event so that the DoLaunch method wakes up and returns a failure.
-    m_session_data->m_launch_error = error.Clone();
+    m_session_data->m_launch_error = error;
     ::SetEvent(m_session_data->m_initial_stop_event);
     LLDB_LOG(log,
              "Error {0} occurred launching the process before the initial "
@@ -582,7 +569,7 @@ Status ProcessDebugger::WaitForDebuggerConnection(DebuggerThreadSP debugger,
     LLDB_LOG(log, "hit loader breakpoint, returning.");
 
     process = debugger->GetProcess();
-    return m_session_data->m_launch_error.Clone();
+    return m_session_data->m_launch_error;
   } else
     return Status(::GetLastError(), eErrorTypeWin32);
 }

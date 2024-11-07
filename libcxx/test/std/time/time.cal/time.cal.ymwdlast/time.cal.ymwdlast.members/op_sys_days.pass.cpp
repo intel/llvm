@@ -15,9 +15,8 @@
 //             of year()/month(). Otherwise the returned value is unspecified.
 
 #include <chrono>
-#include <cassert>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 

@@ -167,7 +167,7 @@ uintptr_t readPointerHelper(const uint8_t*& p) {
     return static_cast<uintptr_t>(value);
 }
 
-} // namespace
+} // end namespace
 
 extern "C"
 {

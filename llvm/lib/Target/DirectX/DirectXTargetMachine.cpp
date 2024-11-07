@@ -28,7 +28,6 @@
 #include "llvm/CodeGen/TargetPassConfig.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LegacyPassManager.h"
-#include "llvm/InitializePasses.h"
 #include "llvm/MC/MCSectionDXContainer.h"
 #include "llvm/MC/SectionKind.h"
 #include "llvm/MC/TargetRegistry.h"
@@ -37,7 +36,6 @@
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetLoweringObjectFile.h"
-#include "llvm/Transforms/Scalar/Scalarizer.h"
 #include <optional>
 
 using namespace llvm;
@@ -46,7 +44,6 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeDirectXTarget() {
   RegisterTargetMachine<DirectXTargetMachine> X(getTheDirectXTarget());
   auto *PR = PassRegistry::getPassRegistry();
   initializeDXILIntrinsicExpansionLegacyPass(*PR);
-  initializeScalarizerLegacyPassPass(*PR);
   initializeDXILPrepareModulePass(*PR);
   initializeEmbedDXILPassPass(*PR);
   initializeWriteDXILPassPass(*PR);
@@ -86,9 +83,6 @@ public:
   FunctionPass *createTargetRegisterAllocator(bool) override { return nullptr; }
   void addCodeGenPrepare() override {
     addPass(createDXILIntrinsicExpansionLegacyPass());
-    ScalarizerPassOptions DxilScalarOptions;
-    DxilScalarOptions.ScalarizeLoadStore = true;
-    addPass(createScalarizerPass(DxilScalarOptions));
     addPass(createDXILOpLoweringLegacyPass());
     addPass(createDXILFinalizeLinkageLegacyPass());
     addPass(createDXILTranslateMetadataLegacyPass());

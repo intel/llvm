@@ -266,6 +266,7 @@ void VLASizeChecker::checkPreStmt(const DeclStmt *DS, CheckerContext &C) const {
     return;
 
   ASTContext &Ctx = C.getASTContext();
+  SValBuilder &SVB = C.getSValBuilder();
   ProgramStateRef State = C.getState();
   QualType TypeToCheck;
 
@@ -300,7 +301,7 @@ void VLASizeChecker::checkPreStmt(const DeclStmt *DS, CheckerContext &C) const {
   if (VD) {
     State =
         setDynamicExtent(State, State->getRegion(VD, C.getLocationContext()),
-                         ArraySize.castAs<NonLoc>());
+                         ArraySize.castAs<NonLoc>(), SVB);
   }
 
   // Remember our assumptions!

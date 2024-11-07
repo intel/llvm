@@ -326,8 +326,7 @@ void netbsd::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     // to generate executables. As Fortran runtime depends on the C runtime,
     // these dependencies need to be listed before the C runtime below (i.e.
     // AddRunTimeLibs).
-    if (D.IsFlangMode() &&
-        !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+    if (D.IsFlangMode()) {
       addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
       addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
       CmdArgs.push_back("-lm");

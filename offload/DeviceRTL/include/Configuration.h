@@ -15,7 +15,7 @@
 
 #include "Shared/Environment.h"
 
-#include "DeviceTypes.h"
+#include "Types.h"
 
 namespace ompx {
 namespace config {

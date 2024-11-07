@@ -474,15 +474,15 @@ public:
   ~FuncResultStack();
 
   struct FuncInfo {
-    FuncInfo(const Scope &s, SourceName at) : scope{s}, source{at} {}
+    explicit FuncInfo(const Scope &s) : scope{s} {}
     const Scope &scope;
-    SourceName source;
     // Parse tree of the type specification in the FUNCTION prefix
     const parser::DeclarationTypeSpec *parsedType{nullptr};
     // Name of the function RESULT in the FUNCTION suffix, if any
     const parser::Name *resultName{nullptr};
     // Result symbol
     Symbol *resultSymbol{nullptr};
+    std::optional<SourceName> source;
     bool inFunctionStmt{false}; // true between Pre/Post of FunctionStmt
   };
 
@@ -492,9 +492,7 @@ public:
   void CompleteTypeIfFunctionResult(Symbol &);
 
   FuncInfo *Top() { return stack_.empty() ? nullptr : &stack_.back(); }
-  FuncInfo &Push(const Scope &scope, SourceName at) {
-    return stack_.emplace_back(scope, at);
-  }
+  FuncInfo &Push(const Scope &scope) { return stack_.emplace_back(scope); }
   void Pop();
 
 private:
@@ -618,20 +616,6 @@ public:
             SayAlreadyDeclared(name, *derivedType);
           }
           return *derivedType;
-        }
-      }
-    } else if constexpr (std::is_same_v<ProcEntityDetails, D>) {
-      if (auto *d{symbol->detailsIf<GenericDetails>()}) {
-        if (!d->derivedType()) {
-          // procedure pointer with same name as a generic
-          auto *specific{d->specific()};
-          if (!specific) {
-            specific = &currScope().MakeSymbol(name, attrs, std::move(details));
-            d->set_specific(*specific);
-          } else {
-            SayAlreadyDeclared(name, *specific);
-          }
-          return *specific;
         }
       }
     }
@@ -3051,31 +3035,14 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
     return;
   }
   const Symbol &useUltimate{useSymbol.GetUltimate()};
-  const auto *useGeneric{useUltimate.detailsIf<GenericDetails>()};
   if (localSymbol->has<UnknownDetails>()) {
-    if (useGeneric &&
-        ((useGeneric->specific() &&
-             IsProcedurePointer(*useGeneric->specific())) ||
-            (useGeneric->derivedType() &&
-                useUltimate.name() != localSymbol->name()))) {
-      // We are use-associating a generic that either shadows a procedure
-      // pointer or shadows a derived type of the same name.
-      // Local references that might be made to the procedure pointer should
-      // use a UseDetails symbol for proper data addressing, and a derived
-      // type needs to be in scope with the renamed name.  So create an
-      // empty local generic now into which the use-associated generic may
-      // be copied.
-      localSymbol->set_details(GenericDetails{});
-      localSymbol->get<GenericDetails>().set_kind(useGeneric->kind());
-    } else { // just create UseDetails
-      localSymbol->set_details(UseDetails{localName, useSymbol});
-      localSymbol->attrs() =
-          useSymbol.attrs() & ~Attrs{Attr::PUBLIC, Attr::PRIVATE, Attr::SAVE};
-      localSymbol->implicitAttrs() =
-          localSymbol->attrs() & Attrs{Attr::ASYNCHRONOUS, Attr::VOLATILE};
-      localSymbol->flags() = useSymbol.flags();
-      return;
-    }
+    localSymbol->set_details(UseDetails{localName, useSymbol});
+    localSymbol->attrs() =
+        useSymbol.attrs() & ~Attrs{Attr::PUBLIC, Attr::PRIVATE, Attr::SAVE};
+    localSymbol->implicitAttrs() =
+        localSymbol->attrs() & Attrs{Attr::ASYNCHRONOUS, Attr::VOLATILE};
+    localSymbol->flags() = useSymbol.flags();
+    return;
   }
 
   Symbol &localUltimate{localSymbol->GetUltimate()};
@@ -3099,7 +3066,10 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
   //   - anything other than a derived type, non-generic procedure, or
   //     generic procedure being combined with something other than an
   //     prior USE association of itself
+
   auto *localGeneric{localUltimate.detailsIf<GenericDetails>()};
+  const auto *useGeneric{useUltimate.detailsIf<GenericDetails>()};
+
   Symbol *localDerivedType{nullptr};
   if (localUltimate.has<DerivedTypeDetails>()) {
     localDerivedType = &localUltimate;
@@ -3158,16 +3128,10 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
   if (!useDerivedType) {
     combinedDerivedType = localDerivedType;
   } else if (!localDerivedType) {
-    if (useDerivedType->name() == localName) {
-      combinedDerivedType = useDerivedType;
-    } else {
-      Symbol &combined{currScope().MakeSymbol(localName,
-          useDerivedType->attrs(), UseDetails{localName, *useDerivedType})};
-      combinedDerivedType = &combined;
-    }
+    combinedDerivedType = useDerivedType;
   } else {
-    const Scope *localScope{localDerivedType->GetUltimate().scope()};
-    const Scope *useScope{useDerivedType->GetUltimate().scope()};
+    const Scope *localScope{localDerivedType->scope()};
+    const Scope *useScope{useDerivedType->scope()};
     if (localScope && useScope && localScope->derivedTypeSpec() &&
         useScope->derivedTypeSpec() &&
         evaluate::AreSameDerivedType(
@@ -3297,15 +3261,6 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
   // At this point, there must be at least one generic interface.
   CHECK(localGeneric || (useGeneric && (localDerivedType || localProcedure)));
 
-  // Ensure that a use-associated specific procedure that is a procedure
-  // pointer is properly represented as a USE association of an entity.
-  if (IsProcedurePointer(useProcedure)) {
-    Symbol &combined{currScope().MakeSymbol(localSymbol->name(),
-        useProcedure->attrs(), UseDetails{localName, *useProcedure})};
-    combined.flags() |= useProcedure->flags();
-    combinedProcedure = &combined;
-  }
-
   if (localGeneric) {
     // Create a local copy of a previously use-associated generic so that
     // it can be locally extended without corrupting the original.
@@ -3352,12 +3307,7 @@ void ModuleVisitor::DoAddUse(SourceName location, SourceName localName,
     AddGenericUse(newUseGeneric, localName, useUltimate);
     newUseGeneric.AddUse(*localSymbol);
     if (combinedDerivedType) {
-      if (const auto *oldDT{newUseGeneric.derivedType()}) {
-        CHECK(&oldDT->GetUltimate() == &combinedDerivedType->GetUltimate());
-      } else {
-        newUseGeneric.set_derivedType(
-            *const_cast<Symbol *>(combinedDerivedType));
-      }
+      newUseGeneric.set_derivedType(*const_cast<Symbol *>(combinedDerivedType));
     }
     if (combinedProcedure) {
       newUseGeneric.set_specific(*const_cast<Symbol *>(combinedProcedure));
@@ -3684,36 +3634,36 @@ void InterfaceVisitor::CheckGenericProcedures(Symbol &generic) {
     }
     return;
   }
-  const Symbol *function{nullptr};
-  const Symbol *subroutine{nullptr};
+  const Symbol &firstSpecific{specifics.front()};
+  bool isFunction{firstSpecific.test(Symbol::Flag::Function)};
+  bool isBoth{false};
   for (const Symbol &specific : specifics) {
-    if (!function && specific.test(Symbol::Flag::Function)) {
-      function = &specific;
-    } else if (!subroutine && specific.test(Symbol::Flag::Subroutine)) {
-      subroutine = &specific;
-      if (details.derivedType() &&
-          context().ShouldWarn(
+    if (isFunction != specific.test(Symbol::Flag::Function)) { // C1514
+      if (context().ShouldWarn(
               common::LanguageFeature::SubroutineAndFunctionSpecifics)) {
-        SayDerivedType(generic.name(),
-            "Generic interface '%s' should only contain functions due to derived type with same name"_warn_en_US,
-            *details.derivedType()->GetUltimate().scope());
-      }
-    }
-    if (function && subroutine) {
-      if (context().ShouldWarn(common::LanguageFeature::
-                  SubroutineAndFunctionSpecifics)) { // C1514
         auto &msg{Say(generic.name(),
             "Generic interface '%s' has both a function and a subroutine"_warn_en_US)};
-        msg.Attach(function->name(), "Function declaration"_en_US);
-        msg.Attach(subroutine->name(), "Subroutine declaration"_en_US);
+        if (isFunction) {
+          msg.Attach(firstSpecific.name(), "Function declaration"_en_US);
+          msg.Attach(specific.name(), "Subroutine declaration"_en_US);
+        } else {
+          msg.Attach(firstSpecific.name(), "Subroutine declaration"_en_US);
+          msg.Attach(specific.name(), "Function declaration"_en_US);
+        }
       }
+      isFunction = false;
+      isBoth = true;
       break;
     }
   }
-  if (function && !subroutine) {
-    generic.set(Symbol::Flag::Function);
-  } else if (subroutine && !function) {
-    generic.set(Symbol::Flag::Subroutine);
+  if (!isFunction && details.derivedType()) {
+    SayDerivedType(generic.name(),
+        "Generic interface '%s' may only contain functions due to derived type"
+        " with same name"_err_en_US,
+        *details.derivedType()->GetUltimate().scope());
+  }
+  if (!isBoth) {
+    generic.set(isFunction ? Symbol::Flag::Function : Symbol::Flag::Subroutine);
   }
 }
 
@@ -3812,13 +3762,11 @@ bool SubprogramVisitor::Pre(const parser::PrefixSpec &x) {
   if (const auto *parsedType{std::get_if<parser::DeclarationTypeSpec>(&x.u)}) {
     if (FuncResultStack::FuncInfo * info{funcResultStack().Top()}) {
       if (info->parsedType) { // C1543
-        Say(currStmtSource().value_or(info->source),
+        Say(currStmtSource().value(),
             "FUNCTION prefix cannot specify the type more than once"_err_en_US);
       } else {
         info->parsedType = parsedType;
-        if (auto at{currStmtSource()}) {
-          info->source = *at;
-        }
+        info->source = currStmtSource();
       }
     } else {
       Say(currStmtSource().value(),
@@ -3993,9 +3941,6 @@ bool SubprogramVisitor::Pre(const parser::FunctionStmt &) {
   FuncResultStack::FuncInfo &info{DEREF(funcResultStack().Top())};
   CHECK(!info.inFunctionStmt);
   info.inFunctionStmt = true;
-  if (auto at{currStmtSource()}) {
-    info.source = *at;
-  }
   return BeginAttrs();
 }
 bool SubprogramVisitor::Pre(const parser::EntryStmt &) { return BeginAttrs(); }
@@ -4362,18 +4307,15 @@ bool SubprogramVisitor::BeginSubprogram(const parser::Name &name,
     Symbol::Flag subpFlag, bool hasModulePrefix,
     const parser::LanguageBindingSpec *bindingSpec,
     const ProgramTree::EntryStmtList *entryStmts) {
-  bool isValid{true};
   if (hasModulePrefix && !currScope().IsModule() &&
       !currScope().IsSubmodule()) { // C1547
     Say(name,
         "'%s' is a MODULE procedure which must be declared within a "
         "MODULE or SUBMODULE"_err_en_US);
-    // Don't return here because it can be useful to have the scope set for
-    // other semantic checks run before we print the errors
-    isValid = false;
+    return false;
   }
   Symbol *moduleInterface{nullptr};
-  if (isValid && hasModulePrefix && !inInterfaceBlock()) {
+  if (hasModulePrefix && !inInterfaceBlock()) {
     moduleInterface = FindSeparateModuleProcedureInterface(name);
     if (moduleInterface && &moduleInterface->owner() == &currScope()) {
       // Subprogram is MODULE FUNCTION or MODULE SUBROUTINE with an interface
@@ -4528,7 +4470,7 @@ Symbol &SubprogramVisitor::PushSubprogramScope(const parser::Name &name,
   symbol->set(subpFlag);
   PushScope(Scope::Kind::Subprogram, symbol);
   if (subpFlag == Symbol::Flag::Function) {
-    funcResultStack().Push(currScope(), name.source);
+    funcResultStack().Push(currScope());
   }
   if (inInterfaceBlock()) {
     auto &details{symbol->get<SubprogramDetails>()};
@@ -5132,22 +5074,7 @@ bool DeclarationVisitor::HasCycle(
 
 Symbol &DeclarationVisitor::DeclareProcEntity(
     const parser::Name &name, Attrs attrs, const Symbol *interface) {
-  Symbol *proc{nullptr};
-  if (auto *extant{FindInScope(name)}) {
-    if (auto *d{extant->detailsIf<GenericDetails>()}; d && !d->derivedType()) {
-      // procedure pointer with same name as a generic
-      if (auto *specific{d->specific()}) {
-        SayAlreadyDeclared(name, *specific);
-      } else {
-        // Create the ProcEntityDetails symbol in the scope as the "specific()"
-        // symbol behind an existing GenericDetails symbol of the same name.
-        proc = &Resolve(name,
-            currScope().MakeSymbol(name.source, attrs, ProcEntityDetails{}));
-        d->set_specific(*proc);
-      }
-    }
-  }
-  Symbol &symbol{proc ? *proc : DeclareEntity<ProcEntityDetails>(name, attrs)};
+  Symbol &symbol{DeclareEntity<ProcEntityDetails>(name, attrs)};
   if (auto *details{symbol.detailsIf<ProcEntityDetails>()}) {
     if (context().HasError(symbol)) {
     } else if (HasCycle(symbol, interface)) {
@@ -6787,7 +6714,9 @@ std::optional<DerivedTypeSpec> DeclarationVisitor::ResolveDerivedType(
   }
   if (CheckUseError(name)) {
     return std::nullopt;
-  } else if (symbol->GetUltimate().has<DerivedTypeDetails>()) {
+  }
+  symbol = &symbol->GetUltimate();
+  if (symbol->has<DerivedTypeDetails>()) {
     return DerivedTypeSpec{name.source, *symbol};
   } else {
     Say(name, "'%s' is not a derived type"_err_en_US);
@@ -7129,10 +7058,12 @@ bool ConstructVisitor::Pre(const parser::DataStmtValue &x) {
   auto &mutableData{const_cast<parser::DataStmtConstant &>(data)};
   if (auto *elem{parser::Unwrap<parser::ArrayElement>(mutableData)}) {
     if (const auto *name{std::get_if<parser::Name>(&elem->base.u)}) {
-      if (const Symbol * symbol{FindSymbol(*name)};
-          symbol && symbol->GetUltimate().has<DerivedTypeDetails>()) {
-        mutableData.u = elem->ConvertToStructureConstructor(
-            DerivedTypeSpec{name->source, *symbol});
+      if (const Symbol * symbol{FindSymbol(*name)}) {
+        const Symbol &ultimate{symbol->GetUltimate()};
+        if (ultimate.has<DerivedTypeDetails>()) {
+          mutableData.u = elem->ConvertToStructureConstructor(
+              DerivedTypeSpec{name->source, ultimate});
+        }
       }
     }
   }
@@ -8748,9 +8679,6 @@ void ResolveNamesVisitor::FinishSpecificationPart(
   CheckImports();
   for (auto &pair : currScope()) {
     auto &symbol{*pair.second};
-    if (inInterfaceBlock()) {
-      ConvertToObjectEntity(symbol);
-    }
     if (NeedsExplicitType(symbol)) {
       ApplyImplicitRules(symbol);
     }

@@ -71,20 +71,19 @@ public:
 
   struct __short {
     value_type __data_[__min_cap];
+#ifdef BITMASKS
 #ifdef SUBCLASS_PADDING
     struct : __padding<value_type> {
       unsigned char __size_;
     };
-#else // !SUBCLASS_PADDING
-
+#else
     unsigned char __padding[sizeof(value_type) - 1];
-#ifdef BITMASKS
     unsigned char __size_;
+#endif
 #else // !BITMASKS
     unsigned char __size_ : 7;
     unsigned char __is_long_ : 1;
-#endif // BITMASKS
-#endif // SUBCLASS_PADDING
+#endif
   };
 
 #ifdef BITMASKS
@@ -184,50 +183,31 @@ public:
     };
   };
 
-  __long &getLongRep() {
-#if COMPRESSED_PAIR_REV == 0
-    return __r_.first().__l;
-#elif COMPRESSED_PAIR_REV <= 2
-    return __rep_.__l;
-#endif
-  }
-
-  __short &getShortRep() {
-#if COMPRESSED_PAIR_REV == 0
-    return __r_.first().__s;
-#elif COMPRESSED_PAIR_REV <= 2
-    return __rep_.__s;
-#endif
-  }
-
-#if COMPRESSED_PAIR_REV == 0
   std::__lldb::__compressed_pair<__rep, allocator_type> __r_;
-#elif COMPRESSED_PAIR_REV <= 2
-  _LLDB_COMPRESSED_PAIR(__rep, __rep_, allocator_type, __alloc_);
-#endif
 
 public:
   template <size_t __N>
-  basic_string(unsigned char __size, const value_type (&__data)[__N]) {
+  basic_string(unsigned char __size, const value_type (&__data)[__N])
+      : __r_({}, {}) {
     static_assert(__N < __min_cap, "");
 #ifdef BITMASKS
-    getShortRep().__size_ = __size << __short_shift;
+    __r_.first().__s.__size_ = __size << __short_shift;
 #else
-    getShortRep().__size_ = __size;
-    getShortRep().__is_long_ = false;
+    __r_.first().__s.__size_ = __size;
+    __r_.first().__s.__is_long_ = false;
 #endif
     for (size_t __i = 0; __i < __N; ++__i)
-      getShortRep().__data_[__i] = __data[__i];
+      __r_.first().__s.__data_[__i] = __data[__i];
   }
-  basic_string(size_t __cap, size_type __size, pointer __data) {
+  basic_string(size_t __cap, size_type __size, pointer __data) : __r_({}, {}) {
 #ifdef BITMASKS
-    getLongRep().__cap_ = __cap | __long_mask;
+    __r_.first().__l.__cap_ = __cap | __long_mask;
 #else
-    getLongRep().__cap_ = __cap / __endian_factor;
-    getLongRep().__is_long_ = true;
+    __r_.first().__l.__cap_ = __cap / __endian_factor;
+    __r_.first().__l.__is_long_ = true;
 #endif
-    getLongRep().__size_ = __size;
-    getLongRep().__data_ = __data;
+    __r_.first().__l.__size_ = __size;
+    __r_.first().__l.__data_ = __data;
   }
 };
 

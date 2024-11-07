@@ -22,10 +22,10 @@ using namespace llvm;
 namespace {
 
 class X86MnemonicTablesEmitter {
-  const CodeGenTarget Target;
+  CodeGenTarget Target;
 
 public:
-  X86MnemonicTablesEmitter(const RecordKeeper &R) : Target(R) {}
+  X86MnemonicTablesEmitter(RecordKeeper &R) : Target(R) {}
 
   // Output X86 mnemonic tables.
   void run(raw_ostream &OS);
@@ -34,13 +34,15 @@ public:
 void X86MnemonicTablesEmitter::run(raw_ostream &OS) {
   emitSourceFileHeader("X86 Mnemonic tables", OS);
   OS << "namespace llvm {\nnamespace X86 {\n\n";
-  const Record *AsmWriter = Target.getAsmWriter();
+  Record *AsmWriter = Target.getAsmWriter();
   unsigned Variant = AsmWriter->getValueAsInt("Variant");
 
   // Hold all instructions grouped by mnemonic
   StringMap<SmallVector<const CodeGenInstruction *, 0>> MnemonicToCGInstrMap;
 
-  for (const CodeGenInstruction *I : Target.getInstructionsByEnumValue()) {
+  ArrayRef<const CodeGenInstruction *> NumberedInstructions =
+      Target.getInstructionsByEnumValue();
+  for (const CodeGenInstruction *I : NumberedInstructions) {
     const Record *Def = I->TheDef;
     // Filter non-X86 instructions.
     if (!Def->isSubClassOf("X86Inst"))

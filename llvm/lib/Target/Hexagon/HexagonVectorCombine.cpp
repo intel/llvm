@@ -142,8 +142,8 @@ public:
 
   Value *createHvxIntrinsic(IRBuilderBase &Builder, Intrinsic::ID IntID,
                             Type *RetTy, ArrayRef<Value *> Args,
-                            ArrayRef<Type *> ArgTys = {},
-                            ArrayRef<Value *> MDSources = {}) const;
+                            ArrayRef<Type *> ArgTys = std::nullopt,
+                            ArrayRef<Value *> MDSources = std::nullopt) const;
   SmallVector<Value *> splitVectorElements(IRBuilderBase &Builder, Value *Vec,
                                            unsigned ToWidth) const;
   Value *joinVectorElements(IRBuilderBase &Builder, ArrayRef<Value *> Values,
@@ -318,24 +318,26 @@ private:
 
   Value *createLoad(IRBuilderBase &Builder, Type *ValTy, Value *Ptr,
                     Value *Predicate, int Alignment, Value *Mask,
-                    Value *PassThru, ArrayRef<Value *> MDSources = {}) const;
+                    Value *PassThru,
+                    ArrayRef<Value *> MDSources = std::nullopt) const;
   Value *createSimpleLoad(IRBuilderBase &Builder, Type *ValTy, Value *Ptr,
                           int Alignment,
-                          ArrayRef<Value *> MDSources = {}) const;
+                          ArrayRef<Value *> MDSources = std::nullopt) const;
 
   Value *createStore(IRBuilderBase &Builder, Value *Val, Value *Ptr,
                      Value *Predicate, int Alignment, Value *Mask,
-                     ArrayRef<Value *> MDSources = {}) const;
+                     ArrayRef<Value *> MDSources = std ::nullopt) const;
   Value *createSimpleStore(IRBuilderBase &Builder, Value *Val, Value *Ptr,
                            int Alignment,
-                           ArrayRef<Value *> MDSources = {}) const;
+                           ArrayRef<Value *> MDSources = std ::nullopt) const;
 
   Value *createPredicatedLoad(IRBuilderBase &Builder, Type *ValTy, Value *Ptr,
                               Value *Predicate, int Alignment,
-                              ArrayRef<Value *> MDSources = {}) const;
-  Value *createPredicatedStore(IRBuilderBase &Builder, Value *Val, Value *Ptr,
-                               Value *Predicate, int Alignment,
-                               ArrayRef<Value *> MDSources = {}) const;
+                              ArrayRef<Value *> MDSources = std::nullopt) const;
+  Value *
+  createPredicatedStore(IRBuilderBase &Builder, Value *Val, Value *Ptr,
+                        Value *Predicate, int Alignment,
+                        ArrayRef<Value *> MDSources = std::nullopt) const;
 
   DepList getUpwardDeps(Instruction *In, Instruction *Base) const;
   bool createAddressGroups();
@@ -765,8 +767,8 @@ auto AlignVectors::createPredicatedLoad(IRBuilderBase &Builder, Type *ValTy,
   auto V6_vL32b_pred_ai = HVC.HST.getIntrinsicId(Hexagon::V6_vL32b_pred_ai);
   // FIXME: This may not put the offset from Ptr into the vmem offset.
   return HVC.createHvxIntrinsic(Builder, V6_vL32b_pred_ai, ValTy,
-                                {Predicate, Ptr, HVC.getConstInt(0)}, {},
-                                MDSources);
+                                {Predicate, Ptr, HVC.getConstInt(0)},
+                                std::nullopt, MDSources);
 }
 
 auto AlignVectors::createStore(IRBuilderBase &Builder, Value *Val, Value *Ptr,
@@ -836,8 +838,8 @@ auto AlignVectors::createPredicatedStore(IRBuilderBase &Builder, Value *Val,
   auto V6_vS32b_pred_ai = HVC.HST.getIntrinsicId(Hexagon::V6_vS32b_pred_ai);
   // FIXME: This may not put the offset from Ptr into the vmem offset.
   return HVC.createHvxIntrinsic(Builder, V6_vS32b_pred_ai, nullptr,
-                                {Predicate, Ptr, HVC.getConstInt(0), Val}, {},
-                                MDSources);
+                                {Predicate, Ptr, HVC.getConstInt(0), Val},
+                                std::nullopt, MDSources);
 }
 
 auto AlignVectors::getUpwardDeps(Instruction *In, Instruction *Base) const

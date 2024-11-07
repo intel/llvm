@@ -799,7 +799,6 @@ namespace cwg561 { // cwg561: yes
 }
 
 // cwg562: na
-// cwg563 is in cwg563.cpp
 
 namespace cwg564 { // cwg564: yes
   extern "C++" void f(int);

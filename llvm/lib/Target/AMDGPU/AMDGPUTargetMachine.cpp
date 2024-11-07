@@ -39,8 +39,6 @@
 #include "SILoadStoreOptimizer.h"
 #include "SIMachineFunctionInfo.h"
 #include "SIMachineScheduler.h"
-#include "SIPeepholeSDWA.h"
-#include "SIShrinkInstructions.h"
 #include "TargetInfo/AMDGPUTargetInfo.h"
 #include "Utils/AMDGPUBaseInfo.h"
 #include "llvm/Analysis/CGSCCPassManager.h"
@@ -53,7 +51,6 @@
 #include "llvm/CodeGen/GlobalISel/Localizer.h"
 #include "llvm/CodeGen/GlobalISel/RegBankSelect.h"
 #include "llvm/CodeGen/MIRParser/MIParser.h"
-#include "llvm/CodeGen/MachineLICM.h"
 #include "llvm/CodeGen/Passes.h"
 #include "llvm/CodeGen/RegAllocRegistry.h"
 #include "llvm/CodeGen/TargetPassConfig.h"
@@ -419,8 +416,8 @@ extern "C" LLVM_EXTERNAL_VISIBILITY void LLVMInitializeAMDGPUTarget() {
   initializeSIFixSGPRCopiesLegacyPass(*PR);
   initializeSIFixVGPRCopiesPass(*PR);
   initializeSIFoldOperandsLegacyPass(*PR);
-  initializeSIPeepholeSDWALegacyPass(*PR);
-  initializeSIShrinkInstructionsLegacyPass(*PR);
+  initializeSIPeepholeSDWAPass(*PR);
+  initializeSIShrinkInstructionsPass(*PR);
   initializeSIOptimizeExecMaskingPreRAPass(*PR);
   initializeSIOptimizeVGPRLiveRangePass(*PR);
   initializeSILoadStoreOptimizerLegacyPass(*PR);
@@ -1293,13 +1290,13 @@ void GCNPassConfig::addMachineSSAOptimization() {
     addPass(&GCNDPPCombineLegacyID);
   addPass(&SILoadStoreOptimizerLegacyID);
   if (isPassEnabled(EnableSDWAPeephole)) {
-    addPass(&SIPeepholeSDWALegacyID);
+    addPass(&SIPeepholeSDWAID);
     addPass(&EarlyMachineLICMID);
-    addPass(&MachineCSELegacyID);
+    addPass(&MachineCSEID);
     addPass(&SIFoldOperandsLegacyID);
   }
   addPass(&DeadMachineInstructionElimID);
-  addPass(createSIShrinkInstructionsLegacyPass());
+  addPass(createSIShrinkInstructionsPass());
 }
 
 bool GCNPassConfig::addILPOpts() {
@@ -1503,7 +1500,7 @@ void GCNPassConfig::addPostRegAlloc() {
 
 void GCNPassConfig::addPreSched2() {
   if (TM->getOptLevel() > CodeGenOptLevel::None)
-    addPass(createSIShrinkInstructionsLegacyPass());
+    addPass(createSIShrinkInstructionsPass());
   addPass(&SIPostRABundlerID);
 }
 
@@ -1620,7 +1617,7 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
     Error = SMDiagnostic(*PFS.SM, SMLoc(), Buffer.getBufferIdentifier(), 1,
                          RegName.Value.size(), SourceMgr::DK_Error,
                          "incorrect register class for field", RegName.Value,
-                         {}, {});
+                         std::nullopt, std::nullopt);
     SourceRange = RegName.SourceRange;
     return true;
   };
@@ -1756,9 +1753,6 @@ bool GCNTargetMachine::parseMachineFunctionInfo(
   MFI->Mode.FP64FP16Denormals.Output = YamlMFI.Mode.FP64FP16OutputDenormals
                                            ? DenormalMode::IEEE
                                            : DenormalMode::PreserveSign;
-
-  if (YamlMFI.HasInitWholeWave)
-    MFI->setInitWholeWave();
 
   return false;
 }

@@ -8,7 +8,6 @@ add_mlir_dialect_library(MLIRAsyncDialect
   MLIRAsyncOpsIncGen
 
   LINK_LIBS PUBLIC
-  MLIRCallInterfaces
   MLIRControlFlowInterfaces
   MLIRFunctionInterfaces
   MLIRDialect

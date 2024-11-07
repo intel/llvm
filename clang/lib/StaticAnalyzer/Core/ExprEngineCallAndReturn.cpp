@@ -817,7 +817,8 @@ ProgramStateRef ExprEngine::bindReturnValue(const CallEvent &Call,
       if (Size.isUndef())
         Size = UnknownVal();
 
-      State = setDynamicExtent(State, MR, Size.castAs<DefinedOrUnknownSVal>());
+      State = setDynamicExtent(State, MR, Size.castAs<DefinedOrUnknownSVal>(),
+                               svalBuilder);
     } else {
       R = svalBuilder.conjureSymbolVal(nullptr, E, LCtx, ResultTy, Count);
     }

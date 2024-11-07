@@ -25,8 +25,7 @@ CGCUDARuntime::~CGCUDARuntime() {}
 
 RValue CGCUDARuntime::EmitCUDAKernelCallExpr(CodeGenFunction &CGF,
                                              const CUDAKernelCallExpr *E,
-                                             ReturnValueSlot ReturnValue,
-                                             llvm::CallBase **CallOrInvoke) {
+                                             ReturnValueSlot ReturnValue) {
   llvm::BasicBlock *ConfigOKBlock = CGF.createBasicBlock("kcall.configok");
   llvm::BasicBlock *ContBlock = CGF.createBasicBlock("kcall.end");
 
@@ -36,7 +35,7 @@ RValue CGCUDARuntime::EmitCUDAKernelCallExpr(CodeGenFunction &CGF,
 
   eval.begin(CGF);
   CGF.EmitBlock(ConfigOKBlock);
-  CGF.EmitSimpleCallExpr(E, ReturnValue, CallOrInvoke);
+  CGF.EmitSimpleCallExpr(E, ReturnValue);
   CGF.EmitBranch(ContBlock);
 
   CGF.EmitBlock(ContBlock);

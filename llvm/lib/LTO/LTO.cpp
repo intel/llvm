@@ -32,12 +32,14 @@
 #include "llvm/IR/Metadata.h"
 #include "llvm/IR/RuntimeLibcalls.h"
 #include "llvm/LTO/LTOBackend.h"
+#include "llvm/LTO/SummaryBasedOptimizations.h"
 #include "llvm/Linker/IRMover.h"
 #include "llvm/MC/TargetRegistry.h"
 #include "llvm/Object/IRObjectFile.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
+#include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/Path.h"
 #include "llvm/Support/SHA1.h"
@@ -75,10 +77,6 @@ namespace llvm {
 cl::opt<bool> EnableLTOInternalization(
     "enable-lto-internalization", cl::init(true), cl::Hidden,
     cl::desc("Enable global value internalization in LTO"));
-
-static cl::opt<bool>
-    LTOKeepSymbolCopies("lto-keep-symbol-copies", cl::init(false), cl::Hidden,
-                        cl::desc("Keep copies of symbols in LTO indexing"));
 
 /// Indicate we are linking with an allocator that supports hot/cold operator
 /// new interfaces.
@@ -590,14 +588,8 @@ LTO::LTO(Config Conf, ThinBackend Backend,
     : Conf(std::move(Conf)),
       RegularLTO(ParallelCodeGenParallelismLevel, this->Conf),
       ThinLTO(std::move(Backend)),
-      GlobalResolutions(
-          std::make_unique<DenseMap<StringRef, GlobalResolution>>()),
-      LTOMode(LTOMode) {
-  if (Conf.KeepSymbolNameCopies || LTOKeepSymbolCopies) {
-    Alloc = std::make_unique<BumpPtrAllocator>();
-    GlobalResolutionSymbolSaver = std::make_unique<llvm::StringSaver>(*Alloc);
-  }
-}
+      GlobalResolutions(std::make_optional<StringMap<GlobalResolution>>()),
+      LTOMode(LTOMode) {}
 
 // Requires a destructor for MapVector<BitcodeModule>.
 LTO::~LTO() = default;
@@ -615,12 +607,7 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
     assert(ResI != ResE);
     SymbolResolution Res = *ResI++;
 
-    StringRef SymbolName = Sym.getName();
-    // Keep copies of symbols if the client of LTO says so.
-    if (GlobalResolutionSymbolSaver && !GlobalResolutions->contains(SymbolName))
-      SymbolName = GlobalResolutionSymbolSaver->save(SymbolName);
-
-    auto &GlobalRes = (*GlobalResolutions)[SymbolName];
+    auto &GlobalRes = (*GlobalResolutions)[Sym.getName()];
     GlobalRes.UnnamedAddr &= Sym.isUnnamedAddr();
     if (Res.Prevailing) {
       assert(!GlobalRes.Prevailing &&
@@ -672,14 +659,6 @@ void LTO::addModuleToGlobalRes(ArrayRef<InputFile::Symbol> Syms,
 
     GlobalRes.ExportDynamic |= Res.ExportDynamic;
   }
-}
-
-void LTO::releaseGlobalResolutionsMemory() {
-  // Release GlobalResolutions dense-map itself.
-  GlobalResolutions.reset();
-  // Release the string saver memory.
-  GlobalResolutionSymbolSaver.reset();
-  Alloc.reset();
 }
 
 static void writeToResolutionFile(raw_ostream &OS, InputFile *Input,
@@ -1079,8 +1058,8 @@ Error LTO::addThinLTO(BitcodeModule BM, ArrayRef<InputFile::Symbol> Syms,
     for (const std::string &Name : Conf.ThinLTOModulesToCompile) {
       if (BM.getModuleIdentifier().contains(Name)) {
         ThinLTO.ModulesToCompile->insert({BM.getModuleIdentifier(), BM});
-        LLVM_DEBUG(dbgs() << "[ThinLTO] Selecting " << BM.getModuleIdentifier()
-                          << " to compile\n");
+        llvm::errs() << "[ThinLTO] Selecting " << BM.getModuleIdentifier()
+                     << " to compile\n";
       }
     }
   }
@@ -1714,6 +1693,9 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
     if (!ModuleToDefinedGVSummaries.count(Mod.first))
       ModuleToDefinedGVSummaries.try_emplace(Mod.first);
 
+  // Synthesize entry counts for functions in the CombinedIndex.
+  computeSyntheticCounts(ThinLTO.CombinedIndex);
+
   FunctionImporter::ImportListsTy ImportLists(ThinLTO.ModuleMap.size());
   DenseMap<StringRef, FunctionImporter::ExportSetTy> ExportLists(
       ThinLTO.ModuleMap.size());
@@ -1793,7 +1775,7 @@ Error LTO::runThinLTO(AddStreamFn AddStream, FileCache Cache,
   // are no further accesses. We specifically want to do this before computing
   // cross module importing, which adds to peak memory via the computed import
   // and export lists.
-  releaseGlobalResolutionsMemory();
+  GlobalResolutions.reset();
 
   if (Conf.OptLevel > 0)
     ComputeCrossModuleImport(ThinLTO.CombinedIndex, ModuleToDefinedGVSummaries,

@@ -21,7 +21,6 @@
 #include "llvm/Support/raw_ostream.h"
 #include <optional>
 #include <string>
-#include <vector>
 
 namespace clang {
 class Decl;

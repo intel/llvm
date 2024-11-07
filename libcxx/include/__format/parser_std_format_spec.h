@@ -52,13 +52,13 @@ _LIBCPP_BEGIN_NAMESPACE_STD
 
 namespace __format_spec {
 
-[[noreturn]] _LIBCPP_HIDE_FROM_ABI inline void
+_LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI inline void
 __throw_invalid_option_format_error(const char* __id, const char* __option) {
   std::__throw_format_error(
       (string("The format specifier for ") + __id + " does not allow the " + __option + " option").c_str());
 }
 
-[[noreturn]] _LIBCPP_HIDE_FROM_ABI inline void __throw_invalid_type_format_error(const char* __id) {
+_LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI inline void __throw_invalid_type_format_error(const char* __id) {
   std::__throw_format_error(
       (string("The type option contains an invalid value for ") + __id + " formatting argument").c_str());
 }

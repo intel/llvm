@@ -125,6 +125,7 @@ IdentifierInfo *Sema::InventAbbreviatedTemplateParameterTypeName(
   else
     OS << ParamName->getName() << ":auto";
 
+  OS.flush();
   return &Context.Idents.get(OS.str());
 }
 
@@ -1254,7 +1255,6 @@ void Sema::ActOnEndOfTranslationUnit() {
   DiagnoseUnterminatedPragmaAlignPack();
   DiagnoseUnterminatedPragmaAttribute();
   OpenMP().DiagnoseUnterminatedOpenMPDeclareTarget();
-  DiagnosePrecisionLossInComplexDivision();
 
   // All delayed member exception specs should be checked or we end up accepting
   // incompatible declarations.
@@ -1631,7 +1631,7 @@ LangAS Sema::getDefaultCXXMethodAddrSpace() const {
   return LangAS::Default;
 }
 
-void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
+void Sema::EmitCurrentDiagnostic(unsigned DiagID) {
   // FIXME: It doesn't make sense to me that DiagID is an incoming argument here
   // and yet we also use the current diag ID on the DiagnosticsEngine. This has
   // been made more painfully obvious by the refactor that introduced this
@@ -1639,9 +1639,9 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
   // eliminated. If it truly cannot be (for example, there is some reentrancy
   // issue I am not seeing yet), then there should at least be a clarifying
   // comment somewhere.
-  Diagnostic DiagInfo(&Diags, DB);
   if (std::optional<TemplateDeductionInfo *> Info = isSFINAEContext()) {
-    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(DiagInfo.getID())) {
+    switch (DiagnosticIDs::getDiagnosticSFINAEResponse(
+              Diags.getCurrentDiagID())) {
     case DiagnosticIDs::SFINAE_Report:
       // We'll report the diagnostic below.
       break;
@@ -1654,11 +1654,13 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
+        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
+      Diags.Clear();
       return;
 
     case DiagnosticIDs::SFINAE_AccessControl: {
@@ -1669,7 +1671,7 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
       if (!AccessCheckingSFINAE && !getLangOpts().CPlusPlus11)
         break;
 
-      SourceLocation Loc = DiagInfo.getLocation();
+      SourceLocation Loc = Diags.getCurrentDiagLoc();
 
       // Suppress this diagnostic.
       ++NumSFINAEErrors;
@@ -1677,13 +1679,16 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information.
       if (*Info && !(*Info)->hasSFINAEDiagnostic()) {
+        Diagnostic DiagInfo(&Diags);
         (*Info)->addSFINAEDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       Diags.setLastDiagnosticIgnored(true);
+      Diags.Clear();
 
-      // Now produce a C++98 compatibility warning.
+      // Now the diagnostic state is clear, produce a C++98 compatibility
+      // warning.
       Diag(Loc, diag::warn_cxx98_compat_sfinae_access_control);
 
       // The last diagnostic which Sema produced was ignored. Suppress any
@@ -1696,12 +1701,14 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
       // Make a copy of this suppressed diagnostic and store it with the
       // template-deduction information;
       if (*Info) {
+        Diagnostic DiagInfo(&Diags);
         (*Info)->addSuppressedDiagnostic(DiagInfo.getLocation(),
                        PartialDiagnostic(DiagInfo, Context.getDiagAllocator()));
       }
 
       // Suppress this diagnostic.
       Diags.setLastDiagnosticIgnored(true);
+      Diags.Clear();
       return;
     }
   }
@@ -1711,14 +1718,14 @@ void Sema::EmitDiagnostic(unsigned DiagID, const DiagnosticBuilder &DB) {
   Context.setPrintingPolicy(getPrintingPolicy());
 
   // Emit the diagnostic.
-  if (!Diags.EmitDiagnostic(DB))
+  if (!Diags.EmitCurrentDiagnostic())
     return;
 
   // If this is not a note, and we're in a template instantiation
   // that is different from the last template instantiation where
   // we emitted an error, print a template instantiation
   // backtrace.
-  if (!Diags.getDiagnosticIDs()->isNote(DiagID))
+  if (!DiagnosticIDs::isBuiltinNote(DiagID))
     PrintContextStack();
 }
 
@@ -1732,7 +1739,7 @@ bool Sema::hasUncompilableErrorOccurred() const {
   if (Loc == DeviceDeferredDiags.end())
     return false;
   for (auto PDAt : Loc->second) {
-    if (Diags.getDiagnosticIDs()->isDefaultMappingAsError(
+    if (DiagnosticIDs::isDefaultMappingAsError(
             PDAt.getDiag().second.getDiagID()))
       return true;
   }
@@ -2989,7 +2996,6 @@ bool FunctionEffectDiff::shouldDiagnoseConversion(
       // matching is better.
       return true;
     }
-    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -3015,7 +3021,6 @@ bool FunctionEffectDiff::shouldDiagnoseRedeclaration(
       // All these forms of mismatches are diagnosed.
       return true;
     }
-    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:
     return false;
@@ -3047,7 +3052,6 @@ FunctionEffectDiff::shouldDiagnoseMethodOverride(
     case Kind::ConditionMismatch:
       return OverrideResult::Warn;
     }
-    llvm_unreachable("Unhandled FunctionEffectDiff::Kind enum");
 
   case FunctionEffect::Kind::Blocking:
   case FunctionEffect::Kind::Allocating:

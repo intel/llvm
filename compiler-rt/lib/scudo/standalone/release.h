@@ -88,27 +88,11 @@ public:
 
   void releasePageRangeToOS(uptr From, uptr To) {
     DCHECK_EQ((To - From) % getPageSizeCached(), 0U);
-    ReleasedPagesCount += (To - From) >> getPageSizeLogCached();
+    ReleasedPagesCount += (To - From) / getPageSizeCached();
   }
 
 private:
   uptr ReleasedPagesCount = 0;
-};
-
-template <uptr GroupSize, uptr NumGroups>
-class MemoryGroupFragmentationRecorder {
-public:
-  const uptr NumPagesInOneGroup = GroupSize / getPageSizeCached();
-
-  void releasePageRangeToOS(uptr From, uptr To) {
-    for (uptr I = From / getPageSizeCached(); I < To / getPageSizeCached(); ++I)
-      ++FreePagesCount[I / NumPagesInOneGroup];
-  }
-
-  uptr getNumFreePages(uptr GroupId) { return FreePagesCount[GroupId]; }
-
-private:
-  uptr FreePagesCount[NumGroups] = {};
 };
 
 // A buffer pool which holds a fixed number of static buffers of `uptr` elements
@@ -364,7 +348,7 @@ private:
 template <class ReleaseRecorderT> class FreePagesRangeTracker {
 public:
   explicit FreePagesRangeTracker(ReleaseRecorderT &Recorder)
-      : Recorder(Recorder) {}
+      : Recorder(Recorder), PageSizeLog(getLog2(getPageSizeCached())) {}
 
   void processNextPage(bool Released) {
     if (Released) {
@@ -388,7 +372,6 @@ public:
 private:
   void closeOpenedRange() {
     if (InRange) {
-      const uptr PageSizeLog = getPageSizeLogCached();
       Recorder.releasePageRangeToOS((CurrentRangeStatePage << PageSizeLog),
                                     (CurrentPage << PageSizeLog));
       InRange = false;
@@ -396,6 +379,7 @@ private:
   }
 
   ReleaseRecorderT &Recorder;
+  const uptr PageSizeLog;
   bool InRange = false;
   uptr CurrentPage = 0;
   uptr CurrentRangeStatePage = 0;
@@ -405,7 +389,7 @@ struct PageReleaseContext {
   PageReleaseContext(uptr BlockSize, uptr NumberOfRegions, uptr ReleaseSize,
                      uptr ReleaseOffset = 0)
       : BlockSize(BlockSize), NumberOfRegions(NumberOfRegions) {
-    const uptr PageSize = getPageSizeCached();
+    PageSize = getPageSizeCached();
     if (BlockSize <= PageSize) {
       if (PageSize % BlockSize == 0) {
         // Same number of chunks per page, no cross overs.
@@ -424,7 +408,7 @@ struct PageReleaseContext {
         SameBlockCountPerPage = false;
       }
     } else {
-      if ((BlockSize & (PageSize - 1)) == 0) {
+      if (BlockSize % PageSize == 0) {
         // One chunk covers multiple pages, no cross overs.
         FullPagesBlockCountMax = 1;
         SameBlockCountPerPage = true;
@@ -443,8 +427,8 @@ struct PageReleaseContext {
     if (NumberOfRegions != 1)
       DCHECK_EQ(ReleaseOffset, 0U);
 
-    const uptr PageSizeLog = getPageSizeLogCached();
-    PagesCount = roundUp(ReleaseSize, PageSize) >> PageSizeLog;
+    PagesCount = roundUp(ReleaseSize, PageSize) / PageSize;
+    PageSizeLog = getLog2(PageSize);
     ReleasePageOffset = ReleaseOffset >> PageSizeLog;
   }
 
@@ -467,7 +451,6 @@ struct PageReleaseContext {
   // RegionSize, it's not necessary to be aligned with page size.
   bool markRangeAsAllCounted(uptr From, uptr To, uptr Base,
                              const uptr RegionIndex, const uptr RegionSize) {
-    const uptr PageSize = getPageSizeCached();
     DCHECK_LT(From, To);
     DCHECK_LE(To, Base + RegionSize);
     DCHECK_EQ(From % PageSize, 0U);
@@ -561,7 +544,6 @@ struct PageReleaseContext {
     if (!ensurePageMapAllocated())
       return false;
 
-    const uptr PageSize = getPageSizeCached();
     if (MayContainLastBlockInRegion) {
       const uptr LastBlockInRegion =
           ((RegionSize / BlockSize) - 1U) * BlockSize;
@@ -623,19 +605,17 @@ struct PageReleaseContext {
     return true;
   }
 
-  uptr getPageIndex(uptr P) {
-    return (P >> getPageSizeLogCached()) - ReleasePageOffset;
-  }
-  uptr getReleaseOffset() {
-    return ReleasePageOffset << getPageSizeLogCached();
-  }
+  uptr getPageIndex(uptr P) { return (P >> PageSizeLog) - ReleasePageOffset; }
+  uptr getReleaseOffset() { return ReleasePageOffset << PageSizeLog; }
 
   uptr BlockSize;
   uptr NumberOfRegions;
   // For partial region marking, some pages in front are not needed to be
   // counted.
   uptr ReleasePageOffset;
+  uptr PageSize;
   uptr PagesCount;
+  uptr PageSizeLog;
   uptr FullPagesBlockCountMax;
   bool SameBlockCountPerPage;
   RegionPageMap PageMap;
@@ -648,7 +628,7 @@ template <class ReleaseRecorderT, typename SkipRegionT>
 NOINLINE void
 releaseFreeMemoryToOS(PageReleaseContext &Context,
                       ReleaseRecorderT &Recorder, SkipRegionT SkipRegion) {
-  const uptr PageSize = getPageSizeCached();
+  const uptr PageSize = Context.PageSize;
   const uptr BlockSize = Context.BlockSize;
   const uptr PagesCount = Context.PagesCount;
   const uptr NumberOfRegions = Context.NumberOfRegions;
@@ -691,7 +671,7 @@ releaseFreeMemoryToOS(PageReleaseContext &Context,
       uptr PrevPageBoundary = 0;
       uptr CurrentBoundary = 0;
       if (ReleasePageOffset > 0) {
-        PrevPageBoundary = ReleasePageOffset << getPageSizeLogCached();
+        PrevPageBoundary = ReleasePageOffset * PageSize;
         CurrentBoundary = roundUpSlow(PrevPageBoundary, BlockSize);
       }
       for (uptr J = 0; J < PagesCount; J++) {

@@ -59,14 +59,18 @@ def OpenMP_MapBoundsType : OpenMP_Type<"MapBounds", "map_bounds_ty"> {
 // Optionally, operation traits and extra class declarations might be attached
 // to clauses, which will be forwarded to all operations that include them.
 //
+// Each clause must specify whether it's required or optional. This impacts how
+// the `assemblyFormat` for operations including it get generated.
+//
 // An `OpenMP_Op` can inhibit the inheritance of `traits`, `arguments`,
-// `description` and `extraClassDeclaration` fields from any given
-// `OpenMP_Clause` by setting to 1 the corresponding "skip" template argument
-// bit. Additionally, the `skipAssemblyFormat` bit inhibits the inheritance of
-// fields used to populate `OpenMP_Op`'s `assemblyFormat` (i.e.
-// `reqAssemblyFormat` and `optAssemblyFormat`).
-class OpenMP_Clause<bit skipTraits, bit skipArguments, bit skipAssemblyFormat,
-                    bit skipDescription, bit skipExtraClassDeclaration> {
+// `assemblyFormat`, `description` and `extraClassDeclaration` fields from any
+// given `OpenMP_Clause` by setting to 1 the corresponding "skip" template
+// argument bit.
+class OpenMP_Clause<bit isRequired, bit skipTraits, bit skipArguments,
+                    bit skipAssemblyFormat, bit skipDescription,
+                    bit skipExtraClassDeclaration> {
+  bit required = isRequired;
+
   bit ignoreTraits = skipTraits;
   list<Trait> traits = [];
 
@@ -74,8 +78,7 @@ class OpenMP_Clause<bit skipTraits, bit skipArguments, bit skipAssemblyFormat,
   dag arguments;
 
   bit ignoreAsmFormat = skipAssemblyFormat;
-  string reqAssemblyFormat = "";
-  string optAssemblyFormat = "";
+  string assemblyFormat = "";
 
   bit ignoreDesc = skipDescription;
   string description = "";
@@ -95,16 +98,15 @@ class OpenMP_Clause<bit skipTraits, bit skipArguments, bit skipAssemblyFormat,
 //     are saved to a `clausesArgs` field to allow overriding the arguments
 //     field in the definition of the operation and still being able to include
 //     those inherited from clauses.
-//   - `assemblyFormat`: It is a concatenation of the `reqAssemblyFormat`
-//     followed by an `oilist()` containing the `optAssemblyFormat` of all
-//     clauses. The format string is completed with $region (if `singleRegion =
-//     true`) followed by `attr-dict`. This field remains uninitialized if no
-//     non-empty `{req,opt}AssemblyFormat` strings are inherited from clauses.
-//     The `clausesAssemblyFormat` field holds all the format string except for
-//     "$region attr-dict", and the `clauses{Req,Opt}AssemblyFormat` fields
-//     hold the required and optional parts of the format string separately, so
-//     that an operation overriding `assemblyFormat` can still benefit from the
-//     auto-generated format for its clauses.
+//   - `assemblyFormat`: It is a concatenation of the `assemblyFormat` of
+//     all required clauses followed by an `oilist()` containing the
+//     `assemblyFormat` of all optional clauses. The format string is completed
+//     with $region (if `singleRegion = true`) followed by attr-dict. This field
+//     remains uninitialized if no non-empty `assemblyFormat` strings are
+//     inherited from clauses. The `clausesAssemblyFormat` field holds
+//     all the format except for "$region attr-dict", so that an operation
+//     overriding `assemblyFormat` can still benefit from the auto-generated
+//     format for its clauses.
 //   - `description`: This is still required to be defined by the operation.
 //     However, a `clausesDescription` field is provided containing a
 //     concatenation of descriptions of all clauses, to be appended to the
@@ -151,29 +153,31 @@ class OpenMP_Op<string mnemonic, list<Trait> traits = [],
   // characters.
 
   // Required clauses.
+  defvar reqClauses = !filter(clause, clauses, clause.required);
   defvar asmFormatFilteredReqClauses =
-    !filter(clause, clauses, !not(!or(clause.ignoreAsmFormat,
-                                     !empty(clause.reqAssemblyFormat))));
+    !filter(clause, reqClauses, !not(!or(clause.ignoreAsmFormat,
+                                     !empty(clause.assemblyFormat))));
 
   defvar asmFormatReqClauseStrings =
-    !foreach(clause, asmFormatFilteredReqClauses, clause.reqAssemblyFormat);
+    !foreach(clause, asmFormatFilteredReqClauses, clause.assemblyFormat);
 
-  string clausesReqAssemblyFormat = !interleave(asmFormatReqClauseStrings, " ");
+  defvar asmFormatReqClauseBody = !interleave(asmFormatReqClauseStrings, " ");
 
   // Optional clauses.
+  defvar optClauses = !filter(clause, clauses, !not(clause.required));
   defvar asmFormatFilteredOptClauses =
-    !filter(clause, clauses, !not(!or(clause.ignoreAsmFormat,
-                                     !empty(clause.optAssemblyFormat))));
+    !filter(clause, optClauses, !not(!or(clause.ignoreAsmFormat,
+                                     !empty(clause.assemblyFormat))));
 
   defvar asmFormatOptClauseStrings =
-    !foreach(clause, asmFormatFilteredOptClauses, clause.optAssemblyFormat);
+    !foreach(clause, asmFormatFilteredOptClauses, clause.assemblyFormat);
 
-  string clausesOptAssemblyFormat = !interleave(asmFormatOptClauseStrings, "|");
+  defvar asmFormatOptClauseBody = !interleave(asmFormatOptClauseStrings, "|");
 
   string clausesAssemblyFormat =
-    !if(!empty(asmFormatReqClauseStrings), "", clausesReqAssemblyFormat # " ") #
+    !if(!empty(asmFormatReqClauseStrings), "", asmFormatReqClauseBody # " ") #
     !if(!empty(asmFormatOptClauseStrings), "",
-        "oilist(" # clausesOptAssemblyFormat # ")");
+        "oilist(" # asmFormatOptClauseBody # ")");
 
   // Put together descriptions of all clauses into a single string.
   defvar descFilteredClauses =

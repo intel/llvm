@@ -66,19 +66,13 @@ std::string getUnescapedName(const StringRef &Name) {
   return Output;
 }
 
-std::optional<StringRef> getCommonName(const StringRef Name, bool KeepSuffix,
-                                       ArrayRef<StringRef> Suffixes) {
-  for (StringRef Suffix : Suffixes) {
+std::optional<StringRef> getLTOCommonName(const StringRef Name) {
+  for (StringRef Suffix : {".__uniq.", ".lto_priv.", ".constprop.", ".llvm."}) {
     size_t LTOSuffixPos = Name.find(Suffix);
     if (LTOSuffixPos != StringRef::npos)
-      return Name.substr(0, LTOSuffixPos + (KeepSuffix ? Suffix.size() : 0));
+      return Name.substr(0, LTOSuffixPos + Suffix.size());
   }
   return std::nullopt;
-}
-
-std::optional<StringRef> getLTOCommonName(const StringRef Name) {
-  return getCommonName(Name, true,
-                       {".__uniq.", ".lto_priv.", ".constprop.", ".llvm."});
 }
 
 std::optional<uint8_t> readDWARFExpressionTargetReg(StringRef ExprBytes) {

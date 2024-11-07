@@ -501,5 +501,5 @@ void DebugNamesDWARFIndex::Dump(Stream &s) {
   std::string data;
   llvm::raw_string_ostream os(data);
   m_debug_names_up->dump(os);
-  s.PutCString(data);
+  s.PutCString(os.str());
 }

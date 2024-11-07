@@ -23,8 +23,7 @@ SBError::SBError() { LLDB_INSTRUMENT_VA(this); }
 SBError::SBError(const SBError &rhs) {
   LLDB_INSTRUMENT_VA(this, rhs);
 
-  if (rhs.m_opaque_up)
-    m_opaque_up = std::make_unique<Status>(rhs.m_opaque_up->Clone());
+  m_opaque_up = clone(rhs.m_opaque_up);
 }
 
 SBError::SBError(const char *message) {
@@ -33,8 +32,8 @@ SBError::SBError(const char *message) {
   SetErrorString(message);
 }
 
-SBError::SBError(lldb_private::Status &&status)
-    : m_opaque_up(new Status(std::move(status))) {
+SBError::SBError(const lldb_private::Status &status)
+    : m_opaque_up(new Status(status)) {
   LLDB_INSTRUMENT_VA(this, status);
 }
 
@@ -44,9 +43,7 @@ const SBError &SBError::operator=(const SBError &rhs) {
   LLDB_INSTRUMENT_VA(this, rhs);
 
   if (this != &rhs)
-    if (rhs.m_opaque_up)
-      m_opaque_up = std::make_unique<Status>(rhs.m_opaque_up->Clone());
-
+    m_opaque_up = clone(rhs.m_opaque_up);
   return *this;
 }
 
@@ -114,9 +111,9 @@ void SBError::SetError(uint32_t err, ErrorType type) {
   *m_opaque_up = Status(err, type);
 }
 
-void SBError::SetError(Status &&lldb_error) {
+void SBError::SetError(const Status &lldb_error) {
   CreateIfNeeded();
-  *m_opaque_up = std::move(lldb_error);
+  *m_opaque_up = lldb_error;
 }
 
 void SBError::SetErrorToErrno() {

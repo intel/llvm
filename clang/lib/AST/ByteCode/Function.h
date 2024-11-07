@@ -103,10 +103,10 @@ public:
   /// Returns the name of the function decl this code
   /// was generated for.
   const std::string getName() const {
-    if (!Source || !getDecl())
+    if (!Source)
       return "<<expr>>";
 
-    return getDecl()->getQualifiedNameAsString();
+    return Source.get<const FunctionDecl *>()->getQualifiedNameAsString();
   }
 
   /// Returns a parameter descriptor.

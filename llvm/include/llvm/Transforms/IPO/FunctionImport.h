@@ -17,7 +17,9 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/Support/Error.h"
 #include <functional>
+#include <map>
 #include <memory>
+#include <string>
 #include <system_error>
 #include <utility>
 
@@ -110,13 +112,6 @@ public:
   class ImportIDTable {
   public:
     using ImportIDTy = uint32_t;
-
-    ImportIDTable() = default;
-
-    // Something is wrong with the application logic if we need to make a copy
-    // of this and potentially make a fork.
-    ImportIDTable(const ImportIDTable &) = delete;
-    ImportIDTable &operator=(const ImportIDTable &) = delete;
 
     // Create a pair of import IDs [Def, Decl] for a given pair of FromModule
     // and GUID.
@@ -223,10 +218,9 @@ public:
     getImportType(StringRef FromModule, GlobalValue::GUID GUID) const;
 
     // Iterate over the import list.  The caller gets tuples of FromModule,
-    // GUID, and ImportKind instead of import IDs.  std::cref below prevents
-    // map_iterator from deep-copying IDs.
-    auto begin() const { return map_iterator(Imports.begin(), std::cref(IDs)); }
-    auto end() const { return map_iterator(Imports.end(), std::cref(IDs)); }
+    // GUID, and ImportKind instead of import IDs.
+    auto begin() const { return map_iterator(Imports.begin(), IDs); }
+    auto end() const { return map_iterator(Imports.end(), IDs); }
 
     friend class SortedImportList;
 
@@ -257,10 +251,9 @@ public:
     }
 
     // Iterate over the import list.  The caller gets tuples of FromModule,
-    // GUID, and ImportKind instead of import IDs.  std::cref below prevents
-    // map_iterator from deep-copying IDs.
-    auto begin() const { return map_iterator(Imports.begin(), std::cref(IDs)); }
-    auto end() const { return map_iterator(Imports.end(), std::cref(IDs)); }
+    // GUID, and ImportKind instead of import IDs.
+    auto begin() const { return map_iterator(Imports.begin(), IDs); }
+    auto end() const { return map_iterator(Imports.end(), IDs); }
 
   private:
     const ImportIDTable &IDs;
@@ -270,18 +263,11 @@ public:
   // A map from destination modules to lists of imports.
   class ImportListsTy {
   public:
-    ImportListsTy() : EmptyList(ImportIDs) {}
-    ImportListsTy(size_t Size) : EmptyList(ImportIDs), ListsImpl(Size) {}
+    ImportListsTy() = default;
+    ImportListsTy(size_t Size) : ListsImpl(Size) {}
 
     ImportMapTy &operator[](StringRef DestMod) {
       return ListsImpl.try_emplace(DestMod, ImportIDs).first->second;
-    }
-
-    const ImportMapTy &lookup(StringRef DestMod) const {
-      auto It = ListsImpl.find(DestMod);
-      if (It != ListsImpl.end())
-        return It->second;
-      return EmptyList;
     }
 
     size_t size() const { return ListsImpl.size(); }
@@ -291,7 +277,6 @@ public:
     const_iterator end() const { return ListsImpl.end(); }
 
   private:
-    ImportMapTy EmptyList;
     DenseMap<StringRef, ImportMapTy> ListsImpl;
     ImportIDTable ImportIDs;
   };

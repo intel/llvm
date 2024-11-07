@@ -697,9 +697,10 @@ void StructurizeCFG::findUndefBlocks(
   // undefined value for the PHI being reconstructed.
   while (!Stack.empty()) {
     BasicBlock *Current = Stack.pop_back_val();
-    if (!VisitedBlock.insert(Current).second)
+    if (VisitedBlock.contains(Current))
       continue;
 
+    VisitedBlock.insert(Current);
     if (FlowSet.contains(Current)) {
       for (auto P : predecessors(Current))
         Stack.push_back(P);

@@ -32,9 +32,9 @@ InsertPosition::InsertPosition(Instruction *InsertBefore)
 InsertPosition::InsertPosition(BasicBlock *InsertAtEnd)
     : InsertAt(InsertAtEnd ? InsertAtEnd->end() : InstListType::iterator()) {}
 
-Instruction::Instruction(Type *ty, unsigned it, AllocInfo AllocInfo,
+Instruction::Instruction(Type *ty, unsigned it, Use *Ops, unsigned NumOps,
                          InsertPosition InsertBefore)
-    : User(ty, Value::InstructionVal + it, AllocInfo) {
+    : User(ty, Value::InstructionVal + it, Ops, NumOps) {
   // When called with an iterator, there must be a block to insert into.
   if (InstListType::iterator InsertIt = InsertBefore; InsertIt.isValid()) {
     BasicBlock *BB = InsertIt.getNodeParent();

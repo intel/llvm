@@ -61,7 +61,7 @@ struct AmbiguousSwap {};
 template <class T>
 void swap(T&, T&) {}
 
-} // namespace MyNS2
+} // end namespace MyNS2
 
 int main(int, char**)
 {

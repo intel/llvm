@@ -142,13 +142,6 @@ public:
   SPIRVConstant *getLiteralAsConstant(unsigned Literal) override;
   unsigned getNumFunctions() const override { return FuncVec.size(); }
   unsigned getNumVariables() const override { return VariableVec.size(); }
-  std::vector<SPIRVValue *> getFunctionPointers() const override {
-    std::vector<SPIRVValue *> Res;
-    for (auto *C : ConstVec)
-      if (C->getOpCode() == OpConstantFunctionPointerINTEL)
-        Res.emplace_back(C);
-    return Res;
-  }
   SourceLanguage getSourceLanguage(SPIRVWord *Ver = nullptr) const override {
     if (Ver)
       *Ver = SrcLangVer;
@@ -323,7 +316,8 @@ public:
                                      SPIRVWord Capacity) override;
 
   // Instruction creation functions
-  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, std::vector<SPIRVWord>,
+  SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
+                                          std::vector<SPIRVValue *>,
                                           SPIRVBasicBlock *, bool) override;
   SPIRVInstruction *addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest,
                                       SPIRVValue *Src, SPIRVValue *NumElems,
@@ -1724,19 +1718,13 @@ SPIRVInstruction *SPIRVModuleImpl::addArbFloatPointIntelInst(
 }
 
 SPIRVInstruction *
-SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type,
-                                       std::vector<SPIRVWord> TheOps,
+SPIRVModuleImpl::addPtrAccessChainInst(SPIRVType *Type, SPIRVValue *Base,
+                                       std::vector<SPIRVValue *> Indices,
                                        SPIRVBasicBlock *BB, bool IsInBounds) {
-  if (Type->isTypeUntypedPointerKHR())
-    return addInstruction(SPIRVInstTemplateBase::create(
-                              IsInBounds ? OpUntypedInBoundsPtrAccessChainKHR
-                                         : OpUntypedPtrAccessChainKHR,
-                              Type, getId(), TheOps, BB, this),
-                          BB);
   return addInstruction(
-      SPIRVInstTemplateBase::create(IsInBounds ? OpInBoundsPtrAccessChain
-                                               : OpPtrAccessChain,
-                                    Type, getId(), TheOps, BB, this),
+      SPIRVInstTemplateBase::create(
+          IsInBounds ? OpInBoundsPtrAccessChain : OpPtrAccessChain, Type,
+          getId(), getVec(Base->getId(), Base->getIds(Indices)), BB, this),
       BB);
 }
 

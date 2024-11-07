@@ -16,7 +16,7 @@
 #include <sstream>
 #include <string>
 
-using namespace orc_rt;
+using namespace __orc_rt;
 
 TEST(ADTTest, SpanDefaultConstruction) {
   span<int> S;

@@ -575,23 +575,23 @@ struct StoreTileSliceConversion
   }
 };
 
-/// Lower `arm_sme.insert_tile_slice` to SME intrinsics.
-struct InsertTileSliceConversion
-    : public ConvertArmSMEOpToLLVMPattern<arm_sme::InsertTileSliceOp> {
+/// Lower `arm_sme.move_vector_to_tile_slice` to SME intrinsics.
+struct MoveVectorToTileSliceConversion
+    : public ConvertArmSMEOpToLLVMPattern<arm_sme::MoveVectorToTileSliceOp> {
   using ConvertArmSMEOpToLLVMPattern::ConvertArmSMEOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(arm_sme::InsertTileSliceOp insertTileSliceOp,
-                  arm_sme::InsertTileSliceOp::Adaptor adaptor,
+  matchAndRewrite(arm_sme::MoveVectorToTileSliceOp moveVectorToTileSliceOp,
+                  arm_sme::MoveVectorToTileSliceOp::Adaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = insertTileSliceOp.getLoc();
-    auto tileType = insertTileSliceOp.getTileType();
+    auto loc = moveVectorToTileSliceOp.getLoc();
+    auto tileType = moveVectorToTileSliceOp.getTileType();
 
-    auto tileId = getTileIdOrError(insertTileSliceOp);
+    auto tileId = getTileIdOrError(moveVectorToTileSliceOp);
     if (!tileId)
       return failure();
 
-    auto tileSlice = insertTileSliceOp.getTileSliceIndex();
+    auto tileSlice = moveVectorToTileSliceOp.getTileSliceIndex();
 
     // Cast tile slice from index to i32 for intrinsic.
     auto tileSliceI32 = rewriter.create<arith::IndexCastUIOp>(
@@ -606,40 +606,42 @@ struct InsertTileSliceConversion
     auto allActiveMask = rewriter.create<vector::SplatOp>(loc, predTy, one);
 
     // Create 'arm_sme.intr.write.(horiz|vert)' to write vector to tile slice.
-    switch (insertTileSliceOp.getLayout()) {
+    switch (moveVectorToTileSliceOp.getLayout()) {
     case arm_sme::TileSliceLayout::Horizontal:
       rewriter.create<arm_sme::aarch64_sme_write_horiz>(
           loc, tileId, tileSliceI32, allActiveMask,
-          insertTileSliceOp.getVector());
+          moveVectorToTileSliceOp.getVector());
       break;
     case arm_sme::TileSliceLayout::Vertical:
       rewriter.create<arm_sme::aarch64_sme_write_vert>(
           loc, tileId, tileSliceI32, allActiveMask,
-          insertTileSliceOp.getVector());
+          moveVectorToTileSliceOp.getVector());
       break;
     }
 
-    // Intrinsic has no result, replace 'arm_sme.insert_tile_slice' with
+    // Intrinsic has no result, replace 'arm_sme.move_vector_to_tile_slice' with
     // the input tile to preserve dataflow.
-    rewriter.replaceOp(insertTileSliceOp, insertTileSliceOp.getTile());
+    rewriter.replaceOp(moveVectorToTileSliceOp,
+                       moveVectorToTileSliceOp.getTile());
 
     return success();
   }
 };
 
-/// Lower `arm_sme.extract_tile_slice` to SME intrinsics.
-struct ExtractTileSliceConversion
-    : public ConvertArmSMEOpToLLVMPattern<arm_sme::ExtractTileSliceOp> {
+/// Lower `arm_sme.move_tile_slice_to_vector` to SME intrinsics.
+struct MoveTileSliceToVectorConversion
+    : public ConvertArmSMEOpToLLVMPattern<arm_sme::MoveTileSliceToVectorOp> {
   using ConvertArmSMEOpToLLVMPattern::ConvertArmSMEOpToLLVMPattern;
 
   LogicalResult
-  matchAndRewrite(arm_sme::ExtractTileSliceOp extractTileSlice, OpAdaptor,
+  matchAndRewrite(arm_sme::MoveTileSliceToVectorOp moveTileSliceToVector,
+                  OpAdaptor,
                   ConversionPatternRewriter &rewriter) const override {
-    auto loc = extractTileSlice.getLoc();
-    auto sliceType = extractTileSlice.getSliceType();
-    auto sliceIndex = extractTileSlice.getTileSliceIndex();
+    auto loc = moveTileSliceToVector.getLoc();
+    auto sliceType = moveTileSliceToVector.getSliceType();
+    auto sliceIndex = moveTileSliceToVector.getTileSliceIndex();
 
-    auto tileId = getTileIdOrError(extractTileSlice);
+    auto tileId = getTileIdOrError(moveTileSliceToVector);
     if (!tileId)
       return failure();
 
@@ -657,16 +659,16 @@ struct ExtractTileSliceConversion
         loc, rewriter.getI32Type(), sliceIndex);
 
     // Create 'arm_sme.intr.read.(horiz|vert)' to extract the tile slice.
-    switch (extractTileSlice.getLayout()) {
+    switch (moveTileSliceToVector.getLayout()) {
     case arm_sme::TileSliceLayout::Horizontal:
       rewriter.replaceOpWithNewOp<arm_sme::aarch64_sme_read_horiz>(
-          extractTileSlice, sliceType, zeroVector, allTruePredicate, tileId,
-          sliceIndexI32);
+          moveTileSliceToVector, sliceType, zeroVector, allTruePredicate,
+          tileId, sliceIndexI32);
       break;
     case arm_sme::TileSliceLayout::Vertical:
       rewriter.replaceOpWithNewOp<arm_sme::aarch64_sme_read_vert>(
-          extractTileSlice, sliceType, zeroVector, allTruePredicate, tileId,
-          sliceIndexI32);
+          moveTileSliceToVector, sliceType, zeroVector, allTruePredicate,
+          tileId, sliceIndexI32);
       break;
     }
 
@@ -983,8 +985,8 @@ void mlir::populateArmSMEToLLVMConversionPatterns(LLVMTypeConverter &converter,
   });
 
   addArmSMEConversionPatterns<
-      LoadTileSliceConversion, ExtractTileSliceConversion,
-      InsertTileSliceConversion, StoreTileSliceConversion,
+      LoadTileSliceConversion, MoveTileSliceToVectorConversion,
+      MoveVectorToTileSliceConversion, StoreTileSliceConversion,
       StreamingVLOpConversion, OuterProductOpConversion,
       OuterProductWideningOpConversion<arm_sme::FMopa2WayOp,
                                        arm_sme::aarch64_sme_mopa_wide>,

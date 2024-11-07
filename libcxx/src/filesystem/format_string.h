@@ -70,7 +70,7 @@ inline _LIBCPP_ATTRIBUTE_FORMAT(__printf__, 1, 2) string format_string(const cha
   return ret;
 }
 
-} // namespace detail
+} // end namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 

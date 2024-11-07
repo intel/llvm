@@ -1194,8 +1194,7 @@ public:
     return index - rhs.index;
   }
   bool operator==(const indexed_accessor_iterator &rhs) const {
-    assert(base == rhs.base && "incompatible iterators");
-    return index == rhs.index;
+    return base == rhs.base && index == rhs.index;
   }
   bool operator<(const indexed_accessor_iterator &rhs) const {
     assert(base == rhs.base && "incompatible iterators");

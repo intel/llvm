@@ -262,7 +262,7 @@ static bool isRIPRelative(const MCInst &MI, const MCInstrInfo &MCII) {
   if (MemoryOperand < 0)
     return false;
   unsigned BaseRegNum = MemoryOperand + CurOp + X86::AddrBaseReg;
-  MCRegister BaseReg = MI.getOperand(BaseRegNum).getReg();
+  unsigned BaseReg = MI.getOperand(BaseRegNum).getReg();
   return (BaseReg == X86::RIP);
 }
 
@@ -302,7 +302,7 @@ uint8_t X86AsmBackend::determinePaddingPrefix(const MCInst &Inst) const {
   if (MemoryOperand != -1)
     MemoryOperand += X86II::getOperandBias(Desc);
 
-  MCRegister SegmentReg;
+  unsigned SegmentReg = 0;
   if (MemoryOperand >= 0) {
     // Check for explicit segment override on memory operand.
     SegmentReg = Inst.getOperand(MemoryOperand + X86::AddrSegmentReg).getReg();
@@ -338,7 +338,7 @@ uint8_t X86AsmBackend::determinePaddingPrefix(const MCInst &Inst) const {
 
   if (MemoryOperand >= 0) {
     unsigned BaseRegNum = MemoryOperand + X86::AddrBaseReg;
-    MCRegister BaseReg = Inst.getOperand(BaseRegNum).getReg();
+    unsigned BaseReg = Inst.getOperand(BaseRegNum).getReg();
     if (BaseReg == X86::ESP || BaseReg == X86::EBP)
       return X86::SS_Encoding;
   }
@@ -1412,7 +1412,7 @@ public:
           // unwind encoding.
           return CU::UNWIND_MODE_DWARF;
 
-        MCRegister Reg = *MRI.getLLVMRegNum(Inst.getRegister(), true);
+        unsigned Reg = *MRI.getLLVMRegNum(Inst.getRegister(), true);
         SavedRegs[SavedRegIdx++] = Reg;
         StackAdjust += OffsetSize;
         MinAbsOffset = std::min(MinAbsOffset, std::abs(Inst.getOffset()));

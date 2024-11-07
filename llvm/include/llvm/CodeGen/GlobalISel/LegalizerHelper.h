@@ -398,7 +398,6 @@ public:
   LegalizeResult lowerSITOFP(MachineInstr &MI);
   LegalizeResult lowerFPTOUI(MachineInstr &MI);
   LegalizeResult lowerFPTOSI(MachineInstr &MI);
-  LegalizeResult lowerFPTOINT_SAT(MachineInstr &MI);
 
   LegalizeResult lowerFPTRUNC_F64_TO_F16(MachineInstr &MI);
   LegalizeResult lowerFPTRUNC(MachineInstr &MI);
@@ -438,7 +437,6 @@ public:
   LegalizeResult lowerAbsToAddXor(MachineInstr &MI);
   LegalizeResult lowerAbsToMaxNeg(MachineInstr &MI);
   LegalizeResult lowerAbsToCNeg(MachineInstr &MI);
-  LegalizeResult lowerFAbs(MachineInstr &MI);
   LegalizeResult lowerVectorReduction(MachineInstr &MI);
   LegalizeResult lowerMemcpyInline(MachineInstr &MI);
   LegalizeResult lowerMemCpyFamily(MachineInstr &MI, unsigned MaxLen = 0);

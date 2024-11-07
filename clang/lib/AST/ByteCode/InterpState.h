@@ -68,9 +68,6 @@ public:
   bool keepEvaluatingAfterFailure() const override {
     return Parent.keepEvaluatingAfterFailure();
   }
-  bool keepEvaluatingAfterSideEffect() const override {
-    return Parent.keepEvaluatingAfterSideEffect();
-  }
   bool checkingPotentialConstantExpression() const override {
     return Parent.checkingPotentialConstantExpression();
   }
@@ -86,7 +83,6 @@ public:
     Parent.setFoldFailureDiagnostic(Flag);
   }
   bool hasPriorDiagnostic() override { return Parent.hasPriorDiagnostic(); }
-  bool noteSideEffect() override { return Parent.noteSideEffect(); }
 
   /// Reports overflow and return true if evaluation should continue.
   bool reportOverflow(const Expr *E, const llvm::APSInt &Value);

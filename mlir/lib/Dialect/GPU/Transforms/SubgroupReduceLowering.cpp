@@ -50,6 +50,8 @@ struct BreakDownSubgroupReduce final : OpRewritePattern<gpu::SubgroupReduceOp> {
 
   LogicalResult matchAndRewrite(gpu::SubgroupReduceOp op,
                                 PatternRewriter &rewriter) const override {
+    std::optional<uint32_t> clusterSize = op.getClusterSize();
+
     auto vecTy = dyn_cast<VectorType>(op.getType());
     if (!vecTy || vecTy.getNumElements() < 2)
       return rewriter.notifyMatchFailure(op, "not a multi-element reduction");
@@ -95,8 +97,7 @@ struct BreakDownSubgroupReduce final : OpRewritePattern<gpu::SubgroupReduceOp> {
       }
 
       Value reduce = rewriter.create<gpu::SubgroupReduceOp>(
-          loc, extracted, op.getOp(), op.getUniform(), op.getClusterSize(),
-          op.getClusterStride());
+          loc, extracted, op.getOp(), op.getUniform(), clusterSize);
       if (numElems == 1) {
         res = rewriter.create<vector::InsertOp>(loc, reduce, res, startIdx);
         continue;
@@ -128,6 +129,8 @@ struct ScalarizeSingleElementReduce final
 
   LogicalResult matchAndRewrite(gpu::SubgroupReduceOp op,
                                 PatternRewriter &rewriter) const override {
+    std::optional<uint32_t> clusterSize = op.getClusterSize();
+
     auto vecTy = dyn_cast<VectorType>(op.getType());
     if (!vecTy || vecTy.getNumElements() != 1)
       return rewriter.notifyMatchFailure(op, "not a single-element reduction");
@@ -137,41 +140,11 @@ struct ScalarizeSingleElementReduce final
     Location loc = op.getLoc();
     Value extracted = rewriter.create<vector::ExtractOp>(loc, op.getValue(), 0);
     Value reduce = rewriter.create<gpu::SubgroupReduceOp>(
-        loc, extracted, op.getOp(), op.getUniform(), op.getClusterSize(),
-        op.getClusterStride());
+        loc, extracted, op.getOp(), op.getUniform(), clusterSize);
     rewriter.replaceOpWithNewOp<vector::BroadcastOp>(op, vecTy, reduce);
     return success();
   }
 };
-
-struct ClusterInfo {
-  unsigned clusterStride;
-  unsigned clusterSize;
-  unsigned subgroupSize;
-};
-
-static FailureOr<ClusterInfo>
-getAndValidateClusterInfo(gpu::SubgroupReduceOp op, unsigned subgroupSize) {
-  assert(llvm::isPowerOf2_32(subgroupSize));
-
-  std::optional<uint32_t> clusterSize = op.getClusterSize();
-  assert(!clusterSize ||
-         llvm::isPowerOf2_32(*clusterSize)); // Verifier should've caught this.
-  if (clusterSize && *clusterSize > subgroupSize)
-    return op.emitOpError()
-           << "cluster size " << *clusterSize
-           << " is greater than subgroup size " << subgroupSize;
-  unsigned effectiveClusterSize = clusterSize.value_or(subgroupSize);
-
-  auto clusterStride = op.getClusterStride();
-  assert(llvm::isPowerOf2_32(clusterStride)); // Verifier should've caught this.
-  if (clusterStride >= subgroupSize)
-    return op.emitOpError()
-           << "cluster stride " << clusterStride
-           << " is not less than subgroup size " << subgroupSize;
-
-  return ClusterInfo{clusterStride, effectiveClusterSize, subgroupSize};
-}
 
 /// Emits a subgroup reduction using a sequence of shuffles. Uses the `packFn`
 /// and `unpackFn` to convert to the native shuffle type and to the reduction
@@ -179,22 +152,22 @@ getAndValidateClusterInfo(gpu::SubgroupReduceOp op, unsigned subgroupSize) {
 /// build ops to cast the value to `i32` to perform shuffles, while `unpackFn`
 /// would cast it back to `f16` to perform arithmetic reduction on. Assumes that
 /// the subgroup is `subgroupSize` lanes wide and divides it into clusters of
-/// `clusterSize` lanes starting at lane 0 with a stride of `clusterStride` for
-/// lanes within a cluster, reducing all lanes in each cluster in parallel.
-Value createSubgroupShuffleReduction(OpBuilder &builder, Location loc,
-                                     Value input, gpu::AllReduceOperation mode,
-                                     const ClusterInfo &ci,
-                                     function_ref<Value(Value)> packFn,
-                                     function_ref<Value(Value)> unpackFn) {
+/// `clusterSize` lanes, reducing all lanes in each cluster in parallel.
+static Value createSubgroupShuffleReduction(
+    OpBuilder &builder, Location loc, Value input, gpu::AllReduceOperation mode,
+    unsigned clusterSize, unsigned subgroupSize,
+    function_ref<Value(Value)> packFn, function_ref<Value(Value)> unpackFn) {
+  assert(llvm::isPowerOf2_32(clusterSize));
+  assert(llvm::isPowerOf2_32(subgroupSize));
+  assert(clusterSize <= subgroupSize);
   // Lane value always stays in the original type. We use it to perform arith
   // reductions.
   Value laneVal = input;
   // Parallel reduction using butterfly shuffles.
-  for (unsigned i = ci.clusterStride; i < ci.clusterStride * ci.clusterSize;
-       i <<= 1) {
+  for (unsigned i = 1; i < clusterSize; i <<= 1) {
     Value shuffled = builder
                          .create<gpu::ShuffleOp>(loc, packFn(laneVal), i,
-                                                 /*width=*/ci.subgroupSize,
+                                                 /*width=*/subgroupSize,
                                                  /*mode=*/gpu::ShuffleMode::XOR)
                          .getShuffleResult();
     laneVal = vector::makeArithReduction(builder, loc,
@@ -210,24 +183,19 @@ Value createSubgroupShuffleReduction(OpBuilder &builder, Location loc,
 struct ScalarSubgroupReduceToShuffles final
     : OpRewritePattern<gpu::SubgroupReduceOp> {
   ScalarSubgroupReduceToShuffles(MLIRContext *ctx, unsigned subgroupSize,
-                                 unsigned shuffleBitwidth, bool matchClustered,
+                                 unsigned shuffleBitwidth,
                                  PatternBenefit benefit)
       : OpRewritePattern(ctx, benefit), subgroupSize(subgroupSize),
-        shuffleBitwidth(shuffleBitwidth), matchClustered(matchClustered) {}
+        shuffleBitwidth(shuffleBitwidth) {}
 
   LogicalResult matchAndRewrite(gpu::SubgroupReduceOp op,
                                 PatternRewriter &rewriter) const override {
-    if (op.getClusterSize().has_value() != matchClustered) {
-      return rewriter.notifyMatchFailure(
-          op, llvm::formatv("op is {0}clustered but pattern is configured to "
-                            "only match {1}clustered ops",
-                            matchClustered ? "non-" : "",
-                            matchClustered ? "" : "non-"));
-    }
-
-    auto ci = getAndValidateClusterInfo(op, subgroupSize);
-    if (failed(ci))
-      return failure();
+    std::optional<uint32_t> clusterSize = op.getClusterSize();
+    if (clusterSize && *clusterSize > subgroupSize)
+      return op.emitOpError()
+             << "cluster size " << *clusterSize
+             << " is greater than subgroup size " << subgroupSize;
+    unsigned effectiveClusterSize = clusterSize.value_or(subgroupSize);
 
     Type valueTy = op.getType();
     unsigned elemBitwidth =
@@ -241,8 +209,9 @@ struct ScalarSubgroupReduceToShuffles final
     if (elemBitwidth == shuffleBitwidth) {
       auto identityFn = [](Value v) { return v; };
       rewriter.replaceOp(op, createSubgroupShuffleReduction(
-                                 rewriter, loc, op.getValue(), op.getOp(), *ci,
-                                 identityFn, identityFn));
+                                 rewriter, loc, op.getValue(), op.getOp(),
+                                 effectiveClusterSize, subgroupSize, identityFn,
+                                 identityFn));
       return success();
     }
 
@@ -263,38 +232,33 @@ struct ScalarSubgroupReduceToShuffles final
 
     rewriter.replaceOp(
         op, createSubgroupShuffleReduction(rewriter, loc, op.getValue(),
-                                           op.getOp(), *ci, packFn, unpackFn));
+                                           op.getOp(), effectiveClusterSize,
+                                           subgroupSize, packFn, unpackFn));
     return success();
   }
 
 private:
   unsigned subgroupSize = 0;
   unsigned shuffleBitwidth = 0;
-  bool matchClustered = false;
 };
 
 /// Lowers vector gpu subgroup reductions to a series of shuffles.
 struct VectorSubgroupReduceToShuffles final
     : OpRewritePattern<gpu::SubgroupReduceOp> {
   VectorSubgroupReduceToShuffles(MLIRContext *ctx, unsigned subgroupSize,
-                                 unsigned shuffleBitwidth, bool matchClustered,
+                                 unsigned shuffleBitwidth,
                                  PatternBenefit benefit)
       : OpRewritePattern(ctx, benefit), subgroupSize(subgroupSize),
-        shuffleBitwidth(shuffleBitwidth), matchClustered(matchClustered) {}
+        shuffleBitwidth(shuffleBitwidth) {}
 
   LogicalResult matchAndRewrite(gpu::SubgroupReduceOp op,
                                 PatternRewriter &rewriter) const override {
-    if (op.getClusterSize().has_value() != matchClustered) {
-      return rewriter.notifyMatchFailure(
-          op, llvm::formatv("op is {0}clustered but pattern is configured to "
-                            "only match {1}clustered ops",
-                            matchClustered ? "non-" : "",
-                            matchClustered ? "" : "non-"));
-    }
-
-    auto ci = getAndValidateClusterInfo(op, subgroupSize);
-    if (failed(ci))
-      return failure();
+    std::optional<uint32_t> clusterSize = op.getClusterSize();
+    if (clusterSize && *clusterSize > subgroupSize)
+      return op.emitOpError()
+             << "cluster size " << *clusterSize
+             << " is greater than subgroup size " << subgroupSize;
+    unsigned effectiveClusterSize = clusterSize.value_or(subgroupSize);
 
     auto vecTy = dyn_cast<VectorType>(op.getType());
     if (!vecTy)
@@ -344,8 +308,9 @@ struct VectorSubgroupReduceToShuffles final
       return rewriter.create<vector::BitCastOp>(loc, extendedVecTy, asIntVec);
     };
 
-    Value res = createSubgroupShuffleReduction(
-        rewriter, loc, extendedInput, op.getOp(), *ci, packFn, unpackFn);
+    Value res = createSubgroupShuffleReduction(rewriter, loc, extendedInput,
+                                               op.getOp(), effectiveClusterSize,
+                                               subgroupSize, packFn, unpackFn);
 
     if (vecBitwidth < shuffleBitwidth) {
       res = rewriter.create<vector::ExtractStridedSliceOp>(
@@ -360,11 +325,10 @@ struct VectorSubgroupReduceToShuffles final
 private:
   unsigned subgroupSize = 0;
   unsigned shuffleBitwidth = 0;
-  bool matchClustered = false;
 };
 } // namespace
 
-void mlir::populateGpuBreakDownSubgroupReducePatterns(
+void mlir::populateGpuBreakDownSubgrupReducePatterns(
     RewritePatternSet &patterns, unsigned maxShuffleBitwidth,
     PatternBenefit benefit) {
   patterns.add<BreakDownSubgroupReduce>(patterns.getContext(),
@@ -372,18 +336,9 @@ void mlir::populateGpuBreakDownSubgroupReducePatterns(
   patterns.add<ScalarizeSingleElementReduce>(patterns.getContext(), benefit);
 }
 
-void mlir::populateGpuLowerSubgroupReduceToShufflePatterns(
+void mlir::populateGpuLowerSubgroupReduceToShufflePattenrs(
     RewritePatternSet &patterns, unsigned subgroupSize,
     unsigned shuffleBitwidth, PatternBenefit benefit) {
   patterns.add<ScalarSubgroupReduceToShuffles, VectorSubgroupReduceToShuffles>(
-      patterns.getContext(), subgroupSize, shuffleBitwidth,
-      /*matchClustered=*/false, benefit);
-}
-
-void mlir::populateGpuLowerClusteredSubgroupReduceToShufflePatterns(
-    RewritePatternSet &patterns, unsigned subgroupSize,
-    unsigned shuffleBitwidth, PatternBenefit benefit) {
-  patterns.add<ScalarSubgroupReduceToShuffles, VectorSubgroupReduceToShuffles>(
-      patterns.getContext(), subgroupSize, shuffleBitwidth,
-      /*matchClustered=*/true, benefit);
+      patterns.getContext(), subgroupSize, shuffleBitwidth, benefit);
 }

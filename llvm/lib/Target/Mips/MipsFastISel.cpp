@@ -881,52 +881,38 @@ bool MipsFastISel::selectLogicalOp(const Instruction *I) {
 }
 
 bool MipsFastISel::selectLoad(const Instruction *I) {
-  const LoadInst *LI = cast<LoadInst>(I);
-
   // Atomic loads need special handling.
-  if (LI->isAtomic())
+  if (cast<LoadInst>(I)->isAtomic())
     return false;
 
   // Verify we have a legal type before going any further.
   MVT VT;
-  if (!isLoadTypeLegal(LI->getType(), VT))
-    return false;
-
-  // Underaligned loads need special handling.
-  if (LI->getAlign() < VT.getFixedSizeInBits() / 8 &&
-      !Subtarget->systemSupportsUnalignedAccess())
+  if (!isLoadTypeLegal(I->getType(), VT))
     return false;
 
   // See if we can handle this address.
   Address Addr;
-  if (!computeAddress(LI->getOperand(0), Addr))
+  if (!computeAddress(I->getOperand(0), Addr))
     return false;
 
   unsigned ResultReg;
   if (!emitLoad(VT, ResultReg, Addr))
     return false;
-  updateValueMap(LI, ResultReg);
+  updateValueMap(I, ResultReg);
   return true;
 }
 
 bool MipsFastISel::selectStore(const Instruction *I) {
-  const StoreInst *SI = cast<StoreInst>(I);
-
-  Value *Op0 = SI->getOperand(0);
+  Value *Op0 = I->getOperand(0);
   unsigned SrcReg = 0;
 
   // Atomic stores need special handling.
-  if (SI->isAtomic())
+  if (cast<StoreInst>(I)->isAtomic())
     return false;
 
   // Verify we have a legal type before going any further.
   MVT VT;
-  if (!isLoadTypeLegal(SI->getOperand(0)->getType(), VT))
-    return false;
-
-  // Underaligned stores need special handling.
-  if (SI->getAlign() < VT.getFixedSizeInBits() / 8 &&
-      !Subtarget->systemSupportsUnalignedAccess())
+  if (!isLoadTypeLegal(I->getOperand(0)->getType(), VT))
     return false;
 
   // Get the value to be stored into a register.
@@ -936,7 +922,7 @@ bool MipsFastISel::selectStore(const Instruction *I) {
 
   // See if we can handle this address.
   Address Addr;
-  if (!computeAddress(SI->getOperand(1), Addr))
+  if (!computeAddress(I->getOperand(1), Addr))
     return false;
 
   if (!emitStore(VT, SrcReg, Addr))

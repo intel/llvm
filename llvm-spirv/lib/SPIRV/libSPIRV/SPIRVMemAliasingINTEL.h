@@ -51,8 +51,7 @@ public:
   SPIRVMemAliasingINTELGeneric(SPIRVModule *TheModule, SPIRVId TheId,
                                const std::vector<SPIRVId> &TheArgs)
       : SPIRVEntry(TheModule, TheArgs.size() + TheFixedWordCount, TheOpCode,
-                   TheId),
-        Args(TheArgs) {
+                   TheId), Args(TheArgs) {
     SPIRVMemAliasingINTELGeneric::validate();
     assert(TheModule && "Invalid module");
   }
@@ -91,5 +90,5 @@ _SPIRV_OP(AliasScopeDeclINTEL, 2)
 _SPIRV_OP(AliasScopeListDeclINTEL, 2)
 #undef _SPIRV_OP
 
-} // namespace SPIRV
+} // SPIRV
 #endif // SPIRV_LIBSPIRV_SPIRVMEMALIASINGINTEL_H

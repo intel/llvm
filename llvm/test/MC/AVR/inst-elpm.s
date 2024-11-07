@@ -1,7 +1,9 @@
 ; RUN: llvm-mc -triple avr -mattr=elpm,elpmx -show-encoding < %s | FileCheck %s
-; RUN: llvm-mc -filetype=obj -triple avr -mattr=elpm,elpmx < %s | llvm-objdump -dr --mattr=elpm,elpmx - | FileCheck -check-prefix=CHECK-INST %s
+; RUN: llvm-mc -filetype=obj -triple avr -mattr=elpm,elpmx < %s | llvm-objdump -d --mattr=elpm,elpmx - | FileCheck -check-prefix=CHECK-INST %s
+
 
 foo:
+
   elpm
 
   elpm r3,  Z

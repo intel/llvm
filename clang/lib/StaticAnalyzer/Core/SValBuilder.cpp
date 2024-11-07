@@ -210,24 +210,22 @@ DefinedOrUnknownSVal SValBuilder::conjureSymbolVal(const Stmt *stmt,
   return nonloc::SymbolVal(sym);
 }
 
-DefinedSVal SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
-                                                  const LocationContext *LCtx,
-                                                  unsigned VisitCount) {
+DefinedOrUnknownSVal
+SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
+                                      const LocationContext *LCtx,
+                                      unsigned VisitCount) {
   QualType T = E->getType();
   return getConjuredHeapSymbolVal(E, LCtx, T, VisitCount);
 }
 
-DefinedSVal SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
-                                                  const LocationContext *LCtx,
-                                                  QualType type,
-                                                  unsigned VisitCount) {
+DefinedOrUnknownSVal
+SValBuilder::getConjuredHeapSymbolVal(const Expr *E,
+                                      const LocationContext *LCtx,
+                                      QualType type, unsigned VisitCount) {
   assert(Loc::isLocType(type));
   assert(SymbolManager::canSymbolicate(type));
-  if (type->isNullPtrType()) {
-    // makeZeroVal() returns UnknownVal only in case of FP number, which
-    // is not the case.
-    return makeZeroVal(type).castAs<DefinedSVal>();
-  }
+  if (type->isNullPtrType())
+    return makeZeroVal(type);
 
   SymbolRef sym = SymMgr.conjureSymbol(E, LCtx, type, VisitCount);
   return loc::MemRegionVal(MemMgr.getSymbolicHeapRegion(sym));

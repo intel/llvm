@@ -207,7 +207,7 @@ int main(int argc, char **argv) {
     // any.
     if (auto existingOrErr =
             llvm::MemoryBuffer::getFile(outputFilename, /*IsText=*/true))
-      if (std::move(existingOrErr.get())->getBuffer() == outputStr)
+      if (std::move(existingOrErr.get())->getBuffer() == outputStrOS.str())
         shouldWriteOutput = false;
   }
 
@@ -219,7 +219,7 @@ int main(int argc, char **argv) {
       llvm::errs() << errorMessage << "\n";
       return 1;
     }
-    outputFile->os() << outputStr;
+    outputFile->os() << outputStrOS.str();
     outputFile->keep();
   }
 

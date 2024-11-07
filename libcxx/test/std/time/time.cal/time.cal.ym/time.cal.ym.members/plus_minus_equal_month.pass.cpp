@@ -14,9 +14,8 @@
 // constexpr year_month& operator-=(const months& d) noexcept;
 
 #include <chrono>
-#include <cassert>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 

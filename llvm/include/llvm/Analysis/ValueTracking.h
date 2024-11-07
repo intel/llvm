@@ -119,9 +119,6 @@ bool isKnownToBeAPowerOfTwo(const Value *V, const DataLayout &DL,
                             const DominatorTree *DT = nullptr,
                             bool UseInstrInfo = true);
 
-bool isKnownToBeAPowerOfTwo(const Value *V, bool OrZero, unsigned Depth,
-                            const SimplifyQuery &Q);
-
 bool isOnlyUsedInZeroComparison(const Instruction *CxtI);
 
 bool isOnlyUsedInZeroEqualityComparison(const Instruction *CxtI);

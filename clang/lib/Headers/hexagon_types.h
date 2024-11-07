@@ -1,11 +1,7 @@
-//===----------------------------------------------------------------------===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-
+/******************************************************************************/
+/*   (c) 2020 Qualcomm Innovation Center, Inc. All rights reserved.           */
+/*                                                                            */
+/******************************************************************************/
 #ifndef HEXAGON_TYPES_H
 #define HEXAGON_TYPES_H
 

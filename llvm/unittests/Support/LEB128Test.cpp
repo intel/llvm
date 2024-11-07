@@ -24,6 +24,7 @@ TEST(LEB128Test, EncodeSLEB128) {
     std::string Actual1; \
     raw_string_ostream Stream(Actual1); \
     encodeSLEB128(VALUE, Stream, PAD); \
+    Stream.flush(); \
     EXPECT_EQ(Expected, Actual1); \
     \
     /* encodeSLEB128(uint64_t, uint8_t *, unsigned) */ \
@@ -68,6 +69,7 @@ TEST(LEB128Test, EncodeULEB128) {
     std::string Actual1; \
     raw_string_ostream Stream(Actual1); \
     encodeULEB128(VALUE, Stream, PAD); \
+    Stream.flush(); \
     EXPECT_EQ(Expected, Actual1); \
     \
     /* encodeULEB128(uint64_t, uint8_t *, unsigned) */ \

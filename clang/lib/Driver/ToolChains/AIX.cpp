@@ -330,8 +330,7 @@ void aix::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     }
   }
 
-  if (D.IsFlangMode() &&
-      !Args.hasArg(options::OPT_nostdlib, options::OPT_nodefaultlibs)) {
+  if (D.IsFlangMode()) {
     addFortranRuntimeLibraryPath(ToolChain, Args, CmdArgs);
     addFortranRuntimeLibs(ToolChain, Args, CmdArgs);
     CmdArgs.push_back("-lm");

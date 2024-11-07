@@ -261,6 +261,8 @@ void IRExecutionUnit::GetRunnableInfo(Status &error, lldb::addr_t &func_addr,
 
     m_module->print(oss, nullptr);
 
+    oss.flush();
+
     LLDB_LOGF(log, "Module being sent to JIT: \n%s", s.c_str());
   }
 

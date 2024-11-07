@@ -223,6 +223,6 @@ static void BM_Compare_different_containers(benchmark::State& st, Container, Gen
   }
 }
 
-} // namespace ContainerBenchmarks
+} // end namespace ContainerBenchmarks
 
 #endif // BENCHMARK_CONTAINER_BENCHMARKS_H

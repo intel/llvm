@@ -842,10 +842,8 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
       FatBinStr = new llvm::GlobalVariable(
           CGM.getModule(), CGM.Int8Ty,
           /*isConstant=*/true, llvm::GlobalValue::ExternalLinkage, nullptr,
-          "__hip_fatbin" + (CGM.getLangOpts().CUID.empty()
-                                ? ""
-                                : "_" + CGM.getContext().getCUIDHash()),
-          nullptr, llvm::GlobalVariable::NotThreadLocal);
+          "__hip_fatbin_" + CGM.getContext().getCUIDHash(), nullptr,
+          llvm::GlobalVariable::NotThreadLocal);
       cast<llvm::GlobalVariable>(FatBinStr)->setSection(FatbinConstantName);
     }
 
@@ -898,8 +896,8 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
   // thread safety of the loaded program. Therefore we can assume sequential
   // execution of constructor functions here.
   if (IsHIP) {
-    auto Linkage = RelocatableDeviceCode ? llvm::GlobalValue::ExternalLinkage
-                                         : llvm::GlobalValue::InternalLinkage;
+    auto Linkage = CudaGpuBinary ? llvm::GlobalValue::InternalLinkage
+                                 : llvm::GlobalValue::ExternalLinkage;
     llvm::BasicBlock *IfBlock =
         llvm::BasicBlock::Create(Context, "if", ModuleCtorFunc);
     llvm::BasicBlock *ExitBlock =
@@ -909,11 +907,10 @@ llvm::Function *CGNVCUDARuntime::makeModuleCtorFunction() {
     GpuBinaryHandle = new llvm::GlobalVariable(
         TheModule, PtrTy, /*isConstant=*/false, Linkage,
         /*Initializer=*/
-        !RelocatableDeviceCode ? llvm::ConstantPointerNull::get(PtrTy)
-                               : nullptr,
-        "__hip_gpubin_handle" + (CGM.getLangOpts().CUID.empty()
-                                     ? ""
-                                     : "_" + CGM.getContext().getCUIDHash()));
+        CudaGpuBinary ? llvm::ConstantPointerNull::get(PtrTy) : nullptr,
+        CudaGpuBinary
+            ? "__hip_gpubin_handle"
+            : "__hip_gpubin_handle_" + CGM.getContext().getCUIDHash());
     GpuBinaryHandle->setAlignment(CGM.getPointerAlign().getAsAlign());
     // Prevent the weak symbol in different shared libraries being merged.
     if (Linkage != llvm::GlobalValue::InternalLinkage)

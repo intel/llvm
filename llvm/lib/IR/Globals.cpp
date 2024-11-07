@@ -442,8 +442,9 @@ GlobalVariable::GlobalVariable(Type *Ty, bool constant, LinkageTypes Link,
                                Constant *InitVal, const Twine &Name,
                                ThreadLocalMode TLMode, unsigned AddressSpace,
                                bool isExternallyInitialized)
-    : GlobalObject(Ty, Value::GlobalVariableVal, AllocMarker, Link, Name,
-                   AddressSpace),
+    : GlobalObject(Ty, Value::GlobalVariableVal,
+                   OperandTraits<GlobalVariable>::op_begin(this),
+                   InitVal != nullptr, Link, Name, AddressSpace),
       isConstantGlobal(constant),
       isExternallyInitializedConstant(isExternallyInitialized) {
   assert(!Ty->isFunctionTy() && PointerType::isValidElementType(Ty) &&
@@ -453,8 +454,6 @@ GlobalVariable::GlobalVariable(Type *Ty, bool constant, LinkageTypes Link,
     assert(InitVal->getType() == Ty &&
            "Initializer should be the same type as the GlobalVariable!");
     Op<0>() = InitVal;
-  } else {
-    setGlobalVariableNumOperands(0);
   }
 }
 
@@ -541,7 +540,7 @@ void GlobalVariable::setCodeModel(CodeModel::Model CM) {
 GlobalAlias::GlobalAlias(Type *Ty, unsigned AddressSpace, LinkageTypes Link,
                          const Twine &Name, Constant *Aliasee,
                          Module *ParentModule)
-    : GlobalValue(Ty, Value::GlobalAliasVal, AllocMarker, Link, Name,
+    : GlobalValue(Ty, Value::GlobalAliasVal, &Op<0>(), 1, Link, Name,
                   AddressSpace) {
   setAliasee(Aliasee);
   if (ParentModule)
@@ -598,7 +597,7 @@ const GlobalObject *GlobalAlias::getAliaseeObject() const {
 GlobalIFunc::GlobalIFunc(Type *Ty, unsigned AddressSpace, LinkageTypes Link,
                          const Twine &Name, Constant *Resolver,
                          Module *ParentModule)
-    : GlobalObject(Ty, Value::GlobalIFuncVal, AllocMarker, Link, Name,
+    : GlobalObject(Ty, Value::GlobalIFuncVal, &Op<0>(), 1, Link, Name,
                    AddressSpace) {
   setResolver(Resolver);
   if (ParentModule)

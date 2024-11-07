@@ -1,8 +1,7 @@
 // RUN: %clangxx_tsan %s -o %t && %run %t 2>&1 | FileCheck %s
 // UNSUPPORTED: darwin
 
-// FIXME: Very flaky on PPC with COMPILER_RT_DEBUG.
-// https://github.com/google/sanitizers/issues/1792
+// It's very flaky on PPC with COMPILER_RT_DEBUG.
 // UNSUPPORTED: !compiler-rt-optimized && ppc
 
 // Test case for https://github.com/google/sanitizers/issues/1540

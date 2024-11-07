@@ -64,8 +64,7 @@ void Generator::parseCommandArgs(llvm::StringRef ArgStr, ArgVector &Args) {
   }
 }
 
-void Generator::generate(llvm::raw_ostream &OS,
-                         const llvm::RecordKeeper &Records) {
+void Generator::generate(llvm::raw_ostream &OS, llvm::RecordKeeper &Records) {
   auto DefFileBuffer = llvm::MemoryBuffer::getFile(HeaderDefFile);
   if (!DefFileBuffer) {
     llvm::errs() << "Unable to open " << HeaderDefFile << ".\n";
@@ -127,7 +126,7 @@ void Generator::generate(llvm::raw_ostream &OS,
 }
 
 void Generator::generateDecls(llvm::raw_ostream &OS,
-                              const llvm::RecordKeeper &Records) {
+                              llvm::RecordKeeper &Records) {
 
   OS << "//===-- C standard declarations for " << StdHeader << " "
      << std::string(80 - (42 + StdHeader.size()), '-') << "===//\n"
@@ -162,15 +161,15 @@ void Generator::generateDecls(llvm::raw_ostream &OS,
     if (G.FunctionSpecMap.find(Name) == G.FunctionSpecMap.end())
       continue;
 
-    const llvm::Record *FunctionSpec = G.FunctionSpecMap[Name];
-    const llvm::Record *RetValSpec = FunctionSpec->getValueAsDef("Return");
-    const llvm::Record *ReturnType = RetValSpec->getValueAsDef("ReturnType");
+    llvm::Record *FunctionSpec = G.FunctionSpecMap[Name];
+    llvm::Record *RetValSpec = FunctionSpec->getValueAsDef("Return");
+    llvm::Record *ReturnType = RetValSpec->getValueAsDef("ReturnType");
 
     OS << G.getTypeAsString(ReturnType) << " " << Name << "(";
 
     auto ArgsList = FunctionSpec->getValueAsListOfDefs("Args");
     for (size_t i = 0; i < ArgsList.size(); ++i) {
-      const llvm::Record *ArgType = ArgsList[i]->getValueAsDef("ArgType");
+      llvm::Record *ArgType = ArgsList[i]->getValueAsDef("ArgType");
       OS << G.getTypeAsString(ArgType);
       if (i < ArgsList.size() - 1)
         OS << ", ";
@@ -183,7 +182,7 @@ void Generator::generateDecls(llvm::raw_ostream &OS,
   for (const auto &Name : EntrypointNameList) {
     if (G.ObjectSpecMap.find(Name) == G.ObjectSpecMap.end())
       continue;
-    const llvm::Record *ObjectSpec = G.ObjectSpecMap[Name];
+    llvm::Record *ObjectSpec = G.ObjectSpecMap[Name];
     auto Type = ObjectSpec->getValueAsString("Type");
     OS << "extern " << Type << " " << Name << " __LIBC_ATTRS;\n";
   }

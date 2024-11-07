@@ -13,9 +13,8 @@
 //                  UniformRandomNumberGenerator& g);
 
 #include <algorithm>
-#include <cassert>
 #include <random>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 

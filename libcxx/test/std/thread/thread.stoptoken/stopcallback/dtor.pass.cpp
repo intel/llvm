@@ -17,7 +17,6 @@
 #include <cassert>
 #include <chrono>
 #include <functional>
-#include <memory>
 #include <optional>
 #include <stop_token>
 #include <type_traits>

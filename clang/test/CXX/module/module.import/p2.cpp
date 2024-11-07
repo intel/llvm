@@ -30,8 +30,9 @@ void test() {
 }
 
 //--- UseInPartA.cppm
+// expected-no-diagnostics
 export module M:partA;
-import :impl; // expected-warning {{importing an implementation partition unit in a module interface is not recommended.}}
+import :impl;
 void test() {
   A a;
 }

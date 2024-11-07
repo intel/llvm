@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <cstdint>
 #include <vector>
 
 #include "min_allocator.h"

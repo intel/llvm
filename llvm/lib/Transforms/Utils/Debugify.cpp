@@ -115,7 +115,8 @@ bool llvm::applyDebugifyMetadata(
       continue;
 
     bool InsertedDbgVal = false;
-    auto SPType = DIB.createSubroutineType(DIB.getOrCreateTypeArray({}));
+    auto SPType =
+        DIB.createSubroutineType(DIB.getOrCreateTypeArray(std::nullopt));
     DISubprogram::DISPFlags SPFlags =
         DISubprogram::SPFlagDefinition | DISubprogram::SPFlagOptimized;
     if (F.hasPrivateLinkage() || F.hasInternalLinkage())

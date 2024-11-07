@@ -390,7 +390,8 @@ lldb::ExpressionResults FunctionCaller::ExecuteFunction(
       LLDB_LOGF(log,
                 "== [FunctionCaller::ExecuteFunction] Execution of \"%s\" "
                 "completed abnormally: %s ==",
-                m_name.c_str(), ExpressionResultAsCString(return_value));
+                m_name.c_str(),
+                Process::ExecutionResultAsCString(return_value));
     } else {
       LLDB_LOGF(log,
                 "== [FunctionCaller::ExecuteFunction] Execution of \"%s\" "

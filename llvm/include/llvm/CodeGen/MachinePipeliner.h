@@ -197,8 +197,7 @@ class SwingSchedulerDAG : public ScheduleDAGInstrs {
     }
 
     void createAdjacencyStructure(SwingSchedulerDAG *DAG);
-    bool circuit(int V, int S, NodeSetType &NodeSets,
-                 const SwingSchedulerDAG *DAG, bool HasBackedge = false);
+    bool circuit(int V, int S, NodeSetType &NodeSets, bool HasBackedge = false);
     void unblock(int U);
   };
 
@@ -261,8 +260,7 @@ public:
     return Source->getInstr()->isPHI() || Dep.getSUnit()->getInstr()->isPHI();
   }
 
-  bool isLoopCarriedDep(SUnit *Source, const SDep &Dep,
-                        bool isSucc = true) const;
+  bool isLoopCarriedDep(SUnit *Source, const SDep &Dep, bool isSucc = true);
 
   /// The distance function, which indicates that operation V of iteration I
   /// depends on operations U of iteration I-distance.
@@ -313,7 +311,7 @@ private:
   void computeNodeOrder(NodeSetType &NodeSets);
   void checkValidNodeOrder(const NodeSetType &Circuits) const;
   bool schedulePipeline(SMSchedule &Schedule);
-  bool computeDelta(MachineInstr &MI, unsigned &Delta) const;
+  bool computeDelta(MachineInstr &MI, unsigned &Delta);
   MachineInstr *findDefInLoop(Register Reg);
   bool canUseLastOffsetValue(MachineInstr *MI, unsigned &BasePos,
                              unsigned &OffsetPos, unsigned &NewBase,
@@ -341,56 +339,24 @@ public:
   using iterator = SetVector<SUnit *>::const_iterator;
 
   NodeSet() = default;
-  NodeSet(iterator S, iterator E, const SwingSchedulerDAG *DAG)
-      : Nodes(S, E), HasRecurrence(true) {
-    // Calculate the latency of this node set.
-    // Example to demonstrate the calculation:
-    // Given: N0 -> N1 -> N2 -> N0
-    // Edges:
-    // (N0 -> N1, 3)
-    // (N0 -> N1, 5)
-    // (N1 -> N2, 2)
-    // (N2 -> N0, 1)
-    // The total latency which is a lower bound of the recurrence MII is the
-    // longest path from N0 back to N0 given only the edges of this node set.
-    // In this example, the latency is: 5 + 2 + 1 = 8.
-    //
-    // Hold a map from each SUnit in the circle to the maximum distance from the
-    // source node by only considering the nodes.
-    DenseMap<SUnit *, unsigned> SUnitToDistance;
-    for (auto *Node : Nodes)
-      SUnitToDistance[Node] = 0;
-
-    for (unsigned I = 1, E = Nodes.size(); I <= E; ++I) {
-      SUnit *U = Nodes[I - 1];
-      SUnit *V = Nodes[I % Nodes.size()];
-      for (const SDep &Succ : U->Succs) {
-        SUnit *SuccSUnit = Succ.getSUnit();
-        if (V != SuccSUnit)
+  NodeSet(iterator S, iterator E) : Nodes(S, E), HasRecurrence(true) {
+    Latency = 0;
+    for (const SUnit *Node : Nodes) {
+      DenseMap<SUnit *, unsigned> SuccSUnitLatency;
+      for (const SDep &Succ : Node->Succs) {
+        auto SuccSUnit = Succ.getSUnit();
+        if (!Nodes.count(SuccSUnit))
           continue;
-        if (SUnitToDistance[U] + Succ.getLatency() > SUnitToDistance[V]) {
-          SUnitToDistance[V] = SUnitToDistance[U] + Succ.getLatency();
-        }
+        unsigned CurLatency = Succ.getLatency();
+        unsigned MaxLatency = 0;
+        if (SuccSUnitLatency.count(SuccSUnit))
+          MaxLatency = SuccSUnitLatency[SuccSUnit];
+        if (CurLatency > MaxLatency)
+          SuccSUnitLatency[SuccSUnit] = CurLatency;
       }
+      for (auto SUnitLatency : SuccSUnitLatency)
+        Latency += SUnitLatency.second;
     }
-    // Handle a back-edge in loop carried dependencies
-    SUnit *FirstNode = Nodes[0];
-    SUnit *LastNode = Nodes[Nodes.size() - 1];
-
-    for (auto &PI : LastNode->Preds) {
-      // If we have an order dep that is potentially loop carried then a
-      // back-edge exists between the last node and the first node that isn't
-      // modeled in the DAG. Handle it manually by adding 1 to the distance of
-      // the last node.
-      if (PI.getSUnit() != FirstNode || PI.getKind() != SDep::Order ||
-          !DAG->isLoopCarriedDep(LastNode, PI, false))
-        continue;
-      SUnitToDistance[FirstNode] =
-          std::max(SUnitToDistance[FirstNode], SUnitToDistance[LastNode] + 1);
-    }
-
-    // The latency is the distance from the source node to itself.
-    Latency = SUnitToDistance[Nodes.front()];
   }
 
   bool insert(SUnit *SU) { return Nodes.insert(SU); }

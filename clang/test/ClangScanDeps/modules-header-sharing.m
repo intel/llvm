@@ -77,7 +77,8 @@ framework module B_Private { umbrella header "B_Private.h" }
 // CHECK:                  "-fmodule-map-file=[[PREFIX]]/frameworks/A.framework/Modules/module.modulemap",
 // CHECK:                  "-fmodule-name=A",
 // CHECK:                ],
-// CHECK:                "file-deps": [
+// CHECK-NEXT:           "executable": "clang",
+// CHECK-NEXT:           "file-deps": [
 // CHECK-NEXT:             "[[PREFIX]]/tu.m",
 // CHECK-NEXT:             "[[PREFIX]]/shared/H.h"
 // CHECK-NEXT:           ],

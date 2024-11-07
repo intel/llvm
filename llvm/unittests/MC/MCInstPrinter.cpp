@@ -53,6 +53,7 @@ public:
     std::string Buffer;
     raw_string_ostream OS(Buffer);
     OS << Printer->formatHex(i);
+    OS.flush();
     return Buffer;
   }
 };

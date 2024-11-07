@@ -4424,9 +4424,8 @@ Sema::BuildMemInitializer(Decl *ConstructorD,
           for (auto const &Base : ClassDecl->bases()) {
             auto BaseTemplate =
                 Base.getType()->getAs<TemplateSpecializationType>();
-            if (BaseTemplate &&
-                Context.hasSameTemplateName(BaseTemplate->getTemplateName(), TN,
-                                            /*IgnoreDeduced=*/true)) {
+            if (BaseTemplate && Context.hasSameTemplateName(
+                                    BaseTemplate->getTemplateName(), TN)) {
               Diag(IdLoc, diag::ext_unqualified_base_class)
                   << SourceRange(IdLoc, Init->getSourceRange().getEnd());
               BaseType = Base.getType();
@@ -8479,12 +8478,10 @@ private:
     if (Obj.first.isInvalid() || Obj.second.isInvalid())
       return {ExprError(), ExprError()};
     CXXCastPath Path = {Base};
-    const auto CastToBase = [&](Expr *E) {
-      QualType ToType = S.Context.getQualifiedType(
-          Base->getType(), E->getType().getQualifiers());
-      return S.ImpCastExprToType(E, ToType, CK_DerivedToBase, VK_LValue, &Path);
-    };
-    return {CastToBase(Obj.first.get()), CastToBase(Obj.second.get())};
+    return {S.ImpCastExprToType(Obj.first.get(), Base->getType(),
+                                CK_DerivedToBase, VK_LValue, &Path),
+            S.ImpCastExprToType(Obj.second.get(), Base->getType(),
+                                CK_DerivedToBase, VK_LValue, &Path)};
   }
 
   ExprPair getField(FieldDecl *Field) {
@@ -11488,8 +11485,8 @@ bool Sema::CheckDeductionGuideDeclarator(Declarator &D, QualType &R,
     if (auto RetTST =
             TSI->getTypeLoc().getAsAdjusted<TemplateSpecializationTypeLoc>()) {
       TemplateName SpecifiedName = RetTST.getTypePtr()->getTemplateName();
-      bool TemplateMatches = Context.hasSameTemplateName(
-          SpecifiedName, GuidedTemplate, /*IgnoreDeduced=*/true);
+      bool TemplateMatches =
+          Context.hasSameTemplateName(SpecifiedName, GuidedTemplate);
 
       const QualifiedTemplateName *Qualifiers =
           SpecifiedName.getAsQualifiedTemplateName();
@@ -15359,7 +15356,6 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
   std::optional<DerefBuilder> DerefThis;
   std::optional<RefBuilder> ExplicitObject;
   QualType ObjectType;
-  bool IsArrow = false;
   if (MoveAssignOperator->isExplicitObjectMemberFunction()) {
     ObjectType = MoveAssignOperator->getParamDecl(0)->getType();
     if (ObjectType->isReferenceType())
@@ -15369,7 +15365,6 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
     ObjectType = getCurrentThisType();
     This.emplace();
     DerefThis.emplace(*This);
-    IsArrow = !getLangOpts().HLSL;
   }
   ExprBuilder &ObjectParameter =
       ExplicitObject ? *ExplicitObject : static_cast<ExprBuilder &>(*This);
@@ -15471,7 +15466,8 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
     MemberLookup.resolveKind();
     MemberBuilder From(MoveOther, OtherRefType,
                        /*IsArrow=*/false, MemberLookup);
-    MemberBuilder To(ObjectParameter, ObjectType, IsArrow, MemberLookup);
+    MemberBuilder To(ObjectParameter, ObjectType, /*IsArrow=*/!ExplicitObject,
+                     MemberLookup);
 
     assert(!From.build(*this, Loc)->isLValue() && // could be xvalue or prvalue
         "Member reference with rvalue base must be rvalue except for reference "
@@ -15494,9 +15490,8 @@ void Sema::DefineImplicitMoveAssignment(SourceLocation CurrentLocation,
   if (!Invalid) {
     // Add a "return *this;"
     Expr *ThisExpr =
-        (ExplicitObject  ? static_cast<ExprBuilder &>(*ExplicitObject)
-         : LangOpts.HLSL ? static_cast<ExprBuilder &>(*This)
-                         : static_cast<ExprBuilder &>(*DerefThis))
+        (ExplicitObject ? static_cast<ExprBuilder &>(*ExplicitObject)
+                        : static_cast<ExprBuilder &>(*DerefThis))
             .build(*this, Loc);
 
     StmtResult Return = BuildReturnStmt(Loc, ThisExpr);

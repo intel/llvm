@@ -21,13 +21,13 @@
 using namespace llvm;
 using namespace lldb_private;
 
-static void emitPropertyEnum(const Record *Property, raw_ostream &OS) {
+static void emitPropertyEnum(Record *Property, raw_ostream &OS) {
   OS << "eProperty";
   OS << Property->getName();
   OS << ",\n";
 }
 
-static void emitProperty(const Record *Property, raw_ostream &OS) {
+static void emitProperty(Record *Property, raw_ostream &OS) {
   OS << "  {";
 
   // Emit the property name.
@@ -126,7 +126,7 @@ static void emitProperty(const Record *Property, raw_ostream &OS) {
 
 /// Emits all property initializers to the raw_ostream.
 static void emityProperties(std::string PropertyName,
-                            const std::vector<const Record *> &PropertyRecords,
+                            std::vector<Record *> PropertyRecords,
                             raw_ostream &OS) {
   // Generate the macro that the user needs to define before including the
   // *.inc file.
@@ -139,7 +139,7 @@ static void emityProperties(std::string PropertyName,
   OS << "#ifdef " << NeededMacro << "\n";
   OS << "static constexpr PropertyDefinition g_" << PropertyName
      << "_properties[] = {\n";
-  for (const Record *R : PropertyRecords)
+  for (Record *R : PropertyRecords)
     emitProperty(R, OS);
   OS << "};\n";
   // We undefine the macro for the user like Clang's include files are doing it.
@@ -149,7 +149,7 @@ static void emityProperties(std::string PropertyName,
 
 /// Emits all property initializers to the raw_ostream.
 static void emitPropertyEnum(std::string PropertyName,
-                             ArrayRef<const Record *> PropertyRecords,
+                             std::vector<Record *> PropertyRecords,
                              raw_ostream &OS) {
   // Generate the macro that the user needs to define before including the
   // *.inc file.
@@ -160,29 +160,28 @@ static void emitPropertyEnum(std::string PropertyName,
   // user to define the macro for the options that are needed.
   OS << "// Property enum cases for " << PropertyName << "\n";
   OS << "#ifdef " << NeededMacro << "\n";
-  for (const Record *R : PropertyRecords)
+  for (Record *R : PropertyRecords)
     emitPropertyEnum(R, OS);
   // We undefine the macro for the user like Clang's include files are doing it.
   OS << "#undef " << NeededMacro << "\n";
   OS << "#endif // " << PropertyName << " Property\n\n";
 }
 
-void lldb_private::EmitPropertyDefs(const RecordKeeper &Records,
-                                    raw_ostream &OS) {
+void lldb_private::EmitPropertyDefs(RecordKeeper &Records, raw_ostream &OS) {
   emitSourceFileHeader("Property definitions for LLDB.", OS, Records);
 
-  ArrayRef<const Record *> Properties =
+  std::vector<Record *> Properties =
       Records.getAllDerivedDefinitions("Property");
   for (auto &PropertyRecordPair : getRecordsByName(Properties, "Definition")) {
     emityProperties(PropertyRecordPair.first, PropertyRecordPair.second, OS);
   }
 }
 
-void lldb_private::EmitPropertyEnumDefs(const RecordKeeper &Records,
+void lldb_private::EmitPropertyEnumDefs(RecordKeeper &Records,
                                         raw_ostream &OS) {
   emitSourceFileHeader("Property definition enum for LLDB.", OS, Records);
 
-  ArrayRef<const Record *> Properties =
+  std::vector<Record *> Properties =
       Records.getAllDerivedDefinitions("Property");
   for (auto &PropertyRecordPair : getRecordsByName(Properties, "Definition")) {
     emitPropertyEnum(PropertyRecordPair.first, PropertyRecordPair.second, OS);

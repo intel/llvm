@@ -36,7 +36,7 @@ DefinedOrUnknownSVal getDynamicElementCount(ProgramStateRef State,
 
 /// Set the dynamic extent \p Extent of the region \p MR.
 ProgramStateRef setDynamicExtent(ProgramStateRef State, const MemRegion *MR,
-                                 DefinedOrUnknownSVal Extent);
+                                 DefinedOrUnknownSVal Extent, SValBuilder &SVB);
 
 /// Get the dynamic extent for a symbolic value that represents a buffer. If
 /// there is an offsetting to the underlying buffer we consider that too.

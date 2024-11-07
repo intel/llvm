@@ -147,26 +147,6 @@ public:
   }
 };
 
-class PyIntegerSetAttribute
-    : public PyConcreteAttribute<PyIntegerSetAttribute> {
-public:
-  static constexpr IsAFunctionTy isaFunction = mlirAttributeIsAIntegerSet;
-  static constexpr const char *pyClassName = "IntegerSetAttr";
-  using PyConcreteAttribute::PyConcreteAttribute;
-  static constexpr GetTypeIDFunctionTy getTypeIdFunction =
-      mlirIntegerSetAttrGetTypeID;
-
-  static void bindDerived(ClassTy &c) {
-    c.def_static(
-        "get",
-        [](PyIntegerSet &integerSet) {
-          MlirAttribute attr = mlirIntegerSetAttrGet(integerSet.get());
-          return PyIntegerSetAttribute(integerSet.getContext(), attr);
-        },
-        py::arg("integer_set"), "Gets an attribute wrapping an IntegerSet.");
-  }
-};
-
 template <typename T>
 static T pyTryCast(py::handle object) {
   try {
@@ -708,7 +688,7 @@ public:
         llvm::raw_string_ostream os(message);
         os << "Expected a static ShapedType for the shaped_type parameter: "
            << py::repr(py::cast(*explicitType));
-        throw py::value_error(message);
+        throw py::value_error(os.str());
       }
       shapedType = *explicitType;
     } else {
@@ -732,7 +712,7 @@ public:
         os << "All attributes must be of the same type and match "
            << "the type parameter: expected=" << py::repr(py::cast(shapedType))
            << ", but got=" << py::repr(py::cast(attrType));
-        throw py::value_error(message);
+        throw py::value_error(os.str());
       }
     }
 
@@ -1446,6 +1426,7 @@ py::object symbolRefOrFlatSymbolRefAttributeCaster(PyAttribute &pyAttribute) {
 
 void mlir::python::populateIRAttributes(py::module &m) {
   PyAffineMapAttribute::bind(m);
+
   PyDenseBoolArrayAttribute::bind(m);
   PyDenseBoolArrayAttribute::PyDenseArrayIterator::bind(m);
   PyDenseI8ArrayAttribute::bind(m);
@@ -1485,7 +1466,6 @@ void mlir::python::populateIRAttributes(py::module &m) {
   PyOpaqueAttribute::bind(m);
   PyFloatAttribute::bind(m);
   PyIntegerAttribute::bind(m);
-  PyIntegerSetAttribute::bind(m);
   PyStringAttribute::bind(m);
   PyTypeAttribute::bind(m);
   PyGlobals::get().registerTypeCaster(

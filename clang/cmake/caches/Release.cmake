@@ -55,22 +55,14 @@ set(STAGE1_RUNTIMES "compiler-rt")
 
 if (LLVM_RELEASE_ENABLE_PGO)
   list(APPEND STAGE1_PROJECTS "lld")
-  set(tmp_targets
+  set(CLANG_BOOTSTRAP_TARGETS
     generate-profdata
     stage2-package
     stage2-clang
-    stage2
     stage2-install
     stage2-check-all
     stage2-check-llvm
-    stage2-check-clang)
-
-  foreach(X IN LISTS LLVM_RELEASE_FINAL_STAGE_TARGETS)
-    list(APPEND tmp_targets "stage2-${X}")
-  endforeach()
-  list(REMOVE_DUPLICATES tmp_targets)
-
-  set(CLANG_BOOTSTRAP_TARGETS "${tmp_targets}" CACHE STRING "")
+    stage2-check-clang CACHE STRING "")
 
   # Configuration for stage2-instrumented
   set(BOOTSTRAP_CLANG_ENABLE_BOOTSTRAP ON CACHE STRING "")

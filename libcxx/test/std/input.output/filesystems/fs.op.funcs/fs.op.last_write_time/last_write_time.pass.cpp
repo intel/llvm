@@ -300,7 +300,7 @@ static const bool SupportsMinRoundTrip = [] {
   return min_val == file_time_type::min();
 }();
 
-} // namespace
+} // end namespace
 
 static bool CompareTime(TimeSpec t1, TimeSpec t2) {
   if (SupportsNanosecondRoundTrip)

@@ -87,10 +87,6 @@ namespace llvm {
     COMI,
     UCOMI,
 
-    // X86 compare with Intrinsics similar to COMI.
-    COMX,
-    UCOMX,
-
     /// X86 bit-test instructions.
     BT,
 
@@ -678,18 +674,6 @@ namespace llvm {
     CVTTP2UI,
     CVTTP2SI_SAE,
     CVTTP2UI_SAE,
-
-    // Saturation enabled Vector float/double to signed/unsigned
-    // integer with truncation.
-    CVTTP2SIS,
-    CVTTP2UIS,
-    CVTTP2SIS_SAE,
-    CVTTP2UIS_SAE,
-    // Masked versions of above. Used for v2f64 to v4i32.
-    // SRC, PASSTHRU, MASK
-    MCVTTP2SIS,
-    MCVTTP2UIS,
-
     // Scalar float/double to signed/unsigned integer with truncation.
     CVTTS2SI,
     CVTTS2UI,
@@ -699,12 +683,6 @@ namespace llvm {
     // Vector signed/unsigned integer to float/double.
     CVTSI2P,
     CVTUI2P,
-
-    // Scalar float/double to signed/unsigned integer with saturation.
-    CVTTS2SIS,
-    CVTTS2UIS,
-    CVTTS2SIS_SAE,
-    CVTTS2UIS_SAE,
 
     // Masked versions of above. Used for v2f64->v4f32.
     // SRC, PASSTHRU, MASK
@@ -1451,7 +1429,7 @@ namespace llvm {
     /// Return true if it's profitable to narrow operations of type SrcVT to
     /// DestVT. e.g. on x86, it's profitable to narrow from i32 to i8 but not
     /// from i32 to i16.
-    bool isNarrowingProfitable(SDNode *N, EVT SrcVT, EVT DestVT) const override;
+    bool isNarrowingProfitable(EVT SrcVT, EVT DestVT) const override;
 
     bool shouldFoldSelectWithIdentityConstant(unsigned BinOpcode,
                                               EVT VT) const override;

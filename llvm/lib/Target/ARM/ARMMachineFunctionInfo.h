@@ -254,9 +254,13 @@ public:
       return -1U;
   }
 
-  DenseMap<const MachineBasicBlock *, unsigned>::iterator
-  getCoalescedWeight(MachineBasicBlock *MBB) {
-    return CoalescedWeights.try_emplace(MBB, 0).first;
+  DenseMap<const MachineBasicBlock*, unsigned>::iterator getCoalescedWeight(
+                                                  MachineBasicBlock* MBB) {
+    auto It = CoalescedWeights.find(MBB);
+    if (It == CoalescedWeights.end()) {
+      It = CoalescedWeights.insert(std::make_pair(MBB, 0)).first;
+    }
+    return It;
   }
 
   /// Indicate to the backend that \c GV has had its storage changed to inside

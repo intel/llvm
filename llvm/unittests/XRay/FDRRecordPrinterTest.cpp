@@ -112,6 +112,7 @@ TYPED_TEST_SUITE_P(PrinterTest);
 TYPED_TEST_P(PrinterTest, PrintsRecord) {
   ASSERT_NE(nullptr, this->R);
   ASSERT_FALSE(errorToBool(this->R->apply(this->P)));
+  this->OS.flush();
   EXPECT_THAT(this->Data, Eq(Helper<TypeParam>::expected()));
 }
 
@@ -129,6 +130,7 @@ TEST(FDRRecordPrinterTest, WriteFunctionRecordEnter) {
   RecordPrinter P(OS);
   FunctionRecord R(RecordTypes::ENTER, 1, 2);
   ASSERT_FALSE(errorToBool(R.apply(P)));
+  OS.flush();
   EXPECT_THAT(Data, Eq("<Function Enter: #1 delta = +2>"));
 }
 
@@ -138,6 +140,7 @@ TEST(FDRRecordPrinterTest, WriteFunctionRecordExit) {
   RecordPrinter P(OS);
   FunctionRecord R(RecordTypes::EXIT, 1, 2);
   ASSERT_FALSE(errorToBool(R.apply(P)));
+  OS.flush();
   EXPECT_THAT(Data, Eq("<Function Exit: #1 delta = +2>"));
 }
 
@@ -147,6 +150,7 @@ TEST(FDRRecordPrinterTest, WriteFunctionRecordTailExit) {
   RecordPrinter P(OS);
   FunctionRecord R(RecordTypes::TAIL_EXIT, 1, 2);
   ASSERT_FALSE(errorToBool(R.apply(P)));
+  OS.flush();
   EXPECT_THAT(Data, Eq("<Function Tail Exit: #1 delta = +2>"));
 }
 
@@ -156,6 +160,7 @@ TEST(FDRRecordPrinterTest, WriteFunctionRecordEnterArg) {
   RecordPrinter P(OS);
   FunctionRecord R(RecordTypes::ENTER_ARG, 1, 2);
   ASSERT_FALSE(errorToBool(R.apply(P)));
+  OS.flush();
   EXPECT_THAT(Data, Eq("<Function Enter With Arg: #1 delta = +2>"));
 }
 

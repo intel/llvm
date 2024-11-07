@@ -1179,7 +1179,7 @@ std::string Symtab::GetCacheKey() {
   // another object file in a separate symbol file.
   strm << m_objfile->GetModule()->GetCacheKey() << "-symtab-"
       << llvm::format_hex(m_objfile->GetCacheHash(), 10);
-  return key;
+  return strm.str();
 }
 
 void Symtab::SaveToCache() {

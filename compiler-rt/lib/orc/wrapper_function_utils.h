@@ -13,13 +13,14 @@
 #ifndef ORC_RT_WRAPPER_FUNCTION_UTILS_H
 #define ORC_RT_WRAPPER_FUNCTION_UTILS_H
 
+#include "orc_rt/c_api.h"
+#include "common.h"
 #include "error.h"
 #include "executor_address.h"
-#include "orc_rt/c_api.h"
 #include "simple_packed_serialization.h"
 #include <type_traits>
 
-namespace orc_rt {
+namespace __orc_rt {
 
 /// C++ wrapper function result: Same as CWrapperFunctionResult but
 /// auto-releases memory.
@@ -287,22 +288,30 @@ private:
   using ResultSerializer = detail::ResultSerializer<SPSRetTagT, RetT>;
 
 public:
-  template <typename DispatchFn, typename RetT, typename... ArgTs>
-  static Error call(DispatchFn &&Dispatch, RetT &Result, const ArgTs &...Args) {
+  template <typename RetT, typename... ArgTs>
+  static Error call(const void *FnTag, RetT &Result, const ArgTs &...Args) {
 
     // RetT might be an Error or Expected value. Set the checked flag now:
     // we don't want the user to have to check the unused result if this
     // operation fails.
     detail::ResultDeserializer<SPSRetTagT, RetT>::makeSafe(Result);
 
+    // Since the functions cannot be zero/unresolved on Windows, the following
+    // reference taking would always be non-zero, thus generating a compiler
+    // warning otherwise.
+#if !defined(_WIN32)
+    if (ORC_RT_UNLIKELY(!&__orc_rt_jit_dispatch_ctx))
+      return make_error<StringError>("__orc_rt_jit_dispatch_ctx not set");
+    if (ORC_RT_UNLIKELY(!&__orc_rt_jit_dispatch))
+      return make_error<StringError>("__orc_rt_jit_dispatch not set");
+#endif
     auto ArgBuffer =
         WrapperFunctionResult::fromSPSArgs<SPSArgList<SPSTagTs...>>(Args...);
     if (const char *ErrMsg = ArgBuffer.getOutOfBandError())
       return make_error<StringError>(ErrMsg);
 
-    WrapperFunctionResult ResultBuffer =
-        Dispatch(ArgBuffer.data(), ArgBuffer.size());
-
+    WrapperFunctionResult ResultBuffer = __orc_rt_jit_dispatch(
+        &__orc_rt_jit_dispatch_ctx, FnTag, ArgBuffer.data(), ArgBuffer.size());
     if (auto ErrMsg = ResultBuffer.getOutOfBandError())
       return make_error<StringError>(ErrMsg);
 
@@ -338,11 +347,10 @@ template <typename... SPSTagTs>
 class WrapperFunction<void(SPSTagTs...)>
     : private WrapperFunction<SPSEmpty(SPSTagTs...)> {
 public:
-  template <typename DispatchFn, typename... ArgTs>
-  static Error call(DispatchFn &&Dispatch, const ArgTs &...Args) {
+  template <typename... ArgTs>
+  static Error call(const void *FnTag, const ArgTs &...Args) {
     SPSEmpty BE;
-    return WrapperFunction<SPSEmpty(SPSTagTs...)>::call(
-        std::forward<DispatchFn>(Dispatch), BE, Args...);
+    return WrapperFunction<SPSEmpty(SPSTagTs...)>::call(FnTag, BE, Args...);
   }
 
   using WrapperFunction<SPSEmpty(SPSTagTs...)>::handle;
@@ -496,6 +504,6 @@ public:
   }
 };
 
-} // namespace orc_rt
+} // end namespace __orc_rt
 
 #endif // ORC_RT_WRAPPER_FUNCTION_UTILS_H

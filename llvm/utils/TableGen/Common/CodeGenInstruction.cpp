@@ -22,7 +22,7 @@ using namespace llvm;
 // CGIOperandList Implementation
 //===----------------------------------------------------------------------===//
 
-CGIOperandList::CGIOperandList(const Record *R) : TheDef(R) {
+CGIOperandList::CGIOperandList(Record *R) : TheDef(R) {
   isPredicable = false;
   hasOptionalDef = false;
   isVariadic = false;
@@ -75,7 +75,7 @@ CGIOperandList::CGIOperandList(const Record *R) : TheDef(R) {
       PrintFatalError(R->getLoc(), "Illegal operand for the '" + R->getName() +
                                        "' instruction!");
 
-    const Record *Rec = Arg->getDef();
+    Record *Rec = Arg->getDef();
     std::string PrintMethod = "printOperand";
     std::string EncoderMethod;
     std::string OperandType = "OPERAND_UNKNOWN";
@@ -298,8 +298,7 @@ CGIOperandList::ParseOperandName(StringRef Op, bool AllowWholeOp) {
   return std::pair(0U, 0U);
 }
 
-static void ParseConstraint(StringRef CStr, CGIOperandList &Ops,
-                            const Record *Rec) {
+static void ParseConstraint(StringRef CStr, CGIOperandList &Ops, Record *Rec) {
   // EARLY_CLOBBER: @early $reg
   StringRef::size_type wpos = CStr.find_first_of(" \t");
   StringRef::size_type start = CStr.find_first_not_of(" \t");
@@ -392,8 +391,7 @@ static void ParseConstraint(StringRef CStr, CGIOperandList &Ops,
   Ops[SrcOp.first].Constraints[SrcOp.second] = NewConstraint;
 }
 
-static void ParseConstraints(StringRef CStr, CGIOperandList &Ops,
-                             const Record *Rec) {
+static void ParseConstraints(StringRef CStr, CGIOperandList &Ops, Record *Rec) {
   if (CStr.empty())
     return;
 
@@ -430,7 +428,7 @@ void CGIOperandList::ProcessDisableEncoding(StringRef DisableEncoding) {
 // CodeGenInstruction Implementation
 //===----------------------------------------------------------------------===//
 
-CodeGenInstruction::CodeGenInstruction(const Record *R)
+CodeGenInstruction::CodeGenInstruction(Record *R)
     : TheDef(R), Operands(R), InferredFrom(nullptr) {
   Namespace = R->getValueAsString("Namespace");
   AsmString = std::string(R->getValueAsString("AsmString"));
@@ -485,8 +483,8 @@ CodeGenInstruction::CodeGenInstruction(const Record *R)
   isCodeGenOnly = R->getValueAsBit("isCodeGenOnly");
   isPseudo = R->getValueAsBit("isPseudo");
   isMeta = R->getValueAsBit("isMeta");
-  ImplicitDefs = R->getValueAsListOfConstDefs("Defs");
-  ImplicitUses = R->getValueAsListOfConstDefs("Uses");
+  ImplicitDefs = R->getValueAsListOfDefs("Defs");
+  ImplicitUses = R->getValueAsListOfDefs("Uses");
 
   // This flag is only inferred from the pattern.
   hasChain = false;
@@ -503,7 +501,7 @@ CodeGenInstruction::CodeGenInstruction(const Record *R)
     HasComplexDeprecationPredicate = true;
     DeprecatedReason =
         std::string(R->getValueAsString("ComplexDeprecationPredicate"));
-  } else if (const RecordVal *Dep = R->getValue("DeprecatedFeatureMask")) {
+  } else if (RecordVal *Dep = R->getValue("DeprecatedFeatureMask")) {
     // Check if we have a Subtarget feature mask.
     HasComplexDeprecationPredicate = false;
     DeprecatedReason = Dep->getValue()->getAsString();
@@ -523,7 +521,7 @@ MVT::SimpleValueType CodeGenInstruction::HasOneImplicitDefWithKnownVT(
     return MVT::Other;
 
   // Check to see if the first implicit def has a resolvable type.
-  const Record *FirstImplicitDef = ImplicitDefs[0];
+  Record *FirstImplicitDef = ImplicitDefs[0];
   assert(FirstImplicitDef->isSubClassOf("Register"));
   const std::vector<ValueTypeByHwMode> &RegVTs =
       TargetInfo.getRegisterVTs(FirstImplicitDef);

@@ -11,8 +11,6 @@
 // struct is_placeholder
 
 #include <functional>
-#include <type_traits>
-
 #include "test_macros.h"
 
 template <int Expected, class T>

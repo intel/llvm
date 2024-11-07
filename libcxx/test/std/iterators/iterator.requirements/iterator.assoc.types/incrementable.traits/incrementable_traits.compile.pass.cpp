@@ -14,7 +14,6 @@
 #include <iterator>
 
 #include <concepts>
-#include <cstddef>
 
 #include "test_macros.h"
 

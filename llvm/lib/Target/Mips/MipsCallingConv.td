@@ -11,7 +11,8 @@
 /// CCIfSubtarget - Match if the current subtarget has a feature F.
 class CCIfSubtarget<string F, CCAction A, string Invert = "">
     : CCIf<!strconcat(Invert,
-                      "State.getMachineFunction().getSubtarget<MipsSubtarget>().",
+                      "static_cast<const MipsSubtarget&>"
+			"(State.getMachineFunction().getSubtarget()).",
                       F),
            A>;
 

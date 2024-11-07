@@ -297,7 +297,11 @@ LaneBitmask HexagonExpandCondsets::getLaneMask(Register Reg, unsigned Sub) {
 void HexagonExpandCondsets::addRefToMap(RegisterRef RR, ReferenceMap &Map,
       unsigned Exec) {
   unsigned Mask = getMaskForSub(RR.Sub) | Exec;
-  Map[RR.Reg] |= Mask;
+  ReferenceMap::iterator F = Map.find(RR.Reg);
+  if (F == Map.end())
+    Map.insert(std::make_pair(RR.Reg, Mask));
+  else
+    F->second |= Mask;
 }
 
 bool HexagonExpandCondsets::isRefInMap(RegisterRef RR, ReferenceMap &Map,

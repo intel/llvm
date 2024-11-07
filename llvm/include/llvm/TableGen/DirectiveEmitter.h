@@ -1,16 +1,3 @@
-//===- DirectiveEmitter.h - Directive Language Emitter ----------*- C++ -*-===//
-//
-// Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
-// See https://llvm.org/LICENSE.txt for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
-//
-//===----------------------------------------------------------------------===//
-//
-// DirectiveEmitter uses the descriptions of directives and clauses to construct
-// common code declarations to be used in Frontends.
-//
-//===----------------------------------------------------------------------===//
-
 #ifndef LLVM_TABLEGEN_DIRECTIVEEMITTER_H
 #define LLVM_TABLEGEN_DIRECTIVEEMITTER_H
 
@@ -28,7 +15,8 @@ namespace llvm {
 // DirectiveBase.td and provides helper methods for accessing it.
 class DirectiveLanguage {
 public:
-  explicit DirectiveLanguage(const RecordKeeper &Records) : Records(Records) {
+  explicit DirectiveLanguage(const llvm::RecordKeeper &Records)
+      : Records(Records) {
     const auto &DirectiveLanguages = getDirectiveLanguages();
     Def = DirectiveLanguages[0];
   }
@@ -63,47 +51,38 @@ public:
     return Def->getValueAsBit("enableBitmaskEnumInNamespace");
   }
 
-  ArrayRef<const Record *> getAssociations() const {
+  std::vector<Record *> getAssociations() const {
     return Records.getAllDerivedDefinitions("Association");
   }
 
-  ArrayRef<const Record *> getCategories() const {
+  std::vector<Record *> getCategories() const {
     return Records.getAllDerivedDefinitions("Category");
   }
 
-  ArrayRef<const Record *> getDirectives() const {
+  std::vector<Record *> getDirectives() const {
     return Records.getAllDerivedDefinitions("Directive");
   }
 
-  ArrayRef<const Record *> getClauses() const {
+  std::vector<Record *> getClauses() const {
     return Records.getAllDerivedDefinitions("Clause");
   }
 
   bool HasValidityErrors() const;
 
 private:
-  const Record *Def;
-  const RecordKeeper &Records;
+  const llvm::Record *Def;
+  const llvm::RecordKeeper &Records;
 
-  ArrayRef<const Record *> getDirectiveLanguages() const {
+  std::vector<Record *> getDirectiveLanguages() const {
     return Records.getAllDerivedDefinitions("DirectiveLanguage");
   }
 };
-
-// Note: In all the classes below, allow implicit construction from Record *,
-// to allow writing code like:
-//  for (const Directive D : getDirectives()) {
-//
-//  instead of:
-//
-//  for (const Record *R : getDirectives()) {
-//    Directive D(R);
 
 // Base record class used for Directive and Clause class defined in
 // DirectiveBase.td.
 class BaseRecord {
 public:
-  BaseRecord(const Record *Def) : Def(Def) {}
+  explicit BaseRecord(const llvm::Record *Def) : Def(Def) {}
 
   StringRef getName() const { return Def->getValueAsString("name"); }
 
@@ -113,7 +92,7 @@ public:
 
   // Returns the name of the directive formatted for output. Whitespace are
   // replaced with underscores.
-  std::string getFormattedName() const {
+  std::string getFormattedName() {
     StringRef Name = Def->getValueAsString("name");
     std::string N = Name.str();
     std::replace(N.begin(), N.end(), ' ', '_');
@@ -126,14 +105,14 @@ public:
   StringRef getRecordName() const { return Def->getName(); }
 
 protected:
-  const Record *Def;
+  const llvm::Record *Def;
 };
 
 // Wrapper class that contains a Directive's information defined in
 // DirectiveBase.td and provides helper methods for accessing it.
 class Directive : public BaseRecord {
 public:
-  Directive(const Record *Def) : BaseRecord(Def) {}
+  explicit Directive(const llvm::Record *Def) : BaseRecord(Def) {}
 
   std::vector<Record *> getAllowedClauses() const {
     return Def->getValueAsListOfDefs("allowedClauses");
@@ -164,7 +143,7 @@ public:
 // and provides helper methods for accessing it.
 class Clause : public BaseRecord {
 public:
-  Clause(const Record *Def) : BaseRecord(Def) {}
+  explicit Clause(const llvm::Record *Def) : BaseRecord(Def) {}
 
   // Optional field.
   StringRef getClangClass() const {
@@ -181,20 +160,20 @@ public:
   // captitalized and the underscores are removed.
   // ex: async -> Async
   //     num_threads -> NumThreads
-  std::string getFormattedParserClassName() const {
+  std::string getFormattedParserClassName() {
     StringRef Name = Def->getValueAsString("name");
     std::string N = Name.str();
     bool Cap = true;
     std::transform(N.begin(), N.end(), N.begin(), [&Cap](unsigned char C) {
       if (Cap == true) {
-        C = toUpper(C);
+        C = llvm::toUpper(C);
         Cap = false;
       } else if (C == '_') {
         Cap = true;
       }
       return C;
     });
-    erase(N, '_');
+    llvm::erase(N, '_');
     return N;
   }
 
@@ -232,22 +211,22 @@ public:
 // DirectiveBase.td and provides helper methods for accessing it.
 class VersionedClause {
 public:
-  VersionedClause(const Record *Def) : Def(Def) {}
+  explicit VersionedClause(const llvm::Record *Def) : Def(Def) {}
 
   // Return the specific clause record wrapped in the Clause class.
-  Clause getClause() const { return Clause(Def->getValueAsDef("clause")); }
+  Clause getClause() const { return Clause{Def->getValueAsDef("clause")}; }
 
   int64_t getMinVersion() const { return Def->getValueAsInt("minVersion"); }
 
   int64_t getMaxVersion() const { return Def->getValueAsInt("maxVersion"); }
 
 private:
-  const Record *Def;
+  const llvm::Record *Def;
 };
 
 class ClauseVal : public BaseRecord {
 public:
-  explicit ClauseVal(const Record *Def) : BaseRecord(Def) {}
+  explicit ClauseVal(const llvm::Record *Def) : BaseRecord(Def) {}
 
   int getValue() const { return Def->getValueAsInt("value"); }
 
@@ -256,4 +235,4 @@ public:
 
 } // namespace llvm
 
-#endif // LLVM_TABLEGEN_DIRECTIVEEMITTER_H
+#endif

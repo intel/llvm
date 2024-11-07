@@ -1396,7 +1396,7 @@ void MicrosoftCXXNameMangler::mangleNestedName(GlobalDecl GD) {
           Stream << '_' << Discriminator;
         if (ParameterDiscriminator)
           Stream << '_' << ParameterDiscriminator;
-        return Buffer;
+        return Stream.str();
       };
 
       unsigned Discriminator = BD->getBlockManglingNumber();

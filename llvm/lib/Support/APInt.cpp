@@ -34,7 +34,9 @@ using namespace llvm;
 /// A utility function for allocating memory, checking for allocation failures,
 /// and ensuring the contents are zeroed.
 inline static uint64_t* getClearedMemory(unsigned numWords) {
-  return new uint64_t[numWords]();
+  uint64_t *result = new uint64_t[numWords];
+  memset(result, 0, numWords * sizeof(uint64_t));
+  return result;
 }
 
 /// A utility function for allocating memory and checking for allocation
@@ -72,15 +74,12 @@ inline static unsigned getDigit(char cdigit, uint8_t radix) {
 
 
 void APInt::initSlowCase(uint64_t val, bool isSigned) {
-  if (isSigned && int64_t(val) < 0) {
-    U.pVal = getMemory(getNumWords());
-    U.pVal[0] = val;
-    memset(&U.pVal[1], 0xFF, APINT_WORD_SIZE * (getNumWords() - 1));
-    clearUnusedBits();
-  } else {
-    U.pVal = getClearedMemory(getNumWords());
-    U.pVal[0] = val;
-  }
+  U.pVal = getClearedMemory(getNumWords());
+  U.pVal[0] = val;
+  if (isSigned && int64_t(val) < 0)
+    for (unsigned i = 1; i < getNumWords(); ++i)
+      U.pVal[i] = WORDTYPE_MAX;
+  clearUnusedBits();
 }
 
 void APInt::initSlowCase(const APInt& that) {

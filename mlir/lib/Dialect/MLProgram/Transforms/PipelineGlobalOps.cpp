@@ -100,8 +100,10 @@ LogicalResult MLProgramPipelineGlobals::buildGlobalMap(ModuleOp module) {
     for (size_t i = 0; i < work.size(); ++i) {
       callableMap[work[i]]->walk([&](CallOpInterface call) {
         auto symbol = dyn_cast<SymbolRefAttr>(call.getCallableForCallee());
-        if (visited.insert(symbol).second)
+        if (!visited.contains(symbol)) {
+          visited.insert(symbol);
           work.push_back(symbol);
+        }
       });
 
       for (auto load : opLoadSymbols[work[i]])

@@ -94,7 +94,7 @@ struct GenericTable {
 class SearchableTableEmitter {
   RecordKeeper &Records;
   std::unique_ptr<CodeGenTarget> Target;
-  std::unique_ptr<CodeGenIntrinsicMap> Intrinsics;
+  DenseMap<Init *, std::unique_ptr<CodeGenIntrinsic>> Intrinsics;
   std::vector<std::unique_ptr<GenericEnum>> Enums;
   DenseMap<Record *, GenericEnum *> EnumMap;
   std::set<std::string> PreprocessorGuards;
@@ -139,15 +139,17 @@ private:
                              "'; expected: bit, bits, string, or code");
   }
 
-  bool isIntrinsic(const Init *I) {
-    if (const DefInit *DI = dyn_cast<DefInit>(I))
+  bool isIntrinsic(Init *I) {
+    if (DefInit *DI = dyn_cast<DefInit>(I))
       return DI->getDef()->isSubClassOf("Intrinsic");
     return false;
   }
 
-  const CodeGenIntrinsic &getIntrinsic(const Init *I) {
-    const Record *Def = cast<DefInit>(I)->getDef();
-    return Target->getIntrinsic(Def);
+  CodeGenIntrinsic &getIntrinsic(Init *I) {
+    std::unique_ptr<CodeGenIntrinsic> &Intr = Intrinsics[I];
+    if (!Intr)
+      Intr = std::make_unique<CodeGenIntrinsic>(cast<DefInit>(I)->getDef());
+    return *Intr;
   }
 
   bool compareBy(Record *LHS, Record *RHS, const SearchIndex &Index);
@@ -244,8 +246,8 @@ bool SearchableTableEmitter::compareBy(Record *LHS, Record *RHS,
       if (LHSi > RHSi)
         return false;
     } else if (Field.IsIntrinsic) {
-      const CodeGenIntrinsic &LHSi = getIntrinsic(LHSI);
-      const CodeGenIntrinsic &RHSi = getIntrinsic(RHSI);
+      CodeGenIntrinsic &LHSi = getIntrinsic(LHSI);
+      CodeGenIntrinsic &RHSi = getIntrinsic(RHSI);
       if (std::tie(LHSi.TargetPrefix, LHSi.Name) <
           std::tie(RHSi.TargetPrefix, RHSi.Name))
         return true;
@@ -711,10 +713,7 @@ void SearchableTableEmitter::run(raw_ostream &OS) {
   // Emit tables in a deterministic order to avoid needless rebuilds.
   SmallVector<std::unique_ptr<GenericTable>, 4> Tables;
   DenseMap<Record *, GenericTable *> TableMap;
-  bool NeedsTarget =
-      !Records.getAllDerivedDefinitionsIfDefined("Instruction").empty() ||
-      !Records.getAllDerivedDefinitionsIfDefined("Intrinsic").empty();
-  if (NeedsTarget)
+  if (!Records.getAllDerivedDefinitionsIfDefined("Instruction").empty())
     Target = std::make_unique<CodeGenTarget>(Records);
 
   // Collect all definitions first.

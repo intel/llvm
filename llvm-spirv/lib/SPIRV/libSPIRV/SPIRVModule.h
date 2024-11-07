@@ -142,7 +142,6 @@ public:
   virtual SPIRVMemoryModelKind getMemoryModel() const = 0;
   virtual unsigned getNumFunctions() const = 0;
   virtual unsigned getNumVariables() const = 0;
-  virtual std::vector<SPIRVValue *> getFunctionPointers() const = 0;
   virtual SourceLanguage getSourceLanguage(SPIRVWord *) const = 0;
   virtual std::set<std::string> &getSourceExtension() = 0;
   virtual SPIRVValue *getValue(SPIRVId TheId) const = 0;
@@ -313,8 +312,8 @@ public:
                                              SPIRVWord Capacity) = 0;
 
   // Instruction creation functions
-  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *,
-                                                  std::vector<SPIRVWord>,
+  virtual SPIRVInstruction *addPtrAccessChainInst(SPIRVType *, SPIRVValue *,
+                                                  std::vector<SPIRVValue *>,
                                                   SPIRVBasicBlock *, bool) = 0;
   virtual SPIRVInstruction *
   addAsyncGroupCopy(SPIRVValue *Scope, SPIRVValue *Dest, SPIRVValue *Src,
@@ -486,14 +485,12 @@ public:
   virtual SPIRVInstruction *addSampledImageInst(SPIRVType *, SPIRVValue *,
                                                 SPIRVValue *,
                                                 SPIRVBasicBlock *) = 0;
-  virtual SPIRVEntry *
-  getOrAddAliasDomainDeclINTELInst(std::vector<SPIRVId> Args,
-                                   llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(std::vector<SPIRVId> Args,
-                                                      llvm::MDNode *MD) = 0;
-  virtual SPIRVEntry *
-  getOrAddAliasScopeListDeclINTELInst(std::vector<SPIRVId> Args,
-                                      llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasDomainDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
+  virtual SPIRVEntry *getOrAddAliasScopeListDeclINTELInst(
+      std::vector<SPIRVId> Args, llvm::MDNode *MD) = 0;
   virtual SPIRVInstruction *addAssumeTrueKHRInst(SPIRVValue *Condition,
                                                  SPIRVBasicBlock *BB) = 0;
   virtual SPIRVInstruction *addExpectKHRInst(SPIRVType *ResultTy,
@@ -557,10 +554,6 @@ public:
         .shouldPreserveOCLKernelArgTypeMetadataThroughString();
   }
 
-  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
-    return TranslationOpts.shouldEmitFunctionPtrAddrSpace();
-  }
-
   bool preserveAuxData() const noexcept {
     return TranslationOpts.preserveAuxData();
   }
@@ -604,6 +597,7 @@ protected:
 private:
   bool IsValid;
 };
+
 
 #ifdef _SPIRV_SUPPORT_TEXT_FMT
 

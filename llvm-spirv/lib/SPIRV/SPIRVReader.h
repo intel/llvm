@@ -103,8 +103,7 @@ public:
   void transAuxDataInst(SPIRVExtInst *BC);
   std::vector<Value *> transValue(const std::vector<SPIRVValue *> &,
                                   Function *F, BasicBlock *);
-  Function *transFunction(SPIRVFunction *F, unsigned AS = SPIRAS_Private);
-  void transFunctionAttrs(SPIRVFunction *BF, Function *F);
+  Function *transFunction(SPIRVFunction *F);
   Value *transBlockInvoke(SPIRVValue *Invoke, BasicBlock *BB);
   Instruction *transWGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);
   Instruction *transSGSizeQueryBI(SPIRVInstruction *BI, BasicBlock *BB);

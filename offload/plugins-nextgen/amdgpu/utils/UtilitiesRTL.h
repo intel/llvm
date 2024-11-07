@@ -23,8 +23,7 @@ namespace llvm {
 namespace omp {
 namespace target {
 namespace plugin {
-namespace hsa_utils {
-
+namespace utils {
 // The implicit arguments of COV5 AMDGPU kernels.
 struct AMDGPUImplicitArgsTy {
   uint32_t BlockCountX;
@@ -67,7 +66,7 @@ inline Error readAMDGPUMetaDataFromImage(
   return Err;
 }
 
-} // namespace hsa_utils
+} // namespace utils
 } // namespace plugin
 } // namespace target
 } // namespace omp

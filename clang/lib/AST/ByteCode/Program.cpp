@@ -144,33 +144,22 @@ std::optional<unsigned> Program::getOrCreateGlobal(const ValueDecl *VD,
   return std::nullopt;
 }
 
-std::optional<unsigned> Program::getOrCreateDummy(const DeclTy &D) {
-  assert(D);
+std::optional<unsigned> Program::getOrCreateDummy(const ValueDecl *VD) {
   // Dedup blocks since they are immutable and pointers cannot be compared.
-  if (auto It = DummyVariables.find(D.getOpaqueValue());
-      It != DummyVariables.end())
+  if (auto It = DummyVariables.find(VD); It != DummyVariables.end())
     return It->second;
 
-  QualType QT;
-  if (const auto *E = D.dyn_cast<const Expr *>()) {
-    QT = E->getType();
-  } else {
-    const ValueDecl *VD = cast<ValueDecl>(D.get<const Decl *>());
-    QT = VD->getType();
-    if (const auto *RT = QT->getAs<ReferenceType>())
-      QT = RT->getPointeeType();
-  }
-  assert(!QT.isNull());
+  QualType QT = VD->getType();
+  if (const auto *RT = QT->getAs<ReferenceType>())
+    QT = RT->getPointeeType();
 
   Descriptor *Desc;
   if (std::optional<PrimType> T = Ctx.classify(QT))
-    Desc = createDescriptor(D, *T, std::nullopt, /*IsTemporary=*/true,
-                            /*IsMutable=*/false);
+    Desc = createDescriptor(VD, *T, std::nullopt, true, false);
   else
-    Desc = createDescriptor(D, QT.getTypePtr(), std::nullopt,
-                            /*IsTemporary=*/true, /*IsMutable=*/false);
+    Desc = createDescriptor(VD, QT.getTypePtr(), std::nullopt, true, false);
   if (!Desc)
-    Desc = allocateDescriptor(D);
+    Desc = allocateDescriptor(VD);
 
   assert(Desc);
   Desc->makeDummy();
@@ -186,7 +175,7 @@ std::optional<unsigned> Program::getOrCreateDummy(const DeclTy &D) {
   G->block()->invokeCtor();
 
   Globals.push_back(G);
-  DummyVariables[D.getOpaqueValue()] = I;
+  DummyVariables[VD] = I;
   return I;
 }
 
@@ -204,18 +193,9 @@ std::optional<unsigned> Program::createGlobal(const ValueDecl *VD,
     IsStatic = false;
     IsExtern = true;
   }
-
-  // Register all previous declarations as well. For extern blocks, just replace
-  // the index with the new variable.
   if (auto Idx = createGlobal(VD, VD->getType(), IsStatic, IsExtern, Init)) {
-    for (const Decl *P = VD; P; P = P->getPreviousDecl()) {
-      if (P != VD) {
-        unsigned PIdx = GlobalIndices[P];
-        if (Globals[PIdx]->block()->isExtern())
-          Globals[PIdx] = Globals[*Idx];
-      }
+    for (const Decl *P = VD; P; P = P->getPreviousDecl())
       GlobalIndices[P] = *Idx;
-    }
     return *Idx;
   }
   return std::nullopt;

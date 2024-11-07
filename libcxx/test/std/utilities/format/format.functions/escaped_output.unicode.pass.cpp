@@ -24,7 +24,6 @@
 
 #include <cassert>
 #include <concepts>
-#include <cstdint>
 #include <iterator>
 #include <list>
 #include <vector>

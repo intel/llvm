@@ -35,8 +35,7 @@ class Prescanner {
 public:
   Prescanner(Messages &, CookedSource &, Preprocessor &,
       common::LanguageFeatureControl);
-  Prescanner(
-      const Prescanner &, Preprocessor &, bool isNestedInIncludeDirective);
+  Prescanner(const Prescanner &, bool isNestedInIncludeDirective);
   Prescanner(const Prescanner &) = delete;
   Prescanner(Prescanner &&) = delete;
 

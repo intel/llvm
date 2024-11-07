@@ -9,7 +9,6 @@
 #include "AvoidCArraysCheck.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
-#include "clang/ASTMatchers/ASTMatchers.h"
 
 using namespace clang::ast_matchers;
 
@@ -61,7 +60,6 @@ void AvoidCArraysCheck::registerMatchers(MatchFinder *Finder) {
 
   Finder->addMatcher(
       typeLoc(hasValidBeginLoc(), hasType(arrayType()),
-              optionally(hasParent(parmVarDecl().bind("param_decl"))),
               unless(anyOf(hasParent(parmVarDecl(isArgvOfMain())),
                            hasParent(varDecl(isExternC())),
                            hasParent(fieldDecl(
@@ -74,28 +72,11 @@ void AvoidCArraysCheck::registerMatchers(MatchFinder *Finder) {
 
 void AvoidCArraysCheck::check(const MatchFinder::MatchResult &Result) {
   const auto *ArrayType = Result.Nodes.getNodeAs<TypeLoc>("typeloc");
-  const bool IsInParam =
-      Result.Nodes.getNodeAs<ParmVarDecl>("param_decl") != nullptr;
-  const bool IsVLA = ArrayType->getTypePtr()->isVariableArrayType();
-  enum class RecommendType { Array, Vector, Span };
-  llvm::SmallVector<const char *> RecommendTypes{};
-  if (IsVLA) {
-    RecommendTypes.push_back("'std::vector'");
-  } else if (ArrayType->getTypePtr()->isIncompleteArrayType() && IsInParam) {
-    // in function parameter, we also don't know the size of
-    // IncompleteArrayType.
-    if (Result.Context->getLangOpts().CPlusPlus20)
-      RecommendTypes.push_back("'std::span'");
-    else {
-      RecommendTypes.push_back("'std::array'");
-      RecommendTypes.push_back("'std::vector'");
-    }
-  } else {
-    RecommendTypes.push_back("'std::array'");
-  }
+
   diag(ArrayType->getBeginLoc(),
-       "do not declare %select{C-style|C VLA}0 arrays, use %1 instead")
-      << IsVLA << llvm::join(RecommendTypes, " or ");
+       "do not declare %select{C-style|C VLA}0 arrays, use "
+       "%select{std::array<>|std::vector<>}0 instead")
+      << ArrayType->getTypePtr()->isVariableArrayType();
 }
 
 } // namespace clang::tidy::modernize

@@ -1,7 +1,8 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
 
-; RUN: spirv-val %t.spv
+; TODO: enable back once spirv-tools are updated
+; R/UN: spirv-val %t.spv
 
 ; RUN: llvm-spirv %t.spv -o %t.spt --to-text
 ; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV

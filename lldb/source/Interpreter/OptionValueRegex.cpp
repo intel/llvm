@@ -51,7 +51,7 @@ Status OptionValueRegex::SetValueFromString(llvm::StringRef value,
       m_value_was_set = true;
       NotifyValueChanged();
     } else if (llvm::Error err = m_regex.GetError()) {
-      return Status::FromError(std::move(err));
+      return Status(std::move(err));
     } else {
       return Status::FromErrorString("regex error");
     }

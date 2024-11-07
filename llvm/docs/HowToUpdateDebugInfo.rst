@@ -91,12 +91,8 @@ misattributed to a block containing one of the instructions-to-be-merged.
 
 Examples of transformations that should follow this rule include:
 
-* Hoisting identical instructions from all successors of a conditional branch
-  or sinking those from all paths to a postdominating block. For example,
-  merging identical loads/stores which occur on both sides of a CFG diamond
-  (see the ``MergedLoadStoreMotion`` pass). For each group of identical
-  instructions being hoisted/sunk, the merge of all their locations should be
-  applied to the merged instruction.
+* Merging identical loads/stores which occur on both sides of a CFG diamond
+  (see the ``MergedLoadStoreMotion`` pass).
 
 * Merging identical loop-invariant stores (see the LICM utility
   ``llvm::promoteLoopAccessesToScalars``).
@@ -119,11 +115,9 @@ Examples of transformations for which this rule *does not* apply include:
   single-stepping experience. The rule for
   :ref:`dropping locations<WhenToDropLocation>` should apply here.
 
-* Hoisting/sinking that would make a location reachable when it previously
-  wasn't. Consider hoisting two identical instructions with the same location
-  from first two cases of a switch that has three cases. Merging their
-  locations would make the location from the first two cases reachable when the
-  third case is taken. The rule for
+* Hoisting identical instructions which appear in several successor blocks into
+  a predecessor block (see ``BranchFolder::HoistCommonCodeInSuccs``). In this
+  case there is no single merged instruction. The rule for
   :ref:`dropping locations<WhenToDropLocation>` applies.
 
 .. _WhenToDropLocation:

@@ -46,7 +46,7 @@
 #endif
 #endif
 
-namespace orc_rt {
+namespace __orc_rt {
 
 /// ByteSwap_16 - This function returns a byte-swapped representation of
 /// the 16-bit argument.
@@ -138,6 +138,6 @@ template <typename T> inline void swapByteOrder(T &Value) {
   Value = getSwappedBytes(Value);
 }
 
-} // namespace orc_rt
+} // end namespace __orc_rt
 
 #endif // ORC_RT_ENDIAN_H

@@ -51,7 +51,7 @@ llvm::Expected<std::string> CommandObjectRegexCommand::SubstituteVariables(
     output << part;
   }
 
-  return buffer;
+  return output.str();
 }
 
 void CommandObjectRegexCommand::DoExecute(llvm::StringRef command,

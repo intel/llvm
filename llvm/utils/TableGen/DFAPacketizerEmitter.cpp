@@ -61,7 +61,7 @@ struct ScheduleClass {
 class DFAPacketizerEmitter {
 private:
   std::string TargetName;
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
 
   UniqueVector<ResourceVector> UniqueResources;
   std::vector<ScheduleClass> ScheduleClasses;
@@ -69,18 +69,17 @@ private:
   std::map<unsigned, uint64_t> ComboBitToBitsMap;
 
 public:
-  DFAPacketizerEmitter(const RecordKeeper &R);
+  DFAPacketizerEmitter(RecordKeeper &R);
 
   // Construct a map of function unit names to bits.
   int collectAllFuncUnits(ArrayRef<const CodeGenProcModel *> ProcModels);
 
   // Construct a map from a combo function unit bit to the bits of all included
   // functional units.
-  int collectAllComboFuncs(ArrayRef<const Record *> ComboFuncList);
+  int collectAllComboFuncs(ArrayRef<Record *> ComboFuncList);
 
-  ResourceVector getResourcesForItinerary(const Record *Itinerary);
-  void createScheduleClasses(unsigned ItineraryIdx,
-                             ArrayRef<const Record *> Itineraries);
+  ResourceVector getResourcesForItinerary(Record *Itinerary);
+  void createScheduleClasses(unsigned ItineraryIdx, const RecVec &Itineraries);
 
   // Emit code for a subset of itineraries.
   void emitForItineraries(raw_ostream &OS,
@@ -91,7 +90,7 @@ public:
 };
 } // end anonymous namespace
 
-DFAPacketizerEmitter::DFAPacketizerEmitter(const RecordKeeper &R)
+DFAPacketizerEmitter::DFAPacketizerEmitter(RecordKeeper &R)
     : TargetName(std::string(CodeGenTarget(R).getName())), Records(R) {}
 
 int DFAPacketizerEmitter::collectAllFuncUnits(
@@ -101,14 +100,14 @@ int DFAPacketizerEmitter::collectAllFuncUnits(
   LLVM_DEBUG(dbgs() << "collectAllFuncUnits");
   LLVM_DEBUG(dbgs() << " (" << ProcModels.size() << " itineraries)\n");
 
-  std::set<const Record *> ProcItinList;
+  std::set<Record *> ProcItinList;
   for (const CodeGenProcModel *Model : ProcModels)
     ProcItinList.insert(Model->ItinsDef);
 
   int totalFUs = 0;
   // Parse functional units for all the itineraries.
-  for (const Record *Proc : ProcItinList) {
-    std::vector<const Record *> FUs = Proc->getValueAsListOfConstDefs("FU");
+  for (Record *Proc : ProcItinList) {
+    std::vector<Record *> FUs = Proc->getValueAsListOfDefs("FU");
 
     LLVM_DEBUG(dbgs() << "    FU:"
                       << " (" << FUs.size() << " FUs) " << Proc->getName());
@@ -130,7 +129,7 @@ int DFAPacketizerEmitter::collectAllFuncUnits(
 }
 
 int DFAPacketizerEmitter::collectAllComboFuncs(
-    ArrayRef<const Record *> ComboFuncList) {
+    ArrayRef<Record *> ComboFuncList) {
   LLVM_DEBUG(dbgs() << "-------------------------------------------------------"
                        "----------------------\n");
   LLVM_DEBUG(dbgs() << "collectAllComboFuncs");
@@ -138,8 +137,8 @@ int DFAPacketizerEmitter::collectAllComboFuncs(
 
   int numCombos = 0;
   for (unsigned i = 0, N = ComboFuncList.size(); i < N; ++i) {
-    const Record *Func = ComboFuncList[i];
-    std::vector<const Record *> FUs = Func->getValueAsListOfConstDefs("CFD");
+    Record *Func = ComboFuncList[i];
+    std::vector<Record *> FUs = Func->getValueAsListOfDefs("CFD");
 
     LLVM_DEBUG(dbgs() << "    CFD:" << i << " (" << FUs.size() << " combo FUs) "
                       << Func->getName() << "\n");
@@ -148,16 +147,16 @@ int DFAPacketizerEmitter::collectAllComboFuncs(
     for (unsigned j = 0, N = FUs.size(); j < N; ++j) {
       assert((j < DFA_MAX_RESOURCES) &&
              "Exceeded maximum number of DFA resources");
-      const Record *FuncData = FUs[j];
-      const Record *ComboFunc = FuncData->getValueAsDef("TheComboFunc");
-      const std::vector<const Record *> FuncList =
-          FuncData->getValueAsListOfConstDefs("FuncList");
+      Record *FuncData = FUs[j];
+      Record *ComboFunc = FuncData->getValueAsDef("TheComboFunc");
+      const std::vector<Record *> &FuncList =
+          FuncData->getValueAsListOfDefs("FuncList");
       const std::string &ComboFuncName = std::string(ComboFunc->getName());
       uint64_t ComboBit = FUNameToBitsMap[ComboFuncName];
       uint64_t ComboResources = ComboBit;
       LLVM_DEBUG(dbgs() << "      combo: " << ComboFuncName << ":0x"
                         << Twine::utohexstr(ComboResources) << "\n");
-      for (const Record *K : FuncList) {
+      for (auto *K : FuncList) {
         std::string FuncName = std::string(K->getName());
         uint64_t FuncResources = FUNameToBitsMap[FuncName];
         LLVM_DEBUG(dbgs() << "        " << FuncName << ":0x"
@@ -175,12 +174,12 @@ int DFAPacketizerEmitter::collectAllComboFuncs(
 }
 
 ResourceVector
-DFAPacketizerEmitter::getResourcesForItinerary(const Record *Itinerary) {
+DFAPacketizerEmitter::getResourcesForItinerary(Record *Itinerary) {
   ResourceVector Resources;
   assert(Itinerary);
-  for (const Record *StageDef : Itinerary->getValueAsListOfDefs("Stages")) {
+  for (Record *StageDef : Itinerary->getValueAsListOfDefs("Stages")) {
     uint64_t StageResources = 0;
-    for (const Record *Unit : StageDef->getValueAsListOfDefs("Units")) {
+    for (Record *Unit : StageDef->getValueAsListOfDefs("Units")) {
       StageResources |= FUNameToBitsMap[std::string(Unit->getName())];
     }
     if (StageResources != 0)
@@ -189,10 +188,10 @@ DFAPacketizerEmitter::getResourcesForItinerary(const Record *Itinerary) {
   return Resources;
 }
 
-void DFAPacketizerEmitter::createScheduleClasses(
-    unsigned ItineraryIdx, ArrayRef<const Record *> Itineraries) {
+void DFAPacketizerEmitter::createScheduleClasses(unsigned ItineraryIdx,
+                                                 const RecVec &Itineraries) {
   unsigned Idx = 0;
-  for (const Record *Itinerary : Itineraries) {
+  for (Record *Itinerary : Itineraries) {
     if (!Itinerary) {
       ScheduleClasses.push_back({ItineraryIdx, Idx++, 0, ResourceVector{}});
       continue;

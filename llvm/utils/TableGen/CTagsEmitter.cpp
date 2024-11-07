@@ -50,10 +50,10 @@ public:
 
 class CTagsEmitter {
 private:
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
 
 public:
-  CTagsEmitter(const RecordKeeper &R) : Records(R) {}
+  CTagsEmitter(RecordKeeper &R) : Records(R) {}
 
   void run(raw_ostream &OS);
 

@@ -12,7 +12,7 @@
 #ifndef OMPTARGET_LIBC_H
 #define OMPTARGET_LIBC_H
 
-#include "DeviceTypes.h"
+#include "Types.h"
 
 extern "C" {
 

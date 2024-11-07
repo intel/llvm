@@ -391,8 +391,9 @@ Value *Mapper::mapValue(const Value *V) {
       // ensures metadata operands only reference defined SSA values.
       return (Flags & RF_IgnoreMissingLocals)
                  ? nullptr
-                 : MetadataAsValue::get(V->getContext(),
-                                        MDTuple::get(V->getContext(), {}));
+                 : MetadataAsValue::get(
+                       V->getContext(),
+                       MDTuple::get(V->getContext(), std::nullopt));
     }
     if (auto *AL = dyn_cast<DIArgList>(MD)) {
       SmallVector<ValueAsMetadata *, 4> MappedArgs;

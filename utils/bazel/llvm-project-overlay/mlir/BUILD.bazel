@@ -3353,7 +3353,6 @@ cc_library(
         ":DialectUtils",
         ":IR",
         ":InferTypeOpInterface",
-        ":InliningUtils",
         ":MeshIncGen",
         ":SideEffectInterfaces",
         ":Support",
@@ -4231,7 +4230,6 @@ cc_library(
         ":VectorToLLVM",
         ":VectorToSCF",
         ":VectorToSPIRV",
-        ":VectorToXeGPU",
     ],
 )
 
@@ -5886,7 +5884,6 @@ cc_library(
         ":MathDialect",
         ":MemRefDialect",
         ":MemRefToLLVM",
-        ":NVGPUDialect",
         ":NVVMDialect",
         ":TransformUtils",
         ":VectorToLLVM",
@@ -6007,7 +6004,6 @@ cc_library(
         ":LLVMCommonConversion",
         ":LLVMDialect",
         ":MathDialect",
-        ":MathToLLVM",
         ":MathToROCDL",
         ":MemRefDialect",
         ":MemRefToLLVM",
@@ -8440,25 +8436,6 @@ cc_library(
 )
 
 cc_library(
-    name = "VectorToXeGPU",
-    srcs = ["lib/Conversion/VectorToXeGPU/VectorToXeGPU.cpp"],
-    hdrs = ["include/mlir/Conversion/VectorToXeGPU/VectorToXeGPU.h"],
-    includes = ["include"],
-    deps = [
-        ":ArithDialect",
-        ":ConversionPassIncGen",
-        ":IR",
-        ":MemRefDialect",
-        ":Pass",
-        ":TransformUtils",
-        ":Transforms",
-        ":VectorDialect",
-        ":XeGPUDialect",
-        "//llvm:Support",
-    ],
-)
-
-cc_library(
     name = "ControlFlowToSCF",
     srcs = [
         "lib/Conversion/ControlFlowToSCF/ControlFlowToSCF.cpp",
@@ -10539,10 +10516,6 @@ gentbl_cc_library(
             ["-gen-op-doc"],
             "g3doc/Dialects/OpenMP/OpenMPOps.md",
         ),
-        (
-            ["-gen-openmp-clause-ops"],
-            "include/mlir/Dialect/OpenMP/OpenMPClauseOps.h.inc",
-        ),
     ],
     tblgen = ":mlir-tblgen",
     td_file = "include/mlir/Dialect/OpenMP/OpenMPOps.td",
@@ -11807,7 +11780,6 @@ cc_library(
         ":MaskableOpInterface",
         ":MemRefDialect",
         ":Pass",
-        ":TensorDialect",
         ":ToLLVMIRTranslation",
         ":TransformUtils",
         ":VectorDialect",

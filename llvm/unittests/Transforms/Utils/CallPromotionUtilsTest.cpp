@@ -570,7 +570,8 @@ define i32 @f4() !guid !3 {
 
   std::string Str;
   raw_string_ostream OS(Str);
-  CtxProfAnalysisPrinterPass Printer(OS);
+  CtxProfAnalysisPrinterPass Printer(
+      OS, CtxProfAnalysisPrinterPass::PrintMode::JSON);
   Printer.run(*M, MAM);
   const char *Expected = R"json(
   [

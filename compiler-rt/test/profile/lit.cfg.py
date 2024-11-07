@@ -179,6 +179,3 @@ if config.target_arch in ["armv7l"]:
 
 if config.android:
     config.unsupported = True
-
-if config.have_curl:
-    config.available_features.add("curl")

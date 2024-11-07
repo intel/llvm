@@ -375,7 +375,8 @@ uint32_t GsymCreator::insertString(StringRef S, bool Copy) {
   // Save a mapping of string offsets to the cached string reference in case
   // we need to segment the GSYM file and copy string from one string table to
   // another.
-  StringOffsetMap.try_emplace(StrOff, CHStr);
+  if (StringOffsetMap.count(StrOff) == 0)
+    StringOffsetMap.insert(std::make_pair(StrOff, CHStr));
   return StrOff;
 }
 

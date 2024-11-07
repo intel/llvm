@@ -472,8 +472,8 @@ bool StackSlotColoring::RemoveDeadStores(MachineBasicBlock* MBB) {
     MachineBasicBlock::iterator NextMI = std::next(I);
     MachineBasicBlock::iterator ProbableLoadMI = I;
 
-    Register LoadReg;
-    Register StoreReg;
+    unsigned LoadReg = 0;
+    unsigned StoreReg = 0;
     unsigned LoadSize = 0;
     unsigned StoreSize = 0;
     if (!(LoadReg = TII->isLoadFromStackSlot(*I, FirstSS, LoadSize)))

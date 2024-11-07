@@ -228,7 +228,7 @@ Retry:
         return StmtError();
       }
 
-      // If the identifier was annotated, try again.
+      // If the identifier was typo-corrected, try again.
       if (Tok.isNot(tok::identifier))
         goto Retry;
     }

@@ -19,9 +19,8 @@
 // Otherwise, return the next power of 2.
 
 #include <__hash_table>
-#include <cassert>
-#include <cstdint>
 #include <unordered_map>
+#include <cassert>
 
 #include "test_macros.h"
 

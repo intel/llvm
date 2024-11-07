@@ -12,7 +12,6 @@
 // concept sentinel_for;
 
 #include <iterator>
-#include <cstddef>
 
 static_assert(std::sentinel_for<int*, int*>);
 static_assert(!std::sentinel_for<int*, long*>);

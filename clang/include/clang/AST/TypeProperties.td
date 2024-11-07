@@ -473,12 +473,9 @@ let Class = PackIndexingType in {
   def : Property<"indexExpression", ExprRef> {
     let Read = [{ node->getIndexExpr() }];
   }
-  def : Property<"expandsToEmptyPack", Bool> {
-    let Read = [{ node->expandsToEmptyPack() }];
-  }
 
   def : Creator<[{
-    return ctx.getPackIndexingType(pattern, indexExpression, expandsToEmptyPack);
+    return ctx.getPackIndexingType(pattern, indexExpression);
   }]>;
 }
 
@@ -697,9 +694,6 @@ let Class = HLSLAttributedResourceType in {
   def : Property<"isROV", Bool> {
     let Read = [{ node->getAttrs().IsROV }];
   }
-  def : Property<"rawBuffer", Bool> {
-    let Read = [{ node->getAttrs().RawBuffer }];
-  }
   def : Property<"wrappedTy", QualType> {
     let Read = [{ node->getWrappedType() }];
   }
@@ -707,7 +701,7 @@ let Class = HLSLAttributedResourceType in {
     let Read = [{ node->getContainedType() }];
   }
   def : Creator<[{
-    HLSLAttributedResourceType::Attributes attrs(static_cast<llvm::dxil::ResourceClass>(resClass), isROV, rawBuffer);
+    HLSLAttributedResourceType::Attributes attrs(static_cast<llvm::dxil::ResourceClass>(resClass), isROV);
     return ctx.getHLSLAttributedResourceType(wrappedTy, containedTy, attrs);
   }]>;
 }

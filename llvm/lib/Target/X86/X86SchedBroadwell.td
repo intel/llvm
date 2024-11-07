@@ -986,8 +986,8 @@ def BWWriteResGroup65 : SchedWriteRes<[BWPort23,BWPort015]> {
   let NumMicroOps = 2;
   let ReleaseAtCycles = [1,1];
 }
-def: InstRW<[BWWriteResGroup65], (instrs VINSERTF128rmi,
-                                         VINSERTI128rmi,
+def: InstRW<[BWWriteResGroup65], (instrs VINSERTF128rm,
+                                         VINSERTI128rm,
                                          VPBLENDDrmi)>;
 
 def BWWriteResGroup66 : SchedWriteRes<[BWPort23,BWPort0156]> {

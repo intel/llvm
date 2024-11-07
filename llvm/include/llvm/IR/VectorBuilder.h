@@ -103,9 +103,9 @@ public:
   /// \param ValTy       The type of operand which the reduction operation is
   ///                    performed.
   /// \param VecOpArray  The operand list.
-  Value *createSimpleReduction(Intrinsic::ID RdxID, Type *ValTy,
-                               ArrayRef<Value *> VecOpArray,
-                               const Twine &Name = Twine());
+  Value *createSimpleTargetReduction(Intrinsic::ID RdxID, Type *ValTy,
+                                     ArrayRef<Value *> VecOpArray,
+                                     const Twine &Name = Twine());
 };
 
 } // namespace llvm

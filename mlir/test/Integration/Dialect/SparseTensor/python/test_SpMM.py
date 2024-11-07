@@ -141,7 +141,7 @@ def main():
         ]
         bitwidths = [0]
         compiler = sparsifier.Sparsifier(
-            extras="", options=opt, opt_level=0, shared_libs=[support_lib]
+            options=opt, opt_level=0, shared_libs=[support_lib]
         )
         for level in levels:
             for ordering in orderings:

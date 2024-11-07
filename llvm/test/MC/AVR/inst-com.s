@@ -1,7 +1,9 @@
 ; RUN: llvm-mc -triple avr -show-encoding < %s | FileCheck %s
-; RUN: llvm-mc -filetype=obj -triple avr < %s | llvm-objdump -dr - | FileCheck -check-prefix=CHECK-INST %s
+; RUN: llvm-mc -filetype=obj -triple avr < %s | llvm-objdump -d - | FileCheck -check-prefix=CHECK-INST %s
+
 
 foo:
+
   com r30
   com r17
   com r4

@@ -18,7 +18,6 @@
 #ifndef LLVM_TRANSFORMS_INSTCOMBINE_INSTCOMBINER_H
 #define LLVM_TRANSFORMS_INSTCOMBINE_INSTCOMBINER_H
 
-#include "llvm/ADT/PostOrderIterator.h"
 #include "llvm/Analysis/DomConditionCache.h"
 #include "llvm/Analysis/InstructionSimplify.h"
 #include "llvm/Analysis/TargetFolder.h"
@@ -49,7 +48,7 @@ class LLVM_LIBRARY_VISIBILITY InstCombiner {
   /// Only used to call target specific intrinsic combining.
   /// It must **NOT** be used for any other purpose, as InstCombine is a
   /// target-independent canonicalization transform.
-  TargetTransformInfo &TTIForTargetIntrinsicsOnly;
+  TargetTransformInfo &TTI;
 
 public:
   /// Maximum size of array considered when transforming.
@@ -105,7 +104,7 @@ public:
                BlockFrequencyInfo *BFI, BranchProbabilityInfo *BPI,
                ProfileSummaryInfo *PSI, const DataLayout &DL,
                ReversePostOrderTraversal<BasicBlock *> &RPOT)
-      : TTIForTargetIntrinsicsOnly(TTI), Builder(Builder), Worklist(Worklist),
+      : TTI(TTI), Builder(Builder), Worklist(Worklist),
         MinimizeSize(MinimizeSize), AA(AA), AC(AC), TLI(TLI), DT(DT), DL(DL),
         SQ(DL, &TLI, &DT, &AC, nullptr, /*UseInstrInfo*/ true,
            /*CanUseUndef*/ true, &DC),
@@ -450,8 +449,7 @@ public:
   bool isKnownToBeAPowerOfTwo(const Value *V, bool OrZero = false,
                               unsigned Depth = 0,
                               const Instruction *CxtI = nullptr) {
-    return llvm::isKnownToBeAPowerOfTwo(V, OrZero, Depth,
-                                        SQ.getWithInstruction(CxtI));
+    return llvm::isKnownToBeAPowerOfTwo(V, DL, OrZero, Depth, &AC, CxtI, &DT);
   }
 
   bool MaskedValueIsZero(const Value *V, const APInt &Mask, unsigned Depth = 0,

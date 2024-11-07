@@ -199,8 +199,12 @@ namespace PointerComparison {
   constexpr bool v3 = null == pv; // ok
   constexpr bool v4 = qv == pv; // ok
 
-  constexpr bool v5 = qv >= pv;
-  constexpr bool v8 = qv > (void*)&s.a;
+  /// FIXME: These two are rejected by the current interpreter, but
+  ///   accepted by GCC.
+  constexpr bool v5 = qv >= pv; // ref-error {{constant expression}} \
+                                // ref-note {{unequal pointers to void}}
+  constexpr bool v8 = qv > (void*)&s.a; // ref-error {{constant expression}} \
+                                        // ref-note {{unequal pointers to void}}
   constexpr bool v6 = qv > null; // both-error {{must be initialized by a constant expression}} \
                                  // both-note {{comparison between '&s.b' and 'nullptr' has unspecified value}}
 

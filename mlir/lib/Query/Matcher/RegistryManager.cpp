@@ -124,7 +124,7 @@ RegistryManager::getMatcherCompletions(llvm::ArrayRef<ArgKind> acceptedTypes,
     else if (argKinds[0][0] == ArgKind::String)
       typedText += "\"";
 
-    completions.emplace_back(typedText, decl);
+    completions.emplace_back(typedText, os.str());
   }
 
   return completions;

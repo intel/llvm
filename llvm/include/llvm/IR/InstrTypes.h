@@ -55,18 +55,24 @@ typedef unsigned ID;
 //===----------------------------------------------------------------------===//
 
 class UnaryInstruction : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{1};
-
 protected:
+  UnaryInstruction(Type *Ty, unsigned iType, Value *V, BasicBlock::iterator IB)
+      : Instruction(Ty, iType, &Op<0>(), 1, IB) {
+    Op<0>() = V;
+  }
   UnaryInstruction(Type *Ty, unsigned iType, Value *V,
-                   InsertPosition InsertBefore = nullptr)
-      : Instruction(Ty, iType, AllocMarker, InsertBefore) {
+                   Instruction *IB = nullptr)
+    : Instruction(Ty, iType, &Op<0>(), 1, IB) {
+    Op<0>() = V;
+  }
+  UnaryInstruction(Type *Ty, unsigned iType, Value *V, BasicBlock *IAE)
+    : Instruction(Ty, iType, &Op<0>(), 1, IAE) {
     Op<0>() = V;
   }
 
 public:
   // allocate space for exactly one operand
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 1); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -74,11 +80,11 @@ public:
 
   // Methods for support type inquiry through isa, cast, and dyn_cast:
   static bool classof(const Instruction *I) {
-    return I->isUnaryOp() || I->getOpcode() == Instruction::Alloca ||
+    return I->isUnaryOp() ||
+           I->getOpcode() == Instruction::Alloca ||
            I->getOpcode() == Instruction::Load ||
            I->getOpcode() == Instruction::VAArg ||
            I->getOpcode() == Instruction::ExtractValue ||
-           I->getOpcode() == Instruction::Freeze ||
            (I->getOpcode() >= CastOpsBegin && I->getOpcode() < CastOpsEnd);
   }
   static bool classof(const Value *V) {
@@ -122,15 +128,27 @@ public:
   /// These methods just forward to Create, and are useful when you
   /// statically know what type of instruction you're going to create.  These
   /// helpers just save some typing.
-#define HANDLE_UNARY_INST(N, OPC, CLASS)                                       \
-  static UnaryOperator *Create##OPC(Value *V, const Twine &Name = "") {        \
-    return Create(Instruction::OPC, V, Name);                                  \
+#define HANDLE_UNARY_INST(N, OPC, CLASS) \
+  static UnaryOperator *Create##OPC(Value *V, const Twine &Name = "") {\
+    return Create(Instruction::OPC, V, Name);\
   }
 #include "llvm/IR/Instruction.def"
-#define HANDLE_UNARY_INST(N, OPC, CLASS)                                       \
-  static UnaryOperator *Create##OPC(Value *V, const Twine &Name,               \
-                                    InsertPosition InsertBefore = nullptr) {   \
-    return Create(Instruction::OPC, V, Name, InsertBefore);                    \
+#define HANDLE_UNARY_INST(N, OPC, CLASS) \
+  static UnaryOperator *Create##OPC(Value *V, const Twine &Name, \
+                                    BasicBlock *BB) {\
+    return Create(Instruction::OPC, V, Name, BB);\
+  }
+#include "llvm/IR/Instruction.def"
+#define HANDLE_UNARY_INST(N, OPC, CLASS) \
+  static UnaryOperator *Create##OPC(Value *V, const Twine &Name, \
+                                    Instruction *I) {\
+    return Create(Instruction::OPC, V, Name, I);\
+  }
+#include "llvm/IR/Instruction.def"
+#define HANDLE_UNARY_INST(N, OPC, CLASS) \
+  static UnaryOperator *Create##OPC(Value *V, const Twine &Name, \
+                                    BasicBlock::iterator It) {\
+    return Create(Instruction::OPC, V, Name, It);\
   }
 #include "llvm/IR/Instruction.def"
 
@@ -168,8 +186,6 @@ public:
 //===----------------------------------------------------------------------===//
 
 class BinaryOperator : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
   void AssertOK();
 
 protected:
@@ -183,7 +199,7 @@ protected:
 
 public:
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -201,16 +217,28 @@ public:
   /// These methods just forward to Create, and are useful when you
   /// statically know what type of instruction you're going to create.  These
   /// helpers just save some typing.
-#define HANDLE_BINARY_INST(N, OPC, CLASS)                                      \
-  static BinaryOperator *Create##OPC(Value *V1, Value *V2,                     \
-                                     const Twine &Name = "") {                 \
-    return Create(Instruction::OPC, V1, V2, Name);                             \
+#define HANDLE_BINARY_INST(N, OPC, CLASS) \
+  static BinaryOperator *Create##OPC(Value *V1, Value *V2, \
+                                     const Twine &Name = "") {\
+    return Create(Instruction::OPC, V1, V2, Name);\
   }
 #include "llvm/IR/Instruction.def"
-#define HANDLE_BINARY_INST(N, OPC, CLASS)                                      \
-  static BinaryOperator *Create##OPC(Value *V1, Value *V2, const Twine &Name,  \
-                                     InsertPosition InsertBefore) {            \
-    return Create(Instruction::OPC, V1, V2, Name, InsertBefore);               \
+#define HANDLE_BINARY_INST(N, OPC, CLASS) \
+  static BinaryOperator *Create##OPC(Value *V1, Value *V2, \
+                                     const Twine &Name, BasicBlock *BB) {\
+    return Create(Instruction::OPC, V1, V2, Name, BB);\
+  }
+#include "llvm/IR/Instruction.def"
+#define HANDLE_BINARY_INST(N, OPC, CLASS) \
+  static BinaryOperator *Create##OPC(Value *V1, Value *V2, \
+                                     const Twine &Name, Instruction *I) {\
+    return Create(Instruction::OPC, V1, V2, Name, I);\
+  }
+#include "llvm/IR/Instruction.def"
+#define HANDLE_BINARY_INST(N, OPC, CLASS) \
+  static BinaryOperator *Create##OPC(Value *V1, Value *V2, \
+                                     const Twine &Name, BasicBlock::iterator It) {\
+    return Create(Instruction::OPC, V1, V2, Name, It);\
   }
 #include "llvm/IR/Instruction.def"
 
@@ -281,11 +309,21 @@ public:
     BO->setHasNoSignedWrap(true);
     return BO;
   }
-
   static BinaryOperator *CreateNSW(BinaryOps Opc, Value *V1, Value *V2,
-                                   const Twine &Name,
-                                   InsertPosition InsertBefore) {
-    BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
+                                   const Twine &Name, BasicBlock *BB) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, BB);
+    BO->setHasNoSignedWrap(true);
+    return BO;
+  }
+  static BinaryOperator *CreateNSW(BinaryOps Opc, Value *V1, Value *V2,
+                                   const Twine &Name, Instruction *I) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, I);
+    BO->setHasNoSignedWrap(true);
+    return BO;
+  }
+  static BinaryOperator *CreateNSW(BinaryOps Opc, Value *V1, Value *V2,
+                                   const Twine &Name, BasicBlock::iterator It) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, It);
     BO->setHasNoSignedWrap(true);
     return BO;
   }
@@ -296,11 +334,21 @@ public:
     BO->setHasNoUnsignedWrap(true);
     return BO;
   }
-
   static BinaryOperator *CreateNUW(BinaryOps Opc, Value *V1, Value *V2,
-                                   const Twine &Name,
-                                   InsertPosition InsertBefore) {
-    BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
+                                   const Twine &Name, BasicBlock *BB) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, BB);
+    BO->setHasNoUnsignedWrap(true);
+    return BO;
+  }
+  static BinaryOperator *CreateNUW(BinaryOps Opc, Value *V1, Value *V2,
+                                   const Twine &Name, Instruction *I) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, I);
+    BO->setHasNoUnsignedWrap(true);
+    return BO;
+  }
+  static BinaryOperator *CreateNUW(BinaryOps Opc, Value *V1, Value *V2,
+                                   const Twine &Name, BasicBlock::iterator It) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, It);
     BO->setHasNoUnsignedWrap(true);
     return BO;
   }
@@ -311,11 +359,22 @@ public:
     BO->setIsExact(true);
     return BO;
   }
-
+  static BinaryOperator *CreateExact(BinaryOps Opc, Value *V1, Value *V2,
+                                     const Twine &Name, BasicBlock *BB) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, BB);
+    BO->setIsExact(true);
+    return BO;
+  }
+  static BinaryOperator *CreateExact(BinaryOps Opc, Value *V1, Value *V2,
+                                     const Twine &Name, Instruction *I) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, I);
+    BO->setIsExact(true);
+    return BO;
+  }
   static BinaryOperator *CreateExact(BinaryOps Opc, Value *V1, Value *V2,
                                      const Twine &Name,
-                                     InsertPosition InsertBefore) {
-    BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
+                                     BasicBlock::iterator It) {
+    BinaryOperator *BO = Create(Opc, V1, V2, Name, It);
     BO->setIsExact(true);
     return BO;
   }
@@ -324,7 +383,13 @@ public:
   CreateDisjoint(BinaryOps Opc, Value *V1, Value *V2, const Twine &Name = "");
   static inline BinaryOperator *CreateDisjoint(BinaryOps Opc, Value *V1,
                                                Value *V2, const Twine &Name,
-                                               InsertPosition InsertBefore);
+                                               BasicBlock *BB);
+  static inline BinaryOperator *CreateDisjoint(BinaryOps Opc, Value *V1,
+                                               Value *V2, const Twine &Name,
+                                               Instruction *I);
+  static inline BinaryOperator *CreateDisjoint(BinaryOps Opc, Value *V1,
+                                               Value *V2, const Twine &Name,
+                                               BasicBlock::iterator It);
 
 #define DEFINE_HELPERS(OPC, NUWNSWEXACT)                                       \
   static BinaryOperator *Create##NUWNSWEXACT##OPC(Value *V1, Value *V2,        \
@@ -332,9 +397,16 @@ public:
     return Create##NUWNSWEXACT(Instruction::OPC, V1, V2, Name);                \
   }                                                                            \
   static BinaryOperator *Create##NUWNSWEXACT##OPC(                             \
-      Value *V1, Value *V2, const Twine &Name,                                 \
-      InsertPosition InsertBefore = nullptr) {                                 \
-    return Create##NUWNSWEXACT(Instruction::OPC, V1, V2, Name, InsertBefore);  \
+      Value *V1, Value *V2, const Twine &Name, BasicBlock *BB) {               \
+    return Create##NUWNSWEXACT(Instruction::OPC, V1, V2, Name, BB);            \
+  }                                                                            \
+  static BinaryOperator *Create##NUWNSWEXACT##OPC(                             \
+      Value *V1, Value *V2, const Twine &Name, Instruction *I) {               \
+    return Create##NUWNSWEXACT(Instruction::OPC, V1, V2, Name, I);             \
+  }                                                                            \
+  static BinaryOperator *Create##NUWNSWEXACT##OPC(                             \
+      Value *V1, Value *V2, const Twine &Name, BasicBlock::iterator It) {      \
+    return Create##NUWNSWEXACT(Instruction::OPC, V1, V2, Name, It);            \
   }
 
   DEFINE_HELPERS(Add, NSW) // CreateNSWAdd
@@ -425,8 +497,22 @@ BinaryOperator *BinaryOperator::CreateDisjoint(BinaryOps Opc, Value *V1,
 }
 BinaryOperator *BinaryOperator::CreateDisjoint(BinaryOps Opc, Value *V1,
                                                Value *V2, const Twine &Name,
-                                               InsertPosition InsertBefore) {
-  BinaryOperator *BO = Create(Opc, V1, V2, Name, InsertBefore);
+                                               BasicBlock *BB) {
+  BinaryOperator *BO = Create(Opc, V1, V2, Name, BB);
+  cast<PossiblyDisjointInst>(BO)->setIsDisjoint(true);
+  return BO;
+}
+BinaryOperator *BinaryOperator::CreateDisjoint(BinaryOps Opc, Value *V1,
+                                               Value *V2, const Twine &Name,
+                                               Instruction *I) {
+  BinaryOperator *BO = Create(Opc, V1, V2, Name, I);
+  cast<PossiblyDisjointInst>(BO)->setIsDisjoint(true);
+  return BO;
+}
+BinaryOperator *BinaryOperator::CreateDisjoint(BinaryOps Opc, Value *V1,
+                                               Value *V2, const Twine &Name,
+                                               BasicBlock::iterator It) {
+  BinaryOperator *BO = Create(Opc, V1, V2, Name, It);
   cast<PossiblyDisjointInst>(BO)->setIsDisjoint(true);
   return BO;
 }
@@ -659,8 +745,6 @@ public:
 /// This class is the base class for the comparison instructions.
 /// Abstract base class of comparison instructions.
 class CmpInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 public:
   /// This enumeration lists the possible predicates for CmpInst subclasses.
   /// Values in the range 0-31 are reserved for FCmpInst, while values in the
@@ -730,7 +814,7 @@ protected:
 
 public:
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Construct a compare instruction, given the opcode, the predicate and
@@ -2323,7 +2407,7 @@ private:
 };
 
 template <>
-struct OperandTraits<CallBase> : public VariadicOperandTraits<CallBase> {};
+struct OperandTraits<CallBase> : public VariadicOperandTraits<CallBase, 1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CallBase, Value)
 
@@ -2332,10 +2416,10 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CallBase, Value)
 //===----------------------------------------------------------------------===//
 class FuncletPadInst : public Instruction {
 private:
-  FuncletPadInst(const FuncletPadInst &CPI, AllocInfo AllocInfo);
+  FuncletPadInst(const FuncletPadInst &CPI);
 
   explicit FuncletPadInst(Instruction::FuncletPadOps Op, Value *ParentPad,
-                          ArrayRef<Value *> Args, AllocInfo AllocInfo,
+                          ArrayRef<Value *> Args, unsigned Values,
                           const Twine &NameStr, InsertPosition InsertBefore);
 
   void init(Value *ParentPad, ArrayRef<Value *> Args, const Twine &NameStr);
@@ -2390,7 +2474,7 @@ public:
 
 template <>
 struct OperandTraits<FuncletPadInst>
-    : public VariadicOperandTraits<FuncletPadInst> {};
+    : public VariadicOperandTraits<FuncletPadInst, /*MINARITY=*/1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(FuncletPadInst, Value)
 

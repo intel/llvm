@@ -40,7 +40,6 @@
 // RISCV64-SAME: {{^}}, syntacore-scr3-rv64
 // RISCV64-SAME: {{^}}, syntacore-scr4-rv64
 // RISCV64-SAME: {{^}}, syntacore-scr5-rv64
-// RISCV64-SAME: {{^}}, syntacore-scr7
 // RISCV64-SAME: {{^}}, veyron-v1
 // RISCV64-SAME: {{^}}, xiangshan-nanhu
 // RISCV64-SAME: {{$}}
@@ -86,7 +85,6 @@
 // TUNE-RISCV64-SAME: {{^}}, syntacore-scr3-rv64
 // TUNE-RISCV64-SAME: {{^}}, syntacore-scr4-rv64
 // TUNE-RISCV64-SAME: {{^}}, syntacore-scr5-rv64
-// TUNE-RISCV64-SAME: {{^}}, syntacore-scr7
 // TUNE-RISCV64-SAME: {{^}}, veyron-v1
 // TUNE-RISCV64-SAME: {{^}}, xiangshan-nanhu
 // TUNE-RISCV64-SAME: {{^}}, generic

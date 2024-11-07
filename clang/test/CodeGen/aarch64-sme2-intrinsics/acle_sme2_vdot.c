@@ -16,12 +16,16 @@
 
 // CHECK-LABEL: @test_svvdot_lane_za32_bf16_vg1x2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8bf16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x bfloat> [[ZN_COERCE0:%.*]], <vscale x 8 x bfloat> [[ZN_COERCE1:%.*]], <vscale x 8 x bfloat> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x bfloat> @llvm.vector.extract.nxv8bf16.nxv16bf16(<vscale x 16 x bfloat> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x bfloat> @llvm.vector.extract.nxv8bf16.nxv16bf16(<vscale x 16 x bfloat> [[ZN]], i64 8)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8bf16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x bfloat> [[TMP0]], <vscale x 8 x bfloat> [[TMP1]], <vscale x 8 x bfloat> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z32test_svvdot_lane_za32_bf16_vg1x2j14svbfloat16x2_tu14__SVBfloat16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8bf16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x bfloat> [[ZN_COERCE0:%.*]], <vscale x 8 x bfloat> [[ZN_COERCE1:%.*]], <vscale x 8 x bfloat> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x bfloat> @llvm.vector.extract.nxv8bf16.nxv16bf16(<vscale x 16 x bfloat> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x bfloat> @llvm.vector.extract.nxv8bf16.nxv16bf16(<vscale x 16 x bfloat> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8bf16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x bfloat> [[TMP0]], <vscale x 8 x bfloat> [[TMP1]], <vscale x 8 x bfloat> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_bf16_vg1x2(uint32_t slice_base, svbfloat16x2_t zn, svbfloat16_t zm) __arm_streaming __arm_inout("za") {
@@ -30,12 +34,16 @@ void test_svvdot_lane_za32_bf16_vg1x2(uint32_t slice_base, svbfloat16x2_t zn, sv
 
 // CHECK-LABEL: @test_svvdot_lane_za32_f16_vg1x2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8f16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x half> [[ZN_COERCE0:%.*]], <vscale x 8 x half> [[ZN_COERCE1:%.*]], <vscale x 8 x half> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x half> @llvm.vector.extract.nxv8f16.nxv16f16(<vscale x 16 x half> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x half> @llvm.vector.extract.nxv8f16.nxv16f16(<vscale x 16 x half> [[ZN]], i64 8)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8f16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x half> [[TMP0]], <vscale x 8 x half> [[TMP1]], <vscale x 8 x half> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z31test_svvdot_lane_za32_f16_vg1x2j13svfloat16x2_tu13__SVFloat16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8f16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x half> [[ZN_COERCE0:%.*]], <vscale x 8 x half> [[ZN_COERCE1:%.*]], <vscale x 8 x half> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x half> @llvm.vector.extract.nxv8f16.nxv16f16(<vscale x 16 x half> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x half> @llvm.vector.extract.nxv8f16.nxv16f16(<vscale x 16 x half> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.fvdot.lane.za32.vg1x2.nxv8f16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x half> [[TMP0]], <vscale x 8 x half> [[TMP1]], <vscale x 8 x half> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_f16_vg1x2(uint32_t slice_base, svfloat16x2_t zn, svfloat16_t zm) __arm_streaming __arm_inout("za") {
@@ -44,12 +52,16 @@ void test_svvdot_lane_za32_f16_vg1x2(uint32_t slice_base, svfloat16x2_t zn, svfl
 
 // CHECK-LABEL: @test_svvdot_lane_za32_s16_vg1x2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN]], i64 8)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z31test_svvdot_lane_za32_s16_vg1x2j11svint16x2_tu11__SVInt16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_s16_vg1x2(uint32_t slice_base, svint16x2_t zn, svint16_t zm) __arm_streaming __arm_inout("za") {
@@ -58,12 +70,16 @@ void test_svvdot_lane_za32_s16_vg1x2(uint32_t slice_base, svint16x2_t zn, svint1
 
 // CHECK-LABEL: @test_svvdot_lane_za32_u16_vg1x2(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN]], i64 8)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z31test_svvdot_lane_za32_u16_vg1x2j12svuint16x2_tu12__SVUint16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv16i16(<vscale x 16 x i16> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x2.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_u16_vg1x2(uint32_t slice_base, svuint16x2_t zn, svuint16_t zm) __arm_streaming __arm_inout("za") {
@@ -72,12 +88,20 @@ void test_svvdot_lane_za32_u16_vg1x2(uint32_t slice_base, svuint16x2_t zn, svuin
 
 // CHECK-LABEL: @test_svvdot_lane_za32_s8_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z30test_svvdot_lane_za32_s8_vg1x4j10svint8x4_tu10__SVInt8_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_s8_vg1x4(uint32_t slice_base, svint8x4_t zn, svint8_t zm) __arm_streaming __arm_inout("za") {
@@ -86,12 +110,20 @@ void test_svvdot_lane_za32_s8_vg1x4(uint32_t slice_base, svint8x4_t zn, svint8_t
 
 // CHECK-LABEL: @test_svvdot_lane_za32_u8_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z30test_svvdot_lane_za32_u8_vg1x4j11svuint8x4_tu11__SVUint8_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za32_u8_vg1x4(uint32_t slice_base, svuint8x4_t zn, svuint8_t zm) __arm_streaming __arm_inout("za") {
@@ -100,12 +132,20 @@ void test_svvdot_lane_za32_u8_vg1x4(uint32_t slice_base, svuint8x4_t zn, svuint8
 
 // CHECK-LABEL: @test_svvdot_lane_za64_s16_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZN_COERCE2:%.*]], <vscale x 8 x i16> [[ZN_COERCE3:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 8)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 24)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[TMP2]], <vscale x 8 x i16> [[TMP3]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z31test_svvdot_lane_za64_s16_vg1x4j11svint16x4_tu11__SVInt16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZN_COERCE2:%.*]], <vscale x 8 x i16> [[ZN_COERCE3:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 24)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.svdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[TMP2]], <vscale x 8 x i16> [[TMP3]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za64_s16_vg1x4(uint32_t slice_base, svint16x4_t zn, svint16_t zm) __arm_streaming __arm_inout("za") {
@@ -114,12 +154,20 @@ void test_svvdot_lane_za64_s16_vg1x4(uint32_t slice_base, svint16x4_t zn, svint1
 
 // CHECK-LABEL: @test_svvdot_lane_za64_u16_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZN_COERCE2:%.*]], <vscale x 8 x i16> [[ZN_COERCE3:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 8)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 24)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[TMP2]], <vscale x 8 x i16> [[TMP3]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z31test_svvdot_lane_za64_u16_vg1x4j12svuint16x4_tu12__SVUint16_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[ZN_COERCE0:%.*]], <vscale x 8 x i16> [[ZN_COERCE1:%.*]], <vscale x 8 x i16> [[ZN_COERCE2:%.*]], <vscale x 8 x i16> [[ZN_COERCE3:%.*]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 8)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 8 x i16> @llvm.vector.extract.nxv8i16.nxv32i16(<vscale x 32 x i16> [[ZN]], i64 24)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.uvdot.lane.za64.vg1x4.nxv8i16(i32 [[SLICE_BASE:%.*]], <vscale x 8 x i16> [[TMP0]], <vscale x 8 x i16> [[TMP1]], <vscale x 8 x i16> [[TMP2]], <vscale x 8 x i16> [[TMP3]], <vscale x 8 x i16> [[ZM:%.*]], i32 1)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svvdot_lane_za64_u16_vg1x4(uint32_t slice_base, svuint16x4_t zn, svuint16_t zm) __arm_streaming __arm_inout("za") {
@@ -129,12 +177,20 @@ void test_svvdot_lane_za64_u16_vg1x4(uint32_t slice_base, svuint16x4_t zn, svuin
 
 // CHECK-LABEL: @test_svsuvdot_lane_za32_s8_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.suvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.suvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z32test_svsuvdot_lane_za32_s8_vg1x4j10svint8x4_tu10__SVInt8_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.suvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.suvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svsuvdot_lane_za32_s8_vg1x4(uint32_t slice_base, svint8x4_t zn, svint8_t zm) __arm_streaming __arm_inout("za") {
@@ -144,12 +200,20 @@ void test_svsuvdot_lane_za32_s8_vg1x4(uint32_t slice_base, svint8x4_t zn, svint8
 
 // CHECK-LABEL: @test_svusvdot_lane_za32_u8_vg1x4(
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    tail call void @llvm.aarch64.sme.usvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CHECK-NEXT:    tail call void @llvm.aarch64.sme.usvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CHECK-NEXT:    ret void
 //
 // CPP-CHECK-LABEL: @_Z32test_svusvdot_lane_za32_u8_vg1x4j11svuint8x4_tu11__SVUint8_t(
 // CPP-CHECK-NEXT:  entry:
-// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.usvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[ZN_COERCE0:%.*]], <vscale x 16 x i8> [[ZN_COERCE1:%.*]], <vscale x 16 x i8> [[ZN_COERCE2:%.*]], <vscale x 16 x i8> [[ZN_COERCE3:%.*]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
+// CPP-CHECK-NEXT:    [[TMP0:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN:%.*]], i64 0)
+// CPP-CHECK-NEXT:    [[TMP1:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 16)
+// CPP-CHECK-NEXT:    [[TMP2:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 32)
+// CPP-CHECK-NEXT:    [[TMP3:%.*]] = tail call <vscale x 16 x i8> @llvm.vector.extract.nxv16i8.nxv64i8(<vscale x 64 x i8> [[ZN]], i64 48)
+// CPP-CHECK-NEXT:    tail call void @llvm.aarch64.sme.usvdot.lane.za32.vg1x4.nxv16i8(i32 [[SLICE_BASE:%.*]], <vscale x 16 x i8> [[TMP0]], <vscale x 16 x i8> [[TMP1]], <vscale x 16 x i8> [[TMP2]], <vscale x 16 x i8> [[TMP3]], <vscale x 16 x i8> [[ZM:%.*]], i32 3)
 // CPP-CHECK-NEXT:    ret void
 //
 void test_svusvdot_lane_za32_u8_vg1x4(uint32_t slice_base, svuint8x4_t zn, svuint8_t zm) __arm_streaming __arm_inout("za") {

@@ -804,7 +804,8 @@ PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForSwitchOP(
     os << "'Default' branch taken. ";
     End = ExecutionContinues(os, C);
   }
-  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf);
+  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End,
+                                                       os.str());
 }
 
 PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForGotoOP(
@@ -815,7 +816,7 @@ PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForGotoOP(
   const PathDiagnosticLocation &End =
       getEnclosingStmtLocation(S, C.getCurrLocationContext());
   os << "Control jumps to line " << End.asLocation().getExpansionLineNumber();
-  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf);
+  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, os.str());
 }
 
 PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForBinaryOP(
@@ -862,7 +863,8 @@ PathDiagnosticPieceRef PathDiagnosticBuilder::generateDiagForBinaryOP(
         PathDiagnosticLocation::createOperatorLoc(B, SM);
     }
   }
-  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf);
+  return std::make_shared<PathDiagnosticControlFlowPiece>(Start, End,
+                                                         os.str());
 }
 
 void PathDiagnosticBuilder::generateMinimalDiagForBlockEdge(
@@ -898,7 +900,7 @@ void PathDiagnosticBuilder::generateMinimalDiagForBlockEdge(
     llvm::raw_string_ostream os(sbuf);
     PathDiagnosticLocation End = ExecutionContinues(os, C);
     C.getActivePath().push_front(
-        std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf));
+        std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, os.str()));
     break;
   }
 
@@ -920,7 +922,7 @@ void PathDiagnosticBuilder::generateMinimalDiagForBlockEdge(
       End = getEnclosingStmtLocation(S, C.getCurrLocationContext());
 
     C.getActivePath().push_front(
-        std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf));
+        std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, os.str()));
     break;
   }
 
@@ -945,7 +947,8 @@ void PathDiagnosticBuilder::generateMinimalDiagForBlockEdge(
         End = getEnclosingStmtLocation(S, C.getCurrLocationContext());
 
       C.getActivePath().push_front(
-          std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf));
+          std::make_shared<PathDiagnosticControlFlowPiece>(Start, End,
+                                                           os.str()));
     } else {
       PathDiagnosticLocation End = ExecutionContinues(C);
 
@@ -970,7 +973,8 @@ void PathDiagnosticBuilder::generateMinimalDiagForBlockEdge(
         End = getEnclosingStmtLocation(S, C.getCurrLocationContext());
 
       C.getActivePath().push_front(
-          std::make_shared<PathDiagnosticControlFlowPiece>(Start, End, sbuf));
+          std::make_shared<PathDiagnosticControlFlowPiece>(Start, End,
+                                                           os.str()));
     } else {
       PathDiagnosticLocation End = ExecutionContinues(C);
       if (const Stmt *S = End.asStmt())

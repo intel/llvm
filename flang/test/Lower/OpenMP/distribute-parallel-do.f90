@@ -36,21 +36,21 @@ subroutine distribute_parallel_do_dist_schedule()
   !$omp end teams
 end subroutine distribute_parallel_do_dist_schedule
 
-! CHECK-LABEL: func.func @_QPdistribute_parallel_do_schedule(
-subroutine distribute_parallel_do_schedule()
+! CHECK-LABEL: func.func @_QPdistribute_parallel_do_ordered(
+subroutine distribute_parallel_do_ordered()
   !$omp teams
 
   ! CHECK:      omp.parallel private({{.*}}) {
   ! CHECK:      omp.distribute {
-  ! CHECK-NEXT: omp.wsloop schedule(runtime) {
+  ! CHECK-NEXT: omp.wsloop ordered(1) {
   ! CHECK-NEXT: omp.loop_nest
-  !$omp distribute parallel do schedule(runtime)
+  !$omp distribute parallel do ordered(1)
   do index_ = 1, 10
   end do
   !$omp end distribute parallel do
 
   !$omp end teams
-end subroutine distribute_parallel_do_schedule
+end subroutine distribute_parallel_do_ordered
 
 ! CHECK-LABEL: func.func @_QPdistribute_parallel_do_private(
 subroutine distribute_parallel_do_private()

@@ -351,23 +351,17 @@ bool AtomicExpandImpl::run(Function &F, const TargetMachine *TM) {
 
   bool MadeChange = false;
 
-  for (Function::iterator BBI = F.begin(), BBE = F.end(); BBI != BBE; ++BBI) {
-    BasicBlock *BB = &*BBI;
+  SmallVector<Instruction *, 1> AtomicInsts;
 
-    BasicBlock::reverse_iterator Next;
+  // Changing control-flow while iterating through it is a bad idea, so gather a
+  // list of all atomic instructions before we start.
+  for (Instruction &I : instructions(F))
+    if (I.isAtomic() && !isa<FenceInst>(&I))
+      AtomicInsts.push_back(&I);
 
-    for (BasicBlock::reverse_iterator I = BB->rbegin(), E = BB->rend(); I != E;
-         I = Next) {
-      Instruction &Inst = *I;
-      Next = std::next(I);
-
-      if (processAtomicInstr(&Inst)) {
-        MadeChange = true;
-
-        // New blocks may have been inserted.
-        BBE = F.end();
-      }
-    }
+  for (auto *I : AtomicInsts) {
+    if (processAtomicInstr(I))
+      MadeChange = true;
   }
 
   return MadeChange;
@@ -894,9 +888,7 @@ static Value *performMaskedAtomicOp(AtomicRMWInst::BinOp Op,
   case AtomicRMWInst::FMin:
   case AtomicRMWInst::FMax:
   case AtomicRMWInst::UIncWrap:
-  case AtomicRMWInst::UDecWrap:
-  case AtomicRMWInst::USubCond:
-  case AtomicRMWInst::USubSat: {
+  case AtomicRMWInst::UDecWrap: {
     // Finally, other ops will operate on the full value, so truncate down to
     // the original size, and expand out again after doing the
     // operation. Bitcasts will be inserted for FP values.
@@ -1811,9 +1803,7 @@ static ArrayRef<RTLIB::Libcall> GetRMWLibcall(AtomicRMWInst::BinOp Op) {
   case AtomicRMWInst::FSub:
   case AtomicRMWInst::UIncWrap:
   case AtomicRMWInst::UDecWrap:
-  case AtomicRMWInst::USubCond:
-  case AtomicRMWInst::USubSat:
-    // No atomic libcalls are available for these.
+    // No atomic libcalls are available for max/min/umax/umin.
     return {};
   }
   llvm_unreachable("Unexpected AtomicRMW operation.");

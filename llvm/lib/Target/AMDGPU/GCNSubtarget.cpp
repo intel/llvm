@@ -708,7 +708,7 @@ unsigned GCNSubtarget::getNSAThreshold(const MachineFunction &MF) const {
   if (Value > 0)
     return std::max(Value, 2);
 
-  return NSAThreshold;
+  return 3;
 }
 
 GCNUserSGPRUsageInfo::GCNUserSGPRUsageInfo(const Function &F,

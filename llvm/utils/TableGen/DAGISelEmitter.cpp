@@ -25,11 +25,11 @@ namespace {
 /// DAGISelEmitter - The top-level class which coordinates construction
 /// and emission of the instruction selector.
 class DAGISelEmitter {
-  const RecordKeeper &Records; // Just so we can get at the timing functions.
-  const CodeGenDAGPatterns CGP;
+  RecordKeeper &Records; // Just so we can get at the timing functions.
+  CodeGenDAGPatterns CGP;
 
 public:
-  explicit DAGISelEmitter(const RecordKeeper &R) : Records(R), CGP(R) {}
+  explicit DAGISelEmitter(RecordKeeper &R) : Records(R), CGP(R) {}
   void run(raw_ostream &OS);
 };
 } // End anonymous namespace
@@ -47,7 +47,7 @@ static unsigned getResultPatternCost(TreePatternNode &P,
     return 0;
 
   unsigned Cost = 0;
-  const Record *Op = P.getOperator();
+  Record *Op = P.getOperator();
   if (Op->isSubClassOf("Instruction")) {
     Cost++;
     CodeGenInstruction &II = CGP.getTargetInfo().getInstruction(Op);
@@ -67,7 +67,7 @@ static unsigned getResultPatternSize(TreePatternNode &P,
     return 0;
 
   unsigned Cost = 0;
-  const Record *Op = P.getOperator();
+  Record *Op = P.getOperator();
   if (Op->isSubClassOf("Instruction")) {
     Cost += Op->getValueAsInt("CodeSize");
   }
@@ -81,8 +81,8 @@ namespace {
 // In particular, we want to match maximal patterns first and lowest cost within
 // a particular complexity first.
 struct PatternSortingPredicate {
-  PatternSortingPredicate(const CodeGenDAGPatterns &cgp) : CGP(cgp) {}
-  const CodeGenDAGPatterns &CGP;
+  PatternSortingPredicate(CodeGenDAGPatterns &cgp) : CGP(cgp) {}
+  CodeGenDAGPatterns &CGP;
 
   bool operator()(const PatternToMatch *LHS, const PatternToMatch *RHS) {
     const TreePatternNode &LT = LHS->getSrcPattern();

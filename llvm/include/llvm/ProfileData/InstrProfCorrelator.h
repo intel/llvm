@@ -13,8 +13,6 @@
 #define LLVM_PROFILEDATA_INSTRPROFCORRELATOR_H
 
 #include "llvm/ADT/DenseSet.h"
-#include "llvm/Debuginfod/BuildIDFetcher.h"
-#include "llvm/Object/BuildID.h"
 #include "llvm/ProfileData/InstrProf.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/MemoryBuffer.h"
@@ -38,9 +36,7 @@ public:
   enum ProfCorrelatorKind { NONE, DEBUG_INFO, BINARY };
 
   static llvm::Expected<std::unique_ptr<InstrProfCorrelator>>
-  get(StringRef Filename, ProfCorrelatorKind FileKind,
-      const object::BuildIDFetcher *BIDFetcher = nullptr,
-      const ArrayRef<llvm::object::BuildID> BIs = {});
+  get(StringRef Filename, ProfCorrelatorKind FileKind);
 
   /// Construct a ProfileData vector used to correlate raw instrumentation data
   /// to their functions.

@@ -118,8 +118,7 @@ void wrapDeclStmtUses() {
   }
 }
 
-#define API_AVAILABLE(x) __attribute__((availability(__API_AVAILABLE_PLATFORM_##x)))
-#define __API_AVAILABLE_PLATFORM_macos(x) macos,introduced=x
+#define API_AVAILABLE(X) __attribute__((availability(macos, introduced=10.12))) // dummy macro
 
 API_AVAILABLE(macos(10.12))
 @interface NewClass

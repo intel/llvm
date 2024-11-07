@@ -33,7 +33,8 @@ TEST(AsmWriterTest, DebugPrintDetachedInstruction) {
   std::string S;
   raw_string_ostream OS(S);
   Add->print(OS);
-  EXPECT_THAT(S, HasSubstr("<badref> = add i32 poison, poison, !<empty"));
+  EXPECT_THAT(OS.str(),
+              HasSubstr("<badref> = add i32 poison, poison, !<empty"));
 }
 
 TEST(AsmWriterTest, DebugPrintDetachedArgument) {
@@ -59,7 +60,8 @@ TEST(AsmWriterTest, DumpDIExpression) {
   std::string S;
   raw_string_ostream OS(S);
   Expr->print(OS);
-  EXPECT_EQ("!DIExpression(DW_OP_constu, 4, DW_OP_minus, DW_OP_deref)", S);
+  EXPECT_EQ("!DIExpression(DW_OP_constu, 4, DW_OP_minus, DW_OP_deref)",
+            OS.str());
 }
 
 TEST(AsmWriterTest, PrintAddrspaceWithNullOperand) {
@@ -78,7 +80,7 @@ TEST(AsmWriterTest, PrintAddrspaceWithNullOperand) {
   std::string S;
   raw_string_ostream OS(S);
   Call->print(OS);
-  EXPECT_THAT(S, HasSubstr("<cannot get addrspace!>"));
+  EXPECT_THAT(OS.str(), HasSubstr("<cannot get addrspace!>"));
 }
 
 TEST(AsmWriterTest, PrintNullOperandBundle) {
@@ -101,6 +103,6 @@ TEST(AsmWriterTest, PrintNullOperandBundle) {
   std::string S;
   raw_string_ostream OS(S);
   Invoke->print(OS);
-  EXPECT_THAT(S, HasSubstr("<null operand bundle!>"));
+  EXPECT_THAT(OS.str(), HasSubstr("<null operand bundle!>"));
 }
 }

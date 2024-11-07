@@ -8,7 +8,7 @@
 
 // <cwctype>
 
-// UNSUPPORTED: no-wide-characters
+// XFAIL: no-wide-characters
 
 #include <cwctype>
 #include <type_traits>

@@ -44,16 +44,14 @@ namespace llvm {
 /// CastConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement cast constant exprs.
 class CastConstantExpr final : public ConstantExpr {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{1};
-
 public:
   CastConstantExpr(unsigned Opcode, Constant *C, Type *Ty)
-      : ConstantExpr(Ty, Opcode, AllocMarker) {
+    : ConstantExpr(Ty, Opcode, &Op<0>(), 1) {
     Op<0>() = C;
   }
 
   // allocate space for exactly one operand
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 1); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   DECLARE_TRANSPARENT_OPERAND_ACCESSORS(Value);
@@ -69,19 +67,17 @@ public:
 /// BinaryConstantExpr - This class is private to Constants.cpp, and is used
 /// behind the scenes to implement binary constant exprs.
 class BinaryConstantExpr final : public ConstantExpr {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 public:
   BinaryConstantExpr(unsigned Opcode, Constant *C1, Constant *C2,
                      unsigned Flags)
-      : ConstantExpr(C1->getType(), Opcode, AllocMarker) {
+    : ConstantExpr(C1->getType(), Opcode, &Op<0>(), 2) {
     Op<0>() = C1;
     Op<1>() = C2;
     SubclassOptionalData = Flags;
   }
 
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -99,18 +95,16 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// extractelement constant exprs.
 class ExtractElementConstantExpr final : public ConstantExpr {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 public:
   ExtractElementConstantExpr(Constant *C1, Constant *C2)
-      : ConstantExpr(cast<VectorType>(C1->getType())->getElementType(),
-                     Instruction::ExtractElement, AllocMarker) {
+    : ConstantExpr(cast<VectorType>(C1->getType())->getElementType(),
+                   Instruction::ExtractElement, &Op<0>(), 2) {
     Op<0>() = C1;
     Op<1>() = C2;
   }
 
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -128,18 +122,17 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// insertelement constant exprs.
 class InsertElementConstantExpr final : public ConstantExpr {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
-
 public:
   InsertElementConstantExpr(Constant *C1, Constant *C2, Constant *C3)
-      : ConstantExpr(C1->getType(), Instruction::InsertElement, AllocMarker) {
+    : ConstantExpr(C1->getType(), Instruction::InsertElement,
+                   &Op<0>(), 3) {
     Op<0>() = C1;
     Op<1>() = C2;
     Op<2>() = C3;
   }
 
   // allocate space for exactly three operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 3); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -157,14 +150,12 @@ public:
 /// Constants.cpp, and is used behind the scenes to implement
 /// shufflevector constant exprs.
 class ShuffleVectorConstantExpr final : public ConstantExpr {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 public:
   ShuffleVectorConstantExpr(Constant *C1, Constant *C2, ArrayRef<int> Mask)
       : ConstantExpr(VectorType::get(
                          cast<VectorType>(C1->getType())->getElementType(),
                          Mask.size(), isa<ScalableVectorType>(C1->getType())),
-                     Instruction::ShuffleVector, AllocMarker) {
+                     Instruction::ShuffleVector, &Op<0>(), 2) {
     assert(ShuffleVectorInst::isValidOperands(C1, C2, Mask) &&
            "Invalid shuffle vector instruction operands!");
     Op<0>() = C1;
@@ -177,7 +168,7 @@ public:
   SmallVector<int, 4> ShuffleMask;
   Constant *ShuffleMaskForBitcode;
 
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { return User::operator delete(Ptr); }
 
   /// Transparently provide more efficient getOperand methods.
@@ -200,17 +191,15 @@ class GetElementPtrConstantExpr : public ConstantExpr {
 
   GetElementPtrConstantExpr(Type *SrcElementTy, Constant *C,
                             ArrayRef<Constant *> IdxList, Type *DestTy,
-                            std::optional<ConstantRange> InRange,
-                            AllocInfo AllocInfo);
+                            std::optional<ConstantRange> InRange);
 
 public:
   static GetElementPtrConstantExpr *
   Create(Type *SrcElementTy, Constant *C, ArrayRef<Constant *> IdxList,
          Type *DestTy, unsigned Flags, std::optional<ConstantRange> InRange) {
-    IntrusiveOperandsAllocMarker AllocMarker{unsigned(IdxList.size() + 1)};
-    GetElementPtrConstantExpr *Result = new (AllocMarker)
+    GetElementPtrConstantExpr *Result = new (IdxList.size() + 1)
         GetElementPtrConstantExpr(SrcElementTy, C, IdxList, DestTy,
-                                  std::move(InRange), AllocMarker);
+                                  std::move(InRange));
     Result->SubclassOptionalData = Flags;
     return Result;
   }
@@ -257,7 +246,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ShuffleVectorConstantExpr, Value)
 
 template <>
 struct OperandTraits<GetElementPtrConstantExpr>
-    : public VariadicOperandTraits<GetElementPtrConstantExpr> {};
+    : public VariadicOperandTraits<GetElementPtrConstantExpr, 1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(GetElementPtrConstantExpr, Value)
 
@@ -329,8 +318,7 @@ template <class ConstantClass> struct ConstantAggrKeyType {
   using TypeClass = typename ConstantInfo<ConstantClass>::TypeClass;
 
   ConstantClass *create(TypeClass *Ty) const {
-    User::IntrusiveOperandsAllocMarker AllocMarker{unsigned(Operands.size())};
-    return new (AllocMarker) ConstantClass(Ty, Operands, AllocMarker);
+    return new (Operands.size()) ConstantClass(Ty, Operands);
   }
 };
 
@@ -398,7 +386,7 @@ private:
   static ArrayRef<int> getShuffleMaskIfValid(const ConstantExpr *CE) {
     if (CE->getOpcode() == Instruction::ShuffleVector)
       return CE->getShuffleMask();
-    return {};
+    return std::nullopt;
   }
 
   static Type *getSourceElementTypeIfValid(const ConstantExpr *CE) {
@@ -417,7 +405,7 @@ private:
 public:
   ConstantExprKeyType(unsigned Opcode, ArrayRef<Constant *> Ops,
                       unsigned short SubclassOptionalData = 0,
-                      ArrayRef<int> ShuffleMask = {},
+                      ArrayRef<int> ShuffleMask = std::nullopt,
                       Type *ExplicitTy = nullptr,
                       std::optional<ConstantRange> InRange = std::nullopt)
       : Opcode(Opcode), SubclassOptionalData(SubclassOptionalData), Ops(Ops),

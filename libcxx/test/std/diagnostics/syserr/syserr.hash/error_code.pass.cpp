@@ -6,15 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <system_error>
-//
-// template <>
-// struct hash<error_code>;
+// <functional>
+
+// template <class T>
+// struct hash
+// {
+//     size_t operator()(T val) const;
+// };
 
 #include <system_error>
 #include <cassert>
-#include <cstddef>
-#include <functional>
 #include <type_traits>
 
 #include "test_macros.h"

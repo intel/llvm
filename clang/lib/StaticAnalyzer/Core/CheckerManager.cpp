@@ -48,6 +48,16 @@ bool CheckerManager::hasPathSensitiveCheckers() const {
       EvalCallCheckers, EndOfTranslationUnitCheckers);
 }
 
+void CheckerManager::finishedCheckerRegistration() {
+#ifndef NDEBUG
+  // Make sure that for every event that has listeners, there is at least
+  // one dispatcher registered for it.
+  for (const auto &Event : Events)
+    assert(Event.second.HasDispatcher &&
+           "No dispatcher registered for an event");
+#endif
+}
+
 void CheckerManager::reportInvalidCheckerOptionValue(
     const CheckerBase *C, StringRef OptionName,
     StringRef ExpectedValueDesc) const {
@@ -669,6 +679,7 @@ void CheckerManager::runCheckersForEvalCall(ExplodedNodeSet &Dst,
           std::string Buf;
           llvm::raw_string_ostream OS(Buf);
           Call.dump(OS);
+          OS.flush();
           return Buf;
         };
         std::string AssertionMessage = llvm::formatv(

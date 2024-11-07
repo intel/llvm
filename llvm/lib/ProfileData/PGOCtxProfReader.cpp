@@ -44,6 +44,14 @@ PGOCtxProfContext::getOrEmplace(uint32_t Index, GlobalValue::GUID G,
   return Iter->second;
 }
 
+void PGOCtxProfContext::getContainedGuids(
+    DenseSet<GlobalValue::GUID> &Guids) const {
+  Guids.insert(GUID);
+  for (const auto &[_, Callsite] : Callsites)
+    for (const auto &[_, Callee] : Callsite)
+      Callee.getContainedGuids(Guids);
+}
+
 Expected<BitstreamEntry> PGOCtxProfileReader::advance() {
   return Cursor.advance(BitstreamCursor::AF_DontAutoprocessAbbrevs);
 }

@@ -26,6 +26,7 @@ exports_files([
     "tools/clang-format/clang-format.el",
     "tools/clang-format/clang-format-test.el",
     "tools/clang-format/clang-format.py",
+    "tools/clang-rename/clang-rename.el",
     "tools/extra/clang-include-fixer/tool/clang-include-fixer.el",
     "tools/extra/clang-include-fixer/tool/clang-include-fixer-test.el",
 ])
@@ -91,7 +92,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_neon.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
@@ -107,7 +107,6 @@ gentbl(
     td_file = "include/clang/Basic/arm_fp16.td",
     td_srcs = [
         "include/clang/Basic/arm_fp16.td",
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
 )
@@ -121,7 +120,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_mve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_mve.td",
         "include/clang/Basic/arm_mve_defs.td",
     ],
@@ -136,7 +134,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -151,27 +148,10 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
 )
-
-gentbl(
-    name = "basic_arm_sve_immcheck_types_gen",
-    tbl_outs = [(
-        "-gen-arm-immcheck-types",
-        "include/clang/Basic/arm_immcheck_types.inc",
-    )],
-    tblgen = ":clang-tblgen",
-    td_file = "include/clang/Basic/arm_sve.td",
-    td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
-        "include/clang/Basic/arm_sve.td",
-        "include/clang/Basic/arm_sve_sme_incl.td",
-    ],
-)
-
 
 gentbl(
     name = "basic_arm_sve_typeflags_gen",
@@ -182,7 +162,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -197,7 +176,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -212,7 +190,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -227,7 +204,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sme.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -244,7 +220,6 @@ gentbl(
     td_srcs = [
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
-        "include/clang/Basic/arm_immcheck_incl.td",
     ],
 )
 
@@ -257,7 +232,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sme.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -272,7 +246,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sme.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -287,7 +260,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sme.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -657,7 +629,6 @@ cc_library(
     textual_hdrs = [
         "include/clang/Basic/arm_fp16.inc",
         "include/clang/Basic/arm_mve_builtins.inc",
-        "include/clang/Basic/arm_immcheck_types.inc",
         "include/clang/Basic/arm_mve_builtin_aliases.inc",
         "include/clang/Basic/arm_mve_builtin_cg.inc",
         "include/clang/Basic/arm_mve_builtin_sema.inc",
@@ -1663,7 +1634,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_neon.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
@@ -1679,7 +1649,6 @@ gentbl(
     td_file = "include/clang/Basic/arm_fp16.td",
     td_srcs = [
         "include/clang/Basic/arm_fp16.td",
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
 )
@@ -1721,7 +1690,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sve.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sve.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -1737,7 +1705,6 @@ gentbl(
     td_file = "include/clang/Basic/arm_bf16.td",
     td_srcs = [
         "include/clang/Basic/arm_bf16.td",
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
 )
@@ -1755,7 +1722,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_sme.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_sme.td",
         "include/clang/Basic/arm_sve_sme_incl.td",
     ],
@@ -1770,7 +1736,6 @@ gentbl(
     tblgen = ":clang-tblgen",
     td_file = "include/clang/Basic/arm_neon.td",
     td_srcs = [
-        "include/clang/Basic/arm_immcheck_incl.td",
         "include/clang/Basic/arm_neon.td",
         "include/clang/Basic/arm_neon_incl.td",
     ],
@@ -1944,7 +1909,6 @@ cc_library(
         "//llvm:Support",
         "//llvm:Target",
         "//llvm:TargetParser",
-        "//llvm:config",
     ],
 )
 
@@ -2582,6 +2546,20 @@ cc_binary(
         ":format",
         ":frontend",
         ":lex",
+        ":rewrite",
+        ":tooling",
+        ":tooling_refactoring",
+        "//llvm:Support",
+    ],
+)
+
+cc_binary(
+    name = "clang-rename",
+    srcs = glob(["tools/clang-rename/*.cpp"]),
+    stamp = 0,
+    deps = [
+        ":basic",
+        ":frontend",
         ":rewrite",
         ":tooling",
         ":tooling_refactoring",

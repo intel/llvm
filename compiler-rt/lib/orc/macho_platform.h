@@ -24,12 +24,11 @@ ORC_RT_INTERFACE void __orc_rt_macho_cxa_finalize(void *dso_handle);
 // dlfcn functions.
 ORC_RT_INTERFACE const char *__orc_rt_macho_jit_dlerror();
 ORC_RT_INTERFACE void *__orc_rt_macho_jit_dlopen(const char *path, int mode);
-ORC_RT_INTERFACE int __orc_rt_macho_jit_dlupdate(void *dso_handle, int mode);
 ORC_RT_INTERFACE int __orc_rt_macho_jit_dlclose(void *dso_handle);
 ORC_RT_INTERFACE void *__orc_rt_macho_jit_dlsym(void *dso_handle,
                                                 const char *symbol);
 
-namespace orc_rt {
+namespace __orc_rt {
 namespace macho {
 
 enum dlopen_mode : int {
@@ -39,7 +38,7 @@ enum dlopen_mode : int {
   ORC_RT_RTLD_GLOBAL = 0x8
 };
 
-} // namespace macho
-} // namespace orc_rt
+} // end namespace macho
+} // end namespace __orc_rt
 
 #endif // ORC_RT_MACHO_PLATFORM_H

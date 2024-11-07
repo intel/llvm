@@ -120,7 +120,7 @@ using IdentityT = typename Identity<T>::type;
 template <bool Value>
 using EnableIfB = typename std::enable_if<Value, bool>::type;
 
-} // namespace detail
+} // end namespace detail
 
 using detail::EnableIfB;
 

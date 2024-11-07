@@ -68,7 +68,6 @@ enum class ICFLevel {
   unknown,
   none,
   safe,
-  safe_thunks,
   all,
 };
 
@@ -210,7 +209,6 @@ struct Configuration {
   std::vector<SectionAlign> sectionAlignments;
   std::vector<SegmentProtection> segmentProtections;
   bool ltoDebugPassManager = false;
-  llvm::StringRef codegenDataGeneratePath;
   bool csProfileGenerate = false;
   llvm::StringRef csProfilePath;
   bool pgoWarnMismatch;
@@ -220,7 +218,6 @@ struct Configuration {
   llvm::StringRef printSymbolOrder;
 
   llvm::StringRef irpgoProfileSortProfilePath;
-  bool compressionSortStartupFunctions = false;
   bool functionOrderForCompression = false;
   bool dataOrderForCompression = false;
   bool verboseBpSectionOrderer = false;

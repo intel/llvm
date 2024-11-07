@@ -11,7 +11,6 @@
 //===----------------------------------------------------------------------===//
 
 #include "flang/Lower/Bridge.h"
-#include "DirectivesCommon.h"
 #include "flang/Common/Version.h"
 #include "flang/Lower/Allocatable.h"
 #include "flang/Lower/CallInterface.h"
@@ -858,7 +857,7 @@ public:
 
     copyVarHLFIR(loc, Fortran::lower::SymbolBox::Intrinsic{dst},
                  Fortran::lower::SymbolBox::Intrinsic{src}, isAllocatable,
-                 isPointer, Fortran::semantics::Symbol::Flags());
+                 isPointer);
   }
 
   void copyHostAssociateVar(
@@ -895,7 +894,7 @@ public:
       rhs_sb = &hsb;
     }
 
-    copyVar(sym, *lhs_sb, *rhs_sb, sym.flags());
+    copyVar(sym, *lhs_sb, *rhs_sb);
 
     if (copyAssignIP && copyAssignIP->isSet() &&
         sym.test(Fortran::semantics::Symbol::Flag::OmpLastPrivate)) {
@@ -1211,18 +1210,16 @@ private:
 
   void copyVar(const Fortran::semantics::Symbol &sym,
                const Fortran::lower::SymbolBox &lhs_sb,
-               const Fortran::lower::SymbolBox &rhs_sb,
-               Fortran::semantics::Symbol::Flags flags) {
+               const Fortran::lower::SymbolBox &rhs_sb) {
     mlir::Location loc = genLocation(sym.name());
     if (lowerToHighLevelFIR())
-      copyVarHLFIR(loc, lhs_sb, rhs_sb, flags);
+      copyVarHLFIR(loc, lhs_sb, rhs_sb);
     else
       copyVarFIR(loc, sym, lhs_sb, rhs_sb);
   }
 
   void copyVarHLFIR(mlir::Location loc, Fortran::lower::SymbolBox dst,
-                    Fortran::lower::SymbolBox src,
-                    Fortran::semantics::Symbol::Flags flags) {
+                    Fortran::lower::SymbolBox src) {
     assert(lowerToHighLevelFIR());
 
     bool isBoxAllocatable = dst.match(
@@ -1239,40 +1236,51 @@ private:
         },
         [](const auto &box) { return false; });
 
-    copyVarHLFIR(loc, dst, src, isBoxAllocatable, isBoxPointer, flags);
+    copyVarHLFIR(loc, dst, src, isBoxAllocatable, isBoxPointer);
   }
 
   void copyVarHLFIR(mlir::Location loc, Fortran::lower::SymbolBox dst,
                     Fortran::lower::SymbolBox src, bool isAllocatable,
-                    bool isPointer, Fortran::semantics::Symbol::Flags flags) {
+                    bool isPointer) {
     assert(lowerToHighLevelFIR());
     hlfir::Entity lhs{dst.getAddr()};
     hlfir::Entity rhs{src.getAddr()};
-
+    // Temporary_lhs is set to true in hlfir.assign below to avoid user
+    // assignment to be used and finalization to be called on the LHS.
+    // This may or may not be correct but mimics the current behaviour
+    // without HLFIR.
     auto copyData = [&](hlfir::Entity l, hlfir::Entity r) {
       // Dereference RHS and load it if trivial scalar.
       r = hlfir::loadTrivialScalar(loc, *builder, r);
-      builder->create<hlfir::AssignOp>(loc, r, l, isAllocatable);
+      builder->create<hlfir::AssignOp>(
+          loc, r, l,
+          /*isWholeAllocatableAssignment=*/false,
+          /*keepLhsLengthInAllocatableAssignment=*/false,
+          /*temporary_lhs=*/true);
     };
 
-    if (isPointer) {
+    if (isAllocatable) {
+      // Deep copy allocatable if it is allocated.
+      // Note that when allocated, the RHS is already allocated with the LHS
+      // shape for copy on entry in createHostAssociateVarClone.
+      // For lastprivate, this assumes that the RHS was not reallocated in
+      // the OpenMP region.
+      lhs = hlfir::derefPointersAndAllocatables(loc, *builder, lhs);
+      mlir::Value addr = hlfir::genVariableRawAddress(loc, *builder, lhs);
+      mlir::Value isAllocated = builder->genIsNotNullAddr(loc, addr);
+      builder->genIfThen(loc, isAllocated)
+          .genThen([&]() {
+            // Copy the DATA, not the descriptors.
+            copyData(lhs, rhs);
+          })
+          .end();
+    } else if (isPointer) {
       // Set LHS target to the target of RHS (do not copy the RHS
       // target data into the LHS target storage).
       auto loadVal = builder->create<fir::LoadOp>(loc, rhs);
       builder->create<fir::StoreOp>(loc, loadVal, lhs);
-    } else if (isAllocatable &&
-               (flags.test(Fortran::semantics::Symbol::Flag::OmpFirstPrivate) ||
-                flags.test(Fortran::semantics::Symbol::Flag::OmpCopyIn))) {
-      // For firstprivate and copyin allocatable variables, RHS must be copied
-      // only when LHS is allocated.
-      hlfir::Entity temp =
-          hlfir::derefPointersAndAllocatables(loc, *builder, lhs);
-      mlir::Value addr = hlfir::genVariableRawAddress(loc, *builder, temp);
-      mlir::Value isAllocated = builder->genIsNotNullAddr(loc, addr);
-      builder->genIfThen(loc, isAllocated)
-          .genThen([&]() { copyData(lhs, rhs); })
-          .end();
     } else {
+      // Non ALLOCATABLE/POINTER variable. Simple DATA copy.
       copyData(lhs, rhs);
     }
   }
@@ -1317,8 +1325,7 @@ private:
                                      bool isUnordered) {
     if (isUnordered || sym.has<Fortran::semantics::HostAssocDetails>() ||
         sym.has<Fortran::semantics::UseDetails>()) {
-      if (!shallowLookupSymbol(sym) &&
-          !sym.test(Fortran::semantics::Symbol::Flag::OmpShared)) {
+      if (!shallowLookupSymbol(sym)) {
         // Do concurrent loop variables are not mapped yet since they are local
         // to the Do concurrent scope (same for OpenMP loops).
         mlir::OpBuilder::InsertPoint insPt = builder->saveInsertionPoint();
@@ -2599,12 +2606,14 @@ private:
             stmt.t)
             .value();
     if (lowerToHighLevelFIR()) {
-      mlir::OpBuilder::InsertionGuard guard(*builder);
-      Fortran::lower::SymMapScope scope(localSymbols);
+      mlir::OpBuilder::InsertPoint insertPt = builder->saveInsertionPoint();
+      localSymbols.pushScope();
       genForallNest(concurrentHeader);
       genFIR(std::get<Fortran::parser::UnlabeledStatement<
                  Fortran::parser::ForallAssignmentStmt>>(stmt.t)
                  .statement);
+      localSymbols.popScope();
+      builder->restoreInsertionPoint(insertPt);
       return;
     }
     prepareExplicitSpace(stmt);
@@ -2824,7 +2833,7 @@ private:
   }
 
   void genFIR(const Fortran::parser::CUFKernelDoConstruct &kernel) {
-    Fortran::lower::SymMapScope scope(localSymbols);
+    localSymbols.pushScope();
     const Fortran::parser::CUFKernelDoConstruct::Directive &dir =
         std::get<Fortran::parser::CUFKernelDoConstruct::Directive>(kernel.t);
 
@@ -2990,12 +2999,6 @@ private:
     mlir::Block &b = op.getRegion().back();
     builder->setInsertionPointToStart(&b);
 
-    Fortran::lower::pft::Evaluation *crtEval = &getEval();
-    if (crtEval->lowerAsUnstructured())
-      Fortran::lower::createEmptyRegionBlocks<fir::FirEndOp>(
-          *builder, crtEval->getNestedEvaluations());
-    builder->setInsertionPointToStart(&b);
-
     for (auto [arg, value] : llvm::zip(
              op.getLoopRegions().front()->front().getArguments(), ivValues)) {
       mlir::Value convArg =
@@ -3003,6 +3006,7 @@ private:
       builder->create<fir::StoreOp>(loc, convArg, value);
     }
 
+    Fortran::lower::pft::Evaluation *crtEval = &getEval();
     if (crtEval->lowerAsStructured()) {
       crtEval = &crtEval->getFirstNestedEvaluation();
       for (int64_t i = 1; i < nestedLoops; i++)
@@ -3015,6 +3019,7 @@ private:
 
     builder->create<fir::FirEndOp>(loc);
     builder->setInsertionPointAfter(op);
+    localSymbols.popScope();
   }
 
   void genFIR(const Fortran::parser::OpenMPConstruct &omp) {
@@ -3257,10 +3262,15 @@ private:
         const Fortran::parser::CharBlock &endPosition =
             eval.getLastNestedEvaluation().position;
         localSymbols.pushScope();
-        mlir::Value stackPtr = builder->genStackSave(toLocation());
+        mlir::func::FuncOp stackSave = fir::factory::getLlvmStackSave(*builder);
+        mlir::func::FuncOp stackRestore =
+            fir::factory::getLlvmStackRestore(*builder);
+        mlir::Value stackPtr =
+            builder->create<fir::CallOp>(toLocation(), stackSave).getResult(0);
         mlir::Location endLoc = genLocation(endPosition);
-        stmtCtx.attachCleanup(
-            [=]() { builder->genStackRestore(endLoc, stackPtr); });
+        stmtCtx.attachCleanup([=]() {
+          builder->create<fir::CallOp>(endLoc, stackRestore, stackPtr);
+        });
         Fortran::semantics::Scope &scope =
             bridge.getSemanticsContext().FindScope(endPosition);
         scopeBlockIdMap.try_emplace(&scope, ++blockId);

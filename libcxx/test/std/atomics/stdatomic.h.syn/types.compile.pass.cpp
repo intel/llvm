@@ -114,8 +114,6 @@
 // using std::atomic_signal_fence                         // see below
 
 #include <stdatomic.h>
-#include <cstddef>
-#include <cstdint>
 #include <type_traits>
 
 #include "test_macros.h"

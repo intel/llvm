@@ -18,7 +18,6 @@
 // template<class Lock, class Predicate>
 //   bool wait(Lock& lock, stop_token stoken, Predicate pred);
 
-#include <atomic>
 #include <cassert>
 #include <concepts>
 #include <condition_variable>

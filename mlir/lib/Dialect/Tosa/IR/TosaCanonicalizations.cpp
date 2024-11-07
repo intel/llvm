@@ -88,7 +88,7 @@ struct ConsolidateTransposeOptimization
       return rewriter.notifyMatchFailure(transposeOp,
                                          "input must be transpose operation");
 
-    SmallVector<int32_t> transposePerms, innerTransposePerms;
+    SmallVector<int64_t> transposePerms, innerTransposePerms;
     if (transposeOp.getConstantPerms(transposePerms).failed())
       return rewriter.notifyMatchFailure(transposeOp,
                                          "transpose perms must be constant");
@@ -497,10 +497,8 @@ OpFoldResult AddOp::fold(FoldAdaptor adaptor) {
     return {};
 
   auto resultETy = resultTy.getElementType();
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
 
   if (lhsTy == resultTy && isSplatZero(resultETy, rhsAttr))
     return getInput1();
@@ -538,10 +536,8 @@ OpFoldResult IntDivOp::fold(FoldAdaptor adaptor) {
 
   // IntDivOp inputs must be integer type, no need to check for quantized type
   auto resultETy = resultTy.getElementType();
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
   if (lhsAttr && lhsAttr.isSplat()) {
     if (llvm::isa<IntegerType>(resultETy) &&
         lhsAttr.getSplatValue<APInt>().isZero())
@@ -609,13 +605,10 @@ OpFoldResult MulOp::fold(FoldAdaptor adaptor) {
     return {};
 
   auto resultETy = resultTy.getElementType();
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
 
   const int64_t shift = llvm::isa<IntegerType>(resultETy) ? getShift() : 0;
-
   if (rhsTy == resultTy) {
     if (isSplatZero(resultETy, lhsAttr))
       return lhsAttr.resizeSplat(resultTy);
@@ -645,10 +638,8 @@ OpFoldResult SubOp::fold(FoldAdaptor adaptor) {
     return {};
 
   auto resultETy = resultTy.getElementType();
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
 
   if (lhsTy == resultTy && isSplatZero(resultETy, rhsAttr))
     return getInput1();
@@ -690,10 +681,8 @@ struct APIntFoldGreaterEqual {
 
 OpFoldResult GreaterOp::fold(FoldAdaptor adaptor) {
   auto resultTy = llvm::dyn_cast<RankedTensorType>(getType());
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
 
   if (!lhsAttr || !rhsAttr)
     return {};
@@ -704,10 +693,8 @@ OpFoldResult GreaterOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult GreaterEqualOp::fold(FoldAdaptor adaptor) {
   auto resultTy = llvm::dyn_cast<RankedTensorType>(getType());
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
 
   if (!lhsAttr || !rhsAttr)
     return {};
@@ -719,10 +706,8 @@ OpFoldResult GreaterEqualOp::fold(FoldAdaptor adaptor) {
 
 OpFoldResult EqualOp::fold(FoldAdaptor adaptor) {
   auto resultTy = llvm::dyn_cast<RankedTensorType>(getType());
-  auto lhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
-  auto rhsAttr =
-      llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
+  auto lhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1());
+  auto rhsAttr = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput2());
   Value lhs = getInput1();
   Value rhs = getInput2();
   auto lhsTy = llvm::cast<ShapedType>(lhs.getType());
@@ -853,16 +838,14 @@ OpFoldResult ReshapeOp::fold(FoldAdaptor adaptor) {
     return {};
 
   // reshape(const(x)) -> const(reshape-attr(x))
-  if (auto operand =
-          llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1())) {
+  if (auto operand = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1())) {
     // Constants must have static shape.
     if (!outputTy.hasStaticShape())
       return {};
 
     // Okay to duplicate splat constants.
     if (operand.isSplat())
-      return SplatElementsAttr::get(outputTy,
-                                    operand.getSplatValue<Attribute>());
+      return SplatElementsAttr::get(outputTy, operand.getSplatValue<Attribute>());
 
     // Don't duplicate other constants.
     if (!getInput1().hasOneUse())
@@ -922,8 +905,7 @@ OpFoldResult ReverseOp::fold(FoldAdaptor adaptor) {
   auto operand = getInput();
   auto operandTy = llvm::cast<ShapedType>(operand.getType());
   auto axis = getAxis();
-  auto operandAttr =
-      llvm::dyn_cast_if_present<SplatElementsAttr>(adaptor.getInput());
+  auto operandAttr = llvm::dyn_cast_if_present<SplatElementsAttr>(adaptor.getInput());
   if (operandAttr)
     return operandAttr;
 
@@ -972,8 +954,7 @@ OpFoldResult tosa::SelectOp::fold(FoldAdaptor adaptor) {
   if (getOnTrue() == getOnFalse())
     return getOnTrue();
 
-  auto predicate =
-      llvm::dyn_cast_if_present<DenseIntElementsAttr>(adaptor.getPred());
+  auto predicate = llvm::dyn_cast_if_present<DenseIntElementsAttr>(adaptor.getPred());
   if (!predicate)
     return {};
 
@@ -994,8 +975,7 @@ OpFoldResult TransposeOp::fold(FoldAdaptor adaptor) {
   auto resultTy = llvm::cast<ShapedType>(getType());
 
   // Transposing splat values just means reshaping.
-  if (auto input =
-          llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1())) {
+  if (auto input = llvm::dyn_cast_if_present<DenseElementsAttr>(adaptor.getInput1())) {
     if (input.isSplat() && resultTy.hasStaticShape() &&
         input.getType().getElementType() == resultTy.getElementType())
       return input.reshape(resultTy);
@@ -1006,11 +986,11 @@ OpFoldResult TransposeOp::fold(FoldAdaptor adaptor) {
     return {};
 
   // Transpose is not the identity transpose.
-  SmallVector<int32_t> perms;
+  SmallVector<int64_t> perms;
   if (getConstantPerms(perms).failed())
     return {};
 
-  if (!llvm::equal(llvm::seq<int32_t>(0, perms.size()), perms))
+  if (!llvm::equal(llvm::seq<int64_t>(0, perms.size()), perms))
     return {};
 
   return getInput1();

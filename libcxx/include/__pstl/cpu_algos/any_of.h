@@ -26,8 +26,6 @@
 _LIBCPP_PUSH_MACROS
 #include <__undef_macros>
 
-#if _LIBCPP_STD_VER >= 17
-
 _LIBCPP_BEGIN_NAMESPACE_STD
 namespace __pstl {
 
@@ -95,8 +93,6 @@ struct __cpu_parallel_any_of {
 
 } // namespace __pstl
 _LIBCPP_END_NAMESPACE_STD
-
-#endif // _LIBCPP_STD_VER >= 17
 
 _LIBCPP_POP_MACROS
 

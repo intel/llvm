@@ -605,7 +605,7 @@ private:
       bool DependenciesChanged = true;
     };
     DenseMap<Block *, BlockInfo> BlockInfos;
-    std::deque<Block *> WorkList;
+    SmallVector<Block *> WorkList;
 
     // Pre-allocate map entries. This prevents any iterator/reference
     // invalidation in the next loop.
@@ -637,8 +637,7 @@ private:
 
     // Propagate block-level dependencies through the block-dependence graph.
     while (!WorkList.empty()) {
-      auto *B = WorkList.back();
-      WorkList.pop_back();
+      auto *B = WorkList.pop_back_val();
 
       auto &BI = BlockInfos[B];
       assert(BI.DependenciesChanged &&
@@ -651,7 +650,7 @@ private:
               DependantBI.Dependencies.insert(Dependency).second)
             if (!DependantBI.DependenciesChanged) {
               DependantBI.DependenciesChanged = true;
-              WorkList.push_front(Dependant);
+              WorkList.push_back(Dependant);
             }
         }
       }

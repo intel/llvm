@@ -25,8 +25,8 @@ def TraitThree : NativeOpTrait<"TraitThree">;
 class OptClauseSkip<
     bit traits = false, bit arguments = false, bit assemblyFormat = false,
     bit description = false, bit extraClassDeclaration = false
-  > : OpenMP_Clause<traits, arguments, assemblyFormat, description,
-                    extraClassDeclaration> {
+  > : OpenMP_Clause</*isRequired=*/false, traits, arguments, assemblyFormat,
+                    description, extraClassDeclaration> {
   let traits = [
     TraitOne
   ];
@@ -35,7 +35,7 @@ class OptClauseSkip<
     Optional<AnyInteger>:$opt_simple_val
   );
 
-  let optAssemblyFormat = [{
+  let assemblyFormat = [{
     `optsimple` `(` $opt_simple_val `:` type($opt_simple_val) `)`
   }];
 
@@ -51,8 +51,9 @@ class OptClauseSkip<
 def OptClause : OptClauseSkip<>;
 
 def OptClauseTwo : OpenMP_Clause<
-    /*skipTraits=*/false, /*skipArguments=*/false, /*skipAssemblyFormat=*/false,
-    /*skipDescription=*/false, /*skipExtraClassDeclaration=*/false> {
+    /*isRequired=*/false, /*skipTraits=*/false, /*skipArguments=*/false,
+    /*skipAssemblyFormat=*/false, /*skipDescription=*/false,
+    /*skipExtraClassDeclaration=*/false> {
   let traits = [
     TraitOne, TraitTwo
   ];
@@ -61,7 +62,7 @@ def OptClauseTwo : OpenMP_Clause<
     Optional<AnyInteger>:$opt_two_val
   );
 
-  let optAssemblyFormat = [{
+  let assemblyFormat = [{
     `opt_two` `(` $opt_two_val `:` type($opt_two_val) `)`
   }];
 
@@ -77,8 +78,8 @@ def OptClauseTwo : OpenMP_Clause<
 class ReqClauseSkip<
     bit traits = false, bit arguments = false, bit assemblyFormat = false,
     bit description = false, bit extraClassDeclaration = false
-  > : OpenMP_Clause<traits, arguments, assemblyFormat, description,
-                    extraClassDeclaration> {
+  > : OpenMP_Clause</*isRequired=*/true, traits, arguments, assemblyFormat,
+                    description, extraClassDeclaration> {
   let traits = [
     TraitTwo
   ];
@@ -87,7 +88,7 @@ class ReqClauseSkip<
     AnyInteger:$req_simple_val
   );
 
-  let reqAssemblyFormat = [{
+  let assemblyFormat = [{
     `reqsimple` `(` $req_simple_val `:` type($req_simple_val) `)`
   }];
 
@@ -103,8 +104,9 @@ class ReqClauseSkip<
 def ReqClause : ReqClauseSkip<>;
 
 def ReqClauseTwo : OpenMP_Clause<
-    /*skipTraits=*/false, /*skipArguments=*/false, /*skipAssemblyFormat=*/false,
-    /*skipDescription=*/false, /*skipExtraClassDeclaration=*/false> {
+    /*isRequired=*/true, /*skipTraits=*/false, /*skipArguments=*/false,
+    /*skipAssemblyFormat=*/false, /*skipDescription=*/false,
+    /*skipExtraClassDeclaration=*/false> {
   let traits = [
     TraitTwo, TraitThree
   ];
@@ -113,7 +115,7 @@ def ReqClauseTwo : OpenMP_Clause<
     AnyInteger:$req_two_val
   );
 
-  let reqAssemblyFormat = [{
+  let assemblyFormat = [{
     `req_two` `(` $req_two_val `:` type($req_two_val) `)`
   }];
 
@@ -127,41 +129,6 @@ def ReqClauseTwo : OpenMP_Clause<
 }
 
 // Clause-based operation definitions.
-
-def OpAddArguments : OpenMP_Op<"op_add_arguments",
-    traits=[AttrSizedOperandSegments], clauses=[ReqClause, OptClause]> {
-  let summary = "operation with clauses - arguments added";
-  let description = [{
-    Description of operation with clauses - arguments added.
-  }] # clausesDescription;
-  let arguments = !con(clausesArgs, (ins Optional<AnyInteger>:$opt_added,
-                                         AnyInteger:$req_added));
-  let assemblyFormat = clausesReqAssemblyFormat #
-    "`req_added` `(` $req_added `:` type($req_added) `)` oilist(" #
-    clausesOptAssemblyFormat #
-    "|`opt_added` `(` $opt_added `:` type($opt_added) `)`) attr-dict";
-}
-
-// DECL-LABEL: class OpAddArguments : public ::mlir::Op<
-// DECL: getReqSimpleVal() {
-// DECL: getOptSimpleVal() {
-// DECL: void reqClauseExtraClassDecl();
-// DECL: void optClauseExtraClassDecl();
-
-// DOC-LABEL: omp::OpAddArguments
-// DOC: _Operation with clauses - arguments added_
-// DOC: operation ::= `omp.op_add_arguments`
-// DOC: `reqsimple` `(` $req_simple_val `:` type($req_simple_val) `)`
-// DOC: `req_added` `(` $req_added `:` type($req_added) `)`
-// DOC: oilist(
-// DOC: `optsimple` `(` $opt_simple_val `:` type($opt_simple_val) `)`
-// DOC: |`opt_added` `(` $opt_added `:` type($opt_added) `)`
-// DOC-NOT: $region
-// DOC: attr-dict
-// DOC: Description of operation with clauses - arguments added.
-// DOC: Required clause description.
-// DOC: Optional clause description.
-// DOC: Traits: `AttrSizedOperandSegments`, `TraitOne`, `TraitTwo`
 
 def OpOptClause : OpenMP_Op<"op_with_opt",
     traits=[TraitThree], clauses=[OptClause]> {

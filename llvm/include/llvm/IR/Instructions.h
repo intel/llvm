@@ -297,8 +297,6 @@ class StoreInst : public Instruction {
 
   void AssertOK();
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
@@ -316,7 +314,7 @@ public:
             InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Return true if this is a store to a volatile memory location.
@@ -422,8 +420,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(StoreInst, Value)
 class FenceInst : public Instruction {
   using OrderingField = AtomicOrderingBitfieldElementT<0>;
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{0};
-
   void Init(AtomicOrdering Ordering, SyncScope::ID SSID);
 
 protected:
@@ -440,7 +436,7 @@ public:
             InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 0); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   /// Returns the ordering constraint of this fence instruction.
@@ -506,8 +502,6 @@ class AtomicCmpXchgInst : public Instruction {
       typename Bitfield::Element<AtomicOrdering, Offset, 3,
                                  AtomicOrdering::LAST>;
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
-
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
@@ -521,7 +515,7 @@ public:
                     InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly three operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 3); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   using VolatileField = BoolBitfieldElementT<0>;
@@ -757,16 +751,8 @@ public:
     /// *p = ((old == 0) || (old u> v)) ? v : (old - 1)
     UDecWrap,
 
-    /// Subtract only if no unsigned overflow.
-    /// *p = (old u>= v) ? old - v : old
-    USubCond,
-
-    /// *p = usub.sat(old, v)
-    /// \p usub.sat matches the behavior of \p llvm.usub.sat.*.
-    USubSat,
-
     FIRST_BINOP = Xchg,
-    LAST_BINOP = USubSat,
+    LAST_BINOP = UDecWrap,
     BAD_BINOP
   };
 
@@ -780,15 +766,13 @@ private:
   using BinOpBitfieldElement =
       typename Bitfield::Element<BinOp, Offset, 5, BinOp::LAST_BINOP>;
 
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
 public:
   AtomicRMWInst(BinOp Operation, Value *Ptr, Value *Val, Align Alignment,
                 AtomicOrdering Ordering, SyncScope::ID SSID,
                 InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   using VolatileField = BoolBitfieldElementT<0>;
@@ -932,14 +916,14 @@ class GetElementPtrInst : public Instruction {
   Type *SourceElementType;
   Type *ResultElementType;
 
-  GetElementPtrInst(const GetElementPtrInst &GEPI, AllocInfo AllocInfo);
+  GetElementPtrInst(const GetElementPtrInst &GEPI);
 
   /// Constructors - Create a getelementptr instruction with a base pointer an
   /// list of indices. The first and second ctor can optionally insert before an
   /// existing instruction, the third appends the new instruction to the
   /// specified BasicBlock.
   inline GetElementPtrInst(Type *PointeeType, Value *Ptr,
-                           ArrayRef<Value *> IdxList, AllocInfo AllocInfo,
+                           ArrayRef<Value *> IdxList, unsigned Values,
                            const Twine &NameStr, InsertPosition InsertBefore);
 
   void init(Value *Ptr, ArrayRef<Value *> IdxList, const Twine &NameStr);
@@ -957,9 +941,8 @@ public:
                                    InsertPosition InsertBefore = nullptr) {
     unsigned Values = 1 + unsigned(IdxList.size());
     assert(PointeeType && "Must specify element type");
-    IntrusiveOperandsAllocMarker AllocMarker{Values};
-    return new (AllocMarker) GetElementPtrInst(
-        PointeeType, Ptr, IdxList, AllocMarker, NameStr, InsertBefore);
+    return new (Values) GetElementPtrInst(PointeeType, Ptr, IdxList, Values,
+                                          NameStr, InsertBefore);
   }
 
   static GetElementPtrInst *Create(Type *PointeeType, Value *Ptr,
@@ -1129,15 +1112,17 @@ public:
 };
 
 template <>
-struct OperandTraits<GetElementPtrInst>
-    : public VariadicOperandTraits<GetElementPtrInst> {};
+struct OperandTraits<GetElementPtrInst> :
+  public VariadicOperandTraits<GetElementPtrInst, 1> {
+};
 
 GetElementPtrInst::GetElementPtrInst(Type *PointeeType, Value *Ptr,
-                                     ArrayRef<Value *> IdxList,
-                                     AllocInfo AllocInfo, const Twine &NameStr,
+                                     ArrayRef<Value *> IdxList, unsigned Values,
+                                     const Twine &NameStr,
                                      InsertPosition InsertBefore)
-    : Instruction(getGEPReturnType(Ptr, IdxList), GetElementPtr, AllocInfo,
-                  InsertBefore),
+    : Instruction(getGEPReturnType(Ptr, IdxList), GetElementPtr,
+                  OperandTraits<GetElementPtrInst>::op_end(this) - Values,
+                  Values, InsertBefore),
       SourceElementType(PointeeType),
       ResultElementType(getIndexedType(PointeeType, IdxList)) {
   init(Ptr, IdxList, NameStr);
@@ -1411,28 +1396,26 @@ public:
 /// hold the calling convention of the call.
 ///
 class CallInst : public CallBase {
-  CallInst(const CallInst &CI, AllocInfo AllocInfo);
+  CallInst(const CallInst &CI);
 
   /// Construct a CallInst from a range of arguments
   inline CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                   ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr,
-                  AllocInfo AllocInfo, InsertPosition InsertBefore);
+                  InsertPosition InsertBefore);
 
   inline CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
-                  const Twine &NameStr, AllocInfo AllocInfo,
-                  InsertPosition InsertBefore)
-      : CallInst(Ty, Func, Args, {}, NameStr, AllocInfo, InsertBefore) {}
+                  const Twine &NameStr, InsertPosition InsertBefore)
+      : CallInst(Ty, Func, Args, std::nullopt, NameStr, InsertBefore) {}
 
   explicit CallInst(FunctionType *Ty, Value *F, const Twine &NameStr,
-                    AllocInfo AllocInfo, InsertPosition InsertBefore);
+                    InsertPosition InsertBefore);
 
   void init(FunctionType *FTy, Value *Func, ArrayRef<Value *> Args,
             ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr);
   void init(FunctionType *FTy, Value *Func, const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
-  static unsigned ComputeNumOperands(unsigned NumArgs,
-                                     unsigned NumBundleInputs = 0) {
+  static int ComputeNumOperands(int NumArgs, int NumBundleInputs = 0) {
     // We need one operand for the called function, plus the input operand
     // counts provided.
     return 1 + NumArgs + NumBundleInputs;
@@ -1447,29 +1430,26 @@ protected:
 public:
   static CallInst *Create(FunctionType *Ty, Value *F, const Twine &NameStr = "",
                           InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{ComputeNumOperands(0)};
-    return new (AllocMarker)
-        CallInst(Ty, F, NameStr, AllocMarker, InsertBefore);
+    return new (ComputeNumOperands(0)) CallInst(Ty, F, NameStr, InsertBefore);
   }
 
   static CallInst *Create(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                           const Twine &NameStr,
                           InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{ComputeNumOperands(Args.size())};
-    return new (AllocMarker)
-        CallInst(Ty, Func, Args, {}, NameStr, AllocMarker, InsertBefore);
+    return new (ComputeNumOperands(Args.size()))
+        CallInst(Ty, Func, Args, std::nullopt, NameStr, InsertBefore);
   }
 
   static CallInst *Create(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
-                          ArrayRef<OperandBundleDef> Bundles = {},
+                          ArrayRef<OperandBundleDef> Bundles = std::nullopt,
                           const Twine &NameStr = "",
                           InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAndDescriptorAllocMarker AllocMarker{
-        ComputeNumOperands(unsigned(Args.size()), CountBundleInputs(Bundles)),
-        unsigned(Bundles.size() * sizeof(BundleOpInfo))};
+    const int NumOperands =
+        ComputeNumOperands(Args.size(), CountBundleInputs(Bundles));
+    const unsigned DescriptorBytes = Bundles.size() * sizeof(BundleOpInfo);
 
-    return new (AllocMarker)
-        CallInst(Ty, Func, Args, Bundles, NameStr, AllocMarker, InsertBefore);
+    return new (NumOperands, DescriptorBytes)
+        CallInst(Ty, Func, Args, Bundles, NameStr, InsertBefore);
   }
 
   static CallInst *Create(FunctionCallee Func, const Twine &NameStr = "",
@@ -1479,7 +1459,7 @@ public:
   }
 
   static CallInst *Create(FunctionCallee Func, ArrayRef<Value *> Args,
-                          ArrayRef<OperandBundleDef> Bundles = {},
+                          ArrayRef<OperandBundleDef> Bundles = std::nullopt,
                           const Twine &NameStr = "",
                           InsertPosition InsertBefore = nullptr) {
     return Create(Func.getFunctionType(), Func.getCallee(), Args, Bundles,
@@ -1574,11 +1554,12 @@ private:
 
 CallInst::CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
                    ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr,
-                   AllocInfo AllocInfo, InsertPosition InsertBefore)
-    : CallBase(Ty->getReturnType(), Instruction::Call, AllocInfo,
+                   InsertPosition InsertBefore)
+    : CallBase(Ty->getReturnType(), Instruction::Call,
+               OperandTraits<CallBase>::op_end(this) -
+                   (Args.size() + CountBundleInputs(Bundles) + 1),
+               unsigned(Args.size() + CountBundleInputs(Bundles) + 1),
                InsertBefore) {
-  assert(AllocInfo.NumOps ==
-         unsigned(Args.size() + CountBundleInputs(Bundles) + 1));
   init(Ty, Func, Args, Bundles, NameStr);
 }
 
@@ -1589,11 +1570,10 @@ CallInst::CallInst(FunctionType *Ty, Value *Func, ArrayRef<Value *> Args,
 /// This class represents the LLVM 'select' instruction.
 ///
 class SelectInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
 
   SelectInst(Value *C, Value *S1, Value *S2, const Twine &NameStr,
              InsertPosition InsertBefore)
-      : Instruction(S1->getType(), Instruction::Select, AllocMarker,
+      : Instruction(S1->getType(), Instruction::Select, &Op<0>(), 3,
                     InsertBefore) {
     init(C, S1, S2);
     setName(NameStr);
@@ -1617,8 +1597,7 @@ public:
                             const Twine &NameStr = "",
                             InsertPosition InsertBefore = nullptr,
                             Instruction *MDFrom = nullptr) {
-    SelectInst *Sel =
-        new (AllocMarker) SelectInst(C, S1, S2, NameStr, InsertBefore);
+    SelectInst *Sel = new(3) SelectInst(C, S1, S2, NameStr, InsertBefore);
     if (MDFrom)
       Sel->copyMetadata(*MDFrom);
     return Sel;
@@ -1707,8 +1686,6 @@ public:
 /// element from a VectorType value
 ///
 class ExtractElementInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
   ExtractElementInst(Value *Vec, Value *Idx, const Twine &NameStr = "",
                      InsertPosition InsertBefore = nullptr);
 
@@ -1722,8 +1699,7 @@ public:
   static ExtractElementInst *Create(Value *Vec, Value *Idx,
                                     const Twine &NameStr = "",
                                     InsertPosition InsertBefore = nullptr) {
-    return new (AllocMarker)
-        ExtractElementInst(Vec, Idx, NameStr, InsertBefore);
+    return new(2) ExtractElementInst(Vec, Idx, NameStr, InsertBefore);
   }
 
   /// Return true if an extractelement instruction can be
@@ -1766,8 +1742,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ExtractElementInst, Value)
 /// element into a VectorType value
 ///
 class InsertElementInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{3};
-
   InsertElementInst(Value *Vec, Value *NewElt, Value *Idx,
                     const Twine &NameStr = "",
                     InsertPosition InsertBefore = nullptr);
@@ -1782,8 +1756,7 @@ public:
   static InsertElementInst *Create(Value *Vec, Value *NewElt, Value *Idx,
                                    const Twine &NameStr = "",
                                    InsertPosition InsertBefore = nullptr) {
-    return new (AllocMarker)
-        InsertElementInst(Vec, NewElt, Idx, NameStr, InsertBefore);
+    return new(3) InsertElementInst(Vec, NewElt, Idx, NameStr, InsertBefore);
   }
 
   /// Return true if an insertelement instruction can be
@@ -1833,8 +1806,6 @@ constexpr int PoisonMaskElem = -1;
 /// For scalable vectors, all the elements of the mask must be 0 or -1. This
 /// requirement may be relaxed in the future.
 class ShuffleVectorInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
   SmallVector<int, 4> ShuffleMask;
   Constant *ShuffleMaskForBitcode;
 
@@ -1856,7 +1827,7 @@ public:
                     const Twine &NameStr = "",
                     InsertPosition InsertBefore = nullptr);
 
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { return User::operator delete(Ptr); }
 
   /// Swap the operands and adjust the mask to preserve the semantics
@@ -2417,8 +2388,6 @@ ExtractValueInst::ExtractValueInst(Value *Agg, ArrayRef<unsigned> Idxs,
 /// value into an aggregate value.
 ///
 class InsertValueInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
   SmallVector<unsigned, 4> Indices;
 
   InsertValueInst(const InsertValueInst &IVI);
@@ -2447,7 +2416,7 @@ protected:
 
 public:
   // allocate space for exactly two operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 2); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   static InsertValueInst *Create(Value *Agg, Value *Val,
@@ -2517,7 +2486,9 @@ struct OperandTraits<InsertValueInst> :
 InsertValueInst::InsertValueInst(Value *Agg, Value *Val,
                                  ArrayRef<unsigned> Idxs, const Twine &NameStr,
                                  InsertPosition InsertBefore)
-    : Instruction(Agg->getType(), InsertValue, AllocMarker, InsertBefore) {
+    : Instruction(Agg->getType(), InsertValue,
+                  OperandTraits<InsertValueInst>::op_begin(this), 2,
+                  InsertBefore) {
   init(Agg, Val, Idxs, NameStr);
 }
 
@@ -2532,8 +2503,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(InsertValueInst, Value)
 // scientist's overactive imagination.
 //
 class PHINode : public Instruction {
-  constexpr static HungOffOperandsAllocMarker AllocMarker{};
-
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
   unsigned ReservedSpace;
@@ -2543,7 +2512,7 @@ class PHINode : public Instruction {
   explicit PHINode(Type *Ty, unsigned NumReservedValues,
                    const Twine &NameStr = "",
                    InsertPosition InsertBefore = nullptr)
-      : Instruction(Ty, Instruction::PHI, AllocMarker, InsertBefore),
+      : Instruction(Ty, Instruction::PHI, nullptr, 0, InsertBefore),
         ReservedSpace(NumReservedValues) {
     assert(!Ty->isTokenTy() && "PHI nodes cannot have token type!");
     setName(NameStr);
@@ -2569,8 +2538,7 @@ public:
   static PHINode *Create(Type *Ty, unsigned NumReservedValues,
                          const Twine &NameStr = "",
                          InsertPosition InsertBefore = nullptr) {
-    return new (AllocMarker)
-        PHINode(Ty, NumReservedValues, NameStr, InsertBefore);
+    return new PHINode(Ty, NumReservedValues, NameStr, InsertBefore);
   }
 
   /// Provide fast operand accessors
@@ -2755,7 +2723,9 @@ private:
   void growOperands();
 };
 
-template <> struct OperandTraits<PHINode> : public HungoffOperandTraits {};
+template <>
+struct OperandTraits<PHINode> : public HungoffOperandTraits<2> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(PHINode, Value)
 
@@ -2774,8 +2744,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(PHINode, Value)
 class LandingPadInst : public Instruction {
   using CleanupField = BoolBitfieldElementT<0>;
 
-  constexpr static HungOffOperandsAllocMarker AllocMarker{};
-
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
   unsigned ReservedSpace;
@@ -2790,7 +2758,7 @@ private:
                           const Twine &NameStr, InsertPosition InsertBefore);
 
   // Allocate space for exactly zero operands.
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void growOperands(unsigned Size);
   void init(unsigned NumReservedValues, const Twine &NameStr);
@@ -2857,7 +2825,8 @@ public:
 };
 
 template <>
-struct OperandTraits<LandingPadInst> : public HungoffOperandTraits {};
+struct OperandTraits<LandingPadInst> : public HungoffOperandTraits<1> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(LandingPadInst, Value)
 
@@ -2870,7 +2839,7 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(LandingPadInst, Value)
 /// does not continue in this function any longer.
 ///
 class ReturnInst : public Instruction {
-  ReturnInst(const ReturnInst &RI, AllocInfo AllocInfo);
+  ReturnInst(const ReturnInst &RI);
 
 private:
   // ReturnInst constructors:
@@ -2886,8 +2855,8 @@ private:
   //
   // NOTE: If the Value* passed is of type void then the constructor behaves as
   // if it was passed NULL.
-  explicit ReturnInst(LLVMContext &C, Value *retVal, AllocInfo AllocInfo,
-                      InsertPosition InsertBefore);
+  explicit ReturnInst(LLVMContext &C, Value *retVal = nullptr,
+                      InsertPosition InsertBefore = nullptr);
 
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
@@ -2898,13 +2867,11 @@ protected:
 public:
   static ReturnInst *Create(LLVMContext &C, Value *retVal = nullptr,
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{retVal ? 1U : 0U};
-    return new (AllocMarker) ReturnInst(C, retVal, AllocMarker, InsertBefore);
+    return new(!!retVal) ReturnInst(C, retVal, InsertBefore);
   }
 
   static ReturnInst *Create(LLVMContext &C, BasicBlock *InsertAtEnd) {
-    IntrusiveOperandsAllocMarker AllocMarker{0};
-    return new (AllocMarker) ReturnInst(C, nullptr, AllocMarker, InsertAtEnd);
+    return new (0) ReturnInst(C, nullptr, InsertAtEnd);
   }
 
   /// Provide fast operand accessors
@@ -2936,7 +2903,8 @@ private:
 };
 
 template <>
-struct OperandTraits<ReturnInst> : public VariadicOperandTraits<ReturnInst> {};
+struct OperandTraits<ReturnInst> : public VariadicOperandTraits<ReturnInst> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ReturnInst, Value)
 
@@ -2952,7 +2920,7 @@ class BranchInst : public Instruction {
   ///  [Cond, FalseDest,] TrueDest.  This makes some accessors faster because
   /// they don't have to check for cond/uncond branchness. These are mostly
   /// accessed relative from op_end().
-  BranchInst(const BranchInst &BI, AllocInfo AllocInfo);
+  BranchInst(const BranchInst &BI);
   // BranchInst constructors (where {B, T, F} are blocks, and C is a condition):
   // BranchInst(BB *B)                           - 'br B'
   // BranchInst(BB* T, BB *F, Value *C)          - 'br C, T, F'
@@ -2962,10 +2930,10 @@ class BranchInst : public Instruction {
   // BranchInst(BB* T, BB *F, Value *C, Inst *I) - 'br C, T, F', insert before I
   // BranchInst(BB* B, BB *I)                    - 'br B'        insert at end
   // BranchInst(BB* T, BB *F, Value *C, BB *I)   - 'br C, T, F', insert at end
-  explicit BranchInst(BasicBlock *IfTrue, AllocInfo AllocInfo,
-                      InsertPosition InsertBefore);
+  explicit BranchInst(BasicBlock *IfTrue,
+                      InsertPosition InsertBefore = nullptr);
   BranchInst(BasicBlock *IfTrue, BasicBlock *IfFalse, Value *Cond,
-             AllocInfo AllocInfo, InsertPosition InsertBefore);
+             InsertPosition InsertBefore = nullptr);
 
   void AssertOK();
 
@@ -3005,16 +2973,13 @@ public:
 
   static BranchInst *Create(BasicBlock *IfTrue,
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{1};
-    return new (AllocMarker) BranchInst(IfTrue, AllocMarker, InsertBefore);
+    return new(1) BranchInst(IfTrue, InsertBefore);
   }
 
   static BranchInst *Create(BasicBlock *IfTrue, BasicBlock *IfFalse,
                             Value *Cond,
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{3};
-    return new (AllocMarker)
-        BranchInst(IfTrue, IfFalse, Cond, AllocMarker, InsertBefore);
+    return new(3) BranchInst(IfTrue, IfFalse, Cond, InsertBefore);
   }
 
   /// Transparently provide more efficient getOperand methods.
@@ -3074,7 +3039,8 @@ public:
 };
 
 template <>
-struct OperandTraits<BranchInst> : public VariadicOperandTraits<BranchInst> {};
+struct OperandTraits<BranchInst> : public VariadicOperandTraits<BranchInst, 1> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(BranchInst, Value)
 
@@ -3086,8 +3052,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(BranchInst, Value)
 /// Multiway switch
 ///
 class SwitchInst : public Instruction {
-  constexpr static HungOffOperandsAllocMarker AllocMarker{};
-
   unsigned ReservedSpace;
 
   // Operand[0]    = Value to switch on
@@ -3104,7 +3068,7 @@ class SwitchInst : public Instruction {
              InsertPosition InsertBefore);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *Value, BasicBlock *Default, unsigned NumReserved);
   void growOperands();
@@ -3464,7 +3428,9 @@ public:
   static CaseWeightOpt getSuccessorWeight(const SwitchInst &SI, unsigned idx);
 };
 
-template <> struct OperandTraits<SwitchInst> : public HungoffOperandTraits {};
+template <>
+struct OperandTraits<SwitchInst> : public HungoffOperandTraits<2> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SwitchInst, Value)
 
@@ -3476,8 +3442,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(SwitchInst, Value)
 /// Indirect Branch Instruction.
 ///
 class IndirectBrInst : public Instruction {
-  constexpr static HungOffOperandsAllocMarker AllocMarker{};
-
   unsigned ReservedSpace;
 
   // Operand[0]   = Address to jump to
@@ -3492,7 +3456,7 @@ class IndirectBrInst : public Instruction {
                  InsertPosition InsertBefore);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *Address, unsigned NumDests);
   void growOperands();
@@ -3590,7 +3554,8 @@ public:
 };
 
 template <>
-struct OperandTraits<IndirectBrInst> : public HungoffOperandTraits {};
+struct OperandTraits<IndirectBrInst> : public HungoffOperandTraits<1> {
+};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(IndirectBrInst, Value)
 
@@ -3612,14 +3577,14 @@ class InvokeInst : public CallBase {
   /// The index from the end of the operand array to the unwind destination.
   static constexpr int UnwindDestOpEndIdx = -2;
 
-  InvokeInst(const InvokeInst &BI, AllocInfo AllocInfo);
+  InvokeInst(const InvokeInst &BI);
 
   /// Construct an InvokeInst given a range of arguments.
   ///
   /// Construct an InvokeInst from a range of arguments
   inline InvokeInst(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                     BasicBlock *IfException, ArrayRef<Value *> Args,
-                    ArrayRef<OperandBundleDef> Bundles, AllocInfo AllocInfo,
+                    ArrayRef<OperandBundleDef> Bundles, int NumOperands,
                     const Twine &NameStr, InsertPosition InsertBefore);
 
   void init(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
@@ -3627,11 +3592,10 @@ class InvokeInst : public CallBase {
             ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
-  static unsigned ComputeNumOperands(unsigned NumArgs,
-                                     size_t NumBundleInputs = 0) {
+  static int ComputeNumOperands(int NumArgs, int NumBundleInputs = 0) {
     // We need one operand for the called function, plus our extra operands and
     // the input operand counts provided.
-    return 1 + NumExtraOperands + NumArgs + unsigned(NumBundleInputs);
+    return 1 + NumExtraOperands + NumArgs + NumBundleInputs;
   }
 
 protected:
@@ -3645,23 +3609,23 @@ public:
                             BasicBlock *IfException, ArrayRef<Value *> Args,
                             const Twine &NameStr,
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{
-        ComputeNumOperands(unsigned(Args.size()))};
-    return new (AllocMarker) InvokeInst(Ty, Func, IfNormal, IfException, Args,
-                                        {}, AllocMarker, NameStr, InsertBefore);
+    int NumOperands = ComputeNumOperands(Args.size());
+    return new (NumOperands)
+        InvokeInst(Ty, Func, IfNormal, IfException, Args, std::nullopt,
+                   NumOperands, NameStr, InsertBefore);
   }
 
   static InvokeInst *Create(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
-                            ArrayRef<OperandBundleDef> Bundles = {},
+                            ArrayRef<OperandBundleDef> Bundles = std::nullopt,
                             const Twine &NameStr = "",
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAndDescriptorAllocMarker AllocMarker{
-        ComputeNumOperands(Args.size(), CountBundleInputs(Bundles)),
-        unsigned(Bundles.size() * sizeof(BundleOpInfo))};
+    int NumOperands =
+        ComputeNumOperands(Args.size(), CountBundleInputs(Bundles));
+    unsigned DescriptorBytes = Bundles.size() * sizeof(BundleOpInfo);
 
-    return new (AllocMarker)
-        InvokeInst(Ty, Func, IfNormal, IfException, Args, Bundles, AllocMarker,
+    return new (NumOperands, DescriptorBytes)
+        InvokeInst(Ty, Func, IfNormal, IfException, Args, Bundles, NumOperands,
                    NameStr, InsertBefore);
   }
 
@@ -3670,12 +3634,12 @@ public:
                             const Twine &NameStr,
                             InsertPosition InsertBefore = nullptr) {
     return Create(Func.getFunctionType(), Func.getCallee(), IfNormal,
-                  IfException, Args, {}, NameStr, InsertBefore);
+                  IfException, Args, std::nullopt, NameStr, InsertBefore);
   }
 
   static InvokeInst *Create(FunctionCallee Func, BasicBlock *IfNormal,
                             BasicBlock *IfException, ArrayRef<Value *> Args,
-                            ArrayRef<OperandBundleDef> Bundles = {},
+                            ArrayRef<OperandBundleDef> Bundles = std::nullopt,
                             const Twine &NameStr = "",
                             InsertPosition InsertBefore = nullptr) {
     return Create(Func.getFunctionType(), Func.getCallee(), IfNormal,
@@ -3746,9 +3710,10 @@ private:
 
 InvokeInst::InvokeInst(FunctionType *Ty, Value *Func, BasicBlock *IfNormal,
                        BasicBlock *IfException, ArrayRef<Value *> Args,
-                       ArrayRef<OperandBundleDef> Bundles, AllocInfo AllocInfo,
+                       ArrayRef<OperandBundleDef> Bundles, int NumOperands,
                        const Twine &NameStr, InsertPosition InsertBefore)
-    : CallBase(Ty->getReturnType(), Instruction::Invoke, AllocInfo,
+    : CallBase(Ty->getReturnType(), Instruction::Invoke,
+               OperandTraits<CallBase>::op_end(this) - NumOperands, NumOperands,
                InsertBefore) {
   init(Ty, Func, IfNormal, IfException, Args, Bundles, NameStr);
 }
@@ -3765,7 +3730,7 @@ class CallBrInst : public CallBase {
 
   unsigned NumIndirectDests;
 
-  CallBrInst(const CallBrInst &BI, AllocInfo AllocInfo);
+  CallBrInst(const CallBrInst &BI);
 
   /// Construct a CallBrInst given a range of arguments.
   ///
@@ -3773,7 +3738,7 @@ class CallBrInst : public CallBase {
   inline CallBrInst(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
                     ArrayRef<BasicBlock *> IndirectDests,
                     ArrayRef<Value *> Args, ArrayRef<OperandBundleDef> Bundles,
-                    AllocInfo AllocInfo, const Twine &NameStr,
+                    int NumOperands, const Twine &NameStr,
                     InsertPosition InsertBefore);
 
   void init(FunctionType *FTy, Value *Func, BasicBlock *DefaultDest,
@@ -3781,11 +3746,11 @@ class CallBrInst : public CallBase {
             ArrayRef<OperandBundleDef> Bundles, const Twine &NameStr);
 
   /// Compute the number of operands to allocate.
-  static unsigned ComputeNumOperands(int NumArgs, int NumIndirectDests,
-                                     int NumBundleInputs = 0) {
+  static int ComputeNumOperands(int NumArgs, int NumIndirectDests,
+                                int NumBundleInputs = 0) {
     // We need one operand for the called function, plus our extra operands and
     // the input operand counts provided.
-    return unsigned(2 + NumIndirectDests + NumArgs + NumBundleInputs);
+    return 2 + NumIndirectDests + NumArgs + NumBundleInputs;
   }
 
 protected:
@@ -3800,26 +3765,24 @@ public:
                             ArrayRef<BasicBlock *> IndirectDests,
                             ArrayRef<Value *> Args, const Twine &NameStr,
                             InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{
-        ComputeNumOperands(Args.size(), IndirectDests.size())};
-    return new (AllocMarker)
-        CallBrInst(Ty, Func, DefaultDest, IndirectDests, Args, {}, AllocMarker,
-                   NameStr, InsertBefore);
+    int NumOperands = ComputeNumOperands(Args.size(), IndirectDests.size());
+    return new (NumOperands)
+        CallBrInst(Ty, Func, DefaultDest, IndirectDests, Args, std::nullopt,
+                   NumOperands, NameStr, InsertBefore);
   }
 
   static CallBrInst *
   Create(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
          ArrayRef<BasicBlock *> IndirectDests, ArrayRef<Value *> Args,
-         ArrayRef<OperandBundleDef> Bundles = {}, const Twine &NameStr = "",
-         InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAndDescriptorAllocMarker AllocMarker{
-        ComputeNumOperands(Args.size(), IndirectDests.size(),
-                           CountBundleInputs(Bundles)),
-        unsigned(Bundles.size() * sizeof(BundleOpInfo))};
+         ArrayRef<OperandBundleDef> Bundles = std::nullopt,
+         const Twine &NameStr = "", InsertPosition InsertBefore = nullptr) {
+    int NumOperands = ComputeNumOperands(Args.size(), IndirectDests.size(),
+                                         CountBundleInputs(Bundles));
+    unsigned DescriptorBytes = Bundles.size() * sizeof(BundleOpInfo);
 
-    return new (AllocMarker)
+    return new (NumOperands, DescriptorBytes)
         CallBrInst(Ty, Func, DefaultDest, IndirectDests, Args, Bundles,
-                   AllocMarker, NameStr, InsertBefore);
+                   NumOperands, NameStr, InsertBefore);
   }
 
   static CallBrInst *Create(FunctionCallee Func, BasicBlock *DefaultDest,
@@ -3833,7 +3796,7 @@ public:
   static CallBrInst *Create(FunctionCallee Func, BasicBlock *DefaultDest,
                             ArrayRef<BasicBlock *> IndirectDests,
                             ArrayRef<Value *> Args,
-                            ArrayRef<OperandBundleDef> Bundles = {},
+                            ArrayRef<OperandBundleDef> Bundles = std::nullopt,
                             const Twine &NameStr = "",
                             InsertPosition InsertBefore = nullptr) {
     return Create(Func.getFunctionType(), Func.getCallee(), DefaultDest,
@@ -3919,9 +3882,10 @@ private:
 CallBrInst::CallBrInst(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
                        ArrayRef<BasicBlock *> IndirectDests,
                        ArrayRef<Value *> Args,
-                       ArrayRef<OperandBundleDef> Bundles, AllocInfo AllocInfo,
+                       ArrayRef<OperandBundleDef> Bundles, int NumOperands,
                        const Twine &NameStr, InsertPosition InsertBefore)
-    : CallBase(Ty->getReturnType(), Instruction::CallBr, AllocInfo,
+    : CallBase(Ty->getReturnType(), Instruction::CallBr,
+               OperandTraits<CallBase>::op_end(this) - NumOperands, NumOperands,
                InsertBefore) {
   init(Ty, Func, DefaultDest, IndirectDests, Args, Bundles, NameStr);
 }
@@ -3934,8 +3898,6 @@ CallBrInst::CallBrInst(FunctionType *Ty, Value *Func, BasicBlock *DefaultDest,
 /// Resume the propagation of an exception.
 ///
 class ResumeInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{1};
-
   ResumeInst(const ResumeInst &RI);
 
   explicit ResumeInst(Value *Exn, InsertPosition InsertBefore = nullptr);
@@ -3948,7 +3910,7 @@ protected:
 
 public:
   static ResumeInst *Create(Value *Exn, InsertPosition InsertBefore = nullptr) {
-    return new (AllocMarker) ResumeInst(Exn, InsertBefore);
+    return new(1) ResumeInst(Exn, InsertBefore);
   }
 
   /// Provide fast operand accessors
@@ -3990,8 +3952,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(ResumeInst, Value)
 class CatchSwitchInst : public Instruction {
   using UnwindDestField = BoolBitfieldElementT<0>;
 
-  constexpr static HungOffOperandsAllocMarker AllocMarker{};
-
   /// The number of operands actually allocated.  NumOperands is
   /// the number actually in use.
   unsigned ReservedSpace;
@@ -4010,7 +3970,7 @@ class CatchSwitchInst : public Instruction {
                   InsertPosition InsertBefore);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S); }
 
   void init(Value *ParentPad, BasicBlock *UnwindDest, unsigned NumReserved);
   void growOperands(unsigned Size);
@@ -4145,7 +4105,7 @@ public:
 };
 
 template <>
-struct OperandTraits<CatchSwitchInst> : public HungoffOperandTraits {};
+struct OperandTraits<CatchSwitchInst> : public HungoffOperandTraits<2> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchSwitchInst, Value)
 
@@ -4155,18 +4115,19 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CatchSwitchInst, Value)
 class CleanupPadInst : public FuncletPadInst {
 private:
   explicit CleanupPadInst(Value *ParentPad, ArrayRef<Value *> Args,
-                          AllocInfo AllocInfo, const Twine &NameStr,
+                          unsigned Values, const Twine &NameStr,
                           InsertPosition InsertBefore)
-      : FuncletPadInst(Instruction::CleanupPad, ParentPad, Args, AllocInfo,
+      : FuncletPadInst(Instruction::CleanupPad, ParentPad, Args, Values,
                        NameStr, InsertBefore) {}
 
 public:
-  static CleanupPadInst *Create(Value *ParentPad, ArrayRef<Value *> Args = {},
+  static CleanupPadInst *Create(Value *ParentPad,
+                                ArrayRef<Value *> Args = std::nullopt,
                                 const Twine &NameStr = "",
                                 InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{unsigned(1 + Args.size())};
-    return new (AllocMarker)
-        CleanupPadInst(ParentPad, Args, AllocMarker, NameStr, InsertBefore);
+    unsigned Values = 1 + Args.size();
+    return new (Values)
+        CleanupPadInst(ParentPad, Args, Values, NameStr, InsertBefore);
   }
 
   /// Methods for support type inquiry through isa, cast, and dyn_cast:
@@ -4184,18 +4145,18 @@ public:
 class CatchPadInst : public FuncletPadInst {
 private:
   explicit CatchPadInst(Value *CatchSwitch, ArrayRef<Value *> Args,
-                        AllocInfo AllocInfo, const Twine &NameStr,
+                        unsigned Values, const Twine &NameStr,
                         InsertPosition InsertBefore)
-      : FuncletPadInst(Instruction::CatchPad, CatchSwitch, Args, AllocInfo,
+      : FuncletPadInst(Instruction::CatchPad, CatchSwitch, Args, Values,
                        NameStr, InsertBefore) {}
 
 public:
   static CatchPadInst *Create(Value *CatchSwitch, ArrayRef<Value *> Args,
                               const Twine &NameStr = "",
                               InsertPosition InsertBefore = nullptr) {
-    IntrusiveOperandsAllocMarker AllocMarker{unsigned(1 + Args.size())};
-    return new (AllocMarker)
-        CatchPadInst(CatchSwitch, Args, AllocMarker, NameStr, InsertBefore);
+    unsigned Values = 1 + Args.size();
+    return new (Values)
+        CatchPadInst(CatchSwitch, Args, Values, NameStr, InsertBefore);
   }
 
   /// Convenience accessors
@@ -4221,8 +4182,6 @@ public:
 //===----------------------------------------------------------------------===//
 
 class CatchReturnInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{2};
-
   CatchReturnInst(const CatchReturnInst &RI);
   CatchReturnInst(Value *CatchPad, BasicBlock *BB, InsertPosition InsertBefore);
 
@@ -4239,7 +4198,7 @@ public:
                                  InsertPosition InsertBefore = nullptr) {
     assert(CatchPad);
     assert(BB);
-    return new (AllocMarker) CatchReturnInst(CatchPad, BB, InsertBefore);
+    return new (2) CatchReturnInst(CatchPad, BB, InsertBefore);
   }
 
   /// Provide fast operand accessors
@@ -4299,9 +4258,9 @@ class CleanupReturnInst : public Instruction {
   using UnwindDestField = BoolBitfieldElementT<0>;
 
 private:
-  CleanupReturnInst(const CleanupReturnInst &RI, AllocInfo AllocInfo);
-  CleanupReturnInst(Value *CleanupPad, BasicBlock *UnwindBB,
-                    AllocInfo AllocInfo, InsertPosition InsertBefore = nullptr);
+  CleanupReturnInst(const CleanupReturnInst &RI);
+  CleanupReturnInst(Value *CleanupPad, BasicBlock *UnwindBB, unsigned Values,
+                    InsertPosition InsertBefore = nullptr);
 
   void init(Value *CleanupPad, BasicBlock *UnwindBB);
 
@@ -4319,9 +4278,8 @@ public:
     unsigned Values = 1;
     if (UnwindBB)
       ++Values;
-    IntrusiveOperandsAllocMarker AllocMarker{Values};
-    return new (AllocMarker)
-        CleanupReturnInst(CleanupPad, UnwindBB, AllocMarker, InsertBefore);
+    return new (Values)
+        CleanupReturnInst(CleanupPad, UnwindBB, Values, InsertBefore);
   }
 
   /// Provide fast operand accessors
@@ -4379,7 +4337,7 @@ private:
 
 template <>
 struct OperandTraits<CleanupReturnInst>
-    : public VariadicOperandTraits<CleanupReturnInst> {};
+    : public VariadicOperandTraits<CleanupReturnInst, /*MINARITY=*/1> {};
 
 DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CleanupReturnInst, Value)
 
@@ -4393,8 +4351,6 @@ DEFINE_TRANSPARENT_OPERAND_ACCESSORS(CleanupReturnInst, Value)
 /// end of the block cannot be reached.
 ///
 class UnreachableInst : public Instruction {
-  constexpr static IntrusiveOperandsAllocMarker AllocMarker{0};
-
 protected:
   // Note: Instruction needs to be a friend here to call cloneImpl.
   friend class Instruction;
@@ -4406,7 +4362,7 @@ public:
                            InsertPosition InsertBefore = nullptr);
 
   // allocate space for exactly zero operands
-  void *operator new(size_t S) { return User::operator new(S, AllocMarker); }
+  void *operator new(size_t S) { return User::operator new(S, 0); }
   void operator delete(void *Ptr) { User::operator delete(Ptr); }
 
   unsigned getNumSuccessors() const { return 0; }

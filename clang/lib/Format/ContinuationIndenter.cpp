@@ -809,14 +809,13 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
     if (Tok.Previous->isIf())
       return Style.AlignAfterOpenBracket == FormatStyle::BAS_AlwaysBreak;
     return !Tok.Previous->isOneOf(TT_CastRParen, tok::kw_for, tok::kw_while,
-                                  tok::kw_switch) &&
-           !(Style.isJavaScript() && Tok.Previous->is(Keywords.kw_await));
+                                  tok::kw_switch);
   };
   auto IsFunctionCallParen = [](const FormatToken &Tok) {
     return Tok.is(tok::l_paren) && Tok.ParameterCount > 0 && Tok.Previous &&
            Tok.Previous->is(tok::identifier);
   };
-  auto IsInTemplateString = [this](const FormatToken &Tok) {
+  const auto IsInTemplateString = [this](const FormatToken &Tok) {
     if (!Style.isJavaScript())
       return false;
     for (const auto *Prev = &Tok; Prev; Prev = Prev->Previous) {
@@ -828,10 +827,7 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
     return false;
   };
   // Identifies simple (no expression) one-argument function calls.
-  auto StartsSimpleOneArgList = [&](const FormatToken &TokAfterLParen) {
-    assert(TokAfterLParen.isNot(tok::comment) || TokAfterLParen.Next);
-    const auto &Tok =
-        TokAfterLParen.is(tok::comment) ? *TokAfterLParen.Next : TokAfterLParen;
+  const auto IsSimpleFunction = [&](const FormatToken &Tok) {
     if (!Tok.FakeLParens.empty() && Tok.FakeLParens.back() > prec::Unknown)
       return false;
     // Nested calls that involve `new` expressions also look like simple
@@ -840,11 +836,6 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
     // - foo(::new Bar())
     if (Tok.is(tok::kw_new) || Tok.startsSequence(tok::coloncolon, tok::kw_new))
       return true;
-    if (Tok.is(TT_UnaryOperator) ||
-        (Style.isJavaScript() &&
-         Tok.isOneOf(tok::ellipsis, Keywords.kw_await))) {
-      return true;
-    }
     const auto *Previous = Tok.Previous;
     if (!Previous || (!Previous->isOneOf(TT_FunctionDeclarationLParen,
                                          TT_LambdaDefinitionLParen) &&
@@ -870,7 +861,7 @@ void ContinuationIndenter::addTokenOnCurrentLine(LineState &State, bool DryRun,
       //  or
       //  caaaaaaaaaaaaaaaaaaaaal(
       //       new SomethingElseeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee());
-      !StartsSimpleOneArgList(Current)) {
+      !IsSimpleFunction(Current)) {
     CurrentState.NoLineBreak = true;
   }
 

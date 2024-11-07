@@ -2017,9 +2017,10 @@ LogicalResult BytecodeReader::Impl::sortUseListOrder(Value value) {
   DenseSet<unsigned> set;
   uint64_t accumulator = 0;
   for (const auto &elem : shuffle) {
-    if (!set.insert(elem).second)
+    if (set.contains(elem))
       return failure();
     accumulator += elem;
+    set.insert(elem);
   }
   if (numUses != shuffle.size() ||
       accumulator != (((numUses - 1) * numUses) >> 1))

@@ -10,8 +10,6 @@
 
 #pragma once
 
-#include <sanitizer_common/sanitizer_internal_defs.h>
-
 namespace __rtsan {
 
 class Context {
@@ -24,23 +22,17 @@ public:
   void BypassPush();
   void BypassPop();
 
-  bool InRealtimeContext() const;
-  bool IsBypassed() const;
-
-  Context(const Context &) = delete;
-  Context(Context &&) = delete;
-  Context &operator=(const Context &) = delete;
-  Context &operator=(Context &&) = delete;
+  void ExpectNotRealtime(const char *intercepted_function_name);
 
 private:
-  int realtime_depth_{0};
-  int bypass_depth_{0};
+  bool InRealtimeContext() const;
+  bool IsBypassed() const;
+  void PrintDiagnostics(const char *intercepted_function_name);
+
+  int realtime_depth{0};
+  int bypass_depth{0};
 };
 
 Context &GetContextForThisThread();
-
-void ExpectNotRealtime(Context &context, const char *intercepted_function_name);
-void PrintDiagnostics(const char *intercepted_function_name,
-                      __sanitizer::uptr pc, __sanitizer::uptr bp);
 
 } // namespace __rtsan

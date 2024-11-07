@@ -13,7 +13,7 @@
 
 namespace clang::tidy::bugprone {
 
-/// Find suspicious usages of sizeof expressions.
+/// Find suspicious usages of sizeof expression.
 ///
 /// For the user-facing documentation see:
 /// http://clang.llvm.org/extra/clang-tidy/checks/bugprone/sizeof-expression.html

@@ -490,7 +490,7 @@ using SSizeT  = ::ssize_t;
 
 #endif
 
-} // namespace detail
+} // end namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 

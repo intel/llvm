@@ -50,7 +50,7 @@ Status LockFileBase::Unlock() {
   if (!IsLocked())
     return NotLocked();
 
-  Status error = DoUnlock();
+  const auto error = DoUnlock();
   if (error.Success()) {
     m_locked = false;
     m_start = 0;
@@ -69,7 +69,7 @@ Status LockFileBase::DoLock(const Locker &locker, const uint64_t start,
   if (IsLocked())
     return AlreadyLocked();
 
-  Status error = locker(start, len);
+  const auto error = locker(start, len);
   if (error.Success()) {
     m_locked = true;
     m_start = start;

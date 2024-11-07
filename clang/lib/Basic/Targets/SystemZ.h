@@ -48,6 +48,7 @@ static const unsigned ZOSAddressMap[] = {
 class LLVM_LIBRARY_VISIBILITY SystemZTargetInfo : public TargetInfo {
 
   static const char *const GCCRegNames[];
+  std::string CPU;
   int ISARevision;
   bool HasTransactionalExecution;
   bool HasVector;
@@ -57,7 +58,7 @@ class LLVM_LIBRARY_VISIBILITY SystemZTargetInfo : public TargetInfo {
 
 public:
   SystemZTargetInfo(const llvm::Triple &Triple, const TargetOptions &)
-      : TargetInfo(Triple), ISARevision(getISARevision("z10")),
+      : TargetInfo(Triple), CPU("z10"), ISARevision(8),
         HasTransactionalExecution(false), HasVector(false), SoftFloat(false),
         UnalignedSymbols(false) {
     IntMaxType = SignedLong;
@@ -167,7 +168,8 @@ public:
   }
 
   bool setCPU(const std::string &Name) override {
-    ISARevision = getISARevision(Name);
+    CPU = Name;
+    ISARevision = getISARevision(CPU);
     return ISARevision != -1;
   }
 

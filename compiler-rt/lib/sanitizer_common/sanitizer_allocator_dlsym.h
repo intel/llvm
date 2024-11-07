@@ -15,8 +15,6 @@
 #define SANITIZER_ALLOCATOR_DLSYM_H
 
 #include "sanitizer_allocator_internal.h"
-#include "sanitizer_common/sanitizer_allocator_checks.h"
-#include "sanitizer_common/sanitizer_internal_defs.h"
 
 namespace __sanitizer {
 
@@ -33,15 +31,15 @@ struct DlSymAllocator {
            UNLIKELY(internal_allocator()->FromPrimary(ptr));
   }
 
-  static void *Allocate(uptr size_in_bytes, uptr align = kWordSize) {
-    void *ptr = InternalAlloc(size_in_bytes, nullptr, align);
+  static void *Allocate(uptr size_in_bytes) {
+    void *ptr = InternalAlloc(size_in_bytes, nullptr, kWordSize);
     CHECK(internal_allocator()->FromPrimary(ptr));
     Details::OnAllocate(ptr,
                         internal_allocator()->GetActuallyAllocatedSize(ptr));
     return ptr;
   }
 
-  static void *Callocate(usize nmemb, usize size) {
+  static void *Callocate(SIZE_T nmemb, SIZE_T size) {
     void *ptr = InternalCalloc(nmemb, size);
     CHECK(internal_allocator()->FromPrimary(ptr));
     Details::OnAllocate(ptr,
@@ -70,11 +68,6 @@ struct DlSymAllocator {
       internal_memcpy(new_ptr, ptr, memcpy_size);
     Free(ptr);
     return new_ptr;
-  }
-
-  static void *ReallocArray(void *ptr, uptr count, uptr size) {
-    CHECK(!CheckForCallocOverflow(count, size));
-    return Realloc(ptr, count * size);
   }
 
   static void OnAllocate(const void *ptr, uptr size) {}

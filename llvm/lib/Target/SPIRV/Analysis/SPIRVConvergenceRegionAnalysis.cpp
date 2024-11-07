@@ -203,8 +203,7 @@ public:
 
 private:
   bool isBackEdge(const BasicBlock *From, const BasicBlock *To) const {
-    if (From == To)
-      return true;
+    assert(From != To && "From == To. This is awkward.");
 
     // We only handle loop in the simplified form. This means:
     // - a single back-edge, a single latch.
@@ -231,7 +230,6 @@ private:
     auto *Terminator = From->getTerminator();
     for (unsigned i = 0; i < Terminator->getNumSuccessors(); ++i) {
       auto *To = Terminator->getSuccessor(i);
-      // Ignore back edges.
       if (isBackEdge(From, To))
         continue;
 
@@ -278,6 +276,7 @@ public:
     while (ToProcess.size() != 0) {
       auto *L = ToProcess.front();
       ToProcess.pop();
+      assert(L->isLoopSimplifyForm());
 
       auto CT = getConvergenceToken(L->getHeader());
       SmallPtrSet<BasicBlock *, 8> RegionBlocks(L->block_begin(),

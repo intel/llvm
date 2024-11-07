@@ -11,8 +11,6 @@
 // is_signed
 
 #include <type_traits>
-#include <cstddef>
-
 #include "test_macros.h"
 
 template <class T>

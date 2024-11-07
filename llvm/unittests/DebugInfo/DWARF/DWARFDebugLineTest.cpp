@@ -1558,6 +1558,7 @@ TEST_F(DebugLineBasicFixture, VerboseOutput) {
   raw_string_ostream OS(Output);
   Parser.parseNext(RecordRecoverable, RecordUnrecoverable, &OS,
                    /*Verbose=*/true);
+  OS.flush();
   StringRef OutputRef(Output);
 
   size_t Pos = 0;
@@ -1804,6 +1805,7 @@ struct TruncatedOpcodeFixtureBase : public CommonFixture {
     raw_string_ostream OS(Output);
     Parser.parseNext(RecordRecoverable, RecordUnrecoverable, &OS,
                      /*Verbose=*/true);
+    OS.flush();
 
     std::string LinePrefix =
         ("0x0000002f: 0" + Twine::utohexstr(OpcodeValue) + " ").str();

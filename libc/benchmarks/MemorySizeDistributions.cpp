@@ -197,7 +197,7 @@ getDistributionOrDie(ArrayRef<MemorySizeDistribution> Distributions,
          << "', available distributions:\n";
   for (const auto &MSD : Distributions)
     Stream << "'" << MSD.Name << "'\n";
-  report_fatal_error(Message);
+  report_fatal_error(Stream.str());
 }
 
 } // namespace libc_benchmarks

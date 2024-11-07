@@ -292,8 +292,10 @@ void OutlineShapeComputationPass::getClusterFromValue(
       cluster.insert(op);
       for (Value inp : op->getOperands()) {
         Operation *inpDefOp = inp.getDefiningOp();
-        if (nullptr != inpDefOp && visited.insert(inpDefOp).second)
+        if (nullptr != inpDefOp && !visited.contains(inpDefOp)) {
+          visited.insert(inpDefOp);
           queue.push(inpDefOp);
+        }
       }
     }
   }

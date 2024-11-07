@@ -12,12 +12,11 @@
 
 // <cmath>
 
-#include <cmath>
 #include <array>
-#include <cassert>
+#include <cmath>
 #include <limits>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "fp_compare.h"
 #include "test_macros.h"

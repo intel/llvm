@@ -13,7 +13,6 @@
 // clang-format off
 
 #include <ranges>
-#include <functional>
 #include <vector>
 
 #include "test_macros.h"

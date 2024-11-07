@@ -11,7 +11,6 @@
 #define _LIBCPP___MEMORY_USES_ALLOCATOR_H
 
 #include <__config>
-#include <__type_traits/integral_constant.h>
 #include <__type_traits/is_convertible.h>
 #include <cstddef>
 

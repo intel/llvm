@@ -1104,10 +1104,7 @@ public:
     }
 
     // One-shot extraction of vector from array (only requires extractvalue).
-    // Except for extracting 1-element vectors.
-    if (isa<VectorType>(resultType) &&
-        position.size() !=
-            static_cast<size_t>(extractOp.getSourceVectorType().getRank())) {
+    if (isa<VectorType>(resultType)) {
       if (extractOp.hasDynamicPosition())
         return failure();
 

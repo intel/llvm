@@ -17,7 +17,6 @@
 // };
 
 #include <memory>
-#include <cstddef>
 #include <type_traits>
 
 #include "test_macros.h"

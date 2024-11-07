@@ -84,12 +84,6 @@ public:
   }
 };
 
-/// This class indicates that an op is tosa-elementwise (permits broadcasting,
-/// unlike Elementwise trait).
-template <typename ConcreteType>
-class TosaElementwiseOperator
-    : public TraitBase<ConcreteType, TosaElementwiseOperator> {};
-
 } // namespace tosa
 } // namespace OpTrait
 

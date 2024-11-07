@@ -291,40 +291,39 @@ void llvm::emitLinkerFlagsForUsedCOFF(raw_ostream &OS, const GlobalValue *GV,
 }
 
 std::optional<std::string> llvm::getArm64ECMangledFunctionName(StringRef Name) {
-  if (Name[0] != '?') {
-    // For non-C++ symbols, prefix the name with "#" unless it's already
-    // mangled.
-    if (Name[0] == '#')
-      return std::nullopt;
-    return std::optional<std::string>(("#" + Name).str());
-  }
-
-  // Insert the ARM64EC "$$h" tag after the mangled function name.
-  if (Name.contains("$$h"))
+  bool IsCppFn = Name[0] == '?';
+  if (IsCppFn && Name.contains("$$h"))
     return std::nullopt;
-  size_t InsertIdx = Name.find("@@");
-  size_t ThreeAtSignsIdx = Name.find("@@@");
-  if (InsertIdx != std::string::npos && InsertIdx != ThreeAtSignsIdx) {
-    InsertIdx += 2;
+  if (!IsCppFn && Name[0] == '#')
+    return std::nullopt;
+
+  StringRef Prefix = "$$h";
+  size_t InsertIdx = 0;
+  if (IsCppFn) {
+    InsertIdx = Name.find("@@");
+    size_t ThreeAtSignsIdx = Name.find("@@@");
+    if (InsertIdx != std::string::npos && InsertIdx != ThreeAtSignsIdx) {
+      InsertIdx += 2;
+    } else {
+      InsertIdx = Name.find("@");
+      if (InsertIdx != std::string::npos)
+        InsertIdx++;
+    }
   } else {
-    InsertIdx = Name.find("@");
-    if (InsertIdx != std::string::npos)
-      InsertIdx++;
+    Prefix = "#";
   }
 
   return std::optional<std::string>(
-      (Name.substr(0, InsertIdx) + "$$h" + Name.substr(InsertIdx)).str());
+      (Name.substr(0, InsertIdx) + Prefix + Name.substr(InsertIdx)).str());
 }
 
 std::optional<std::string>
 llvm::getArm64ECDemangledFunctionName(StringRef Name) {
-  // For non-C++ names, drop the "#" prefix.
   if (Name[0] == '#')
     return std::optional<std::string>(Name.substr(1));
   if (Name[0] != '?')
     return std::nullopt;
 
-  // Drop the ARM64EC "$$h" tag.
   std::pair<StringRef, StringRef> Pair = Name.split("$$h");
   if (Pair.second.empty())
     return std::nullopt;

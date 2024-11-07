@@ -524,9 +524,8 @@ X86TargetLowering::findRepresentativeClass(const TargetRegisterInfo *TRI,
 
 unsigned X86TargetLowering::getAddressSpace() const {
   if (Subtarget.is64Bit())
-    return (getTargetMachine().getCodeModel() == CodeModel::Kernel) ? X86AS::GS
-                                                                    : X86AS::FS;
-  return X86AS::GS;
+    return (getTargetMachine().getCodeModel() == CodeModel::Kernel) ? 256 : 257;
+  return 256;
 }
 
 static bool hasStackGuardSlotTLS(const Triple &TargetTriple) {
@@ -1436,14 +1435,14 @@ static ArrayRef<MCPhysReg> get64BitArgumentXMMs(MachineFunction &MF,
     // in their paired GPR.  So we only need to save the GPR to their home
     // slots.
     // TODO: __vectorcall will change this.
-    return {};
+    return std::nullopt;
   }
 
   bool isSoftFloat = Subtarget.useSoftFloat();
   if (isSoftFloat || !Subtarget.hasSSE1())
     // Kernel mode asks for SSE to be disabled, so there are no XMM argument
     // registers.
-    return {};
+    return std::nullopt;
 
   static const MCPhysReg XMMArgRegs64Bit[] = {
     X86::XMM0, X86::XMM1, X86::XMM2, X86::XMM3,

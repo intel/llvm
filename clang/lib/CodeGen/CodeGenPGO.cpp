@@ -1134,6 +1134,7 @@ void CodeGenPGO::emitCounterRegionMapping(const Decl *D) {
       *CGM.getCoverageMapping(), CGM.getContext().getSourceManager(),
       CGM.getLangOpts(), RegionCounterMap.get(), RegionMCDCState.get());
   MappingGen.emitCounterMapping(D, OS);
+  OS.flush();
 
   if (CoverageMapping.empty())
     return;
@@ -1154,6 +1155,7 @@ CodeGenPGO::emitEmptyCounterMapping(const Decl *D, StringRef Name,
                                 CGM.getContext().getSourceManager(),
                                 CGM.getLangOpts());
   MappingGen.emitEmptyMapping(D, OS);
+  OS.flush();
 
   if (CoverageMapping.empty())
     return;

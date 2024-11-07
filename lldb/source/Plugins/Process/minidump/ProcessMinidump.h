@@ -107,8 +107,7 @@ protected:
 private:
   lldb::DataBufferSP m_core_data;
   llvm::ArrayRef<minidump::Thread> m_thread_list;
-  std::unordered_map<uint32_t, const minidump::ExceptionStream>
-      m_exceptions_by_tid;
+  const minidump::ExceptionStream *m_active_exception;
   lldb::CommandObjectSP m_command_sp;
   bool m_is_wow64;
   std::optional<MemoryRegionInfos> m_memory_regions;

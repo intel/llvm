@@ -152,7 +152,7 @@ public:
   /// This function adds a DENY entry.
   void denyDialect(StringRef dialectNamespace) {
     Entry::FilterFn filterFn = [=](Operation *op) {
-      return op->getName().getDialectNamespace() == dialectNamespace;
+      return op->getDialect()->getNamespace() == dialectNamespace;
     };
     entries.push_back(Entry{filterFn, Entry::FilterType::DENY});
   }

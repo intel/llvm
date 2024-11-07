@@ -21,9 +21,6 @@
 //     thread.
 //  2. Stack poisoned by `inparent` is not poisoned in `inchild` thread.
 
-// Stack tagging is unsupported.
-// UNSUPPORTED: hwasan-aliasing
-
 #include <assert.h>
 #include <pthread.h>
 #include <stdint.h>

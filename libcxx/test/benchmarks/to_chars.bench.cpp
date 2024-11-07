@@ -50,4 +50,10 @@ static void BM_to_chars_bad(benchmark::State& state) {
 }
 BENCHMARK(BM_to_chars_bad)->DenseRange(2, 36, 1);
 
-BENCHMARK_MAIN();
+int main(int argc, char** argv) {
+  benchmark::Initialize(&argc, argv);
+  if (benchmark::ReportUnrecognizedArguments(argc, argv))
+    return 1;
+
+  benchmark::RunSpecifiedBenchmarks();
+}

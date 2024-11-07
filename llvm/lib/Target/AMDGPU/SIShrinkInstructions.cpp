@@ -8,7 +8,6 @@
 //===----------------------------------------------------------------------===//
 //
 
-#include "SIShrinkInstructions.h"
 #include "AMDGPU.h"
 #include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
@@ -27,12 +26,19 @@ using namespace llvm;
 
 namespace {
 
-class SIShrinkInstructions {
+class SIShrinkInstructions : public MachineFunctionPass {
   MachineFunction *MF;
   MachineRegisterInfo *MRI;
   const GCNSubtarget *ST;
   const SIInstrInfo *TII;
   const SIRegisterInfo *TRI;
+
+public:
+  static char ID;
+
+public:
+  SIShrinkInstructions() : MachineFunctionPass(ID) {
+  }
 
   bool foldImmediates(MachineInstr &MI, bool TryToCommute = true) const;
   bool shouldShrinkTrue16(MachineInstr &MI) const;
@@ -56,18 +62,6 @@ class SIShrinkInstructions {
   void dropInstructionKeepingImpDefs(MachineInstr &MI) const;
   MachineInstr *matchSwap(MachineInstr &MovT) const;
 
-public:
-  SIShrinkInstructions() = default;
-  bool run(MachineFunction &MF);
-};
-
-class SIShrinkInstructionsLegacy : public MachineFunctionPass {
-
-public:
-  static char ID;
-
-  SIShrinkInstructionsLegacy() : MachineFunctionPass(ID) {}
-
   bool runOnMachineFunction(MachineFunction &MF) override;
 
   StringRef getPassName() const override { return "SI Shrink Instructions"; }
@@ -80,13 +74,13 @@ public:
 
 } // End anonymous namespace.
 
-INITIALIZE_PASS(SIShrinkInstructionsLegacy, DEBUG_TYPE,
+INITIALIZE_PASS(SIShrinkInstructions, DEBUG_TYPE,
                 "SI Shrink Instructions", false, false)
 
-char SIShrinkInstructionsLegacy::ID = 0;
+char SIShrinkInstructions::ID = 0;
 
-FunctionPass *llvm::createSIShrinkInstructionsLegacyPass() {
-  return new SIShrinkInstructionsLegacy();
+FunctionPass *llvm::createSIShrinkInstructionsPass() {
+  return new SIShrinkInstructions();
 }
 
 /// This function checks \p MI for operands defined by a move immediate
@@ -821,7 +815,9 @@ bool SIShrinkInstructions::tryReplaceDeadSDST(MachineInstr &MI) const {
   return true;
 }
 
-bool SIShrinkInstructions::run(MachineFunction &MF) {
+bool SIShrinkInstructions::runOnMachineFunction(MachineFunction &MF) {
+  if (skipFunction(MF.getFunction()))
+    return false;
 
   this->MF = &MF;
   MRI = &MF.getRegInfo();
@@ -1080,22 +1076,4 @@ bool SIShrinkInstructions::run(MachineFunction &MF) {
     }
   }
   return false;
-}
-
-bool SIShrinkInstructionsLegacy::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
-    return false;
-
-  return SIShrinkInstructions().run(MF);
-}
-
-PreservedAnalyses
-SIShrinkInstructionsPass::run(MachineFunction &MF,
-                              MachineFunctionAnalysisManager &) {
-  if (MF.getFunction().hasOptNone() || !SIShrinkInstructions().run(MF))
-    return PreservedAnalyses::all();
-
-  auto PA = getMachineFunctionPassPreservedAnalyses();
-  PA.preserveSet<CFGAnalyses>();
-  return PA;
 }

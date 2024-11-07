@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "llvm/ADT/DenseSet.h"
 #include "llvm/Bitcode/BitcodeAnalyzer.h"
 #include "llvm/ProfileData/CtxInstrContextNode.h"
 #include "llvm/ProfileData/PGOCtxProfReader.h"
@@ -25,12 +24,12 @@ class PGOCtxProfRWTest : public ::testing::Test {
   std::map<GUID, const ContextNode *> Roots;
 
 public:
-  ContextNode *createNode(GUID Guid, uint32_t NumCounters,
-                          uint32_t NumCallsites, ContextNode *Next = nullptr) {
-    auto AllocSize = ContextNode::getAllocSize(NumCounters, NumCallsites);
+  ContextNode *createNode(GUID Guid, uint32_t NrCounters, uint32_t NrCallsites,
+                          ContextNode *Next = nullptr) {
+    auto AllocSize = ContextNode::getAllocSize(NrCounters, NrCallsites);
     auto *Mem = Nodes.emplace_back(std::make_unique<char[]>(AllocSize)).get();
     std::memset(Mem, 0, AllocSize);
-    auto *Ret = new (Mem) ContextNode(Guid, NumCounters, NumCallsites, Next);
+    auto *Ret = new (Mem) ContextNode(Guid, NrCounters, NrCallsites, Next);
     return Ret;
   }
 

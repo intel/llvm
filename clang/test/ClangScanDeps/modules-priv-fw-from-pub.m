@@ -110,7 +110,8 @@ module Dependency { header "dependency.h" }
 // CHECK-NEXT:           ],
 // CHECK-NEXT:           "command-line": [
 // CHECK:                ],
-// CHECK:                "file-deps": [
+// CHECK-NEXT:           "executable": "clang",
+// CHECK-NEXT:           "file-deps": [
 // CHECK-NEXT:             "[[PREFIX]]/tu.m"
 // CHECK-NEXT:           ],
 // CHECK-NEXT:           "input-file": "[[PREFIX]]/tu.m"

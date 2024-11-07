@@ -344,7 +344,7 @@ inline file_time_type __extract_last_write_time(const path& p, const StatT& st, 
 
 #endif // !_LIBCPP_HAS_NO_FILESYSTEM
 
-} // namespace detail
+} // end namespace detail
 
 _LIBCPP_END_NAMESPACE_FILESYSTEM
 

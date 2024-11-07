@@ -19,7 +19,6 @@
 
 #include "llvm/Config/llvm-config.h"
 #include "llvm/Support/Errno.h"
-#include "llvm/Support/Error.h"
 #include "llvm/Support/WindowsError.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -33,8 +32,27 @@
 #include <winsock2.h>
 #endif
 
+#ifdef _WIN32
+#define CLOSE_SOCKET closesocket
+typedef const char *set_socket_option_arg_type;
+#else
+#include <unistd.h>
+#define CLOSE_SOCKET ::close
+typedef const void *set_socket_option_arg_type;
+#endif
+
 using namespace lldb;
 using namespace lldb_private;
+
+static Status GetLastSocketError() {
+  std::error_code EC;
+#ifdef _WIN32
+  EC = llvm::mapWindowsError(WSAGetLastError());
+#else
+  EC = std::error_code(errno, std::generic_category());
+#endif
+  return EC;
+}
 
 static const int kType = SOCK_STREAM;
 
@@ -137,7 +155,7 @@ Status TCPSocket::Connect(llvm::StringRef name) {
   Status error;
   llvm::Expected<HostAndPort> host_port = DecodeHostAndPort(name);
   if (!host_port)
-    return Status::FromError(host_port.takeError());
+    return Status(host_port.takeError());
 
   std::vector<SocketAddress> addresses =
       SocketAddress::GetAddressInfo(host_port->hostname.c_str(), nullptr,
@@ -176,7 +194,7 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
   Status error;
   llvm::Expected<HostAndPort> host_port = DecodeHostAndPort(name);
   if (!host_port)
-    return Status::FromError(host_port.takeError());
+    return Status(host_port.takeError());
 
   if (host_port->hostname == "*")
     host_port->hostname = "0.0.0.0";
@@ -189,8 +207,12 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
       continue;
 
     // enable local address reuse
-    if (SetOption(fd, SOL_SOCKET, SO_REUSEADDR, 1) == -1) {
-      CloseSocket(fd);
+    int option_value = 1;
+    set_socket_option_arg_type option_value_p =
+        reinterpret_cast<set_socket_option_arg_type>(&option_value);
+    if (::setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, option_value_p,
+                     sizeof(option_value)) == -1) {
+      CLOSE_SOCKET(fd);
       continue;
     }
 
@@ -206,8 +228,8 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
       err = ::listen(fd, backlog);
 
     if (err == -1) {
-      error = GetLastError();
-      CloseSocket(fd);
+      error = GetLastSocketError();
+      CLOSE_SOCKET(fd);
       continue;
     }
 
@@ -228,54 +250,71 @@ Status TCPSocket::Listen(llvm::StringRef name, int backlog) {
 
 void TCPSocket::CloseListenSockets() {
   for (auto socket : m_listen_sockets)
-    CloseSocket(socket.first);
+    CLOSE_SOCKET(socket.first);
   m_listen_sockets.clear();
 }
 
-llvm::Expected<std::vector<MainLoopBase::ReadHandleUP>>
-TCPSocket::Accept(MainLoopBase &loop,
-                  std::function<void(std::unique_ptr<Socket> socket)> sock_cb) {
-  if (m_listen_sockets.size() == 0)
-    return llvm::createStringError("No open listening sockets!");
+Status TCPSocket::Accept(Socket *&conn_socket) {
+  Status error;
+  if (m_listen_sockets.size() == 0) {
+    error = Status::FromErrorString("No open listening sockets!");
+    return error;
+  }
 
+  NativeSocket sock = kInvalidSocketValue;
+  NativeSocket listen_sock = kInvalidSocketValue;
+  lldb_private::SocketAddress AcceptAddr;
+  MainLoop accept_loop;
   std::vector<MainLoopBase::ReadHandleUP> handles;
   for (auto socket : m_listen_sockets) {
     auto fd = socket.first;
-    auto io_sp =
-        std::make_shared<TCPSocket>(fd, false, this->m_child_processes_inherit);
-    auto cb = [this, fd, sock_cb](MainLoopBase &loop) {
-      lldb_private::SocketAddress AcceptAddr;
-      socklen_t sa_len = AcceptAddr.GetMaxLength();
-      Status error;
-      NativeSocket sock = AcceptSocket(fd, &AcceptAddr.sockaddr(), &sa_len,
-                                       m_child_processes_inherit, error);
-      Log *log = GetLog(LLDBLog::Host);
-      if (error.Fail()) {
-        LLDB_LOG(log, "AcceptSocket({0}): {1}", fd, error);
-        return;
-      }
-
-      const lldb_private::SocketAddress &AddrIn = m_listen_sockets[fd];
-      if (!AddrIn.IsAnyAddr() && AcceptAddr != AddrIn) {
-        CloseSocket(sock);
-        LLDB_LOG(log, "rejecting incoming connection from {0} (expecting {1})",
-                 AcceptAddr.GetIPAddress(), AddrIn.GetIPAddress());
-        return;
-      }
-      std::unique_ptr<TCPSocket> sock_up(new TCPSocket(sock, *this));
-
-      // Keep our TCP packets coming without any delays.
-      sock_up->SetOptionNoDelay();
-
-      sock_cb(std::move(sock_up));
-    };
-    Status error;
-    handles.emplace_back(loop.RegisterReadObject(io_sp, cb, error));
+    auto inherit = this->m_child_processes_inherit;
+    auto io_sp = IOObjectSP(new TCPSocket(socket.first, false, inherit));
+    handles.emplace_back(accept_loop.RegisterReadObject(
+        io_sp, [fd, inherit, &sock, &AcceptAddr, &error,
+                        &listen_sock](MainLoopBase &loop) {
+          socklen_t sa_len = AcceptAddr.GetMaxLength();
+          sock = AcceptSocket(fd, &AcceptAddr.sockaddr(), &sa_len, inherit,
+                              error);
+          listen_sock = fd;
+          loop.RequestTermination();
+        }, error));
     if (error.Fail())
-      return error.ToError();
+      return error;
   }
 
-  return handles;
+  bool accept_connection = false;
+  std::unique_ptr<TCPSocket> accepted_socket;
+  // Loop until we are happy with our connection
+  while (!accept_connection) {
+    accept_loop.Run();
+
+    if (error.Fail())
+        return error;
+
+    lldb_private::SocketAddress &AddrIn = m_listen_sockets[listen_sock];
+    if (!AddrIn.IsAnyAddr() && AcceptAddr != AddrIn) {
+      if (sock != kInvalidSocketValue) {
+        CLOSE_SOCKET(sock);
+        sock = kInvalidSocketValue;
+      }
+      llvm::errs() << llvm::formatv(
+          "error: rejecting incoming connection from {0} (expecting {1})",
+          AcceptAddr.GetIPAddress(), AddrIn.GetIPAddress());
+      continue;
+    }
+    accept_connection = true;
+    accepted_socket.reset(new TCPSocket(sock, *this));
+  }
+
+  if (!accepted_socket)
+    return error;
+
+  // Keep our TCP packets coming without any delays.
+  accepted_socket->SetOptionNoDelay();
+  error.Clear();
+  conn_socket = accepted_socket.release();
+  return error;
 }
 
 int TCPSocket::SetOptionNoDelay() {

@@ -473,7 +473,11 @@ class StdVectorSynthProvider:
                 "[" + str(index) + "]", element_offset, element_type
             )
             bit = element.GetValueAsUnsigned(0) & (1 << bit_offset)
-            return self.valobj.CreateBoolValue("[%d]" % index, bool(bit))
+            if bit != 0:
+                value_expr = "(bool)true"
+            else:
+                value_expr = "(bool)false"
+            return self.valobj.CreateValueFromExpression("[%d]" % index, value_expr)
 
         def update(self):
             try:

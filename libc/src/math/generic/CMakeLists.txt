@@ -2958,9 +2958,7 @@ add_entrypoint_object(
   HDRS
     ../fmul.h
   DEPENDS
-    libc.hdr.errno_macros
-    libc.hdr.fenv_macros
-    libc.src.__support.FPUtil.double_double
+    libc.src.__support.FPUtil.generic.mul
   COMPILE_OPTIONS
     -O3
 )

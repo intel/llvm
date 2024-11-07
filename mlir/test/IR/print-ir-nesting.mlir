@@ -4,7 +4,7 @@
 // CHECK:  1 nested regions:
 // CHECK:   Region with 1 blocks:
 // CHECK:     Block with 0 arguments, 0 successors, and 2 operations
-"builtin.module"() ( {
+module {
 
 
 // CHECK:       visiting op: 'dialect.op1' with 0 operands and 4 results
@@ -15,8 +15,6 @@
 
 
 // CHECK:       visiting op: 'dialect.op2' with 0 operands and 0 results
-// CHECK:       1 attributes:
-// CHECK:        - 'other attribute' : '42 : i64'
 // CHECK:        2 nested regions:
   "dialect.op2"() ({
 
@@ -52,5 +50,6 @@
 // CHECK:             visiting op: 'dialect.innerop7' with 0 operands and 0 results
 // CHECK:              0 nested regions:
     "dialect.innerop7"() : () -> ()
-  }) {"other attribute" = 42 : i64} : () -> ()
-}) : () -> ()
+  }) : () -> ()
+
+} // module

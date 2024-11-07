@@ -13,7 +13,6 @@
 #include "DXILShaderFlags.h"
 #include "DirectX.h"
 #include "llvm/ADT/StringSet.h"
-#include "llvm/Analysis/DXILMetadataAnalysis.h"
 #include "llvm/Analysis/DXILResource.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Metadata.h"
@@ -104,7 +103,6 @@ public:
     AU.addRequired<DXILResourceWrapperPass>();
     AU.addRequired<DXILResourceMDWrapper>();
     AU.addRequired<ShaderFlagsAnalysisWrapper>();
-    AU.addRequired<DXILMetadataAnalysisWrapperPass>();
   }
 
   bool runOnModule(Module &M) override {

@@ -140,7 +140,7 @@ class AluOpcode : Opcode {
 }
 
 class FloatOpcode : Opcode {
-  let Args = [ArgUint32];
+  let Args = [ArgRoundingMode];
 }
 
 class IntegerOpcode : Opcode {
@@ -202,7 +202,7 @@ def CallVirt : Opcode {
 }
 
 def CallBI : Opcode {
-  let Args = [ArgFunction, ArgCallExpr, ArgUint32];
+  let Args = [ArgFunction, ArgCallExpr];
 }
 
 def CallPtr : Opcode {
@@ -642,23 +642,23 @@ def CastAPS : Opcode {
 // Cast an integer to a floating type
 def CastIntegralFloating : Opcode {
   let Types = [AluTypeClass];
-  let Args = [ArgFltSemantics, ArgUint32];
+  let Args = [ArgFltSemantics, ArgRoundingMode];
   let HasGroup = 1;
 }
 
 // Cast a floating to an integer type
 def CastFloatingIntegral : Opcode {
   let Types = [FixedSizeIntegralTypes];
-  let Args = [ArgUint32];
+  let Args = [];
   let HasGroup = 1;
 }
 
 def CastFloatingIntegralAP : Opcode {
-  let Args = [ArgUint32, ArgUint32];
+  let Args = [ArgUint32];
 }
 
 def CastFloatingIntegralAPS : Opcode {
-  let Args = [ArgUint32, ArgUint32];
+  let Args = [ArgUint32];
 }
 
 def CastPointerIntegral : Opcode {
@@ -732,7 +732,6 @@ def Flip : Opcode {
 def Invalid : Opcode {}
 def Unsupported : Opcode {}
 def Error : Opcode {}
-def SideEffect : Opcode {}
 def InvalidCast : Opcode {
   let Args = [ArgCastKind, ArgBool];
 }

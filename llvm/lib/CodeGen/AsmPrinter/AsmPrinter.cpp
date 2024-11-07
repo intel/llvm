@@ -99,7 +99,6 @@
 #include "llvm/MC/MCStreamer.h"
 #include "llvm/MC/MCSubtargetInfo.h"
 #include "llvm/MC/MCSymbol.h"
-#include "llvm/MC/MCSymbolCOFF.h"
 #include "llvm/MC/MCSymbolELF.h"
 #include "llvm/MC/MCTargetOptions.h"
 #include "llvm/MC/MCValue.h"
@@ -108,7 +107,6 @@
 #include "llvm/Pass.h"
 #include "llvm/Remarks/RemarkStreamer.h"
 #include "llvm/Support/Casting.h"
-#include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/FileSystem.h"
@@ -156,11 +154,6 @@ static cl::bits<PGOMapFeaturesEnum> PgoAnalysisMapFeatures(
     cl::desc(
         "Enable extended information within the SHT_LLVM_BB_ADDR_MAP that is "
         "extracted from PGO related analysis."));
-
-static cl::opt<bool> EmitJumpTableSizesSection(
-    "emit-jump-table-sizes-section",
-    cl::desc("Emit a section containing jump table addresses and sizes"),
-    cl::Hidden, cl::init(false));
 
 STATISTIC(EmittedInsts, "Number of machine instrs printed");
 
@@ -1839,10 +1832,6 @@ void AsmPrinter::emitFunctionBody() {
         // This instruction is only used to note jump table debug info, it's
         // purely meta information.
         break;
-      case TargetOpcode::INIT_UNDEF:
-        // This is only used to influence register allocation behavior, no
-        // actual initialization is needed.
-        break;
       default:
         emitInstruction(&MI);
         if (CanDoExtraAnalysis) {
@@ -2793,60 +2782,8 @@ void AsmPrinter::emitJumpTableInfo() {
     for (const MachineBasicBlock *MBB : JTBBs)
       emitJumpTableEntry(MJTI, MBB, JTI);
   }
-
-  if (EmitJumpTableSizesSection)
-    emitJumpTableSizesSection(MJTI, F);
-
   if (!JTInDiffSection)
     OutStreamer->emitDataRegion(MCDR_DataRegionEnd);
-}
-
-void AsmPrinter::emitJumpTableSizesSection(const MachineJumpTableInfo *MJTI,
-                                           const Function &F) const {
-  const std::vector<MachineJumpTableEntry> &JT = MJTI->getJumpTables();
-
-  if (JT.empty())
-    return;
-
-  StringRef GroupName = F.hasComdat() ? F.getComdat()->getName() : "";
-  MCSection *JumpTableSizesSection = nullptr;
-  StringRef sectionName = ".llvm_jump_table_sizes";
-
-  bool isElf = TM.getTargetTriple().isOSBinFormatELF();
-  bool isCoff = TM.getTargetTriple().isOSBinFormatCOFF();
-
-  if (!isCoff && !isElf)
-    return;
-
-  if (isElf) {
-    MCSymbolELF *LinkedToSym = dyn_cast<MCSymbolELF>(CurrentFnSym);
-    int Flags = F.hasComdat() ? ELF::SHF_GROUP : 0;
-
-    JumpTableSizesSection = OutContext.getELFSection(
-        sectionName, ELF::SHT_LLVM_JT_SIZES, Flags, 0, GroupName, F.hasComdat(),
-        MCSection::NonUniqueID, LinkedToSym);
-  } else if (isCoff) {
-    if (F.hasComdat()) {
-      JumpTableSizesSection = OutContext.getCOFFSection(
-          sectionName,
-          COFF::IMAGE_SCN_CNT_INITIALIZED_DATA | COFF::IMAGE_SCN_MEM_READ |
-              COFF::IMAGE_SCN_LNK_COMDAT | COFF::IMAGE_SCN_MEM_DISCARDABLE,
-          F.getComdat()->getName(), COFF::IMAGE_COMDAT_SELECT_ASSOCIATIVE);
-    } else {
-      JumpTableSizesSection = OutContext.getCOFFSection(
-          sectionName, COFF::IMAGE_SCN_CNT_INITIALIZED_DATA |
-                           COFF::IMAGE_SCN_MEM_READ |
-                           COFF::IMAGE_SCN_MEM_DISCARDABLE);
-    }
-  }
-
-  OutStreamer->switchSection(JumpTableSizesSection);
-
-  for (unsigned JTI = 0, E = JT.size(); JTI != E; ++JTI) {
-    const std::vector<MachineBasicBlock *> &JTBBs = JT[JTI].MBBs;
-    OutStreamer->emitSymbolValue(GetJTISymbol(JTI), TM.getProgramPointerSize());
-    OutStreamer->emitIntValue(JTBBs.size(), TM.getProgramPointerSize());
-  }
 }
 
 /// EmitJumpTableEntry - Emit a jump table entry for the specified MBB to the

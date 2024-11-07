@@ -22,7 +22,7 @@ namespace tblgen {
 
 /// Returns all the op definitions filtered by the user. The filtering is via
 /// command-line option "op-include-regex" and "op-exclude-regex".
-std::vector<const llvm::Record *>
+std::vector<llvm::Record *>
 getRequestedOpDefinitions(const llvm::RecordKeeper &recordKeeper);
 
 /// Checks whether `str` is a Python keyword or would shadow builtin function.
@@ -30,9 +30,8 @@ getRequestedOpDefinitions(const llvm::RecordKeeper &recordKeeper);
 bool isPythonReserved(llvm::StringRef str);
 
 /// Shard the op defintions into the number of shards set by "op-shard-count".
-void shardOpDefinitions(
-    ArrayRef<const llvm::Record *> defs,
-    SmallVectorImpl<ArrayRef<const llvm::Record *>> &shardedDefs);
+void shardOpDefinitions(ArrayRef<llvm::Record *> defs,
+                        SmallVectorImpl<ArrayRef<llvm::Record *>> &shardedDefs);
 
 } // namespace tblgen
 } // namespace mlir

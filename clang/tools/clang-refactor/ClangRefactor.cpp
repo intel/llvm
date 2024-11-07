@@ -560,6 +560,7 @@ private:
          << "' can't be invoked with the given arguments:\n";
       for (const auto &Opt : MissingOptions)
         OS << "  missing '-" << Opt.getKey() << "' option\n";
+      OS.flush();
       return llvm::make_error<llvm::StringError>(
           Error, llvm::inconvertibleErrorCode());
     }
@@ -590,6 +591,7 @@ private:
       OS << "note: the following actions are supported:\n";
       for (const auto &Subcommand : SubCommands)
         OS.indent(2) << Subcommand->getName() << "\n";
+      OS.flush();
       return llvm::make_error<llvm::StringError>(
           Error, llvm::inconvertibleErrorCode());
     }

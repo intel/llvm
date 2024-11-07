@@ -341,18 +341,7 @@ constexpr TypeBuilderFunc getModel<const double *>() {
 template <>
 constexpr TypeBuilderFunc getModel<long double>() {
   return [](mlir::MLIRContext *context) -> mlir::Type {
-    // See TODO at the top of the file. This is configuring for the host system
-    // - it might be incorrect when cross-compiling!
-    constexpr size_t size = sizeof(long double);
-    static_assert(size == 16 || size == 10 || size == 8,
-                  "unsupported long double size");
-    if constexpr (size == 16)
-      return mlir::FloatType::getF128(context);
-    if constexpr (size == 10)
-      return mlir::FloatType::getF80(context);
-    if constexpr (size == 8)
-      return mlir::FloatType::getF64(context);
-    llvm_unreachable("failed static assert");
+    return mlir::FloatType::getF80(context);
   };
 }
 template <>

@@ -30,15 +30,14 @@ void ExpectRealtimeDeath(Function &&Func,
 
   auto GetExpectedErrorSubstring = [&]() -> std::string {
     return intercepted_method_name != nullptr
-               ? ".*==ERROR: RealtimeSanitizer: unsafe-library-call.*"
-                 "Intercepted call to real-time unsafe function `" +
-                     std::string(intercepted_method_name) +
-                     "` in real-time context!"
+               ? "Real-time violation: intercepted call to real-time unsafe "
+                 "function `" +
+                     std::string(intercepted_method_name) + "`"
                : "";
   };
 
-  EXPECT_EXIT(RealtimeInvoke(std::forward<Function>(Func)), ExitedWithCode(43),
-              GetExpectedErrorSubstring());
+  EXPECT_EXIT(RealtimeInvoke(std::forward<Function>(Func)),
+              ExitedWithCode(EXIT_FAILURE), GetExpectedErrorSubstring());
 }
 
 template <typename Function> void ExpectNonRealtimeSurvival(Function &&Func) {

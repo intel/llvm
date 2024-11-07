@@ -1588,8 +1588,10 @@ transform::GetParentOp::apply(transform::TransformRewriter &rewriter,
       }
     }
     if (getDeduplicate()) {
-      if (resultSet.insert(parent).second)
+      if (!resultSet.contains(parent)) {
         parents.push_back(parent);
+        resultSet.insert(parent);
+      }
     } else {
       parents.push_back(parent);
     }
@@ -1967,7 +1969,7 @@ transform::MatchParamCmpIOp::apply(transform::TransformRewriter &rewriter,
     std::string str;
     llvm::raw_string_ostream os(str);
     value.print(os, /*isSigned=*/true);
-    return str;
+    return os.str();
   };
 
   ArrayRef<Attribute> params = state.getParams(getParam());

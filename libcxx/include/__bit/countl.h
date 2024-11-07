@@ -27,15 +27,15 @@ _LIBCPP_PUSH_MACROS
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned __x) _NOEXCEPT {
+_LIBCPP_NODISCARD inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned __x) _NOEXCEPT {
   return __builtin_clz(__x);
 }
 
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned long __x) _NOEXCEPT {
+_LIBCPP_NODISCARD inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned long __x) _NOEXCEPT {
   return __builtin_clzl(__x);
 }
 
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned long long __x) _NOEXCEPT {
+_LIBCPP_NODISCARD inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR int __libcpp_clz(unsigned long long __x) _NOEXCEPT {
   return __builtin_clzll(__x);
 }
 

@@ -20,7 +20,6 @@ class InstructionSelector;
 class RegisterBankInfo;
 
 ModulePass *createSPIRVPrepareFunctionsPass(const SPIRVTargetMachine &TM);
-FunctionPass *createSPIRVStructurizerPass();
 FunctionPass *createSPIRVMergeRegionExitTargetsPass();
 FunctionPass *createSPIRVStripConvergenceIntrinsicsPass();
 FunctionPass *createSPIRVRegularizerPass();

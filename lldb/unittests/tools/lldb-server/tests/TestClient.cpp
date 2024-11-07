@@ -26,6 +26,10 @@ using namespace lldb_private;
 using namespace llvm;
 using namespace llgs_tests;
 
+#ifdef SendMessage
+#undef SendMessage
+#endif
+
 TestClient::TestClient(std::unique_ptr<Connection> Conn) {
   SetConnection(std::move(Conn));
   SetPacketTimeout(std::chrono::seconds(10));

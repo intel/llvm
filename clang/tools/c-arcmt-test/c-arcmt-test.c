@@ -109,10 +109,10 @@ static void flush_atexit(void) {
 
 int main(int argc, const char **argv) {
 #ifdef __MVS__
-  if (enablezOSAutoConversion(fileno(stdout)) == -1)
+  if (enableAutoConversion(fileno(stdout)) == -1)
     fprintf(stderr, "Setting conversion on stdout failed\n");
 
-  if (enablezOSAutoConversion(fileno(stderr)) == -1)
+  if (enableAutoConversion(fileno(stderr)) == -1)
     fprintf(stderr, "Setting conversion on stderr failed\n");
 #endif
 

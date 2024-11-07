@@ -17,6 +17,7 @@
 #include "sanitizer_common/sanitizer_allocator_dlsym.h"
 #include "sanitizer_common/sanitizer_allocator_interface.h"
 #include "sanitizer_common/sanitizer_mallinfo.h"
+#include "sanitizer_common/sanitizer_tls_get_addr.h"
 
 using namespace __hwasan;
 
@@ -61,7 +62,10 @@ void *__sanitizer_aligned_alloc(uptr alignment, uptr size) {
 SANITIZER_INTERFACE_ATTRIBUTE
 void *__sanitizer___libc_memalign(uptr alignment, uptr size) {
   GET_MALLOC_STACK_TRACE;
-  return hwasan_memalign(alignment, size, &stack);
+  void *ptr = hwasan_memalign(alignment, size, &stack);
+  if (ptr)
+    DTLS_on_libc_memalign(ptr, size);
+  return ptr;
 }
 
 SANITIZER_INTERFACE_ATTRIBUTE

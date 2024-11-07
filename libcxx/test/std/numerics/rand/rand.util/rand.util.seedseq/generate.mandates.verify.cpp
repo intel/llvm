@@ -23,7 +23,6 @@
 
 #include <random>
 #include <climits>
-#include <cstdint>
 
 #include "test_macros.h"
 

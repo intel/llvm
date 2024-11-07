@@ -61,11 +61,11 @@ namespace llvm {
 class raw_ostream;
 class RecordKeeper;
 
-void EmitMapTable(const RecordKeeper &RK, raw_ostream &OS);
+void EmitMapTable(RecordKeeper &RK, raw_ostream &OS);
 
 // Defined in DecoderEmitter.cpp
-void EmitDecoder(const RecordKeeper &RK, raw_ostream &OS,
-                 StringRef PredicateNamespace);
+void EmitDecoder(RecordKeeper &RK, raw_ostream &OS,
+                 const std::string &PredicateNamespace);
 
 } // namespace llvm
 

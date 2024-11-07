@@ -30,10 +30,10 @@ TEST(JSONScopedPrinterTest, PrettyPrintCtor) {
 })";
   const char *NoPrettyPrintOut = R"({"Key":"Value"})";
   PrintFunc(PrettyPrintWriter);
-  EXPECT_EQ(PrettyPrintOut, StreamBuffer);
+  EXPECT_EQ(PrettyPrintOut, OS.str());
   StreamBuffer.clear();
   PrintFunc(NoPrettyPrintWriter);
-  EXPECT_EQ(NoPrettyPrintOut, StreamBuffer);
+  EXPECT_EQ(NoPrettyPrintOut, OS.str());
 }
 
 TEST(JSONScopedPrinterTest, DelimitedScopeCtor) {
@@ -44,20 +44,20 @@ TEST(JSONScopedPrinterTest, DelimitedScopeCtor) {
                                       std::make_unique<DictScope>());
     DictScopeWriter.printString("Label", "DictScope");
   }
-  EXPECT_EQ(R"({"Label":"DictScope"})", StreamBuffer);
+  EXPECT_EQ(R"({"Label":"DictScope"})", OS.str());
   StreamBuffer.clear();
   {
     JSONScopedPrinter ListScopeWriter(OS, /*PrettyPrint=*/false,
                                       std::make_unique<ListScope>());
     ListScopeWriter.printString("ListScope");
   }
-  EXPECT_EQ(R"(["ListScope"])", StreamBuffer);
+  EXPECT_EQ(R"(["ListScope"])", OS.str());
   StreamBuffer.clear();
   {
     JSONScopedPrinter NoScopeWriter(OS, /*PrettyPrint=*/false);
     NoScopeWriter.printString("NoScope");
   }
-  EXPECT_EQ(R"("NoScope")", StreamBuffer);
+  EXPECT_EQ(R"("NoScope")", OS.str());
 }
 
 class ScopedPrinterTest : public ::testing::Test {
@@ -78,7 +78,7 @@ protected:
   void verifyScopedPrinter(StringRef Expected, PrintFunc Func) {
     Func(Writer);
     Writer.flush();
-    EXPECT_EQ(Expected.str(), StreamBuffer);
+    EXPECT_EQ(Expected.str(), OS.str());
     StreamBuffer.clear();
   }
 
@@ -88,7 +88,7 @@ protected:
       Func(JSONWriter);
     }
     JSONWriter.flush();
-    EXPECT_EQ(Expected.str(), StreamBuffer);
+    EXPECT_EQ(Expected.str(), OS.str());
     StreamBuffer.clear();
     HasPrintedToJSON = true;
   }

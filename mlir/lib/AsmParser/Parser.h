@@ -130,14 +130,10 @@ public:
     consumeToken();
   }
 
-  /// Reset the parser to the given lexer position. Resetting the parser/lexer
-  /// position does not update 'state.lastToken'. 'state.lastToken' is the
-  /// last parsed token, and is used to provide the scope end location for
-  /// OperationDefinitions. To ensure the correctness of the end location, the
-  /// last consumed token of an OperationDefinition needs to be the last token
-  /// belonging to it.
+  /// Reset the parser to the given lexer position.
   void resetToken(const char *tokPos) {
     state.lex.resetPointer(tokPos);
+    state.lastToken = state.curToken;
     state.curToken = state.lex.lexToken();
   }
 

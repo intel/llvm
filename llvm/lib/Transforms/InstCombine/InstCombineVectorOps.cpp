@@ -476,8 +476,7 @@ Instruction *InstCombinerImpl::visitExtractElementInst(ExtractElementInst &EI) {
   // it may make the operand poison.
   BinaryOperator *BO;
   if (match(SrcVec, m_BinOp(BO)) && cheapToScalarize(SrcVec, Index) &&
-      (HasKnownValidIndex ||
-       isSafeToSpeculativelyExecuteWithVariableReplaced(BO))) {
+      (HasKnownValidIndex || isSafeToSpeculativelyExecute(BO))) {
     // extelt (binop X, Y), Index --> binop (extelt X, Index), (extelt Y, Index)
     Value *X = BO->getOperand(0), *Y = BO->getOperand(1);
     Value *E0 = Builder.CreateExtractElement(X, Index);
@@ -2778,7 +2777,7 @@ Instruction *InstCombinerImpl::simplifyBinOpSplats(ShuffleVectorInst &SVI) {
     return nullptr;
 
   auto *BinOp = cast<BinaryOperator>(Op0);
-  if (!isSafeToSpeculativelyExecuteWithVariableReplaced(BinOp))
+  if (!isSafeToSpeculativelyExecute(BinOp))
     return nullptr;
 
   Value *NewBO = Builder.CreateBinOp(BinOp->getOpcode(), X, Y);

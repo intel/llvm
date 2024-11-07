@@ -280,10 +280,9 @@ enum NodeType : unsigned {
   SADDLP,
   UADDLP,
 
-  // udot/sdot/usdot instructions
+  // udot/sdot instructions
   UDOT,
   SDOT,
-  USDOT,
 
   // Vector across-lanes min/max
   // Only the lower result lane is defined.
@@ -915,7 +914,7 @@ public:
 
   bool shouldConvertFpToSat(unsigned Op, EVT FPVT, EVT VT) const override;
 
-  bool shouldExpandCmpUsingSelects(EVT VT) const override;
+  bool shouldExpandCmpUsingSelects() const override { return true; }
 
   bool isComplexDeinterleavingSupported() const override;
   bool isComplexDeinterleavingOperationSupported(
@@ -998,9 +997,6 @@ public:
                              bool AllowUnknown = false) const override;
 
   bool shouldExpandGetActiveLaneMask(EVT VT, EVT OpVT) const override;
-
-  bool
-  shouldExpandPartialReductionIntrinsic(const IntrinsicInst *I) const override;
 
   bool shouldExpandCttzElements(EVT VT) const override;
 

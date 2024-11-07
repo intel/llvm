@@ -45,7 +45,6 @@ public:
   unsigned getRegisterClassForType(bool Vector, Type *Ty = nullptr) const;
   unsigned getMaxInterleaveFactor(ElementCount VF);
   const char *getRegisterClassName(unsigned ClassID) const;
-  TTI::PopcntSupportKind getPopcntSupport(unsigned TyWidth);
 
   // TODO: Implement more hooks to provide TTI machinery for LoongArch.
 };

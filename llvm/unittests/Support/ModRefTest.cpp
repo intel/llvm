@@ -21,6 +21,7 @@ TEST(ModRefTest, PrintMemoryEffects) {
   std::string S;
   raw_string_ostream OS(S);
   OS << MemoryEffects::none();
+  OS.flush();
   EXPECT_EQ(S, "ArgMem: NoModRef, InaccessibleMem: NoModRef, Other: NoModRef");
 }
 

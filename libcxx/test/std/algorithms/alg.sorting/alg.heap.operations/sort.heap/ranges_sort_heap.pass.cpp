@@ -25,10 +25,8 @@
 #include <array>
 #include <concepts>
 #include <functional>
-#include <memory>
 #include <random>
 #include <ranges>
-#include <vector>
 
 #include "almost_satisfies_types.h"
 #include "test_iterators.h"

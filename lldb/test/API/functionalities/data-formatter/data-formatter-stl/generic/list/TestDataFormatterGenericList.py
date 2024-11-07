@@ -60,7 +60,9 @@ class GenericListDataFormatterTestCase(TestBase):
         self.runCmd("type format add -f hex int")
 
         self.expect(
-            "frame variable numbers_list --raw", matching=False, substrs=["size=0"]
+            "frame variable numbers_list --raw",
+            matching=False,
+            substrs=["size=0", "{}"],
         )
 
         if stdlib_type == USE_LIBSTDCPP:

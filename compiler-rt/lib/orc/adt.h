@@ -18,7 +18,7 @@
 #include <ostream>
 #include <string>
 
-namespace orc_rt {
+namespace __orc_rt {
 
 constexpr std::size_t dynamic_extent = std::numeric_limits<std::size_t>::max();
 
@@ -58,6 +58,6 @@ private:
   size_type Size = 0;
 };
 
-} // namespace orc_rt
+} // end namespace __orc_rt
 
 #endif // ORC_RT_ADT_H

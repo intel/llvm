@@ -635,9 +635,8 @@ public:
 };
 } // namespace
 
-static Bindings getAllVarBindingsForSymbol(ProgramStateManager &Manager,
-                                           const ExplodedNode *Node,
-                                           SymbolRef Sym) {
+Bindings getAllVarBindingsForSymbol(ProgramStateManager &Manager,
+                                    const ExplodedNode *Node, SymbolRef Sym) {
   Bindings Result;
   VarBindingsCollector Collector{Sym, Result};
   while (Result.empty() && Node) {

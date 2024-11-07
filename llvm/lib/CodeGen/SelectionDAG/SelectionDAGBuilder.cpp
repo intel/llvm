@@ -845,13 +845,13 @@ static void getCopyToPartsVector(SelectionDAG &DAG, const SDLoc &DL,
   }
 }
 
-RegsForValue::RegsForValue(const SmallVector<Register, 4> &regs, MVT regvt,
+RegsForValue::RegsForValue(const SmallVector<unsigned, 4> &regs, MVT regvt,
                            EVT valuevt, std::optional<CallingConv::ID> CC)
     : ValueVTs(1, valuevt), RegVTs(1, regvt), Regs(regs),
       RegCount(1, regs.size()), CallConv(CC) {}
 
 RegsForValue::RegsForValue(LLVMContext &Context, const TargetLowering &TLI,
-                           const DataLayout &DL, Register Reg, Type *Ty,
+                           const DataLayout &DL, unsigned Reg, Type *Ty,
                            std::optional<CallingConv::ID> CC) {
   ComputeValueVTs(TLI, DL, Ty, ValueVTs);
 
@@ -870,7 +870,7 @@ RegsForValue::RegsForValue(LLVMContext &Context, const TargetLowering &TLI,
       Regs.push_back(Reg + i);
     RegVTs.push_back(RegisterVT);
     RegCount.push_back(NumRegs);
-    Reg = Reg.id() + NumRegs;
+    Reg += NumRegs;
   }
 }
 
@@ -1070,9 +1070,9 @@ void RegsForValue::AddInlineAsmOperands(InlineAsm::Kind Code, bool HasMatching,
   }
 }
 
-SmallVector<std::pair<Register, TypeSize>, 4>
+SmallVector<std::pair<unsigned, TypeSize>, 4>
 RegsForValue::getRegsAndSizes() const {
-  SmallVector<std::pair<Register, TypeSize>, 4> OutVec;
+  SmallVector<std::pair<unsigned, TypeSize>, 4> OutVec;
   unsigned I = 0;
   for (auto CountAndVT : zip_first(RegCount, RegVTs)) {
     unsigned RegCount = std::get<0>(CountAndVT);
@@ -2183,7 +2183,7 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
   }
 
   if (!FuncInfo.CanLowerReturn) {
-    Register DemoteReg = FuncInfo.DemoteRegister;
+    unsigned DemoteReg = FuncInfo.DemoteRegister;
     const Function *F = I.getParent()->getParent();
 
     // Emit a store of the return value through the virtual register.
@@ -2284,8 +2284,6 @@ void SelectionDAGBuilder::visitRet(const ReturnInst &I) {
           Flags.setSExt();
         else if (ExtendKind == ISD::ZERO_EXTEND)
           Flags.setZExt();
-        else if (F->getAttributes().hasRetAttr(Attribute::NoExt))
-          Flags.setNoExt();
 
         for (unsigned i = 0; i < NumParts; ++i) {
           Outs.push_back(ISD::OutputArg(Flags,
@@ -2983,7 +2981,7 @@ void SelectionDAGBuilder::visitSwitchCase(CaseBlock &CB,
 void SelectionDAGBuilder::visitJumpTable(SwitchCG::JumpTable &JT) {
   // Emit the code for the jump table
   assert(JT.SL && "Should set SDLoc for SelectionDAG!");
-  assert(JT.Reg && "Should lower JT Header first!");
+  assert(JT.Reg != -1U && "Should lower JT Header first!");
   EVT PTy = DAG.getTargetLoweringInfo().getJumpTableRegTy(DAG.getDataLayout());
   SDValue Index = DAG.getCopyFromReg(getControlRoot(), *JT.SL, JT.Reg, PTy);
   SDValue Table = DAG.getJumpTable(JT.JTI, PTy);
@@ -3015,7 +3013,7 @@ void SelectionDAGBuilder::visitJumpTableHeader(SwitchCG::JumpTable &JT,
   SwitchOp =
       DAG.getZExtOrTrunc(Sub, dl, TLI.getJumpTableRegTy(DAG.getDataLayout()));
 
-  Register JumpTableReg =
+  unsigned JumpTableReg =
       FuncInfo.CreateReg(TLI.getJumpTableRegTy(DAG.getDataLayout()));
   SDValue CopyTo =
       DAG.getCopyToReg(getControlRoot(), dl, JumpTableReg, SwitchOp);
@@ -3180,9 +3178,10 @@ SelectionDAGBuilder::visitSPDescriptorFailure(StackProtectorDescriptor &SPD) {
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
   TargetLowering::MakeLibCallOptions CallOptions;
   CallOptions.setDiscardResult(true);
-  SDValue Chain = TLI.makeLibCall(DAG, RTLIB::STACKPROTECTOR_CHECK_FAIL,
-                                  MVT::isVoid, {}, CallOptions, getCurSDLoc())
-                      .second;
+  SDValue Chain =
+      TLI.makeLibCall(DAG, RTLIB::STACKPROTECTOR_CHECK_FAIL, MVT::isVoid,
+                      std::nullopt, CallOptions, getCurSDLoc())
+          .second;
   // On PS4/PS5, the "return address" must still be within the calling
   // function, even if it's at the very end, so emit an explicit TRAP here.
   // Passing 'true' for doesNotReturn above won't generate the trap for us.
@@ -3262,9 +3261,10 @@ void SelectionDAGBuilder::visitBitTestHeader(BitTestBlock &B,
 
 /// visitBitTestCase - this function produces one "bit test"
 void SelectionDAGBuilder::visitBitTestCase(BitTestBlock &BB,
-                                           MachineBasicBlock *NextMBB,
+                                           MachineBasicBlock* NextMBB,
                                            BranchProbability BranchProbToNext,
-                                           Register Reg, BitTestCase &B,
+                                           unsigned Reg,
+                                           BitTestCase &B,
                                            MachineBasicBlock *SwitchBB) {
   SDLoc dl = getCurSDLoc();
   MVT VT = BB.RegVT;
@@ -5112,12 +5112,6 @@ void SelectionDAGBuilder::visitAtomicRMW(const AtomicRMWInst &I) {
   case AtomicRMWInst::UDecWrap:
     NT = ISD::ATOMIC_LOAD_UDEC_WRAP;
     break;
-  case AtomicRMWInst::USubCond:
-    NT = ISD::ATOMIC_LOAD_USUB_COND;
-    break;
-  case AtomicRMWInst::USubSat:
-    NT = ISD::ATOMIC_LOAD_USUB_SAT;
-    break;
   }
   AtomicOrdering Ordering = I.getOrdering();
   SyncScope::ID SSID = I.getSyncScopeID();
@@ -5956,7 +5950,7 @@ static SDValue expandDivFix(unsigned Opcode, const SDLoc &DL,
 // getUnderlyingArgRegs - Find underlying registers used for a truncated,
 // bitcasted, or split argument. Returns a list of <Register, size in bits>
 static void
-getUnderlyingArgRegs(SmallVectorImpl<std::pair<Register, TypeSize>> &Regs,
+getUnderlyingArgRegs(SmallVectorImpl<std::pair<unsigned, TypeSize>> &Regs,
                      const SDValue &N) {
   switch (N.getOpcode()) {
   case ISD::CopyFromReg: {
@@ -6101,7 +6095,7 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
   if (FI != std::numeric_limits<int>::max())
     Op = MachineOperand::CreateFI(FI);
 
-  SmallVector<std::pair<Register, TypeSize>, 8> ArgRegsAndSizes;
+  SmallVector<std::pair<unsigned, TypeSize>, 8> ArgRegsAndSizes;
   if (!Op && N.getNode()) {
     getUnderlyingArgRegs(ArgRegsAndSizes, N);
     Register Reg;
@@ -6131,7 +6125,7 @@ bool SelectionDAGBuilder::EmitFuncArgumentDbgValue(
 
   if (!Op) {
     // Create a DBG_VALUE for each decomposed value in ArgRegs to cover Reg
-    auto splitMultiRegDbgValue = [&](ArrayRef<std::pair<Register, TypeSize>>
+    auto splitMultiRegDbgValue = [&](ArrayRef<std::pair<unsigned, TypeSize>>
                                          SplitRegs) {
       unsigned Offset = 0;
       for (const auto &RegAndSize : SplitRegs) {
@@ -7748,7 +7742,7 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     const auto *CPI = cast<CatchPadInst>(I.getArgOperand(0));
     MVT PtrVT = TLI.getPointerTy(DAG.getDataLayout());
     const TargetRegisterClass *PtrRC = TLI.getRegClassFor(PtrVT);
-    Register VReg = FuncInfo.getCatchPadExceptionPointerVReg(CPI, PtrRC);
+    unsigned VReg = FuncInfo.getCatchPadExceptionPointerVReg(CPI, PtrRC);
     SDValue N = DAG.getCopyFromReg(DAG.getEntryNode(), sdl, VReg, PtrVT);
     if (Intrinsic == Intrinsic::eh_exceptioncode)
       N = DAG.getZExtOrTrunc(N, sdl, MVT::i32);
@@ -8044,15 +8038,34 @@ void SelectionDAGBuilder::visitIntrinsicCall(const CallInst &I,
     return;
   }
   case Intrinsic::experimental_vector_partial_reduce_add: {
+    SDValue OpNode = getValue(I.getOperand(1));
+    EVT ReducedTy = EVT::getEVT(I.getType());
+    EVT FullTy = OpNode.getValueType();
 
-    if (!TLI.shouldExpandPartialReductionIntrinsic(cast<IntrinsicInst>(&I))) {
-      visitTargetIntrinsic(I, Intrinsic);
-      return;
+    unsigned Stride = ReducedTy.getVectorMinNumElements();
+    unsigned ScaleFactor = FullTy.getVectorMinNumElements() / Stride;
+
+    // Collect all of the subvectors
+    std::deque<SDValue> Subvectors;
+    Subvectors.push_back(getValue(I.getOperand(0)));
+    for (unsigned i = 0; i < ScaleFactor; i++) {
+      auto SourceIndex = DAG.getVectorIdxConstant(i * Stride, sdl);
+      Subvectors.push_back(DAG.getNode(ISD::EXTRACT_SUBVECTOR, sdl, ReducedTy,
+                                       {OpNode, SourceIndex}));
     }
 
-    setValue(&I, DAG.getPartialReduceAdd(sdl, EVT::getEVT(I.getType()),
-                                         getValue(I.getOperand(0)),
-                                         getValue(I.getOperand(1))));
+    // Flatten the subvector tree
+    while (Subvectors.size() > 1) {
+      Subvectors.push_back(DAG.getNode(ISD::ADD, sdl, ReducedTy,
+                                       {Subvectors[0], Subvectors[1]}));
+      Subvectors.pop_front();
+      Subvectors.pop_front();
+    }
+
+    assert(Subvectors.size() == 1 &&
+           "There should only be one subvector after tree flattening");
+
+    setValue(&I, Subvectors[0]);
     return;
   }
   case Intrinsic::experimental_cttz_elts: {
@@ -9653,7 +9666,7 @@ getRegistersForValue(SelectionDAG &DAG, const SDLoc &DL,
   const TargetLowering &TLI = DAG.getTargetLoweringInfo();
 
   MachineFunction &MF = DAG.getMachineFunction();
-  SmallVector<Register, 4> Regs;
+  SmallVector<unsigned, 4> Regs;
   const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
 
   // No work to do for memory/address operands.
@@ -10078,7 +10091,7 @@ void SelectionDAGBuilder::visitInlineAsm(const CallBase &Call,
             return;
           }
 
-          SmallVector<Register, 4> Regs;
+          SmallVector<unsigned, 4> Regs;
           MachineFunction &MF = DAG.getMachineFunction();
           MachineRegisterInfo &MRI = MF.getRegInfo();
           const TargetRegisterInfo &TRI = *MF.getSubtarget().getRegisterInfo();
@@ -11005,8 +11018,6 @@ TargetLowering::LowerCallTo(TargetLowering::CallLoweringInfo &CLI) const {
         Flags.setZExt();
       if (Args[i].IsSExt)
         Flags.setSExt();
-      if (Args[i].IsNoExt)
-        Flags.setNoExt();
       if (Args[i].IsInReg) {
         // If we are using vectorcall calling convention, a structure that is
         // passed InReg - is surely an HVA
@@ -11819,8 +11830,8 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
 
     // Update the SwiftErrorVRegDefMap.
     if (Res.getOpcode() == ISD::CopyFromReg && isSwiftErrorArg) {
-      Register Reg = cast<RegisterSDNode>(Res.getOperand(1))->getReg();
-      if (Reg.isVirtual())
+      unsigned Reg = cast<RegisterSDNode>(Res.getOperand(1))->getReg();
+      if (Register::isVirtualRegister(Reg))
         SwiftError->setCurrentVReg(FuncInfo->MBB, SwiftError->getFunctionArg(),
                                    Reg);
     }
@@ -11831,8 +11842,8 @@ void SelectionDAGISel::LowerArguments(const Function &F) {
       // If we can, though, try to skip creating an unnecessary vreg.
       // FIXME: This isn't very clean... it would be nice to make this more
       // general.
-      Register Reg = cast<RegisterSDNode>(Res.getOperand(1))->getReg();
-      if (Reg.isVirtual()) {
+      unsigned Reg = cast<RegisterSDNode>(Res.getOperand(1))->getReg();
+      if (Register::isVirtualRegister(Reg)) {
         FuncInfo->ValueMap[&Arg] = Reg;
         continue;
       }
@@ -12656,7 +12667,7 @@ void SelectionDAGBuilder::visitCallBrLandingPad(const CallInst &I) {
 
       // getRegistersForValue may produce 1 to many registers based on whether
       // the OpInfo.ConstraintVT is legal on the target or not.
-      for (Register &Reg : OpInfo.AssignedRegs.Regs) {
+      for (unsigned &Reg : OpInfo.AssignedRegs.Regs) {
         Register OriginalDef = FollowCopyChain(MRI, InitialDef++);
         if (Register::isPhysicalRegister(OriginalDef))
           FuncInfo.MBB->addLiveIn(OriginalDef);

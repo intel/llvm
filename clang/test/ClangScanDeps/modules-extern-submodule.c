@@ -112,7 +112,8 @@ module third {}
 // CHECK:                  "-fmodule-map-file=[[PREFIX]]/first/first/module.modulemap",
 // CHECK:                  "-fmodule-file=first=[[PREFIX]]/cache/{{.*}}/first-{{.*}}.pcm",
 // CHECK:                ],
-// CHECK:                "file-deps": [
+// CHECK-NEXT:           "executable": "clang",
+// CHECK-NEXT:           "file-deps": [
 // CHECK-NEXT:             "[[PREFIX]]/tu.m"
 // CHECK-NEXT:           ],
 // CHECK-NEXT:           "input-file": "[[PREFIX]]/tu.c"

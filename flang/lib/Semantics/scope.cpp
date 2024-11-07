@@ -47,7 +47,7 @@ std::string EquivalenceObject::AsFortran() const {
   if (substringStart) {
     ss << '(' << *substringStart << ":)";
   }
-  return buf;
+  return ss.str();
 }
 
 Scope &Scope::MakeScope(Kind kind, Symbol *symbol) {

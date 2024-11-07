@@ -123,8 +123,9 @@ bool isCtorOfRefCounted(const clang::FunctionDecl *F) {
          || FunctionName == "Identifier";
 }
 
-bool isRefType(const clang::QualType T) {
-  QualType type = T;
+bool isReturnValueRefCounted(const clang::FunctionDecl *F) {
+  assert(F);
+  QualType type = F->getReturnType();
   while (!type.isNull()) {
     if (auto *elaboratedT = type->getAs<ElaboratedType>()) {
       type = elaboratedT->desugar();
@@ -140,16 +141,6 @@ bool isRefType(const clang::QualType T) {
     return false;
   }
   return false;
-}
-
-std::optional<bool> isUncounted(const QualType T) {
-  if (auto *Subst = dyn_cast<SubstTemplateTypeParmType>(T)) {
-    if (auto *Decl = Subst->getAssociatedDecl()) {
-      if (isRefType(safeGetName(Decl)))
-        return false;
-    }
-  }
-  return isUncounted(T->getAsCXXRecordDecl());
 }
 
 std::optional<bool> isUncounted(const CXXRecordDecl* Class)
@@ -240,9 +231,11 @@ bool isSingleton(const FunctionDecl *F) {
     if (!MethodDecl->isStatic())
       return false;
   }
-  const auto &NameStr = safeGetName(F);
-  StringRef Name = NameStr; // FIXME: Make safeGetName return StringRef.
-  return Name == "singleton" || Name.ends_with("Singleton");
+  const auto &Name = safeGetName(F);
+  std::string SingletonStr = "singleton";
+  auto index = Name.find(SingletonStr);
+  return index != std::string::npos &&
+         index == Name.size() - SingletonStr.size();
 }
 
 // We only care about statements so let's use the simple
@@ -404,7 +397,6 @@ public:
       return true;
 
     if (Name == "WTFCrashWithInfo" || Name == "WTFBreakpointTrap" ||
-        Name == "WTFReportBacktrace" ||
         Name == "WTFCrashWithSecurityImplication" || Name == "WTFCrash" ||
         Name == "WTFReportAssertionFailure" || Name == "isMainThread" ||
         Name == "isMainThreadOrGCThread" || Name == "isMainRunLoop" ||

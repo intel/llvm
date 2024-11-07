@@ -163,10 +163,7 @@ def main():
                             )
                             opt = f"parallelization-strategy=none"
                             compiler = sparsifier.Sparsifier(
-                                extras="",
-                                options=opt,
-                                opt_level=0,
-                                shared_libs=[support_lib],
+                                options=opt, opt_level=0, shared_libs=[support_lib]
                             )
                             build_compile_and_run_SDDMMM(attr, compiler)
                             count = count + 1

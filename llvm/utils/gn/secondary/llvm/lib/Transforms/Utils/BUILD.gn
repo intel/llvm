@@ -43,7 +43,6 @@ static_library("Utils") {
     "InjectTLIMappings.cpp",
     "InlineFunction.cpp",
     "InstructionNamer.cpp",
-    "Instrumentation.cpp",
     "IntegerDivision.cpp",
     "LCSSA.cpp",
     "LibCallsShrinkWrap.cpp",

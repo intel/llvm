@@ -18,7 +18,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-[[__noreturn__]] _LIBCPP_HIDE_FROM_ABI inline void __libcpp_unreachable() {
+_LIBCPP_NORETURN _LIBCPP_HIDE_FROM_ABI inline void __libcpp_unreachable() {
   _LIBCPP_ASSERT_INTERNAL(false, "std::unreachable() was reached");
   __builtin_unreachable();
 }

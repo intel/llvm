@@ -35,15 +35,15 @@ def AddrRegImmINX : ComplexPattern<iPTR, 2, "SelectAddrRegImmRV32Zdinx">;
 
 def GPRPairAsFPR : AsmOperandClass {
   let Name = "GPRPairAsFPR";
-  let ParserMethod = "parseGPRPairAsFPR64";
-  let PredicateMethod = "isGPRPairAsFPR";
+  let ParserMethod = "parseGPRAsFPR";
+  let PredicateMethod = "isGPRAsFPR";
   let RenderMethod = "addRegOperands";
 }
 
 def GPRF64AsFPR : AsmOperandClass {
   let Name = "GPRF64AsFPR";
   let PredicateMethod = "isGPRAsFPR";
-  let ParserMethod = "parseGPRAsFPR64";
+  let ParserMethod = "parseGPRAsFPR";
   let RenderMethod = "addRegOperands";
 }
 
@@ -205,7 +205,6 @@ def PseudoQuietFLT_D : PseudoQuietFCMP<FPR64>;
 } // Predicates = [HasStdExtD]
 
 let Predicates = [HasStdExtZdinx, IsRV64] in {
-def : InstAlias<"fmv.d $rd, $rs",  (FSGNJ_D_INX  FPR64INX:$rd, FPR64INX:$rs, FPR64INX:$rs)>;
 def : InstAlias<"fabs.d $rd, $rs", (FSGNJX_D_INX FPR64INX:$rd, FPR64INX:$rs, FPR64INX:$rs)>;
 def : InstAlias<"fneg.d $rd, $rs", (FSGNJN_D_INX FPR64INX:$rd, FPR64INX:$rs, FPR64INX:$rs)>;
 
@@ -220,7 +219,6 @@ def PseudoQuietFLT_D_INX : PseudoQuietFCMP<FPR64INX>;
 } // Predicates = [HasStdExtZdinx, IsRV64]
 
 let Predicates = [HasStdExtZdinx, IsRV32] in {
-def : InstAlias<"fmv.d $rd, $rs",  (FSGNJ_D_IN32X  FPR64IN32X:$rd, FPR64IN32X:$rs, FPR64IN32X:$rs)>;
 def : InstAlias<"fabs.d $rd, $rs", (FSGNJX_D_IN32X FPR64IN32X:$rd, FPR64IN32X:$rs, FPR64IN32X:$rs)>;
 def : InstAlias<"fneg.d $rd, $rs", (FSGNJN_D_IN32X FPR64IN32X:$rd, FPR64IN32X:$rs, FPR64IN32X:$rs)>;
 

@@ -187,11 +187,7 @@ static StringRef getOverloadKindStr(const Record *R) {
       .Case("Int8Ty", "OverloadKind::I8")
       .Case("Int16Ty", "OverloadKind::I16")
       .Case("Int32Ty", "OverloadKind::I32")
-      .Case("Int64Ty", "OverloadKind::I64")
-      .Case("ResRetHalfTy", "OverloadKind::HALF")
-      .Case("ResRetFloatTy", "OverloadKind::FLOAT")
-      .Case("ResRetInt16Ty", "OverloadKind::I16")
-      .Case("ResRetInt32Ty", "OverloadKind::I32");
+      .Case("Int64Ty", "OverloadKind::I64");
 }
 
 /// Return a string representation of valid overload information denoted
@@ -325,7 +321,8 @@ static std::string getAttributeMaskString(const SmallVector<Record *> Recs) {
 }
 
 /// Emit a mapping of DXIL opcode to opname
-static void emitDXILOpCodes(ArrayRef<DXILOperationDesc> Ops, raw_ostream &OS) {
+static void emitDXILOpCodes(std::vector<DXILOperationDesc> &Ops,
+                            raw_ostream &OS) {
   OS << "#ifdef DXIL_OPCODE\n";
   for (const DXILOperationDesc &Op : Ops)
     OS << "DXIL_OPCODE(" << Op.OpCode << ", " << Op.OpName << ")\n";
@@ -335,20 +332,23 @@ static void emitDXILOpCodes(ArrayRef<DXILOperationDesc> Ops, raw_ostream &OS) {
 }
 
 /// Emit a list of DXIL op classes
-static void emitDXILOpClasses(const RecordKeeper &Records, raw_ostream &OS) {
+static void emitDXILOpClasses(RecordKeeper &Records, raw_ostream &OS) {
   OS << "#ifdef DXIL_OPCLASS\n";
-  for (const Record *OpClass : Records.getAllDerivedDefinitions("DXILOpClass"))
+  std::vector<Record *> OpClasses =
+      Records.getAllDerivedDefinitions("DXILOpClass");
+  for (Record *OpClass : OpClasses)
     OS << "DXIL_OPCLASS(" << OpClass->getName() << ")\n";
   OS << "#undef DXIL_OPCLASS\n";
   OS << "#endif\n\n";
 }
 
 /// Emit a list of DXIL op parameter types
-static void emitDXILOpParamTypes(const RecordKeeper &Records, raw_ostream &OS) {
+static void emitDXILOpParamTypes(RecordKeeper &Records, raw_ostream &OS) {
   OS << "#ifdef DXIL_OP_PARAM_TYPE\n";
-  for (const Record *OpParamType :
-       Records.getAllDerivedDefinitions("DXILOpParamType"))
-    OS << "DXIL_OP_PARAM_TYPE(" << OpParamType->getName() << ")\n";
+  std::vector<Record *> OpClasses =
+      Records.getAllDerivedDefinitions("DXILOpParamType");
+  for (Record *OpClass : OpClasses)
+    OS << "DXIL_OP_PARAM_TYPE(" << OpClass->getName() << ")\n";
   OS << "#undef DXIL_OP_PARAM_TYPE\n";
   OS << "#endif\n\n";
 }
@@ -374,7 +374,7 @@ static void emitDXILOpFunctionTypes(ArrayRef<DXILOperationDesc> Ops,
 /// Emit map of DXIL operation to LLVM or DirectX intrinsic
 /// \param A vector of DXIL Ops
 /// \param Output stream
-static void emitDXILIntrinsicMap(ArrayRef<DXILOperationDesc> Ops,
+static void emitDXILIntrinsicMap(std::vector<DXILOperationDesc> &Ops,
                                  raw_ostream &OS) {
   OS << "#ifdef DXIL_OP_INTRINSIC\n";
   OS << "\n";
@@ -392,18 +392,20 @@ static void emitDXILIntrinsicMap(ArrayRef<DXILOperationDesc> Ops,
 /// Emit DXIL operation table
 /// \param A vector of DXIL Ops
 /// \param Output stream
-static void emitDXILOperationTable(ArrayRef<DXILOperationDesc> Ops,
+static void emitDXILOperationTable(std::vector<DXILOperationDesc> &Ops,
                                    raw_ostream &OS) {
   // Collect Names.
   SequenceToOffsetTable<std::string> OpClassStrings;
   SequenceToOffsetTable<std::string> OpStrings;
 
   StringSet<> ClassSet;
-  for (const auto &Op : Ops) {
+  for (auto &Op : Ops) {
     OpStrings.add(Op.OpName);
 
-    if (ClassSet.insert(Op.OpClass).second)
-      OpClassStrings.add(Op.OpClass.data());
+    if (ClassSet.contains(Op.OpClass))
+      continue;
+    ClassSet.insert(Op.OpClass);
+    OpClassStrings.add(Op.OpClass.data());
   }
 
   // Layout names.
@@ -417,7 +419,7 @@ static void emitDXILOperationTable(ArrayRef<DXILOperationDesc> Ops,
 
   OS << "  static const OpCodeProperty OpCodeProps[] = {\n";
   std::string Prefix = "";
-  for (const auto &Op : Ops) {
+  for (auto &Op : Ops) {
     OS << Prefix << "  { dxil::OpCode::" << Op.OpName << ", "
        << OpStrings.get(Op.OpName) << ", OpCodeClass::" << Op.OpClass << ", "
        << OpClassStrings.get(Op.OpClass.data()) << ", "
@@ -465,15 +467,14 @@ static void emitDXILOperationTable(ArrayRef<DXILOperationDesc> Ops,
   OS << "}\n\n";
 }
 
-static void emitDXILOperationTableDataStructs(const RecordKeeper &Records,
+static void emitDXILOperationTableDataStructs(RecordKeeper &Records,
                                               raw_ostream &OS) {
   // Get Shader stage records
-  std::vector<const Record *> ShaderKindRecs =
+  std::vector<Record *> ShaderKindRecs =
       Records.getAllDerivedDefinitions("DXILShaderStage");
   // Sort records by name
-  llvm::sort(ShaderKindRecs, [](const Record *A, const Record *B) {
-    return A->getName() < B->getName();
-  });
+  llvm::sort(ShaderKindRecs,
+             [](Record *A, Record *B) { return A->getName() < B->getName(); });
 
   OS << "// Valid shader kinds\n\n";
   // Choose the type of enum ShaderKind based on the number of stages declared.
@@ -505,21 +506,22 @@ static void emitDXILOperationTableDataStructs(const RecordKeeper &Records,
 /// Entry function call that invokes the functionality of this TableGen backend
 /// \param Records TableGen records of DXIL Operations defined in DXIL.td
 /// \param OS output stream
-static void EmitDXILOperation(const RecordKeeper &Records, raw_ostream &OS) {
+static void EmitDXILOperation(RecordKeeper &Records, raw_ostream &OS) {
   OS << "// Generated code, do not edit.\n";
   OS << "\n";
   // Get all DXIL Ops property records
+  std::vector<Record *> OpIntrProps =
+      Records.getAllDerivedDefinitions("DXILOp");
   std::vector<DXILOperationDesc> DXILOps;
-  for (const Record *R : Records.getAllDerivedDefinitions("DXILOp")) {
-    DXILOps.emplace_back(DXILOperationDesc(R));
+  for (auto *Record : OpIntrProps) {
+    DXILOps.emplace_back(DXILOperationDesc(Record));
   }
   // Sort by opcode.
-  llvm::sort(DXILOps,
-             [](const DXILOperationDesc &A, const DXILOperationDesc &B) {
-               return A.OpCode < B.OpCode;
-             });
+  llvm::sort(DXILOps, [](DXILOperationDesc &A, DXILOperationDesc &B) {
+    return A.OpCode < B.OpCode;
+  });
   int PrevOp = -1;
-  for (const DXILOperationDesc &Desc : DXILOps) {
+  for (DXILOperationDesc &Desc : DXILOps) {
     if (Desc.OpCode == PrevOp)
       PrintFatalError(Twine("Duplicate opcode: ") + Twine(Desc.OpCode));
     PrevOp = Desc.OpCode;

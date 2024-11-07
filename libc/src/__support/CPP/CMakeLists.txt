@@ -199,5 +199,4 @@ add_object_library(
   DEPENDS
     libc.include.stdlib
     libc.src.__support.common
-    libc.src.__support.macros.properties.os
 )

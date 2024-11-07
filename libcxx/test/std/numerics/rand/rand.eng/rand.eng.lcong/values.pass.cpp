@@ -21,9 +21,8 @@
 //     static constexpr result_type default_seed = 1u;
 
 #include <random>
-#include <cassert>
-#include <climits>
 #include <type_traits>
+#include <cassert>
 
 #include "test_macros.h"
 

@@ -305,7 +305,7 @@ static const MemSpaceRegion *getStackOrGlobalSpaceRegion(const MemRegion *R) {
   return nullptr;
 }
 
-static const MemRegion *getOriginBaseRegion(const MemRegion *Reg) {
+const MemRegion *getOriginBaseRegion(const MemRegion *Reg) {
   Reg = Reg->getBaseRegion();
   while (const auto *SymReg = dyn_cast<SymbolicRegion>(Reg)) {
     const auto *OriginReg = SymReg->getSymbol()->getOriginRegion();
@@ -316,7 +316,7 @@ static const MemRegion *getOriginBaseRegion(const MemRegion *Reg) {
   return Reg;
 }
 
-static std::optional<std::string> printReferrer(const MemRegion *Referrer) {
+std::optional<std::string> printReferrer(const MemRegion *Referrer) {
   assert(Referrer);
   const StringRef ReferrerMemorySpace = [](const MemSpaceRegion *Space) {
     if (isa<StaticGlobalSpaceRegion>(Space))
@@ -354,7 +354,7 @@ static std::optional<std::string> printReferrer(const MemRegion *Referrer) {
 
 /// Check whether \p Region refers to a freshly minted symbol after an opaque
 /// function call.
-static bool isInvalidatedSymbolRegion(const MemRegion *Region) {
+bool isInvalidatedSymbolRegion(const MemRegion *Region) {
   const auto *SymReg = Region->getAs<SymbolicRegion>();
   if (!SymReg)
     return false;
@@ -420,8 +420,6 @@ void StackAddrEscapeChecker::checkEndFunction(const ReturnStmt *RS,
         return true;
       }
       if (isa<StackArgumentsSpaceRegion>(ReferrerMemSpace) &&
-          // Not a simple ptr (int*) but something deeper, e.g. int**
-          isa<SymbolicRegion>(Referrer->getBaseRegion()) &&
           ReferrerStackSpace->getStackFrame() == PoppedFrame && TopFrame) {
         // Output parameter of a top-level function
         V.emplace_back(Referrer, Referred);

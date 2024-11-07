@@ -74,15 +74,16 @@ using namespace clang::tblgen;
 
 namespace {
 class TypeNodeEmitter {
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
   raw_ostream &Out;
-  ArrayRef<const Record *> Types;
+  const std::vector<Record*> Types;
   std::vector<StringRef> MacrosToUndef;
 
 public:
-  TypeNodeEmitter(const RecordKeeper &records, raw_ostream &out)
-      : Records(records), Out(out),
-        Types(Records.getAllDerivedDefinitions(TypeNodeClassName)) {}
+  TypeNodeEmitter(RecordKeeper &records, raw_ostream &out)
+    : Records(records), Out(out),
+      Types(Records.getAllDerivedDefinitions(TypeNodeClassName)) {
+  }
 
   void emit();
 
@@ -202,6 +203,6 @@ void TypeNodeEmitter::emitUndefs() {
   }
 }
 
-void clang::EmitClangTypeNodes(const RecordKeeper &records, raw_ostream &out) {
+void clang::EmitClangTypeNodes(RecordKeeper &records, raw_ostream &out) {
   TypeNodeEmitter(records, out).emit();
 }

@@ -122,9 +122,7 @@ void header_exportable_declarations::registerMatchers(clang::ast_matchers::Match
     [[fallthrough]];
   case FileType::ModulePartition:
   case FileType::CompatModulePartition:
-    finder->addMatcher(namedDecl(anyOf(isExpansionInFileMatching(filename_), isExpansionInFileMatching(extra_header_)))
-                           .bind("header_exportable_declarations"),
-                       this);
+    finder->addMatcher(namedDecl(isExpansionInFileMatching(filename_)).bind("header_exportable_declarations"), this);
     break;
   case FileType::Module:
   case FileType::CompatModule:

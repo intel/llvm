@@ -133,7 +133,7 @@ private:
       if (!T.consume_front("<"))
         PrintFatalError(Loc, "Expected '<' after '_ExtVector'");
       unsigned long long Lanes;
-      if (consumeUnsignedInteger(T, 10, Lanes))
+      if (llvm::consumeUnsignedInteger(T, 10, Lanes))
         PrintFatalError(Loc, "Expected number of lanes after '_ExtVector<'");
       Type += "E" + std::to_string(Lanes);
       if (!T.consume_front(","))
@@ -187,7 +187,7 @@ private:
   }
 
 public:
-  void Print(raw_ostream &OS) const { OS << ", \"" << Type << '\"'; }
+  void Print(llvm::raw_ostream &OS) const { OS << ", \"" << Type << '\"'; }
 
 private:
   SMLoc Loc;
@@ -208,13 +208,14 @@ public:
     }
   }
 
-  void Print(raw_ostream &OS) const { OS << HeaderName; }
+  void Print(llvm::raw_ostream &OS) const { OS << HeaderName; }
 
 private:
   std::string HeaderName;
 };
 
-void PrintAttributes(const Record *Builtin, BuiltinType BT, raw_ostream &OS) {
+void PrintAttributes(const Record *Builtin, BuiltinType BT,
+                     llvm::raw_ostream &OS) {
   OS << '\"';
   if (Builtin->isSubClassOf("LibBuiltin")) {
     if (BT == BuiltinType::LibBuiltin) {
@@ -240,7 +241,7 @@ void PrintAttributes(const Record *Builtin, BuiltinType BT, raw_ostream &OS) {
   OS << '\"';
 }
 
-void EmitBuiltinDef(raw_ostream &OS, StringRef Substitution,
+void EmitBuiltinDef(llvm::raw_ostream &OS, StringRef Substitution,
                     const Record *Builtin, Twine Spelling, BuiltinType BT) {
   if (Builtin->getValueAsBit("RequiresUndef"))
     OS << "#undef " << Spelling << '\n';
@@ -303,14 +304,14 @@ TemplateInsts getTemplateInsts(const Record *R) {
     PrintFatalError(R->getLoc(), "Substitutions and affixes "
                                  "don't have the same lengths");
 
-  for (auto [Affix, Substitution] : zip(Affixes, Substitutions)) {
+  for (auto [Affix, Substitution] : llvm::zip(Affixes, Substitutions)) {
     temp.Substitution.emplace_back(Substitution);
     temp.Affix.emplace_back(Affix);
   }
   return temp;
 }
 
-void EmitBuiltin(raw_ostream &OS, const Record *Builtin) {
+void EmitBuiltin(llvm::raw_ostream &OS, const Record *Builtin) {
   TemplateInsts Templates = {};
   if (Builtin->isSubClassOf("Template")) {
     Templates = getTemplateInsts(Builtin);
@@ -320,7 +321,7 @@ void EmitBuiltin(raw_ostream &OS, const Record *Builtin) {
   }
 
   for (auto [Substitution, Affix] :
-       zip(Templates.Substitution, Templates.Affix)) {
+       llvm::zip(Templates.Substitution, Templates.Affix)) {
     for (StringRef Spelling : Builtin->getValueAsListOfStrings("Spellings")) {
       auto FullSpelling =
           (Templates.IsPrefix ? Affix + Spelling : Spelling + Affix).str();
@@ -344,7 +345,8 @@ void EmitBuiltin(raw_ostream &OS, const Record *Builtin) {
 }
 } // namespace
 
-void clang::EmitClangBuiltins(const RecordKeeper &Records, raw_ostream &OS) {
+void clang::EmitClangBuiltins(llvm::RecordKeeper &Records,
+                              llvm::raw_ostream &OS) {
   emitSourceFileHeader("List of builtins that Clang recognizes", OS);
 
   OS << R"c++(

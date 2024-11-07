@@ -91,13 +91,11 @@ applyTileAndFuseToAll(RewriterBase &rewriter, Operation *transformOp,
 
     scf::SCFTileAndFuseOptions::ControlFnTy controlFn =
         [&](tensor::ExtractSliceOp candidateSliceOp, OpResult originalProducer,
-            bool isDestinationOperand)
-        -> std::optional<scf::SCFTileAndFuseOptions::ControlFnResult> {
-      Operation *owner = originalProducer.getOwner();
-      bool yieldProducerReplacement = yieldReplacementsFor.contains(owner);
-      return scf::SCFTileAndFuseOptions::ControlFnResult{
-          yieldProducerReplacement};
-    };
+            bool isDestinationOperand) {
+          Operation *owner = originalProducer.getOwner();
+          bool yieldProducerReplacement = yieldReplacementsFor.contains(owner);
+          return std::make_tuple(true, yieldProducerReplacement);
+        };
     tileAndFuseOptions.setFusionControlFn(controlFn);
 
     rewriter.setInsertionPoint(target);

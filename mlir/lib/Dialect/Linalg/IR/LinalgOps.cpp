@@ -34,7 +34,6 @@
 #include "mlir/IR/OperationSupport.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Interfaces/InferTypeOpInterface.h"
-#include "mlir/Interfaces/SideEffectInterfaces.h"
 
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallSet.h"
@@ -67,20 +66,20 @@ static OpFoldResult getDimValue(OpBuilder &builder, Location loc, Value v,
 
 /// Returns a memref.subview or a tensor.extract_slice based on the type of the
 /// `source`.
-static Operation *getSlice(OpBuilder &b, Location loc, Value source,
-                           ArrayRef<OpFoldResult> offsets,
-                           ArrayRef<OpFoldResult> sizes,
-                           ArrayRef<OpFoldResult> strides) {
-  return TypeSwitch<Type, Operation *>(source.getType())
-      .Case<RankedTensorType>([&](RankedTensorType t) -> Operation * {
+static Value getSlice(OpBuilder &b, Location loc, Value source,
+                      ArrayRef<OpFoldResult> offsets,
+                      ArrayRef<OpFoldResult> sizes,
+                      ArrayRef<OpFoldResult> strides) {
+  return TypeSwitch<Type, Value>(source.getType())
+      .Case<RankedTensorType>([&](RankedTensorType t) -> Value {
         return b.create<tensor::ExtractSliceOp>(loc, source, offsets, sizes,
                                                 strides);
       })
-      .Case<MemRefType>([&](MemRefType type) -> Operation * {
+      .Case<MemRefType>([&](MemRefType type) -> Value {
         return b.create<memref::SubViewOp>(loc, source, offsets, sizes,
                                            strides);
       })
-      .Default([&](Type t) -> Operation * { return nullptr; });
+      .Default([&](Type t) { return nullptr; });
 }
 
 //===----------------------------------------------------------------------===//
@@ -1203,20 +1202,6 @@ void GenericOp::getEffects(
   getGenericEffectsImpl(effects, cast<LinalgOp>(getOperation()));
 }
 
-static Speculation::Speculatability
-getGenericSpeculatabilityImpl(LinalgOp linalgOp) {
-  // Operands with value semantics are speculatable, while operands with memory
-  // semantics are not.
-  if (!linalgOp.hasPureTensorSemantics())
-    return Speculation::NotSpeculatable;
-  // The body of the op can still have speculation in its region.
-  return Speculation::RecursivelySpeculatable;
-}
-
-Speculation::Speculatability GenericOp::getSpeculatability() {
-  return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
-}
-
 LogicalResult GenericOp::verify() { return success(); }
 
 namespace {
@@ -1568,10 +1553,6 @@ void MapOp::getEffects(
   getGenericEffectsImpl(effects, cast<LinalgOp>(getOperation()));
 }
 
-Speculation::Speculatability MapOp::getSpeculatability() {
-  return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
-}
-
 //===----------------------------------------------------------------------===//
 // ReduceOp
 //===----------------------------------------------------------------------===//
@@ -1638,10 +1619,6 @@ void ReduceOp::getEffects(
     SmallVectorImpl<SideEffects::EffectInstance<MemoryEffects::Effect>>
         &effects) {
   getGenericEffectsImpl(effects, cast<LinalgOp>(getOperation()));
-}
-
-Speculation::Speculatability ReduceOp::getSpeculatability() {
-  return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
 }
 
 static ParseResult parseDenseI64ArrayAttr(OpAsmParser &parser,
@@ -1929,10 +1906,6 @@ void TransposeOp::getEffects(
   getGenericEffectsImpl(effects, cast<LinalgOp>(getOperation()));
 }
 
-Speculation::Speculatability TransposeOp::getSpeculatability() {
-  return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
-}
-
 LogicalResult TransposeOp::fold(FoldAdaptor adaptor,
                                 SmallVectorImpl<OpFoldResult> &result) {
   // Only the tensor type is supported.
@@ -2161,10 +2134,6 @@ void BroadcastOp::getEffects(
   getGenericEffectsImpl(effects, cast<LinalgOp>(getOperation()));
 }
 
-Speculation::Speculatability BroadcastOp::getSpeculatability() {
-  return getGenericSpeculatabilityImpl(cast<LinalgOp>(getOperation()));
-}
-
 void BroadcastOp::getCanonicalizationPatterns(RewritePatternSet &results,
                                               MLIRContext *context) {
   results.add<EraseIdentityLinalgOp<BroadcastOp>>(context);
@@ -2334,8 +2303,9 @@ std::string mlir::linalg::generateLibraryCallName(Operation *op) {
       return std::string();
     ss << "_";
   }
-  name.pop_back();
-  return name;
+  std::string res = ss.str();
+  res.pop_back();
+  return res;
 }
 
 //===----------------------------------------------------------------------===//
@@ -2633,18 +2603,10 @@ SoftmaxOp::getTiledImplementation(OpBuilder &builder,
   auto oneAttr = builder.getI64IntegerAttr(1);
   SmallVector<OpFoldResult> strides(rank, oneAttr);
   SmallVector<Value> tiledOperands;
-  Operation *inputSlice =
-      getSlice(builder, getLoc(), getInput(), offsets, sizes, strides);
-  if (!inputSlice) {
-    return emitOpError("failed to compute input slice");
-  }
-  tiledOperands.emplace_back(inputSlice->getResult(0));
-  Operation *outputSlice =
-      getSlice(builder, getLoc(), getOutput(), offsets, sizes, strides);
-  if (!outputSlice) {
-    return emitOpError("failed to compute output slice");
-  }
-  tiledOperands.emplace_back(outputSlice->getResult(0));
+  tiledOperands.emplace_back(
+      getSlice(builder, getLoc(), getInput(), offsets, sizes, strides));
+  tiledOperands.emplace_back(
+      getSlice(builder, getLoc(), getOutput(), offsets, sizes, strides));
 
   SmallVector<Type, 4> resultTypes;
   if (hasPureTensorSemantics())
@@ -2652,10 +2614,7 @@ SoftmaxOp::getTiledImplementation(OpBuilder &builder,
   Operation *tiledOp =
       mlir::clone(builder, getOperation(), resultTypes, tiledOperands);
 
-  return TilingResult{
-      {tiledOp},
-      SmallVector<Value>(tiledOp->getResults()),
-      llvm::to_vector(ArrayRef<Operation *>{inputSlice, outputSlice})};
+  return TilingResult{{tiledOp}, SmallVector<Value>(tiledOp->getResults())};
 }
 
 LogicalResult SoftmaxOp::getResultTilePosition(
@@ -3002,9 +2961,8 @@ FailureOr<TilingResult> WinogradFilterTransformOp::getTiledImplementation(
   int64_t filterRank = getFilterOperandRank();
   SmallVector<OpFoldResult> filterStrides(filterRank, oneAttr);
   Location loc = getLoc();
-  auto filterSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getFilter(), sliceOffsets, sliceSizes, filterStrides);
-  tiledOperands.emplace_back(filterSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getFilter(), sliceOffsets, sliceSizes, filterStrides));
 
   SmallVector<OpFoldResult> resultOffsets, resultSizes;
   if (failed(getResultTilePosition(builder, 1, offsets, sizes, resultOffsets,
@@ -3013,19 +2971,15 @@ FailureOr<TilingResult> WinogradFilterTransformOp::getTiledImplementation(
 
   int64_t outputRank = getOutputOperandRank();
   SmallVector<OpFoldResult> outputStrides(outputRank, oneAttr);
-  auto outputSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getOutput(), resultOffsets, resultSizes, outputStrides);
-  tiledOperands.emplace_back(outputSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getOutput(), resultOffsets, resultSizes, outputStrides));
 
   SmallVector<Type> resultTypes;
   resultTypes.push_back(tiledOperands[1].getType());
   Operation *tiledOp =
       mlir::clone(builder, getOperation(), resultTypes, tiledOperands);
 
-  return TilingResult{
-      {tiledOp},
-      SmallVector<Value>(tiledOp->getResults()),
-      llvm::to_vector(ArrayRef<Operation *>{filterSlice, outputSlice})};
+  return TilingResult{{tiledOp}, SmallVector<Value>(tiledOp->getResults())};
 }
 
 //===----------------------------------------------------------------------===//
@@ -3174,9 +3128,8 @@ WinogradInputTransformOp::getTiledImplementation(OpBuilder &builder,
       {sizes[getOutputNDim()], sizeH, sizeW, sizes[getOutputCDim()]});
   int64_t inputRank = getInputOperandRank();
   SmallVector<OpFoldResult> inputStrides(inputRank, oneAttr);
-  auto inputSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getInput(), sliceOffsets, sliceSizes, inputStrides);
-  tiledOperands.emplace_back(inputSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getInput(), sliceOffsets, sliceSizes, inputStrides));
 
   SmallVector<OpFoldResult> resultOffsets, resultSizes;
   if (failed(getResultTilePosition(builder, 1, offsets, sizes, resultOffsets,
@@ -3185,19 +3138,15 @@ WinogradInputTransformOp::getTiledImplementation(OpBuilder &builder,
 
   int64_t outputRank = getOutputOperandRank();
   SmallVector<OpFoldResult> outputStrides(outputRank, oneAttr);
-  auto outputSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getOutput(), resultOffsets, resultSizes, outputStrides);
-  tiledOperands.emplace_back(outputSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getOutput(), resultOffsets, resultSizes, outputStrides));
 
   SmallVector<Type> resultTypes;
   resultTypes.push_back(tiledOperands[1].getType());
   Operation *tiledOp =
       mlir::clone(builder, getOperation(), resultTypes, tiledOperands);
 
-  return TilingResult{
-      {tiledOp},
-      SmallVector<Value>(tiledOp->getResults()),
-      llvm::to_vector(ArrayRef<Operation *>{inputSlice, outputSlice})};
+  return TilingResult{{tiledOp}, SmallVector<Value>(tiledOp->getResults())};
 }
 
 //===----------------------------------------------------------------------===//
@@ -3341,9 +3290,8 @@ FailureOr<TilingResult> WinogradOutputTransformOp::getTiledImplementation(
                      sizes[getValueFDim()]});
   int64_t valueRank = getValueOperandRank();
   SmallVector<OpFoldResult> sliceStrides(valueRank, oneAttr);
-  auto valueSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getValue(), sliceOffsets, sliceSizes, sliceStrides);
-  tiledOperands.emplace_back(valueSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getValue(), sliceOffsets, sliceSizes, sliceStrides));
 
   SmallVector<OpFoldResult> resultOffsets, resultSizes;
   if (failed(getResultTilePosition(builder, 1, offsets, sizes, resultOffsets,
@@ -3352,19 +3300,15 @@ FailureOr<TilingResult> WinogradOutputTransformOp::getTiledImplementation(
 
   int64_t outputRank = getOutputOperandRank();
   SmallVector<OpFoldResult> strides(outputRank, oneAttr);
-  auto outputSlice = builder.create<tensor::ExtractSliceOp>(
-      loc, getOutput(), resultOffsets, resultSizes, strides);
-  tiledOperands.emplace_back(outputSlice);
+  tiledOperands.emplace_back(builder.create<tensor::ExtractSliceOp>(
+      loc, getOutput(), resultOffsets, resultSizes, strides));
 
   SmallVector<Type> resultTypes;
   resultTypes.push_back(tiledOperands[1].getType());
   Operation *tiledOp =
       mlir::clone(builder, getOperation(), resultTypes, tiledOperands);
 
-  return TilingResult{
-      {tiledOp},
-      SmallVector<Value>(tiledOp->getResults()),
-      llvm::to_vector(ArrayRef<Operation *>{valueSlice, outputSlice})};
+  return TilingResult{{tiledOp}, SmallVector<Value>(tiledOp->getResults())};
 }
 
 //===----------------------------------------------------------------------===//

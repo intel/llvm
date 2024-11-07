@@ -32,7 +32,7 @@ class Record;
 /// CodeGenInstAlias - This represents an InstAlias definition.
 class CodeGenInstAlias {
 public:
-  const Record *TheDef; // The actual record defining this InstAlias.
+  Record *TheDef; // The actual record defining this InstAlias.
 
   /// AsmString - The format string used to emit a .s file for the
   /// instruction.
@@ -48,16 +48,16 @@ public:
   struct ResultOperand {
   private:
     std::string Name;
-    const Record *R = nullptr;
+    Record *R = nullptr;
     int64_t Imm = 0;
 
   public:
     enum { K_Record, K_Imm, K_Reg } Kind;
 
-    ResultOperand(std::string N, const Record *R)
-        : Name(std::move(N)), R(R), Kind(K_Record) {}
+    ResultOperand(std::string N, Record *r)
+        : Name(std::move(N)), R(r), Kind(K_Record) {}
     ResultOperand(int64_t I) : Imm(I), Kind(K_Imm) {}
-    ResultOperand(Record *R) : R(R), Kind(K_Reg) {}
+    ResultOperand(Record *r) : R(r), Kind(K_Reg) {}
 
     bool isRecord() const { return Kind == K_Record; }
     bool isImm() const { return Kind == K_Imm; }
@@ -67,7 +67,7 @@ public:
       assert(isRecord());
       return Name;
     }
-    const Record *getRecord() const {
+    Record *getRecord() const {
       assert(isRecord());
       return R;
     }
@@ -75,7 +75,7 @@ public:
       assert(isImm());
       return Imm;
     }
-    const Record *getRegister() const {
+    Record *getRegister() const {
       assert(isReg());
       return R;
     }
@@ -93,11 +93,10 @@ public:
   /// of them are matched by the operand, the second value should be -1.
   std::vector<std::pair<unsigned, int>> ResultInstOperandIndex;
 
-  CodeGenInstAlias(const Record *R, const CodeGenTarget &T);
+  CodeGenInstAlias(Record *R, CodeGenTarget &T);
 
-  bool tryAliasOpMatch(const DagInit *Result, unsigned AliasOpNo,
-                       const Record *InstOpRec, bool hasSubOps,
-                       ArrayRef<SMLoc> Loc, const CodeGenTarget &T,
+  bool tryAliasOpMatch(DagInit *Result, unsigned AliasOpNo, Record *InstOpRec,
+                       bool hasSubOps, ArrayRef<SMLoc> Loc, CodeGenTarget &T,
                        ResultOperand &ResOp);
 };
 

@@ -155,6 +155,9 @@ public:
   /// Select(FCmp(X, Y), (Z = X op PHINode), PHINode) instruction pattern.
   static InstDesc isConditionalRdxPattern(RecurKind Kind, Instruction *I);
 
+  /// Returns identity corresponding to the RecurrenceKind.
+  Value *getRecurrenceIdentity(RecurKind K, Type *Tp, FastMathFlags FMF) const;
+
   /// Returns the opcode corresponding to the RecurrenceKind.
   static unsigned getOpcode(RecurKind Kind);
 

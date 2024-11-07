@@ -56,7 +56,9 @@ define double @fneg(double %a) nounwind {
 ;
 ; RV64IZFINXZDINX-LABEL: fneg:
 ; RV64IZFINXZDINX:       # %bb.0:
-; RV64IZFINXZDINX-NEXT:    fneg.d a0, a0
+; RV64IZFINXZDINX-NEXT:    li a1, -1
+; RV64IZFINXZDINX-NEXT:    slli a1, a1, 63
+; RV64IZFINXZDINX-NEXT:    xor a0, a0, a1
 ; RV64IZFINXZDINX-NEXT:    ret
   %1 = fneg double %a
   ret double %1
@@ -97,7 +99,8 @@ define double @fabs(double %a) nounwind {
 ;
 ; RV64IZFINXZDINX-LABEL: fabs:
 ; RV64IZFINXZDINX:       # %bb.0:
-; RV64IZFINXZDINX-NEXT:    fabs.d a0, a0
+; RV64IZFINXZDINX-NEXT:    slli a0, a0, 1
+; RV64IZFINXZDINX-NEXT:    srli a0, a0, 1
 ; RV64IZFINXZDINX-NEXT:    ret
   %1 = call double @llvm.fabs.f64(double %a)
   ret double %1
@@ -162,7 +165,8 @@ define double @fcopysign_fneg(double %a, double %b) nounwind {
 ;
 ; RV64IZFINXZDINX-LABEL: fcopysign_fneg:
 ; RV64IZFINXZDINX:       # %bb.0:
-; RV64IZFINXZDINX-NEXT:    fsgnjn.d a0, a0, a1
+; RV64IZFINXZDINX-NEXT:    not a1, a1
+; RV64IZFINXZDINX-NEXT:    fsgnj.d a0, a0, a1
 ; RV64IZFINXZDINX-NEXT:    ret
   %1 = fneg double %b
   %2 = call double @llvm.copysign.f64(double %a, double %1)

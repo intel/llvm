@@ -38,9 +38,8 @@
 //   8) reference_wrapper's are properly unwrapped before invoking the function.
 
 #include <functional>
-#include <cassert>
 #include <type_traits>
-#include <utility>
+#include <cassert>
 
 #include "test_macros.h"
 #include "invoke_helpers.h"

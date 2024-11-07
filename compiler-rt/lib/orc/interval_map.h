@@ -17,7 +17,7 @@
 #include <cassert>
 #include <map>
 
-namespace orc_rt {
+namespace __orc_rt {
 
 enum class IntervalCoalescing { Enabled, Disabled };
 
@@ -163,6 +163,6 @@ public:
   }
 };
 
-} // End namespace orc_rt
+} // End namespace __orc_rt
 
 #endif // ORC_RT_INTERVAL_MAP_H

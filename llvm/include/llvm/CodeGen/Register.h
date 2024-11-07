@@ -51,7 +51,7 @@ public:
   /// Compute the frame index from a register value representing a stack slot.
   static int stackSlot2Index(Register Reg) {
     assert(Reg.isStack() && "Not a stack slot");
-    return int(Reg.id() - MCRegister::FirstStackSlot);
+    return int(Reg - MCRegister::FirstStackSlot);
   }
 
   /// Convert a non-negative frame index to a stack slot register value.
@@ -76,7 +76,7 @@ public:
   /// The first virtual register in a function will get the index 0.
   static unsigned virtReg2Index(Register Reg) {
     assert(Reg.isVirtual() && "Not a virtual register");
-    return Reg.id() & ~MCRegister::VirtualRegFlag;
+    return Reg & ~MCRegister::VirtualRegFlag;
   }
 
   /// Convert a 0-based index to a virtual register number.
@@ -132,6 +132,7 @@ public:
   /// Comparisons against register constants. E.g.
   /// * R == AArch64::WZR
   /// * R == 0
+  /// * R == VirtRegMap::NO_PHYS_REG
   constexpr bool operator==(unsigned Other) const { return Reg == Other; }
   constexpr bool operator!=(unsigned Other) const { return Reg != Other; }
   constexpr bool operator==(int Other) const { return Reg == unsigned(Other); }
@@ -147,17 +148,17 @@ public:
 
 // Provide DenseMapInfo for Register
 template <> struct DenseMapInfo<Register> {
-  static inline Register getEmptyKey() {
+  static inline unsigned getEmptyKey() {
     return DenseMapInfo<unsigned>::getEmptyKey();
   }
-  static inline Register getTombstoneKey() {
+  static inline unsigned getTombstoneKey() {
     return DenseMapInfo<unsigned>::getTombstoneKey();
   }
   static unsigned getHashValue(const Register &Val) {
     return DenseMapInfo<unsigned>::getHashValue(Val.id());
   }
   static bool isEqual(const Register &LHS, const Register &RHS) {
-    return LHS == RHS;
+    return DenseMapInfo<unsigned>::isEqual(LHS.id(), RHS.id());
   }
 };
 

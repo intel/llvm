@@ -502,7 +502,7 @@ static std::string errorContext(const Value &V, const Path::Root &R) {
   std::string Context;
   llvm::raw_string_ostream OS(Context);
   R.printErrorContext(V, OS);
-  return Context;
+  return OS.str();
 }
 
 TEST(JSONTest, Deserialize) {
@@ -603,7 +603,7 @@ TEST(JSONTest, Stream) {
       J.attributeEnd();
       J.attribute("baz", "xyz");
     });
-    return S;
+    return OS.str();
   };
 
   const char *Plain =

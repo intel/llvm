@@ -185,7 +185,6 @@ unsigned SystemZELFObjectWriter::getRelocType(MCContext &Ctx,
     return getTLSGDReloc(Ctx, Loc, Kind);
 
   case MCSymbolRefExpr::VK_GOT:
-  case MCSymbolRefExpr::VK_GOTENT:
     if (IsPCRel && Kind == SystemZ::FK_390_PC32DBL)
       return ELF::R_390_GOTENT;
     Ctx.reportError(Loc, "Only PC-relative GOT accesses are supported for now");

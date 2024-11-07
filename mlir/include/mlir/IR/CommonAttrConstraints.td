@@ -789,14 +789,6 @@ class DenseArrayCount<int n> : AttrConstraint<
     CPred<"::llvm::cast<::mlir::DenseArrayAttr>($_self).size() == " #n>,
     "with exactly " # n # " elements">;
 
-class DenseArrayMaxCt<int n> : AttrConstraint<
-    CPred<"::llvm::cast<::mlir::DenseArrayAttr>($_self).size() <= " # n>,
-    "with at most " # n # " elements">;
-
-class DenseArrayMinCt<int n> : AttrConstraint<
-    CPred<"::llvm::cast<::mlir::DenseArrayAttr>($_self).size() >= " # n>,
-    "with at least " # n # " elements">;
-
 class DenseArrayStrictlyPositive<DenseArrayAttrBase arrayType> : AttrConstraint<
   CPred<"::llvm::all_of(::llvm::cast<" # arrayType #">($_self).asArrayRef(), "
                         "[&](auto v) { return v > 0; })">,

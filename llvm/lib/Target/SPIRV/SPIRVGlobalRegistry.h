@@ -255,7 +255,11 @@ public:
 
   // Add a record about forward function call.
   void addForwardCall(const Function *F, MachineInstr *MI) {
-    ForwardCalls[F].insert(MI);
+    auto It = ForwardCalls.find(F);
+    if (It == ForwardCalls.end())
+      ForwardCalls[F] = {MI};
+    else
+      It->second.insert(MI);
   }
 
   // Map a Function to the vector of machine instructions that represents

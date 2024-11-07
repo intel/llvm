@@ -16,6 +16,7 @@ group("unittests") {
     "InstallAPI:InstallAPITests",
     "Interpreter:ClangReplInterpreterTests",
     "Lex:LexTests",
+    "Rename:ClangRenameTests",
     "Rewrite:RewriteTests",
     "Sema:SemaTests",
     "Serialization:SerializationTests",

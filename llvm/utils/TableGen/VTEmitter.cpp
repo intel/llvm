@@ -19,10 +19,10 @@ namespace {
 
 class VTEmitter {
 private:
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
 
 public:
-  VTEmitter(const RecordKeeper &R) : Records(R) {}
+  VTEmitter(RecordKeeper &R) : Records(R) {}
 
   void run(raw_ostream &OS);
 };
@@ -91,7 +91,8 @@ void VTEmitter::run(raw_ostream &OS) {
   emitSourceFileHeader("ValueTypes Source Fragment", OS, Records);
 
   std::vector<const Record *> VTsByNumber{512};
-  for (auto *VT : Records.getAllDerivedDefinitions("ValueType")) {
+  auto ValueTypes = Records.getAllDerivedDefinitions("ValueType");
+  for (auto *VT : ValueTypes) {
     auto Number = VT->getValueAsInt("Value");
     assert(0 <= Number && Number < (int)VTsByNumber.size() &&
            "ValueType should be uint16_t");
@@ -119,8 +120,7 @@ void VTEmitter::run(raw_ostream &OS) {
     }
   };
 
-  OS << "#ifdef GET_VT_ATTR // (Ty, n, sz, Any, Int, FP, Vec, Sc, Tup, NF, "
-        "NElem, EltTy)\n";
+  OS << "#ifdef GET_VT_ATTR // (Ty, n, sz, Any, Int, FP, Vec, Sc, Tup, NF)\n";
   for (const auto *VT : VTsByNumber) {
     if (!VT)
       continue;

@@ -211,11 +211,8 @@ void WebAssemblyDAGToDAGISel::Select(SDNode *Node) {
     case Intrinsic::wasm_catch: {
       int Tag = Node->getConstantOperandVal(2);
       SDValue SymNode = getTagSymNode(Tag, CurDAG);
-      unsigned CatchOpcode = WebAssembly::WasmEnableExnref
-                                 ? WebAssembly::CATCH
-                                 : WebAssembly::CATCH_LEGACY;
       MachineSDNode *Catch =
-          CurDAG->getMachineNode(CatchOpcode, DL,
+          CurDAG->getMachineNode(WebAssembly::CATCH, DL,
                                  {
                                      PtrVT,     // exception pointer
                                      MVT::Other // outchain type

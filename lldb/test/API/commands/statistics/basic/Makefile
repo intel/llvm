@@ -1,2 +1,2 @@
-CXX_SOURCES := main.cpp
+C_SOURCES := main.c
 include Makefile.rules

@@ -11,7 +11,6 @@
 #define _LIBCPP___ALGORITHM_FOLD_H
 
 #include <__concepts/assignable.h>
-#include <__concepts/constructible.h>
 #include <__concepts/convertible_to.h>
 #include <__concepts/invocable.h>
 #include <__concepts/movable.h>

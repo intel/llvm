@@ -214,13 +214,15 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
       io.setError("key not an integer");
       return;
     }
-    auto &Elem = V.try_emplace(KeyInt, /*IsAnalysis=*/false).first->second;
+    if (!V.count(KeyInt))
+      V.emplace(KeyInt, /*IsAnalysis=*/false);
+    auto &Elem = V.find(KeyInt)->second;
     for (auto &FSum : FSums) {
-      SmallVector<ValueInfo, 0> Refs;
-      Refs.reserve(FSum.Refs.size());
+      std::vector<ValueInfo> Refs;
       for (auto &RefGUID : FSum.Refs) {
-        auto It = V.try_emplace(RefGUID, /*IsAnalysis=*/false).first;
-        Refs.push_back(ValueInfo(/*IsAnalysis=*/false, &*It));
+        if (!V.count(RefGUID))
+          V.emplace(RefGUID, /*IsAnalysis=*/false);
+        Refs.push_back(ValueInfo(/*IsAnalysis=*/false, &*V.find(RefGUID)));
       }
       Elem.SummaryList.push_back(std::make_unique<FunctionSummary>(
           GlobalValueSummary::GVFlags(
@@ -229,8 +231,8 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
               FSum.NotEligibleToImport, FSum.Live, FSum.IsLocal,
               FSum.CanAutoHide,
               static_cast<GlobalValueSummary::ImportKind>(FSum.ImportType)),
-          /*NumInsts=*/0, FunctionSummary::FFlags{}, std::move(Refs),
-          SmallVector<FunctionSummary::EdgeTy, 0>{}, std::move(FSum.TypeTests),
+          /*NumInsts=*/0, FunctionSummary::FFlags{}, /*EntryCount=*/0, Refs,
+          ArrayRef<FunctionSummary::EdgeTy>{}, std::move(FSum.TypeTests),
           std::move(FSum.TypeTestAssumeVCalls),
           std::move(FSum.TypeCheckedLoadVCalls),
           std::move(FSum.TypeTestAssumeConstVCalls),
@@ -245,7 +247,6 @@ template <> struct CustomMappingTraits<GlobalValueSummaryMapTy> {
       for (auto &Sum : P.second.SummaryList) {
         if (auto *FSum = dyn_cast<FunctionSummary>(Sum.get())) {
           std::vector<uint64_t> Refs;
-          Refs.reserve(FSum->refs().size());
           for (auto &VI : FSum->refs())
             Refs.push_back(VI.getGUID());
           FSums.push_back(FunctionSummaryYaml{

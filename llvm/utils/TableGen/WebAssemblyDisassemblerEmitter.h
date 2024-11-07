@@ -22,7 +22,8 @@ class CodeGenInstruction;
 class raw_ostream;
 
 void emitWebAssemblyDisassemblerTables(
-    raw_ostream &OS, ArrayRef<const CodeGenInstruction *> NumberedInstructions);
+    raw_ostream &OS,
+    const ArrayRef<const CodeGenInstruction *> &NumberedInstructions);
 
 } // namespace llvm
 

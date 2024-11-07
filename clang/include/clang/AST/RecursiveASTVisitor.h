@@ -652,11 +652,9 @@ bool RecursiveASTVisitor<Derived>::PostVisitStmt(Stmt *S) {
 
 #undef DISPATCH_STMT
 
-// Inlining this method can lead to large code size and compile-time increases
-// without any benefit to runtime performance.
 template <typename Derived>
-LLVM_ATTRIBUTE_NOINLINE bool
-RecursiveASTVisitor<Derived>::TraverseStmt(Stmt *S, DataRecursionQueue *Queue) {
+bool RecursiveASTVisitor<Derived>::TraverseStmt(Stmt *S,
+                                                DataRecursionQueue *Queue) {
   if (!S)
     return true;
 

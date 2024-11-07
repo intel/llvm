@@ -14,7 +14,6 @@
 #include "bolt/Rewrite/MetadataRewriter.h"
 #include "bolt/Rewrite/MetadataRewriters.h"
 #include "bolt/Utils/CommandLineOpts.h"
-#include "bolt/Utils/Utils.h"
 #include "llvm/IR/Function.h"
 #include "llvm/MC/MCPseudoProbe.h"
 #include "llvm/Support/CommandLine.h"
@@ -50,7 +49,7 @@ static cl::opt<PrintPseudoProbesOptions> PrintPseudoProbes(
                clEnumValN(PPP_All, "all", "enable all debugging printout")),
     cl::Hidden, cl::cat(BoltCategory));
 
-extern cl::opt<bool> ProfileWritePseudoProbes;
+extern cl::opt<bool> ProfileUsePseudoProbes;
 } // namespace opts
 
 namespace {
@@ -72,8 +71,7 @@ class PseudoProbeRewriter final : public MetadataRewriter {
 
   /// Parse .pseudo_probe_desc section and .pseudo_probe section
   /// Setup Pseudo probe decoder
-  /// If \p ProfiledOnly is set, only parse records for functions with profile.
-  void parsePseudoProbe(bool ProfiledOnly = false);
+  void parsePseudoProbe();
 
   /// PseudoProbe decoder
   std::shared_ptr<MCPseudoProbeDecoder> ProbeDecoderPtr;
@@ -92,21 +90,21 @@ public:
 };
 
 Error PseudoProbeRewriter::preCFGInitializer() {
-  if (opts::ProfileWritePseudoProbes)
-    parsePseudoProbe(true);
+  if (opts::ProfileUsePseudoProbes)
+    parsePseudoProbe();
 
   return Error::success();
 }
 
 Error PseudoProbeRewriter::postEmitFinalizer() {
-  if (!opts::ProfileWritePseudoProbes)
+  if (!opts::ProfileUsePseudoProbes)
     parsePseudoProbe();
   updatePseudoProbes();
 
   return Error::success();
 }
 
-void PseudoProbeRewriter::parsePseudoProbe(bool ProfiledOnly) {
+void PseudoProbeRewriter::parsePseudoProbe() {
   MCPseudoProbeDecoder &ProbeDecoder(*ProbeDecoderPtr);
   PseudoProbeDescSection = BC.getUniqueSectionByName(".pseudo_probe_desc");
   PseudoProbeSection = BC.getUniqueSectionByName(".pseudo_probe");
@@ -135,22 +133,10 @@ void PseudoProbeRewriter::parsePseudoProbe(bool ProfiledOnly) {
 
   MCPseudoProbeDecoder::Uint64Set GuidFilter;
   MCPseudoProbeDecoder::Uint64Map FuncStartAddrs;
-  SmallVector<StringRef, 0> Suffixes(
-      {".destroy", ".resume", ".llvm.", ".cold", ".warm"});
   for (const BinaryFunction *F : BC.getAllBinaryFunctions()) {
-    bool HasProfile = F->hasProfileAvailable();
     for (const MCSymbol *Sym : F->getSymbols()) {
-      StringRef SymName = Sym->getName();
-      for (auto Name : {std::optional(NameResolver::restore(SymName)),
-                        getCommonName(SymName, false, Suffixes)}) {
-        if (!Name)
-          continue;
-        SymName = *Name;
-        uint64_t GUID = Function::getGUID(SymName);
-        FuncStartAddrs[GUID] = F->getAddress();
-        if (ProfiledOnly && HasProfile)
-          GuidFilter.insert(GUID);
-      }
+      FuncStartAddrs[Function::getGUID(NameResolver::restore(Sym->getName()))] =
+          F->getAddress();
     }
   }
   Contents = PseudoProbeSection->getContents();
@@ -169,25 +155,13 @@ void PseudoProbeRewriter::parsePseudoProbe(bool ProfiledOnly) {
     ProbeDecoder.printProbesForAllAddresses(outs());
   }
 
-  const GUIDProbeFunctionMap &GUID2Func = ProbeDecoder.getGUID2FuncDescMap();
-  // Checks GUID in GUID2Func and returns it if it's present or null otherwise.
-  auto checkGUID = [&](StringRef SymName) -> uint64_t {
-    uint64_t GUID = Function::getGUID(SymName);
-    if (GUID2Func.find(GUID) == GUID2Func.end())
-      return 0;
-    return GUID;
-  };
-  for (BinaryFunction *F : BC.getAllBinaryFunctions()) {
-    for (const MCSymbol *Sym : F->getSymbols()) {
-      StringRef SymName = NameResolver::restore(Sym->getName());
-      uint64_t GUID = checkGUID(SymName);
-      std::optional<StringRef> CommonName =
-          getCommonName(SymName, false, Suffixes);
-      if (!GUID && CommonName)
-        GUID = checkGUID(*CommonName);
-      if (GUID)
-        F->setGUID(GUID);
-    }
+  for (const auto &FuncDesc : ProbeDecoder.getGUID2FuncDescMap()) {
+    uint64_t GUID = FuncDesc.FuncGUID;
+    if (!FuncStartAddrs.contains(GUID))
+      continue;
+    BinaryFunction *BF = BC.getBinaryFunctionAtAddress(FuncStartAddrs[GUID]);
+    assert(BF);
+    BF->setGUID(GUID);
   }
 }
 

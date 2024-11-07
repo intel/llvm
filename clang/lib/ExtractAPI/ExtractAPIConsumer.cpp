@@ -350,7 +350,7 @@ public:
   bool shouldMacroBeIncluded(const SourceLocation &MacroLoc,
                              StringRef ModuleName) override {
     // Do not include macros from external files
-    return LCF(MacroLoc);
+    return LCF(MacroLoc) || API.ProductName == ModuleName;
   }
 
 private:

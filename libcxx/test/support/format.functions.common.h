@@ -15,12 +15,11 @@
 #include <cctype>
 #include <charconv>
 #include <cstddef>
-#include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <ranges>
-#include <string_view>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "make_string.h"

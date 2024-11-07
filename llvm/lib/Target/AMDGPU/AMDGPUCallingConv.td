@@ -214,11 +214,13 @@ def RetCC_AMDGPU_Func : CallingConv<[
 ]>;
 
 def CC_AMDGPU : CallingConv<[
-   CCIf<"State.getMachineFunction().getSubtarget<GCNSubtarget>().getGeneration() >= "
-          "AMDGPUSubtarget::SOUTHERN_ISLANDS",
+   CCIf<"static_cast<const GCNSubtarget&>"
+         "(State.getMachineFunction().getSubtarget()).getGeneration() >= "
+           "AMDGPUSubtarget::SOUTHERN_ISLANDS",
         CCDelegateTo<CC_SI_SHADER>>,
-   CCIf<"State.getMachineFunction().getSubtarget<GCNSubtarget>().getGeneration() >= "
-          "AMDGPUSubtarget::SOUTHERN_ISLANDS && State.getCallingConv() == CallingConv::C",
+   CCIf<"static_cast<const GCNSubtarget&>"
+         "(State.getMachineFunction().getSubtarget()).getGeneration() >= "
+           "AMDGPUSubtarget::SOUTHERN_ISLANDS && State.getCallingConv() == CallingConv::C",
         CCDelegateTo<CC_AMDGPU_Func>>
 ]>;
 

@@ -33,6 +33,8 @@ class SyntheticSection;
 template <class ELFT> class ObjFile;
 class OutputSection;
 
+LLVM_LIBRARY_VISIBILITY extern std::vector<Partition> partitions;
+
 // Returned by InputSectionBase::relsOrRelas. At most one member is empty.
 template <class ELFT> struct RelsOrRelas {
   Relocs<typename ELFT::Rel> rels;
@@ -175,10 +177,6 @@ public:
   uint32_t bytesDropped = 0;
 
   mutable bool compressed = false;
-
-  // Whether this section is SHT_CREL and has been decoded to RELA by
-  // relsOrRelas.
-  bool decodedCrel = false;
 
   // Whether the section needs to be padded with a NOP filler due to
   // deleteFallThruJmpInsn.

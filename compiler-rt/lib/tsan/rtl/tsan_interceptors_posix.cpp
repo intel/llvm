@@ -12,15 +12,14 @@
 // sanitizer_common/sanitizer_common_interceptors.inc
 //===----------------------------------------------------------------------===//
 
-#include "sanitizer_common/sanitizer_allocator_dlsym.h"
 #include "sanitizer_common/sanitizer_atomic.h"
 #include "sanitizer_common/sanitizer_errno.h"
 #include "sanitizer_common/sanitizer_glibc_version.h"
-#include "sanitizer_common/sanitizer_internal_defs.h"
 #include "sanitizer_common/sanitizer_libc.h"
 #include "sanitizer_common/sanitizer_linux.h"
 #include "sanitizer_common/sanitizer_platform_limits_netbsd.h"
 #include "sanitizer_common/sanitizer_platform_limits_posix.h"
+#include "sanitizer_common/sanitizer_placement_new.h"
 #include "sanitizer_common/sanitizer_posix.h"
 #include "sanitizer_common/sanitizer_stacktrace.h"
 #include "sanitizer_common/sanitizer_tls_get_addr.h"
@@ -252,13 +251,6 @@ void OnPotentiallyBlockingRegionEnd();
 SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionBegin() {}
 SANITIZER_WEAK_CXX_DEFAULT_IMPL void OnPotentiallyBlockingRegionEnd() {}
 #endif
-
-// FIXME: Use for `in_symbolizer()` as well. As-is we can't use
-// `DlSymAllocator`, because it uses the primary allocator only. Symbolizer
-// requires support of the secondary allocator for larger blocks.
-struct DlsymAlloc : public DlSymAllocator<DlsymAlloc> {
-  static bool UseImpl() { return (ctx && !ctx->initialized); }
-};
 
 }  // namespace __tsan
 
@@ -669,8 +661,6 @@ TSAN_INTERCEPTOR(void, _longjmp, uptr *env, int val) {
 TSAN_INTERCEPTOR(void*, malloc, uptr size) {
   if (in_symbolizer())
     return InternalAlloc(size);
-  if (DlsymAlloc::Use())
-    return DlsymAlloc::Allocate(size);
   void *p = 0;
   {
     SCOPED_INTERCEPTOR_RAW(malloc, size);
@@ -688,14 +678,12 @@ TSAN_INTERCEPTOR(void*, __libc_memalign, uptr align, uptr sz) {
   return user_memalign(thr, pc, align, sz);
 }
 
-TSAN_INTERCEPTOR(void *, calloc, uptr n, uptr size) {
+TSAN_INTERCEPTOR(void*, calloc, uptr size, uptr n) {
   if (in_symbolizer())
-    return InternalCalloc(n, size);
-  if (DlsymAlloc::Use())
-    return DlsymAlloc::Callocate(n, size);
+    return InternalCalloc(size, n);
   void *p = 0;
   {
-    SCOPED_INTERCEPTOR_RAW(calloc, n, size);
+    SCOPED_INTERCEPTOR_RAW(calloc, size, n);
     p = user_calloc(thr, pc, size, n);
   }
   invoke_malloc_hook(p, n * size);
@@ -705,8 +693,6 @@ TSAN_INTERCEPTOR(void *, calloc, uptr n, uptr size) {
 TSAN_INTERCEPTOR(void*, realloc, void *p, uptr size) {
   if (in_symbolizer())
     return InternalRealloc(p, size);
-  if (DlsymAlloc::Use() || DlsymAlloc::PointerIsMine(p))
-    return DlsymAlloc::Realloc(p, size);
   if (p)
     invoke_free_hook(p);
   {
@@ -717,13 +703,13 @@ TSAN_INTERCEPTOR(void*, realloc, void *p, uptr size) {
   return p;
 }
 
-TSAN_INTERCEPTOR(void *, reallocarray, void *p, uptr n, uptr size) {
+TSAN_INTERCEPTOR(void*, reallocarray, void *p, uptr size, uptr n) {
   if (in_symbolizer())
-    return InternalReallocArray(p, n, size);
+    return InternalReallocArray(p, size, n);
   if (p)
     invoke_free_hook(p);
   {
-    SCOPED_INTERCEPTOR_RAW(reallocarray, p, n, size);
+    SCOPED_INTERCEPTOR_RAW(reallocarray, p, size, n);
     p = user_reallocarray(thr, pc, p, size, n);
   }
   invoke_malloc_hook(p, size);
@@ -731,24 +717,20 @@ TSAN_INTERCEPTOR(void *, reallocarray, void *p, uptr n, uptr size) {
 }
 
 TSAN_INTERCEPTOR(void, free, void *p) {
-  if (UNLIKELY(!p))
+  if (p == 0)
     return;
   if (in_symbolizer())
     return InternalFree(p);
-  if (DlsymAlloc::PointerIsMine(p))
-    return DlsymAlloc::Free(p);
   invoke_free_hook(p);
   SCOPED_INTERCEPTOR_RAW(free, p);
   user_free(thr, pc, p);
 }
 
 TSAN_INTERCEPTOR(void, cfree, void *p) {
-  if (UNLIKELY(!p))
+  if (p == 0)
     return;
   if (in_symbolizer())
     return InternalFree(p);
-  if (DlsymAlloc::PointerIsMine(p))
-    return DlsymAlloc::Free(p);
   invoke_free_hook(p);
   SCOPED_INTERCEPTOR_RAW(cfree, p);
   user_free(thr, pc, p);

@@ -20,7 +20,6 @@
 #include <__filesystem/operations.h>
 #include <__filesystem/path.h>
 #include <__filesystem/perms.h>
-#include <__fwd/ostream.h>
 #include <__system_error/errc.h>
 #include <__system_error/error_code.h>
 #include <__utility/move.h>
@@ -202,9 +201,7 @@ private:
     _IterNonSymlink,
     _RefreshSymlink,
     _RefreshSymlinkUnresolved,
-    _RefreshNonSymlink,
-    _IterCachedSymlink,
-    _IterCachedNonSymlink
+    _RefreshNonSymlink
   };
 
   struct __cached_data {
@@ -238,29 +235,6 @@ private:
         return _IterSymlink;
       default:
         return _IterNonSymlink;
-      }
-    }();
-    return __data;
-  }
-
-  _LIBCPP_HIDE_FROM_ABI static __cached_data
-  __create_iter_cached_result(file_type __ft, uintmax_t __size, perms __perm, file_time_type __write_time) {
-    __cached_data __data;
-    __data.__type_       = __ft;
-    __data.__size_       = __size;
-    __data.__write_time_ = __write_time;
-    if (__ft == file_type::symlink)
-      __data.__sym_perms_ = __perm;
-    else
-      __data.__non_sym_perms_ = __perm;
-    __data.__cache_type_ = [&]() {
-      switch (__ft) {
-      case file_type::none:
-        return _Empty;
-      case file_type::symlink:
-        return _IterCachedSymlink;
-      default:
-        return _IterCachedNonSymlink;
       }
     }();
     return __data;
@@ -307,22 +281,19 @@ private:
     case _Empty:
       return __symlink_status(__p_, __ec).type();
     case _IterSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlink:
     case _RefreshSymlinkUnresolved:
       if (__ec)
         __ec->clear();
       return file_type::symlink;
-    case _IterCachedNonSymlink:
     case _IterNonSymlink:
-    case _RefreshNonSymlink: {
+    case _RefreshNonSymlink:
       file_status __st(__data_.__type_);
       if (__ec && !filesystem::exists(__st))
         *__ec = make_error_code(errc::no_such_file_or_directory);
       else if (__ec)
         __ec->clear();
       return __data_.__type_;
-    }
     }
     __libcpp_unreachable();
   }
@@ -331,10 +302,8 @@ private:
     switch (__data_.__cache_type_) {
     case _Empty:
     case _IterSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlinkUnresolved:
       return __status(__p_, __ec).type();
-    case _IterCachedNonSymlink:
     case _IterNonSymlink:
     case _RefreshNonSymlink:
     case _RefreshSymlink: {
@@ -354,10 +323,8 @@ private:
     case _Empty:
     case _IterNonSymlink:
     case _IterSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlinkUnresolved:
       return __status(__p_, __ec);
-    case _IterCachedNonSymlink:
     case _RefreshNonSymlink:
     case _RefreshSymlink:
       return file_status(__get_ft(__ec), __data_.__non_sym_perms_);
@@ -371,10 +338,8 @@ private:
     case _IterNonSymlink:
     case _IterSymlink:
       return __symlink_status(__p_, __ec);
-    case _IterCachedNonSymlink:
     case _RefreshNonSymlink:
       return file_status(__get_sym_ft(__ec), __data_.__non_sym_perms_);
-    case _IterCachedSymlink:
     case _RefreshSymlink:
     case _RefreshSymlinkUnresolved:
       return file_status(__get_sym_ft(__ec), __data_.__sym_perms_);
@@ -387,10 +352,8 @@ private:
     case _Empty:
     case _IterNonSymlink:
     case _IterSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlinkUnresolved:
       return filesystem::__file_size(__p_, __ec);
-    case _IterCachedNonSymlink:
     case _RefreshSymlink:
     case _RefreshNonSymlink: {
       error_code __m_ec;
@@ -411,8 +374,6 @@ private:
     case _Empty:
     case _IterNonSymlink:
     case _IterSymlink:
-    case _IterCachedNonSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlinkUnresolved:
       return filesystem::__hard_link_count(__p_, __ec);
     case _RefreshSymlink:
@@ -431,10 +392,8 @@ private:
     case _Empty:
     case _IterNonSymlink:
     case _IterSymlink:
-    case _IterCachedSymlink:
     case _RefreshSymlinkUnresolved:
       return filesystem::__last_write_time(__p_, __ec);
-    case _IterCachedNonSymlink:
     case _RefreshSymlink:
     case _RefreshNonSymlink: {
       error_code __m_ec;

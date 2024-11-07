@@ -26,7 +26,7 @@ static std::optional<AlignStyle> translateLocChar(char C) {
 }
 
 static bool consumeFieldLayout(StringRef &Spec, AlignStyle &Where,
-                               unsigned &Align, char &Pad) {
+                               size_t &Align, char &Pad) {
   Where = AlignStyle::Right;
   Align = 0;
   Pad = ' ';
@@ -60,21 +60,19 @@ static std::optional<ReplacementItem> parseReplacementItem(StringRef Spec) {
   // If the replacement sequence does not start with a non-negative integer,
   // this is an error.
   char Pad = ' ';
-  unsigned Align = 0;
+  std::size_t Align = 0;
   AlignStyle Where = AlignStyle::Right;
   StringRef Options;
-  unsigned Index = ~0U;
+  size_t Index = 0;
   RepString = RepString.trim();
-
-  // If index is not specified, keep it ~0U to indicate unresolved index.
-  RepString.consumeInteger(0, Index);
+  if (RepString.consumeInteger(0, Index)) {
+    assert(false && "Invalid replacement sequence index!");
+    return ReplacementItem{};
+  }
   RepString = RepString.trim();
-
   if (RepString.consume_front(",")) {
-    if (!consumeFieldLayout(RepString, Where, Align, Pad)) {
+    if (!consumeFieldLayout(RepString, Where, Align, Pad))
       assert(false && "Invalid replacement field layout specification!");
-      return std::nullopt;
-    }
   }
   RepString = RepString.trim();
   if (RepString.consume_front(":")) {
@@ -82,55 +80,64 @@ static std::optional<ReplacementItem> parseReplacementItem(StringRef Spec) {
     RepString = StringRef();
   }
   RepString = RepString.trim();
-  if (!RepString.empty()) {
-    assert(0 && "Unexpected characters found in replacement string!");
-    return std::nullopt;
-  }
+  assert(RepString.empty() &&
+         "Unexpected characters found in replacement string!");
 
-  return ReplacementItem(Spec, Index, Align, Where, Pad, Options);
+  return ReplacementItem{Spec, Index, Align, Where, Pad, Options};
 }
 
-static std::pair<std::optional<ReplacementItem>, StringRef>
+static std::pair<ReplacementItem, StringRef>
 splitLiteralAndReplacement(StringRef Fmt) {
-  assert(!Fmt.empty());
-  // Everything up until the first brace is a literal.
-  if (Fmt.front() != '{') {
-    size_t BO = Fmt.find_first_of('{');
-    return {ReplacementItem{Fmt.substr(0, BO)}, Fmt.substr(BO)};
+  while (!Fmt.empty()) {
+    // Everything up until the first brace is a literal.
+    if (Fmt.front() != '{') {
+      std::size_t BO = Fmt.find_first_of('{');
+      return std::make_pair(ReplacementItem{Fmt.substr(0, BO)}, Fmt.substr(BO));
+    }
+
+    StringRef Braces = Fmt.take_while([](char C) { return C == '{'; });
+    // If there is more than one brace, then some of them are escaped.  Treat
+    // these as replacements.
+    if (Braces.size() > 1) {
+      size_t NumEscapedBraces = Braces.size() / 2;
+      StringRef Middle = Fmt.take_front(NumEscapedBraces);
+      StringRef Right = Fmt.drop_front(NumEscapedBraces * 2);
+      return std::make_pair(ReplacementItem{Middle}, Right);
+    }
+    // An unterminated open brace is undefined. Assert to indicate that this is
+    // undefined and that we consider it an error. When asserts are disabled,
+    // build a replacement item with an error message.
+    std::size_t BC = Fmt.find_first_of('}');
+    if (BC == StringRef::npos) {
+      assert(
+          false &&
+          "Unterminated brace sequence. Escape with {{ for a literal brace.");
+      return std::make_pair(
+          ReplacementItem{"Unterminated brace sequence. Escape with {{ for a "
+                          "literal brace."},
+          StringRef());
+    }
+
+    // Even if there is a closing brace, if there is another open brace before
+    // this closing brace, treat this portion as literal, and try again with the
+    // next one.
+    std::size_t BO2 = Fmt.find_first_of('{', 1);
+    if (BO2 < BC)
+      return std::make_pair(ReplacementItem{Fmt.substr(0, BO2)},
+                            Fmt.substr(BO2));
+
+    StringRef Spec = Fmt.slice(1, BC);
+    StringRef Right = Fmt.substr(BC + 1);
+
+    auto RI = parseReplacementItem(Spec);
+    if (RI)
+      return std::make_pair(*RI, Right);
+
+    // If there was an error parsing the replacement item, treat it as an
+    // invalid replacement spec, and just continue.
+    Fmt = Fmt.drop_front(BC + 1);
   }
-
-  StringRef Braces = Fmt.take_while([](char C) { return C == '{'; });
-  // If there is more than one brace, then some of them are escaped.  Treat
-  // these as replacements.
-  if (Braces.size() > 1) {
-    size_t NumEscapedBraces = Braces.size() / 2;
-    StringRef Middle = Fmt.take_front(NumEscapedBraces);
-    StringRef Right = Fmt.drop_front(NumEscapedBraces * 2);
-    return {ReplacementItem(Middle), Right};
-  }
-  // An unterminated open brace is undefined. Assert to indicate that this is
-  // undefined and that we consider it an error. When asserts are disabled,
-  // build a replacement item with an error message.
-  size_t BC = Fmt.find_first_of('}');
-  if (BC == StringRef::npos) {
-    assert(false &&
-           "Unterminated brace sequence. Escape with {{ for a literal brace.");
-    return {ReplacementItem("Unterminated brace sequence. Escape with {{ for a "
-                            "literal brace."),
-            StringRef()};
-  }
-
-  // Even if there is a closing brace, if there is another open brace before
-  // this closing brace, treat this portion as literal, and try again with the
-  // next one.
-  size_t BO2 = Fmt.find_first_of('{', 1);
-  if (BO2 < BC)
-    return {ReplacementItem(Fmt.substr(0, BO2)), Fmt.substr(BO2)};
-
-  StringRef Spec = Fmt.slice(1, BC);
-  StringRef Right = Fmt.substr(BC + 1);
-
-  return {parseReplacementItem(Spec), Right};
+  return std::make_pair(ReplacementItem{Fmt}, StringRef());
 }
 
 #ifndef NDEBUG
@@ -143,30 +150,21 @@ SmallVector<ReplacementItem, 2>
 formatv_object_base::parseFormatString(StringRef Fmt, size_t NumArgs,
                                        bool Validate) {
   SmallVector<ReplacementItem, 2> Replacements;
-  unsigned NextAutomaticIndex = 0;
 
 #if ENABLE_VALIDATION
   const StringRef SavedFmtStr = Fmt;
-  unsigned NumExpectedArgs = 0;
-  bool HasExplicitIndex = false;
+  size_t NumExpectedArgs = 0;
 #endif
 
   while (!Fmt.empty()) {
-    std::optional<ReplacementItem> I;
+    ReplacementItem I;
     std::tie(I, Fmt) = splitLiteralAndReplacement(Fmt);
-    if (!I)
-      continue;
-    if (I->Type == ReplacementType::Format) {
-      if (I->Index == ~0U)
-        I->Index = NextAutomaticIndex++;
+    if (I.Type != ReplacementType::Empty)
+      Replacements.push_back(I);
 #if ENABLE_VALIDATION
-      else
-        HasExplicitIndex = true;
-      NumExpectedArgs = std::max(NumExpectedArgs, I->Index + 1);
+    if (I.Type == ReplacementType::Format)
+      NumExpectedArgs = std::max(NumExpectedArgs, I.Index + 1);
 #endif
-    }
-
-    Replacements.emplace_back(*I);
   }
 
 #if ENABLE_VALIDATION
@@ -187,8 +185,9 @@ formatv_object_base::parseFormatString(StringRef Fmt, size_t NumArgs,
   };
 
   if (NumExpectedArgs != NumArgs) {
-    errs() << formatv("Expected {} Args, but got {} for format string '{}'\n",
-                      NumExpectedArgs, NumArgs, SavedFmtStr);
+    errs() << formatv(
+        "Expected {0} Args, but got {1} for format string '{2}'\n",
+        NumExpectedArgs, NumArgs, SavedFmtStr);
     assert(0 && "Invalid formatv() call");
     return getErrorReplacements("Unexpected number of arguments");
   }
@@ -196,7 +195,7 @@ formatv_object_base::parseFormatString(StringRef Fmt, size_t NumArgs,
   // Find the number of unique indices seen. All replacement indices
   // are < NumExpectedArgs.
   SmallVector<bool> Indices(NumExpectedArgs);
-  unsigned Count = 0;
+  size_t Count = 0;
   for (const ReplacementItem &I : Replacements) {
     if (I.Type != ReplacementType::Format || Indices[I.Index])
       continue;
@@ -206,19 +205,10 @@ formatv_object_base::parseFormatString(StringRef Fmt, size_t NumArgs,
 
   if (Count != NumExpectedArgs) {
     errs() << formatv(
-        "Replacement field indices cannot have holes for format string '{}'\n",
+        "Replacement field indices cannot have holes for format string '{0}'\n",
         SavedFmtStr);
     assert(0 && "Invalid format string");
     return getErrorReplacements("Replacement indices have holes");
-  }
-
-  // Fail validation if we see both automatic index and explicit index.
-  if (NextAutomaticIndex != 0 && HasExplicitIndex) {
-    errs() << formatv(
-        "Cannot mix automatic and explicit indices for format string '{}'\n",
-        SavedFmtStr);
-    assert(0 && "Invalid format string");
-    return getErrorReplacements("Cannot mix automatic and explicit indices");
   }
 #endif // ENABLE_VALIDATION
   return Replacements;

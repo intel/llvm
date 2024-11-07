@@ -2510,12 +2510,11 @@ void AArch64AsmPrinter::emitInstruction(const MachineInstr *MI) {
     unsigned DiscReg = AddrDisc;
     if (Disc) {
       if (AddrDisc != AArch64::NoRegister) {
-        if (ScratchReg != AddrDisc)
-          EmitToStreamer(*OutStreamer, MCInstBuilder(AArch64::ORRXrs)
-                                           .addReg(ScratchReg)
-                                           .addReg(AArch64::XZR)
-                                           .addReg(AddrDisc)
-                                           .addImm(0));
+        EmitToStreamer(*OutStreamer, MCInstBuilder(AArch64::ORRXrs)
+                                         .addReg(ScratchReg)
+                                         .addReg(AArch64::XZR)
+                                         .addReg(AddrDisc)
+                                         .addImm(0));
         EmitToStreamer(*OutStreamer, MCInstBuilder(AArch64::MOVKXi)
                                          .addReg(ScratchReg)
                                          .addReg(ScratchReg)

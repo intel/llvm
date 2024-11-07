@@ -125,7 +125,6 @@ add_clang_library(clangCodeGen
   Targets/AVR.cpp
   Targets/BPF.cpp
   Targets/CSKY.cpp
-  Targets/DirectX.cpp
   Targets/Hexagon.cpp
   Targets/Lanai.cpp
   Targets/LoongArch.cpp
@@ -148,7 +147,6 @@ add_clang_library(clangCodeGen
 
   DEPENDS
   ${codegen_deps}
-  vt_gen
   intrinsics_gen
   ClangDriverOptions
   # These generated headers are included transitively.

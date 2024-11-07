@@ -19,7 +19,7 @@
 
 _LIBCPP_BEGIN_NAMESPACE_STD
 
-void __throw_runtime_error(const char* msg) {
+_LIBCPP_NORETURN void __throw_runtime_error(const char* msg) {
 #ifndef _LIBCPP_HAS_NO_EXCEPTIONS
   throw runtime_error(msg);
 #else

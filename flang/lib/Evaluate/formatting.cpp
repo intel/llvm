@@ -563,7 +563,7 @@ std::string ExpressionBase<RESULT>::AsFortran() const {
   std::string buf;
   llvm::raw_string_ostream ss{buf};
   AsFortran(ss);
-  return buf;
+  return ss.str();
 }
 
 template <typename RESULT>
@@ -604,7 +604,7 @@ static std::string DerivedTypeSpecAsFortran(
   if (ch != '(') {
     ss << ')';
   }
-  return buf;
+  return ss.str();
 }
 
 llvm::raw_ostream &StructureConstructor::AsFortran(llvm::raw_ostream &o) const {

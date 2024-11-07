@@ -63,8 +63,7 @@ def SVE2p1Unsupported : AArch64Unsupported;
 
 def SVE2Unsupported : AArch64Unsupported {
   let F = !listconcat([HasSVE2, HasSVE2orSME, HasSVE2orSME2, HasSSVE_FP8FMA, HasSMEF8F16,
-                       HasSMEF8F32, HasSVE2AES, HasSVE2SHA3, HasSVE2SM4, HasSVE2BitPerm,
-                       HasSVEB16B16],
+                       HasSMEF8F32, HasSVE2AES, HasSVE2SHA3, HasSVE2SM4, HasSVE2BitPerm],
                        SVE2p1Unsupported.F);
 }
 
@@ -113,7 +112,6 @@ include "AArch64SchedAmpere1.td"
 include "AArch64SchedAmpere1B.td"
 include "AArch64SchedNeoverseN1.td"
 include "AArch64SchedNeoverseN2.td"
-include "AArch64SchedNeoverseN3.td"
 include "AArch64SchedNeoverseV1.td"
 include "AArch64SchedNeoverseV2.td"
 include "AArch64SchedOryon.td"

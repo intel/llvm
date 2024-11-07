@@ -371,11 +371,16 @@ public:
   /// If descriptor does not exist then creates it.
   SectionDescriptor &
   getOrCreateSectionDescriptor(DebugSectionKind SectionKind) {
-    auto [It, Inserted] = SectionDescriptors.try_emplace(SectionKind);
+    SectionsSetTy::iterator It = SectionDescriptors.find(SectionKind);
 
-    if (Inserted)
-      It->second = std::make_shared<SectionDescriptor>(SectionKind, GlobalData,
-                                                       Format, Endianness);
+    if (It == SectionDescriptors.end()) {
+      SectionDescriptor *Section =
+          new SectionDescriptor(SectionKind, GlobalData, Format, Endianness);
+      auto Result = SectionDescriptors.try_emplace(SectionKind, Section);
+      assert(Result.second);
+
+      It = Result.first;
+    }
 
     return *It->second;
   }

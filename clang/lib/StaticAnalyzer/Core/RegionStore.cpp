@@ -2380,12 +2380,8 @@ RegionStoreManager::bind(RegionBindingsConstRef B, Loc L, SVal V) {
 
   // Binding directly to a symbolic region should be treated as binding
   // to element 0.
-  if (const auto *SymReg = dyn_cast<SymbolicRegion>(R)) {
-    QualType Ty = SymReg->getPointeeStaticType();
-    if (Ty->isVoidType())
-      Ty = StateMgr.getContext().CharTy;
-    R = GetElementZeroRegion(SymReg, Ty);
-  }
+  if (const SymbolicRegion *SR = dyn_cast<SymbolicRegion>(R))
+    R = GetElementZeroRegion(SR, SR->getPointeeStaticType());
 
   assert((!isa<CXXThisRegion>(R) || !B.lookup(R)) &&
          "'this' pointer is not an l-value and is not assignable");

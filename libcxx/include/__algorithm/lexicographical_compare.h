@@ -19,7 +19,6 @@
 #include <__iterator/iterator_traits.h>
 #include <__string/constexpr_c_functions.h>
 #include <__type_traits/desugars_to.h>
-#include <__type_traits/enable_if.h>
 #include <__type_traits/invoke.h>
 #include <__type_traits/is_equality_comparable.h>
 #include <__type_traits/is_integral.h>
@@ -99,7 +98,7 @@ __lexicographical_compare(_Tp* __first1, _Tp* __last1, _Tp* __first2, _Tp* __las
 #endif // _LIBCPP_STD_VER >= 14
 
 template <class _InputIterator1, class _InputIterator2, class _Compare>
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 bool lexicographical_compare(
+_LIBCPP_NODISCARD inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 bool lexicographical_compare(
     _InputIterator1 __first1,
     _InputIterator1 __last1,
     _InputIterator2 __first2,
@@ -117,7 +116,7 @@ template <class _InputIterator1, class _InputIterator2, class _Compare>
 }
 
 template <class _InputIterator1, class _InputIterator2>
-[[__nodiscard__]] inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 bool lexicographical_compare(
+_LIBCPP_NODISCARD inline _LIBCPP_HIDE_FROM_ABI _LIBCPP_CONSTEXPR_SINCE_CXX20 bool lexicographical_compare(
     _InputIterator1 __first1, _InputIterator1 __last1, _InputIterator2 __first2, _InputIterator2 __last2) {
   return std::lexicographical_compare(__first1, __last1, __first2, __last2, __less<>());
 }

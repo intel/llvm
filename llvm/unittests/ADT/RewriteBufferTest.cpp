@@ -19,6 +19,7 @@ static std::string writeOutput(const RewriteBuffer &Buf) {
   std::string Result;
   raw_string_ostream OS(Result);
   Buf.write(OS);
+  OS.flush();
   return Result;
 }
 

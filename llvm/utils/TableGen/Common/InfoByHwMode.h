@@ -152,8 +152,8 @@ protected:
 };
 
 struct ValueTypeByHwMode : public InfoByHwMode<MVT> {
-  ValueTypeByHwMode(const Record *R, const CodeGenHwModes &CGH);
-  ValueTypeByHwMode(const Record *R, MVT T);
+  ValueTypeByHwMode(Record *R, const CodeGenHwModes &CGH);
+  ValueTypeByHwMode(Record *R, MVT T);
   ValueTypeByHwMode(MVT T) { Map.insert({DefaultMode, T}); }
   ValueTypeByHwMode() = default;
 
@@ -174,8 +174,7 @@ struct ValueTypeByHwMode : public InfoByHwMode<MVT> {
   }
 };
 
-ValueTypeByHwMode getValueTypeByHwMode(const Record *Rec,
-                                       const CodeGenHwModes &CGH);
+ValueTypeByHwMode getValueTypeByHwMode(Record *Rec, const CodeGenHwModes &CGH);
 
 raw_ostream &operator<<(raw_ostream &OS, const ValueTypeByHwMode &T);
 
@@ -184,7 +183,7 @@ struct RegSizeInfo {
   unsigned SpillSize;
   unsigned SpillAlignment;
 
-  RegSizeInfo(const Record *R);
+  RegSizeInfo(Record *R);
   RegSizeInfo() = default;
   bool operator<(const RegSizeInfo &I) const;
   bool operator==(const RegSizeInfo &I) const {
@@ -198,7 +197,7 @@ struct RegSizeInfo {
 };
 
 struct RegSizeInfoByHwMode : public InfoByHwMode<RegSizeInfo> {
-  RegSizeInfoByHwMode(const Record *R, const CodeGenHwModes &CGH);
+  RegSizeInfoByHwMode(Record *R, const CodeGenHwModes &CGH);
   RegSizeInfoByHwMode() = default;
   bool operator<(const RegSizeInfoByHwMode &VI) const;
   bool operator==(const RegSizeInfoByHwMode &VI) const;
@@ -223,12 +222,12 @@ struct SubRegRange {
   uint16_t Size;
   uint16_t Offset;
 
-  SubRegRange(const Record *R);
+  SubRegRange(Record *R);
   SubRegRange(uint16_t Size, uint16_t Offset) : Size(Size), Offset(Offset) {}
 };
 
 struct SubRegRangeByHwMode : public InfoByHwMode<SubRegRange> {
-  SubRegRangeByHwMode(const Record *R, const CodeGenHwModes &CGH);
+  SubRegRangeByHwMode(Record *R, const CodeGenHwModes &CGH);
   SubRegRangeByHwMode(SubRegRange Range) { Map.insert({DefaultMode, Range}); }
   SubRegRangeByHwMode() = default;
 
@@ -237,8 +236,8 @@ struct SubRegRangeByHwMode : public InfoByHwMode<SubRegRange> {
   }
 };
 
-struct EncodingInfoByHwMode : public InfoByHwMode<const Record *> {
-  EncodingInfoByHwMode(const Record *R, const CodeGenHwModes &CGH);
+struct EncodingInfoByHwMode : public InfoByHwMode<Record *> {
+  EncodingInfoByHwMode(Record *R, const CodeGenHwModes &CGH);
   EncodingInfoByHwMode() = default;
 };
 

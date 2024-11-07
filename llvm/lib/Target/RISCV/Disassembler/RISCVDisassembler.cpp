@@ -181,15 +181,10 @@ static DecodeStatus DecodeGPRCRegisterClass(MCInst &Inst, uint32_t RegNo,
 static DecodeStatus DecodeGPRPairRegisterClass(MCInst &Inst, uint32_t RegNo,
                                                uint64_t Address,
                                                const MCDisassembler *Decoder) {
-  if (RegNo >= 32 || RegNo % 2)
+  if (RegNo >= 32 || RegNo & 1)
     return MCDisassembler::Fail;
 
-  const RISCVDisassembler *Dis =
-      static_cast<const RISCVDisassembler *>(Decoder);
-  const MCRegisterInfo *RI = Dis->getContext().getRegisterInfo();
-  MCRegister Reg = RI->getMatchingSuperReg(
-      RISCV::X0 + RegNo, RISCV::sub_gpr_even,
-      &RISCVMCRegisterClasses[RISCV::GPRPairRegClassID]);
+  MCRegister Reg = RISCV::X0 + RegNo;
   Inst.addOperand(MCOperand::createReg(Reg));
   return MCDisassembler::Success;
 }

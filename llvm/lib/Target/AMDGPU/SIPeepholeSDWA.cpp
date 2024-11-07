@@ -19,7 +19,6 @@
 ///
 //===----------------------------------------------------------------------===//
 
-#include "SIPeepholeSDWA.h"
 #include "AMDGPU.h"
 #include "GCNSubtarget.h"
 #include "MCTargetDesc/AMDGPUMCTargetDesc.h"
@@ -46,7 +45,7 @@ class SDWADstOperand;
 using SDWAOperandsVector = SmallVector<SDWAOperand *, 4>;
 using SDWAOperandsMap = MapVector<MachineInstr *, SDWAOperandsVector>;
 
-class SIPeepholeSDWA {
+class SIPeepholeSDWA : public MachineFunctionPass {
 private:
   MachineRegisterInfo *MRI;
   const SIRegisterInfo *TRI;
@@ -58,6 +57,14 @@ private:
 
   std::optional<int64_t> foldToImm(const MachineOperand &Op) const;
 
+public:
+  static char ID;
+
+  SIPeepholeSDWA() : MachineFunctionPass(ID) {
+    initializeSIPeepholeSDWAPass(*PassRegistry::getPassRegistry());
+  }
+
+  bool runOnMachineFunction(MachineFunction &MF) override;
   void matchSDWAOperands(MachineBasicBlock &MBB);
   std::unique_ptr<SDWAOperand> matchSDWAOperand(MachineInstr &MI);
   void pseudoOpConvertToVOP2(MachineInstr &MI,
@@ -65,19 +72,7 @@ private:
   bool convertToSDWA(MachineInstr &MI, const SDWAOperandsVector &SDWAOperands);
   void legalizeScalarOperands(MachineInstr &MI, const GCNSubtarget &ST) const;
 
-public:
-  bool run(MachineFunction &MF);
-};
-
-class SIPeepholeSDWALegacy : public MachineFunctionPass {
-public:
-  static char ID;
-
-  SIPeepholeSDWALegacy() : MachineFunctionPass(ID) {}
-
   StringRef getPassName() const override { return "SI Peephole SDWA"; }
-
-  bool runOnMachineFunction(MachineFunction &MF) override;
 
   void getAnalysisUsage(AnalysisUsage &AU) const override {
     AU.setPreservesCFG();
@@ -197,16 +192,16 @@ public:
 
 } // end anonymous namespace
 
-INITIALIZE_PASS(SIPeepholeSDWALegacy, DEBUG_TYPE, "SI Peephole SDWA", false,
-                false)
+INITIALIZE_PASS(SIPeepholeSDWA, DEBUG_TYPE, "SI Peephole SDWA", false, false)
 
-char SIPeepholeSDWALegacy::ID = 0;
+char SIPeepholeSDWA::ID = 0;
 
-char &llvm::SIPeepholeSDWALegacyID = SIPeepholeSDWALegacy::ID;
+char &llvm::SIPeepholeSDWAID = SIPeepholeSDWA::ID;
 
-FunctionPass *llvm::createSIPeepholeSDWALegacyPass() {
-  return new SIPeepholeSDWALegacy();
+FunctionPass *llvm::createSIPeepholeSDWAPass() {
+  return new SIPeepholeSDWA();
 }
+
 
 #if !defined(NDEBUG) || defined(LLVM_ENABLE_DUMP)
 static raw_ostream& operator<<(raw_ostream &OS, SdwaSel Sel) {
@@ -1240,17 +1235,10 @@ void SIPeepholeSDWA::legalizeScalarOperands(MachineInstr &MI,
   }
 }
 
-bool SIPeepholeSDWALegacy::runOnMachineFunction(MachineFunction &MF) {
-  if (skipFunction(MF.getFunction()))
-    return false;
-
-  return SIPeepholeSDWA().run(MF);
-}
-
-bool SIPeepholeSDWA::run(MachineFunction &MF) {
+bool SIPeepholeSDWA::runOnMachineFunction(MachineFunction &MF) {
   const GCNSubtarget &ST = MF.getSubtarget<GCNSubtarget>();
 
-  if (!ST.hasSDWA())
+  if (!ST.hasSDWA() || skipFunction(MF.getFunction()))
     return false;
 
   MRI = &MF.getRegInfo();
@@ -1306,14 +1294,4 @@ bool SIPeepholeSDWA::run(MachineFunction &MF) {
   }
 
   return Ret;
-}
-
-PreservedAnalyses SIPeepholeSDWAPass::run(MachineFunction &MF,
-                                          MachineFunctionAnalysisManager &) {
-  if (MF.getFunction().hasOptNone() || !SIPeepholeSDWA().run(MF))
-    return PreservedAnalyses::all();
-
-  PreservedAnalyses PA = getMachineFunctionPassPreservedAnalyses();
-  PA.preserveSet<CFGAnalyses>();
-  return PA;
 }

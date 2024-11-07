@@ -30,7 +30,7 @@ namespace {
 
 class ExegesisEmitter {
 public:
-  ExegesisEmitter(const RecordKeeper &RK);
+  ExegesisEmitter(RecordKeeper &RK);
 
   void run(raw_ostream &OS) const;
 
@@ -51,7 +51,7 @@ private:
 
   void emitPfmCountersLookupTable(raw_ostream &OS) const;
 
-  const RecordKeeper &Records;
+  RecordKeeper &Records;
   std::string Target;
 
   // Table of counter name -> counter index.
@@ -67,8 +67,7 @@ collectPfmCounters(const RecordKeeper &Records) {
     if (!Counter.empty())
       PfmCounterNameTable.emplace(Counter, 0);
   };
-  for (const Record *Def :
-       Records.getAllDerivedDefinitions("ProcPfmCounters")) {
+  for (Record *Def : Records.getAllDerivedDefinitions("ProcPfmCounters")) {
     // Check that ResourceNames are unique.
     llvm::SmallSet<llvm::StringRef, 16> Seen;
     for (const Record *IssueCounter :
@@ -96,9 +95,9 @@ collectPfmCounters(const RecordKeeper &Records) {
   return PfmCounterNameTable;
 }
 
-ExegesisEmitter::ExegesisEmitter(const RecordKeeper &RK)
+ExegesisEmitter::ExegesisEmitter(RecordKeeper &RK)
     : Records(RK), PfmCounterNameTable(collectPfmCounters(RK)) {
-  ArrayRef<const Record *> Targets = Records.getAllDerivedDefinitions("Target");
+  std::vector<Record *> Targets = Records.getAllDerivedDefinitions("Target");
   if (Targets.size() == 0)
     PrintFatalError("No 'Target' subclasses defined!");
   if (Targets.size() != 1)
@@ -224,7 +223,7 @@ void ExegesisEmitter::emitPfmCounters(raw_ostream &OS) const {
 } // namespace
 
 void ExegesisEmitter::emitPfmCountersLookupTable(raw_ostream &OS) const {
-  std::vector<const Record *> Bindings =
+  std::vector<Record *> Bindings =
       Records.getAllDerivedDefinitions("PfmCountersBinding");
   assert(!Bindings.empty() && "there must be at least one binding");
   llvm::sort(Bindings, [](const Record *L, const Record *R) {
@@ -233,7 +232,7 @@ void ExegesisEmitter::emitPfmCountersLookupTable(raw_ostream &OS) const {
 
   OS << "// Sorted (by CpuName) array of pfm counters.\n"
      << "static const CpuAndPfmCounters " << Target << "CpuPfmCounters[] = {\n";
-  for (const Record *Binding : Bindings) {
+  for (Record *Binding : Bindings) {
     // Emit as { "cpu", procinit },
     OS << "  { \""                                                        //
        << Binding->getValueAsString("CpuName") << "\","                   //

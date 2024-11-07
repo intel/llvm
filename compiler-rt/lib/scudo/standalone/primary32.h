@@ -56,9 +56,12 @@ public:
   typedef TransferBatch<ThisT> TransferBatchT;
   typedef BatchGroup<ThisT> BatchGroupT;
 
+  static_assert(sizeof(BatchGroupT) <= sizeof(TransferBatchT),
+                "BatchGroupT uses the same class size as TransferBatchT");
+
   static uptr getSizeByClassId(uptr ClassId) {
     return (ClassId == SizeClassMap::BatchClassId)
-               ? Max(sizeof(BatchGroupT), sizeof(TransferBatchT))
+               ? sizeof(TransferBatchT)
                : SizeClassMap::getSizeByClassId(ClassId);
   }
 
@@ -329,12 +332,6 @@ public:
     }
   }
 
-  void getMemoryGroupFragmentationInfo(ScopedString *Str) {
-    // Each region is also a memory group because region size is the same as
-    // group size.
-    getFragmentationInfo(Str);
-  }
-
   bool setOption(Option O, sptr Value) {
     if (O == Option::ReleaseInterval) {
       const s32 Interval = Max(
@@ -528,6 +525,9 @@ private:
       // BatchClass hasn't enabled memory group. Use `0` to indicate there's no
       // memory group here.
       BG->CompactPtrGroupBase = 0;
+      // `BG` is also the block of BatchClassId. Note that this is different
+      // from `CreateGroup` in `pushBlocksImpl`
+      BG->PushedBlocks = 1;
       BG->BytesInBGAtLastCheckpoint = 0;
       BG->MaxCachedPerBatch =
           CacheT::getMaxCached(getSizeByClassId(SizeClassMap::BatchClassId));
@@ -552,6 +552,9 @@ private:
       TB->add(
           compactPtr(SizeClassMap::BatchClassId, reinterpret_cast<uptr>(BG)));
       --Size;
+      DCHECK_EQ(BG->PushedBlocks, 1U);
+      // `TB` is also the block of BatchClassId.
+      BG->PushedBlocks += 1;
       BG->Batches.push_front(TB);
     }
 
@@ -578,6 +581,8 @@ private:
       CurBatch->appendFromArray(&Array[I], AppendSize);
       I += AppendSize;
     }
+
+    BG->PushedBlocks += Size;
   }
   // Push the blocks to their batch group. The layout will be like,
   //
@@ -613,6 +618,7 @@ private:
 
       BG->CompactPtrGroupBase = CompactPtrGroupBase;
       BG->Batches.push_front(TB);
+      BG->PushedBlocks = 0;
       BG->BytesInBGAtLastCheckpoint = 0;
       BG->MaxCachedPerBatch = TransferBatchT::MaxNumCached;
 
@@ -640,6 +646,8 @@ private:
         CurBatch->appendFromArray(&Array[I], AppendSize);
         I += AppendSize;
       }
+
+      BG->PushedBlocks += Size;
     };
 
     Sci->FreeListInfo.PushedBlocks += Size;
@@ -932,7 +940,7 @@ private:
 
     uptr Integral;
     uptr Fractional;
-    computePercentage(BlockSize * InUseBlocks, InUseBytes, &Integral,
+    computePercentage(BlockSize * InUseBlocks, InUsePages * PageSize, &Integral,
                       &Fractional);
     Str->append("  %02zu (%6zu): inuse/total blocks: %6zu/%6zu inuse/total "
                 "pages: %6zu/%6zu inuse bytes: %6zuK util: %3zu.%02zu%%\n",

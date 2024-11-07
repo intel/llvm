@@ -482,10 +482,7 @@ LogicalResult
 ParallelLowering::matchAndRewrite(ParallelOp parallelOp,
                                   PatternRewriter &rewriter) const {
   Location loc = parallelOp.getLoc();
-  auto reductionOp = dyn_cast<ReduceOp>(parallelOp.getBody()->getTerminator());
-  if (!reductionOp) {
-    return failure();
-  }
+  auto reductionOp = cast<ReduceOp>(parallelOp.getBody()->getTerminator());
 
   // For a parallel loop, we essentially need to create an n-dimensional loop
   // nest. We do this by translating to scf.for ops and have those lowered in

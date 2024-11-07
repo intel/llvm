@@ -415,7 +415,7 @@ std::string LinkerDriver::createDefaultXml() {
        << "  </dependency>\n";
   }
   os << "</assembly>\n";
-  return ret;
+  return os.str();
 }
 
 std::string

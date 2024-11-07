@@ -125,6 +125,7 @@ public:
     }
     assert(a.data_ != test_alloc_base::destructed_value && a.id_ != test_alloc_base::destructed_value &&
            "moving from destroyed allocator");
+    a.data_ = test_alloc_base::moved_value;
     a.id_ = test_alloc_base::moved_value;
   }
 

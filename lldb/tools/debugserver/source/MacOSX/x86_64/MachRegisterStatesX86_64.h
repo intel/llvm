@@ -22,7 +22,6 @@
 #define __x86_64_DEBUG_STATE 11
 #define __x86_64_AVX_STATE 17
 #define __x86_64_AVX512F_STATE 20
-#define __x86_64_THREAD_FULL_STATE 23
 
 typedef struct {
   uint64_t __rax;
@@ -46,10 +45,6 @@ typedef struct {
   uint64_t __cs;
   uint64_t __fs;
   uint64_t __gs;
-  uint64_t __ds;
-  uint64_t __es;
-  uint64_t __ss;
-  uint64_t __gsbase;
 } __x86_64_thread_state_t;
 
 typedef struct {

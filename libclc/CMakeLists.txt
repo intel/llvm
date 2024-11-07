@@ -89,10 +89,10 @@ else()
   endif()
 
   if( NOT EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
-    get_host_tool_path( clang CLANG clang_exe clang_target )
-    get_host_tool_path( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
-    get_host_tool_path( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
-    get_host_tool_path( opt OPT opt_exe opt_target )
+    setup_host_tool( clang CLANG clang_exe clang_target )
+    setup_host_tool( llvm-as LLVM_AS llvm-as_exe llvm-as_target )
+    setup_host_tool( llvm-link LLVM_LINK llvm-link_exe llvm-link_target )
+    setup_host_tool( opt OPT opt_exe opt_target )
   endif()
 endif()
 
@@ -119,19 +119,17 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 endif()
 
 foreach( tool IN ITEMS clang opt llvm-as llvm-link )
-  if( NOT EXISTS "${${tool}_exe}" AND "${tool}_target" STREQUAL "" )
+  if( NOT EXISTS "${${tool}_exe}" AND NOT TARGET "${${tool}_target}" )
     message( FATAL_ERROR "libclc toolchain incomplete - missing tool ${tool}!" )
   endif()
 endforeach()
 
 # llvm-spirv is an optional dependency, used to build spirv-* targets.
-# It may be provided in-tree or externally.
-if( TARGET llvm-spirv )
-  get_host_tool_path( llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target )
-else()
-  find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
-  set( llvm-spirv_exe "${LLVM_SPIRV}" )
-  set( llvm-spirv_target )
+find_program( LLVM_SPIRV llvm-spirv PATHS ${LLVM_TOOLS_BINARY_DIR} NO_DEFAULT_PATH )
+
+if( LLVM_SPIRV AND NOT TARGET libclc::llvm-spirv )
+  add_executable( libclc::llvm-spirv IMPORTED GLOBAL )
+  set_target_properties( libclc::llvm-spirv PROPERTIES IMPORTED_LOCATION ${LLVM_SPIRV} )
 endif()
 
 # List of all targets. Note that some are added dynamically below.
@@ -159,7 +157,7 @@ endif()
 
 # spirv-mesa3d and spirv64-mesa3d targets can only be built with the (optional)
 # llvm-spirv external tool.
-if( llvm-spirv_exe )
+if( TARGET libclc::llvm-spirv )
   list( APPEND LIBCLC_TARGETS_ALL  spirv-mesa3d- spirv64-mesa3d- )
 endif()
 
@@ -181,7 +179,7 @@ list( SORT LIBCLC_TARGETS_TO_BUILD )
 # Verify that the user hasn't requested mesa3d targets without an available
 # llvm-spirv tool.
 if( "spirv-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD OR "spirv64-mesa3d-" IN_LIST LIBCLC_TARGETS_TO_BUILD )
-  if( NOT llvm-spirv_exe )
+  if( NOT TARGET libclc::llvm-spirv )
     message( FATAL_ERROR "SPIR-V targets requested, but spirv-tools is not installed" )
   endif()
 endif()

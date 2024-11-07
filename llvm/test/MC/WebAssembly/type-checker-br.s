@@ -16,7 +16,7 @@ br_block:
   end_function
 
 br_func:
-  .functype br_func () -> ()
+  .functype br_block () -> ()
   block i32
     br 1
     i32.const 1
