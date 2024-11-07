@@ -45,7 +45,7 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
-    /* - CP
+    
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
@@ -54,7 +54,7 @@ jit_compiler::jit_compiler() {
           "Cannot resolve JIT library function entry point");
       return false;
     }
-    */
+    
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,

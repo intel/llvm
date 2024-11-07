@@ -40,6 +40,10 @@ add_llvm_library(sycl-jit
    clangSerialization
 )
 
+install(TARGETS sycl-jit
+  RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader
+)
+
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.

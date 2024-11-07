@@ -71,7 +71,7 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" JITResult
+extern "C" KF_EXPORT_SYMBOL JITResult
 materializeSpecConstants(const char *KernelName,
                          jit_compiler::SYCLKernelBinaryInfo &BinInfo,
                          View<unsigned char> SpecConstBlob) {
@@ -115,7 +115,7 @@ materializeSpecConstants(const char *KernelName,
   return JITResult{MaterializerKernelInfo};
 }
 
-extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
+extern "C" KF_EXPORT_SYMBOL JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
                                  const char *FusedKernelName,
                                  View<ParameterIdentity> Identities,
                                  BarrierFlags BarriersFlags,
@@ -236,7 +236,7 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   return JITResult{FusedKernelInfo};
 }
 
-extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
+extern "C" KF_EXPORT_SYMBOL JITResult compileSYCL(InMemoryFile SourceFile,
                                  View<InMemoryFile> IncludeFiles,
                                  View<const char *> UserArgs) {
   auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
@@ -261,8 +261,8 @@ extern "C" JITResult compileSYCL(InMemoryFile SourceFile,
   return JITResult{Kernel};
 }
 
-extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }
+extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() { ConfigHelper::reset(); }
 
-extern "C" void addToJITConfiguration(OptionStorage &&Opt) {
+extern "C" KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
   ConfigHelper::getConfig().set(std::move(Opt));
 }
