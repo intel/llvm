@@ -184,29 +184,6 @@ image_channel_type image_plain::getChannelType() const {
   return impl->getChannelType();
 }
 
-void image_plain::sampledImageConstructorNotification(
-    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-    uint32_t Dim, size_t Range[3], image_format Format,
-    const image_sampler &Sampler) {
-  impl->sampledImageConstructorNotification(CodeLoc, UserObj, HostObj, Dim,
-                                            Range, Format, Sampler);
-}
-
-void image_plain::sampledImageDestructorNotification(void *UserObj) {
-  impl->sampledImageDestructorNotification(UserObj);
-}
-
-void image_plain::unsampledImageConstructorNotification(
-    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-    uint32_t Dim, size_t Range[3], image_format Format) {
-  impl->unsampledImageConstructorNotification(CodeLoc, UserObj, HostObj, Dim,
-                                              Range, Format);
-}
-
-void image_plain::unsampledImageDestructorNotification(void *UserObj) {
-  impl->unsampledImageDestructorNotification(UserObj);
-}
-
 const property_list &image_plain::getPropList() const {
   return impl->getPropList();
 }

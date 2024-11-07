@@ -14,7 +14,6 @@
 #include <detail/memory_manager.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/ur_utils.hpp>
-#include <detail/xpti_registry.hpp>
 
 #include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/bindless_images_memory.hpp>
@@ -26,97 +25,9 @@
 #include <cstring>
 #include <vector>
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-#include <xpti/xpti_data_types.h>
-#include <xpti/xpti_trace_framework.hpp>
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GMemAllocStreamID;
-xpti::trace_event_data_t *GMemAllocEvent;
-#endif
-
-uint64_t emitMemAllocBeginTrace(uintptr_t ObjHandle, size_t AllocSize,
-                                size_t GuardZone) {
-  (void)ObjHandle;
-  (void)AllocSize;
-  (void)GuardZone;
-  uint64_t CorrelationID = 0;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_begin);
-  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
-    xpti::mem_alloc_data_t MemAlloc{ObjHandle, 0 /* alloc ptr */, AllocSize,
-                                    GuardZone};
-
-    CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
-                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
-  }
-#endif
-  return CorrelationID;
-}
-
-void emitMemAllocEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
-                          size_t AllocSize, size_t GuardZone,
-                          uint64_t CorrelationID) {
-  (void)ObjHandle;
-  (void)AllocPtr;
-  (void)AllocSize;
-  (void)GuardZone;
-  (void)CorrelationID;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      static_cast<uint16_t>(xpti::trace_point_type_t::mem_alloc_end);
-  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
-    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, AllocSize, GuardZone};
-
-    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
-                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
-  }
-#endif
-}
-
-uint64_t emitMemReleaseBeginTrace(uintptr_t ObjHandle, uintptr_t AllocPtr) {
-  (void)ObjHandle;
-  (void)AllocPtr;
-  uint64_t CorrelationID = 0;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_begin);
-  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
-    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
-                                    0 /* guard zone */};
-
-    CorrelationID = xptiGetUniqueId();
-    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
-                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
-  }
-#endif
-  return CorrelationID;
-}
-
-void emitMemReleaseEndTrace(uintptr_t ObjHandle, uintptr_t AllocPtr,
-                            uint64_t CorrelationID) {
-  (void)ObjHandle;
-  (void)AllocPtr;
-  (void)CorrelationID;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType =
-      static_cast<uint16_t>(xpti::trace_point_type_t::mem_release_end);
-  if (xptiCheckTraceEnabled(GMemAllocStreamID, NotificationTraceType)) {
-    xpti::mem_alloc_data_t MemAlloc{ObjHandle, AllocPtr, 0 /* alloc size */,
-                                    0 /* guard zone */};
-
-    xptiNotifySubscribers(GMemAllocStreamID, NotificationTraceType,
-                          GMemAllocEvent, nullptr, CorrelationID, &MemAlloc);
-  }
-#endif
-}
 
 static void waitForEvents(const std::vector<EventImplPtr> &Events) {
   // Assuming all events will be on the same device or
@@ -137,65 +48,16 @@ void memBufferCreateHelper(const AdapterPtr &Adapter, ur_context_handle_t Ctx,
                            ur_mem_flags_t Flags, size_t Size,
                            ur_mem_handle_t *RetMem,
                            const ur_buffer_properties_t *Props) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint64_t CorrID = 0;
-#endif
-  // We only want to instrument urMemBufferCreate
-  {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID =
-        emitMemAllocBeginTrace(0 /* mem object */, Size, 0 /* guard zone */);
-    xpti::utils::finally _{[&] {
-      // C-style cast is required for MSVC
-      uintptr_t MemObjID = (uintptr_t)(*RetMem);
-      ur_native_handle_t Ptr = 0;
-      // Always use call_nocheck here, because call may throw an exception,
-      // and this lambda will be called from destructor, which in combination
-      // rewards us with UB.
-      // When doing buffer interop we don't know what device the memory should
-      // be resident on, so pass nullptr for Device param. Buffer interop may
-      // not be supported by all backends.
-      Adapter->call_nocheck<UrApiKind::urMemGetNativeHandle>(
-          *RetMem, /*Dev*/ nullptr, &Ptr);
-      emitMemAllocEndTrace(MemObjID, (uintptr_t)(Ptr), Size, 0 /* guard zone */,
-                           CorrID);
-    }};
-#endif
     if (Size)
       Adapter->call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
                                                   RetMem);
-  }
 }
 
 void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem) {
   // FIXME urMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // urMemRetain only for OpenCL interop
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint64_t CorrID = 0;
-  // C-style cast is required for MSVC
-  uintptr_t MemObjID = (uintptr_t)(Mem);
-  uintptr_t Ptr = 0;
-  // Do not make unnecessary UR calls without instrumentation enabled
-  if (xptiTraceEnabled()) {
-    ur_native_handle_t PtrHandle = 0;
-    // When doing buffer interop we don't know what device the memory should be
-    // resident on, so pass nullptr for Device param. Buffer interop may not be
-    // supported by all backends.
-    Adapter->call_nocheck<UrApiKind::urMemGetNativeHandle>(Mem, /*Dev*/ nullptr,
-                                                           &PtrHandle);
-    Ptr = (uintptr_t)(PtrHandle);
-  }
-#endif
-  // We only want to instrument urMemRelease
-  {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
-    xpti::utils::finally _{
-        [&] { emitMemReleaseEndTrace(MemObjID, Ptr, CorrID); }};
-#endif
     Adapter->call<UrApiKind::urMemRelease>(Mem);
-  }
 }
 
 void memBufferMapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
@@ -203,19 +65,8 @@ void memBufferMapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
                         ur_map_flags_t Flags, size_t Offset, size_t Size,
                         uint32_t NumEvents, const ur_event_handle_t *WaitList,
                         ur_event_handle_t *Event, void **RetMap) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint64_t CorrID = 0;
-  uintptr_t MemObjID = (uintptr_t)(Buffer);
-#endif
   // We only want to instrument urEnqueueMemBufferMap
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  CorrID = emitMemAllocBeginTrace(MemObjID, Size, 0 /* guard zone */);
-  xpti::utils::finally _{[&] {
-    emitMemAllocEndTrace(MemObjID, (uintptr_t)(*RetMap), Size,
-                         0 /* guard zone */, CorrID);
-  }};
-#endif
   Adapter->call<UrApiKind::urEnqueueMemBufferMap>(
       Queue, Buffer, Blocking, Flags, Offset, Size, NumEvents, WaitList, Event,
       RetMap);
@@ -225,29 +76,9 @@ void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
                     ur_mem_handle_t Mem, void *MappedPtr, uint32_t NumEvents,
                     const ur_event_handle_t *WaitList,
                     ur_event_handle_t *Event) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  uint64_t CorrID = 0;
-  uintptr_t MemObjID = (uintptr_t)(Mem);
-  uintptr_t Ptr = (uintptr_t)(MappedPtr);
-#endif
   // We only want to instrument urEnqueueMemUnmap
-  {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    CorrID = emitMemReleaseBeginTrace(MemObjID, Ptr);
-    xpti::utils::finally _{[&] {
-      // There's no way for SYCL to know, when the pointer is freed, so we have
-      // to explicitly wait for the end of data transfers here in order to
-      // report correct events.
-      // Always use call_nocheck here, because call may throw an exception,
-      // and this lambda will be called from destructor, which in combination
-      // rewards us with UB.
-      Adapter->call_nocheck<UrApiKind::urEventWait>(1, Event);
-      emitMemReleaseEndTrace(MemObjID, Ptr, CorrID);
-    }};
-#endif
     Adapter->call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr,
                                                 NumEvents, WaitList, Event);
-  }
 }
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
@@ -258,7 +89,6 @@ void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,
   // dependency events and return empty event.
   waitForEvents(DepEvents);
   OutEvent = nullptr;
-  XPTIRegistry::bufferReleaseNotification(MemObj, MemAllocation);
   MemObj->releaseMem(TargetContext, MemAllocation);
 }
 
@@ -409,7 +239,6 @@ void *MemoryManager::allocateMemBuffer(ContextImplPtr TargetContext,
   else
     MemPtr = allocateBufferObject(TargetContext, UserPtr, HostPtrReadOnly, Size,
                                   PropsList);
-  XPTIRegistry::bufferAssociateNotification(MemObj, MemPtr);
   return MemPtr;
 }
 

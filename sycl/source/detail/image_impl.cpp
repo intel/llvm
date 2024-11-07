@@ -9,7 +9,6 @@
 #include <detail/context_impl.hpp>
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
-#include <detail/xpti_registry.hpp>
 #include <sycl/detail/ur.hpp>
 
 #include <algorithm>
@@ -18,9 +17,6 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GImageStreamID;
-#endif
 
 template <typename Param>
 static bool checkImageValueRange(const std::vector<device> &Devices,
@@ -455,31 +451,6 @@ std::vector<device> image_impl::getDevices(const ContextImplPtr Context) {
   if (!Context)
     return {};
   return Context->get_info<info::context::devices>();
-}
-
-void image_impl::sampledImageConstructorNotification(
-    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-    uint32_t Dim, size_t Range[3], image_format Format,
-    const image_sampler &Sampler) {
-  XPTIRegistry::sampledImageConstructorNotification(
-      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format,
-      (uint32_t)Sampler.addressing, (uint32_t)Sampler.coordinate,
-      (uint32_t)Sampler.filtering);
-}
-
-void image_impl::sampledImageDestructorNotification(void *UserObj) {
-  XPTIRegistry::sampledImageDestructorNotification(UserObj);
-}
-
-void image_impl::unsampledImageConstructorNotification(
-    const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-    uint32_t Dim, size_t Range[3], image_format Format) {
-  XPTIRegistry::unsampledImageConstructorNotification(
-      UserObj, CodeLoc, HostObj, Dim, Range, (uint32_t)Format);
-}
-
-void image_impl::unsampledImageDestructorNotification(void *UserObj) {
-  XPTIRegistry::unsampledImageDestructorNotification(UserObj);
 }
 
 void image_impl::verifyProps(const property_list &Props) const {

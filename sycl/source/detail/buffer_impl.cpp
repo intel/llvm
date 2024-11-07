@@ -11,16 +11,12 @@
 #include <detail/global_handler.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
-#include <detail/xpti_registry.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-uint8_t GBufferStreamID;
-#endif
 void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                                void *HostPtr,
                                ur_event_handle_t &OutEventToWait) {
@@ -33,17 +29,6 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
       std::move(Context), this, HostPtr, HostPtrReadOnly,
       BaseT::getSizeInBytes(), BaseT::MInteropEvent, BaseT::MInteropContext,
       MProps, OutEventToWait);
-}
-void buffer_impl::constructorNotification(const detail::code_location &CodeLoc,
-                                          void *UserObj, const void *HostObj,
-                                          const void *Type, uint32_t Dim,
-                                          uint32_t ElemSize, size_t Range[3]) {
-  XPTIRegistry::bufferConstructorNotification(UserObj, CodeLoc, HostObj, Type,
-                                              Dim, ElemSize, Range);
-}
-
-void buffer_impl::destructorNotification(void *UserObj) {
-  XPTIRegistry::bufferDestructorNotification(UserObj);
 }
 
 void buffer_impl::addInteropObject(

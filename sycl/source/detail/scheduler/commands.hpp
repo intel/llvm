@@ -32,11 +32,6 @@ class node_impl;
 } // namespace ext::oneapi::experimental::detail
 namespace detail {
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-void emitInstrumentationGeneral(uint32_t StreamID, uint64_t InstanceID,
-                                xpti_td *TraceEvent, uint16_t Type,
-                                const void *Addr);
-#endif
 RTDeviceBinaryImage *
 retrieveAMDGCNOrNVPTXKernelBinary(const DeviceImplPtr DeviceImpl,
                                   const std::string &KernelName);
@@ -181,37 +176,6 @@ public:
 
   const EventImplPtr &getEvent() const { return MEvent; }
 
-  // Methods needed to support SYCL instrumentation
-
-  /// Proxy method which calls emitInstrumentationData.
-  void emitInstrumentationDataProxy();
-  /// Instrumentation method which emits telemetry data.
-  virtual void emitInstrumentationData() = 0;
-  /// Looks at all the dependencies for the release command and enables
-  /// instrumentation to report these dependencies as edges.
-  void resolveReleaseDependencies(std::set<Command *> &list);
-  /// Creates an edge event when the dependency is a command.
-  void emitEdgeEventForCommandDependence(
-      Command *Cmd, void *ObjAddr, bool IsCommand,
-      std::optional<access::mode> AccMode = std::nullopt);
-  /// Creates an edge event when the dependency is an event.
-  void emitEdgeEventForEventDependence(Command *Cmd,
-                                       ur_event_handle_t &EventAddr);
-  /// Creates a signal event with the enqueued kernel event handle.
-  void emitEnqueuedEventSignal(const ur_event_handle_t UrEventAddr);
-  /// Create a trace event of node_create type; this must be guarded by a
-  /// check for xptiTraceEnabled().
-  /// Post Condition: MTraceEvent will be set to the event created.
-  /// \param MAddress  The address to use to create the payload.
-  uint64_t makeTraceEventProlog(void *MAddress);
-  /// If prolog has been run, run epilog; this must be guarded by a check for
-  /// xptiTraceEnabled().
-  void makeTraceEventEpilog();
-  /// Emits an event of Type.
-  void emitInstrumentation(uint16_t Type, const char *Txt = nullptr);
-
-  // End Methods needed to support SYCL instrumentation
-
   virtual void printDot(std::ostream &Stream) const = 0;
 
   virtual const Requirement *getRequirement() const {
@@ -304,10 +268,6 @@ public:
     return MPreparedDepsEvents;
   }
 
-  // XPTI instrumentation. Copy code location details to the internal struct.
-  // Memory is allocated in this method and released in destructor.
-  void copySubmissionCodeLocation();
-
   /// Contains list of dependencies(edges)
   std::vector<DepDesc> MDeps;
   /// Contains list of commands that depend on the command.
@@ -333,39 +293,6 @@ public:
 
   /// Describes the status of the command.
   std::atomic<EnqueueResultT::ResultT> MEnqueueStatus;
-
-  // All member variables defined here are needed for the SYCL instrumentation
-  // layer. Do not guard these variables below with XPTI_ENABLE_INSTRUMENTATION
-  // to ensure we have the same object layout when the macro in the library and
-  // SYCL app are not the same.
-
-  /// The event for node_create and task_begin.
-  void *MTraceEvent = nullptr;
-  /// The stream under which the traces are emitted.
-  ///
-  /// Stream ids are positive integers and we set it to an invalid value.
-  int32_t MStreamID = -1;
-  /// Reserved for storing the object address such as SPIR-V or memory object
-  /// address.
-  void *MAddress = nullptr;
-  /// Buffer to build the address string.
-  std::string MAddressString;
-  /// Buffer to build the command node type.
-  std::string MCommandNodeType;
-  /// Buffer to build the command end-user understandable name.
-  std::string MCommandName;
-  /// Flag to indicate if makeTraceEventProlog() has been run.
-  bool MTraceEventPrologComplete = false;
-  /// Instance ID tracked for the command.
-  uint64_t MInstanceID = 0;
-  /// Represents code location of command submission to SYCL API, assigned with
-  /// the valid value only if command execution is async (host task) or delayed
-  /// (blocked by host task).
-  code_location MSubmissionCodeLocation;
-  /// Introduces string to handle memory management since code_location struct
-  /// works with raw char arrays.
-  std::string MSubmissionFileName;
-  std::string MSubmissionFunctionName;
 
   // This flag allows to control whether event should be set complete
   // after successfull enqueue of command. Event is considered as "host" event
@@ -412,8 +339,6 @@ public:
   void addRequirement(Command *DepCmd, AllocaCommandBase *AllocaCmd,
                       const Requirement *Req);
 
-  void emitInstrumentationData() override;
-
   bool producesPiEvent() const final;
 
 private:
@@ -432,7 +357,6 @@ public:
   ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd);
 
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() override;
   bool producesPiEvent() const final;
   bool supportsPostEnqueueCleanup() const final;
   bool readyForCleanup() const final;
@@ -457,8 +381,6 @@ public:
   virtual void *getMemAllocation() const = 0;
 
   const Requirement *getRequirement() const final { return &MRequirement; }
-
-  void emitInstrumentationData() override;
 
   bool producesPiEvent() const final;
 
@@ -499,7 +421,6 @@ public:
 
   void *getMemAllocation() const final { return MMemAllocation; }
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() override;
 
 private:
   ur_result_t enqueueImp() final;
@@ -520,7 +441,6 @@ public:
   void *getMemAllocation() const final;
   void printDot(std::ostream &Stream) const final;
   AllocaCommandBase *getParentAlloca() { return MParentAlloca; }
-  void emitInstrumentationData() override;
 
 private:
   ur_result_t enqueueImp() final;
@@ -536,7 +456,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MSrcReq; }
-  void emitInstrumentationData() override;
 
 private:
   ur_result_t enqueueImp() final;
@@ -555,7 +474,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() override;
   bool producesPiEvent() const final;
 
 private:
@@ -576,7 +494,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
   ContextImplPtr getWorkerContext() const final;
   bool producesPiEvent() const final;
 
@@ -600,7 +517,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
   ContextImplPtr getWorkerContext() const final;
 
 private:
@@ -645,7 +561,6 @@ public:
   void clearAuxiliaryResources();
 
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() final;
   std::string_view getTypeString() const;
 
   detail::CG &getCG() const { return *MCommandGroup; }
@@ -679,19 +594,6 @@ private:
   friend class Command;
 };
 
-// For XPTI instrumentation only.
-// Method used to emit data in cases when we do not create node in graph.
-// Very close to ExecCGCommand::emitInstrumentationData content.
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-std::pair<xpti_td *, uint64_t> emitKernelInstrumentationData(
-    int32_t StreamID, const std::shared_ptr<detail::kernel_impl> &SyclKernel,
-    const detail::code_location &CodeLoc, bool IsTopCodeLoc,
-    const std::string &SyclKernelName, const QueueImplPtr &Queue,
-    const NDRDescT &NDRDesc,
-    const std::shared_ptr<detail::kernel_bundle_impl> &KernelBundleImplPtr,
-    std::vector<ArgDesc> &CGArgs);
-#endif
-
 class UpdateHostRequirementCommand : public Command {
 public:
   UpdateHostRequirementCommand(QueueImplPtr Queue, Requirement Req,
@@ -699,7 +601,6 @@ public:
 
   void printDot(std::ostream &Stream) const final;
   const Requirement *getRequirement() const final { return &MDstReq; }
-  void emitInstrumentationData() final;
 
 private:
   ur_result_t enqueueImp() final;
@@ -718,7 +619,6 @@ public:
           Nodes);
 
   void printDot(std::ostream &Stream) const final;
-  void emitInstrumentationData() final;
   bool producesPiEvent() const final;
 
 private:

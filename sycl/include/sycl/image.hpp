@@ -288,18 +288,6 @@ protected:
 
   image_channel_type getChannelType() const;
 
-  void sampledImageConstructorNotification(const detail::code_location &CodeLoc,
-                                           void *UserObj, const void *HostObj,
-                                           uint32_t Dim, size_t Range[3],
-                                           image_format Format,
-                                           const image_sampler &Sampler);
-  void sampledImageDestructorNotification(void *UserObj);
-
-  void unsampledImageConstructorNotification(
-      const detail::code_location &CodeLoc, void *UserObj, const void *HostObj,
-      uint32_t Dim, size_t Range[3], image_format Format);
-  void unsampledImageDestructorNotification(void *UserObj);
-
   std::shared_ptr<detail::image_impl> impl;
 
   const property_list &getPropList() const;
@@ -747,9 +735,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   unsampled_image(
@@ -763,9 +749,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -781,9 +765,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -801,9 +783,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   unsampled_image(
@@ -816,9 +796,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   unsampled_image(
@@ -832,9 +810,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -850,9 +826,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -870,9 +844,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   unsampled_image(
@@ -885,9 +857,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   unsampled_image(
@@ -902,9 +872,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -921,9 +889,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList, /*IsConstPtr*/ false) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -941,9 +907,7 @@ public:
             std::make_unique<
                 detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(Allocator),
             Dimensions, PropList, /*IsConstPtr*/ false) {
-    common_base::unsampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format);
+    std::ignore = CodeLoc;
   }
 
   /* -- common interface members -- */
@@ -957,12 +921,6 @@ public:
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
   ~unsampled_image() {
-    try {
-      common_base::unsampledImageDestructorNotification(
-          (void *)this->impl.get());
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~unsampled_image", e);
-    }
   }
 
   bool operator==(const unsampled_image &rhs) const {
@@ -1034,9 +992,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::sampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), nullptr, Dimensions,
-        detail::rangeToArray(Range).data(), Format, Sampler);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -1053,9 +1009,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::sampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer, Dimensions,
-        detail::rangeToArray(Range).data(), Format, Sampler);
+    std::ignore = CodeLoc;
   }
 
   sampled_image(
@@ -1069,9 +1023,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::sampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format, Sampler);
+    std::ignore = CodeLoc;
   }
 
   template <bool IsMultiDim = (Dimensions > 1),
@@ -1088,9 +1040,7 @@ public:
                     std::make_unique<
                         detail::SYCLMemObjAllocatorHolder<AllocatorT, byte>>(),
                     Dimensions, PropList) {
-    common_base::sampledImageConstructorNotification(
-        CodeLoc, (void *)this->impl.get(), HostPointer.get(), Dimensions,
-        detail::rangeToArray(Range).data(), Format, Sampler);
+    std::ignore = CodeLoc;
   }
 
   /* -- common interface members -- */
@@ -1104,11 +1054,6 @@ public:
   sampled_image &operator=(sampled_image &&rhs) = default;
 
   ~sampled_image() {
-    try {
-      common_base::sampledImageDestructorNotification((void *)this->impl.get());
-    } catch (std::exception &e) {
-      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in ~sampled_image", e);
-    }
   }
 
   bool operator==(const sampled_image &rhs) const {

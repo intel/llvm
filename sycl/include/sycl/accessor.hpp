@@ -244,11 +244,6 @@ struct AccHostDataT {
   void *Reserved = nullptr;
 };
 
-void __SYCL_EXPORT constructorNotification(void *BufferObj, void *AccessorObj,
-                                           access::target Target,
-                                           access::mode Mode,
-                                           const code_location &CodeLoc);
-
 template <typename T>
 using IsPropertyListT = typename std::is_base_of<PropertyListBase, T>;
 
@@ -956,14 +951,12 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
 #endif
   }
@@ -997,14 +990,12 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), AdjustedDim, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
 #endif
   }
@@ -1034,13 +1025,11 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1072,13 +1061,11 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1106,14 +1093,12 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1143,14 +1128,12 @@ public:
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             IsPlaceH, BufferRef.OffsetInBytes, BufferRef.IsSubBuffer,
             PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
       addHostAccessorAndWait(AccessorBaseHost::impl.get());
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1207,13 +1190,11 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1243,13 +1224,11 @@ public:
             getAdjustedMode(PropertyList),
             detail::getSyclObjImpl(BufferRef).get(), Dimensions, sizeof(DataT),
             BufferRef.OffsetInBytes, BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1420,6 +1399,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
@@ -1431,9 +1411,6 @@ public:
                             "exceed the bounds of the buffer");
 
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1463,6 +1440,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), IsPlaceH, BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (!AccessorBaseHost::isPlaceholder())
@@ -1474,9 +1452,6 @@ public:
                             "exceed the bounds of the buffer");
 
     initHostAcc();
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1535,6 +1510,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
@@ -1545,9 +1521,6 @@ public:
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1578,6 +1551,7 @@ public:
                          detail::getSyclObjImpl(BufferRef).get(), Dimensions,
                          sizeof(DataT), BufferRef.OffsetInBytes,
                          BufferRef.IsSubBuffer, PropertyList) {
+    std::ignore = CodeLoc;
     throwIfUsedByGraph();
     preScreenAccessor(PropertyList);
     if (BufferRef.isOutOfBounds(AccessOffset, AccessRange,
@@ -1588,9 +1562,6 @@ public:
 
     initHostAcc();
     detail::associateWithHandler(CommandGroupHandler, this, AccessTarget);
-    detail::constructorNotification(detail::getSyclObjImpl(BufferRef).get(),
-                                    detail::AccessorBaseHost::impl.get(),
-                                    AccessTarget, AccessMode, CodeLoc);
     GDBMethodsAnchor();
   }
 #endif
@@ -1645,10 +1616,6 @@ public:
         PropertyListT::template areSameCompileTimeProperties<NewPropsT...>(),
         "Compile-time-constant properties must be the same");
     (void)CodeLoc;
-#ifndef __SYCL_DEVICE_ONLY__
-    detail::constructorNotification(getMemoryObject(), impl.get(), AccessTarget,
-                                    AccessMode, CodeLoc);
-#endif
   }
 
   void swap(accessor &other) {
@@ -2250,8 +2217,7 @@ public:
   }
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT)) {
-    detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
-                                    access::target::local, AccessMode, CodeLoc);
+    std::ignore = CodeLoc;
     GDBMethodsAnchor();
   }
 #endif
@@ -2268,9 +2234,8 @@ public:
 #else
       : LocalAccessorBaseHost(range<3>{1, 1, 1}, AdjustedDim, sizeof(DataT),
                               propList) {
-    detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
-                                    access::target::local, AccessMode, CodeLoc);
-    GDBMethodsAnchor();
+          std::ignore = CodeLoc;
+          GDBMethodsAnchor();
   }
 #endif
 
@@ -2285,8 +2250,7 @@ public:
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT)) {
-    detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
-                                    access::target::local, AccessMode, CodeLoc);
+    std::ignore = CodeLoc;
     GDBMethodsAnchor();
   }
 #endif
@@ -2305,9 +2269,8 @@ public:
 #else
       : LocalAccessorBaseHost(detail::convertToArrayOfN<3, 1>(AllocationSize),
                               AdjustedDim, sizeof(DataT), propList) {
-    detail::constructorNotification(nullptr, LocalAccessorBaseHost::impl.get(),
-                                    access::target::local, AccessMode, CodeLoc);
-    GDBMethodsAnchor();
+          std::ignore = CodeLoc;
+          GDBMethodsAnchor();
   }
 #endif
 

@@ -46,10 +46,6 @@ bool Scheduler::checkLeavesCompletion(MemObjRecord *Record) {
 
 void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
                                       ReadLockT &GraphReadLock) {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  // Will contain the list of dependencies for the Release Command
-  std::set<Command *> DepCommands;
-#endif
   std::vector<Command *> ToCleanUp;
   for (Command *Cmd : Record->MReadLeaves) {
     EnqueueResultT Res;
@@ -58,10 +54,6 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Capture the dependencies
-    DepCommands.insert(Cmd);
-#endif
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (Command *Cmd : Record->MWriteLeaves) {
@@ -71,9 +63,6 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    DepCommands.insert(Cmd);
-#endif
     GraphProcessor::waitForEvent(Cmd->getEvent(), GraphReadLock, ToCleanUp);
   }
   for (AllocaCommandBase *AllocaCmd : Record->MAllocaCommands) {
@@ -84,11 +73,6 @@ void Scheduler::waitForRecordToFinish(MemObjRecord *Record,
     if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-    // Report these dependencies to the Command so these dependencies can be
-    // reported as edges
-    ReleaseCmd->resolveReleaseDependencies(DepCommands);
-#endif
     GraphProcessor::waitForEvent(ReleaseCmd->getEvent(), GraphReadLock,
                                  ToCleanUp);
   }

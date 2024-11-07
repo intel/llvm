@@ -265,21 +265,7 @@ event handler::finalize() {
           detail::Command::getUrEvents(impl->CGData.MEvents, MQueue, false);
       detail::EventImplPtr NewEvent;
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-      // uint32_t StreamID, uint64_t InstanceID, xpti_td* TraceEvent,
-      int32_t StreamID = xptiRegisterStream(detail::SYCL_STREAM_NAME);
-      auto [CmdTraceEvent, InstanceID] = emitKernelInstrumentationData(
-          StreamID, MKernel, MCodeLoc, impl->MIsTopCodeLoc, MKernelName.c_str(),
-          MQueue, impl->MNDRDesc, KernelBundleImpPtr, impl->MArgs);
-      auto EnqueueKernel = [&, CmdTraceEvent = CmdTraceEvent,
-                            InstanceID = InstanceID]() {
-#else
       auto EnqueueKernel = [&]() {
-#endif
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
-                                           xpti::trace_task_begin, nullptr);
-#endif
         const detail::RTDeviceBinaryImage *BinImage = nullptr;
         if (detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_KERNELS>::get()) {
           std::tie(BinImage, std::ignore) =
@@ -292,16 +278,6 @@ event handler::finalize() {
                          impl->MKernelIsCooperative,
                          impl->MKernelUsesClusterLaunch,
                          impl->MKernelWorkGroupMemorySize, BinImage);
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-        // Emit signal only when event is created
-        if (NewEvent != nullptr) {
-          detail::emitInstrumentationGeneral(
-              StreamID, InstanceID, CmdTraceEvent, xpti::trace_signal,
-              static_cast<const void *>(NewEvent->getHandle()));
-        }
-        detail::emitInstrumentationGeneral(StreamID, InstanceID, CmdTraceEvent,
-                                           xpti::trace_task_end, nullptr);
-#endif
       };
 
       bool DiscardEvent = (MQueue->MDiscardEvents || !impl->MEventNeeded) &&

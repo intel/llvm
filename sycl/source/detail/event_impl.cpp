@@ -18,19 +18,9 @@
 
 #include <chrono>
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-#include "xpti/xpti_trace_framework.hpp"
-#include <atomic>
-#include <detail/xpti_registry.hpp>
-#include <sstream>
-#endif
-
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-extern xpti::trace_event_data_t *GSYCLGraphEvent;
-#endif
 
 // If we do not yet have a context, use the default one.
 void event_impl::initContextIfNeeded() {
@@ -178,64 +168,6 @@ event_impl::event_impl(const QueueImplPtr &Queue)
   MState.store(HES_Complete);
 }
 
-void *event_impl::instrumentationProlog(std::string &Name, int32_t StreamID,
-                                        uint64_t &IId) const {
-  void *TraceEvent = nullptr;
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType = xpti::trace_wait_begin;
-  if (!xptiCheckTraceEnabled(StreamID, NotificationTraceType))
-    return TraceEvent;
-  xpti::trace_event_data_t *WaitEvent = nullptr;
-
-  // Create a string with the event address so it
-  // can be associated with other debug data
-  xpti::utils::StringHelper SH;
-  Name = SH.nameWithAddress<ur_event_handle_t>("event.wait", this->getHandle());
-
-  // We can emit the wait associated with the graph if the
-  // event does not have a command object or associated with
-  // the command object, if it exists
-  if (MCommand) {
-    Command *Cmd = (Command *)MCommand;
-    WaitEvent = Cmd->MTraceEvent ? static_cast<xpti_td *>(Cmd->MTraceEvent)
-                                 : GSYCLGraphEvent;
-  } else {
-    // If queue.wait() is used, we want to make sure the information about the
-    // queue is available with the wait events. We check to see if the
-    // TraceEvent is available in the Queue object.
-    void *TraceEvent = nullptr;
-    if (QueueImplPtr Queue = MQueue.lock()) {
-      TraceEvent = Queue->getTraceEvent();
-      WaitEvent =
-          (TraceEvent ? static_cast<xpti_td *>(TraceEvent) : GSYCLGraphEvent);
-    } else
-      WaitEvent = GSYCLGraphEvent;
-  }
-  // Record the current instance ID for use by Epilog
-  IId = xptiGetUniqueId();
-  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, WaitEvent,
-                        IId, static_cast<const void *>(Name.c_str()));
-  TraceEvent = (void *)WaitEvent;
-#endif
-  return TraceEvent;
-}
-
-void event_impl::instrumentationEpilog(void *TelemetryEvent,
-                                       const std::string &Name,
-                                       int32_t StreamID, uint64_t IId) const {
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  constexpr uint16_t NotificationTraceType = xpti::trace_wait_end;
-  if (!(xptiCheckTraceEnabled(StreamID, NotificationTraceType) &&
-        TelemetryEvent))
-    return;
-  // Close the wait() scope
-  xpti::trace_event_data_t *TraceEvent =
-      (xpti::trace_event_data_t *)TelemetryEvent;
-  xptiNotifySubscribers(StreamID, NotificationTraceType, nullptr, TraceEvent,
-                        IId, static_cast<const void *>(Name.c_str()));
-#endif
-}
-
 void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                       bool *Success) {
   if (MState == HES_Discarded)
@@ -248,14 +180,6 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
                           "with a command graph.");
   }
 
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  void *TelemetryEvent = nullptr;
-  uint64_t IId = 0;
-  std::string Name;
-  int32_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  TelemetryEvent = instrumentationProlog(Name, StreamID, IId);
-#endif
-
   auto EventHandle = getHandle();
   if (EventHandle)
     // presence of the native handle means the command has been enqueued, so no
@@ -263,10 +187,6 @@ void event_impl::wait(std::shared_ptr<sycl::detail::event_impl> Self,
     waitInternal(Success);
   else if (MCommand)
     detail::Scheduler::getInstance().waitForEvent(Self, Success);
-
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  instrumentationEpilog(TelemetryEvent, Name, StreamID, IId);
-#endif
 }
 
 void event_impl::wait_and_throw(

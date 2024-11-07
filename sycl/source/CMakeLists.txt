@@ -300,7 +300,6 @@ set(SYCL_COMMON_SOURCES
     "detail/usm/usm_impl.cpp"
     "detail/ur.cpp"
     "detail/util.cpp"
-    "detail/xpti_registry.cpp"
     "accessor.cpp"
     "buffer.cpp"
     "context.cpp"

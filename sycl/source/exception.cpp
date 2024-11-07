@@ -34,9 +34,7 @@ exception::exception(int EV, const std::error_category &ECat)
 exception::exception(std::error_code EC, std::shared_ptr<context> SharedPtrCtx,
                      const char *WhatArg)
     : MMsg(std::make_shared<detail::string>(WhatArg)),
-      MErr(UR_RESULT_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {
-  detail::GlobalHandler::instance().TraceEventXPTI(MMsg->c_str());
-}
+      MErr(UR_RESULT_ERROR_INVALID_VALUE), MContext(SharedPtrCtx), MErrC(EC) {}
 
 exception::~exception() {}
 

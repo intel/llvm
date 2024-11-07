@@ -24,7 +24,6 @@ class ProgramManager;
 class Sync;
 class Adapter;
 class ods_target_list;
-class XPTIRegistry;
 class ThreadPool;
 
 using PlatformImplPtr = std::shared_ptr<platform_impl>;
@@ -70,7 +69,6 @@ public:
   std::mutex &getFilterMutex();
   std::vector<AdapterPtr> &getAdapters();
   ods_target_list &getOneapiDeviceSelectorTargets(const std::string &InitValue);
-  XPTIRegistry &getXPTIRegistry();
   ThreadPool &getHostTaskThreadPool();
 
   static void registerEarlyShutdownHandler();
@@ -82,16 +80,10 @@ public:
   void drainThreadPool();
   void prepareSchedulerToRelease(bool Blocking);
 
-  void InitXPTI();
-  void TraceEventXPTI(const char *Message);
-
   // For testing purposes only
   void attachScheduler(Scheduler *Scheduler);
 
 private:
-#ifdef XPTI_ENABLE_INSTRUMENTATION
-  void *GSYCLCallEvent = nullptr;
-#endif
 
   bool OkToDefer = true;
 
@@ -126,7 +118,6 @@ private:
   InstWithLock<std::mutex> MFilterMutex;
   InstWithLock<std::vector<AdapterPtr>> MAdapters;
   InstWithLock<ods_target_list> MOneapiDeviceSelectorTargets;
-  InstWithLock<XPTIRegistry> MXPTIRegistry;
   // Thread pool for host task and event callbacks execution
   InstWithLock<ThreadPool> MHostTaskThreadPool;
 };

@@ -51,16 +51,6 @@ template <typename T> struct IsValidSampledCoord2020DataT<3, T> {
   constexpr static bool value = std::is_same_v<T, float4>;
 };
 
-void __SYCL_EXPORT unsampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj,
-    const std::optional<image_target> &Target, access::mode Mode,
-    const void *Type, uint32_t ElemSize, const code_location &CodeLoc);
-
-void __SYCL_EXPORT sampledImageConstructorNotification(
-    void *ImageObj, void *AccessorObj,
-    const std::optional<image_target> &Target, const void *Type,
-    uint32_t ElemSize, const code_location &CodeLoc);
-
 class UnsampledImageAccessorImplHost;
 class SampledImageAccessorImplHost;
 using UnsampledImageAccessorImplPtr =
@@ -77,7 +67,6 @@ class __SYCL_EXPORT UnsampledImageAccessorBaseHost {
 protected:
   UnsampledImageAccessorBaseHost(const UnsampledImageAccessorImplPtr &Impl)
       : impl{Impl} {}
-
 public:
   UnsampledImageAccessorBaseHost(sycl::range<3> Size, access_mode AccessMode,
                                  void *SYCLMemObject, int Dims, int ElemSize,
@@ -819,6 +808,7 @@ public:
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                         PropList) {
+    std::ignore = CodeLoc;
     device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     // Avoid aspect::image warning.
     aspect ImageAspect = aspect::image;
@@ -828,9 +818,6 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
-    detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
-        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -972,11 +959,8 @@ public:
                    {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    PropList) {
+    std::ignore = CodeLoc;
     addHostUnsampledImageAccessorAndWait(base_class::impl.get());
-
-    detail::unsampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
-        AccessMode, (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */
@@ -1120,6 +1104,7 @@ public:
                         {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                         ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                         ImageRef.getSampler(), PropList) {
+    std::ignore = CodeLoc;
     device Device = detail::getDeviceFromHandler(CommandGroupHandlerRef);
     // Avoid aspect::image warning.
     aspect ImageAspect = aspect::image;
@@ -1129,9 +1114,6 @@ public:
           "Device associated with command group handler does not have "
           "aspect::image.");
 
-    detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), AccessTarget,
-        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
     detail::associateWithHandler(CommandGroupHandlerRef, this, AccessTarget);
     GDBMethodsAnchor();
   }
@@ -1249,11 +1231,8 @@ public:
                    {ImageRef.getRowPitch(), ImageRef.getSlicePitch(), 0},
                    ImageRef.getChannelType(), ImageRef.getChannelOrder(),
                    ImageRef.getSampler(), PropList) {
+    std::ignore = CodeLoc;
     addHostSampledImageAccessorAndWait(base_class::impl.get());
-
-    detail::sampledImageConstructorNotification(
-        detail::getSyclObjImpl(ImageRef).get(), this->impl.get(), std::nullopt,
-        (const void *)typeid(DataT).name(), sizeof(DataT), CodeLoc);
   }
 
   /* -- common interface members -- */
