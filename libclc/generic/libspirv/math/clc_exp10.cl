@@ -23,6 +23,7 @@
 #include <spirv/spirv.h>
 #include <clc/clc.h>
 #include <clc/clcmacro.h>
+#include <clc/relational/clc_isnan.h>
 
 #include "tables.h"
 #include <config.h>
