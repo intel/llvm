@@ -51,11 +51,7 @@ int main() {
     size_t AlignedByteSize = GetAlignedByteSize(BytesRequired, UsedGranularity);
 
     syclext::physical_mem PhysicalMem{Device, Context, AlignedByteSize};
-
-    PhysicalMem.get_context();
-    PhysicalMem.get_device();
-    PhysicalMem.size();
-
+    
     assert(PhysicalMem.get_device() == Device &&
            "device passed to physical_mem must be the same as returned from "
            "get_device()");
