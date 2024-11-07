@@ -104,10 +104,17 @@ int main() {
     void *MappedPtr = PhysicalMem.map(VirtualMemoryPtr, AlignedByteSize,
                                       syclext::address_access_mode::read_write);
 
+    syclext::address_access_mode CurrentAccessMode =
+        syclext::get_access_mode(MappedPtr, AlignedByteSize, Context);
+
+    assert(CurrentAccessMode == syclext::address_access_mode::read &&
+           "access mode must be address_access_mode::read_write before change with "
+           "set_access_mode()");
+
     syclext::set_access_mode(MappedPtr, AlignedByteSize,
                              syclext::address_access_mode::read, Context);
 
-    syclext::address_access_mode CurrentAccessMode =
+    CurrentAccessMode =
         syclext::get_access_mode(MappedPtr, AlignedByteSize, Context);
 
     assert(CurrentAccessMode == syclext::address_access_mode::read &&
