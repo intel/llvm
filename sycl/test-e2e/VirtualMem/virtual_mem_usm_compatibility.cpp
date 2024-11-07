@@ -42,7 +42,7 @@ int main() {
           [=](sycl::id<1> Idx) { DataPtr[Idx] = ValueSetInKernelForCopyToUSM; })
       .wait_and_throw();
 
-  // Check that can copy from virtual memory to a USM allocation
+  // Check that one can copy from virtual memory to a USM allocation.
   int *CopyBack = sycl::malloc_shared<int>(NumberOfElements, Queue);
 
   Queue
