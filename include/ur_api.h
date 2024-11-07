@@ -2515,8 +2515,12 @@ typedef enum ur_mem_type_t {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Memory Information type
 typedef enum ur_mem_info_t {
-    UR_MEM_INFO_SIZE = 0,    ///< [size_t] actual size of of memory object in bytes
-    UR_MEM_INFO_CONTEXT = 1, ///< [::ur_context_handle_t] context in which the memory object was created
+    UR_MEM_INFO_SIZE = 0,            ///< [size_t] actual size of of memory object in bytes
+    UR_MEM_INFO_CONTEXT = 1,         ///< [::ur_context_handle_t] context in which the memory object was created
+    UR_MEM_INFO_REFERENCE_COUNT = 2, ///< [uint32_t] Reference count of the memory object.
+                                     ///< The reference count returned should be considered immediately stale.
+                                     ///< It is unsuitable for general use in applications. This feature is
+                                     ///< provided for identifying memory leaks.
     /// @cond
     UR_MEM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -2650,6 +2654,7 @@ typedef struct ur_image_desc_t {
 ///     - ::UR_RESULT_ERROR_INVALID_CONTEXT
 ///     - ::UR_RESULT_ERROR_INVALID_VALUE
 ///     - ::UR_RESULT_ERROR_INVALID_IMAGE_FORMAT_DESCRIPTOR
+///         + `pImageDesc && UR_STRUCTURE_TYPE_IMAGE_DESC != pImageDesc->stype`
 ///         + `pImageDesc && UR_MEM_TYPE_IMAGE1D_ARRAY < pImageDesc->type`
 ///         + `pImageDesc && pImageDesc->numMipLevel != 0`
 ///         + `pImageDesc && pImageDesc->numSamples != 0`
@@ -2990,7 +2995,7 @@ urMemImageCreateWithNativeHandle(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hMemory`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_MEM_INFO_CONTEXT < propName`
+///         + `::UR_MEM_INFO_REFERENCE_COUNT < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
