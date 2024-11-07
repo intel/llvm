@@ -166,11 +166,10 @@ extern T __spirv_AtomicMax(std::atomic<T> *Ptr, __spv::Scope::Flag,
 
 namespace sycl {
 inline namespace _V1 {
-namespace detail {
 
 template <typename T, access::address_space addressSpace =
                           access::address_space::global_space>
-class atomic {
+class __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") atomic {
   friend class atomic<T, access::address_space::global_space>;
   static_assert(detail::IsValidAtomicType<T>::value,
                 "Invalid SYCL atomic type. Valid types are: int, "
@@ -400,15 +399,6 @@ T atomic_fetch_max(atomic<T, addressSpace> Object, T Operand,
                    memory_order MemoryOrder = memory_order::relaxed) {
   return Object.fetch_max(Operand, MemoryOrder);
 }
-} // namespace detail
-// This alias is a workaround to allow accessor to use the deprecated
-// cl::sycl::atomic class without causing deprecation warnings without the user
-// explicitly using the corresponding accessor APIs.
-template <typename T, access::address_space addressSpace =
-                          access::address_space::global_space>
-using atomic __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") =
-    detail::atomic<T, addressSpace>;
-
 } // namespace _V1
 } // namespace sycl
 
