@@ -27,8 +27,7 @@ template <typename T> inline constexpr bool is_vector_v = is_vector<T>::value;
 
 // Get the length of a vector type. Used in submitAndCheck to iterate over the
 // elements of the vector type. Default case: length is 1.
-template <typename T>
-struct vector_length {
+template <typename T> struct vector_length {
   static constexpr std::size_t value = 1;
 };
 // Specialization for vector types. If T has
@@ -43,21 +42,19 @@ inline constexpr std::size_t vector_length_v = vector_length<T>::value;
 // Get the element type of a vector type. Used in submitVecCombinations to
 // convert unsigned vector types to signed vector types for return type. Primary
 // template for element_type.
-template <typename T>
-struct element_type;
-// Specialization for vector types. If T has __attribute__((ext_vector_type(N))), return T.
+template <typename T> struct element_type;
+// Specialization for vector types. If T has
+// __attribute__((ext_vector_type(N))), return T.
 template <typename T, int N>
 struct element_type<T __attribute__((ext_vector_type(N)))> {
   using type = T;
 };
 // Helper alias template.
-template <typename T>
-using element_type_t = typename element_type<T>::type;
+template <typename T> using element_type_t = typename element_type<T>::type;
 
 // TypeList for packing the types that we want to test.
 // Base case for variadic template recursion.
-template <typename...>
-struct TypeList {};
+template <typename...> struct TypeList {};
 
 // Function to trigger llvm.scmp/ucmp.
 template <typename RetTy, typename ArgTy>
@@ -107,13 +104,15 @@ void submitAndCheckCombination(sycl::queue &q, int x, int y) {
 
 // Recursive case to generate combinations.
 template <typename RetType, typename... RetTypes, typename... ArgTypes>
-void submitCombinations(sycl::queue &q, int x, int y, TypeList<RetType, RetTypes...>, TypeList<ArgTypes...>) {
+void submitCombinations(sycl::queue &q, int x, int y,
+                        TypeList<RetType, RetTypes...>, TypeList<ArgTypes...>) {
   (submitAndCheckCombination<RetType, ArgTypes>(q, x, y), ...);
   submitCombinations(q, x, y, TypeList<RetTypes...>{}, TypeList<ArgTypes...>{});
 }
 // Base case to stop recursion.
 template <typename... ArgTypes>
-void submitCombinations(sycl::queue &, int, int, TypeList<>, TypeList<ArgTypes...>) {}
+void submitCombinations(sycl::queue &, int, int, TypeList<>,
+                        TypeList<ArgTypes...>) {}
 
 // Function to generate all the combinations out of the given list.
 // It implements the following pseudocode :
@@ -122,7 +121,8 @@ void submitCombinations(sycl::queue &, int, int, TypeList<>, TypeList<ArgTypes..
 
 // Recursive case to generate combinations.
 template <typename ArgType, typename... ArgTypes>
-void submitVecCombinations(sycl::queue &q, int x, int y, TypeList<ArgType, ArgTypes...>) {
+void submitVecCombinations(sycl::queue &q, int x, int y,
+                           TypeList<ArgType, ArgTypes...>) {
   // Use signed types for return type, as it may return -1.
   using ElemType = std::make_signed_t<element_type_t<ArgType>>;
   using RetType =
