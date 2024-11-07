@@ -1,7 +1,10 @@
-# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
-# Merge: 9a209aa5 b1222f08
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 13 09:57:16 2024 +0000
-#     Merge pull request #2254 from PietroGhg/pietro/events_rr
-#     [NATIVECPU] Implement events on Native CPU
-set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)
+# commit 6c54509c921c5f788ff35456b0fa8c882d9b4213 (HEAD -> main)
+# Author: Artur Gainullin <artur.gainullin@intel.com>
+# Date:   Wed Nov 6 16:05:50 2024 -0800
+#
+#     [L0] Fix binary sizes and binaries returned by urProgramGetInfo
+#
+#     Currently urProgramGetInfo will return UR_INVALID_PROGRAM is program is
+#     compiled only for a subset of associated devices, i.e. not all devices
+#     have level zero module and binaries. This PR fixes this behaviour.
+set(UNIFIED_RUNTIME_TAG 6c54509c921c5f788ff35456b0fa8c882d9b4213)

@@ -511,9 +511,17 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
     const std::string &CompileAndLinkOptions, SerializedObj SpecConsts) {
   ur_program_handle_t NativePrg; // TODO: Or native?
 
-  auto BinProg = PersistentDeviceCodeCache::getItemFromDisc(
-      Devices[0], AllImages, SpecConsts, CompileAndLinkOptions);
-  if (BinProg.size()) {
+  // Get binaries for each device (1:1 correpsondence with input Devices).
+  auto Binaries = PersistentDeviceCodeCache::getItemFromDisc(
+      Devices, AllImages, SpecConsts, CompileAndLinkOptions);
+  if (!Binaries.empty()) {
+    std::vector<const uint8_t *> BinPtrs;
+    std::vector<size_t> Lengths;
+    for (auto &Bin : Binaries) {
+      Lengths.push_back(Bin.size());
+      BinPtrs.push_back(reinterpret_cast<const uint8_t *>(Bin.data()));
+    }
+
     // Get program metadata from properties
     std::vector<ur_program_metadata_t> ProgMetadataVector;
     for (const RTDeviceBinaryImage *Img : AllImages) {
@@ -521,16 +529,13 @@ std::pair<ur_program_handle_t, bool> ProgramManager::getOrCreateURProgram(
       ProgMetadataVector.insert(ProgMetadataVector.end(),
                                 ImgProgMetadata.begin(), ImgProgMetadata.end());
     }
-    std::vector<const uint8_t *> Binaries(Devices.size(),
-                                          (const uint8_t *)BinProg[0].data());
-    std::vector<size_t> Lengths(Devices.size(), BinProg[0].size());
     NativePrg =
-        createBinaryProgram(getSyclObjImpl(Context), Devices, Binaries.data(),
+        createBinaryProgram(getSyclObjImpl(Context), Devices, BinPtrs.data(),
                             Lengths.data(), ProgMetadataVector);
   } else {
     NativePrg = createURProgram(MainImg, Context, Devices);
   }
-  return {NativePrg, BinProg.size()};
+  return {NativePrg, Binaries.size()};
 }
 
 /// Emits information about built programs if the appropriate contitions are
@@ -901,7 +906,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache) {
-      PersistentDeviceCodeCache::putItemToDisc(Device, AllImages, SpecConsts,
+      PersistentDeviceCodeCache::putItemToDisc({Device}, AllImages, SpecConsts,
                                                CompileOpts + LinkOpts,
                                                BuiltProgram.get());
     }
@@ -2698,9 +2703,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
 
     // Save program to persistent cache if it is not there
     if (!DeviceCodeWasInCache)
-      PersistentDeviceCodeCache::putItemToDisc(Devs[0], {&Img}, SpecConsts,
-                                               CompileOpts + LinkOpts,
-                                               BuiltProgram.get());
+      PersistentDeviceCodeCache::putItemToDisc(
+          Devs, {&Img}, SpecConsts, CompileOpts + LinkOpts, BuiltProgram.get());
 
     return BuiltProgram.release();
   };
