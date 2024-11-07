@@ -54,9 +54,8 @@ jobs:
         id: download-bench-html
         uses: actions/cache/restore@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
         with:
-          path: ${{ github.workspace }}/ur-repo/benchmark_results.html
+          path: ur-repo/benchmark_results.html
           key: benchmark-results-
-          restore-keys: benchmark-results-
 
       - name: Move benchmark HTML
         # exact or partial cache hit
