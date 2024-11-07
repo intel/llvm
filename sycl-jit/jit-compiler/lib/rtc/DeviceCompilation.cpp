@@ -92,7 +92,7 @@ static const std::string &getDPCPPRoot() {
 #endif // _GNU_SOURCE
 
 #ifdef _WIN32
-  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).string();
+  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
 #endif // _WIN32
 
 std::cout << "DPCPPRoot: " << DPCPPRoot << std::endl;
