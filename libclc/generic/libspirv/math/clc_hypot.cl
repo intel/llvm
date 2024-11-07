@@ -9,11 +9,7 @@
 #include <spirv/spirv.h>
 
 #include <clc/clc.h>
-<<<<<<< HEAD:libclc/generic/libspirv/math/clc_hypot.cl
-=======
 #include <clc/clcmacro.h>
-#include <clc/integer/clc_abs.h>
->>>>>>> 7be30fd5335ca7fe050ee1789ea2648f014daf1b:libclc/generic/lib/math/clc_hypot.cl
 #include <clc/shared/clc_clamp.h>
 #include <clc/clcmacro.h>
 #include <config.h>
@@ -74,11 +70,7 @@ _CLC_DEF _CLC_OVERLOAD double __clc_hypot(double x, double y) {
 
   // If the difference in exponents between x and y is large
   double s = x + y;
-<<<<<<< HEAD:libclc/generic/libspirv/math/clc_hypot.cl
   c = __spirv_ocl_s_abs(xexp - yexp) > MANTLENGTH_DP64 + 1;
-=======
-  c = __clc_abs(xexp - yexp) > MANTLENGTH_DP64 + 1;
->>>>>>> 7be30fd5335ca7fe050ee1789ea2648f014daf1b:libclc/generic/lib/math/clc_hypot.cl
   r = c ? s : r;
 
   // Check for NaN
