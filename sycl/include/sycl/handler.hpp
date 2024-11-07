@@ -43,7 +43,6 @@
 #include <sycl/id.hpp>
 #include <sycl/item.hpp>
 #include <sycl/kernel.hpp>
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
 #include <sycl/kernel_handler.hpp>
 #include <sycl/nd_item.hpp>
@@ -1730,36 +1729,18 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
+  // This is somewhat radical, but to make handler.hpp independtent from
+  // kernel_bundle.hpp, we define those methods within kernel_bundle.hpp
+  // header. Independence is needed in context of potential upcoming split of
+  // sycl.hpp so that users could do fine-grained include's, saving on
+  // compilation time by avoiding using headers for features they don't use.
   template <auto &SpecName>
   void set_specialization_constant(
-      typename std::remove_reference_t<decltype(SpecName)>::value_type Value) {
-
-    setStateSpecConstSet();
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-        KernelBundleImplPtr)
-        .set_specialization_constant<SpecName>(Value);
-  }
+      typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
-  get_specialization_constant() const {
-
-    if (isStateExplicitKernelBundle())
-      throw sycl::exception(make_error_code(errc::invalid),
-                            "Specialization constants cannot be read after "
-                            "explicitly setting the used kernel bundle");
-
-    std::shared_ptr<detail::kernel_bundle_impl> KernelBundleImplPtr =
-        getOrInsertHandlerKernelBundle(/*Insert=*/true);
-
-    return detail::createSyclObjFromImpl<kernel_bundle<bundle_state::input>>(
-               KernelBundleImplPtr)
-        .get_specialization_constant<SpecName>();
-  }
+  get_specialization_constant() const;
 
   void
   use_kernel_bundle(const kernel_bundle<bundle_state::executable> &ExecBundle);

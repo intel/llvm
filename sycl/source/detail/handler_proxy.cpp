@@ -8,8 +8,6 @@
 
 #include <sycl/detail/handler_proxy.hpp>
 
-// FIXME: that's a hack
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/handler.hpp>
 
 namespace sycl {

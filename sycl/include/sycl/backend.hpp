@@ -25,7 +25,6 @@
 #include <sycl/feature_test.hpp>              // for SYCL_BACKEND_OP...
 #include <sycl/image.hpp>                     // for image, image_al...
 #include <sycl/kernel.hpp>                    // for kernel, get_native
-#include <sycl/kernel_bundle.hpp>
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <sycl/platform.hpp>            // for platform, get_n...
 #include <sycl/property_list.hpp>       // for property_list
@@ -46,7 +45,7 @@
 #include <sycl/detail/backend_traits_hip.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-#include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
+// #include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
 #endif
 
 #include <sycl/detail/ur.hpp>
@@ -58,6 +57,9 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+template<bundle_state State>
+class kernel_bundle;
 
 namespace detail {
 // TODO each backend can have its own custom errc enumeration
@@ -150,6 +152,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
   int32_t IsImmCmdList;
   ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
   backend_return_t<BackendName, queue> RetVal;
+#if 0 && SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   if constexpr (BackendName == backend::ext_oneapi_level_zero)
     RetVal = IsImmCmdList
                  ? backend_return_t<BackendName, queue>{reinterpret_cast<
@@ -157,6 +160,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
                  : backend_return_t<BackendName, queue>{
                        reinterpret_cast<ze_command_queue_handle_t>(Handle)};
   else
+#endif
     RetVal = reinterpret_cast<backend_return_t<BackendName, queue>>(Handle);
 
   return RetVal;
