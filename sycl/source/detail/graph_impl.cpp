@@ -14,6 +14,9 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
 #include <sycl/detail/common.hpp>
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
 #include <sycl/feature_test.hpp>
 #include <sycl/queue.hpp>
 
@@ -703,9 +706,11 @@ exec_graph_impl::enqueueNodeDirect(sycl::context Ctx,
   ur_result_t Res = sycl::detail::enqueueImpCommandBufferKernel(
       Ctx, DeviceImpl, CommandBuffer,
       *static_cast<sycl::detail::CGExecKernel *>((Node->MCommandGroup.get())),
-      Deps, &NewSyncPoint, &NewCommand, nullptr);
+      Deps, &NewSyncPoint, MIsUpdatable ? &NewCommand : nullptr, nullptr);
 
-  MCommandMap[Node] = NewCommand;
+  if (MIsUpdatable) {
+    MCommandMap[Node] = NewCommand;
+  }
 
   if (Res != UR_RESULT_SUCCESS) {
     throw sycl::exception(errc::invalid,
@@ -741,7 +746,10 @@ ur_exp_command_buffer_sync_point_t exec_graph_impl::enqueueNode(
           Node->getCGCopy(), AllocaQueue, /*EventNeeded=*/true, CommandBuffer,
           Deps);
 
-  MCommandMap[Node] = Event->getCommandBufferCommand();
+  if (MIsUpdatable) {
+    MCommandMap[Node] = Event->getCommandBufferCommand();
+  }
+
   return Event->getSyncPoint();
 }
 void exec_graph_impl::createCommandBuffers(
@@ -1507,7 +1515,7 @@ void exec_graph_impl::updateImpl(std::shared_ptr<node_impl> Node) {
     }
   }
 
-  UpdateDesc.hNewKernel = UrKernel;
+  UpdateDesc.hNewKernel = nullptr;
   UpdateDesc.numNewMemObjArgs = MemobjDescs.size();
   UpdateDesc.pNewMemObjArgList = MemobjDescs.data();
   UpdateDesc.numNewPointerArgs = PtrDescs.size();
@@ -1680,8 +1688,15 @@ void modifiable_command_graph::end_recording(
   }
 }
 
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
+#else
 void modifiable_command_graph::print_graph(std::string path,
+#endif
                                            bool verbose) const {
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  std::string path{pathstr.data()};
+#endif
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);

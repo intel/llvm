@@ -25,7 +25,7 @@
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: detail/type_traits.hpp
-// CHECK-NEXT: detail/generic_type_lists.hpp
+// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: detail/type_list.hpp
 // CHECK-NEXT: detail/boost/mp11/algorithm.hpp
 // CHECK-NEXT: detail/boost/mp11/list.hpp
@@ -136,8 +136,8 @@
 // CHECK-NEXT: ext/oneapi/device_global/properties.hpp
 // CHECK-NEXT: ext/oneapi/properties/property.hpp
 // CHECK-NEXT: ext/oneapi/properties/property_value.hpp
-// CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/properties/properties.hpp
+// CHECK-NEXT: ext/oneapi/properties/property_utils.hpp
 // CHECK-NEXT: ext/oneapi/experimental/graph.hpp
 // CHECK-NEXT: handler.hpp
 // CHECK-NEXT: detail/cl.h

@@ -54,8 +54,8 @@ void TranslatorOpts::enableAllExtensions() {
 #undef EXT
 }
 
-bool TranslatorOpts::isUnknownIntrinsicAllowed(IntrinsicInst *II) const
-    noexcept {
+bool TranslatorOpts::isUnknownIntrinsicAllowed(
+    IntrinsicInst *II) const noexcept {
   if (!SPIRVAllowUnknownIntrinsics.has_value())
     return false;
   const auto &IntrinsicPrefixList = SPIRVAllowUnknownIntrinsics.value();

@@ -10,8 +10,7 @@
 // RUN: %{run} %t.out
 
 // XFAIL: cpu
-// https://github.com/intel/llvm/issues/14826
-// XFAIL: arch-intel_gpu_pvc && !igc-dev
+// XFAIL-TRACKER: CMPLRLLVM-62790
 
 #include "../common.hpp"
 
