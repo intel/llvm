@@ -107,7 +107,7 @@ int main() {
     syclext::address_access_mode CurrentAccessMode =
         syclext::get_access_mode(MappedPtr, AlignedByteSize, Context);
 
-    assert(CurrentAccessMode == syclext::address_access_mode::read &&
+    assert(CurrentAccessMode == syclext::address_access_mode::read_write &&
            "access mode must be address_access_mode::read_write before change with "
            "set_access_mode()");
 
