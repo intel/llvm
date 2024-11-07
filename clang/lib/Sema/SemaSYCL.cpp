@@ -6283,16 +6283,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "#include <sycl/detail/defines_elementary.hpp>\n";
   O << "#include <sycl/detail/kernel_desc.hpp>\n";
   O << "#include <sycl/ext/oneapi/experimental/free_function_traits.hpp>\n";
-  // When using work group memory parameters in free kernel functions, the
-  // integration header emits incorrect forward declarations for the work group
-  // memory type because it ignores default arguments. This means the user
-  // cannot use work group memory types with parameters omitted such as
-  // work_group_memory<int> where the hidden second parameter has a default
-  // value. To circumvent this, we include the correct forward declaration
-  // ourselves.
-  O << "#include <tuple>\n";
-  O << "#include "
-       "<sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>\n";
   O << "\n";
 
   LangOptions LO;
@@ -6560,6 +6550,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
+    Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
@@ -6572,11 +6563,12 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
         FirstParam = false;
       else
         ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString();
+      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
+    Policy.EnforceDefaultTemplateArgs = true;
     if (FTD) {
       FTD->print(O, Policy);
     } else {
@@ -6605,6 +6597,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << ";\n";
     O << "}\n";
+    Policy.SuppressDefaultTemplateArgs = true;
+    Policy.EnforceDefaultTemplateArgs = false;
 
     // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
     O << "namespace sycl {\n";

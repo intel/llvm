@@ -1,5 +1,4 @@
 //===-------------------- work_group_memory.hpp ---------------------------===//
-//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -9,7 +8,6 @@
 #pragma once
 
 #include <tuple>
-#include <sycl/ext/oneapi/experimental/work_group_memory_forward_decl.hpp>
 #include <type_traits>
 
 namespace sycl {
@@ -38,7 +36,9 @@ private:
 } // namespace detail
 namespace ext::oneapi::experimental {
 
-template <typename DataT, typename PropertyListT>
+template <typename DataT,
+          typename PropertyListT =
+              sycl::ext::oneapi::experimental::properties<std::tuple<>>>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : public sycl::detail::work_group_memory_impl {
 public:
