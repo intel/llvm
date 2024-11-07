@@ -4950,6 +4950,12 @@ def ArithmeticFence : LangBuiltin<"ALL_LANGUAGES"> {
   let Prototype = "void(...)";
 }
 
+def CountedByRef : Builtin {
+  let Spellings = ["__builtin_counted_by_ref"];
+  let Attributes = [NoThrow, CustomTypeChecking];
+  let Prototype = "int(...)";
+}
+
 // Builtins for Intel SYCL
 def IntelSYCLPtrAnnotation : Builtin {
   let Spellings = ["__builtin_intel_sycl_ptr_annotation"];
@@ -4981,3 +4987,4 @@ def IntelSYCLFPGAMem : Builtin {
   let Attributes = [NoThrow, CustomTypeChecking];
   let Prototype = "void(...)";
 }
+
