@@ -51,7 +51,7 @@ int main() {
     size_t AlignedByteSize = GetAlignedByteSize(BytesRequired, UsedGranularity);
 
     syclext::physical_mem PhysicalMem{Device, Context, AlignedByteSize};
-    
+
     assert(PhysicalMem.get_device() == Device &&
            "device passed to physical_mem must be the same as returned from "
            "get_device()");
@@ -104,7 +104,8 @@ int main() {
         syclext::get_access_mode(MappedPtr, AlignedByteSize, Context);
 
     assert(CurrentAccessMode == syclext::address_access_mode::read_write &&
-           "access mode must be address_access_mode::read_write before change with "
+           "access mode must be address_access_mode::read_write before change "
+           "with "
            "set_access_mode()");
 
     syclext::set_access_mode(MappedPtr, AlignedByteSize,
