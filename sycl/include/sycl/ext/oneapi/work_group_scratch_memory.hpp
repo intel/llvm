@@ -28,23 +28,17 @@ inline void *get_work_group_scratch_memory() {
 }
 
 // Property
-struct work_group_scratch_size_key
-    : ::sycl::ext::oneapi::experimental::detail::compile_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem>,
-      property_value<work_group_scratch_size_key> {
-  using value_t = property_value<work_group_scratch_size_key>;
-};
-
 struct work_group_scratch_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem>,
-      work_group_scratch_size_key {
-  using value_t = work_group_scratch_size_key::value_t;
+          work_group_scratch_size,
+          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem> {
   // Runtime property part
   constexpr work_group_scratch_size(size_t bytes) : size(bytes) {}
 
   size_t size;
 };
+
+using work_group_scratch_size_key = work_group_scratch_size;
 
 template <> struct is_property_key<work_group_scratch_size> : std::true_type {};
 

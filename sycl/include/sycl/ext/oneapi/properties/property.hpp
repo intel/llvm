@@ -241,7 +241,6 @@ struct property_base : property_tag {
 
 struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
-struct run_time_property_key_base_tag : property_key_base_tag {};
 
 template <typename property_t, PropKind Kind_>
 struct run_time_property_key : property_key_base_tag,
@@ -273,7 +272,7 @@ template <typename PropertyT>
 struct IsRuntimeProperty
     : std::bool_constant<
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          std::is_base_of_v<run_time_property_key_base_tag, PropertyT>> {};
+          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
 // Trait for identifying compile-time properties.
 template <typename PropertyT>
