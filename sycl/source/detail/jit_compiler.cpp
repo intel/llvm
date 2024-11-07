@@ -31,10 +31,9 @@ static inline void printPerformanceWarning(const std::string &Message) {
 
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
-    // TODO: For Windows, we need to look for a libary by a different name.
 #ifdef _WIN32
     static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
-    static const std::string JITLibraryName = dir +  "\\" + "sycl-jit.dll";
+    static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
 #else
     static const std::string JITLibraryName = "libsycl-jit.so";
 #endif
@@ -45,7 +44,6 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
-    
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
@@ -54,7 +52,6 @@ jit_compiler::jit_compiler() {
           "Cannot resolve JIT library function entry point");
       return false;
     }
-    
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
         sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,

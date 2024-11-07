@@ -97,10 +97,3 @@ if(NOT MSVC AND NOT APPLE)
     sycl-jit PRIVATE "-Wl,--version-script=${linker_script}")
   set_target_properties(sycl-jit PROPERTIES LINK_DEPENDS ${linker_script})
 endif()
-
-# Ensure output directory is set correctly for Windows
-# set_target_properties(sycl-jit PROPERTIES
-#  RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-#  LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-#  ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-#)

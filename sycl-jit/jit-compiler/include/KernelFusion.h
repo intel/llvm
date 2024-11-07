@@ -64,22 +64,22 @@ extern "C" {
 
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable: 4190)
+#pragma warning(disable : 4190)
 #endif // _MSC_VER
 
-KF_EXPORT_SYMBOL JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                      const char *FusedKernelName,
-                      View<ParameterIdentity> Identities,
-                      BarrierFlags BarriersFlags,
-                      View<ParameterInternalization> Internalization,
-                      View<jit_compiler::JITConstant> JITConstants);
+KF_EXPORT_SYMBOL JITResult
+fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+            View<ParameterInternalization> Internalization,
+            View<jit_compiler::JITConstant> JITConstants);
 
-KF_EXPORT_SYMBOL JITResult materializeSpecConstants(const char *KernelName,
-                                   jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-                                   View<unsigned char> SpecConstBlob);
+KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    View<unsigned char> SpecConstBlob);
 
-KF_EXPORT_SYMBOL JITResult compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
-                      View<const char *> UserArgs);
+KF_EXPORT_SYMBOL JITResult compileSYCL(InMemoryFile SourceFile,
+                                       View<InMemoryFile> IncludeFiles,
+                                       View<const char *> UserArgs);
 
 /// Clear all previously set options.
 KF_EXPORT_SYMBOL void resetJITConfiguration();

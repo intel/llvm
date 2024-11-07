@@ -15,9 +15,6 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
-// CP - remove
-#include <iostream>
-
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
 static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
@@ -27,11 +24,8 @@ static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
 #include <filesystem> // For std::filesystem::path ( C++17 only )
 #include <shlwapi.h>  // For PathRemoveFileSpec
 #include <windows.h>  // For GetModuleFileName, HMODULE, DWORD, MAX_PATH
-// #include <cassert>         // For assert
-// #include <string>          // For std::wstring
 
 // cribbed from sycl/source/detail/os_util.cpp
-// TODO: Just inline it.
 using OSModuleHandle = intptr_t;
 static constexpr OSModuleHandle ExeModuleHandle = -1;
 static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
@@ -94,8 +88,6 @@ static const std::string &getDPCPPRoot() {
 #ifdef _WIN32
   DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
 #endif // _WIN32
-
-std::cout << "DPCPPRoot: " << DPCPPRoot << std::endl;
 
   // TODO: Implemenent other means of determining the DPCPP root, e.g.
   //       evaluating the `CMPLR_ROOT` env.
