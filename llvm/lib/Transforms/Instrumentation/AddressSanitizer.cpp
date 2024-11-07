@@ -1314,7 +1314,7 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
   return StringGV;
 }
 
-// Append a new argument "launch_data" to user's spir_kernels
+// Append a new argument "__asan_launch" to user's spir_kernels
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
