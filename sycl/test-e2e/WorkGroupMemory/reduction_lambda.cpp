@@ -2,35 +2,12 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <cassert>
-#include <sycl/atomic_ref.hpp>
-#include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
-#include <sycl/ext/oneapi/free_function_queries.hpp>
-#include <sycl/group_barrier.hpp>
-#include <sycl/marray.hpp>
-#include <sycl/usm.hpp>
-#include <sycl/vector.hpp>
-
-using namespace sycl;
+#include "common_lambda.hpp"
 
 queue q;
 context ctx = q.get_context();
 
 constexpr size_t SIZE = 128;
-
-template <typename T> struct S {
-  T val;
-};
-
-template <typename T> struct M {
-  T val;
-};
-
-union U {
-  S<int> s;
-  M<int> m;
-};
 
 template <typename T, typename... Ts>
 void test_struct(size_t SIZE, size_t WGSIZE) {
@@ -48,7 +25,7 @@ void test_struct(size_t SIZE, size_t WGSIZE) {
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
   q.submit([&](sycl::handler &cgh) {
-     ext::oneapi::experimental::work_group_memory<S<T>[]> mem{WGSIZE, cgh};
+     ext::oneapi::experimental::work_group_memory<S<T>[]> mem { WGSIZE, cgh };
      ext::oneapi::experimental ::work_group_memory<T> result{cgh};
      cgh.parallel_for(ndr, [=](nd_item<> it) {
        size_t local_id = it.get_local_id();
@@ -97,15 +74,6 @@ void test_union(size_t SIZE, size_t WGSIZE) {
      });
    }).wait();
   free(buf, q);
-}
-
-template <typename T>
-void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem,
-                sycl::ext::oneapi::experimental::work_group_memory<T> ret,
-                size_t WGSIZE) {
-  for (int i = 0; i < WGSIZE; ++i) {
-    ret = ret + mem[i];
-  }
 }
 
 template <typename T, typename... Ts>
