@@ -1328,17 +1328,6 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
   return StringGV;
 }
 
-static std::string SYCLUniqueStableId(const GlobalValue *GV,
-                                      const DataLayout &DL) {
-  std::string Buffer;
-  llvm::raw_string_ostream Out(Buffer);
-
-  Mangler Mgl;
-  Mgl.getNameWithPrefix(Out, GV, true);
-
-  return Out.str();
-}
-
 // Append a new argument "launch_data" to user's spir_kernels
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupKernels;
@@ -1399,6 +1388,7 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   AsanSpirKernelMetadata->addAttribute("sycl-host-access", "2");
   AsanSpirKernelMetadata->addAttribute("sycl-unique-id",
                                        "_Z20__AsanKernelMetadata");
+  AsanSpirKernelMetadata->setDSOLocal(true);
 
   // Handle SpirFixupKernels
   SmallVector<std::pair<Function *, Function *>> SpirFuncs;

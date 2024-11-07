@@ -70,6 +70,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
+  AsanKernelMetadata.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp

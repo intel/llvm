@@ -1,6 +1,9 @@
 // REQUIRES: linux
 // RUN: %{build} %device_asan_flags -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t
 // RUN: %{run} not %t &> %t.txt ; FileCheck --input-file %t.txt %s
+// RUN: %{build} %device_asan_flags %if cpu %{ -fsycl-targets=spir64_x86_64 %} %if gpu %{ -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %} -O2 -fsanitize-ignorelist=%p/ignorelist.txt -o %t2
+// RUN: %{run} not %t2 &> %t2.txt ; FileCheck --input-file %t2.txt %s
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

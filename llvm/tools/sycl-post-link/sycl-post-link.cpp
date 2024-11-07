@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/AsanKernelMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
@@ -793,8 +794,10 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // Instrument each image scope device globals if the module has been
   // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M))
+  if (isModuleUsingAsan(*M)) {
     Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+    Modified |= runModulePass<AsanKernelMetadataPass>(*M);
+  }
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
