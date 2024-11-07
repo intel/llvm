@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
+# commit 3edf99755ce2af3b53102a7d8438e0fe969efac3
+# Merge: 5955bad3 0b968661
+# Author: Ross Brunton <ross@codeplay.com>
+# Date:   Wed Nov 6 11:07:29 2024 +0000
+#    Merge pull request #2082 from RossBrunton/ross/multiadapt
+#    [CI] Add "loader" support to conformance testing
+set(UNIFIED_RUNTIME_TAG 3edf99755ce2af3b53102a7d8438e0fe969efac3)

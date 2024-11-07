@@ -9,4 +9,5 @@ add_sycl_unittest(QueueTests OBJECT
   InOrderQueue.cpp
   InteropRetain.cpp
   Properties.cpp
+  Barrier.cpp
 )

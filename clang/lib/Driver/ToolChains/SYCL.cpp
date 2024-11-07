@@ -508,7 +508,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
+                   options::OPT_fno_sycl_instrument_device_code, false))
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)
@@ -1328,6 +1328,9 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Case("amd_gpu_gfx700", "gfx700")
           .Case("amd_gpu_gfx701", "gfx701")
           .Case("amd_gpu_gfx702", "gfx702")
+          .Case("amd_gpu_gfx703", "gfx703")
+          .Case("amd_gpu_gfx704", "gfx704")
+          .Case("amd_gpu_gfx705", "gfx705")
           .Case("amd_gpu_gfx801", "gfx801")
           .Case("amd_gpu_gfx802", "gfx802")
           .Case("amd_gpu_gfx803", "gfx803")
@@ -1415,6 +1418,9 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx700", "AMD_GPU_GFX700")
                       .Case("gfx701", "AMD_GPU_GFX701")
                       .Case("gfx702", "AMD_GPU_GFX702")
+                      .Case("gfx703", "AMD_GPU_GFX703")
+                      .Case("gfx704", "AMD_GPU_GFX704")
+                      .Case("gfx705", "AMD_GPU_GFX705")
                       .Case("gfx801", "AMD_GPU_GFX801")
                       .Case("gfx802", "AMD_GPU_GFX802")
                       .Case("gfx803", "AMD_GPU_GFX803")
@@ -1672,16 +1678,16 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       if (IsGenTriple) {
         if (Device != GenDevice && !Device.empty())
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple &&
             GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple &&
             !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
+      } else if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple)
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -1787,7 +1793,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     for (auto *A : Args) {
       if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
         continue;
-      if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple)
+      if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple)
         TargArgs.push_back(A->getValue(1));
     }
     // Check for any -device settings.

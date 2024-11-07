@@ -668,10 +668,10 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
 /// ASAN Load/Store Report Built-ins
 ///
 
-#define ASAN_REPORT_ERROR(type, is_write, size)                                \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size(                           \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+#define ASAN_REPORT_ERROR_BASE(type, is_write, size, as)                       \
+  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_as##as(                  \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     if (!__AsanLaunchInfo) {                                                   \
       return;                                                                  \
     }                                                                          \
@@ -684,9 +684,9 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
                                  func);                                        \
     }                                                                          \
   }                                                                            \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_noabort(                 \
-      uptr addr, uint32_t as, const char __SYCL_CONSTANT__ *file,              \
-      uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
+  DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_as##as##_noabort(        \
+      uptr addr, const char __SYCL_CONSTANT__ *file, uint32_t line,            \
+      const char __SYCL_CONSTANT__ *func) {                                    \
     if (!__AsanLaunchInfo) {                                                   \
       return;                                                                  \
     }                                                                          \
@@ -700,6 +700,13 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
     }                                                                          \
   }
 
+#define ASAN_REPORT_ERROR(type, is_write, size)                                \
+  ASAN_REPORT_ERROR_BASE(type, is_write, size, 0)                              \
+  ASAN_REPORT_ERROR_BASE(type, is_write, size, 1)                              \
+  ASAN_REPORT_ERROR_BASE(type, is_write, size, 2)                              \
+  ASAN_REPORT_ERROR_BASE(type, is_write, size, 3)                              \
+  ASAN_REPORT_ERROR_BASE(type, is_write, size, 4)
+
 ASAN_REPORT_ERROR(load, false, 1)
 ASAN_REPORT_ERROR(load, false, 2)
 ASAN_REPORT_ERROR(load, false, 4)
@@ -711,9 +718,9 @@ ASAN_REPORT_ERROR(store, true, 4)
 ASAN_REPORT_ERROR(store, true, 8)
 ASAN_REPORT_ERROR(store, true, 16)
 
-#define ASAN_REPORT_ERROR_N(type, is_write)                                    \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##N(                              \
-      uptr addr, size_t size, uint32_t as, const char __SYCL_CONSTANT__ *file, \
+#define ASAN_REPORT_ERROR_N_BASE(type, is_write, as)                           \
+  DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_as##as(                       \
+      uptr addr, size_t size, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
     if (!__AsanLaunchInfo) {                                                   \
       return;                                                                  \
@@ -723,8 +730,8 @@ ASAN_REPORT_ERROR(store, true, 16)
                                  file, line, func);                            \
     }                                                                          \
   }                                                                            \
-  DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_noabort(                      \
-      uptr addr, size_t size, uint32_t as, const char __SYCL_CONSTANT__ *file, \
+  DEVICE_EXTERN_C_NOINLINE void __asan_##type##N_as##as##_noabort(             \
+      uptr addr, size_t size, const char __SYCL_CONSTANT__ *file,              \
       uint32_t line, const char __SYCL_CONSTANT__ *func) {                     \
     if (!__AsanLaunchInfo) {                                                   \
       return;                                                                  \
@@ -734,6 +741,13 @@ ASAN_REPORT_ERROR(store, true, 16)
                                  file, line, func, true);                      \
     }                                                                          \
   }
+
+#define ASAN_REPORT_ERROR_N(type, is_write)                                    \
+  ASAN_REPORT_ERROR_N_BASE(type, is_write, 0)                                  \
+  ASAN_REPORT_ERROR_N_BASE(type, is_write, 1)                                  \
+  ASAN_REPORT_ERROR_N_BASE(type, is_write, 2)                                  \
+  ASAN_REPORT_ERROR_N_BASE(type, is_write, 3)                                  \
+  ASAN_REPORT_ERROR_N_BASE(type, is_write, 4)
 
 ASAN_REPORT_ERROR_N(load, false)
 ASAN_REPORT_ERROR_N(store, true)
