@@ -1511,6 +1511,7 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    // Make sure "__AsanKernelMetadata" always exists
     ExtendSpirKernelArgs(M, FAM);
     Modified = true;
 

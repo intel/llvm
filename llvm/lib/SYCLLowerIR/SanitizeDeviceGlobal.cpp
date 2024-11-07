@@ -50,6 +50,7 @@ static bool instrumentDeviceGlobal(Module &M) {
     if (!isDeviceGlobalVariable(G) || !hasDeviceImageScopeProperty(G))
       continue;
 
+    // Skip instrumenting on "__AsanKernelMetadata" etc.
     if (G.getName().starts_with("__Asan"))
       continue;
 
