@@ -215,25 +215,28 @@ ur_result_t SanitizerInterceptor::releaseMemory(ur_context_handle_t Context,
     if (ReleaseList.size()) {
         std::scoped_lock<ur_shared_mutex> Guard(m_AllocationMapMutex);
         for (auto &It : ReleaseList) {
+            auto ToFreeAllocInfo = It->second;
             getContext()->logger.info("Quarantine Free: {}",
-                                      (void *)It->second->AllocBegin);
+                                      (void *)ToFreeAllocInfo->AllocBegin);
 
-            ContextInfo->Stats.UpdateUSMRealFreed(AllocInfo->AllocSize,
-                                                  AllocInfo->getRedzoneSize());
+            ContextInfo->Stats.UpdateUSMRealFreed(
+                ToFreeAllocInfo->AllocSize, ToFreeAllocInfo->getRedzoneSize());
 
-            m_AllocationMap.erase(It);
-            if (AllocInfo->Type == AllocType::HOST_USM) {
+            if (ToFreeAllocInfo->Type == AllocType::HOST_USM) {
                 for (auto &Device : ContextInfo->DeviceList) {
                     UR_CALL(getDeviceInfo(Device)->Shadow->ReleaseShadow(
-                        AllocInfo));
+                        ToFreeAllocInfo));
                 }
             } else {
-                UR_CALL(getDeviceInfo(AllocInfo->Device)
-                            ->Shadow->ReleaseShadow(AllocInfo));
+                UR_CALL(getDeviceInfo(ToFreeAllocInfo->Device)
+                            ->Shadow->ReleaseShadow(ToFreeAllocInfo));
             }
 
             UR_CALL(getContext()->urDdiTable.USM.pfnFree(
-                Context, (void *)(It->second->AllocBegin)));
+                Context, (void *)(ToFreeAllocInfo->AllocBegin)));
+
+            // Erase it at last to avoid use-after-free.
+            m_AllocationMap.erase(It);
         }
     }
     ContextInfo->Stats.UpdateUSMFreed(AllocInfo->AllocSize);
