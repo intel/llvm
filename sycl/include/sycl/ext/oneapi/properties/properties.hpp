@@ -231,9 +231,9 @@ public:
   }
 
   template <typename PropertyT>
-  static constexpr auto
-  get_property(typename std::enable_if_t<
-                   detail::IsCompileTimeProperty<PropertyT>::value> * = 0) {
+  static constexpr auto get_property(
+      typename std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value>
+          * = 0) {
     static_assert(has_property<PropertyT>(),
                   "Property list does not contain the requested property.");
     return detail::get_property<PropertyT, has_property<PropertyT>(),
