@@ -28,9 +28,7 @@ constexpr size_t SIZE = 128;
 constexpr size_t VEC_SIZE = 16;
 
 template <typename T, typename... Ts> void test_marray() {
-  if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
-    return;
-  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+  if (!check_half_aspect<T>(q) || !check_double_aspect<T>(q))
     return;
 
   constexpr size_t WGSIZE = VEC_SIZE;
@@ -60,9 +58,7 @@ template <typename T, typename... Ts> void test_marray() {
 }
 
 template <typename T, typename... Ts> void test_vec() {
-  if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
-    return;
-  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+  if (!check_half_aspect<T>(q) || !check_double_aspect<T>(q))
     return;
 
   constexpr size_t WGSIZE = VEC_SIZE;
@@ -93,9 +89,7 @@ template <typename T, typename... Ts> void test_vec() {
 
 template <typename T, typename... Ts>
 void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
-  if (std::is_same_v<sycl::half, T> && !q.get_device().has(sycl::aspect::fp16))
-    return;
-  if (std::is_same_v<T, double> && !q.get_device().has(aspect::fp64))
+  if (!check_half_aspect<T>(q) || !check_double_aspect<T>(q))
     return;
 
   T *buf = malloc_shared<T>(WGSIZE, q);

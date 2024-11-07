@@ -6,17 +6,9 @@
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
+#include "common.hpp"
 
 using namespace sycl;
-
-template <typename T>
-void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem,
-                sycl::ext::oneapi::experimental::work_group_memory<T> ret,
-                size_t WGSIZE) {
-  for (int i = 0; i < WGSIZE; ++i) {
-    ret = ret + mem[i];
-  }
-}
 
 template <typename T>
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
