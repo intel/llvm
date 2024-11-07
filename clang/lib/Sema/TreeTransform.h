@@ -2077,13 +2077,15 @@ public:
   ///
   /// By default, performs semantic analysis to build the new OpenMP clause.
   /// Subclasses may override this routine to provide different behavior.
-  OMPClause *RebuildOMPAllocateClause(Expr *Allocate, ArrayRef<Expr *> VarList,
+  OMPClause *RebuildOMPAllocateClause(Expr *Allocate,
+                                      OpenMPAllocateClauseModifier ACModifier,
+                                      ArrayRef<Expr *> VarList,
                                       SourceLocation StartLoc,
                                       SourceLocation LParenLoc,
                                       SourceLocation ColonLoc,
                                       SourceLocation EndLoc) {
     return getSema().OpenMP().ActOnOpenMPAllocateClause(
-        Allocate, VarList, StartLoc, LParenLoc, ColonLoc, EndLoc);
+        Allocate, ACModifier, VarList, StartLoc, LParenLoc, ColonLoc, EndLoc);
   }
 
   /// Build a new OpenMP 'num_teams' clause.
@@ -11156,8 +11158,8 @@ TreeTransform<Derived>::TransformOMPAllocateClause(OMPAllocateClause *C) {
     Vars.push_back(EVar.get());
   }
   return getDerived().RebuildOMPAllocateClause(
-      Allocator, Vars, C->getBeginLoc(), C->getLParenLoc(), C->getColonLoc(),
-      C->getEndLoc());
+      Allocator, C->getAllocatorModifier(), Vars, C->getBeginLoc(),
+      C->getLParenLoc(), C->getColonLoc(), C->getEndLoc());
 }
 
 template <typename Derived>

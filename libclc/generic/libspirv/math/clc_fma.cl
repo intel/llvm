@@ -21,10 +21,17 @@
  */
 
 #include <clc/clcmacro.h>
+<<<<<<< HEAD:libclc/generic/libspirv/math/clc_fma.cl
 #include <config.h>
 #include <core/clc_core.h>
 #include <math/math.h>
 #include <spirv/spirv.h>
+=======
+#include <clc/integer/clc_abs.h>
+
+#include "config.h"
+#include "math.h"
+>>>>>>> 7be30fd5335ca7fe050ee1789ea2648f014daf1b:libclc/generic/lib/math/clc_fma.cl
 
 struct fp {
   ulong mantissa;
