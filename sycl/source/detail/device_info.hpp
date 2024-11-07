@@ -626,6 +626,9 @@ constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
         {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
         {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
         {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
+        {"gfx703", oneapi_exp_arch::amd_gpu_gfx703},
+        {"gfx704", oneapi_exp_arch::amd_gpu_gfx704},
+        {"gfx705", oneapi_exp_arch::amd_gpu_gfx705},
         {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
         {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
         {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
@@ -838,8 +841,8 @@ struct get_device_info_impl<
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch))
-      return {
+             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+      std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
@@ -947,10 +950,11 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
-    else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g12 == DeviceArch) ||
-             (architecture::intel_gpu_arl_h == DeviceArch))
+      return pvc_combs;
+    } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g12 == DeviceArch) ||
+               (architecture::intel_gpu_arl_h == DeviceArch))
       return {
           {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},

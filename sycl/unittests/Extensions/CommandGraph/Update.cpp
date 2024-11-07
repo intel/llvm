@@ -399,3 +399,38 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
   auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
   GraphExec.update(UpdateGraph);
 }
+
+// Vars and callbacks for tracking how many times mocked functions are called
+static int GetInfoCount = 0;
+static int AppendKernelLaunchCount = 0;
+static ur_result_t redefinedCommandBufferGetInfoExpAfter(void *pParams) {
+  GetInfoCount++;
+  return UR_RESULT_SUCCESS;
+}
+static ur_result_t
+redefinedCommandBufferAppendKernelLaunchExpAfter(void *pParams) {
+  AppendKernelLaunchCount++;
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
+  // Check that both finalize with and without updatable property work as
+  // expected
+  auto Node = Graph.add(
+      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
+  mock::getCallbacks().set_after_callback(
+      "urCommandBufferGetInfoExp", &redefinedCommandBufferGetInfoExpAfter);
+  mock::getCallbacks().set_after_callback(
+      "urCommandBufferAppendKernelLaunchExp",
+      &redefinedCommandBufferAppendKernelLaunchExpAfter);
+
+  ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
+  // GetInfo and AppendKernelLaunch should be called once each time a node is
+  // added to a command buffer during finalization
+  ASSERT_EQ(GetInfoCount, 1);
+  ASSERT_EQ(AppendKernelLaunchCount, 1);
+
+  ASSERT_NO_THROW(Graph.finalize());
+  ASSERT_EQ(GetInfoCount, 2);
+  ASSERT_EQ(AppendKernelLaunchCount, 2);
+}

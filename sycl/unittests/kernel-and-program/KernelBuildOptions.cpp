@@ -11,8 +11,8 @@
 #define __SYCL_INTERNAL_API
 #endif
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -71,28 +71,29 @@ static void setupCommonMockAPIs(sycl::unittest::UrMock<> &Mock) {
                                            &redefinedProgramBuild);
 }
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  std::vector<UrOffloadEntry> Entries = makeEmptyKernels({"BuildOptsTestKernel"});
+  std::vector<MockOffloadEntry> Entries =
+      makeEmptyKernels({"BuildOptsTestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "-compile-img",                      // Compile options
-              "-link-img",                         // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      "-compile-img",                      // Compile options
+                      "-link-img",                         // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
 
   return Img;
 }
 
-sycl::unittest::UrImage Img = generateDefaultImage();
-sycl::unittest::UrImageArray<1> ImgArray{&Img};
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 TEST(KernelBuildOptions, KernelBundleBasic) {
   sycl::unittest::UrMock<> Mock;

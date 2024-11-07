@@ -49,13 +49,13 @@ slm_read_write(multi_ptr<TOperand, space, access::decorated::yes> pA,
   // NCache2*KCache2/(SGs*SG_SIZE) = 16
   size_t elemsPerLoadB = NCache2 * KCache2 / (SGs * sgSize);
   size_t sgsPerRow = (NCache2 * vnniFactor) / (elemsPerLoadB * sgSize);
-  size_t GlOffsetB =
-      (k2 * (KCache2 / vnniFactor) + (uint)(sg.get_group_id() / sgsPerRow)) *
-          (colsB * vnniFactor) +
-      n2 * NCache2 * vnniFactor +
-      (sg.get_group_id() % sgsPerRow) * (elemsPerLoadB * sgSize);
+  size_t GlOffsetB = (k2 * (KCache2 / vnniFactor) +
+                      (unsigned int)(sg.get_group_id() / sgsPerRow)) *
+                         (colsB * vnniFactor) +
+                     n2 * NCache2 * vnniFactor +
+                     (sg.get_group_id() % sgsPerRow) * (elemsPerLoadB * sgSize);
   size_t LocOffsetB =
-      ((uint)(sg.get_group_id() / sgsPerRow)) * NCache2 * vnniFactor +
+      ((unsigned int)(sg.get_group_id() / sgsPerRow)) * NCache2 * vnniFactor +
       (sg.get_group_id() % sgsPerRow) * elemsPerLoadB * sgSize;
   auto SrcB = pB + GlOffsetB;
   auto DstB =

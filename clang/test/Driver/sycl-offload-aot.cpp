@@ -18,7 +18,7 @@
 /// Check that -aux-triple is passed with -fintelfpga
 // RUN:    %clang -### -fintelfpga %s 2>&1 \
 // RUN:    | FileCheck -DARCH=spir64_fpga -check-prefix=CHK-SYCL-FPGA-AUX-TRIPLE %s
-// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple" "{{.*}}"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"{{.*}} "-fsycl-is-host"
+// CHK-SYCL-FPGA-AUX-TRIPLE: clang{{.*}} "-cc1" "-triple"{{.*}} "-fsycl-is-host"{{.*}} "-aux-triple" "[[ARCH]]-{{.*}}"
 
 /// Check error for -fsycl-targets with bad triple
 // RUN:   not %clang -### -fsycl-targets=spir64_bad-unknown-unknown -fsycl  %s 2>&1 \
