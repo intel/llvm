@@ -10,8 +10,8 @@
 
 #include <detail/adapter.hpp>
 #include <detail/platform_info.hpp>
+#include <detail/ur.hpp>
 #include <detail/ur_info_code.hpp>
-#include <sycl/backend.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -46,7 +46,7 @@ public:
     AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
         APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
         &UrBackend, nullptr);
-    MBackend = convertUrBackend(UrBackend);
+    MBackend = detail::convertUrBackend(UrBackend);
   }
 
   ~platform_impl() = default;

@@ -23,15 +23,14 @@
 #include <sycl/event.hpp>                     // for event, get_native
 #include <sycl/exception.hpp>                 // for make_error_code
 #include <sycl/feature_test.hpp>              // for SYCL_BACKEND_OP...
-#include <sycl/handler.hpp>                   // for buffer
 #include <sycl/image.hpp>                     // for image, image_al...
 #include <sycl/kernel.hpp>                    // for kernel, get_native
-#include <sycl/kernel_bundle.hpp>             // for kernel_bundle
-#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
-#include <sycl/platform.hpp>                  // for platform, get_n...
-#include <sycl/property_list.hpp>             // for property_list
-#include <sycl/queue.hpp>                     // for queue, get_native
-#include <ur_api.h>                           // for ur_native_handle_t
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
+#include <sycl/platform.hpp>            // for platform, get_n...
+#include <sycl/property_list.hpp>       // for property_list
+#include <sycl/queue.hpp>
+#include <ur_api.h> // for ur_native_handle_t
 
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop
@@ -64,9 +63,6 @@ namespace detail {
 // TODO each backend can have its own custom errc enumeration
 // but the details for this are not fully specified yet
 enum class backend_errc : unsigned int {};
-
-// Convert from UR backend to SYCL backend enum
-backend convertUrBackend(ur_platform_backend_t UrBackend);
 } // namespace detail
 
 template <backend Backend> class backend_traits {

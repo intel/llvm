@@ -22,17 +22,19 @@
 #include <sycl/detail/ur.hpp>             // for assertion and ur handles
 #include <sycl/device.hpp>                // for device
 #include <sycl/event.hpp>                 // for event
-#include <sycl/handler.hpp>               // for buffer
 #include <sycl/kernel.hpp>                // for kernel
-#include <sycl/kernel_bundle.hpp>         // for kernel_bundle
 #include <sycl/kernel_bundle_enums.hpp>   // for bundle_state
 #include <sycl/platform.hpp>              // for platform
-#include <sycl/queue.hpp>                 // for queue
 
 #include <vector> // for vector
 
 namespace sycl {
 inline namespace _V1 {
+
+template<bundle_state State>
+class kernel_bundle;
+class queue;
+
 namespace detail {
 
 // TODO the interops for context, device, event, platform and program
