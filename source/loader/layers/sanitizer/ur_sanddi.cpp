@@ -357,6 +357,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
+    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
     UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
@@ -388,6 +389,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
+    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
     UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
