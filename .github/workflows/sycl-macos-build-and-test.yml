@@ -53,6 +53,6 @@ jobs:
           --cmake-opt=-DCMAKE_C_COMPILER_LAUNCHER=ccache \
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
-          --cmake-opt="-DSYCL_PI_TESTS=OFF"
+          --cmake-opt="-DSYCL_UR_TESTS=OFF"
     - name: Compile
       run: cmake --build $GITHUB_WORKSPACE/build --target deploy-sycl-toolchain
