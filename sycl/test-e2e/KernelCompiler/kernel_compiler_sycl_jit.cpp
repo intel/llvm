@@ -9,10 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-63166
-// in CMakeLists).
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out

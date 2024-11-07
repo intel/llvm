@@ -44,6 +44,10 @@ install(TARGETS sycl-jit
   RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader
 )
 
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
+
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
