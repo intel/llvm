@@ -134,13 +134,15 @@ void test_ewops_ab() {
       Tv(5.0), Tv(2.0), 2.5, [](auto l, auto r) { return l / r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_logical>>(
-      Tv(5.0), Tv(5.0), 5.0, [](auto l, auto r) { return l == r ? l : Tv(1.0); });
+      Tv(5.0), Tv(5.0), 5.0,
+      [](auto l, auto r) { return l == r ? l : Tv(1.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_eq>>(
       Tv(5.0), Tv(4.0), 4.0, [](auto l, auto r) { return l == r ? l : r; });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_ne>>(
-      Tv(5.0), Tv(5.0), 1.0, [](auto l, auto r) { return l != r ? l : Tv(1.0); });
+      Tv(5.0), Tv(5.0), 1.0,
+      [](auto l, auto r) { return l != r ? l : Tv(1.0); });
   verify_op_ab<T, NROWS, NCOLS, SROWS, SCOLS, Use, Layout, VF,
                ewops_ab<T, SROWS, SCOLS, Use, class ab_gt>>(
       Tv(5.0), Tv(2.0), 3.0,
