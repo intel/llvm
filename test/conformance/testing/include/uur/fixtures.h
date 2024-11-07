@@ -1586,6 +1586,10 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
             backend == UR_PLATFORM_BACKEND_CUDA) {
             GTEST_SKIP();
         }
+        devices = uur::DevicesEnvironment::instance->devices;
+        if (devices.size() < 2) {
+            GTEST_SKIP();
+        }
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
@@ -1611,6 +1615,7 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
     std::string program_name = "foo";
     ur_program_handle_t program = nullptr;
     std::vector<ur_program_metadata_t> metadatas{};
+    std::vector<ur_device_handle_t> devices;
 };
 
 } // namespace uur
