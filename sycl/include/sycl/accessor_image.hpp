@@ -67,6 +67,7 @@ class __SYCL_EXPORT UnsampledImageAccessorBaseHost {
 protected:
   UnsampledImageAccessorBaseHost(const UnsampledImageAccessorImplPtr &Impl)
       : impl{Impl} {}
+
 public:
   UnsampledImageAccessorBaseHost(sycl::range<3> Size, access_mode AccessMode,
                                  void *SYCLMemObject, int Dims, int ElemSize,

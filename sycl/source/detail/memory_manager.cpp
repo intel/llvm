@@ -48,16 +48,16 @@ void memBufferCreateHelper(const AdapterPtr &Adapter, ur_context_handle_t Ctx,
                            ur_mem_flags_t Flags, size_t Size,
                            ur_mem_handle_t *RetMem,
                            const ur_buffer_properties_t *Props) {
-    if (Size)
-      Adapter->call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
-                                                  RetMem);
+  if (Size)
+    Adapter->call<UrApiKind::urMemBufferCreate>(Ctx, Flags, Size, Props,
+                                                RetMem);
 }
 
 void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem) {
   // FIXME urMemRelease does not guarante memory release. It is only true if
   // reference counter is 1. However, SYCL runtime currently only calls
   // urMemRetain only for OpenCL interop
-    Adapter->call<UrApiKind::urMemRelease>(Mem);
+  Adapter->call<UrApiKind::urMemRelease>(Mem);
 }
 
 void memBufferMapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
@@ -77,8 +77,8 @@ void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t Queue,
                     const ur_event_handle_t *WaitList,
                     ur_event_handle_t *Event) {
   // We only want to instrument urEnqueueMemUnmap
-    Adapter->call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr,
-                                                NumEvents, WaitList, Event);
+  Adapter->call<UrApiKind::urEnqueueMemUnmap>(Queue, Mem, MappedPtr, NumEvents,
+                                              WaitList, Event);
 }
 
 void MemoryManager::release(ContextImplPtr TargetContext, SYCLMemObjI *MemObj,

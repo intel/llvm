@@ -84,7 +84,6 @@ public:
   void attachScheduler(Scheduler *Scheduler);
 
 private:
-
   bool OkToDefer = true;
 
   friend void shutdown_win();

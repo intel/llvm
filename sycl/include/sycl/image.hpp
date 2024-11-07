@@ -920,8 +920,7 @@ public:
 
   unsampled_image &operator=(unsampled_image &&rhs) = default;
 
-  ~unsampled_image() {
-  }
+  ~unsampled_image() {}
 
   bool operator==(const unsampled_image &rhs) const {
     return this->impl == rhs.impl;
@@ -1053,8 +1052,7 @@ public:
 
   sampled_image &operator=(sampled_image &&rhs) = default;
 
-  ~sampled_image() {
-  }
+  ~sampled_image() {}
 
   bool operator==(const sampled_image &rhs) const {
     return this->impl == rhs.impl;

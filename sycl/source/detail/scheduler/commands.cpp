@@ -773,8 +773,7 @@ void AllocaSubBufCommand::printDot(std::ostream &Stream) const {
 }
 
 ReleaseCommand::ReleaseCommand(QueueImplPtr Queue, AllocaCommandBase *AllocaCmd)
-    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {
-}
+    : Command(CommandType::RELEASE, std::move(Queue)), MAllocaCmd(AllocaCmd) {}
 
 ur_result_t ReleaseCommand::enqueueImp() {
   waitForPreparedHostEvents();
@@ -877,8 +876,7 @@ MapMemObject::MapMemObject(AllocaCommandBase *SrcAllocaCmd, Requirement Req,
                            access::mode MapMode)
     : Command(CommandType::MAP_MEM_OBJ, std::move(Queue)),
       MSrcAllocaCmd(SrcAllocaCmd), MSrcReq(std::move(Req)), MDstPtr(DstPtr),
-      MMapMode(MapMode) {
-}
+      MMapMode(MapMode) {}
 
 ur_result_t MapMemObject::enqueueImp() {
   waitForPreparedHostEvents();
@@ -919,8 +917,7 @@ void MapMemObject::printDot(std::ostream &Stream) const {
 UnMapMemObject::UnMapMemObject(AllocaCommandBase *DstAllocaCmd, Requirement Req,
                                void **SrcPtr, QueueImplPtr Queue)
     : Command(CommandType::UNMAP_MEM_OBJ, std::move(Queue)),
-      MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {
-}
+      MDstAllocaCmd(DstAllocaCmd), MDstReq(std::move(Req)), MSrcPtr(SrcPtr) {}
 
 bool UnMapMemObject::producesPiEvent() const {
   // TODO remove this workaround once the batching issue is addressed in Level
@@ -994,7 +991,6 @@ MemCpyCommand::MemCpyCommand(Requirement SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-
 }
 
 ContextImplPtr MemCpyCommand::getWorkerContext() const {
@@ -1143,7 +1139,6 @@ MemCpyCommandHost::MemCpyCommandHost(Requirement SrcReq,
 
   MWorkerQueue = !MQueue ? MSrcQueue : MQueue;
   MEvent->setWorkerQueue(MWorkerQueue);
-
 }
 
 ContextImplPtr MemCpyCommandHost::getWorkerContext() const {
@@ -1185,8 +1180,7 @@ ur_result_t MemCpyCommandHost::enqueueImp() {
   return UR_RESULT_SUCCESS;
 }
 
-EmptyCommand::EmptyCommand() : Command(CommandType::EMPTY_TASK, nullptr) {
-}
+EmptyCommand::EmptyCommand() : Command(CommandType::EMPTY_TASK, nullptr) {}
 
 ur_result_t EmptyCommand::enqueueImp() {
   waitForPreparedHostEvents();
@@ -1253,8 +1247,7 @@ UpdateHostRequirementCommand::UpdateHostRequirementCommand(
     QueueImplPtr Queue, Requirement Req, AllocaCommandBase *SrcAllocaCmd,
     void **DstPtr)
     : Command(CommandType::UPDATE_REQUIREMENT, std::move(Queue)),
-      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {
-}
+      MSrcAllocaCmd(SrcAllocaCmd), MDstReq(std::move(Req)), MDstPtr(DstPtr) {}
 
 static std::string_view cgTypeToString(detail::CGType Type) {
   switch (Type) {
