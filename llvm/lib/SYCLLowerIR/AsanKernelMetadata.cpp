@@ -1,15 +1,15 @@
-//===-- SanitizeDeviceGlobal.cpp - instrument device global for sanitizer -===//
+//===-- AsanKernelMetadata.cpp - fix kernel medatadata for sanitizer -===//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This pass adds red zone to each image scope device global and record the
-// information like size, red zone size and beginning address. The information
-// will be used by address sanitizer.
-// TODO: Do this in AddressSanitizer pass when urProgramGetGlobalVariablePointer
-// is implemented.
+// This pass fixes attributes and metadata of global variable
+// "__AsanKernelMetadata".
+// We treat "__AsanKernelMetadata" as a device global variable, so that it can
+// be read by runtime.
+// "spirv.Decorations" is removed by llvm-link, so we add it here again.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/AsanKernelMetadata.h"
