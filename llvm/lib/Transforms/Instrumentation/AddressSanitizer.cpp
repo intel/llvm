@@ -1295,22 +1295,6 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
 
 } // end anonymous namespace
 
-static void DisableSanitizerForAllCalledFunctions(Function *F, CallGraph &CG) {
-  if (F->hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-    return;
-  F->addFnAttr(Attribute::DisableSanitizerInstrumentation);
-
-  CallGraphNode *CGN = CG[F];
-  if (!CGN)
-    return;
-  for (auto &CallRecord : *CGN) {
-    CallGraphNode *CalleeNode = CallRecord.second;
-    Function *CalleeFunction = CalleeNode->getFunction();
-    if (CalleeFunction)
-      DisableSanitizerForAllCalledFunctions(CalleeFunction, CG);
-  }
-}
-
 static StringMap<GlobalVariable *> GlobalStringMap;
 
 static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
@@ -1334,7 +1318,6 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
 static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
-  CallGraph CG(M);
 
   auto DL = M.getDataLayout();
   Type *IntptrTy = DL.getIntPtrType(M.getContext());
@@ -1353,25 +1336,14 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     auto *KernelNameGV = GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
                                                  kSpirOffloadGlobalAS);
 
-    bool IsKernelFixup = true;
-    bool IsESIMDKernel = F.hasMetadata("sycl_explicit_simd");
-
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (IsESIMDKernel || !F.hasFnAttribute(Attribute::SanitizeAddress) ||
+    if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
         F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-      IsKernelFixup = false;
+      continue;
 
-    if (IsKernelFixup) {
-      SpirFixupKernels.emplace_back(&F);
-      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-          ConstantInt::get(IntptrTy, KernelName.size())));
-    } else {
-      F.removeFnAttr(Attribute::SanitizeAddress);
-      if (IsESIMDKernel)
-        DisableSanitizerForAllCalledFunctions(&F, CG);
-    }
+    SpirFixupKernels.emplace_back(&F);
+    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        ConstantInt::get(IntptrTy, KernelName.size())));
   }
 
   // Create global variable to record spirv kernels' information
@@ -1540,10 +1512,12 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
 
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ExtendSpirKernelArgs(M, FAM);
+    Modified = true;
+
     // FIXME: W/A skip instrumentation if this module has ESIMD
     for (auto &F : M) {
       if (F.hasMetadata("sycl_explicit_simd"))
-        return PreservedAnalyses::all();
+        return PreservedAnalyses::none();
     }
   }
 
