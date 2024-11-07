@@ -271,6 +271,13 @@ class SanitizerInterceptor {
 
     const AsanOptions &getOptions() { return m_Options; }
 
+    void exitWithErrors() {
+        m_NormalExit = false;
+        exit(1);
+    }
+
+    bool isNormalExit() { return m_NormalExit; }
+
   private:
     ur_result_t updateShadowMemory(std::shared_ptr<ContextInfo> &ContextInfo,
                                    std::shared_ptr<DeviceInfo> &DeviceInfo,
@@ -320,6 +327,8 @@ class SanitizerInterceptor {
 
     std::unordered_set<ur_adapter_handle_t> m_Adapters;
     ur_shared_mutex m_AdaptersMutex;
+
+    bool m_NormalExit = true;
 };
 
 } // namespace ur_sanitizer_layer
