@@ -522,6 +522,9 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
     // Get size of the allocation
     return returnValue(size_t{hMemory->getSize()});
   }
+  case UR_MEM_INFO_REFERENCE_COUNT: {
+    return returnValue(hMemory->getRefCount().load());
+  }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
