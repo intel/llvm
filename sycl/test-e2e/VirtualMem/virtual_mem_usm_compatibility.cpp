@@ -1,7 +1,7 @@
 // REQUIRES: aspect-usm_shared_allocations
 
 // This test checks whether a pointer produced by a virtual memory
-// range mapping can indeed be used in various APIs accepting a USM pointer
+// range mapping can indeed be used in various APIs accepting a USM pointer.
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
