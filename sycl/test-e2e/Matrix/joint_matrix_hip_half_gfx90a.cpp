@@ -11,6 +11,7 @@
 
 // REQUIRES: gpu-amd-gfx90a
 // REQUIRES: aspect-fp16
+// REQUIRES: unsplit-mode
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"

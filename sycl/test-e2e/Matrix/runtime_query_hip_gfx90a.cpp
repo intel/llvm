@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: gpu-amd-gfx90a
+// REQUIRES: unsplit-mode
 // RUN: %{build} -Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=gfx90a -o %t.out
 // RUN: %{run} %t.out
 

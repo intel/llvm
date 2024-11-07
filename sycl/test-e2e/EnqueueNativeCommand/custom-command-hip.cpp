@@ -3,6 +3,7 @@
 // RUN: %{build} -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
 // REQUIRES: hip
+// REQUIRES: unsplit-mode
 
 #include <iostream>
 #include <sycl/backend.hpp>

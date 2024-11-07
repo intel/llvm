@@ -1,5 +1,6 @@
 // UNSUPPORTED: windows
 // REQUIRES: cuda || hip
+// REQUIRES: unsplit-mode
 
 // This test relies on debug output from a pass, make sure that the compiler
 // can generate it.

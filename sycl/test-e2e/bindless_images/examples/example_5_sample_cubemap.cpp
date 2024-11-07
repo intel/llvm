@@ -1,4 +1,5 @@
 // REQUIRES: cuda
+// REQUIRES: unsplit-mode
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
