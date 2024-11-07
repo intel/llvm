@@ -667,6 +667,9 @@ constexpr size_t AlignMask(size_t n) { return n - 1; }
 ///
 /// ASAN Load/Store Report Built-ins
 ///
+/// NOTE:
+///   if __AsanLaunchInfo equals 0, the sanitizer is disabled for this launch
+///
 
 #define ASAN_REPORT_ERROR_BASE(type, is_write, size, as)                       \
   DEVICE_EXTERN_C_NOINLINE void __asan_##type##size##_as##as(                  \

@@ -1332,15 +1332,15 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
     if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
       continue;
 
-    auto KernelName = F.getName();
-    auto *KernelNameGV = GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
-                                                 kSpirOffloadGlobalAS);
-
     if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
         F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
       continue;
 
     SpirFixupKernels.emplace_back(&F);
+
+    auto KernelName = F.getName();
+    auto *KernelNameGV = GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
+                                                 kSpirOffloadGlobalAS);
     SpirKernelsMetadata.emplace_back(ConstantStruct::get(
         StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
         ConstantInt::get(IntptrTy, KernelName.size())));
@@ -1528,10 +1528,8 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
         Options.UseAfterScope, Options.UseAfterReturn);
     const TargetLibraryInfo &TLI = FAM.getResult<TargetLibraryAnalysis>(F);
     Modified |= FunctionSanitizer.instrumentFunction(F, &TLI);
-    if (F.getCallingConv() == CallingConv::SPIR_KERNEL) {
+    if (F.getCallingConv() == CallingConv::SPIR_KERNEL)
       FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
-      Modified = true;
-    }
   }
   Modified |= ModuleSanitizer.instrumentModule();
   if (!Modified)
@@ -1829,6 +1827,8 @@ void AddressSanitizer::instrumentInitAsanLaunchInfo(
       return;
     }
   }
+  // FIXME: if the initial value of "__AsanLaunchInfo" is zero, we'll not need
+  // this step
   initializeCallbacks(TLI);
   IRB.CreateStore(
       ConstantPointerNull::get(IntptrTy->getPointerTo(kSpirOffloadGlobalAS)),
