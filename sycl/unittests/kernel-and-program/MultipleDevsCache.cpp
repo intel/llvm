@@ -11,8 +11,8 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_bundle_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -29,9 +29,9 @@ MOCK_INTEGRATION_HEADER(MultipleDevsCacheTestKernel)
 
 static constexpr uint32_t NumDevices = 3;
 
-static sycl::unittest::UrImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"MultipleDevsCacheTestKernel"});
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 static ur_result_t redefinedDeviceGetAfter(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);

@@ -22,7 +22,7 @@
  *     templates as tests in launch_policy_neg.cpp
  **************************************************************************/
 
-// RUN: not %clangxx -fsycl -fsycl-targets=%sycl_triple %s -o %t.out 2>&1 | FileCheck -vv %s
+// RUN: not %clangxx -fsycl -fsyntax-only %s 2>&1 | FileCheck -vv %s
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

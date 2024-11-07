@@ -48,6 +48,18 @@ void test_vectorized_binary(unsigned op1, unsigned op2, unsigned expected,
           op1, op2, expected, need_relu);
 }
 
+template <typename BinaryOp, typename ValueT>
+void test_vectorized_binary_logical(unsigned op1, unsigned op2,
+                                    unsigned expected) {
+  std::cout << __PRETTY_FUNCTION__ << std::endl;
+  constexpr syclcompat::dim3 grid{1};
+  constexpr syclcompat::dim3 threads{1};
+
+  BinaryOpTestLauncher<unsigned, unsigned, unsigned>(grid, threads)
+      .template launch_test<vectorized_binary_kernel<BinaryOp, ValueT>>(
+          op1, op2, expected, false);
+}
+
 template <typename UnaryOp, typename ValueT>
 void vectorized_unary_kernel(unsigned *a, unsigned *r) {
   *r = syclcompat::vectorized_unary<ValueT>(*a, UnaryOp());
@@ -202,6 +214,68 @@ int main() {
       0x80010002, 0x00040002, 0x80010002, true, true);
   test_vectorized_binary_with_pred<syclcompat::minimum, sycl::ushort2>(
       0x80010002, 0x00040002, 0x00040002, false, true);
+
+  // Logical Binary Operators v2
+  test_vectorized_binary_logical<std::equal_to<>, sycl::short2>(
+      0xFFF00002, 0xFFF00001, 0xFFFF0000);
+  test_vectorized_binary_logical<std::equal_to<>, sycl::short2>(
+      0x0001F00F, 0x0003F00F, 0x0000FFFF);
+
+  test_vectorized_binary_logical<std::not_equal_to<>, sycl::short2>(
+      0xFFF00002, 0xFFF00001, 0x0000FFFF);
+  test_vectorized_binary_logical<std::not_equal_to<>, sycl::short2>(
+      0x0001F00F, 0x0003F00F, 0xFFFF0000);
+
+  test_vectorized_binary_logical<std::greater_equal<>, sycl::short2>(
+      0xFFF00002, 0xFFF00001, 0xFFFFFFFF);
+  test_vectorized_binary_logical<std::greater_equal<>, sycl::short2>(
+      0x0001F00F, 0x0003F001, 0x0000FFFF);
+
+  test_vectorized_binary_logical<std::greater<>, sycl::short2>(
+      0xFFF00002, 0xFFF00001, 0x0000FFFF);
+  test_vectorized_binary_logical<std::greater<>, sycl::short2>(
+      0x0003F00F, 0x0001F00F, 0xFFFF0000);
+
+  test_vectorized_binary_logical<std::less_equal<>, sycl::short2>(
+      0xFFF00001, 0xF0F00002, 0x0000FFFF);
+  test_vectorized_binary_logical<std::less_equal<>, sycl::short2>(
+      0x0001FF0F, 0x0003F00F, 0xFFFF0000);
+
+  test_vectorized_binary_logical<std::less<>, sycl::short2>(
+      0xFFF00001, 0xFFF00002, 0x0000FFFF);
+  test_vectorized_binary_logical<std::less<>, sycl::short2>(
+      0x0001F00F, 0x0003F00F, 0xFFFF0000);
+
+  // Logical Binary Operators v4
+  test_vectorized_binary_logical<std::equal_to<>, sycl::uchar4>(
+      0x0001F00F, 0x0003F00F, 0xFF00FFFF);
+  test_vectorized_binary_logical<std::equal_to<>, sycl::uchar4>(
+      0x0102F0F0, 0x0202F0FF, 0x00FFFF00);
+
+  test_vectorized_binary_logical<std::not_equal_to<>, sycl::uchar4>(
+      0x0001F00F, 0xFF01F10F, 0xFF00FF00);
+  test_vectorized_binary_logical<std::not_equal_to<>, sycl::uchar4>(
+      0x0201F0F0, 0x0202F0FF, 0x00FF00FF);
+
+  test_vectorized_binary_logical<std::greater_equal<>, sycl::uchar4>(
+      0xFFF00002, 0xFFF10101, 0xFF0000FF);
+  test_vectorized_binary_logical<std::greater_equal<>, sycl::uchar4>(
+      0x0001F1F0, 0x0103F001, 0x0000FFFF);
+
+  test_vectorized_binary_logical<std::greater<>, sycl::uchar4>(
+      0xFFF00002, 0xF0F00001, 0xFF0000FF);
+  test_vectorized_binary_logical<std::greater<>, sycl::uchar4>(
+      0x0103F0F1, 0x0102F0F0, 0x00FF00FF);
+
+  test_vectorized_binary_logical<std::less_equal<>, sycl::uchar4>(
+      0xFFF10001, 0xFFF00100, 0xFF00FF00);
+  test_vectorized_binary_logical<std::less_equal<>, sycl::uchar4>(
+      0x0101F1F0, 0x0003F0F1, 0x00FF00FF);
+
+  test_vectorized_binary_logical<std::less<>, sycl::uchar4>(
+      0xFFF10001, 0xFFF20100, 0x00FFFF00);
+  test_vectorized_binary_logical<std::less<>, sycl::uchar4>(
+      0x0101F1F0, 0x0102F1F1, 0x00FF00FF);
 
   return 0;
 }
