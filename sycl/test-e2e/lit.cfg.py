@@ -37,6 +37,18 @@ config.recursiveExpansionLimit = 10
 config.required_features = []
 config.unsupported_features = []
 
+# split-mode: Set if tests should run normally or with split build/run
+match lit_config.params.get("split-mode", "both"):
+    case "run":
+        config.available_features.add("run-mode")
+    case "build":
+        config.available_features.add("build-mode")
+        config.sycl_devices = []
+    case _:
+        config.available_features.add("run-mode")
+        config.available_features.add("build-mode")
+        config.available_features.add("unsplit-mode")
+
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
     "COMPILER_PATH",
