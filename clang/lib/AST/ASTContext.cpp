@@ -14474,6 +14474,7 @@ void ASTContext::registerSYCLEntryPointFunction(FunctionDecl *FD) {
   assert((IT == SYCLKernels.end() ||
           declaresSameEntity(FD, IT->second.getKernelEntryPointDecl())) &&
          "SYCL kernel name conflict");
+  (void)IT;
   SYCLKernels.insert(
       std::make_pair(KernelNameType, BuildSYCLKernelInfo(KernelNameType, FD)));
 }
