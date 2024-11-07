@@ -60,13 +60,15 @@ struct device_has_key
                                  std::integral_constant<aspect, Aspects>...>;
 };
 
-struct nd_range_kernel_key {
+struct nd_range_kernel_key
+    : detail::compile_time_property_key<detail::PropKind::NDRangeKernel> {
   template <int Dims>
   using value_t =
       property_value<nd_range_kernel_key, std::integral_constant<int, Dims>>;
 };
 
-struct single_task_kernel_key {
+struct single_task_kernel_key
+    : detail::compile_time_property_key<detail::PropKind::SingleTaskKernel> {
   using value_t = property_value<single_task_kernel_key>;
 };
 
@@ -87,14 +89,17 @@ struct max_linear_work_group_size_key
 
 template <size_t Dim0, size_t... Dims>
 struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
-                      std::integral_constant<size_t, Dims>...> {
+                      std::integral_constant<size_t, Dims>...>
+    : detail::property_base<
+          property_value<work_group_size_key,
+                         std::integral_constant<size_t, Dim0>,
+                         std::integral_constant<size_t, Dims>...>,
+          detail::PropKind::WorkGroupSize, work_group_size_key> {
   static_assert(
       sizeof...(Dims) + 1 <= 3,
       "work_group_size property currently only supports up to three values.");
   static_assert(detail::AllNonZero<Dim0, Dims...>::value,
                 "work_group_size property must only contain non-zero values.");
-
-  using key_t = work_group_size_key;
 
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
@@ -104,15 +109,18 @@ struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
 template <size_t Dim0, size_t... Dims>
 struct property_value<work_group_size_hint_key,
                       std::integral_constant<size_t, Dim0>,
-                      std::integral_constant<size_t, Dims>...> {
+                      std::integral_constant<size_t, Dims>...>
+    : detail::property_base<
+          property_value<work_group_size_hint_key,
+                         std::integral_constant<size_t, Dim0>,
+                         std::integral_constant<size_t, Dims>...>,
+          detail::PropKind::WorkGroupSizeHint, work_group_size_hint_key> {
   static_assert(sizeof...(Dims) + 1 <= 3,
                 "work_group_size_hint property currently "
                 "only supports up to three values.");
   static_assert(
       detail::AllNonZero<Dim0, Dims...>::value,
       "work_group_size_hint property must only contain non-zero values.");
-
-  using key_t = work_group_size_hint_key;
 
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
@@ -121,41 +129,57 @@ struct property_value<work_group_size_hint_key,
 
 template <uint32_t Size>
 struct property_value<sub_group_size_key,
-                      std::integral_constant<uint32_t, Size>> {
+                      std::integral_constant<uint32_t, Size>>
+    : detail::property_base<
+          property_value<sub_group_size_key,
+                         std::integral_constant<uint32_t, Size>>,
+          detail::PropKind::SubGroupSize, sub_group_size_key> {
   static_assert(Size != 0,
                 "sub_group_size_key property must contain a non-zero value.");
 
-  using key_t = sub_group_size_key;
   using value_t = std::integral_constant<uint32_t, Size>;
   static constexpr uint32_t value = Size;
 };
 
 template <aspect... Aspects>
 struct property_value<device_has_key,
-                      std::integral_constant<aspect, Aspects>...> {
-  using key_t = device_has_key;
+                      std::integral_constant<aspect, Aspects>...>
+    : detail::property_base<
+          property_value<device_has_key,
+                         std::integral_constant<aspect, Aspects>...>,
+          detail::PropKind::DeviceHas, device_has_key> {
   static constexpr std::array<aspect, sizeof...(Aspects)> value{Aspects...};
 };
 
 template <int Dims>
-struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>> {
+struct property_value<nd_range_kernel_key, std::integral_constant<int, Dims>>
+    : detail::property_base<property_value<nd_range_kernel_key,
+                                           std::integral_constant<int, Dims>>,
+                            detail::PropKind::NDRangeKernel,
+                            nd_range_kernel_key> {
   static_assert(
       Dims >= 1 && Dims <= 3,
       "nd_range_kernel_key property must use dimension of 1, 2 or 3.");
 
-  using key_t = nd_range_kernel_key;
   using value_t = int;
   static constexpr int dimensions = Dims;
 };
 
-template <> struct property_value<single_task_kernel_key> {
-  using key_t = single_task_kernel_key;
-};
+template <>
+struct property_value<single_task_kernel_key>
+    : detail::property_base<property_value<single_task_kernel_key>,
+                            detail::PropKind::SingleTaskKernel,
+                            single_task_kernel_key> {};
 
 template <size_t Dim0, size_t... Dims>
 struct property_value<max_work_group_size_key,
                       std::integral_constant<size_t, Dim0>,
-                      std::integral_constant<size_t, Dims>...> {
+                      std::integral_constant<size_t, Dims>...>
+    : detail::property_base<
+          property_value<max_work_group_size_key,
+                         std::integral_constant<size_t, Dim0>,
+                         std::integral_constant<size_t, Dims>...>,
+          detail::PropKind::MaxWorkGroupSize, max_work_group_size_key> {
   static_assert(sizeof...(Dims) + 1 <= 3,
                 "max_work_group_size property currently "
                 "only supports up to three values.");
@@ -163,16 +187,16 @@ struct property_value<max_work_group_size_key,
       detail::AllNonZero<Dim0, Dims...>::value,
       "max_work_group_size property must only contain non-zero values.");
 
-  using key_t = max_work_group_size_key;
-
   constexpr size_t operator[](int Dim) const {
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
 };
 
-template <> struct property_value<max_linear_work_group_size_key> {
-  using key_t = max_linear_work_group_size_key;
-};
+template <>
+struct property_value<max_linear_work_group_size_key>
+    : detail::property_base<property_value<max_linear_work_group_size_key>,
+                            detail::PropKind::MaxLinearWorkGroupSize,
+                            max_linear_work_group_size_key> {};
 
 template <size_t Dim0, size_t... Dims>
 inline constexpr work_group_size_key::value_t<Dim0, Dims...> work_group_size;
@@ -235,8 +259,13 @@ template <forward_progress_guarantee Guarantee,
 struct property_value<
     work_group_progress_key,
     std::integral_constant<forward_progress_guarantee, Guarantee>,
-    std::integral_constant<execution_scope, CoordinationScope>> {
-  using key_t = work_group_progress_key;
+    std::integral_constant<execution_scope, CoordinationScope>>
+    : detail::property_base<
+          property_value<
+              work_group_progress_key,
+              std::integral_constant<forward_progress_guarantee, Guarantee>,
+              std::integral_constant<execution_scope, CoordinationScope>>,
+          detail::PropKind::WorkGroupProgress, work_group_progress_key> {
   static constexpr forward_progress_guarantee guarantee = Guarantee;
   static constexpr execution_scope coordinationScope = CoordinationScope;
 };
@@ -246,8 +275,13 @@ template <forward_progress_guarantee Guarantee,
 struct property_value<
     sub_group_progress_key,
     std::integral_constant<forward_progress_guarantee, Guarantee>,
-    std::integral_constant<execution_scope, CoordinationScope>> {
-  using key_t = work_group_progress_key;
+    std::integral_constant<execution_scope, CoordinationScope>>
+    : detail::property_base<
+          property_value<
+              sub_group_progress_key,
+              std::integral_constant<forward_progress_guarantee, Guarantee>,
+              std::integral_constant<execution_scope, CoordinationScope>>,
+          detail::PropKind::SubGroupProgress, sub_group_progress_key> {
   static constexpr forward_progress_guarantee guarantee = Guarantee;
   static constexpr execution_scope coordinationScope = CoordinationScope;
 };
@@ -257,8 +291,13 @@ template <forward_progress_guarantee Guarantee,
 struct property_value<
     work_item_progress_key,
     std::integral_constant<forward_progress_guarantee, Guarantee>,
-    std::integral_constant<execution_scope, CoordinationScope>> {
-  using key_t = work_group_progress_key;
+    std::integral_constant<execution_scope, CoordinationScope>>
+    : detail::property_base<
+          property_value<
+              work_item_progress_key,
+              std::integral_constant<forward_progress_guarantee, Guarantee>,
+              std::integral_constant<execution_scope, CoordinationScope>>,
+          detail::PropKind::WorkItemProgress, work_item_progress_key> {
   static constexpr forward_progress_guarantee guarantee = Guarantee;
   static constexpr execution_scope coordinationScope = CoordinationScope;
 };

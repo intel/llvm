@@ -1,7 +1,7 @@
-# commit 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d
-# Merge: a5a649f3 34b66fda
+# commit 09ae26af4e4e4301177db704b3b109ecd388c846
+# Merge: d2f69680 dd920712
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 6 16:45:49 2024 +0000
-#     Merge pull request #2276 from rafbiels/rafbiels/fix-hip-evbase
-#     Set the right HIP device before creating base event counter
-set(UNIFIED_RUNTIME_TAG 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d)
+# Date:   Thu Nov 7 11:43:19 2024 +0000
+#     Merge pull request #2233 from martygrant/martin/memory-cts-spec-gap-2
+#     Improvements to align CTS and Spec for Memory
+set(UNIFIED_RUNTIME_TAG 09ae26af4e4e4301177db704b3b109ecd388c846)
