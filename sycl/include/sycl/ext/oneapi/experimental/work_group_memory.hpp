@@ -49,7 +49,6 @@ private:
   using decoratedPtr = typename sycl::detail::DecoratedType<
       value_type, access::address_space::local_space>::type *;
 
-public:
 // Frontend requires special types to have a default constructor in device
 // compilation mode in order to have a uniform way of initializing an object of
 // special type to then call the __init method on it. This is purely an
@@ -57,6 +56,8 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
   work_group_memory() = default;
 #endif
+
+public:
   work_group_memory(const indeterminate_t &) {};
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
