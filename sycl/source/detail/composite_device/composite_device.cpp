@@ -11,6 +11,7 @@
 #include <sycl/platform.hpp>
 
 #include <unordered_set>
+#include <algorithm>
 
 namespace sycl {
 inline namespace _V1 {
