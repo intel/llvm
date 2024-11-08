@@ -24,14 +24,6 @@ namespace detail {
 using spirv_vec_t = std::vector<uint8_t>;
 using include_pairs_t = std::vector<std::pair<std::string, std::string>>;
 
-// CP
-// spirv_vec_t
-// SYCL_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
-//               const std::vector<std::string> &UserArgs, std::string *LogPtr,
-//               const std::vector<std::string> &RegisteredKernelNames);
-
-// bool SYCL_Compilation_Available();
-
 std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 
 spirv_vec_t

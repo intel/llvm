@@ -503,13 +503,6 @@ public:
                                                BuildOptions, LogPtr,
                                                RegisteredKernelNames);
         }
-        // CP
-        // if (Language == syclex::source_language::sycl_jit) {
-        //   const auto &SourceStr = std::get<std::string>(this->Source);
-        //   return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
-        //                                            BuildOptions, LogPtr,
-        //                                            RegisteredKernelNames);
-        // }
         throw sycl::exception(
             make_error_code(errc::invalid),
             "SYCL C++, OpenCL C and SPIR-V are the only supported "
