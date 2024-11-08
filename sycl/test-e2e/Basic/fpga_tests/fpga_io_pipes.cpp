@@ -1,6 +1,10 @@
+// The test is disabled, since no support added in FPGA backend yet. Check
+// implementation correctness from CXX and SYCL languages perspective.
+// UNSUPPORTED: true
+
 // REQUIRES: accelerator
 // RUN: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{run} %t.out
 //==------------ fpga_io_pipes.cpp - SYCL FPGA pipes test ------------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -14,9 +18,6 @@
 #include <sycl/ext/intel/fpga_extensions.hpp>
 
 #include "io_pipe_def.h"
-
-// TODO: run is disabled, since no support added in FPGA backend yet. Check
-// implementation correctness from CXX and SYCL languages perspective.
 
 // This test is supposed to be run only on Intel FPGA emulator. Change it when
 // we have more experience with IO pipe feature in SYCL.

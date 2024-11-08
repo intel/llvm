@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 

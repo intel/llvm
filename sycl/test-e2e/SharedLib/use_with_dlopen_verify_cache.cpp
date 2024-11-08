@@ -17,6 +17,7 @@
 // This causes SEG. FAULT.
 // RUNx: %{compile} -DRUN_LAST
 // RUNx: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK-LAST,CHECK --implicit-check-not=piProgramBuild
+// RUNx-TRACKER: https://github.com/intel/llvm/issues/16031
 // clang-format on
 
 #include <sycl/detail/core.hpp>
