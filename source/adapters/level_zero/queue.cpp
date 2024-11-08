@@ -2272,7 +2272,7 @@ ur_result_t ur_queue_handle_t_::createCommandList(
   ZeStruct<ze_fence_desc_t> ZeFenceDesc;
   ze_command_list_handle_t ZeCommandList;
 
-  uint32_t QueueGroupOrdinal = 0;
+  uint32_t QueueGroupOrdinal;
   auto &QGroup = getQueueGroup(UseCopyEngine);
   auto &ZeCommandQueue =
       ForcedCmdQueue ? *ForcedCmdQueue : QGroup.getZeQueue(&QueueGroupOrdinal);

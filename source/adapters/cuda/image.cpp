@@ -284,9 +284,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urUSMPitchedAllocExp(
   ur_result_t Result = UR_RESULT_SUCCESS;
   try {
     ScopedContext Active(hDevice);
-    UR_CHECK_ERROR(
-        cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch, widthInBytes,
-                        height, static_cast<unsigned int>(elementSizeBytes)));
+    UR_CHECK_ERROR(cuMemAllocPitch((CUdeviceptr *)ppMem, pResultPitch,
+                                   widthInBytes, height, elementSizeBytes));
   } catch (ur_result_t error) {
     Result = error;
   } catch (...) {

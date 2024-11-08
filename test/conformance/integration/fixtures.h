@@ -35,8 +35,7 @@ struct IntegrationQueueTestWithParam
     void submitBarrierIfNeeded(std::vector<ur_event_handle_t> &(Events)) {
         if (QueueFlags == UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) {
             ASSERT_SUCCESS(urEnqueueEventsWaitWithBarrier(
-                Queue, static_cast<uint32_t>(Events.size()), Events.data(),
-                nullptr));
+                Queue, Events.size(), Events.data(), nullptr));
             AllEvents.insert(AllEvents.end(), Events.begin(), Events.end());
         }
     }

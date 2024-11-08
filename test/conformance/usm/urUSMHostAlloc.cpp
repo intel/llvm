@@ -5,7 +5,6 @@
 
 #include "helpers.h"
 #include <cstring>
-#include <limits>
 #include <uur/fixtures.h>
 
 struct urUSMHostAllocTest
@@ -129,8 +128,7 @@ TEST_P(urUSMHostAllocTest, InvalidNullPtrMem) {
 TEST_P(urUSMHostAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
-                     urUSMHostAlloc(context, nullptr, pool,
-                                    std::numeric_limits<size_t>::max(), &ptr));
+                     urUSMHostAlloc(context, nullptr, pool, -1, &ptr));
 }
 
 TEST_P(urUSMHostAllocTest, InvalidValueAlignPowerOfTwo) {
