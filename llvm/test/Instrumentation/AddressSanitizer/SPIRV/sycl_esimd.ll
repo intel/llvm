@@ -8,7 +8,7 @@ target triple = "spir64-unknown-unknown"
 ;;
 
 define spir_kernel void @sycl_kernel(ptr addrspace(1) %p) #0 {
-; CHECK-LABEL: define spir_kernel void @sycl_kernel(ptr addrspace(1) %p, ptr addrspace(1) %__asan_launch) #0
+; CHECK-LABEL: define spir_kernel void @sycl_kernel(ptr addrspace(1) %p, ptr addrspace(1) noundef %__asan_launch)
 entry:
   %0 = load i32, ptr addrspace(1) %p, align 4
   ; CHECK-NOT: store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
@@ -17,7 +17,7 @@ entry:
 }
 
 define spir_kernel void @esimd_kernel(ptr addrspace(1) %p) #0 !sycl_explicit_simd !1 {
-; CHECK-LABEL: define spir_kernel void @esimd_kernel(ptr addrspace(1) %p, ptr addrspace(1) %__asan_launch) #0
+; CHECK-LABEL: define spir_kernel void @esimd_kernel(ptr addrspace(1) %p, ptr addrspace(1) noundef %__asan_launch)
 entry:
   %0 = load i32, ptr addrspace(1) %p, align 4
   ; CHECK-NOT: store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8

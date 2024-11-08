@@ -6,14 +6,14 @@ target triple = "spir64-unknown-unknown"
 ; CHECK: @__AsanLaunchInfo = external addrspace(3) global ptr addrspace(1)
 
 define spir_kernel void @sycl_kernel1() #0 {
-; CHECK-LABEL: define spir_kernel void @sycl_kernel1(ptr addrspace(1) %__asan_launch)
+; CHECK-LABEL: define spir_kernel void @sycl_kernel1(ptr addrspace(1) noundef %__asan_launch)
 entry:
   ; store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
   ret void
 }
 
 define spir_kernel void @sycl_kernel2() #0 {
-; CHECK-LABEL: define spir_kernel void @sycl_kernel2(ptr addrspace(1) %__asan_launch)
+; CHECK-LABEL: define spir_kernel void @sycl_kernel2(ptr addrspace(1) noundef %__asan_launch)
 entry:
   ; CHECK: store ptr addrspace(1) %__asan_launch, ptr addrspace(3) @__AsanLaunchInfo, align 8
   call void @sycl_kernel1()
