@@ -205,6 +205,8 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
         propName, logger::toHex(propName));
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urEventGetProfilingInfo(

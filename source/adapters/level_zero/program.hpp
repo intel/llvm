@@ -46,8 +46,7 @@ struct ur_program_handle_t_ : _ur_object {
   class SpecConstantShim {
   public:
     SpecConstantShim(ur_program_handle_t_ *Program) {
-      ZeSpecConstants.numConstants =
-          static_cast<uint32_t>(Program->SpecConstants.size());
+      ZeSpecConstants.numConstants = Program->SpecConstants.size();
       ZeSpecContantsIds.reserve(ZeSpecConstants.numConstants);
       ZeSpecContantsValues.reserve(ZeSpecConstants.numConstants);
 

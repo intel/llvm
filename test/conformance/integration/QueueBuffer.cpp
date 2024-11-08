@@ -4,7 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "fixtures.h"
-#include <cstdint>
+#include <chrono>
+#include <thread>
 
 struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
     void SetUp() override {
@@ -46,8 +47,8 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
     std::vector<ur_event_handle_t> EventsFill;
     ur_event_handle_t Event;
 
-    size_t Buffer1Index = 0;
-    size_t Buffer2Index = 0;
+    size_t Buffer1Index;
+    size_t Buffer2Index;
     ASSERT_NO_FATAL_FAILURE(
         AddBuffer1DArg(ArraySize * sizeof(uint32_t), &Buffer1, &Buffer1Index));
     ASSERT_NO_FATAL_FAILURE(
@@ -74,10 +75,10 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
     for (uint32_t i = 0; i < NumIterations; ++i) {
 
         /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-        ASSERT_SUCCESS(urKernelSetArgMemObj(
-            kernel, static_cast<uint32_t>(Buffer2Index), nullptr, Buffer2));
-        ASSERT_SUCCESS(urKernelSetArgMemObj(
-            kernel, static_cast<uint32_t>(Buffer1Index), nullptr, Buffer1));
+        ASSERT_SUCCESS(
+            urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer2));
+        ASSERT_SUCCESS(
+            urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer1));
 
         ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                              &GlobalOffset, &ArraySize, nullptr,
@@ -87,10 +88,10 @@ TEST_P(QueueBufferTestWithParam, QueueBufferTest) {
         CurValueMem2 = CurValueMem1 * 2;
 
         /* Copy from DeviceMem1 to DeviceMem2 and multiply by 2 */
-        ASSERT_SUCCESS(urKernelSetArgMemObj(
-            kernel, static_cast<uint32_t>(Buffer1Index), nullptr, Buffer2));
-        ASSERT_SUCCESS(urKernelSetArgMemObj(
-            kernel, static_cast<uint32_t>(Buffer2Index), nullptr, Buffer1));
+        ASSERT_SUCCESS(
+            urKernelSetArgMemObj(kernel, Buffer1Index, nullptr, Buffer2));
+        ASSERT_SUCCESS(
+            urKernelSetArgMemObj(kernel, Buffer2Index, nullptr, Buffer1));
 
         ASSERT_SUCCESS(urEnqueueKernelLaunch(Queue, kernel, NDimensions,
                                              &GlobalOffset, &ArraySize, nullptr,

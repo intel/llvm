@@ -10,7 +10,6 @@
 
 #include "common.hpp"
 
-#include <limits>
 #include <mutex>
 #include <set>
 #include <unordered_map>
@@ -33,7 +32,8 @@ cl_event_info convertUREventInfoToCL(const ur_event_info_t PropName) {
     return CL_EVENT_REFERENCE_COUNT;
     break;
   default:
-    return std::numeric_limits<cl_event_info>::max();
+    return -1;
+    break;
   }
 }
 
@@ -51,7 +51,7 @@ convertURProfilingInfoToCL(const ur_profiling_info_t PropName) {
   case UR_PROFILING_INFO_COMMAND_END:
     return CL_PROFILING_COMMAND_END;
   default:
-    return std::numeric_limits<cl_profiling_info>::max();
+    return -1;
   }
 }
 

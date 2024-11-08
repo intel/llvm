@@ -8,8 +8,6 @@
 
 #include <uur/fixtures.h>
 
-#include <array>
-
 namespace uur {
 namespace command_buffer {
 
