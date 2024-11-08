@@ -19,6 +19,9 @@
 #if SYCL_BACKEND_OPENCL
 #include <sycl/backend/opencl.hpp>
 #endif
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#endif
 #include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
@@ -58,9 +61,6 @@
 #include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/vector.hpp>
 #include <sycl/version.hpp>
-#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-#include <sycl/ext/oneapi/backend/level_zero.hpp>
-#endif
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>

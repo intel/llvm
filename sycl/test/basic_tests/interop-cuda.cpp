@@ -10,7 +10,6 @@
 
 #ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
 // expected-no-diagnostics
-#include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 #endif
 

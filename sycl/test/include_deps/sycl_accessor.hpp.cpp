@@ -57,7 +57,6 @@
 // CHECK-NEXT: info/aspects_deprecated.def
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
-// CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp

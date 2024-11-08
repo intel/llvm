@@ -5,7 +5,6 @@
 #ifdef USE_CUDA_EXPERIMENTAL
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA 1
 #define SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL 1
-#include <sycl/backend.hpp>
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 #endif
 

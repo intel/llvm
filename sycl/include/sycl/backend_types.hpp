@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/backend_traits.hpp>
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 
 #include <ostream> // for operator<<, ostream
@@ -28,14 +27,7 @@ enum class backend : char {
   ext_oneapi_native_cpu = 7,
 };
 
-template <backend Backend> class backend_traits {
-public:
-  template <class T>
-  using input_type = typename detail::BackendInput<Backend, T>::type;
-
-  template <class T>
-  using return_type = typename detail::BackendReturn<Backend, T>::type;
-};
+template <backend Backend> class backend_traits;
 
 template <backend Backend, typename SYCLObjectT>
 using backend_input_t =

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
+#include <sycl/backend.hpp>
 #include <sycl/context.hpp>
 #include <sycl/interop_handle.hpp>
 

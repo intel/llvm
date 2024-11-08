@@ -64,6 +64,15 @@ namespace detail {
 enum class backend_errc : unsigned int {};
 } // namespace detail
 
+template <backend Backend> class backend_traits {
+public:
+  template <class T>
+  using input_type = typename detail::BackendInput<Backend, T>::type;
+
+  template <class T>
+  using return_type = typename detail::BackendReturn<Backend, T>::type;
+};
+
 namespace detail {
 template <backend Backend, typename DataT, int Dimensions, typename AllocatorT>
 struct BufferInterop {
