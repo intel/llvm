@@ -61,6 +61,7 @@
 #include <sycl/usm/usm_pointer_info.hpp>
 #include <sycl/vector.hpp>
 #include <sycl/version.hpp>
+
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>

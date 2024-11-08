@@ -38,6 +38,9 @@ inline namespace _V1 {
 class device;
 class context;
 
+template <backend BackendName, class SyclObjectT>
+auto get_native(const SyclObjectT &Obj)
+    -> backend_return_t<BackendName, SyclObjectT>;
 namespace detail {
 class platform_impl;
 
