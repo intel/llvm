@@ -1,4 +1,4 @@
-# See check-correctness-of-requires.cpp
+# See check-correctness-of-requirements.cpp
 
 import re
 import sys
@@ -19,7 +19,9 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
     available_features = {
         # host OS:
         "windows",
+        "system-windows",
         "linux",
+        "system-linux",
         # target device:
         "cpu",
         "gpu",
@@ -27,10 +29,12 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
         # target backend:
         "cuda",
         "hip",
+        "hip_amd",
+        "hip_nvidia",
         "opencl",
         "level_zero",
+        "level-zero",
         "native_cpu",
-        "hip_amd",
         # tools:
         "sycl-ls",
         "cm-compiler",
@@ -49,6 +53,8 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
         "gpu-intel-dg2",
         "gpu-intel-pvc",
         "gpu-intel-pvc-vg",
+        "gpu-intel-pvc-1T",
+        "gpu-intel-pvc-2T",
         "gpu-amd-gfx90a",
         # any-device-is-:
         "any-device-is-cpu",
@@ -58,6 +64,7 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
         "any-device-is-hip",
         "any-device-is-opencl",
         "any-device-is-level_zero",
+        "any-device-is-native_cpu",
         # sg-sizes (should we allow any sg-X?)
         "sg-8",
         "sg-16",
@@ -71,6 +78,9 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
         "zstd",
         "preview-breaking-changes-supported",
         "vulkan",
+        "O0",
+        "ze_debug",
+        "igc-dev",
         # Note: aspects and architectures are gathered below
     }
 
@@ -96,20 +106,11 @@ def parse_requirements(input_data_path, sycl_include_dir_path):
 
     exit_code = 0
     with open(input_data_path, "r") as file:
-        for line in file:
-            # get the content of "REQUIRES: "
-            requirements = re.compile(r"// REQUIRES: (.*)").search(line)
-            # Drop all symbols except feature names
-            requirements = re.split(r"&&|\|\||, |,|\(|\)|\s+", requirements.group(1))
-            # Filter out empty names
-            requirements = [req.strip() for req in requirements if req.strip()]
-
-            for feature in requirements:
-                # some names can start with "!" e.g. "!level_zero", drop "!"
-                feature = feature.lstrip("!")
-                if not feature in available_features:
-                    exit_code = 1
-                    print(line + "contains unsupported feature: " + feature)
+        requirements = set(file.read().split())
+        for requirement in requirements:
+            if not requirement in available_features:
+                exit_code = 1
+                print("Unsupported requirement: " + requirement)
     sys.exit(exit_code)
 
 
