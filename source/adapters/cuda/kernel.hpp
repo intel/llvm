@@ -97,8 +97,8 @@ struct ur_kernel_handle_t_ {
       }
       ParamSizes[Index] = Size;
       // calculate the insertion point on the array
-      size_t InsertPos = std::accumulate(std::begin(ParamSizes),
-                                         std::begin(ParamSizes) + Index, 0);
+      size_t InsertPos = std::accumulate(
+          std::begin(ParamSizes), std::begin(ParamSizes) + Index, size_t{0});
       // Update the stored value for the argument
       std::memcpy(&Storage[InsertPos], Arg, Size);
       Indices[Index] = &Storage[InsertPos];
@@ -152,8 +152,8 @@ struct ur_kernel_handle_t_ {
     const args_index_t &getIndices() const noexcept { return Indices; }
 
     uint32_t getLocalSize() const {
-      return std::accumulate(std::begin(OffsetPerIndex),
-                             std::end(OffsetPerIndex), 0);
+      return static_cast<uint32_t>(std::accumulate(
+          std::begin(OffsetPerIndex), std::end(OffsetPerIndex), size_t{0}));
     }
   } Args;
 

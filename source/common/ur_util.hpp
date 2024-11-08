@@ -98,8 +98,9 @@ std::optional<std::string> ur_getenv(const char *name);
 
 inline bool getenv_tobool(const char *name, bool def = false) {
     if (auto env = ur_getenv(name); env) {
-        std::transform(env->begin(), env->end(), env->begin(),
-                       [](unsigned char c) { return std::tolower(c); });
+        std::transform(env->begin(), env->end(), env->begin(), [](char c) {
+            return static_cast<char>(std::tolower(c));
+        });
         auto true_str = {"y", "yes", "t", "true", "1"};
         return std::find(true_str.begin(), true_str.end(), *env) !=
                true_str.end();

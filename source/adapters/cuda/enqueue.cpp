@@ -160,7 +160,7 @@ void guessLocalWorkSize(ur_device_handle_t Device, size_t *ThreadsPerBlock,
   int MinGrid, MaxBlockSize;
   UR_CHECK_ERROR(cuOccupancyMaxPotentialBlockSize(
       &MinGrid, &MaxBlockSize, Kernel->get(), NULL, Kernel->getLocalSize(),
-      MaxBlockDim[0]));
+      static_cast<int>(MaxBlockDim[0])));
 
   roundToHighestFactorOfGlobalSizeIn3d(ThreadsPerBlock, GlobalSizeNormalized,
                                        MaxBlockDim, MaxBlockSize);
@@ -208,7 +208,7 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
       MaxWorkGroupSize = Device->getMaxWorkGroupSize();
 
       if (ProvidedLocalWorkGroupSize) {
-        auto IsValid = [&](int Dim) {
+        auto IsValid = [&](size_t Dim) {
           if (ReqdThreadsPerBlock[Dim] != 0 &&
               LocalWorkSize[Dim] != ReqdThreadsPerBlock[Dim])
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
@@ -217,7 +217,8 @@ setKernelParams([[maybe_unused]] const ur_context_handle_t Context,
               LocalWorkSize[Dim] > MaxThreadsPerBlock[Dim])
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
 
-          if (LocalWorkSize[Dim] > Device->getMaxWorkItemSizes(Dim))
+          if (LocalWorkSize[Dim] >
+              Device->getMaxWorkItemSizes(static_cast<int>(Dim)))
             return UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE;
           // Checks that local work sizes are a divisor of the global work sizes
           // which includes that the local work sizes are neither larger than
@@ -481,9 +482,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
     auto &ArgIndices = hKernel->getArgIndices();
     UR_CHECK_ERROR(cuLaunchKernel(
-        CuFunc, BlocksPerGrid[0], BlocksPerGrid[1], BlocksPerGrid[2],
-        ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2], LocalSize,
-        CuStream, const_cast<void **>(ArgIndices.data()), nullptr));
+        CuFunc, static_cast<unsigned int>(BlocksPerGrid[0]),
+        static_cast<unsigned int>(BlocksPerGrid[1]),
+        static_cast<unsigned int>(BlocksPerGrid[2]),
+        static_cast<unsigned int>(ThreadsPerBlock[0]),
+        static_cast<unsigned int>(ThreadsPerBlock[1]),
+        static_cast<unsigned int>(ThreadsPerBlock[2]), LocalSize, CuStream,
+        const_cast<void **>(ArgIndices.data()), nullptr));
 
     if (LocalSize != 0)
       hKernel->clearLocalSize();
@@ -649,12 +654,12 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     auto &ArgIndices = hKernel->getArgIndices();
 
     CUlaunchConfig launch_config;
-    launch_config.gridDimX = BlocksPerGrid[0];
-    launch_config.gridDimY = BlocksPerGrid[1];
-    launch_config.gridDimZ = BlocksPerGrid[2];
-    launch_config.blockDimX = ThreadsPerBlock[0];
-    launch_config.blockDimY = ThreadsPerBlock[1];
-    launch_config.blockDimZ = ThreadsPerBlock[2];
+    launch_config.gridDimX = static_cast<unsigned int>(BlocksPerGrid[0]);
+    launch_config.gridDimY = static_cast<unsigned int>(BlocksPerGrid[1]);
+    launch_config.gridDimZ = static_cast<unsigned int>(BlocksPerGrid[2]);
+    launch_config.blockDimX = static_cast<unsigned int>(ThreadsPerBlock[0]);
+    launch_config.blockDimY = static_cast<unsigned int>(ThreadsPerBlock[1]);
+    launch_config.blockDimZ = static_cast<unsigned int>(ThreadsPerBlock[2]);
 
     launch_config.sharedMemBytes = LocalSize;
     launch_config.hStream = CuStream;
@@ -979,8 +984,9 @@ ur_result_t commonMemSetLargePattern(CUstream Stream, uint32_t PatternSize,
     auto OffsetPtr = Ptr + (step * sizeof(uint8_t));
 
     // set all of the pattern chunks
-    UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch, Value, sizeof(uint8_t),
-                                     Height, Stream));
+    UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch,
+                                     static_cast<unsigned char>(Value),
+                                     sizeof(uint8_t), Height, Stream));
   }
   return UR_RESULT_SUCCESS;
 }
@@ -1031,8 +1037,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
       break;
     }
     default: {
-      UR_CHECK_ERROR(commonMemSetLargePattern(Stream, patternSize, size,
-                                              pPattern, DstDevice));
+      UR_CHECK_ERROR(
+          commonMemSetLargePattern(Stream, static_cast<uint32_t>(patternSize),
+                                   size, pPattern, DstDevice));
       break;
     }
     }
@@ -1064,7 +1071,6 @@ static size_t imageElementByteSize(CUDA_ARRAY_DESCRIPTOR ArrayDesc) {
     return 4;
   default:
     detail::ur::die("Invalid image format.");
-    return 0;
   }
 }
 
@@ -1168,7 +1174,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageRead(
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
 
-    int ElementByteSize = imageElementByteSize(ArrayDesc);
+    int ElementByteSize = static_cast<int>(imageElementByteSize(ArrayDesc));
 
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
@@ -1241,7 +1247,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageWrite(
     CUDA_ARRAY_DESCRIPTOR ArrayDesc;
     UR_CHECK_ERROR(cuArrayGetDescriptor(&ArrayDesc, Array));
 
-    int ElementByteSize = imageElementByteSize(ArrayDesc);
+    int ElementByteSize = static_cast<int>(imageElementByteSize(ArrayDesc));
 
     size_t ByteOffsetX = origin.x * ElementByteSize * ArrayDesc.NumChannels;
     size_t BytesToCopy = ElementByteSize * ArrayDesc.NumChannels * region.width;
@@ -1320,7 +1326,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemImageCopy(
     UR_ASSERT(SrcArrayDesc.NumChannels == DstArrayDesc.NumChannels,
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
 
-    int ElementByteSize = imageElementByteSize(SrcArrayDesc);
+    int ElementByteSize = static_cast<int>(imageElementByteSize(SrcArrayDesc));
 
     size_t DstByteOffsetX =
         dstOrigin.x * ElementByteSize * SrcArrayDesc.NumChannels;
@@ -1505,8 +1511,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
           CuStream));
       break;
     default:
-      commonMemSetLargePattern(CuStream, patternSize, size, pPattern,
-                               (CUdeviceptr)ptr);
+      commonMemSetLargePattern(CuStream, static_cast<uint32_t>(patternSize),
+                               size, pPattern, (CUdeviceptr)ptr);
       break;
     }
     if (phEvent) {

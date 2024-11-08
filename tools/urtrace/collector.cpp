@@ -30,7 +30,14 @@
 #include "ur_api.h"
 #include "ur_print.hpp"
 #include "ur_util.hpp"
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4245)
+#endif
 #include "xpti/xpti_trace_framework.h"
+#ifdef _MSC_VER
+#pragma warning(default : 4245)
+#endif
 
 constexpr uint16_t TRACE_FN_BEGIN =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);
@@ -279,7 +286,6 @@ std::unique_ptr<TraceWriter> create_writer() {
     default:
         ur::unreachable();
     }
-    return nullptr;
 }
 
 static std::unique_ptr<TraceWriter> &writer() {

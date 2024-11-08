@@ -148,8 +148,8 @@ struct urCommandBufferAppendKernelLaunchExpTest
         int32_t *ptrX = static_cast<int32_t *>(shared_ptrs[1]);
         int32_t *ptrY = static_cast<int32_t *>(shared_ptrs[2]);
         for (size_t i = 0; i < global_size; i++) {
-            ptrX[i] = i;
-            ptrY[i] = i * 2;
+            ptrX[i] = static_cast<int32_t>(i);
+            ptrY[i] = static_cast<int32_t>(i * 2);
         }
 
         // Index 0 is output
@@ -200,7 +200,7 @@ TEST_P(urCommandBufferAppendKernelLaunchExpTest, Basic) {
 
     int32_t *ptrZ = static_cast<int32_t *>(shared_ptrs[0]);
     for (size_t i = 0; i < global_size; i++) {
-        uint32_t result = (A * i) + (i * 2);
+        int32_t result = static_cast<int32_t>((A * i) + (i * 2));
         ASSERT_EQ(result, ptrZ[i]);
     }
 }

@@ -4,6 +4,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 #include "helpers.h"
+#include <limits>
 #include <uur/fixtures.h>
 
 struct urUSMSharedAllocTest
@@ -145,9 +146,10 @@ TEST_P(urUSMSharedAllocTest, InvalidNullPtrMem) {
 
 TEST_P(urUSMSharedAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_USM_SIZE,
-        urUSMSharedAlloc(context, device, nullptr, pool, -1, &ptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
+                     urUSMSharedAlloc(context, device, nullptr, pool,
+                                      std::numeric_limits<size_t>::max(),
+                                      &ptr));
 }
 
 TEST_P(urUSMSharedAllocTest, InvalidValueAlignPowerOfTwo) {

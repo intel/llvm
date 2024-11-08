@@ -116,9 +116,10 @@ TEST_P(urUSMDeviceAllocTest, InvalidNullPtrResult) {
 
 TEST_P(urUSMDeviceAllocTest, InvalidUSMSize) {
     void *ptr = nullptr;
-    ASSERT_EQ_RESULT(
-        UR_RESULT_ERROR_INVALID_USM_SIZE,
-        urUSMDeviceAlloc(context, device, nullptr, pool, -1, &ptr));
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_USM_SIZE,
+                     urUSMDeviceAlloc(context, device, nullptr, pool,
+                                      std::numeric_limits<size_t>::max(),
+                                      &ptr));
 }
 
 TEST_P(urUSMDeviceAllocTest, InvalidValueAlignPowerOfTwo) {

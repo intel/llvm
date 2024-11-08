@@ -116,8 +116,9 @@ template <typename T> inline std::string toHex(T t) {
 inline Logger create_logger(std::string logger_name, bool skip_prefix,
                             bool skip_linebreak,
                             logger::Level default_log_level) {
-    std::transform(logger_name.begin(), logger_name.end(), logger_name.begin(),
-                   ::toupper);
+    std::transform(
+        logger_name.begin(), logger_name.end(), logger_name.begin(),
+        [](char c) -> char { return static_cast<char>(::toupper(c)); });
     std::stringstream env_var_name;
     const auto default_flush_level = logger::Level::ERR;
     const std::string default_output = "stderr";

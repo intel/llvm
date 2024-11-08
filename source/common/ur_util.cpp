@@ -15,7 +15,7 @@
 #include <windows.h>
 int ur_getpid(void) { return static_cast<int>(GetCurrentProcessId()); }
 
-int ur_close_fd(int fd) { return -1; }
+int ur_close_fd(int fd [[maybe_unused]]) { return -1; }
 
 int ur_duplicate_fd(int pid, int fd_in) {
     // TODO: find another way to obtain a duplicate of another process's file descriptor

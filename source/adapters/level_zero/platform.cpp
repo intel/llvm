@@ -99,8 +99,6 @@ ur_result_t urPlatformGetInfo(
     logger::debug("urPlatformGetInfo: unrecognized ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urPlatformGetApiVersion(

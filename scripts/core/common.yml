@@ -134,7 +134,7 @@ name: "$x_physical_mem_handle_t"
 type: macro
 desc: "Generic macro for enumerator bit masks"
 name: "$X_BIT( _i )"
-value: "( 1 << _i )"
+value: "( 1U << _i )"
 --- #--------------------------------------------------------------------------
 type: enum
 desc: "Defines Return/Error codes"

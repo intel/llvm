@@ -1152,7 +1152,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGet(ur_platform_handle_t hPlatform,
 
   try {
     if (pNumDevices) {
-      *pNumDevices = NumDevices;
+      *pNumDevices = static_cast<uint32_t>(NumDevices);
     }
 
     if (ReturnDevices && phDevices) {
@@ -1235,7 +1235,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceCreateWithNativeHandle(
 ur_result_t UR_APICALL urDeviceGetGlobalTimestamps(ur_device_handle_t hDevice,
                                                    uint64_t *pDeviceTimestamp,
                                                    uint64_t *pHostTimestamp) {
-  CUevent Event;
+  CUevent Event{};
   ScopedContext Active(hDevice);
 
   if (pDeviceTimestamp) {

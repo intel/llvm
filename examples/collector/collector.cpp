@@ -25,7 +25,14 @@
 #include <string_view>
 
 #include "ur_api.h"
+
+#ifdef _MSC_VER
+#pragma warning(disable : 4245)
+#endif
 #include "xpti/xpti_trace_framework.h"
+#ifdef _MSC_VER
+#pragma warning(default : 4245)
+#endif
 
 constexpr uint16_t TRACE_FN_BEGIN =
     static_cast<uint16_t>(xpti::trace_point_type_t::function_with_args_begin);

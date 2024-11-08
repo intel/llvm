@@ -131,6 +131,4 @@ UR_APIEXPORT ur_result_t UR_APICALL urAdapterGetInfo(ur_adapter_handle_t,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_SUCCESS;
 }

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "common.hpp"
+#include <limits>
 
 cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
   cl_image_format CLImageFormat;
@@ -59,7 +60,8 @@ cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
     CLImageFormat.image_channel_order = CL_sRGBA;
     break;
   default:
-    CLImageFormat.image_channel_order = -1;
+    CLImageFormat.image_channel_order =
+        std::numeric_limits<cl_channel_order>::max();
     break;
   }
 
@@ -110,7 +112,8 @@ cl_image_format mapURImageFormatToCL(const ur_image_format_t *PImageFormat) {
     CLImageFormat.image_channel_data_type = CL_FLOAT;
     break;
   default:
-    CLImageFormat.image_channel_data_type = -1;
+    CLImageFormat.image_channel_data_type =
+        std::numeric_limits<cl_channel_type>::max();
     break;
   }
 
@@ -139,7 +142,7 @@ cl_image_desc mapURImageDescToCL(const ur_image_desc_t *PImageDesc) {
     CLImageDesc.image_type = CL_MEM_OBJECT_IMAGE1D_ARRAY;
     break;
   default:
-    CLImageDesc.image_type = -1;
+    CLImageDesc.image_type = std::numeric_limits<cl_mem_object_type>::max();
     break;
   }
 

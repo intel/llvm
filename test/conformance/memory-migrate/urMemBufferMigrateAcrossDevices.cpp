@@ -88,7 +88,7 @@ struct urMultiDeviceContextMemBufferTest : urMultiDeviceContextTest {
     }
 
     // Adds a kernel arg representing a sycl buffer constructed with a 1D range.
-    void AddBuffer1DArg(ur_kernel_handle_t kernel, size_t current_arg_index,
+    void AddBuffer1DArg(ur_kernel_handle_t kernel, uint32_t current_arg_index,
                         ur_mem_handle_t buffer) {
         ASSERT_SUCCESS(
             urKernelSetArgMemObj(kernel, current_arg_index, nullptr, buffer));

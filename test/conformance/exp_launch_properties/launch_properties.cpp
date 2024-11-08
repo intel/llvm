@@ -14,7 +14,7 @@ struct urEnqueueKernelLaunchCustomTest : uur::urKernelExecutionTest {
     uint32_t val = 42;
     size_t global_size = 32;
     size_t global_offset = 0;
-    size_t n_dimensions = 1;
+    uint32_t n_dimensions = 1;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchCustomTest);
 

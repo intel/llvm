@@ -138,7 +138,7 @@ TEST_F(urDevicePartitionTest, PartitionByCounts) {
             uint32_t sum = 0;
             for (auto sub_device : sub_devices) {
                 ASSERT_NE(sub_device, nullptr);
-                uint32_t n_cu_in_sub_device;
+                uint32_t n_cu_in_sub_device = 0;
                 ASSERT_NO_FATAL_FAILURE(
                     getNumberComputeUnits(sub_device, n_cu_in_sub_device));
                 sum += n_cu_in_sub_device;
