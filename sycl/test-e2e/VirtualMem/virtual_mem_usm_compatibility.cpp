@@ -8,8 +8,22 @@
 
 #include <sycl/usm.hpp>
 
+#include <string_view>
+
 #include "helpers.hpp"
 
+int performResultCheck(size_t NumberOfElements, const int* DataResultPtr, const int ExpectedResultValue, std::string_view ErrorMessage){
+   int IsSuccessful{0};
+   for (size_t i = 0; i < NumberOfElements; i++) {
+    if (DataResultPtr[i] != ExpectedResultValue) {
+      std::cerr << ErrorMessage
+                << i << ": " << DataResultPtr
+                << " != " << ExpectedResultValue << std::endl;
+      ++IsSuccessful;
+    }
+  }
+  return IsSuccessful;
+}
 int main() {
 
   sycl::queue Queue;
@@ -22,6 +36,10 @@ int main() {
   constexpr int ValueSetInMemSetOperationPerByte = 1;
   constexpr int ValueSetInFillOperation = 444;
   constexpr size_t NumberOfElements = 1000;
+  
+  int *CopyBack = sycl::malloc_shared<int>(NumberOfElements, Queue);
+  int *CopyFrom = sycl::malloc_shared<int>(NumberOfElements, Queue);
+ 
   size_t BytesRequired = NumberOfElements * sizeof(int);
 
   size_t UsedGranularity = GetLCMGranularity(Device, Context);
@@ -36,6 +54,14 @@ int main() {
 
   int *DataPtr = reinterpret_cast<int *>(MappedPtr);
 
+  auto copyBackFunc = [&Queue, CopyBack, DataPtr](){
+    Queue
+      .parallel_for(NumberOfElements,
+                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
+      .wait_and_throw();
+
+  };
+
   Queue
       .parallel_for(
           NumberOfElements,
@@ -43,25 +69,12 @@ int main() {
       .wait_and_throw();
 
   // Check that one can copy from virtual memory to a USM allocation.
-  int *CopyBack = sycl::malloc_shared<int>(NumberOfElements, Queue);
 
-  Queue
-      .parallel_for(NumberOfElements,
-                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();
-
-  for (size_t i = 0; i < NumberOfElements; i++) {
-    if (CopyBack[i] != ValueSetInKernelForCopyToUSM) {
-      std::cout << "Comparison failed after copy from virtual memory to a USM "
-                   "allocation at index "
-                << i << ": " << CopyBack[i]
-                << " != " << ValueSetInKernelForCopyToUSM << std::endl;
-      ++Failed;
-    }
-  }
+  copyBackFunc();
+  Failed+= performResultCheck(NumberOfElements,CopyBack,ValueSetInKernelForCopyToUSM, "Comparison failed after copy from virtual memory to a USM allocation at index ");
 
   // Check that can copy from a USM allocation to virtual memory
-  int *CopyFrom = sycl::malloc_shared<int>(NumberOfElements, Queue);
+  
   for (size_t Idx = 0; Idx < NumberOfElements; ++Idx) {
     CopyFrom[Idx] = ValueSetForCopyToVirtualMem;
   }
@@ -71,21 +84,10 @@ int main() {
                     [=](sycl::id<1> Idx) { DataPtr[Idx] = CopyFrom[Idx]; })
       .wait_and_throw();
 
-  Queue
-      .parallel_for(NumberOfElements,
-                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();
+  copyBackFunc();
 
-  for (size_t i = 0; i < NumberOfElements; i++) {
-    if (CopyBack[i] != ValueSetForCopyToVirtualMem) {
-      std::cout << "Comparison failed after copy from a USM allocation to "
-                   "virtual memory at index "
-                << i << ": " << CopyBack[i]
-                << " != " << ValueSetForCopyToVirtualMem << std::endl;
-      ++Failed;
-    }
-  }
-
+  Failed+= performResultCheck(NumberOfElements, CopyBack, ValueSetForCopyToVirtualMem, "Comparison failed after copy from a USM allocation to virtual memory at index ");
+  
   // Check that can use memset on virtual memory
   int ExpectedResultAfterMemSetOperation{0};
   std::memset(&ExpectedResultAfterMemSetOperation,
@@ -93,39 +95,17 @@ int main() {
   Queue.memset(MappedPtr, ValueSetInMemSetOperationPerByte, AlignedByteSize)
       .wait_and_throw();
 
-  Queue
-      .parallel_for(NumberOfElements,
-                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();
+  copyBackFunc();
 
-  for (size_t i = 0; i < NumberOfElements; i++) {
-    if (CopyBack[i] != ExpectedResultAfterMemSetOperation) {
-      std::cout << "Comparison failed after memset operation on virtual memory "
-                   "at index "
-                << i << ": " << CopyBack[i]
-                << " != " << ExpectedResultAfterMemSetOperation << std::endl;
-      ++Failed;
-    }
-  }
+  Failed+= performResultCheck(NumberOfElements, CopyBack, ExpectedResultAfterMemSetOperation, "Comparison failed after memset operation on virtual memory at index ");
 
   // Check that can use fill on virtual memory
   Queue.fill(DataPtr, ValueSetInFillOperation, NumberOfElements)
       .wait_and_throw();
 
-  Queue
-      .parallel_for(NumberOfElements,
-                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();
+  copyBackFunc();
 
-  for (size_t i = 0; i < NumberOfElements; i++) {
-    if (CopyBack[i] != ValueSetInFillOperation) {
-      std::cout << "Comparison failed after fill operation on virtual memory "
-                   "at index "
-                << i << ": " << CopyBack[i] << " != " << ValueSetInFillOperation
-                << std::endl;
-      ++Failed;
-    }
-  }
+  Failed+= performResultCheck(NumberOfElements, CopyBack, ValueSetInFillOperation, "Comparison failed after fill operation on virtual memory at index ");
 
   sycl::free(CopyFrom, Queue);
   sycl::free(CopyBack, Queue);
