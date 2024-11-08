@@ -40,10 +40,6 @@ add_llvm_library(sycl-jit
    clangSerialization
 )
 
-install(TARGETS sycl-jit
-  RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader
-)
-
 if(WIN32)
   target_link_libraries(sycl-jit PRIVATE Shlwapi)
 endif()
