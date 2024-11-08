@@ -1293,18 +1293,19 @@ class MainKrn<main_krn::LocalAtomicCross<KernelName>,
   // using reducer_type = typename Reduction::reducer_type;
   // using element_type = typename ReducerTraits<reducer_type>::element_type;
 
+public:
+  static constexpr int dimensions = 1;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
   explicit MainKrn(OutAccT Out, const local_accessor<int> &GroupSum,
                    KernelType &KernelFunc)
       : Out_{Out}, GroupSum_{GroupSum},
-        KernelFunc_(std::make_tuple(KernelFunc)) {}
+        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
 
     // Work-group cooperates to initialize multiple reduction variables
     auto LID = NDId.get_local_id(0);
@@ -1332,7 +1333,7 @@ private:
   OutAccT Out_;
   local_accessor<result_type> GroupSum_;
 
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 } // namespace reduction
@@ -1345,46 +1346,66 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::local_atomic_and_atomic_cross_wg\n";
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "local_atomic_and_atomic_cross_wg strategy.");
-    using result_type = typename Reduction::result_type;
+
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
         reduction::strategy::local_atomic_and_atomic_cross_wg, 1>;
-
     Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
-      using Name = __sycl_reduction_kernel<
+      constexpr size_t NElements = Reduction::num_elements;
+      local_accessor<typename Reduction::result_type, 1> GroupSum{NElements,
+                                                                  CGH};
+
+      using ImplementationType = __sycl_reduction_kernel<
           reduction::MainKrn, reduction::main_krn::LocalAtomicCross<KernelName>,
           reduction::strategy::local_atomic_and_atomic_cross_wg, 1, KernelType,
           Reduction, decltype(Out)>;
+      // We enqueue a parallel_for with the implementation function object, if
+      // KernelName is undefined, otherwise we enqueue a typed lambda.
+      using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      constexpr size_t NElements = Reduction::num_elements;
-      local_accessor<result_type, 1> GroupSum{NElements, CGH};
-
-      Name KernelInstance{Out, GroupSum, KernelFunc};
+      auto EnqueueParallelFor = [&](auto &Func) {
+        if (UseKernelBundle) {
+          // Use the kernel bundle we queried. This helps ensuring we run
+          // the kernel for which we may have queried information.
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          CGH.use_kernel_bundle(ExecBundle);
+        }
+        if constexpr (std::is_same_v<KernelName, auto_name>) {
+          CGH.parallel_for(NDRange, Properties, Func);
+        } else {
+          constexpr int Dimensions =
+              std::remove_reference_t<decltype(Func)>::dimensions;
+          CGH.parallel_for<EnqueueName>(
+              NDRange, Properties,
+              [=](nd_item<Dimensions> NDit) { Func(NDit); });
+        }
+      };
 
       // Test kernel_device_specific queries.
       [&]() {
         using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<Name>();
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
         device Dev = getDeviceFromHandler(CGH);
         size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
         std::cout << "\n\n"
                   << "reduction::strategy::local_atomic_and_atomic_cross_wg\n"
-                  << "KernelInfo::MaxWGSize = " << MaxSize << '\n';
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
+        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        }
       }();
-      if (UseKernelBundle) {
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        // Use the kernel bundle we queried. This helps ensuring we run the
-        // kernel for which we queried launch information, if we ever do so.
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+      ImplementationType KernelInstance{Out, GroupSum, KernelFunc};
+      EnqueueParallelFor(KernelInstance);
     });
   }
 };
@@ -1399,9 +1420,10 @@ class MainKrn<main_krn::GroupReduceLast<KernelName>,
   using reducer_type = typename Reduction::reducer_type;
   using element_type = typename ReducerTraits<reducer_type>::element_type;
 
+public:
+  static constexpr int dimensions = 1;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
   explicit MainKrn(const OutAccT &Out, const PartialSumsAccT &PartialSums,
                    const local_accessor<int> &DoReducePartialSumsInLastWG,
                    const PredicateAccT &NWorkGroupsFinished,
@@ -1411,12 +1433,12 @@ public:
         DoReducePartialSumsInLastWG_{DoReducePartialSumsInLastWG},
         NWorkGroupsFinished_{NWorkGroupsFinished},
         IsUpdateOfUserVar_{IsUpdateOfUserVar}, NWorkGroups_{NWorkGroups},
-        WGSize_{WGSize}, KernelFunc_(std::make_tuple(KernelFunc)) {}
+        WGSize_{WGSize}, KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     // Call user's functions. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
 
     typename Reduction::binary_operation BOp;
     auto Group = NDId.get_group();
@@ -1488,7 +1510,7 @@ private:
   size_t NWorkGroups_;
   size_t WGSize_;
 
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 } // namespace reduction
@@ -1505,9 +1527,12 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::group_reduce_and_last_wg_detection\n";
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "group_reduce_and_last_wg_detection strategy.");
+
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     auto Device = getDeviceFromHandler(CGH);
 
@@ -1522,37 +1547,58 @@ struct NDRangeReduction<
 
     bool IsUpdateOfUserVar = !Redu.initializeToIdentity();
     auto Rest = [&](auto NWorkGroupsFinished) {
-      using Name = __sycl_reduction_kernel<
+      local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
+
+      using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+          reduction::strategy::group_reduce_and_last_wg_detection, 1,
+          decltype(NWorkGroupsFinished)>;
+      using ImplementationType = __sycl_reduction_kernel<
           reduction::MainKrn, reduction::main_krn::GroupReduceLast<KernelName>,
           reduction::strategy::group_reduce_and_last_wg_detection, 1,
           KernelType, Reduction, decltype(PartialSums), decltype(Out),
           decltype(NWorkGroupsFinished)>;
+      // We enqueue a parallel_for with the implementation function object, if
+      // KernelName is undefined, otherwise we enqueue a typed lambda.
+      using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
-
-      Name KernelInstance(Out, PartialSums, DoReducePartialSumsInLastWG,
-                          NWorkGroupsFinished, IsUpdateOfUserVar, NWorkGroups,
-                          WGSize, KernelFunc);
+      auto EnqueueParallelFor = [&](auto &Func) {
+        if (UseKernelBundle) {
+          // Use the kernel bundle we queried. This helps ensuring we run
+          // the kernel for which we may have queried information.
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          CGH.use_kernel_bundle(ExecBundle);
+        }
+        if constexpr (std::is_same_v<KernelName, auto_name>) {
+          CGH.parallel_for(NDRange, Properties, Func);
+        } else {
+          constexpr int Dimensions =
+              std::remove_reference_t<decltype(Func)>::dimensions;
+          CGH.parallel_for<EnqueueName>(
+              NDRange, Properties,
+              [=](nd_item<Dimensions> NDit) { Func(NDit); });
+        }
+      };
 
       // Test kernel_device_specific queries.
       [&]() {
         using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<Name>();
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
         size_t MaxSize = Kernel.template get_info<work_group_size>(Device);
         std::cout << "\n\n"
-                  << "KernelInfo::MaxSize = " << MaxSize << '\t'
-                  << "WGSize = " << WGSize << "\n\n";
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Device);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+                  << "reduction::strategy::group_reduce_and_last_wg_detection\n"
+                  << "KernelInfo::MaxSize = " << MaxSize << '\n';
+        if (Device.get_backend() == backend::ext_oneapi_cuda) {
+          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Device);
+          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        }
       }();
-      if (UseKernelBundle) {
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        // Use the kernel bundle we queried. This helps ensuring we run the
-        // kernel for which we queried launch information, if we ever do so.
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+      ImplementationType KernelInstance(Out, PartialSums, DoReducePartialSumsInLastWG,
+                          NWorkGroupsFinished, IsUpdateOfUserVar, NWorkGroups,
+                          WGSize, KernelFunc);
+      EnqueueParallelFor(KernelInstance);
     };
 
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
@@ -1672,12 +1718,12 @@ class MainKrn<main_krn::RangeBasic<KernelName>, strategy::range_basic, 1,
   using identity_container_type = typename Reduction::identity_container_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = 1;
   static constexpr size_t NElements = Reduction::num_elements;
-
   static constexpr bool UsePartialSumForOutput =
       !Reduction::is_usm && Reduction::has_identity;
 
-public:
   explicit MainKrn(OutAccT Out, PartialSumsAccT PartialSums,
                    PredicateAccT NWorkGroupsFinished,
                    identity_container_type IdentityContainer,
@@ -1690,11 +1736,11 @@ public:
         IdentityContainer_{IdentityContainer}, BOp_{BOp}, LocalReds_{LocalReds},
         DoReducePartialSumsInLastWG_{DoReducePartialSumsInLastWG},
         IsUpdateOfUserVar_{IsUpdateOfUserVar}, NWorkGroups_{NWorkGroups},
-        WGSize_{WGSize}, KernelFunc_(std::make_tuple(KernelFunc)) {}
+        WGSize_{WGSize}, KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     reducer_type Reducer = reducer_type(IdentityContainer_, BOp_);
-    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
 
     auto ElementCombiner = [&](element_type &LHS, const element_type &RHS) {
       return LHS.combine(BOp_, RHS);
@@ -1773,7 +1819,7 @@ private:
   size_t NWorkGroups_;
   size_t WGSize_;
 
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 } // namespace reduction
@@ -1787,10 +1833,13 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::range_basic\n";
     using reducer_type = typename Reduction::reducer_type;
     using element_type = typename ReducerTraits<reducer_type>::element_type;
     using identity_container_type = typename Reduction::identity_container_type;
     using binary_operation = typename Reduction::binary_operation;
+
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     // If reduction has an identity and is not USM, the reducer element is just
     // a thin wrapper around the result type so the partial sum will use the
@@ -1823,59 +1872,76 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     identity_container_type IdentityContainer = Redu.getIdentityContainer();
     binary_operation BOp = Redu.getBinaryOperation();
 
-    using Name = __sycl_reduction_kernel<
+    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                         reduction::strategy::range_basic, 1>;
+    using ImplementationType = __sycl_reduction_kernel<
         reduction::MainKrn, reduction::main_krn::RangeBasic<KernelName>,
         reduction::strategy::range_basic, 1, KernelType, Reduction,
         decltype(Out), decltype(PartialSums), decltype(NWorkGroupsFinished)>;
+    // We enqueue a parallel_for with the implementation function object, if
+    // KernelName is undefined, otherwise we enqueue a typed lambda.
+    using EnqueueName =
+        std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    Name KernelInstance(Out, PartialSums, NWorkGroupsFinished,
-                        IdentityContainer, BOp, LocalReds,
-                        DoReducePartialSumsInLastWG, IsUpdateOfUserVar,
-                        NWorkGroups, WGSize, KernelFunc);
+    auto EnqueueParallelFor = [&](auto &Func) {
+      if (UseKernelBundle) {
+        // Use the kernel bundle we queried. This helps ensuring we run
+        // the kernel for which we may have queried information.
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        CGH.use_kernel_bundle(ExecBundle);
+      }
+      if constexpr (std::is_same_v<KernelName, auto_name>) {
+        CGH.parallel_for(NDRange, Properties, Func);
+      } else {
+        CGH.parallel_for<EnqueueName>(NDRange, Properties,
+                                      [=](nd_item<Dims> NDit) { Func(NDit); });
+      }
+    };
 
     // Test kernel_device_specific queries.
     [&]() {
       using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<Name>();
+      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
       device Dev = getDeviceFromHandler(CGH);
       size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
       std::cout << "\n\n"
-                << "reduction::strategy::local_atomic_and_atomic_cross_wg\n"
-                << "KernelInfo::MaxWGSize = " << MaxSize << '\n';
-      size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-      std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+                << "reduction::strategy::range_basic\n"
+                << "KernelInfo::MaxSize = " << MaxSize << '\n';
+      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      }
     }();
-    if (UseKernelBundle) {
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      // Use the kernel bundle we queried. This helps ensuring we run the
-      // kernel for which we queried launch information, if we ever do so.
-      CGH.use_kernel_bundle(ExecBundle);
-    }
-    CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+    ImplementationType KernelInstance(Out, PartialSums, NWorkGroupsFinished,
+                        IdentityContainer, BOp, LocalReds,
+                        DoReducePartialSumsInLastWG, IsUpdateOfUserVar,
+                        NWorkGroups, WGSize, KernelFunc);
+    EnqueueParallelFor(KernelInstance);
   }
 };
 
 namespace reduction {
 
-template <class KernelName, int Dims, class KernelType, class Reduction,
+template <class KernelName, int Dims, class Reduction, class KernelType,
           class OutAccT>
-class MainKrn<main_krn::GroupReduceAtomicCross<KernelName>,
-              strategy::group_reduce_and_atomic_cross_wg, Dims, KernelType,
-              Reduction, OutAccT> {
+class MainKrn<main_krn::GroupReduceAtomicCross<KernelName>, strategy::group_reduce_and_atomic_cross_wg, Dims,
+              Reduction, KernelType, OutAccT> {
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = Dims;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
-  explicit MainKrn(OutAccT Out, KernelType &KernelFunc)
-      : Out_{Out}, KernelFunc_(std::make_tuple(KernelFunc)) {}
+  explicit MainKrn(KernelType &KernelFunc, OutAccT Out)
+      : KernelFuncTuple_(std::make_tuple(KernelFunc)), Out_{Out} {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
 
     binary_operation BOp;
     for (size_t E = 0; E < NElements; ++E) {
@@ -1887,8 +1953,8 @@ public:
   }
 
 private:
+  std::tuple<KernelType> KernelFuncTuple_;
   OutAccT Out_;
-  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -1901,41 +1967,64 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::group_reduce_and_atomic_cross_wg\n";
     static_assert(Reduction::has_identity,
                   "Identityless reductions are not supported by the "
                   "group_reduce_and_atomic_cross_wg strategy.");
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     using Name = __sycl_reduction_kernel<
         reduction::MainKrn, KernelName,
         reduction::strategy::group_reduce_and_atomic_cross_wg, Dims>;
     Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
-      using Name = __sycl_reduction_kernel<
-          reduction::MainKrn,
-          reduction::main_krn::GroupReduceAtomicCross<KernelName>,
+      /*
+      using UpdatedKernelName = std::conditional_t<
+          IsUndefinedKernelName,
+          reduction::main_krn::GroupReduceAtomicCross<KernelName>, KernelName>;
+      */
+      using ImplementationType = __sycl_reduction_kernel<
+          reduction::MainKrn, reduction::main_krn::GroupReduceAtomicCross<KernelName>,
           reduction::strategy::group_reduce_and_atomic_cross_wg, Dims,
-          KernelType, Reduction, decltype(Out)>;
-      Name KernelInstance(Out, KernelFunc);
+          Reduction, KernelType, decltype(Out)>;
+      // We enqueue a parallel_for with the implementation function object, if
+      // KernelName is undefined, otherwise we enqueue a typed lambda.
+      using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
+
+      auto EnqueueParallelFor = [&](auto &Func) {
+        if (UseKernelBundle) {
+          // Use the kernel bundle we queried. This helps ensuring we run
+          // the kernel for which we may have queried information.
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          CGH.use_kernel_bundle(ExecBundle);
+        }
+        if constexpr (std::is_same_v<KernelName, auto_name>) {
+          CGH.parallel_for(NDRange, Properties, Func);
+        } else {
+          constexpr auto Dimensions = std::remove_reference_t<decltype(Func)>::dimensions;
+          CGH.parallel_for<EnqueueName>(
+              NDRange, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
+        }
+      };
 
       // Test kernel_device_specific queries.
       [&]() {
         using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<Name>();
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
         device Dev = getDeviceFromHandler(CGH);
         size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
         std::cout << "\n\n"
                   << "reduction::strategy::group_reduce_and_atomic_cross_wg\n"
                   << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        }
       }();
-      if (UseKernelBundle) {
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        // Use the kernel bundle we queried. This helps ensuring we run the
-        // kernel for which we queried launch information, if we ever do so.
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+      ImplementationType KernelInstance(KernelFunc, Out);
+      EnqueueParallelFor(KernelInstance);
     });
   }
 };
@@ -1944,26 +2033,26 @@ namespace reduction {
 
 template <class KernelName, int Dims, class KernelType, class Reduction,
           class OutAccT>
-class MainKrn<main_krn::LocalMemTreeAtomicCross<KernelName>,
-              strategy::local_mem_tree_and_atomic_cross_wg, Dims, KernelType,
-              Reduction, OutAccT> {
+class MainKrn<main_krn::LocalMemTreeAtomicCross<KernelName>, strategy::local_mem_tree_and_atomic_cross_wg, Dims,
+              KernelType, Reduction, OutAccT> {
   using reducer_type = typename Reduction::reducer_type;
   using element_type = typename ReducerTraits<reducer_type>::element_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = Dims;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
   MainKrn() = default;
   explicit MainKrn(OutAccT Out, local_accessor<element_type, 1> LocalReds,
                    KernelType &KernelFunc)
       : Out_{Out}, LocalReds_{LocalReds},
-        KernelFunc_(std::make_tuple(KernelFunc)) {}
+        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
@@ -1998,7 +2087,7 @@ public:
 private:
   OutAccT Out_;
   local_accessor<element_type, 1> LocalReds_;
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 } // namespace reduction
@@ -2012,6 +2101,9 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
+
+    std::cout << "reduction::strategy::local_mem_tree_and_atomic_cross_wg\n";
     using reducer_type = typename Reduction::reducer_type;
     using element_type = typename ReducerTraits<reducer_type>::element_type;
 
@@ -2019,11 +2111,15 @@ struct NDRangeReduction<
         reduction::MainKrn, KernelName,
         reduction::strategy::local_mem_tree_and_atomic_cross_wg, Dims>;
     Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
-      using Name = __sycl_reduction_kernel<
+      using ImplementationType = __sycl_reduction_kernel<
           reduction::MainKrn,
           reduction::main_krn::LocalMemTreeAtomicCross<KernelName>,
           reduction::strategy::local_mem_tree_and_atomic_cross_wg, Dims,
           KernelType, Reduction, decltype(Out)>;
+      // We enqueue a parallel_for with the implementation function object, if
+      // KernelName is undefined, otherwise we enqueue a typed lambda.
+      using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
       size_t WGSize = NDRange.get_local_range().size();
 
@@ -2031,27 +2127,39 @@ struct NDRangeReduction<
       // element.
       local_accessor<element_type, 1> LocalReds{WGSize, CGH};
 
-      Name KernelInstance{Out, LocalReds, KernelFunc};
+      auto EnqueueParallelFor = [&](auto &Func) {
+        if (UseKernelBundle) {
+          // Use the kernel bundle we queried. This helps ensuring we run
+          // the kernel for which we may have queried information.
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          CGH.use_kernel_bundle(ExecBundle);
+        }
+        if constexpr (std::is_same_v<KernelName, auto_name>) {
+          CGH.parallel_for(NDRange, Properties, Func);
+        } else {
+          CGH.parallel_for<EnqueueName>(
+              NDRange, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
+        }
+      };
+
       // Test kernel_device_specific queries.
       [&]() {
         using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<Name>();
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
         device Dev = getDeviceFromHandler(CGH);
         size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
         std::cout << "\n\n"
-                  << "reduction::strategy::group_reduce_and_atomic_cross_wg\n"
+                  << "reduction::strategy::local_mem_tree_and_atomic_cross_wg\n"
                   << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        }
       }();
-      if (UseKernelBundle) {
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        // Use the kernel bundle we queried. This helps ensuring we run the
-        // kernel for which we queried launch information, if we ever do so.
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+      ImplementationType KernelInstance{Out, LocalReds, KernelFunc};
+      EnqueueParallelFor(KernelInstance);
     });
   }
 };
@@ -2060,24 +2168,24 @@ namespace reduction {
 
 template <class KernelName, int Dims, class KernelType, class Reduction,
           class OutAccT>
-class MainKrn<main_krn::GroupReduceMultiple<KernelName>,
-              strategy::group_reduce_and_multiple_kernels, Dims, KernelType,
-              Reduction, OutAccT> {
+class MainKrn<reduction::main_krn::GroupReduceMultiple<KernelName>, strategy::group_reduce_and_multiple_kernels, Dims,
+              KernelType, Reduction, OutAccT> {
   using result_type = typename Reduction::result_type;
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = Dims;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
   explicit MainKrn(OutAccT Out, bool IsUpdateOfUserVar, KernelType &KernelFunc)
       : Out_{Out}, IsUpdateOfUserVar_{IsUpdateOfUserVar},
-        KernelFunc_(std::make_tuple(KernelFunc)) {}
+        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
 
     // Compute the partial sum/reduction for the work-group.
     size_t WGID = NDIt.get_group_linear_id();
@@ -2097,20 +2205,20 @@ public:
 private:
   OutAccT Out_;
   bool IsUpdateOfUserVar_;
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 template <class KernelName, class Reduction, class InAccT, class OutAccT>
-class AuxKrn<aux_krn::GroupReduceMultiple<KernelName>,
-             strategy::group_reduce_and_multiple_kernels, 1, Reduction, InAccT,
-             OutAccT> {
+class AuxKrn<aux_krn::GroupReduceMultiple<KernelName>, strategy::group_reduce_and_multiple_kernels, 1,
+             Reduction, InAccT, OutAccT> {
   using result_type = typename Reduction::result_type;
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = 1;
   static constexpr size_t NElements = Reduction::num_elements;
 
-public:
   explicit AuxKrn(InAccT In, OutAccT Out, bool IsUpdateOfUserVar,
                   bool HasUniformWG, size_t NWorkItems)
       : In_{In}, Out_{Out}, IsUpdateOfUserVar_{IsUpdateOfUserVar},
@@ -2153,9 +2261,9 @@ struct NDRangeReduction<
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
-    static_assert(Reduction::has_identity,
-                  "Identityless reductions are not supported by the "
-                  "group_reduce_and_multiple_kernels strategy.");
+    std::cout << "reduction::strategy::group_reduce_and_multiple_kernels\n";
+
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     // Before running the kernels, check that device has enough local memory
     // to hold local arrays that may be required for the reduction algorithm.
@@ -2178,7 +2286,7 @@ struct NDRangeReduction<
                             " than " +
                                 std::to_string(MaxWGSize));
 
-    constexpr size_t NElements = Reduction::num_elements;
+    size_t NElements = Reduction::num_elements;
     size_t NWorkGroups = NDRange.get_group_range().size();
     auto Out = Redu.getWriteAccForPartialReds(NWorkGroups * NElements, CGH);
 
@@ -2186,33 +2294,52 @@ struct NDRangeReduction<
         !Reduction::is_usm && !Redu.initializeToIdentity() && NWorkGroups == 1;
 
     using Name = __sycl_reduction_kernel<
-        reduction::MainKrn,
-        reduction::main_krn::GroupReduceMultiple<KernelName>,
-        reduction::strategy::group_reduce_and_multiple_kernels, Dims,
-        KernelType, Reduction, decltype(Out)>;
+        reduction::MainKrn, KernelName,
+        reduction::strategy::group_reduce_and_multiple_kernels, 1>;
+    using ImplementationType = __sycl_reduction_kernel<
+          reduction::MainKrn, reduction::main_krn::GroupReduceMultiple<KernelName>,
+          reduction::strategy::group_reduce_and_multiple_kernels, Dims, KernelType, Reduction,
+          decltype(Out)>;
+    // We enqueue a parallel_for with the implementation function object, if
+    // KernelName is undefined, otherwise we enqueue a typed lambda.
+    using EnqueueName =
+        std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    Name KernelInstance(Out, IsUpdateOfUserVar, KernelFunc);
+    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
+      constexpr int Dimensions =
+          std::remove_reference_t<decltype(Func)>::dimensions;
+      if (UseKernelBundle) {
+        // Use the kernel bundle we queried. This helps ensuring we run
+        // the kernel for which we may have queried information.
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        CGH.use_kernel_bundle(ExecBundle);
+      }
+      if constexpr (std::is_same_v<KernelName, auto_name>) {
+        CGH.parallel_for(Range, Properties, Func);
+      } else {
+        CGH.parallel_for<EnqueueName>(
+            Range, Properties, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
+      }
+    };
 
     // Test kernel_device_specific queries.
     [&]() {
       using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<Name>();
+      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
       device Dev = getDeviceFromHandler(CGH);
       size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
       std::cout << "\n\n"
                 << "reduction::strategy::group_reduce_and_multiple_kernels\n"
                 << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-      std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      }
     }();
-    if (UseKernelBundle) {
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      // Use the kernel bundle we queried. This helps ensuring we run the
-      // kernel for which we queried launch information, if we ever do so.
-      CGH.use_kernel_bundle(ExecBundle);
-    }
-    CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+    ImplementationType KernelInstance(Out, IsUpdateOfUserVar, KernelFunc);
+    EnqueueParallelFor(NDRange, KernelInstance);
 
     reduction::finalizeHandler(CGH);
 
@@ -2232,9 +2359,8 @@ struct NDRangeReduction<
     size_t NWorkItems = NDRange.get_group_range().size();
     while (NWorkItems > 1) {
       reduction::withAuxHandler(CGH, [&](handler &AuxHandler) {
-        constexpr size_t NElements = Reduction::num_elements;
+        size_t NElements = Reduction::num_elements;
         size_t NWorkGroups;
-        size_t MaxWGSize = reduGetMaxWGSize(Queue, OneElemSize);
         size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
 
         // The last work-group may be not fully loaded with work, or the work
@@ -2251,10 +2377,47 @@ struct NDRangeReduction<
             Redu.getWriteAccForPartialReds(NWorkGroups * NElements, AuxHandler);
 
         using Name = __sycl_reduction_kernel<
-            reduction::AuxKrn,
-            reduction::aux_krn::GroupReduceMultiple<KernelName>,
-            reduction::strategy::group_reduce_and_multiple_kernels, 1,
-            Reduction, decltype(In), decltype(Out)>;
+            reduction::AuxKrn, KernelName,
+            reduction::strategy::group_reduce_and_multiple_kernels, 1>;
+        using ImplementationType = __sycl_reduction_kernel<
+            reduction::AuxKrn, reduction::aux_krn::GroupReduceMultiple<KernelName>,
+            reduction::strategy::group_reduce_and_multiple_kernels, 1, Reduction,
+            decltype(In), decltype(Out)>;
+        using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
+
+        auto EnqueueParallelForAux = [&](auto Range, auto &Func) {
+          constexpr int Dimensions =
+              std::remove_reference_t<decltype(Func)>::dimensions;
+          if (UseKernelBundle) {
+            // Use the kernel bundle we queried. This helps ensuring we run
+            // the kernel for which we may have queried information.
+            auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+            AuxHandler.use_kernel_bundle(ExecBundle);
+          }
+          if constexpr (std::is_same_v<KernelName, auto_name>) {
+            AuxHandler.parallel_for(Range, Func);
+          } else {
+            AuxHandler.parallel_for<EnqueueName>(
+                Range, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
+          }
+        };
+
+        // Test kernel_device_specific queries.
+        [&]() {
+          using namespace info::kernel_device_specific;
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
+          device Dev = getDeviceFromHandler(AuxHandler);
+          size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
+          std::cout << "\n\n"
+                    << "reduction::strategy::group_reduce_and_multiple_kernels\n"
+                    << "KernelInfo::MaxSize = " << MaxSize << '\n';
+          if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+            size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+            std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+          }
+        }();
 
         bool IsUpdateOfUserVar = !Reduction::is_usm &&
                                  !Redu.initializeToIdentity() &&
@@ -2262,28 +2425,8 @@ struct NDRangeReduction<
         range<1> GlobalRange = {HasUniformWG ? NWorkItems
                                              : NWorkGroups * WGSize};
         nd_range<1> Range{GlobalRange, range<1>(WGSize)};
-
-        Name AuxKernelInstance(In, Out, IsUpdateOfUserVar, HasUniformWG,
-                               NWorkItems);
-
-        // Test kernel_device_specific queries.
-        [&]() {
-          using namespace info::kernel_device_specific;
-          auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-          kernel Kernel = ExecBundle.template get_kernel<Name>();
-          device Dev = getDeviceFromHandler(AuxHandler);
-          size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-          std::cout << "\n\n"
-                    << "reduction::strategy::basic\n"
-                    << "KernelInfo::MaxSize = " << MaxSize << '\n';
-          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
-        }();
-        if (UseKernelBundle) {
-          auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-          AuxHandler.use_kernel_bundle(ExecBundle);
-        }
-        AuxHandler.parallel_for(Range, AuxKernelInstance);
+        ImplementationType AuxKernelInstance(In, Out, IsUpdateOfUserVar, HasUniformWG, NWorkItems);
+        EnqueueParallelForAux(Range, AuxKernelInstance);
         NWorkItems = NWorkGroups;
       });
     } // end while (NWorkItems > 1)
@@ -2309,22 +2452,22 @@ class MainKrn<main_krn::Basic<KernelName>, strategy::basic, Dims, KernelType,
   using identity_container_type = typename Reduction::identity_container_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = Dims;
   static constexpr size_t NElements = Reduction::num_elements;
-
   static constexpr bool IsOneWG =
       std::is_same_v<std::remove_reference_t<KernelTag>, KernelOneWGTag>;
 
-public:
   explicit MainKrn(OutAccT Out, identity_container_type IdentityContainer,
                    binary_operation BOp, local_accessor<element_type> LocalReds,
                    bool IsUpdateOfUserVar, KernelType &KernelFunc)
       : Out_{Out}, IdentityContainer_{IdentityContainer}, BOp_{BOp},
         LocalReds_{LocalReds}, IsUpdateOfUserVar_{IsUpdateOfUserVar},
-        KernelFunc_(std::make_tuple(KernelFunc)) {}
+        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDIt) const {
     reducer_type Reducer = reducer_type(IdentityContainer_, BOp_);
-    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
@@ -2370,7 +2513,7 @@ private:
   local_accessor<element_type> LocalReds_;
   bool IsUpdateOfUserVar_;
 
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 template <class KernelName, class Reduction, class InAccT, class OutAccT,
@@ -2384,12 +2527,12 @@ class AuxKrn<aux_krn::Basic<KernelName>, strategy::basic, 1, Reduction, InAccT,
   using identity_container_type = typename Reduction::identity_container_type;
   using binary_operation = typename Reduction::binary_operation;
 
+public:
+  static constexpr int dimensions = 1;
   static constexpr size_t NElements = Reduction::num_elements;
-
   static constexpr bool IsOneWG =
       std::is_same_v<std::remove_reference_t<KernelTag>, KernelOneWGTag>;
 
-public:
   explicit AuxKrn(InAccT In, OutAccT Out, binary_operation BOp,
                   local_accessor<element_type> LocalReds,
                   bool IsUpdateOfUserVar, size_t NWorkItems)
@@ -2456,7 +2599,10 @@ public:
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::basic\n";
     using element_type = typename Reduction::reducer_element_type;
+
+    constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
 
     constexpr bool HFR = Reduction::has_fast_reduce;
     size_t OneElemSize = HFR ? 0 : sizeof(element_type);
@@ -2501,34 +2647,54 @@ public:
       auto BOp = Redu.getBinaryOperation();
       auto IdentityContainer = Redu.getIdentityContainer();
 
-      using Name = __sycl_reduction_kernel<
+      using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                           reduction::strategy::basic, Dims,
+                                           decltype(KernelTag)>;
+      using ImplementationType = __sycl_reduction_kernel<
           reduction::MainKrn, reduction::main_krn::Basic<KernelName>,
           reduction::strategy::basic, Dims, KernelType, Reduction,
           decltype(Out), decltype(KernelTag)>;
+      // We enqueue a parallel_for with the implementation function object, if
+      // KernelName is undefined, otherwise we enqueue a typed lambda.
+      using EnqueueName =
+          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      Name KernelInstance(Out, IdentityContainer, BOp, LocalReds,
-                          IsUpdateOfUserVar, KernelFunc);
+      auto EnqueueParallelFor = [&](handler &Handler, auto Range, auto &Func) {
+        constexpr int Dimensions =
+            std::remove_reference_t<decltype(Func)>::dimensions;
+        if (UseKernelBundle) {
+          // Use the kernel bundle we queried. This helps ensuring we run
+          // the kernel for which we may have queried information.
+          auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+          Handler.use_kernel_bundle(ExecBundle);
+        }
+        if constexpr (std::is_same_v<KernelName, auto_name>) {
+          Handler.parallel_for(Range, Properties, Func);
+        } else {
+          Handler.parallel_for<EnqueueName>(
+              Range, Properties, [=](nd_item<Dimensions> NDit) { Func(NDit); });
+        }
+      };
 
       // Test kernel_device_specific queries.
       [&]() {
         using namespace info::kernel_device_specific;
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        kernel Kernel = ExecBundle.template get_kernel<Name>();
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
         device Dev = getDeviceFromHandler(CGH);
         size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
         std::cout << "\n\n"
                   << "reduction::strategy::basic\n"
                   << "KernelInfo::MaxSize = " << MaxSize << '\n';
-        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+          size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+          std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+        }
       }();
-      if (UseKernelBundle) {
-        auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-        // Use the kernel bundle we queried. This helps ensuring we run the
-        // kernel for which we queried launch information, if we ever do so.
-        CGH.use_kernel_bundle(ExecBundle);
-      }
-      CGH.parallel_for(NDRange, Properties, KernelInstance);
+
+      ImplementationType KernelInstance(Out, IdentityContainer, BOp, LocalReds,
+                                        IsUpdateOfUserVar, KernelFunc);
+      EnqueueParallelFor(CGH, NDRange, KernelInstance);
     };
 
     if (NWorkGroups == 1)
@@ -2589,36 +2755,59 @@ public:
 
           auto BOp = Redu.getBinaryOperation();
 
-          using Name = __sycl_reduction_kernel<
+          using Name = __sycl_reduction_kernel<reduction::AuxKrn, KernelName,
+                                               reduction::strategy::basic, 1,
+                                               decltype(KernelTag)>;
+          using ImplementationType = __sycl_reduction_kernel<
               reduction::AuxKrn, reduction::aux_krn::Basic<KernelName>,
               reduction::strategy::basic, 1, Reduction, decltype(In),
               decltype(Out), decltype(KernelTag)>;
+          // We enqueue a parallel_for with the implementation function object,
+          // if KernelName is undefined, otherwise we enqueue a typed lambda.
+          using EnqueueName = std::conditional_t<IsUndefinedKernelName,
+                                                 ImplementationType, Name>;
+
+          auto EnqueueParallelFor = [&](handler &Handler, auto Range,
+                                        auto &Func) {
+            constexpr int Dimensions =
+                std::remove_reference_t<decltype(Func)>::dimensions;
+            if (UseKernelBundle) {
+              // Use the kernel bundle we queried. This helps ensuring we run
+              // the kernel for which we may have queried information.
+              auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+              Handler.use_kernel_bundle(ExecBundle);
+            }
+            if constexpr (std::is_same_v<KernelName, auto_name>) {
+              Handler.parallel_for(Range, Func);
+            } else {
+              Handler.parallel_for<EnqueueName>(
+                  Range, [=](nd_item<Dimensions> NDit) { Func(NDit); });
+            }
+          };
 
           range<1> GlobalRange = {UniformPow2WG ? NWorkItems
                                                 : NWorkGroups * WGSize};
           nd_range<1> Range{GlobalRange, range<1>(WGSize)};
 
-          Name AuxKernelInstance(In, Out, BOp, LocalReds, IsUpdateOfUserVar,
-                                 NWorkItems);
-
           // Test kernel_device_specific queries.
           [&]() {
             using namespace info::kernel_device_specific;
-            auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-            kernel Kernel = ExecBundle.template get_kernel<Name>();
+            auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+            kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
             device Dev = getDeviceFromHandler(AuxHandler);
             size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
             std::cout << "\n\n"
                       << "reduction::strategy::basic\n"
                       << "KernelInfo::MaxSize = " << MaxSize << '\n';
-            size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-            std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+            if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+              size_t Regs =
+                  Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+              std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+            }
           }();
-          if (UseKernelBundle) {
-            auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-            AuxHandler.use_kernel_bundle(ExecBundle);
-          }
-          AuxHandler.parallel_for(Range, AuxKernelInstance);
+          ImplementationType AuxKernelInstance(In, Out, BOp, LocalReds,
+                                               IsUpdateOfUserVar, NWorkItems);
+          EnqueueParallelFor(AuxHandler, Range, AuxKernelInstance);
           NWorkItems = NWorkGroups;
         });
       };
@@ -2902,11 +3091,12 @@ class MainKrn<
     IdentitiesTupleT, BOpsTupleT, ScalarIsT, ArrayIsT,
     InitToIdentityPropsArrayT, KernelTag> {
 
+public:
+  static constexpr int dimensions = Dims;
   // We can deduce IsOneWG from the tag type.
   static constexpr bool IsOneWG =
       std::is_same_v<std::remove_reference_t<KernelTag>, KernelOneWGTag>;
 
-public:
   explicit MainKrn(OutAccsTupleT OutAccsTuple, LocalAccsTupleT LocalAccsTuple,
                    IdentitiesTupleT IdentitiesTuple, BOpsTupleT BOpsTuple,
                    ScalarIsT ScalarIs, ArrayIsT ArrayIs,
@@ -2916,7 +3106,7 @@ public:
         IdentitiesTuple_{IdentitiesTuple}, BOPsTuple_{BOpsTuple},
         ScalarIs_{ScalarIs}, ArrayIs_{ArrayIs},
         InitToIdentityProps_{InitToIdentityProps},
-        KernelFunc_(std::make_tuple(KernelFunc)) {}
+        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Pass all reductions to user's lambda in the same order as supplied
@@ -2929,7 +3119,7 @@ public:
 
     std::apply(
         [&](auto &...Reducers) {
-          std::invoke(std::get<0>(KernelFunc_), NDIt, Reducers...);
+          std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducers...);
         },
         ReducersTuple);
 
@@ -2956,7 +3146,7 @@ private:
   ArrayIsT ArrayIs_;
   InitToIdentityPropsArrayT InitToIdentityProps_;
 
-  std::tuple<KernelType> KernelFunc_;
+  std::tuple<KernelType> KernelFuncTuple_;
 };
 
 } // namespace reduction
@@ -3023,8 +3213,10 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
       std::cout << "\n\n"
                 << "reduction::strategy::multi\n"
                 << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-      std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      }
     }();
     if (UseKernelBundle) {
       auto ExecBundle = getReduKernelBundleT<Name>(Queue);
@@ -3166,12 +3358,13 @@ class AuxKrn<aux_krn::Multi<KernelName, Reductions...>, strategy::multi, 1,
              InAccsTupleT, OutAccsTupleT, LocalAccsTupleT, IdentitiesTupleT,
              BOpsTupleT, ScalarIsT, ArrayIsT, InitToIdentityPropsArrayT,
              Predicate> {
+public:
+  static constexpr int dimensions = 1;
   // We can deduce IsOneWG from the predicate type.
   static constexpr bool IsOneWG =
       std::is_same_v<std::remove_reference_t<Predicate>,
                      IsNonUsmReductionPredicate>;
 
-public:
   explicit AuxKrn(InAccsTupleT InAccsTuple, OutAccsTupleT OutAccsTuple,
                   LocalAccsTupleT LocalAccsTuple,
                   IdentitiesTupleT IdentitiesTuple, BOpsTupleT BOpsTuple,
@@ -3276,8 +3469,10 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
       std::cout << "\n\n"
                 << "reduction::strategy::multi\n"
                 << "KernelInfo::MaxSize = " << MaxSize << '\n';
-      size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
-      std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      if (Dev.get_backend() == backend::ext_oneapi_cuda) {
+        size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
+        std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
+      }
     }();
     if (UseKernelBundle) {
       auto ExecBundle = getReduKernelBundleT<Name>(Queue);
@@ -3343,6 +3538,7 @@ template <> struct NDRangeReduction<reduction::strategy::multi> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, RestT... Rest) {
+    std::cout << "reduction::strategy::multi\n";
     std::tuple<RestT...> ArgsTuple(Rest...);
     constexpr size_t NumArgs = sizeof...(RestT);
     auto KernelFunc = std::get<NumArgs - 1>(ArgsTuple);
@@ -3389,9 +3585,10 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, Reduction &Redu,
                   KernelType &KernelFunc) {
+    std::cout << "reduction::strategy::auto_select\n";
     auto Delegate = [&](auto Impl) {
-      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties, Redu,
-                                    KernelFunc);
+      Impl.template run<KernelName>(CGH, Queue, NDRange, Properties,
+                                    UseKernelBundle, Redu, KernelFunc);
     };
 
     if constexpr (Reduction::has_float64_atomics) {
@@ -3436,6 +3633,7 @@ template <> struct NDRangeReduction<reduction::strategy::auto_select> {
   static void run(handler &CGH, std::shared_ptr<detail::queue_impl> &Queue,
                   nd_range<Dims> NDRange, PropertiesT &Properties,
                   bool UseKernelBundle, RestT... Rest) {
+    std::cout << "reduction::strategy::auto_select -> multi\n";
     return Impl<Strat::multi>::run<KernelName>(CGH, Queue, NDRange, Properties,
                                                UseKernelBundle, Rest...);
   }
