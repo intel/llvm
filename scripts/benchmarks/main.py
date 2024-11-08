@@ -114,7 +114,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     history.load(1000)
 
     for name in compare_names:
-        print(f"compare name: {name}")
         compare_result = history.get_compare(name)
         if compare_result:
             chart_data[name] = compare_result.results
@@ -125,6 +124,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open('benchmark_results.md', 'w') as file:
             file.write(markdown_content)
 
+        print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
+
     saved_name = save_name if save_name is not None else this_name
 
     # It's important we don't save the current results into history before
@@ -132,7 +133,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         history.save(saved_name, results, save_name is not None)
-        print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
         compare_names.append(saved_name)
 
     if options.output_html:
@@ -141,7 +141,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open('benchmark_results.html', 'w') as file:
             file.write(html_content)
 
-    print(f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html")
+        print(f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html")
 
 def validate_and_parse_env_args(env_args):
     env_vars = {}
