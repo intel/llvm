@@ -689,6 +689,7 @@ ur_result_t urUSMGetMemAllocInfo(
     logger::error("urUSMGetMemAllocInfo: unsupported ParamName");
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urUSMPoolCreate(

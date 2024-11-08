@@ -32,7 +32,6 @@ add_subdirectory(mock)
 if(UR_BUILD_TOOLS)
   add_subdirectory(tools)
 endif()
-if(CMAKE_CXX_COMPILER_ID STREQUAL Clang AND UR_DPCXX AND UR_TEST_FUZZTESTS AND
-    CMAKE_SYSTEM_NAME STREQUAL Linux)
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND UR_DPCXX AND UR_TEST_FUZZTESTS)
     add_subdirectory(fuzz)
 endif()
