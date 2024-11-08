@@ -287,17 +287,6 @@ ${x}QueueRetain. An application must call ${x}QueueRelease
 when a queue object is no longer needed. When a queue object's reference count becomes
 zero, it is deleted by the runtime.
 
-Native Driver Access
-----------------------------------
-
-The runtime API provides accessors for native handles.
-For example, given a ${x}_program_handle_t, we can
-call ${x}ProgramGetNativeHandle to retrieve a ${x}_native_handle_t.
-We can then leverage a platform extension to convert the
-native handle to a driver handle. For example, OpenCL platform
-may expose an extension ${x}ProgramCreateWithNativeHandle to retrieve
-a cl_program.
-
 Memory
 ======
 
@@ -361,10 +350,9 @@ Native Handle Ownership
 -----------------------
 
 By default a ${X} object constructed from a native handle doesn't own the
-native handle, it is guaranteed not to modify the native handle's reference
-count or otherwise cause its resources to be released. A ${X} object that
-doesn't own its associated native handle **must** be destroyed before the
-native handle is.
+native handle, it is guaranteed not to retain a reference to the native handle,
+or cause its resources to be released. A ${X} object that doesn't own its
+associated native handle **must** be destroyed before the native handle is.
 
 Ownership of the native handle can be tranferred to the ${X} object by passing
 ``isNativeHandleOwned = true`` in the native properties struct when calling the

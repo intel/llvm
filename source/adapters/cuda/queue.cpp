@@ -284,17 +284,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
   std::vector<CUstream> ComputeCuStreams(1, CuStream);
   std::vector<CUstream> TransferCuStreams(0);
 
+  auto isNativeHandleOwned =
+      pProperties ? pProperties->isNativeHandleOwned : false;
+
   // Create queue and set num_compute_streams to 1, as computeCuStreams has
   // valid stream
-  *phQueue =
-      new ur_queue_handle_t_{std::move(ComputeCuStreams),
-                             std::move(TransferCuStreams),
-                             hContext,
-                             hDevice,
-                             CuFlags,
-                             Flags,
-                             /*priority*/ 0,
-                             /*backend_owns*/ pProperties->isNativeHandleOwned};
+  *phQueue = new ur_queue_handle_t_{std::move(ComputeCuStreams),
+                                    std::move(TransferCuStreams),
+                                    hContext,
+                                    hDevice,
+                                    CuFlags,
+                                    Flags,
+                                    /*priority*/ 0,
+                                    /*backend_owns*/ isNativeHandleOwned};
   (*phQueue)->NumComputeStreams = 1;
 
   return UR_RESULT_SUCCESS;
