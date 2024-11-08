@@ -16,14 +16,7 @@ struct urMemImageCreateWithNativeHandleTest : uur::urMemImageTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemImageCreateWithNativeHandleTest);
 
 TEST_P(urMemImageCreateWithNativeHandleTest, Success) {
-<<<<<<< HEAD
   UUR_KNOWN_FAILURE_ON(uur::HIP{}, uur::LevelZero{});
-=======
-  ur_native_handle_t native_handle = 0;
-  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-      urMemGetNativeHandle(image, device, &native_handle));
->>>>>>> a2dab68a (Update cts tests.)
-
   ur_native_handle_t native_handle = 0;
   UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urMemGetNativeHandle(image, device, &native_handle));

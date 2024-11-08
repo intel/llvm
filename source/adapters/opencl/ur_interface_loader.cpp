@@ -159,6 +159,7 @@ urGetMemProcAddrTable(ur_api_version_t Version, ur_mem_dditable_t *pDdiTable) {
   pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
   pDdiTable->pfnImageCreate = urMemImageCreate;
   pDdiTable->pfnImageGetInfo = urMemImageGetInfo;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnRelease = urMemRelease;
   pDdiTable->pfnRetain = urMemRetain;
   return UR_RESULT_SUCCESS;
