@@ -500,8 +500,8 @@ public:
         }
         if (Language == syclex::source_language::sycl) {
           return syclex::detail::SYCL_JIT_to_SPIRV(*SourceStrPtr, IncludePairs,
-                                               BuildOptions, LogPtr,
-                                               RegisteredKernelNames);
+                                                   BuildOptions, LogPtr,
+                                                   RegisteredKernelNames);
         }
         throw sycl::exception(
             make_error_code(errc::invalid),
