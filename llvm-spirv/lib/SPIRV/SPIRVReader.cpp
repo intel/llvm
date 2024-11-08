@@ -1513,6 +1513,21 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
 
       return mapValue(BV, ConstantStruct::get(BCCTy, CV));
     }
+    case OpTypeCooperativeMatrixKHR: {
+      assert(CV.size() == 1 &&
+             "expecting exactly one operand for cooperative matrix types");
+      llvm::Type *RetTy = transType(BCC->getType());
+      llvm::Type *EltTy = transType(
+          static_cast<const SPIRVTypeCooperativeMatrixKHR *>(BV->getType())
+              ->getCompType());
+      auto *FTy = FunctionType::get(RetTy, {EltTy}, false);
+      FunctionCallee Func =
+          M->getOrInsertFunction(getSPIRVFuncName(OC, RetTy), FTy);
+      IRBuilder<> Builder(BB);
+      CallInst *Call = Builder.CreateCall(Func, CV.front());
+      Call->setCallingConv(CallingConv::SPIR_FUNC);
+      return Call;
+    }
     default:
       llvm_unreachable("not implemented");
       return nullptr;
