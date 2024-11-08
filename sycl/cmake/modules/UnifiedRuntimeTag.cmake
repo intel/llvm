@@ -1,7 +1,7 @@
-# commit 09ae26af4e4e4301177db704b3b109ecd388c846
-# Merge: d2f69680 dd920712
+# commit ed9fe09f9987bbe86715f191e6dbe5695ebf0306
+# Merge: 09ae26af dc5246dd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Thu Nov 7 11:43:19 2024 +0000
-#     Merge pull request #2233 from martygrant/martin/memory-cts-spec-gap-2
-#     Improvements to align CTS and Spec for Memory
-set(UNIFIED_RUNTIME_TAG 09ae26af4e4e4301177db704b3b109ecd388c846)
+# Date:   Fri Nov 8 10:29:25 2024 +0000
+#     Merge pull request #2279 from nrspruit/update_loader_1_18
+#     [L0] Update Level Zero Loader version to v1.18.5
+set(UNIFIED_RUNTIME_TAG ed9fe09f9987bbe86715f191e6dbe5695ebf0306)
