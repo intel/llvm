@@ -3166,7 +3166,10 @@ static void validatePhiPredecessors(Function *F) {
     for (PHINode &Phi : BB.phis()) {
       SmallVector<Value *> Vs;
       SmallVector<BasicBlock *> Bs;
+      SmallPtrSet<BasicBlock *, 8> UsedB;
       for (auto [V, B] : zip(Phi.incoming_values(), Phi.blocks())) {
+        if (!UsedB.insert(B).second)
+          continue;
         unsigned N = PredsCnt[B];
         Vs.insert(Vs.end(), N, V);
         Bs.insert(Bs.end(), N, B);
