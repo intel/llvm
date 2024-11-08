@@ -40,6 +40,10 @@ add_llvm_library(sycl-jit
    clangSerialization
 )
 
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
+
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
 # Mark LLVM and SPIR-V headers as system headers to ignore warnigns in them.
