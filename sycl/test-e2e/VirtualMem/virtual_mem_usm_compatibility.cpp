@@ -12,12 +12,13 @@
 
 #include "helpers.hpp"
 
-int performResultCheck(size_t NumberOfElements, const int* DataResultPtr, const int ExpectedResultValue, std::string_view ErrorMessage){
-   int IsSuccessful{0};
-   for (size_t i = 0; i < NumberOfElements; i++) {
+int performResultCheck(size_t NumberOfElements, const int *DataResultPtr,
+                       const int ExpectedResultValue,
+                       std::string_view ErrorMessage) {
+  int IsSuccessful{0};
+  for (size_t i = 0; i < NumberOfElements; i++) {
     if (DataResultPtr[i] != ExpectedResultValue) {
-      std::cerr << ErrorMessage
-                << i << ": " << DataResultPtr
+      std::cerr << ErrorMessage << i << ": " << DataResultPtr
                 << " != " << ExpectedResultValue << std::endl;
       ++IsSuccessful;
     }
@@ -36,10 +37,10 @@ int main() {
   constexpr int ValueSetInMemSetOperationPerByte = 1;
   constexpr int ValueSetInFillOperation = 444;
   constexpr size_t NumberOfElements = 1000;
-  
+
   int *CopyBack = sycl::malloc_shared<int>(NumberOfElements, Queue);
   int *CopyFrom = sycl::malloc_shared<int>(NumberOfElements, Queue);
- 
+
   size_t BytesRequired = NumberOfElements * sizeof(int);
 
   size_t UsedGranularity = GetLCMGranularity(Device, Context);
@@ -54,12 +55,11 @@ int main() {
 
   int *DataPtr = reinterpret_cast<int *>(MappedPtr);
 
-  auto copyBackFunc = [&Queue, CopyBack, DataPtr](){
+  auto copyBackFunc = [&Queue, CopyBack, DataPtr]() {
     Queue
-      .parallel_for(NumberOfElements,
-                    [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
-      .wait_and_throw();
-
+        .parallel_for(NumberOfElements,
+                      [=](sycl::id<1> Idx) { CopyBack[Idx] = DataPtr[Idx]; })
+        .wait_and_throw();
   };
 
   Queue
@@ -71,10 +71,13 @@ int main() {
   // Check that one can copy from virtual memory to a USM allocation.
 
   copyBackFunc();
-  Failed+= performResultCheck(NumberOfElements,CopyBack,ValueSetInKernelForCopyToUSM, "Comparison failed after copy from virtual memory to a USM allocation at index ");
+  Failed += performResultCheck(NumberOfElements, CopyBack,
+                               ValueSetInKernelForCopyToUSM,
+                               "Comparison failed after copy from virtual "
+                               "memory to a USM allocation at index ");
 
   // Check that can copy from a USM allocation to virtual memory
-  
+
   for (size_t Idx = 0; Idx < NumberOfElements; ++Idx) {
     CopyFrom[Idx] = ValueSetForCopyToVirtualMem;
   }
@@ -86,8 +89,11 @@ int main() {
 
   copyBackFunc();
 
-  Failed+= performResultCheck(NumberOfElements, CopyBack, ValueSetForCopyToVirtualMem, "Comparison failed after copy from a USM allocation to virtual memory at index ");
-  
+  Failed += performResultCheck(NumberOfElements, CopyBack,
+                               ValueSetForCopyToVirtualMem,
+                               "Comparison failed after copy from a USM "
+                               "allocation to virtual memory at index ");
+
   // Check that can use memset on virtual memory
   int ExpectedResultAfterMemSetOperation{0};
   std::memset(&ExpectedResultAfterMemSetOperation,
@@ -97,7 +103,9 @@ int main() {
 
   copyBackFunc();
 
-  Failed+= performResultCheck(NumberOfElements, CopyBack, ExpectedResultAfterMemSetOperation, "Comparison failed after memset operation on virtual memory at index ");
+  Failed += performResultCheck(
+      NumberOfElements, CopyBack, ExpectedResultAfterMemSetOperation,
+      "Comparison failed after memset operation on virtual memory at index ");
 
   // Check that can use fill on virtual memory
   Queue.fill(DataPtr, ValueSetInFillOperation, NumberOfElements)
@@ -105,7 +113,9 @@ int main() {
 
   copyBackFunc();
 
-  Failed+= performResultCheck(NumberOfElements, CopyBack, ValueSetInFillOperation, "Comparison failed after fill operation on virtual memory at index ");
+  Failed += performResultCheck(
+      NumberOfElements, CopyBack, ValueSetInFillOperation,
+      "Comparison failed after fill operation on virtual memory at index ");
 
   sycl::free(CopyFrom, Queue);
   sycl::free(CopyBack, Queue);
