@@ -1,7 +1,3 @@
-# commit ed9fe09f9987bbe86715f191e6dbe5695ebf0306
-# Merge: 09ae26af dc5246dd
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 8 10:29:25 2024 +0000
-#     Merge pull request #2279 from nrspruit/update_loader_1_18
-#     [L0] Update Level Zero Loader version to v1.18.5
-set(UNIFIED_RUNTIME_TAG ed9fe09f9987bbe86715f191e6dbe5695ebf0306)
+# Date:   Fri Nov 8 11:56:00 2024 +0000
+#     Update UMF to 28.10.2024 (Merge pull request oneapi-src#832)
+set(UNIFIED_RUNTIME_TAG 1b609b4e7d35f7b578af3c31047cdfb203d20565)
