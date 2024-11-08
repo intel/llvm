@@ -22,7 +22,7 @@
 #include <sycl/nd_item.hpp>            // for nd_item
 #include <sycl/range.hpp>              // for range
 #include <sycl/sub_group.hpp>          // for sub_group
-#include <sycl/types.hpp>              // for vec
+#include <sycl/vector.hpp>              // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/ext/oneapi/functional.hpp>

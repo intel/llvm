@@ -12,6 +12,7 @@
 // CHECK-NEXT: detail/defines.hpp
 // CHECK-NEXT: detail/export.hpp
 // CHECK-NEXT: backend_types.hpp
+// CHECK-NEXT: detail/backend_traits.hpp
 // CHECK-NEXT: detail/array.hpp
 // CHECK-NEXT: exception.hpp
 // CHECK-NEXT: detail/string.hpp

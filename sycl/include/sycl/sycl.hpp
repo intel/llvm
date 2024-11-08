@@ -27,7 +27,6 @@
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -54,7 +53,7 @@
 #include <sycl/specialization_id.hpp>
 #include <sycl/stream.hpp>
 #include <sycl/sub_group.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 #include <sycl/usm.hpp>
 #include <sycl/usm/usm_allocator.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
@@ -62,6 +61,7 @@
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
@@ -73,6 +73,7 @@
 #include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>

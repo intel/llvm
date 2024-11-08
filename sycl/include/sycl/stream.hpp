@@ -29,7 +29,7 @@
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/range.hpp>                     // for range
 #include <sycl/sub_group.hpp>                 // for multi_ptr
-#include <sycl/types.hpp>                     // for vec, SwizzleOp
+#include <sycl/vector.hpp>                     // for vec, SwizzleOp
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr
