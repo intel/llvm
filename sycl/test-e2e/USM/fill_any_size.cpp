@@ -15,7 +15,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
-constexpr size_t MaxPatternSize{32}; // bytes
+constexpr size_t MaxPatternSize{32}; // Bytes.
 constexpr size_t NumElements{10};
 constexpr size_t NumRepeats{1};
 constexpr bool verbose{false};
@@ -24,9 +24,9 @@ template <size_t PatternSize, bool SameValue>
 int test(sycl::queue &q, uint8_t firstValue = 0) {
   using T = std::array<uint8_t, PatternSize>;
   T value{};
-  for (unsigned int i{0}; i < PatternSize; ++i) {
+  for (size_t i{0}; i < PatternSize; ++i) {
     if constexpr (SameValue) {
-      value[0] = firstValue;
+      value[i] = firstValue;
     } else {
       value[i] = firstValue + i;
     }
@@ -40,8 +40,8 @@ int test(sycl::queue &q, uint8_t firstValue = 0) {
   std::array<T, NumElements> host{};
   q.copy<T>(dptr, host.data(), NumElements).wait();
   bool pass{true};
-  for (unsigned int i{0}; i < NumElements; ++i) {
-    for (unsigned int j{0}; j < PatternSize; ++j) {
+  for (size_t i{0}; i < NumElements; ++i) {
+    for (size_t j{0}; j < PatternSize; ++j) {
       if (host[i][j] != value[j]) {
         pass = false;
       }
