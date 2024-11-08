@@ -19,6 +19,7 @@ namespace cuda {
 template <int Dim>
 struct cluster_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
+          cluster_size<Dim>,
           ::sycl::ext::oneapi::experimental::detail::ClusterLaunch> {
   cluster_size(const range<Dim> &size) : size(size) {}
   sycl::range<Dim> get_cluster_size() { return size; }

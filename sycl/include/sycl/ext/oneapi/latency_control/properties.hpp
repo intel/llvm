@@ -58,8 +58,15 @@ struct property_value<
     intel::experimental::latency_constraint_key,
     std::integral_constant<int, Target>,
     std::integral_constant<intel::experimental::latency_control_type, Type>,
-    std::integral_constant<int, Cycle>> {
-  using key_t = intel::experimental::latency_constraint_key;
+    std::integral_constant<int, Cycle>>
+    : detail::property_base<
+          property_value<intel::experimental::latency_constraint_key,
+                         std::integral_constant<int, Target>,
+                         std::integral_constant<
+                             intel::experimental::latency_control_type, Type>,
+                         std::integral_constant<int, Cycle>>,
+          oneapi::experimental::detail::PropKind::LatencyConstraint,
+          intel::experimental::latency_constraint_key> {
   static constexpr int target = Target;
   static constexpr intel::experimental::latency_control_type type = Type;
   static constexpr int cycle = Cycle;

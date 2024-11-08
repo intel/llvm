@@ -41,9 +41,11 @@ struct PropertyValueBase<T> : public detail::SingleNontypePropertyValueBase<T> {
 } // namespace detail
 
 template <typename PropertyT, typename... Ts>
-struct property_value : public detail::PropertyValueBase<Ts...> {
-  using key_t = PropertyT;
-};
+struct property_value
+    : public detail::PropertyValueBase<Ts...>,
+      public detail::property_base<property_value<PropertyT, Ts...>,
+                                   detail::PropertyToKind<PropertyT>::Kind,
+                                   PropertyT> {};
 
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,

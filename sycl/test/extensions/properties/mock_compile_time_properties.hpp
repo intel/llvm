@@ -34,7 +34,7 @@ struct boo_key : detail::compile_time_property_key<fakePropKind(2)> {
   template <typename... Ts> using value_t = property_value<boo_key, Ts...>;
 };
 
-struct foo : detail::run_time_property_key<fakePropKind(3)> {
+struct foo : detail::run_time_property_key<foo, fakePropKind(3)> {
   constexpr foo(int v = 0) : value(v) {}
   int value;
 };
@@ -44,7 +44,7 @@ inline bool operator==(const foo &lhs, const foo &rhs) {
 }
 inline bool operator!=(const foo &lhs, const foo &rhs) { return !(lhs == rhs); }
 
-struct foz : detail::run_time_property_key<fakePropKind(4)> {
+struct foz : detail::run_time_property_key<foz, fakePropKind(4)> {
   constexpr foz(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
   constexpr foz(const foz &f) {
@@ -60,7 +60,7 @@ inline bool operator==(const foz &lhs, const foz &rhs) {
 }
 inline bool operator!=(const foz &lhs, const foz &rhs) { return !(lhs == rhs); }
 
-struct fir : detail::run_time_property_key<fakePropKind(5)> {
+struct fir : detail::run_time_property_key<fir, fakePropKind(5)> {
   // Intentionally not constexpr to test for properties that cannot be constexpr
   fir(float v1, bool v2) : value1(v1), value2(v2) {}
   // Define copy constructor to make foz non-trivially copyable
