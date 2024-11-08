@@ -97,15 +97,16 @@ if (UR_ENABLE_TRACING)
     get_target_property(XPTI_SRC_DIR xpti SOURCE_DIR)
     set(XPTI_PROXY_SRC "${XPTI_SRC_DIR}/xpti_proxy.cpp")
   endif()
-  target_compile_definitions(${TARGET_NAME} PRIVATE
+  add_library(cuda-xpti-proxy STATIC ${XPTI_PROXY_SRC})
+  target_compile_definitions(cuda-xpti-proxy PRIVATE
     XPTI_ENABLE_INSTRUMENTATION
     XPTI_STATIC_LIBRARY
     )
-  target_include_directories(${TARGET_NAME} PRIVATE
+  target_include_directories(cuda-xpti-proxy PRIVATE
     ${XPTI_INCLUDES}
     ${CUDA_CUPTI_INCLUDE_DIR}
   )
-  target_sources(${TARGET_NAME} PRIVATE ${XPTI_PROXY_SRC})
+  target_link_libraries(${TARGET_NAME} PRIVATE cuda-xpti-proxy)
 endif()
 
 if (CUDA_cupti_LIBRARY)

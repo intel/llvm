@@ -225,12 +225,13 @@ class AdapterRegistry {
             }
 
             // case-insensitive comparison by converting both tolower
-            std::transform(platformBackendName.begin(),
-                           platformBackendName.end(),
-                           platformBackendName.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
-            std::transform(backend.begin(), backend.end(), backend.begin(),
-                           [](unsigned char c) { return std::tolower(c); });
+            std::transform(
+                platformBackendName.begin(), platformBackendName.end(),
+                platformBackendName.begin(),
+                [](char c) { return static_cast<char>(std::tolower(c)); });
+            std::transform(
+                backend.begin(), backend.end(), backend.begin(),
+                [](char c) { return static_cast<char>(std::tolower(c)); });
             std::size_t nameFound = platformBackendName.find(backend);
 
             bool backendFound = nameFound != std::string::npos;

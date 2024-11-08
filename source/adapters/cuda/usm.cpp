@@ -325,7 +325,7 @@ umf_result_t USMMemoryProvider::initialize(ur_context_handle_t Ctx,
 
 enum umf_result_t USMMemoryProvider::alloc(size_t Size, size_t Align,
                                            void **Ptr) {
-  auto Res = allocateImpl(Ptr, Size, Align);
+  auto Res = allocateImpl(Ptr, Size, static_cast<uint32_t>(Align));
   if (Res != UR_RESULT_SUCCESS) {
     getLastStatusRef() = Res;
     return UMF_RESULT_ERROR_MEMORY_PROVIDER_SPECIFIC;

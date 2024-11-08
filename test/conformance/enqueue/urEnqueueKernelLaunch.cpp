@@ -15,7 +15,7 @@ struct urEnqueueKernelLaunchTest : uur::urKernelExecutionTest {
     uint32_t val = 42;
     size_t global_size = 32;
     size_t global_offset = 0;
-    size_t n_dimensions = 1;
+    uint32_t n_dimensions = 1;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchTest);
 
@@ -29,7 +29,7 @@ struct urEnqueueKernelLaunchKernelWgSizeTest : uur::urKernelExecutionTest {
     std::array<size_t, 3> global_offset{0, 0, 0};
     // This must match the size in fixed_wg_size.cpp
     std::array<size_t, 3> wg_size{4, 4, 4};
-    size_t n_dimensions = 3;
+    uint32_t n_dimensions = 3;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelWgSizeTest);
 
@@ -42,7 +42,7 @@ struct urEnqueueKernelLaunchKernelSubGroupTest : uur::urKernelExecutionTest {
 
     std::array<size_t, 3> global_size{32, 32, 32};
     std::array<size_t, 3> global_offset{0, 0, 0};
-    size_t n_dimensions = 3;
+    uint32_t n_dimensions = 3;
 };
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchKernelSubGroupTest);
 
@@ -52,7 +52,7 @@ struct urEnqueueKernelLaunchKernelStandardTest : uur::urKernelExecutionTest {
         UUR_RETURN_ON_FATAL_FAILURE(urKernelExecutionTest::SetUp());
     }
 
-    size_t n_dimensions = 1;
+    uint32_t n_dimensions = 1;
     size_t global_size = 1;
     size_t offset = 0;
 };
@@ -210,7 +210,7 @@ TEST_P(urEnqueueKernelLaunchKernelStandardTest, Success) {
 
 struct testParametersEnqueueKernel {
     size_t X, Y, Z;
-    size_t Dims;
+    uint32_t Dims;
 };
 
 template <typename T>
@@ -261,7 +261,7 @@ struct urEnqueueKernelLaunchTestWithParam
     uint32_t val = 42;
     size_t global_range[3];
     size_t global_offset[3] = {0, 0, 0};
-    size_t n_dimensions;
+    uint32_t n_dimensions;
     size_t buffer_size;
 };
 
@@ -333,7 +333,7 @@ struct urEnqueueKernelLaunchWithUSM : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithUSM);
 
 TEST_P(urEnqueueKernelLaunchWithUSM, Success) {
-    size_t work_dim = 1;
+    uint32_t work_dim = 1;
     size_t global_offset = 0;
     size_t global_size = alloc_size / sizeof(uint32_t);
     uint32_t fill_val = 42;
@@ -424,7 +424,7 @@ struct urEnqueueKernelLaunchWithVirtualMemory : uur::urKernelExecutionTest {
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEnqueueKernelLaunchWithVirtualMemory);
 
 TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
-    size_t work_dim = 1;
+    uint32_t work_dim = 1;
     size_t global_offset = 0;
     size_t global_size = alloc_size / sizeof(uint32_t);
     uint32_t fill_val = 42;

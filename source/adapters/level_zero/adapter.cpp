@@ -514,7 +514,5 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero

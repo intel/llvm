@@ -529,8 +529,6 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urMemRetain(ur_mem_handle_t hMem) {
