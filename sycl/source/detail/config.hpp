@@ -698,6 +698,64 @@ private:
   }
 };
 
+// SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
+// different SYCL caches. The input value is parsed as an integer and
+// the following bit-masks is used to determine the tracing behavior:
+// 0x01 - trace disk cache
+// 0x02 - trace in-memory cache
+// 0x04 - trace kernel_compiler cache
+// Any valid combination of the above bit-masks can be used to enable/disable
+// tracing of the corresponding caches. If the input value is not null and
+// not a valid number, the disk cache tracing will be enabled (depreciated
+// behavior). The default value is 0 and no tracing is enabled.
+template <> class SYCLConfig<SYCL_CACHE_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_TRACE>;
+  enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
+
+public:
+  static unsigned int get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+  static bool isTraceDiskCache() {
+    return getCachedValue() & TraceBitmask::DiskCache;
+  }
+  static bool isTraceInMemCache() {
+    return getCachedValue() & TraceBitmask::InMemCache;
+  }
+  static bool isTraceKernelCompiler() {
+    return getCachedValue() & TraceBitmask::KernelCompiler;
+  }
+
+private:
+  static unsigned int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      int intVal = 0;
+
+      if (ValStr) {
+        try {
+          intVal = std::stoi(ValStr);
+        } catch (...) {
+          // If the value is not null and not a number, it is considered
+          // to enable disk cache tracing. This is the legacy behavior.
+          intVal = 1;
+        }
+      }
+
+      // Legacy behavior.
+      if (intVal > 7)
+        intVal = 1;
+
+      return intVal;
+    };
+
+    static unsigned int Level = Parser();
+    if (ResetCache)
+      Level = Parser();
+
+    return Level;
+  }
+};
+
 #undef INVALID_CONFIG_EXCEPTION
 
 } // namespace detail
