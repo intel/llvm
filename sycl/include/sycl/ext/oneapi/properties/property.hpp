@@ -123,11 +123,21 @@ template <> struct is_property_key_of<foo, SYCL_OBJ> : std::true_type {};
 #include <stdint.h>    // for uint32_t
 #include <type_traits> // for false_type
 
+#include <sycl/detail/defines_elementary.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext {
 namespace oneapi {
 namespace experimental {
+template <typename> class __SYCL_EBO properties;
+// Property list traits
+template <typename propertiesT> struct is_property_list : std::false_type {};
+template <typename properties_list_ty>
+struct is_property_list<properties<properties_list_ty>> : std::true_type {};
+template <typename propertiesT>
+inline constexpr bool is_property_list_v = is_property_list<propertiesT>::value;
+
 namespace detail {
 
 // List of all properties.
@@ -220,14 +230,27 @@ template <typename PropertyT> struct PropertyToKind {
 };
 
 struct property_tag {};
+
+// This is used to implement has/get_property via inheritance queries.
+template <typename property_key_t> struct property_key_tag : property_tag {};
+
 template <typename property_t, PropKind Kind,
           typename property_key_t = property_t>
-struct property_base : property_tag {
+struct property_base : property_key_tag<property_key_t> {
   using key_t = property_key_t;
+
+protected:
+  constexpr property_t get_property_impl(property_key_tag<key_t>) const {
+    return *static_cast<const property_t *>(this);
+  }
+
+  // For key_t access in error reporting specialization.
+  template <typename> friend class __SYCL_EBO properties;
+
 #if !defined(_MSC_VER)
   // Temporary, to ensure new code matches previous behavior and to catch any
-  // silly copy-paste mistakes. MSVC can't compile it, but linux-only is enough
-  // for this temporary check.
+  // silly copy-paste mistakes. MSVC can't compile it, but linux-only is
+  // enough for this temporary check.
   static_assert([]() constexpr {
     if constexpr (std::is_same_v<property_t, key_t>)
       // key_t is incomplete at this point for runtime properties.
@@ -270,6 +293,7 @@ template <typename PropertyT> struct PropertyID {
 template <typename PropertyT>
 struct IsRuntimeProperty
     : std::bool_constant<
+          !is_property_list_v<PropertyT> &&
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
           !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
@@ -277,6 +301,7 @@ struct IsRuntimeProperty
 template <typename PropertyT>
 struct IsCompileTimeProperty
     : std::bool_constant<
+          !is_property_list_v<PropertyT> &&
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
           std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
@@ -301,7 +326,8 @@ template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 template <typename T>
 struct is_property_key
-    : std::bool_constant<std::is_base_of_v<detail::property_key_base_tag, T>> {
+    : std::bool_constant<!is_property_list_v<T> &&
+                         std::is_base_of_v<detail::property_key_base_tag, T>> {
 };
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
