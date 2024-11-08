@@ -1300,12 +1300,12 @@ public:
   explicit MainKrn(OutAccT Out, const local_accessor<int> &GroupSum,
                    KernelType &KernelFunc)
       : Out_{Out}, GroupSum_{GroupSum},
-        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     // Call user's functions. Reducer.MValue gets initialized there.
     typename Reduction::reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
 
     // Work-group cooperates to initialize multiple reduction variables
     auto LID = NDId.get_local_id(0);
@@ -1333,7 +1333,7 @@ private:
   OutAccT Out_;
   local_accessor<result_type> GroupSum_;
 
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -1370,7 +1370,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto &Func) {
+      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
         if (UseKernelBundle) {
           // Use the kernel bundle we queried. This helps ensuring we run
           // the kernel for which we may have queried information.
@@ -1378,12 +1378,12 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
           CGH.use_kernel_bundle(ExecBundle);
         }
         if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(NDRange, Properties, Func);
+          CGH.parallel_for(Range, Properties, Func);
         } else {
           constexpr int Dimensions =
               std::remove_reference_t<decltype(Func)>::dimensions;
           CGH.parallel_for<EnqueueName>(
-              NDRange, Properties,
+              Range, Properties,
               [=](nd_item<Dimensions> NDit) { Func(NDit); });
         }
       };
@@ -1405,7 +1405,7 @@ struct NDRangeReduction<reduction::strategy::local_atomic_and_atomic_cross_wg> {
       }();
 
       ImplementationType KernelInstance{Out, GroupSum, KernelFunc};
-      EnqueueParallelFor(KernelInstance);
+      EnqueueParallelFor(NDRange, KernelInstance);
     });
   }
 };
@@ -1433,12 +1433,12 @@ public:
         DoReducePartialSumsInLastWG_{DoReducePartialSumsInLastWG},
         NWorkGroupsFinished_{NWorkGroupsFinished},
         IsUpdateOfUserVar_{IsUpdateOfUserVar}, NWorkGroups_{NWorkGroups},
-        WGSize_{WGSize}, KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        WGSize_{WGSize}, KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     // Call user's functions. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
 
     typename Reduction::binary_operation BOp;
     auto Group = NDId.get_group();
@@ -1510,7 +1510,7 @@ private:
   size_t NWorkGroups_;
   size_t WGSize_;
 
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -1549,7 +1549,8 @@ struct NDRangeReduction<
     auto Rest = [&](auto NWorkGroupsFinished) {
       local_accessor<int, 1> DoReducePartialSumsInLastWG{1, CGH};
 
-      using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+      using Name = __sycl_reduction_kernel<
+          reduction::MainKrn, KernelName,
           reduction::strategy::group_reduce_and_last_wg_detection, 1,
           decltype(NWorkGroupsFinished)>;
       using ImplementationType = __sycl_reduction_kernel<
@@ -1562,7 +1563,7 @@ struct NDRangeReduction<
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto &Func) {
+      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
         if (UseKernelBundle) {
           // Use the kernel bundle we queried. This helps ensuring we run
           // the kernel for which we may have queried information.
@@ -1570,13 +1571,12 @@ struct NDRangeReduction<
           CGH.use_kernel_bundle(ExecBundle);
         }
         if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(NDRange, Properties, Func);
+          CGH.parallel_for(Range, Properties, Func);
         } else {
           constexpr int Dimensions =
               std::remove_reference_t<decltype(Func)>::dimensions;
           CGH.parallel_for<EnqueueName>(
-              NDRange, Properties,
-              [=](nd_item<Dimensions> NDit) { Func(NDit); });
+              Range, Properties, [=](nd_item<Dimensions> NDit) { Func(NDit); });
         }
       };
 
@@ -1595,10 +1595,10 @@ struct NDRangeReduction<
         }
       }();
 
-      ImplementationType KernelInstance(Out, PartialSums, DoReducePartialSumsInLastWG,
-                          NWorkGroupsFinished, IsUpdateOfUserVar, NWorkGroups,
-                          WGSize, KernelFunc);
-      EnqueueParallelFor(KernelInstance);
+      ImplementationType KernelInstance(
+          Out, PartialSums, DoReducePartialSumsInLastWG, NWorkGroupsFinished,
+          IsUpdateOfUserVar, NWorkGroups, WGSize, KernelFunc);
+      EnqueueParallelFor(NDRange, KernelInstance);
     };
 
     // Integrated/discrete GPUs have different faster path. For discrete GPUs
@@ -1736,11 +1736,11 @@ public:
         IdentityContainer_{IdentityContainer}, BOp_{BOp}, LocalReds_{LocalReds},
         DoReducePartialSumsInLastWG_{DoReducePartialSumsInLastWG},
         IsUpdateOfUserVar_{IsUpdateOfUserVar}, NWorkGroups_{NWorkGroups},
-        WGSize_{WGSize}, KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        WGSize_{WGSize}, KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDId) const {
     reducer_type Reducer = reducer_type(IdentityContainer_, BOp_);
-    std::invoke(std::get<0>(KernelFuncTuple_), NDId, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDId, Reducer);
 
     auto ElementCombiner = [&](element_type &LHS, const element_type &RHS) {
       return LHS.combine(BOp_, RHS);
@@ -1819,7 +1819,7 @@ private:
   size_t NWorkGroups_;
   size_t WGSize_;
 
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -1883,7 +1883,7 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
     using EnqueueName =
         std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    auto EnqueueParallelFor = [&](auto &Func) {
+    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
       if (UseKernelBundle) {
         // Use the kernel bundle we queried. This helps ensuring we run
         // the kernel for which we may have queried information.
@@ -1891,9 +1891,9 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
         CGH.use_kernel_bundle(ExecBundle);
       }
       if constexpr (std::is_same_v<KernelName, auto_name>) {
-        CGH.parallel_for(NDRange, Properties, Func);
+        CGH.parallel_for(Range, Properties, Func);
       } else {
-        CGH.parallel_for<EnqueueName>(NDRange, Properties,
+        CGH.parallel_for<EnqueueName>(Range, Properties,
                                       [=](nd_item<Dims> NDit) { Func(NDit); });
       }
     };
@@ -1914,11 +1914,11 @@ template <> struct NDRangeReduction<reduction::strategy::range_basic> {
       }
     }();
 
-    ImplementationType KernelInstance(Out, PartialSums, NWorkGroupsFinished,
-                        IdentityContainer, BOp, LocalReds,
-                        DoReducePartialSumsInLastWG, IsUpdateOfUserVar,
-                        NWorkGroups, WGSize, KernelFunc);
-    EnqueueParallelFor(KernelInstance);
+    ImplementationType KernelInstance(
+        Out, PartialSums, NWorkGroupsFinished, IdentityContainer, BOp,
+        LocalReds, DoReducePartialSumsInLastWG, IsUpdateOfUserVar, NWorkGroups,
+        WGSize, KernelFunc);
+    EnqueueParallelFor(NDRange, KernelInstance);
   }
 };
 
@@ -1926,8 +1926,9 @@ namespace reduction {
 
 template <class KernelName, int Dims, class Reduction, class KernelType,
           class OutAccT>
-class MainKrn<main_krn::GroupReduceAtomicCross<KernelName>, strategy::group_reduce_and_atomic_cross_wg, Dims,
-              Reduction, KernelType, OutAccT> {
+class MainKrn<main_krn::GroupReduceAtomicCross<KernelName>,
+              strategy::group_reduce_and_atomic_cross_wg, Dims, Reduction,
+              KernelType, OutAccT> {
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
 
@@ -1936,12 +1937,12 @@ public:
   static constexpr size_t NElements = Reduction::num_elements;
 
   explicit MainKrn(KernelType &KernelFunc, OutAccT Out)
-      : KernelFuncTuple_(std::make_tuple(KernelFunc)), Out_{Out} {}
+      : KernelFunc_(std::make_tuple(KernelFunc)), Out_{Out} {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
 
     binary_operation BOp;
     for (size_t E = 0; E < NElements; ++E) {
@@ -1953,7 +1954,7 @@ public:
   }
 
 private:
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
   OutAccT Out_;
 };
 
@@ -1977,13 +1978,9 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
         reduction::MainKrn, KernelName,
         reduction::strategy::group_reduce_and_atomic_cross_wg, Dims>;
     Redu.template withInitializedMem<Name>(CGH, [&](auto Out) {
-      /*
-      using UpdatedKernelName = std::conditional_t<
-          IsUndefinedKernelName,
-          reduction::main_krn::GroupReduceAtomicCross<KernelName>, KernelName>;
-      */
       using ImplementationType = __sycl_reduction_kernel<
-          reduction::MainKrn, reduction::main_krn::GroupReduceAtomicCross<KernelName>,
+          reduction::MainKrn,
+          reduction::main_krn::GroupReduceAtomicCross<KernelName>,
           reduction::strategy::group_reduce_and_atomic_cross_wg, Dims,
           Reduction, KernelType, decltype(Out)>;
       // We enqueue a parallel_for with the implementation function object, if
@@ -1991,7 +1988,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](auto &Func) {
+      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
         if (UseKernelBundle) {
           // Use the kernel bundle we queried. This helps ensuring we run
           // the kernel for which we may have queried information.
@@ -1999,11 +1996,12 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
           CGH.use_kernel_bundle(ExecBundle);
         }
         if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(NDRange, Properties, Func);
+          CGH.parallel_for(Range, Properties, Func);
         } else {
-          constexpr auto Dimensions = std::remove_reference_t<decltype(Func)>::dimensions;
+          constexpr auto Dimensions =
+              std::remove_reference_t<decltype(Func)>::dimensions;
           CGH.parallel_for<EnqueueName>(
-              NDRange, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
+              Range, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
         }
       };
 
@@ -2024,7 +2022,7 @@ struct NDRangeReduction<reduction::strategy::group_reduce_and_atomic_cross_wg> {
       }();
 
       ImplementationType KernelInstance(KernelFunc, Out);
-      EnqueueParallelFor(KernelInstance);
+      EnqueueParallelFor(NDRange, KernelInstance);
     });
   }
 };
@@ -2033,8 +2031,9 @@ namespace reduction {
 
 template <class KernelName, int Dims, class KernelType, class Reduction,
           class OutAccT>
-class MainKrn<main_krn::LocalMemTreeAtomicCross<KernelName>, strategy::local_mem_tree_and_atomic_cross_wg, Dims,
-              KernelType, Reduction, OutAccT> {
+class MainKrn<main_krn::LocalMemTreeAtomicCross<KernelName>,
+              strategy::local_mem_tree_and_atomic_cross_wg, Dims, KernelType,
+              Reduction, OutAccT> {
   using reducer_type = typename Reduction::reducer_type;
   using element_type = typename ReducerTraits<reducer_type>::element_type;
   using binary_operation = typename Reduction::binary_operation;
@@ -2047,12 +2046,12 @@ public:
   explicit MainKrn(OutAccT Out, local_accessor<element_type, 1> LocalReds,
                    KernelType &KernelFunc)
       : Out_{Out}, LocalReds_{LocalReds},
-        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
@@ -2087,7 +2086,7 @@ public:
 private:
   OutAccT Out_;
   local_accessor<element_type, 1> LocalReds_;
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -2127,7 +2126,7 @@ struct NDRangeReduction<
       // element.
       local_accessor<element_type, 1> LocalReds{WGSize, CGH};
 
-      auto EnqueueParallelFor = [&](auto &Func) {
+      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
         if (UseKernelBundle) {
           // Use the kernel bundle we queried. This helps ensuring we run
           // the kernel for which we may have queried information.
@@ -2135,10 +2134,10 @@ struct NDRangeReduction<
           CGH.use_kernel_bundle(ExecBundle);
         }
         if constexpr (std::is_same_v<KernelName, auto_name>) {
-          CGH.parallel_for(NDRange, Properties, Func);
+          CGH.parallel_for(Range, Properties, Func);
         } else {
           CGH.parallel_for<EnqueueName>(
-              NDRange, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
+              Range, Properties, [=](nd_item<Dims> NDit) { Func(NDit); });
         }
       };
 
@@ -2159,7 +2158,7 @@ struct NDRangeReduction<
       }();
 
       ImplementationType KernelInstance{Out, LocalReds, KernelFunc};
-      EnqueueParallelFor(KernelInstance);
+      EnqueueParallelFor(NDRange, KernelInstance);
     });
   }
 };
@@ -2168,8 +2167,9 @@ namespace reduction {
 
 template <class KernelName, int Dims, class KernelType, class Reduction,
           class OutAccT>
-class MainKrn<reduction::main_krn::GroupReduceMultiple<KernelName>, strategy::group_reduce_and_multiple_kernels, Dims,
-              KernelType, Reduction, OutAccT> {
+class MainKrn<reduction::main_krn::GroupReduceMultiple<KernelName>,
+              strategy::group_reduce_and_multiple_kernels, Dims, KernelType,
+              Reduction, OutAccT> {
   using result_type = typename Reduction::result_type;
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
@@ -2180,12 +2180,12 @@ public:
 
   explicit MainKrn(OutAccT Out, bool IsUpdateOfUserVar, KernelType &KernelFunc)
       : Out_{Out}, IsUpdateOfUserVar_{IsUpdateOfUserVar},
-        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Call user's function. Reducer.MValue gets initialized there.
     reducer_type Reducer;
-    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
 
     // Compute the partial sum/reduction for the work-group.
     size_t WGID = NDIt.get_group_linear_id();
@@ -2205,12 +2205,13 @@ public:
 private:
   OutAccT Out_;
   bool IsUpdateOfUserVar_;
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 template <class KernelName, class Reduction, class InAccT, class OutAccT>
-class AuxKrn<aux_krn::GroupReduceMultiple<KernelName>, strategy::group_reduce_and_multiple_kernels, 1,
-             Reduction, InAccT, OutAccT> {
+class AuxKrn<aux_krn::GroupReduceMultiple<KernelName>,
+             strategy::group_reduce_and_multiple_kernels, 1, Reduction, InAccT,
+             OutAccT> {
   using result_type = typename Reduction::result_type;
   using reducer_type = typename Reduction::reducer_type;
   using binary_operation = typename Reduction::binary_operation;
@@ -2297,9 +2298,10 @@ struct NDRangeReduction<
         reduction::MainKrn, KernelName,
         reduction::strategy::group_reduce_and_multiple_kernels, 1>;
     using ImplementationType = __sycl_reduction_kernel<
-          reduction::MainKrn, reduction::main_krn::GroupReduceMultiple<KernelName>,
-          reduction::strategy::group_reduce_and_multiple_kernels, Dims, KernelType, Reduction,
-          decltype(Out)>;
+        reduction::MainKrn,
+        reduction::main_krn::GroupReduceMultiple<KernelName>,
+        reduction::strategy::group_reduce_and_multiple_kernels, Dims,
+        KernelType, Reduction, decltype(Out)>;
     // We enqueue a parallel_for with the implementation function object, if
     // KernelName is undefined, otherwise we enqueue a typed lambda.
     using EnqueueName =
@@ -2380,11 +2382,12 @@ struct NDRangeReduction<
             reduction::AuxKrn, KernelName,
             reduction::strategy::group_reduce_and_multiple_kernels, 1>;
         using ImplementationType = __sycl_reduction_kernel<
-            reduction::AuxKrn, reduction::aux_krn::GroupReduceMultiple<KernelName>,
-            reduction::strategy::group_reduce_and_multiple_kernels, 1, Reduction,
-            decltype(In), decltype(Out)>;
+            reduction::AuxKrn,
+            reduction::aux_krn::GroupReduceMultiple<KernelName>,
+            reduction::strategy::group_reduce_and_multiple_kernels, 1,
+            Reduction, decltype(In), decltype(Out)>;
         using EnqueueName =
-          std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
+            std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
         auto EnqueueParallelForAux = [&](auto Range, auto &Func) {
           constexpr int Dimensions =
@@ -2410,9 +2413,10 @@ struct NDRangeReduction<
           kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
           device Dev = getDeviceFromHandler(AuxHandler);
           size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
-          std::cout << "\n\n"
-                    << "reduction::strategy::group_reduce_and_multiple_kernels\n"
-                    << "KernelInfo::MaxSize = " << MaxSize << '\n';
+          std::cout
+              << "\n\n"
+              << "reduction::strategy::group_reduce_and_multiple_kernels\n"
+              << "KernelInfo::MaxSize = " << MaxSize << '\n';
           if (Dev.get_backend() == backend::ext_oneapi_cuda) {
             size_t Regs = Kernel.template get_info<ext_codeplay_num_regs>(Dev);
             std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
@@ -2425,7 +2429,8 @@ struct NDRangeReduction<
         range<1> GlobalRange = {HasUniformWG ? NWorkItems
                                              : NWorkGroups * WGSize};
         nd_range<1> Range{GlobalRange, range<1>(WGSize)};
-        ImplementationType AuxKernelInstance(In, Out, IsUpdateOfUserVar, HasUniformWG, NWorkItems);
+        ImplementationType AuxKernelInstance(In, Out, IsUpdateOfUserVar,
+                                             HasUniformWG, NWorkItems);
         EnqueueParallelForAux(Range, AuxKernelInstance);
         NWorkItems = NWorkGroups;
       });
@@ -2463,11 +2468,11 @@ public:
                    bool IsUpdateOfUserVar, KernelType &KernelFunc)
       : Out_{Out}, IdentityContainer_{IdentityContainer}, BOp_{BOp},
         LocalReds_{LocalReds}, IsUpdateOfUserVar_{IsUpdateOfUserVar},
-        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<1> NDIt) const {
     reducer_type Reducer = reducer_type(IdentityContainer_, BOp_);
-    std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducer);
+    std::invoke(std::get<0>(KernelFunc_), NDIt, Reducer);
 
     size_t WGSize = NDIt.get_local_range().size();
     size_t LID = NDIt.get_local_linear_id();
@@ -2513,7 +2518,7 @@ private:
   local_accessor<element_type> LocalReds_;
   bool IsUpdateOfUserVar_;
 
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 template <class KernelName, class Reduction, class InAccT, class OutAccT,
@@ -2659,19 +2664,19 @@ public:
       using EnqueueName =
           std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-      auto EnqueueParallelFor = [&](handler &Handler, auto Range, auto &Func) {
+      auto EnqueueParallelFor = [&](auto Range, auto &Func) {
         constexpr int Dimensions =
             std::remove_reference_t<decltype(Func)>::dimensions;
         if (UseKernelBundle) {
           // Use the kernel bundle we queried. This helps ensuring we run
           // the kernel for which we may have queried information.
           auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-          Handler.use_kernel_bundle(ExecBundle);
+          CGH.use_kernel_bundle(ExecBundle);
         }
         if constexpr (std::is_same_v<KernelName, auto_name>) {
-          Handler.parallel_for(Range, Properties, Func);
+          CGH.parallel_for(Range, Properties, Func);
         } else {
-          Handler.parallel_for<EnqueueName>(
+          CGH.parallel_for<EnqueueName>(
               Range, Properties, [=](nd_item<Dimensions> NDit) { Func(NDit); });
         }
       };
@@ -2694,7 +2699,7 @@ public:
 
       ImplementationType KernelInstance(Out, IdentityContainer, BOp, LocalReds,
                                         IsUpdateOfUserVar, KernelFunc);
-      EnqueueParallelFor(CGH, NDRange, KernelInstance);
+      EnqueueParallelFor(NDRange, KernelInstance);
     };
 
     if (NWorkGroups == 1)
@@ -2767,20 +2772,19 @@ public:
           using EnqueueName = std::conditional_t<IsUndefinedKernelName,
                                                  ImplementationType, Name>;
 
-          auto EnqueueParallelFor = [&](handler &Handler, auto Range,
-                                        auto &Func) {
+          auto EnqueueParallelForAux = [&](auto Range, auto &Func) {
             constexpr int Dimensions =
                 std::remove_reference_t<decltype(Func)>::dimensions;
             if (UseKernelBundle) {
               // Use the kernel bundle we queried. This helps ensuring we run
               // the kernel for which we may have queried information.
               auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
-              Handler.use_kernel_bundle(ExecBundle);
+              AuxHandler.use_kernel_bundle(ExecBundle);
             }
             if constexpr (std::is_same_v<KernelName, auto_name>) {
-              Handler.parallel_for(Range, Func);
+              AuxHandler.parallel_for(Range, Func);
             } else {
-              Handler.parallel_for<EnqueueName>(
+              AuxHandler.parallel_for<EnqueueName>(
                   Range, [=](nd_item<Dimensions> NDit) { Func(NDit); });
             }
           };
@@ -2807,7 +2811,7 @@ public:
           }();
           ImplementationType AuxKernelInstance(In, Out, BOp, LocalReds,
                                                IsUpdateOfUserVar, NWorkItems);
-          EnqueueParallelFor(AuxHandler, Range, AuxKernelInstance);
+          EnqueueParallelForAux(Range, AuxKernelInstance);
           NWorkItems = NWorkGroups;
         });
       };
@@ -3106,7 +3110,7 @@ public:
         IdentitiesTuple_{IdentitiesTuple}, BOPsTuple_{BOpsTuple},
         ScalarIs_{ScalarIs}, ArrayIs_{ArrayIs},
         InitToIdentityProps_{InitToIdentityProps},
-        KernelFuncTuple_(std::make_tuple(KernelFunc)) {}
+        KernelFunc_(std::make_tuple(KernelFunc)) {}
 
   void operator()(nd_item<Dims> NDIt) const {
     // Pass all reductions to user's lambda in the same order as supplied
@@ -3119,7 +3123,7 @@ public:
 
     std::apply(
         [&](auto &...Reducers) {
-          std::invoke(std::get<0>(KernelFuncTuple_), NDIt, Reducers...);
+          std::invoke(std::get<0>(KernelFunc_), NDIt, Reducers...);
         },
         ReducersTuple);
 
@@ -3146,7 +3150,7 @@ private:
   ArrayIsT ArrayIs_;
   InitToIdentityPropsArrayT InitToIdentityProps_;
 
-  std::tuple<KernelType> KernelFuncTuple_;
+  std::tuple<KernelType> KernelFunc_;
 };
 
 } // namespace reduction
@@ -3158,6 +3162,8 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
                      const nd_range<Dims> &Range, PropertiesT Properties,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
+  constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
+
   size_t WGSize = Range.get_local_range().size();
 
   // Split reduction sequence into two:
@@ -3190,7 +3196,10 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
     std::array InitToIdentityProps{
         std::get<Is>(ReduTuple).initializeToIdentity()...};
 
-    using Name = __sycl_reduction_kernel<
+    using Name = __sycl_reduction_kernel<reduction::MainKrn, KernelName,
+                                         reduction::strategy::multi, Dims,
+                                         decltype(KernelTag)>;
+    using ImplementationType = __sycl_reduction_kernel<
         reduction::MainKrn,
         reduction::main_krn::Multi<
             KernelName,
@@ -3200,14 +3209,33 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
         decltype(LocalAccsTuple), decltype(IdentitiesTuple),
         decltype(BOPsTuple), decltype(ScalarIs), decltype(ArrayIs),
         decltype(InitToIdentityProps), decltype(KernelTag)>;
-    Name KernelInstance(OutAccsTuple, LocalAccsTuple, IdentitiesTuple,
-                        BOPsTuple, ScalarIs, ArrayIs, InitToIdentityProps,
-                        KernelFunc);
+    // We enqueue a parallel_for with the implementation function object, if
+    // KernelName is undefined, otherwise we enqueue a typed lambda.
+    using EnqueueName =
+        std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
+
+    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
+      if (UseKernelBundle) {
+        // Use the kernel bundle we queried. This helps ensuring we run
+        // the kernel for which we may have queried information.
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        CGH.use_kernel_bundle(ExecBundle);
+      }
+      if constexpr (std::is_same_v<KernelName, auto_name>) {
+        CGH.parallel_for(Range, Properties, Func);
+      } else {
+        constexpr int Dimensions =
+            std::remove_reference_t<decltype(Func)>::dimensions;
+        CGH.parallel_for<EnqueueName>(
+            Range, Properties, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
+      }
+    };
+
     // Test kernel_device_specific queries.
     [&]() {
       using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<Name>();
+      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
       device Dev = getDeviceFromHandler(CGH);
       size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
       std::cout << "\n\n"
@@ -3218,13 +3246,11 @@ void reduCGFuncMulti(handler &CGH, std::shared_ptr<queue_impl> &Queue,
         std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
       }
     }();
-    if (UseKernelBundle) {
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      // Use the kernel bundle we queried. This helps ensuring we run the
-      // kernel for which we queried launch information, if we ever do so.
-      CGH.use_kernel_bundle(ExecBundle);
-    }
-    CGH.parallel_for(Range, Properties, KernelInstance);
+
+    ImplementationType KernelInstance(OutAccsTuple, LocalAccsTuple,
+                                      IdentitiesTuple, BOPsTuple, ScalarIs,
+                                      ArrayIs, InitToIdentityProps, KernelFunc);
+    EnqueueParallelFor(Range, KernelInstance);
   };
 
   size_t NWorkGroups = Range.get_group_range().size();
@@ -3414,6 +3440,8 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
                      bool UseKernelBundle, size_t NWorkItems, size_t MaxWGSize,
                      std::tuple<Reductions...> &ReduTuple,
                      std::index_sequence<Is...> ReduIndices) {
+  constexpr bool IsUndefinedKernelName{std::is_same_v<KernelName, auto_name>};
+
   size_t NWorkGroups;
   size_t WGSize = reduComputeWGSize(NWorkItems, MaxWGSize, NWorkGroups);
   bool Pow2WG = (WGSize & (WGSize - 1)) == 0;
@@ -3445,25 +3473,42 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
   auto Rest = [&](auto Predicate, auto OutAccsTuple) {
     auto AccReduIndices = filterSequence<Reductions...>(Predicate, ReduIndices);
     associateReduAccsWithHandler(CGH, ReduTuple, AccReduIndices);
-    using Name = __sycl_reduction_kernel<
+    using Name = __sycl_reduction_kernel<reduction::AuxKrn, KernelName,
+                                         reduction::strategy::multi, 1,
+                                         decltype(Predicate)>;
+    using ImplementationType = __sycl_reduction_kernel<
         reduction::AuxKrn, reduction::aux_krn::Multi<KernelName, Reductions...>,
         reduction::strategy::multi, 1, decltype(InAccsTuple),
         decltype(OutAccsTuple), decltype(LocalAccsTuple),
         decltype(IdentitiesTuple), decltype(BOPsTuple), decltype(ScalarIs),
         decltype(ArrayIs), decltype(InitToIdentityProps), decltype(Predicate)>;
-    Name KernelInstance(InAccsTuple, OutAccsTuple, LocalAccsTuple,
-                        IdentitiesTuple, BOPsTuple, ScalarIs, ArrayIs,
-                        InitToIdentityProps, NWorkItems);
+    // We enqueue a parallel_for with the implementation function object, if
+    // KernelName is undefined, otherwise we enqueue a typed lambda.
+    using EnqueueName =
+        std::conditional_t<IsUndefinedKernelName, ImplementationType, Name>;
 
-    // TODO: Opportunity to parallelize across number of elements
-    range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
-    nd_range<1> Range{GlobalRange, range<1>(WGSize)};
+    auto EnqueueParallelFor = [&](auto Range, auto &Func) {
+      if (UseKernelBundle) {
+        // Use the kernel bundle we queried. This helps ensuring we run
+        // the kernel for which we may have queried information.
+        auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+        CGH.use_kernel_bundle(ExecBundle);
+      }
+      if constexpr (std::is_same_v<KernelName, auto_name>) {
+        CGH.parallel_for(Range, Func);
+      } else {
+        constexpr int Dimensions =
+            std::remove_reference_t<decltype(Func)>::dimensions;
+        CGH.parallel_for<EnqueueName>(
+            Range, [=](nd_item<Dimensions> NDIt) { Func(NDIt); });
+      }
+    };
 
     // Test kernel_device_specific queries.
     [&]() {
       using namespace info::kernel_device_specific;
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      kernel Kernel = ExecBundle.template get_kernel<Name>();
+      auto ExecBundle = getReduKernelBundleT<EnqueueName>(Queue);
+      kernel Kernel = ExecBundle.template get_kernel<EnqueueName>();
       device Dev = getDeviceFromHandler(CGH);
       size_t MaxSize = Kernel.template get_info<work_group_size>(Dev);
       std::cout << "\n\n"
@@ -3474,13 +3519,15 @@ size_t reduAuxCGFunc(handler &CGH, std::shared_ptr<queue_impl> &Queue,
         std::cout << "KernelInfo::Regs = " << Regs << "\n\n";
       }
     }();
-    if (UseKernelBundle) {
-      auto ExecBundle = getReduKernelBundleT<Name>(Queue);
-      // Use the kernel bundle we queried. This helps ensuring we run the
-      // kernel for which we queried launch information, if we ever do so.
-      CGH.use_kernel_bundle(ExecBundle);
-    }
-    CGH.parallel_for(Range, KernelInstance);
+
+    // TODO: Opportunity to parallelize across number of elements
+    range<1> GlobalRange = {HasUniformWG ? NWorkItems : NWorkGroups * WGSize};
+    nd_range<1> Range{GlobalRange, range<1>(WGSize)};
+
+    ImplementationType KernelInstance(InAccsTuple, OutAccsTuple, LocalAccsTuple,
+                                      IdentitiesTuple, BOPsTuple, ScalarIs,
+                                      ArrayIs, InitToIdentityProps, NWorkItems);
+    EnqueueParallelFor(Range, KernelInstance);
   };
   if (NWorkGroups == 1)
     Rest(IsNonUsmReductionPredicate{},
