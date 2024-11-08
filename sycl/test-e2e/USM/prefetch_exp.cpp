@@ -30,8 +30,8 @@ int main() {
     for (int i = 0; i < count; i++)
       src[i] = i;
 
-    // Test host to device prefetch_exp(handler &CGH, ..)
     {
+      // Test host to device handler::ext_oneapi_prefetch_exp
       event init_prefetch = q.submit(
           [&](handler &cgh) { cgh.ext_oneapi_prefetch_exp(src, sizeof(float) * count); });
 
@@ -41,11 +41,26 @@ int main() {
           for (int i = 0; i < count; i++)
             dest[i] = 2 * src[i];
         });
-      }
+      });
       q.wait_and_throw();
 
       for (int i = 0; i < count; i++) {
         assert(dest[i] == i * 2);
+      }
+
+      // Test device to host handler::ext_oneapi_prefetch_exp
+      q.submit([&](handler &cgh) {
+        cgh.single_task<class quadruple_dest>([=]() {
+          for (int i = 0; i < count; i++)
+            dest[i] = 4 * src[i];
+        });
+      });
+      event init_prefetch_back = q.submit(
+          [&](handler &cgh) { cgh.ext_oneapi_prefetch_exp(dest, sizeof(float) * count, sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST); });
+      q.wait_and_throw();
+
+      for (int i = 0; i < count; i++) {
+        assert(dest[i] == i * 4);
       }
     }
 
@@ -55,7 +70,7 @@ int main() {
 
       q.submit([&](handler &cgh) {
         cgh.depends_on(init_prefetch);
-        cgh.single_task<class double_dest3>([=]() {
+        cgh.single_task<class triple_dest>([=]() {
           for (int i = 0; i < count; i++)
             dest[i] = 3 * src[i];
         });
@@ -64,6 +79,19 @@ int main() {
 
       for (int i = 0; i < count; i++) {
         assert(dest[i] == i * 3);
+      }
+
+      q.submit([&](handler &cgh) {
+        cgh.single_task<class sixtuple_dest>([=]() {
+          for (int i = 0; i < count; i++)
+            dest[i] = 6 * src[i];
+        });
+      });
+      event init_prefetch_back = q.ext_oneapi_prefetch_exp(src, sizeof(float) * count, sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST);
+      q.wait_and_throw();
+
+      for (int i = 0; i < count; i++) {
+        assert(dest[i] == i * 6);
       }
     }
     free(src, q);

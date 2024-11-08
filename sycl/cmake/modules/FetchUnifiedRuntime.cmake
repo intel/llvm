@@ -121,7 +121,7 @@ if(SYCL_UR_USE_FETCH_CONTENT)
   # Author: Maosu Zhao <maosu.zhao@intel.com>
   # Date:   Thu Oct 17 16:31:21 2024 +0800
   #     [DeviceSanitizer] Refactor the code to manage shadow memory (#2127)
-  set(UNIFIED_RUNTIME_TAG 644eef9f8dfcc3931fd2883f24eace60ca98b3ed)
+  set(UNIFIED_RUNTIME_TAG ca43f937d91c53e04ebad69a02dbffdb1bc2f78e)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
