@@ -7,7 +7,7 @@
 // and correctly mutate the elements in the corresponding vector.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 #include <sycl/usm.hpp>
 
 constexpr std::string_view OpNames[] = {

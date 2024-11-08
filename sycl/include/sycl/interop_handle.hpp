@@ -11,12 +11,12 @@
 #include <sycl/access/access.hpp>     // for target, mode, place...
 #include <sycl/accessor.hpp>          // for AccessorBaseHost
 #include <sycl/backend_types.hpp>     // for backend, backend_re...
+#include <sycl/buffer.hpp>            // for buffer
 #include <sycl/detail/export.hpp>     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp> // for getSyclObjImpl
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_property_list
 #include <sycl/image.hpp>                             // for image
-#include <sycl/buffer.hpp>      // for buffer
 #include <ur_api.h> // for ur_mem_handle_t, ur...
 
 #include <memory>      // for shared_ptr

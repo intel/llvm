@@ -17,9 +17,9 @@
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
 #include <ur_api.h>                     // for ur_native_handle_t
 
-#include <variant>                      // for hash
-#include <cstddef>                            // for size_t
-#include <memory>                             // for shared_ptr, hash, opera...
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash, opera...
+#include <variant> // for hash
 
 namespace sycl {
 inline namespace _V1 {

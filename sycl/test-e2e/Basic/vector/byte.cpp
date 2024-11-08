@@ -13,7 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/detail/core.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 #include <cstddef> // std::byte
 #include <tuple>   // std::ignore

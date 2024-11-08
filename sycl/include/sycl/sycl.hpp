@@ -53,15 +53,14 @@
 #include <sycl/specialization_id.hpp>
 #include <sycl/stream.hpp>
 #include <sycl/sub_group.hpp>
-#include <sycl/vector.hpp>
 #include <sycl/usm.hpp>
 #include <sycl/usm/usm_allocator.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+#include <sycl/vector.hpp>
 #include <sycl/version.hpp>
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 #endif
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
@@ -95,6 +94,7 @@
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
