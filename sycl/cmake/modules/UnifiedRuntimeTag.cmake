@@ -1,7 +1,7 @@
-# commit 3edf99755ce2af3b53102a7d8438e0fe969efac3
-# Merge: 5955bad3 0b968661
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Wed Nov 6 11:07:29 2024 +0000
-#    Merge pull request #2082 from RossBrunton/ross/multiadapt
-#    [CI] Add "loader" support to conformance testing
-set(UNIFIED_RUNTIME_TAG 8e032a7f10acb0c07fb17338e96f3fcd72ef781c)
+# commit 2aaa26155d1f7ccb76fd9138a8ff952fe82e11e1
+# Merge: 6a087870 f6d00b8a
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Fri Nov 8 13:05:36 2024 +0000
+#     Merge pull request #2256 from hvdijk/urreturnhelper-ambiguity   
+#     Avoid potential ambiguity in UrReturnHelper
+set(UNIFIED_RUNTIME_TAG 2aaa26155d1f7ccb76fd9138a8ff952fe82e11e1)
