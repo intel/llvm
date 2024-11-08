@@ -6483,6 +6483,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.EnforceDefaultTemplateArgs = true;
+    Policy.FullyQualifiedName = true;
+    Policy.EnforceScopeForElaboratedTypes = true;
     if (FTD) {
       FTD->print(O, Policy);
     } else {
@@ -6513,6 +6515,8 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     O << "}\n";
     Policy.SuppressDefaultTemplateArgs = true;
     Policy.EnforceDefaultTemplateArgs = false;
+    Policy.FullyQualifiedName = false;
+    Policy.EnforceScopeForElaboratedTypes = false;
 
     // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
     O << "namespace sycl {\n";

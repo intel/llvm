@@ -101,7 +101,7 @@ public:
     SuppressTagKeyword = Policy.SuppressTagKeyword;
     SuppressScope = Policy.SuppressScope;
     Policy.SuppressTagKeyword = true;
-    Policy.SuppressScope = true;
+    Policy.SuppressScope = !Policy.EnforceScopeForElaboratedTypes;
   }
 
   ~ElaboratedTypePolicyRAII() {

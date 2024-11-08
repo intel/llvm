@@ -76,6 +76,7 @@ struct PrintingPolicy {
         MSWChar(LO.MicrosoftExt && !LO.WChar), IncludeNewlines(true),
         MSVCFormatting(false), ConstantsAsWritten(false),
         SuppressImplicitBase(false), FullyQualifiedName(false),
+        EnforceScopeForElaboratedTypes(false),
         SuppressDefinition(false), SuppressDefaultTemplateArguments(false),
         PrintCanonicalTypes(false),
         SkipCanonicalizationOfTemplateTypeParms(false),
@@ -341,6 +342,10 @@ struct PrintingPolicy {
   /// This is the opposite of SuppressScope and thus overrules it.
   LLVM_PREFERRED_TYPE(bool)
   unsigned FullyQualifiedName : 1;
+
+  /// Enforce fully qualified name printing for elaborated types.
+  LLVM_PREFERRED_TYPE(bool)
+  unsigned EnforceScopeForElaboratedTypes : 1;
 
   /// When true does not print definition of a type. E.g.
   ///   \code
