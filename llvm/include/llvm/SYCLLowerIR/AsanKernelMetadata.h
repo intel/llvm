@@ -5,9 +5,11 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// This pass fixes attributes and metadata of global variable
+// This pass fixes attributes and metadata of the global variable
 // "__AsanKernelMetadata"
 //===----------------------------------------------------------------------===//
+
+#pragma once
 
 #include "llvm/IR/PassManager.h"
 

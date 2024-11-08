@@ -687,8 +687,8 @@ class ObjectFileHandler final : public FileHandler {
         if (Error Err = Symbol.printName(NameOS))
           return std::move(Err);
 
-        // If we are dealing with a bitcode file do not add special globals
-        // llvm.used and llvm.compiler.used to the list of defined symbols.
+        // If we are dealing with a bitcode file do not add special globals to
+        // the list of defined symbols.
         if (SF->isIR() &&
             (Name == "llvm.used" || Name == "llvm.compiler.used" ||
              Name == "__AsanKernelMetadata"))
