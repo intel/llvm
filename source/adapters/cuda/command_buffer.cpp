@@ -1396,14 +1396,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
 
   CUDA_KERNEL_NODE_PARAMS &Params = KernelCommandHandle->Params;
 
+  const auto LocalSize = KernelCommandHandle->Kernel->getLocalSize();
+  if (LocalSize != 0) {
+    // Clean the local size, otherwise calling updateKernelArguments() in
+    // future updates with local arguments will incorrectly increase the
+    // size further.
+    KernelCommandHandle->Kernel->clearLocalSize();
+  }
+
   Params.func = CuFunc;
-  Params.gridDimX = BlocksPerGrid[0];
-  Params.gridDimY = BlocksPerGrid[1];
-  Params.gridDimZ = BlocksPerGrid[2];
-  Params.blockDimX = ThreadsPerBlock[0];
-  Params.blockDimY = ThreadsPerBlock[1];
-  Params.blockDimZ = ThreadsPerBlock[2];
-  Params.sharedMemBytes = KernelCommandHandle->Kernel->getLocalSize();
+  Params.gridDimX = static_cast<unsigned int>(BlocksPerGrid[0]);
+  Params.gridDimY = static_cast<unsigned int>(BlocksPerGrid[1]);
+  Params.gridDimZ = static_cast<unsigned int>(BlocksPerGrid[2]);
+  Params.blockDimX = static_cast<unsigned int>(ThreadsPerBlock[0]);
+  Params.blockDimY = static_cast<unsigned int>(ThreadsPerBlock[1]);
+  Params.blockDimZ = static_cast<unsigned int>(ThreadsPerBlock[2]);
+  Params.sharedMemBytes = LocalSize;
   Params.kernelParams =
       const_cast<void **>(KernelCommandHandle->Kernel->getArgIndices().data());
 
