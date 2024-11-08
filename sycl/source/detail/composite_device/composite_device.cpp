@@ -10,8 +10,8 @@
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/platform.hpp>
 
-#include <unordered_set>
 #include <algorithm>
+#include <unordered_set>
 
 namespace sycl {
 inline namespace _V1 {
