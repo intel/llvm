@@ -547,7 +547,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
         *pUpdateKernelLaunch) {
 
   // Kernel handle updates are not yet supported.
-  if (pUpdateKernelLaunch->hNewKernel != hCommand->Kernel) {
+  if (pUpdateKernelLaunch->hNewKernel &&
+      pUpdateKernelLaunch->hNewKernel != hCommand->Kernel) {
     return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
   }
 
