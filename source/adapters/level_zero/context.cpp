@@ -756,7 +756,7 @@ ur_result_t ur_context_handle_t_::getAvailableCommandList(
         // queue's map to hold the fence and other associated command
         // list information.
         auto &QGroup = Queue->getQueueGroup(UseCopyEngine);
-        uint32_t QueueGroupOrdinal = 0;
+        uint32_t QueueGroupOrdinal;
         auto &ZeCommandQueue = ForcedCmdQueue
                                    ? *ForcedCmdQueue
                                    : QGroup.getZeQueue(&QueueGroupOrdinal);

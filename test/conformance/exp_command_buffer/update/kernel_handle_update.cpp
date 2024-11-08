@@ -269,8 +269,7 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, Success) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-        &(SaxpyKernel->LocalSize),
-        static_cast<uint32_t>(KernelAlternatives.size()),
+        &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
         KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
         CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
@@ -299,8 +298,7 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, UpdateAgain) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-        &(SaxpyKernel->LocalSize),
-        static_cast<uint32_t>(KernelAlternatives.size()),
+        &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
         KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
         CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
@@ -338,8 +336,7 @@ TEST_P(urCommandBufferKernelHandleUpdateTest, RestoreOriginalKernel) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-        &(SaxpyKernel->LocalSize),
-        static_cast<uint32_t>(KernelAlternatives.size()),
+        &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
         KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
         CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);
@@ -397,9 +394,9 @@ TEST_P(urCommandBufferKernelHandleUpdateTest,
                          updatable_cmd_buf_handle, SaxpyKernel->Kernel,
                          SaxpyKernel->NDimensions, &(SaxpyKernel->GlobalOffset),
                          &(SaxpyKernel->GlobalSize), &(SaxpyKernel->LocalSize),
-                         static_cast<uint32_t>(KernelAlternatives.size()),
-                         KernelAlternatives.data(), 0, nullptr, 0, nullptr,
-                         nullptr, nullptr, &CommandHandle));
+                         KernelAlternatives.size(), KernelAlternatives.data(),
+                         0, nullptr, 0, nullptr, nullptr, nullptr,
+                         &CommandHandle));
 }
 
 using urCommandBufferValidUpdateParametersTest =
@@ -454,8 +451,7 @@ TEST_P(urCommandBufferValidUpdateParametersTest, UpdateOnlyLocalWorkSize) {
     ASSERT_SUCCESS(urCommandBufferAppendKernelLaunchExp(
         updatable_cmd_buf_handle, SaxpyKernel->Kernel, SaxpyKernel->NDimensions,
         &(SaxpyKernel->GlobalOffset), &(SaxpyKernel->GlobalSize),
-        &(SaxpyKernel->LocalSize),
-        static_cast<uint32_t>(KernelAlternatives.size()),
+        &(SaxpyKernel->LocalSize), KernelAlternatives.size(),
         KernelAlternatives.data(), 0, nullptr, 0, nullptr, nullptr, nullptr,
         CommandHandle.ptr()));
     ASSERT_NE(CommandHandle, nullptr);

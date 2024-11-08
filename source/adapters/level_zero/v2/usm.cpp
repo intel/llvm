@@ -378,5 +378,6 @@ ur_result_t urUSMGetMemAllocInfo(
     return UR_RESULT_ERROR_INVALID_VALUE;
   }
   }
+  return UR_RESULT_SUCCESS;
 }
 } // namespace ur::level_zero
