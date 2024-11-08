@@ -19,7 +19,7 @@ class ComputeBench(Suite):
         if options.sycl is None:
             return
 
-        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "aa6a3b2108bb86202b654ad28129156fa746d41d")
+        repo_path = git_clone(self.directory, "compute-benchmarks-repo", "https://github.com/intel/compute-benchmarks.git", "c80ddec9f0b4905bcbeb0f264f710093dc70340d")
         build_path = create_build_path(self.directory, 'compute-benchmarks-build')
 
         configure_command = [
@@ -59,12 +59,14 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, 'Device', 'Device', 1024),
             ExecImmediateCopyQueue(self, 1, 1, 'Device', 'Host', 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 8, 1024, 100),
-            MemcpyExecute(self, 400, 8, 102400, 10),
-            MemcpyExecute(self, 500, 8, 102400, 10),
-            MemcpyExecute(self, 400, 1, 1024, 1000),
-            MemcpyExecute(self, 10, 16, 1024, 1000),
-            MemcpyExecute(self, 10, 16, 102400, 100),
+            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1),
         ]
 
         if options.ur is not None:
@@ -265,15 +267,17 @@ class VectorSum(ComputeBenchmark):
         ]
 
 class MemcpyExecute(ComputeBenchmark):
-    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations):
+    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
         self.iterations = iterations
+        self.srcUSM = srcUSM
+        self.dstUSM = dstUSM
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
 
     def name(self):
-        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize}"
+        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
 
     def bin_args(self) -> list[str]:
         return [
@@ -284,5 +288,7 @@ class MemcpyExecute(ComputeBenchmark):
             f"--AllocSize={self.allocSize}",
             f"--NumThreads={self.numThreads}",
             f"--NumOpsPerThread={self.numOpsPerThread}",
-            f"--iterations={self.iterations}"
+            f"--iterations={self.iterations}",
+            f"--SrcUSM={self.srcUSM}",
+            f"--DstUSM={self.dstUSM}",
         ]
