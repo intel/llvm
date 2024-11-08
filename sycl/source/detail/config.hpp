@@ -12,7 +12,7 @@
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/info/info_desc.hpp>
 
@@ -127,8 +127,8 @@ private:
   }
 };
 
-template <> class SYCLConfig<SYCL_PI_TRACE> {
-  using BaseT = SYCLConfigBase<SYCL_PI_TRACE>;
+template <> class SYCLConfig<SYCL_UR_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_UR_TRACE>;
 
 public:
   static int get() {
@@ -272,10 +272,9 @@ public:
     if (ValStr) {
       // Throw if the input string is empty.
       if (ValStr[0] == '\0')
-        throw invalid_parameter_error(
-            "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
-            "variable: value should not be null.",
-            PI_ERROR_INVALID_VALUE);
+        throw exception(make_error_code(errc::invalid),
+                        "Invalid value for ONEAPI_DEVICE_SELECTOR environment "
+                        "variable: value should not be null.");
 
       DeviceTargets =
           &GlobalHandler::instance().getOneapiDeviceSelectorTargets(ValStr);
@@ -333,17 +332,16 @@ public:
         try {
           Result = std::stoi(ValueStr);
         } catch (...) {
-          throw invalid_parameter_error(
-              "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-              "variable: value should be a number",
-              PI_ERROR_INVALID_VALUE);
+          throw exception(make_error_code(errc::invalid),
+                          "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE "
+                          "environment variable: value should be a number");
         }
 
       if (Result < 1)
-        throw invalid_parameter_error(
+        throw exception(
+            make_error_code(errc::invalid),
             "Invalid value for SYCL_QUEUE_THREAD_POOL_SIZE environment "
-            "variable: value should be larger than zero",
-            PI_ERROR_INVALID_VALUE);
+            "variable: value should be larger than zero");
 
       return Result;
     }();
@@ -383,7 +381,7 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }
@@ -595,6 +593,7 @@ public:
   static constexpr bool Default = true; // default is true
   static bool get() { return getCachedValue(); }
   static const char *getName() { return BaseT::MConfigName; }
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
 
 private:
   static bool parseValue() {
@@ -605,14 +604,155 @@ private:
       std::string Msg =
           std::string{"Invalid value for bool configuration variable "} +
           getName() + std::string{": "} + ValStr;
-      throw runtime_error(Msg, PI_ERROR_INVALID_OPERATION);
+      throw exception(make_error_code(errc::runtime), Msg);
     }
     return ValStr[0] == '1';
   }
 
-  static bool getCachedValue() {
+  static bool getCachedValue(bool ResetCache = false) {
     static bool Val = parseValue();
+    if (ResetCache) {
+      Val = BaseT::getRawValue();
+    }
     return Val;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_KERNELS> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_KERNELS>;
+
+public:
+  static bool get() {
+    constexpr bool DefaultValue = false;
+    const char *ValStr = getCachedValue();
+    if (!ValStr)
+      return DefaultValue;
+
+    return ValStr[0] == '1';
+  }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_CPU> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_CPU>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+template <> class SYCLConfig<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES> {
+  using BaseT = SYCLConfigBase<SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>;
+
+public:
+  static std::string get() {
+    const std::string DefaultValue{""};
+
+    const char *ValStr = getCachedValue();
+
+    if (!ValStr)
+      return DefaultValue;
+
+    return std::string{ValStr};
+  }
+
+  static void reset() { (void)getCachedValue(/*ResetCache=*/true); }
+
+  static const char *getName() { return BaseT::MConfigName; }
+
+private:
+  static const char *getCachedValue(bool ResetCache = false) {
+    static const char *ValStr = BaseT::getRawValue();
+    if (ResetCache)
+      ValStr = BaseT::getRawValue();
+    return ValStr;
+  }
+};
+
+// SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
+// different SYCL caches. The input value is parsed as an integer and
+// the following bit-masks is used to determine the tracing behavior:
+// 0x01 - trace disk cache
+// 0x02 - trace in-memory cache
+// 0x04 - trace kernel_compiler cache
+// Any valid combination of the above bit-masks can be used to enable/disable
+// tracing of the corresponding caches. If the input value is not null and
+// not a valid number, the disk cache tracing will be enabled (depreciated
+// behavior). The default value is 0 and no tracing is enabled.
+template <> class SYCLConfig<SYCL_CACHE_TRACE> {
+  using BaseT = SYCLConfigBase<SYCL_CACHE_TRACE>;
+  enum TraceBitmask { DiskCache = 1, InMemCache = 2, KernelCompiler = 4 };
+
+public:
+  static unsigned int get() { return getCachedValue(); }
+  static void reset() { (void)getCachedValue(true); }
+  static bool isTraceDiskCache() {
+    return getCachedValue() & TraceBitmask::DiskCache;
+  }
+  static bool isTraceInMemCache() {
+    return getCachedValue() & TraceBitmask::InMemCache;
+  }
+  static bool isTraceKernelCompiler() {
+    return getCachedValue() & TraceBitmask::KernelCompiler;
+  }
+
+private:
+  static unsigned int getCachedValue(bool ResetCache = false) {
+    const auto Parser = []() {
+      const char *ValStr = BaseT::getRawValue();
+      int intVal = 0;
+
+      if (ValStr) {
+        try {
+          intVal = std::stoi(ValStr);
+        } catch (...) {
+          // If the value is not null and not a number, it is considered
+          // to enable disk cache tracing. This is the legacy behavior.
+          intVal = 1;
+        }
+      }
+
+      // Legacy behavior.
+      if (intVal > 7)
+        intVal = 1;
+
+      return intVal;
+    };
+
+    static unsigned int Level = Parser();
+    if (ResetCache)
+      Level = Parser();
+
+    return Level;
   }
 };
 

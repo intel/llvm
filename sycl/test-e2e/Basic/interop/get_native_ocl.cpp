@@ -1,5 +1,5 @@
-// REQUIRES: opencl, opencl_dev_kit
-// RUN: %{build} %opencl_options -o %t.ocl.out
+// REQUIRES: opencl, opencl_icd
+// RUN: %{build} %opencl_lib -o %t.out
 // RUN: %{run} %t.out
 
 #include <CL/cl.h>

@@ -65,6 +65,7 @@ enum DiagnosticKind {
   DK_Lowering,
   DK_DebugMetadataVersion,
   DK_DebugMetadataInvalid,
+  DK_Instrumentation,
   DK_ISelFallback,
   DK_SampleProfile,
   DK_OptimizationRemark,
@@ -87,6 +88,7 @@ enum DiagnosticKind {
   DK_DontCall,
   DK_MisExpect,
   DK_AspectMismatch,
+  DK_SYCLIllegalVirtualCall,
   DK_FirstPluginKind // Must be last value to work with
                      // getNextAvailablePluginDiagnosticKind
 };
@@ -951,6 +953,22 @@ public:
   }
 };
 
+/// Diagnostic information for IR instrumentation reporting.
+class DiagnosticInfoInstrumentation : public DiagnosticInfo {
+  const Twine &Msg;
+
+public:
+  DiagnosticInfoInstrumentation(const Twine &DiagMsg,
+                                DiagnosticSeverity Severity = DS_Warning)
+      : DiagnosticInfo(DK_Instrumentation, Severity), Msg(DiagMsg) {}
+
+  void print(DiagnosticPrinter &DP) const override;
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_Instrumentation;
+  }
+};
+
 /// Diagnostic information for ISel fallback path.
 class DiagnosticInfoISelFallback : public DiagnosticInfo {
   /// The function that is concerned by this diagnostic.
@@ -1077,11 +1095,11 @@ class DiagnosticInfoSrcMgr : public DiagnosticInfo {
 
   // For inlineasm !srcloc translation.
   bool InlineAsmDiag;
-  unsigned LocCookie;
+  uint64_t LocCookie;
 
 public:
   DiagnosticInfoSrcMgr(const SMDiagnostic &Diagnostic, StringRef ModName,
-                       bool InlineAsmDiag = true, unsigned LocCookie = 0)
+                       bool InlineAsmDiag = true, uint64_t LocCookie = 0)
       : DiagnosticInfo(DK_SrcMgr, getDiagnosticSeverity(Diagnostic.getKind())),
         Diagnostic(Diagnostic), ModName(ModName), InlineAsmDiag(InlineAsmDiag),
         LocCookie(LocCookie) {}
@@ -1089,7 +1107,7 @@ public:
   StringRef getModuleName() const { return ModName; }
   bool isInlineAsmDiag() const { return InlineAsmDiag; }
   const SMDiagnostic &getSMDiag() const { return Diagnostic; }
-  unsigned getLocCookie() const { return LocCookie; }
+  uint64_t getLocCookie() const { return LocCookie; }
   void print(DiagnosticPrinter &DP) const override;
 
   static bool classof(const DiagnosticInfo *DI) {
@@ -1102,16 +1120,16 @@ void diagnoseDontCall(const CallInst &CI);
 class DiagnosticInfoDontCall : public DiagnosticInfo {
   StringRef CalleeName;
   StringRef Note;
-  unsigned LocCookie;
+  uint64_t LocCookie;
 
 public:
   DiagnosticInfoDontCall(StringRef CalleeName, StringRef Note,
-                         DiagnosticSeverity DS, unsigned LocCookie)
+                         DiagnosticSeverity DS, uint64_t LocCookie)
       : DiagnosticInfo(DK_DontCall, DS), CalleeName(CalleeName), Note(Note),
         LocCookie(LocCookie) {}
   StringRef getFunctionName() const { return CalleeName; }
   StringRef getNote() const { return Note; }
-  unsigned getLocCookie() const { return LocCookie; }
+  uint64_t getLocCookie() const { return LocCookie; }
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_DontCall;
@@ -1149,6 +1167,28 @@ public:
   void print(DiagnosticPrinter &DP) const override;
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_AspectMismatch;
+  }
+};
+
+void diagnoseSYCLIllegalVirtualFunctionCall(
+    const SmallVector<const Function *> &CallChain);
+
+// Diagnostic information for SYCL virtual functions
+class DiagnosticInfoIllegalVirtualCall : public DiagnosticInfo {
+  llvm::SmallVector<std::pair<StringRef, unsigned>, 8> CallChain;
+
+public:
+  DiagnosticInfoIllegalVirtualCall(
+      const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &CallChain)
+      : DiagnosticInfo(DK_SYCLIllegalVirtualCall, DiagnosticSeverity::DS_Error),
+        CallChain(CallChain) {}
+  const llvm::SmallVector<std::pair<StringRef, unsigned>, 8> &
+  getCallChain() const {
+    return CallChain;
+  }
+  void print(DiagnosticPrinter &DP) const override;
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_SYCLIllegalVirtualCall;
   }
 };
 } // end namespace llvm

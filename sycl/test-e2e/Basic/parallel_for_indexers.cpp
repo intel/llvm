@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t2.out
+// RUN: %{build} -Wno-error=deprecated-declarations -o %t2.out
 // RUN: %{run} %t2.out
 
 #include <sycl/detail/core.hpp>

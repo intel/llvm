@@ -13,8 +13,11 @@
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
-#include <sycl/device.hpp>                 // for device
-#include <sycl/nd_range.hpp>               // for range, nd_range
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
+#include <sycl/device.hpp>                     // for device
+#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -39,8 +42,9 @@ enum class graph_state {
   executable, ///< In executable state, the graph is ready to execute.
 };
 
-// Forward declare Graph class
+// Forward declare ext::oneapi::experimental classes
 template <graph_state State> class command_graph;
+class raw_kernel_arg;
 
 namespace detail {
 // List of sycl features and extensions which are not supported by graphs. Used
@@ -53,7 +57,9 @@ enum class UnsupportedGraphFeatures {
   sycl_ext_oneapi_enqueue_barrier = 4,
   sycl_ext_oneapi_memcpy2d = 5,
   sycl_ext_oneapi_device_global = 6,
-  sycl_ext_oneapi_bindless_images = 7
+  sycl_ext_oneapi_bindless_images = 7,
+  sycl_ext_oneapi_experimental_cuda_cluster_launch = 8,
+  sycl_ext_codeplay_enqueue_native_command = 9
 };
 
 inline const char *
@@ -76,6 +82,10 @@ UnsupportedFeatureToString(UnsupportedGraphFeatures Feature) {
     return "sycl_ext_oneapi_device_global";
   case UGF::sycl_ext_oneapi_bindless_images:
     return "sycl_ext_oneapi_bindless_images";
+  case UGF::sycl_ext_oneapi_experimental_cuda_cluster_launch:
+    return "sycl_ext_oneapi_experimental_cuda_cluster_launch";
+  case UGF::sycl_ext_codeplay_enqueue_native_command:
+    return "sycl_ext_codeplay_enqueue_native_command";
   }
 
   assert(false && "Unhandled graphs feature");
@@ -130,7 +140,7 @@ private:
   node(const std::shared_ptr<detail::node_impl> &Impl) : impl(Impl) {}
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
@@ -307,7 +317,13 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(const std::string path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
+#else
   void print_graph(const std::string path, bool verbose = false) const;
+#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -339,11 +355,13 @@ protected:
   void addGraphLeafDependencies(node Node);
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+#endif
   std::shared_ptr<detail::graph_impl> impl;
 };
 
@@ -377,7 +395,7 @@ protected:
                            const property_list &PropList = {});
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 
   /// Creates a backend representation of the graph in \p impl member variable.
@@ -435,11 +453,16 @@ public:
 protected:
   void updateValue(const void *NewValue, size_t Size);
 
+  // Update a sycl_ext_oneapi_raw_kernel_arg parameter. Size parameter is
+  // ignored as it represents sizeof(raw_kernel_arg), which doesn't represent
+  // the number of underlying bytes.
+  void updateValue(const raw_kernel_arg *NewRawValue, size_t Size);
+
   void updateAccessor(const sycl::detail::AccessorBaseHost *Acc);
   std::shared_ptr<dynamic_parameter_impl> impl;
 
   template <class Obj>
-  friend decltype(Obj::impl)
+  friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
 };
 } // namespace detail

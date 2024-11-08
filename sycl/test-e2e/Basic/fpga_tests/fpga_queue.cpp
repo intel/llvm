@@ -31,7 +31,7 @@ void GetCLQueue(event sycl_event, std::set<cl_command_queue> &cl_queues) {
     assert(CL_SUCCESS == error && "Failed to obtain queue from OpenCL event");
 
     cl_queues.insert(cl_queue);
-  } catch (invalid_object_error e) {
+  } catch (const exception &e) {
     std::cout << "Failed to get OpenCL queue from SYCL event: " << e.what()
               << std::endl;
   }

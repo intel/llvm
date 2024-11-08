@@ -45,7 +45,7 @@ namespace {
 /// WebAssemblyOperand - Instances of this class represent the operands in a
 /// parsed Wasm machine instruction.
 struct WebAssemblyOperand : public MCParsedAsmOperand {
-  enum KindTy { Token, Integer, Float, Symbol, BrList } Kind;
+  enum KindTy { Token, Integer, Float, Symbol, BrList, CatchList } Kind;
 
   SMLoc StartLoc, EndLoc;
 
@@ -69,28 +69,43 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
     std::vector<unsigned> List;
   };
 
+  struct CaLOpElem {
+    uint8_t Opcode;
+    const MCExpr *Tag;
+    unsigned Dest;
+  };
+
+  struct CaLOp {
+    std::vector<CaLOpElem> List;
+  };
+
   union {
     struct TokOp Tok;
     struct IntOp Int;
     struct FltOp Flt;
     struct SymOp Sym;
     struct BrLOp BrL;
+    struct CaLOp CaL;
   };
 
-  WebAssemblyOperand(KindTy K, SMLoc Start, SMLoc End, TokOp T)
-      : Kind(K), StartLoc(Start), EndLoc(End), Tok(T) {}
-  WebAssemblyOperand(KindTy K, SMLoc Start, SMLoc End, IntOp I)
-      : Kind(K), StartLoc(Start), EndLoc(End), Int(I) {}
-  WebAssemblyOperand(KindTy K, SMLoc Start, SMLoc End, FltOp F)
-      : Kind(K), StartLoc(Start), EndLoc(End), Flt(F) {}
-  WebAssemblyOperand(KindTy K, SMLoc Start, SMLoc End, SymOp S)
-      : Kind(K), StartLoc(Start), EndLoc(End), Sym(S) {}
-  WebAssemblyOperand(KindTy K, SMLoc Start, SMLoc End)
-      : Kind(K), StartLoc(Start), EndLoc(End), BrL() {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, TokOp T)
+      : Kind(Token), StartLoc(Start), EndLoc(End), Tok(T) {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, IntOp I)
+      : Kind(Integer), StartLoc(Start), EndLoc(End), Int(I) {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, FltOp F)
+      : Kind(Float), StartLoc(Start), EndLoc(End), Flt(F) {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, SymOp S)
+      : Kind(Symbol), StartLoc(Start), EndLoc(End), Sym(S) {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, BrLOp B)
+      : Kind(BrList), StartLoc(Start), EndLoc(End), BrL(B) {}
+  WebAssemblyOperand(SMLoc Start, SMLoc End, CaLOp C)
+      : Kind(CatchList), StartLoc(Start), EndLoc(End), CaL(C) {}
 
   ~WebAssemblyOperand() {
     if (isBrList())
       BrL.~BrLOp();
+    if (isCatchList())
+      CaL.~CaLOp();
   }
 
   bool isToken() const override { return Kind == Token; }
@@ -99,6 +114,7 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
   bool isMem() const override { return false; }
   bool isReg() const override { return false; }
   bool isBrList() const { return Kind == BrList; }
+  bool isCatchList() const { return Kind == CatchList; }
 
   MCRegister getReg() const override {
     llvm_unreachable("Assembly inspects a register operand");
@@ -151,6 +167,18 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
       Inst.addOperand(MCOperand::createImm(Br));
   }
 
+  void addCatchListOperands(MCInst &Inst, unsigned N) const {
+    assert(N == 1 && isCatchList() && "Invalid CatchList!");
+    Inst.addOperand(MCOperand::createImm(CaL.List.size()));
+    for (auto Ca : CaL.List) {
+      Inst.addOperand(MCOperand::createImm(Ca.Opcode));
+      if (Ca.Opcode == wasm::WASM_OPCODE_CATCH ||
+          Ca.Opcode == wasm::WASM_OPCODE_CATCH_REF)
+        Inst.addOperand(MCOperand::createExpr(Ca.Tag));
+      Inst.addOperand(MCOperand::createImm(Ca.Dest));
+    }
+  }
+
   void print(raw_ostream &OS) const override {
     switch (Kind) {
     case Token:
@@ -168,6 +196,9 @@ struct WebAssemblyOperand : public MCParsedAsmOperand {
     case BrList:
       OS << "BrList:" << BrL.List.size();
       break;
+    case CatchList:
+      OS << "CaList:" << CaL.List.size();
+      break;
     }
   }
 };
@@ -178,14 +209,15 @@ static wasm::WasmLimits DefaultLimits() {
 }
 
 static MCSymbolWasm *GetOrCreateFunctionTableSymbol(MCContext &Ctx,
-                                                    const StringRef &Name) {
+                                                    const StringRef &Name,
+                                                    bool is64) {
   MCSymbolWasm *Sym = cast_or_null<MCSymbolWasm>(Ctx.lookupSymbol(Name));
   if (Sym) {
     if (!Sym->isFunctionTable())
       Ctx.reportError(SMLoc(), "symbol is not a wasm funcref table");
   } else {
     Sym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(Name));
-    Sym->setFunctionTable();
+    Sym->setFunctionTable(is64);
     // The default function table is synthesized by the linker.
     Sym->setUndefined();
   }
@@ -219,6 +251,7 @@ class WebAssemblyAsmParser final : public MCTargetAsmParser {
     Loop,
     Try,
     CatchAll,
+    TryTable,
     If,
     Else,
     Undefined,
@@ -258,7 +291,7 @@ public:
     MCAsmParserExtension::Initialize(Parser);
 
     DefaultFunctionTable = GetOrCreateFunctionTableSymbol(
-        getContext(), "__indirect_function_table");
+        getContext(), "__indirect_function_table", is64);
     if (!STI->checkFeatures("+reference-types"))
       DefaultFunctionTable->setOmitFromLinkingSection();
   }
@@ -295,6 +328,8 @@ public:
       return {"try", "end_try/delegate"};
     case CatchAll:
       return {"catch_all", "end_try"};
+    case TryTable:
+      return {"try_table", "end_try_table"};
     case If:
       return {"if", "end_if"};
     case Else:
@@ -387,8 +422,7 @@ public:
     if (IsNegative)
       Val = -Val;
     Operands.push_back(std::make_unique<WebAssemblyOperand>(
-        WebAssemblyOperand::Integer, Int.getLoc(), Int.getEndLoc(),
-        WebAssemblyOperand::IntOp{Val}));
+        Int.getLoc(), Int.getEndLoc(), WebAssemblyOperand::IntOp{Val}));
     Parser.Lex();
   }
 
@@ -400,8 +434,7 @@ public:
     if (IsNegative)
       Val = -Val;
     Operands.push_back(std::make_unique<WebAssemblyOperand>(
-        WebAssemblyOperand::Float, Flt.getLoc(), Flt.getEndLoc(),
-        WebAssemblyOperand::FltOp{Val}));
+        Flt.getLoc(), Flt.getEndLoc(), WebAssemblyOperand::FltOp{Val}));
     Parser.Lex();
     return false;
   }
@@ -422,8 +455,7 @@ public:
     if (IsNegative)
       Val = -Val;
     Operands.push_back(std::make_unique<WebAssemblyOperand>(
-        WebAssemblyOperand::Float, Flt.getLoc(), Flt.getEndLoc(),
-        WebAssemblyOperand::FltOp{Val}));
+        Flt.getLoc(), Flt.getEndLoc(), WebAssemblyOperand::FltOp{Val}));
     Parser.Lex();
     return false;
   }
@@ -458,8 +490,7 @@ public:
         // up later.
         auto Tok = Lexer.getTok();
         Operands.push_back(std::make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Integer, Tok.getLoc(), Tok.getEndLoc(),
-            WebAssemblyOperand::IntOp{-1}));
+            Tok.getLoc(), Tok.getEndLoc(), WebAssemblyOperand::IntOp{-1}));
       }
     }
     return false;
@@ -473,8 +504,7 @@ public:
       NestingStack.back().Sig = Sig;
     }
     Operands.push_back(std::make_unique<WebAssemblyOperand>(
-        WebAssemblyOperand::Integer, NameLoc, NameLoc,
-        WebAssemblyOperand::IntOp{static_cast<int64_t>(BT)}));
+        NameLoc, NameLoc, WebAssemblyOperand::IntOp{static_cast<int64_t>(BT)}));
   }
 
   bool parseLimits(wasm::WasmLimits *Limits) {
@@ -508,19 +538,17 @@ public:
       auto &Tok = Lexer.getTok();
       if (Tok.is(AsmToken::Identifier)) {
         auto *Sym =
-            GetOrCreateFunctionTableSymbol(getContext(), Tok.getString());
+            GetOrCreateFunctionTableSymbol(getContext(), Tok.getString(), is64);
         const auto *Val = MCSymbolRefExpr::create(Sym, getContext());
         *Op = std::make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Symbol, Tok.getLoc(), Tok.getEndLoc(),
-            WebAssemblyOperand::SymOp{Val});
+            Tok.getLoc(), Tok.getEndLoc(), WebAssemblyOperand::SymOp{Val});
         Parser.Lex();
         return expect(AsmToken::Comma, ",");
       } else {
         const auto *Val =
             MCSymbolRefExpr::create(DefaultFunctionTable, getContext());
         *Op = std::make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::Symbol, SMLoc(), SMLoc(),
-            WebAssemblyOperand::SymOp{Val});
+            SMLoc(), SMLoc(), WebAssemblyOperand::SymOp{Val});
         return false;
       }
     } else {
@@ -528,14 +556,13 @@ public:
       // write a table symbol or issue relocations.  Instead we just ensure the
       // table is live and write a zero.
       getStreamer().emitSymbolAttribute(DefaultFunctionTable, MCSA_NoDeadStrip);
-      *Op = std::make_unique<WebAssemblyOperand>(WebAssemblyOperand::Integer,
-                                                 SMLoc(), SMLoc(),
+      *Op = std::make_unique<WebAssemblyOperand>(SMLoc(), SMLoc(),
                                                  WebAssemblyOperand::IntOp{0});
       return false;
     }
   }
 
-  bool ParseInstruction(ParseInstructionInfo & /*Info*/, StringRef Name,
+  bool parseInstruction(ParseInstructionInfo & /*Info*/, StringRef Name,
                         SMLoc NameLoc, OperandVector &Operands) override {
     // Note: Name does NOT point into the sourcecode, but to a local, so
     // use NameLoc instead.
@@ -563,13 +590,14 @@ public:
 
     // Now construct the name as first operand.
     Operands.push_back(std::make_unique<WebAssemblyOperand>(
-        WebAssemblyOperand::Token, NameLoc, SMLoc::getFromPointer(Name.end()),
+        NameLoc, SMLoc::getFromPointer(Name.end()),
         WebAssemblyOperand::TokOp{Name}));
 
     // If this instruction is part of a control flow structure, ensure
     // proper nesting.
     bool ExpectBlockType = false;
     bool ExpectFuncType = false;
+    bool ExpectCatchList = false;
     std::unique_ptr<WebAssemblyOperand> FunctionTable;
     if (Name == "block") {
       push(Block);
@@ -592,11 +620,18 @@ public:
     } else if (Name == "catch_all") {
       if (popAndPushWithSameSignature(Name, Try, CatchAll))
         return true;
+    } else if (Name == "try_table") {
+      push(TryTable);
+      ExpectBlockType = true;
+      ExpectCatchList = true;
     } else if (Name == "end_if") {
       if (pop(Name, If, Else))
         return true;
     } else if (Name == "end_try") {
       if (pop(Name, Try, CatchAll))
+        return true;
+    } else if (Name == "end_try_table") {
+      if (pop(Name, TryTable))
         return true;
     } else if (Name == "delegate") {
       if (pop(Name, Try))
@@ -621,7 +656,18 @@ public:
       ExpectFuncType = true;
     }
 
-    if (ExpectFuncType || (ExpectBlockType && Lexer.is(AsmToken::LParen))) {
+    // Returns true if the next tokens are a catch clause
+    auto PeekCatchList = [&]() {
+      if (Lexer.isNot(AsmToken::LParen))
+        return false;
+      AsmToken NextTok = Lexer.peekTok();
+      return NextTok.getKind() == AsmToken::Identifier &&
+             NextTok.getIdentifier().starts_with("catch");
+    };
+
+    // Parse a multivalue block type
+    if (ExpectFuncType ||
+        (Lexer.is(AsmToken::LParen) && ExpectBlockType && !PeekCatchList())) {
       // This has a special TYPEINDEX operand which in text we
       // represent as a signature, such that we can re-build this signature,
       // attach it to an anonymous symbol, which is what WasmObjectWriter
@@ -644,8 +690,24 @@ public:
       const MCExpr *Expr = MCSymbolRefExpr::create(
           WasmSym, MCSymbolRefExpr::VK_WASM_TYPEINDEX, Ctx);
       Operands.push_back(std::make_unique<WebAssemblyOperand>(
-          WebAssemblyOperand::Symbol, Loc.getLoc(), Loc.getEndLoc(),
-          WebAssemblyOperand::SymOp{Expr}));
+          Loc.getLoc(), Loc.getEndLoc(), WebAssemblyOperand::SymOp{Expr}));
+    }
+
+    // If we are expecting a catch clause list, try to parse it here.
+    //
+    // If there is a multivalue block return type before this catch list, it
+    // should have been parsed above. If there is no return type before
+    // encountering this catch list, this means the type is void.
+    // The case when there is a single block return value and then a catch list
+    // will be handled below in the 'while' loop.
+    if (ExpectCatchList && PeekCatchList()) {
+      if (ExpectBlockType) {
+        ExpectBlockType = false;
+        addBlockTypeOperand(Operands, NameLoc, WebAssembly::BlockType::Void);
+      }
+      if (parseCatchList(Operands))
+        return true;
+      ExpectCatchList = false;
     }
 
     while (Lexer.isNot(AsmToken::EndOfStatement)) {
@@ -661,7 +723,15 @@ public:
           if (BT == WebAssembly::BlockType::Invalid)
             return error("Unknown block type: ", Id);
           addBlockTypeOperand(Operands, NameLoc, BT);
+          ExpectBlockType = false;
           Parser.Lex();
+          // Now that we've parsed a single block return type, if we are
+          // expecting a catch clause list, try to parse it.
+          if (ExpectCatchList && PeekCatchList()) {
+            if (parseCatchList(Operands))
+              return true;
+            ExpectCatchList = false;
+          }
         } else {
           // Assume this identifier is a label.
           const MCExpr *Val;
@@ -670,8 +740,7 @@ public:
           if (Parser.parseExpression(Val, End))
             return error("Cannot parse symbol: ", Lexer.getTok());
           Operands.push_back(std::make_unique<WebAssemblyOperand>(
-              WebAssemblyOperand::Symbol, Start, End,
-              WebAssemblyOperand::SymOp{Val}));
+              Start, End, WebAssemblyOperand::SymOp{Val}));
           if (checkForP2AlignIfLoadStore(Operands, Name))
             return true;
         }
@@ -705,7 +774,7 @@ public:
       case AsmToken::LCurly: {
         Parser.Lex();
         auto Op = std::make_unique<WebAssemblyOperand>(
-            WebAssemblyOperand::BrList, Tok.getLoc(), Tok.getEndLoc());
+            Tok.getLoc(), Tok.getEndLoc(), WebAssemblyOperand::BrLOp{});
         if (!Lexer.is(AsmToken::RCurly))
           for (;;) {
             Op->BrL.List.push_back(Lexer.getTok().getIntVal());
@@ -725,10 +794,18 @@ public:
           return true;
       }
     }
-    if (ExpectBlockType && Operands.size() == 1) {
-      // Support blocks with no operands as default to void.
+
+    // If we are still expecting to parse a block type or a catch list at this
+    // point, we set them to the default/empty state.
+
+    // Support blocks with no operands as default to void.
+    if (ExpectBlockType)
       addBlockTypeOperand(Operands, NameLoc, WebAssembly::BlockType::Void);
-    }
+    // If no catch list has been parsed, add an empty catch list operand.
+    if (ExpectCatchList)
+      Operands.push_back(std::make_unique<WebAssemblyOperand>(
+          NameLoc, NameLoc, WebAssemblyOperand::CaLOp{}));
+
     if (FunctionTable)
       Operands.push_back(std::move(FunctionTable));
     Parser.Lex();
@@ -753,10 +830,59 @@ public:
     return false;
   }
 
+  bool parseCatchList(OperandVector &Operands) {
+    auto Op = std::make_unique<WebAssemblyOperand>(
+        Lexer.getTok().getLoc(), SMLoc(), WebAssemblyOperand::CaLOp{});
+    SMLoc EndLoc;
+
+    while (Lexer.is(AsmToken::LParen)) {
+      if (expect(AsmToken::LParen, "("))
+        return true;
+
+      auto CatchStr = expectIdent();
+      if (CatchStr.empty())
+        return true;
+      uint8_t CatchOpcode =
+          StringSwitch<uint8_t>(CatchStr)
+              .Case("catch", wasm::WASM_OPCODE_CATCH)
+              .Case("catch_ref", wasm::WASM_OPCODE_CATCH_REF)
+              .Case("catch_all", wasm::WASM_OPCODE_CATCH_ALL)
+              .Case("catch_all_ref", wasm::WASM_OPCODE_CATCH_ALL_REF)
+              .Default(0xff);
+      if (CatchOpcode == 0xff)
+        return error(
+            "Expected catch/catch_ref/catch_all/catch_all_ref, instead got: " +
+            CatchStr);
+
+      const MCExpr *Tag = nullptr;
+      if (CatchOpcode == wasm::WASM_OPCODE_CATCH ||
+          CatchOpcode == wasm::WASM_OPCODE_CATCH_REF) {
+        if (Parser.parseExpression(Tag))
+          return error("Cannot parse symbol: ", Lexer.getTok());
+      }
+
+      auto &DestTok = Lexer.getTok();
+      if (DestTok.isNot(AsmToken::Integer))
+        return error("Expected integer constant, instead got: ", DestTok);
+      unsigned Dest = DestTok.getIntVal();
+      Parser.Lex();
+
+      EndLoc = Lexer.getTok().getEndLoc();
+      if (expect(AsmToken::RParen, ")"))
+        return true;
+
+      Op->CaL.List.push_back({CatchOpcode, Tag, Dest});
+    }
+
+    Op->EndLoc = EndLoc;
+    Operands.push_back(std::move(Op));
+    return false;
+  }
+
   bool CheckDataSection() {
     if (CurrentState != DataSection) {
-      auto WS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
-      if (WS && WS->getKind().isText())
+      auto WS = cast<MCSectionWasm>(getStreamer().getCurrentSectionOnly());
+      if (WS && WS->isText())
         return error("data directive must occur in a data segment: ",
                      Lexer.getTok());
     }
@@ -836,6 +962,9 @@ public:
       // symbol
       auto WasmSym = cast<MCSymbolWasm>(Ctx.getOrCreateSymbol(SymName));
       WasmSym->setType(wasm::WASM_SYMBOL_TYPE_TABLE);
+      if (is64) {
+        Limits.Flags |= wasm::WASM_LIMITS_FLAG_IS_64;
+      }
       wasm::WasmTableType Type = {*ElemType, Limits};
       WasmSym->setTableType(Type);
       TOut.emitTableType(WasmSym);
@@ -998,7 +1127,7 @@ public:
     }
   }
 
-  bool MatchAndEmitInstruction(SMLoc IDLoc, unsigned & /*Opcode*/,
+  bool matchAndEmitInstruction(SMLoc IDLoc, unsigned & /*Opcode*/,
                                OperandVector &Operands, MCStreamer &Out,
                                uint64_t &ErrorInfo,
                                bool MatchingInlineAsm) override {
@@ -1069,8 +1198,8 @@ public:
 
   void doBeforeLabelEmit(MCSymbol *Symbol, SMLoc IDLoc) override {
     // Code below only applies to labels in text sections.
-    auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSection().first);
-    if (!CWS || !CWS->getKind().isText())
+    auto CWS = cast<MCSectionWasm>(getStreamer().getCurrentSectionOnly());
+    if (!CWS->isText())
       return;
 
     auto WasmSym = cast<MCSymbolWasm>(Symbol);
@@ -1102,9 +1231,8 @@ public:
     // assembly currently.
     if (Group)
       WasmSym->setComdat(true);
-    auto *WS =
-        getContext().getWasmSection(SecName, SectionKind::getText(), 0, Group,
-                                    MCContext::GenericSectionID, nullptr);
+    auto *WS = getContext().getWasmSection(SecName, SectionKind::getText(), 0,
+                                           Group, MCContext::GenericSectionID);
     getStreamer().switchSection(WS);
     // Also generate DWARF for this section if requested.
     if (getContext().getGenDwarfForAssembly())

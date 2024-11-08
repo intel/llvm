@@ -12,7 +12,7 @@ declare spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4
 define spir_func void @func1(ptr addrspace(1) %arg1, i32 %arg2){
 ; CHECK-LABEL: @func1(
 ; CHECK-NEXT:    [[CALL1_I_I_ESIMD:%.*]] = call <16 x float> @llvm.genx.oword.ld.unaligned.v16f32(i32 0, i32 0, i32 [[ARG2:%.*]]), !dbg [[DBG2:![0-9]+]]
-; CHECK-NEXT:    call void @llvm.dbg.value(metadata <16 x float> [[CALL1_I_I_ESIMD]], metadata !{{[0-9]+}}, metadata !DIExpression()), !dbg [[DBG2]]
+; CHECK-NEXT:    #dbg_value(<16 x float> [[CALL1_I_I_ESIMD]], !{{[0-9]+}}, !DIExpression(), [[DBG2]])
 ; CHECK-NEXT:    ret void, !dbg !{{[0-9]+}}
 
   %res = call spir_func <16 x float> @_Z26__esimd_oword_ld_unalignedIfLi16EjLi0EEN2cl4sycl3ext5intel12experimental5esimd6detail11vector_typeIT_XT0_EE4typeET1_j(i32 0, i32 %arg2)
@@ -22,13 +22,13 @@ define spir_func void @func1(ptr addrspace(1) %arg1, i32 %arg2){
 define spir_func void @func2(ptr addrspace(1) %arg1) {
 ; CHECK-LABEL: @func2(
 ; CHECK-NEXT:  [[V1:%.*]] = load <3 x i64>, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr addrspace(4)), align 32, !dbg !21
-; CHECK-NEXT:  call void @llvm.dbg.value(metadata <3 x i64> [[V1]], metadata !15, metadata !DIExpression()), !dbg [[DBG21:![0-9]+]]
+; CHECK-NEXT:  #dbg_value(<3 x i64> [[V1]], !15, !DIExpression(), [[DBG21:![0-9]+]])
 ; CHECK-NEXT:  [[V2:%.*]] = extractelement <3 x i64> [[V1]], i64 0, !dbg [[DBG22:![0-9]+]]
-; CHECK-NEXT:  call void @llvm.dbg.value(metadata i64 [[V2]], metadata !17, metadata !DIExpression()), !dbg [[DBG22]]
+; CHECK-NEXT:  #dbg_value(i64 [[V2]], !17, !DIExpression(), [[DBG22]])
 ; CHECK-NEXT:  [[PTRIDX:%.*]] = getelementptr inbounds i64, ptr addrspace(1) %arg1, i64 2, !dbg [[DBG23:![0-9]+]]
-; CHECK-NEXT:  call void @llvm.dbg.value(metadata ptr addrspace(1) [[PTRIDX]], metadata !19, metadata !DIExpression()), !dbg [[DBG23]]
+; CHECK-NEXT:  #dbg_value(ptr addrspace(1) [[PTRIDX]], !19, !DIExpression(), [[DBG23]])
 ; CHECK-NEXT:  [[PTRIDXCAST:%.*]] = addrspacecast ptr addrspace(1) [[PTRIDX]] to ptr addrspace(4), !dbg [[DBG24:![0-9]+]]
-; CHECK-NEXT:  call void @llvm.dbg.value(metadata ptr addrspace(4) [[PTRIDXCAST]], metadata !20, metadata !DIExpression()), !dbg [[DBG24]]
+; CHECK-NEXT:  #dbg_value(ptr addrspace(4) [[PTRIDXCAST]], !20, !DIExpression(), [[DBG24]])
 ; CHECK-NEXT:  store i64 [[V2]], ptr addrspace(4) [[PTRIDXCAST]], align 4, !dbg [[DBG25:![0-9]+]]
 ; CHECK-NEXT:  ret void, !dbg [[DBG26:![0-9]+]]
   %1 = load <3 x i64>, ptr addrspace(4) addrspacecast (ptr addrspace(1) @__spirv_BuiltInGlobalInvocationId to ptr addrspace(4))

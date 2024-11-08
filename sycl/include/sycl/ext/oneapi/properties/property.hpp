@@ -10,26 +10,20 @@
 //  1. Add a new enumerator to
 //     `sycl::ext::oneapi::experimental::detail::PropKind` representing the new
 //     property. Increment
-//     `sycl::ext::oneapi::experimental::detail::PropKind::PropKindSize`
-//  2. Define property key class with `value_t` that must be `property_value`
-//     with the first template argument being the property class itself. The
-//     name of the key class must be the property name suffixed by `_key`, i.e.
-//     for a property `foo` the class should be named `foo_key`.
+//     `sycl::ext::oneapi::experimental::detail::PropKind::PropKindSize`.
+//  2. Define property key class inherited from
+//     `detail::compile_time_property_key` with `value_t` that must be
+//     `property_value` with the first template argument being the property
+//     class itself. The name of the key class must be the property name
+//     suffixed by `_key`, i.e. for a property `foo` the class should be named
+//     `foo_key`.
 //  3. Add an `inline constexpr` variable in the same namespace as the property
 //     key. The variable should have the same type as `value_t` of the property
 //     class, e.g. for a property `foo`, there should be a definition
 //     `inline constexpr foo_key::value_t foo`.
-//  4. Specialize `sycl::ext::oneapi::experimental::is_property_key` and
-//     `sycl::ext::oneapi::experimental::is_property_key_of` for the property
-//     key class.
-//  5. Specialize `sycl::ext::oneapi::experimental::detail::PropertyToKind` for
-//     the new property key class. The specialization should have a `Kind`
-//     member with the value equal to the enumerator added in 1.
-//  6. Specialize
-//     `sycl::ext::oneapi::experimental::detail::IsCompileTimeProperty` for the
-//     new property key class. This specialization should derive from
-//     `std::true_type`.
-//  7. If the property needs an LLVM IR attribute, specialize
+//  4. Specialize `sycl::ext::oneapi::experimental::is_property_key_of` for the
+//     property key class.
+//  5. If the property needs an LLVM IR attribute, specialize
 //     `sycl::ext::oneapi::experimental::detail::PropertyMetaInfo` for the new
 //     `value_t` of the property key class. The specialization must have a
 //     `static constexpr const char *name` member with a value equal to the
@@ -100,7 +94,7 @@ enum PropKind : uint32_t {
 namespace sycl::ext::oneapi::experimental {
 
 // (2.)
-struct foo : detail::run_time_property_key<PropKind::Foo> {
+struct foo : detail::run_time_property_key<foo, PropKind::Foo> {
   foo(int v) : value(v) {}
   int value;
 };
@@ -192,33 +186,64 @@ enum PropKind : uint32_t {
   BuildOptions = 51,
   BuildLog = 52,
   FloatingPointControls = 53,
-  FPGACluster = 54,
-  Balanced = 55,
-  InvocationCapacity = 56,
-  ResponseCapacity = 57,
-  DataPlacement = 58,
-  ContiguousMemory = 59,
-  FullGroup = 60,
-  Naive = 61,
-  WorkGroupProgress = 62,
-  SubGroupProgress = 63,
-  WorkItemProgress = 64,
-  NDRangeKernel = 65,
-  SingleTaskKernel = 66,
-  IndirectlyCallable = 67,
-  CallsIndirectly = 68,
-  InputDataPlacement = 69,
-  OutputDataPlacement = 70,
-  IncludeFiles = 71,
-  RegisteredKernelNames = 72,
+  DataPlacement = 54,
+  ContiguousMemory = 55,
+  FullGroup = 56,
+  Naive = 57,
+  WorkGroupProgress = 58,
+  SubGroupProgress = 59,
+  WorkItemProgress = 60,
+  NDRangeKernel = 61,
+  SingleTaskKernel = 62,
+  IndirectlyCallable = 63,
+  CallsIndirectly = 64,
+  InputDataPlacement = 65,
+  OutputDataPlacement = 66,
+  IncludeFiles = 67,
+  RegisteredKernelNames = 68,
+  ClusterLaunch = 69,
+  FPGACluster = 70,
+  Balanced = 71,
+  InvocationCapacity = 72,
+  ResponseCapacity = 73,
+  MaxWorkGroupSize = 74,
+  MaxLinearWorkGroupSize = 75,
+  Prefetch = 76,
+  Deterministic = 77,
+  InitializeToIdentity = 78,
   // PropKindSize must always be the last value.
-  PropKindSize = 73,
+  PropKindSize = 79,
+};
+
+template <typename PropertyT> struct PropertyToKind {
+  static constexpr PropKind Kind = PropertyT::Kind;
+};
+
+struct property_tag {};
+template <typename property_t, PropKind Kind,
+          typename property_key_t = property_t>
+struct property_base : property_tag {
+  using key_t = property_key_t;
+#if !defined(_MSC_VER)
+  // Temporary, to ensure new code matches previous behavior and to catch any
+  // silly copy-paste mistakes. MSVC can't compile it, but linux-only is enough
+  // for this temporary check.
+  static_assert([]() constexpr {
+    if constexpr (std::is_same_v<property_t, key_t>)
+      // key_t is incomplete at this point for runtime properties.
+      return true;
+    else
+      return Kind == PropertyToKind<key_t>::Kind;
+  }());
+#endif
 };
 
 struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
 
-template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+template <typename property_t, PropKind Kind_>
+struct run_time_property_key : property_key_base_tag,
+                               property_base<property_t, Kind_> {
 protected:
   static constexpr PropKind Kind = Kind_;
 
@@ -233,12 +258,6 @@ protected:
 
   template <typename T>
   friend struct PropertyToKind;
-};
-
-// This trait must be specialized for all properties and must have a unique
-// constexpr PropKind member named Kind.
-template <typename PropertyT> struct PropertyToKind {
-  static constexpr PropKind Kind = PropertyT::Kind;
 };
 
 // Get unique ID for property.
@@ -261,6 +280,13 @@ struct IsCompileTimeProperty
           std::is_base_of_v<property_key_base_tag, PropertyT> &&
           std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
 
+// Checks if a type is either a runtime property or if it is a compile-time
+// property
+template <typename T> struct IsProperty {
+  static constexpr bool value =
+      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
+};
+
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
   // Some properties don't have meaningful compile-time values.
@@ -268,6 +294,8 @@ template <typename PropertyT> struct PropertyMetaInfo {
   static constexpr const char *name = "";
   static constexpr std::nullptr_t value = nullptr;
 };
+
+template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 

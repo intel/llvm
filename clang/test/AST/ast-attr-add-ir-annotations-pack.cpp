@@ -64,9 +64,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate1
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -109,8 +109,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate1
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate1 'void () noexcept'
@@ -158,9 +158,9 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
-  // CHECK-NEXT:       TemplateArgument integral 3
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
+  // CHECK-NEXT:       TemplateArgument integral '3'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate2
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:       SYCLAddIRAnnotationsMemberAttr
@@ -206,8 +206,8 @@ void InstantiateClassWithAnnotFieldTemplates() {
   // CHECK-NEXT:       MoveAssignment
   // CHECK-NEXT:       Destructor
   // CHECK-NEXT:     TemplateArgument pack
-  // CHECK-NEXT:       TemplateArgument integral 1
-  // CHECK-NEXT:       TemplateArgument integral 2
+  // CHECK-NEXT:       TemplateArgument integral '1'
+  // CHECK-NEXT:       TemplateArgument integral '2'
   // CHECK-NEXT:     CXXRecordDecl {{.*}} implicit struct ClassWithAnnotFieldTemplate2
   // CHECK-NEXT:     FieldDecl {{.*}} referenced ptr 'int *'
   // CHECK-NEXT:     CXXConstructorDecl {{.*}} implicit used ClassWithAnnotFieldTemplate2 'void () noexcept'

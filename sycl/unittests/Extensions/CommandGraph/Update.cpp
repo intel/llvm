@@ -400,20 +400,37 @@ TEST_F(WholeGraphUpdateTest, EmptyNode) {
   GraphExec.update(UpdateGraph);
 }
 
-TEST_F(WholeGraphUpdateTest, BarrierNode) {
-  // Test that updating a graph that has a barrier node is not an error
-  Graph.begin_recording(Queue);
-  auto NodeKernel = Queue.submit(
-      [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-  Queue.ext_oneapi_submit_barrier({NodeKernel});
-  Graph.end_recording(Queue);
+// Vars and callbacks for tracking how many times mocked functions are called
+static int GetInfoCount = 0;
+static int AppendKernelLaunchCount = 0;
+static ur_result_t redefinedCommandBufferGetInfoExpAfter(void *pParams) {
+  GetInfoCount++;
+  return UR_RESULT_SUCCESS;
+}
+static ur_result_t
+redefinedCommandBufferAppendKernelLaunchExpAfter(void *pParams) {
+  AppendKernelLaunchCount++;
+  return UR_RESULT_SUCCESS;
+}
 
-  UpdateGraph.begin_recording(Queue);
-  auto UpdateNodeKernel = Queue.submit(
+TEST_F(CommandGraphTest, CheckFinalizeBehavior) {
+  // Check that both finalize with and without updatable property work as
+  // expected
+  auto Node = Graph.add(
       [&](sycl::handler &cgh) { cgh.single_task<TestKernel<>>([]() {}); });
-  Queue.ext_oneapi_submit_barrier({UpdateNodeKernel});
-  UpdateGraph.end_recording(Queue);
+  mock::getCallbacks().set_after_callback(
+      "urCommandBufferGetInfoExp", &redefinedCommandBufferGetInfoExpAfter);
+  mock::getCallbacks().set_after_callback(
+      "urCommandBufferAppendKernelLaunchExp",
+      &redefinedCommandBufferAppendKernelLaunchExpAfter);
 
-  auto GraphExec = Graph.finalize(experimental::property::graph::updatable{});
-  GraphExec.update(UpdateGraph);
+  ASSERT_NO_THROW(Graph.finalize(experimental::property::graph::updatable{}));
+  // GetInfo and AppendKernelLaunch should be called once each time a node is
+  // added to a command buffer during finalization
+  ASSERT_EQ(GetInfoCount, 1);
+  ASSERT_EQ(AppendKernelLaunchCount, 1);
+
+  ASSERT_NO_THROW(Graph.finalize());
+  ASSERT_EQ(GetInfoCount, 2);
+  ASSERT_EQ(AppendKernelLaunchCount, 2);
 }

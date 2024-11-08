@@ -1,5 +1,5 @@
-// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-is-device \
-// RUN:     -fsycl-allow-virtual-functions -emit-llvm %s -o %t.ll
+// RUN: %clang_cc1 -internal-isystem %S/Inputs -triple spir64-unknown-unknown \
+// RUN:     -fsycl-is-device -emit-llvm %s -o %t.ll
 // RUN: FileCheck %s --input-file=%t.ll --implicit-check-not _ZN7Derived3baz \
 // RUN:     --implicit-check-not _ZN4Base4baz --implicit-check-not _ZN4Base3foo
 //

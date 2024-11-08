@@ -348,10 +348,10 @@ int main() {
 // SPIR-NEXT: String:          'Arg '
 // SPIR-NEXT: Argument:        '13'
 // SPIR-NEXT: String:          ':'
-// SPIR-NEXT: String:          ''
-// SPIR-NEXT: String:          A
+// SPIR-NEXT: String:          'Compiler generated argument for decomposed struct/class,'
+// SPIR-NEXT: String:          KernelFunctor
 // SPIR-NEXT: String:          '  ('
-// SPIR-NEXT: String:          ''
+// SPIR-NEXT: String:          'Field:A, '
 // SPIR-NEXT: String:          'Type:'
 // SPIR-NEXT: String:          int
 // SPIR-NEXT: String:          ', '

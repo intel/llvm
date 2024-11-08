@@ -307,7 +307,8 @@ enum GlobalValueSummarySymtabCodes {
   // [valueid, n x stackidindex]
   FS_PERMODULE_CALLSITE_INFO = 26,
   // Summary of per-module allocation memprof metadata.
-  // [n x (alloc type, nummib, nummib x stackidindex)]
+  // [nummib, nummib x (alloc type, numstackids, numstackids x stackidindex),
+  // [nummib x total size]?]
   FS_PERMODULE_ALLOC_INFO = 27,
   // Summary of combined index memprof callsite metadata.
   // [valueid, numstackindices, numver,
@@ -316,7 +317,7 @@ enum GlobalValueSummarySymtabCodes {
   // Summary of combined index allocation memprof metadata.
   // [nummib, numver,
   //  nummib x (alloc type, numstackids, numstackids x stackidindex),
-  //  numver x version]
+  //  numver x version, [nummib x total size]?]
   FS_COMBINED_ALLOC_INFO = 29,
   FS_STACK_IDS = 30,
 };
@@ -413,6 +414,7 @@ enum ConstantsCodes {
                                       //                 asmstr,conststr]
   CST_CODE_CE_GEP_WITH_INRANGE = 31,  // [opty, flags, range, n x operands]
   CST_CODE_CE_GEP = 32,               // [opty, flags, n x operands]
+  CST_CODE_PTRAUTH = 33,              // [ptr, key, disc, addrdisc]
 };
 
 /// CastOpcodes - These are values used in the bitcode files to encode which
@@ -483,7 +485,9 @@ enum RMWOperations {
   RMW_FMAX = 13,
   RMW_FMIN = 14,
   RMW_UINC_WRAP = 15,
-  RMW_UDEC_WRAP = 16
+  RMW_UDEC_WRAP = 16,
+  RMW_USUB_COND = 17,
+  RMW_USUB_SAT = 18
 };
 
 /// OverflowingBinaryOperatorOptionalFlags - Flags for serializing
@@ -753,6 +757,13 @@ enum AttributeKindCodes {
   ATTR_KIND_CORO_ONLY_DESTROY_WHEN_COMPLETE = 90,
   ATTR_KIND_DEAD_ON_UNWIND = 91,
   ATTR_KIND_RANGE = 92,
+  ATTR_KIND_SANITIZE_NUMERICAL_STABILITY = 93,
+  ATTR_KIND_INITIALIZES = 94,
+  ATTR_KIND_HYBRID_PATCHABLE = 95,
+  ATTR_KIND_SANITIZE_REALTIME = 96,
+  ATTR_KIND_SANITIZE_REALTIME_UNSAFE = 97,
+  ATTR_KIND_CORO_ELIDE_SAFE = 98,
+  ATTR_KIND_NO_EXT = 99,
 };
 
 enum ComdatSelectionKindCodes {

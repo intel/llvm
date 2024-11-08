@@ -1,7 +1,8 @@
 // REQUIRES: cuda
-
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
-// RUN: %t.out
+// XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15727
+// RUN: %{build} -o %t.out
+// RUN: %{run-unfiltered-devices} %t.out
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

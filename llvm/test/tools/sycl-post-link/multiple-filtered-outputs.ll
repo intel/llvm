@@ -8,6 +8,8 @@
 ; RUN: -o intel_gpu_pvc,%t-pvc.table \
 ; RUN: -o intel_gpu_tgllp,%t-tgllp.table \
 ; RUN: -o intel_gpu_cfl,%t-cfl.table \
+; RUN: -o intel_gpu_lnl_m,%t-lnl.table \
+; RUN: -o intel_gpu_bmg_g21,%t-bmg.table \
 ; RUN: -o unrecognized_target,%t-unrecognized.table
 
 ; RUN: FileCheck %s -input-file=%t_0.sym -check-prefix=CHECK-DOUBLE
@@ -22,6 +24,8 @@
 ; RUN: FileCheck %s -input-file=%t-pvc.table -check-prefix=CHECK-PVC
 ; RUN: FileCheck %s -input-file=%t-tgllp.table -check-prefix=CHECK-TGLLP
 ; RUN: FileCheck %s -input-file=%t-cfl.table -check-prefix=CHECK-CFL
+; RUN: FileCheck %s -input-file=%t-lnl.table -check-prefix=CHECK-LNL
+; RUN: FileCheck %s -input-file=%t-bmg.table -check-prefix=CHECK-BMG
 
 ; CHECK-DOUBLE: double_kernel
 ; CHECK-FLOAT: float_kernel
@@ -41,26 +45,59 @@
 ; CHECK-ALL-EMPTY:
 
 ; PVC does not support sg8 (=1) or sg64 (=2) 
-; CHECK-PVC:      _0.sym
-; CHECK-PVC-NEXT: _3.sym
-; CHECK-PVC-NEXT: _4.sym
-; CHECK-PVC-NEXT: _5.sym
+; CHECK-PVC:      _intel_gpu_pvc_0.prop|{{.*}}_0.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_3.prop|{{.*}}_3.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_4.prop|{{.*}}_4.sym
+; CHECK-PVC-NEXT: _intel_gpu_pvc_5.prop|{{.*}}_5.sym
 ; CHECK-PVC-EMPTY:
 
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_0.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_3.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_4.prop -check-prefix=CHECK-PVC-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_pvc_5.prop -check-prefix=CHECK-PVC-PROP
+; CHECK-PVC-PROP: compile_target=2|oBAAAAAAAAQauRXZs91ZwV3XwZ3Y
+
 ; TGLLP does not support fp64 (=0) or sg64 (=2)
-; CHECK-TGLLP:      _1.sym
-; CHECK-TGLLP-NEXT: _3.sym
-; CHECK-TGLLP-NEXT: _4.sym
-; CHECK-TGLLP-NEXT: _5.sym
+; CHECK-TGLLP:      _intel_gpu_tgllp_1.prop|{{.*}}_1.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_3.prop|{{.*}}_3.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_4.prop|{{.*}}_4.sym
+; CHECK-TGLLP-NEXT: _intel_gpu_tgllp_5.prop|{{.*}}_5.sym
 ; CHECK-TGLLP-EMPTY:
 
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_1.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_3.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_4.prop -check-prefix=CHECK-TGLLP-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_tgllp_5.prop -check-prefix=CHECK-TGLLP-PROP
+; CHECK-TGLLP-PROP: compile_target=2|4BAAAAAAAAQauRXZs91ZwV3X0dGbsBH
+
 ; CFL does not support sg64 (=2)
-; CHECK-CFL:      _0.sym
-; CHECK-CFL-NEXT: _1.sym
-; CHECK-CFL-NEXT: _3.sym
-; CHECK-CFL-NEXT: _4.sym
-; CHECK-CFL-NEXT: _5.sym
+; CHECK-CFL:      _intel_gpu_cfl_0.prop|{{.*}}_0.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_1.prop|{{.*}}_1.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_3.prop|{{.*}}_3.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_4.prop|{{.*}}_4.sym
+; CHECK-CFL-NEXT: _intel_gpu_cfl_5.prop|{{.*}}_5.sym
 ; CHECK-CFL-EMPTY:
+
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_0.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_1.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_3.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_4.prop -check-prefix=CHECK-CFL-PROP
+; RUN: FileCheck %s -input-file=%t_intel_gpu_cfl_5.prop -check-prefix=CHECK-CFL-PROP
+; CHECK-CFL-PROP: compile_target=2|oBAAAAAAAAQauRXZs91ZwV3XjZGb
+
+; LNL does not support sg8 (=1) or sg64 (=2)
+; CHECK-LNL:      _intel_gpu_lnl_m_0.prop|{{.*}}_0.sym
+; CHECK-LNL-NEXT: _intel_gpu_lnl_m_3.prop|{{.*}}_3.sym
+; CHECK-LNL-NEXT: _intel_gpu_lnl_m_4.prop|{{.*}}_4.sym
+; CHECK-LNL-NEXT: _intel_gpu_lnl_m_5.prop|{{.*}}_5.sym
+; CHECK-LNL-EMPTY:
+
+; BMG does not support sg8 (=1) or sg64 (=2)
+; CHECK-BMG:      _intel_gpu_bmg_g21_0.prop|{{.*}}_0.sym
+; CHECK-BMG-NEXT: _intel_gpu_bmg_g21_3.prop|{{.*}}_3.sym
+; CHECK-BMG-NEXT: _intel_gpu_bmg_g21_4.prop|{{.*}}_4.sym
+; CHECK-BMG-NEXT: _intel_gpu_bmg_g21_5.prop|{{.*}}_5.sym
+; CHECK-BMG-EMPTY:
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024-n8:16:32:64"
 target triple = "spir64-unknown-unknown"

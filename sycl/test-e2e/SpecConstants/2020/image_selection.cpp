@@ -6,21 +6,21 @@
 
 // clang-format off
 // RUN: %clangxx -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t1.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t1.out | FileCheck --match-full-lines --check-prefix=CHECK-ENABLED %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out | FileCheck --match-full-lines --check-prefix=CHECK-ENABLED %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is not
 // used.
 
 // RUN: %clangxx  -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t2.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t2.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT %s
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
 // and we have spirv image in addition to AOT.
 
 // clang-format off
 // RUN: %clangxx  -fsycl -fsycl-targets=spir64,spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-MIX %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
@@ -29,7 +29,7 @@
 
 // clang-format off
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-EXPLICIT-SET %s
 // clang-format on
 
 // Check the behaviour when -fsycl-add-default-spec-consts-image option is used
@@ -39,7 +39,7 @@
 
 // clang-format off
 // RUN: %clangxx  -fsycl-add-default-spec-consts-image -fsycl -fsycl-targets=spir64_gen -Xsycl-target-backend=spir64_gen %gpu_aot_target_opts %s -o %t3.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out | FileCheck --match-full-lines --check-prefix=CHECK-DEFAULT-BACK-TO-DEFAULT %s
 // clang-format on
 
 #include <sycl/detail/core.hpp>
@@ -64,80 +64,40 @@ int main() {
   // submission depending on whether spec const value was set or not. a. In the
   // case when we select image where specialization constants are replaced with
   // default value - specialization constant buffer is not created and we set
-  // nullptr in piextKernelSetArgMemObj (4th parameter) b. In the case when we
+  // nullptr in urKernelSetArgMemObj (4th parameter) b. In the case when we
   // select regular image - specialization constant buffer is created and we set
-  // a real pointer in piextKernelSetArgMemObj.
+  // a real pointer in urKernelSetArgMemObj.
 
   // CHECK-DEFAULT: Submission 0
-  // CHECK-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
   // CHECK-DEFAULT: Submission 1
-  // CHECK-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT: New specialization constant value was set.
 
   // CHECK-DEFAULT: Submission 2
-  // CHECK-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
   // CHECK-DEFAULT: Submission 3
-  // CHECK-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT: New specialization constant value was set.
 
   // CHECK-ENABLED: Submission 0
-  // CHECK-ENABLED: ---> piextKernelSetArgMemObj(
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
-  // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-ENABLED: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = nullptr) -> UR_RESULT_SUCCESS;
   // CHECK-ENABLED: Default value of specialization constant was used.
 
   // CHECK-ENABLED: Submission 1
-  // CHECK-ENABLED: ---> piextKernelSetArgMemObj(
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-ENABLED: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-ENABLED: New specialization constant value was set.
 
   // CHECK-ENABLED: Submission 2
-  // CHECK-ENABLED: ---> piextKernelSetArgMemObj(
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
-  // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-ENABLED: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = nullptr) -> UR_RESULT_SUCCESS;
   // CHECK-ENABLED: Default value of specialization constant was used.
 
   // CHECK-ENABLED: Submission 3
-  // CHECK-ENABLED: ---> piextKernelSetArgMemObj(
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-ENABLED: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-ENABLED: New specialization constant value was set.
 
   // CHECK-MIX: Submission 0
@@ -175,23 +135,13 @@ int main() {
   // In this we don't set specialization constant value for bundle, so default
   // value is used and SYCL RT selects image where values are replaced with
   // default, that's why nullptr is set as 4th parameter of
-  // piextKernelSetArgMemObj.
+  // urKernelSetArgMemObj.
   // CHECK-DEFAULT: Kernel bundle
-  // CHECK-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-NEXT:	<unknown> : {{(0x)?[0-9,a-f,A-F]+}}
-  // CHECK-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = {{(0x)?[0-9,a-f,A-F]+}}) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT: Default value of specialization constant was used.
 
   // CHECK-ENABLED: Kernel bundle
-  // CHECK-ENABLED: ---> piextKernelSetArgMemObj(
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{.*}}
-  // CHECK-ENABLED-NEXT:	<unknown> : {{0+}}
-  // CHECK-ENABLED-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-ENABLED: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = nullptr) -> UR_RESULT_SUCCESS;
   // CHECK-ENABLED: Default value of specialization constant was used.
 
   // CHECK-MIX: Kernel bundle
@@ -219,12 +169,7 @@ int main() {
   // constants. We are verifying that by checking the 4th parameter is set to
   // zero.
   // CHECK-DEFAULT-EXPLICIT-SET: Default value was explicitly set
-  // CHECK-DEFAULT-EXPLICIT-SET: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT:	<unknown> : {{0+}}
-  // CHECK-DEFAULT-EXPLICIT-SET-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-EXPLICIT-SET: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = nullptr) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT-EXPLICIT-SET: Default value of specialization constant was used.
   std::cout << "Default value was explicitly set" << std::endl;
   Q.submit([&](sycl::handler &cgh) {
@@ -247,12 +192,7 @@ int main() {
   // values of specialization constants. We are verifying that by checking the
   // 4th parameter is set to zero.
   // CHECK-DEFAULT-BACK-TO-DEFAULT: Changed to new value and then default value was explicitly set
-  // CHECK-DEFAULT-BACK-TO-DEFAULT: ---> piextKernelSetArgMemObj(
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{.*}}
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT:	<unknown> : {{0+}}
-  // CHECK-DEFAULT-BACK-TO-DEFAULT-NEXT: ) ---> 	pi_result : PI_SUCCESS
+  // CHECK-DEFAULT-BACK-TO-DEFAULT: <--- urKernelSetArgMemObj({{.*}}, .hArgValue = nullptr) -> UR_RESULT_SUCCESS;
   // CHECK-DEFAULT-BACK-TO-DEFAULT: Default value of specialization constant was used.
   std::cout << "Changed to new value and then default value was explicitly set"
             << std::endl;

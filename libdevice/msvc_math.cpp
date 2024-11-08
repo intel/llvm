@@ -193,9 +193,9 @@ short _FExp(float *px, float y,
   static const float invln2 = 1.4426950408889634073599246810018921F;
   short ret = 0;
   if (*px < -hugexp || y == 0.0F) { // certain underflow
-    *px = 0.0F;
+    *px = __spirv_ocl_copysign(0.0F, y);
   } else if (hugexp < *px) { // certain overflow
-    *px = _FInf._Float;
+    *px = __spirv_ocl_copysign(_FInf._Float, y);
     ret = _INFCODE;
   } else { // xexp won't overflow
     float g = *px * invln2;

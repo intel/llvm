@@ -27,6 +27,8 @@ private:
   size_t MArgSize;
 
   friend class sycl::handler;
+  // For sycl_ext_oneapi_graph integration
+  friend class detail::dynamic_parameter_impl;
 };
 
 } // namespace ext::oneapi::experimental

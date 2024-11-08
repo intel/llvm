@@ -242,7 +242,7 @@ a|
 template<typename propertyT>
 propertyT get_property() const;
 ``` | Returns a copy of the property of type propertyT that T was constructed with. 
-Must throw an exception with the errc::invalid_object_error error code if T was not constructed with the propertyT property.
+Must throw an exception with the errc::invalid error code if T was not constructed with the propertyT property.
 Available only if propertyT is not a compile-time-constant property.
 a|
 ```c++

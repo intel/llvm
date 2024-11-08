@@ -6,20 +6,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t1.out -DEXP
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t1.out -DEXP
 // RUN: %{run} %t1.out
 
 // This is a basic test to validate the ror/rol functions.
 
 #include "esimd_test_utils.hpp"
 #include <bit>
-#ifdef EXP
-#define NS sycl::ext::intel::experimental::esimd
-#else
 #define NS sycl::ext::intel::esimd
-#endif
 
 // https://stackoverflow.com/questions/776508
 template <typename T> T rotl(T n, unsigned int c) {

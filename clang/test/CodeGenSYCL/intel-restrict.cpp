@@ -1,4 +1,4 @@
-// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -sycl-std=2017 -triple spir64-unknown-unknown -o - | FileCheck %s
+// RUN: %clang_cc1 -fsycl-is-device %s -emit-llvm -triple spir64-unknown-unknown -o - | FileCheck %s
 
 template <typename name, typename Func>
 __attribute__((sycl_kernel)) void kernel(const Func &kernelFunc) {

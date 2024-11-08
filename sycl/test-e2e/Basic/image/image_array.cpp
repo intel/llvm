@@ -4,6 +4,7 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
+// See https://github.com/intel/llvm/issues/15398
 // UNSUPPORTED: gpu
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
@@ -15,6 +16,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <sycl/accessor_image.hpp>
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 
 #include <iostream>

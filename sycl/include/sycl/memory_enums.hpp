@@ -8,8 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h> // for PI_MEMORY_ORDER_ACQUIRE, PI_MEMORY_ORDER_ACQ_REL
-
 #include <atomic> // for memory_order
 #include <vector> // for vector
 
@@ -47,38 +45,6 @@ inline constexpr auto memory_order_acq_rel = memory_order::acq_rel;
 inline constexpr auto memory_order_seq_cst = memory_order::seq_cst;
 
 namespace detail {
-
-inline std::vector<memory_order>
-readMemoryOrderBitfield(pi_memory_order_capabilities bits) {
-  std::vector<memory_order> result;
-  if (bits & PI_MEMORY_ORDER_RELAXED)
-    result.push_back(memory_order::relaxed);
-  if (bits & PI_MEMORY_ORDER_ACQUIRE)
-    result.push_back(memory_order::acquire);
-  if (bits & PI_MEMORY_ORDER_RELEASE)
-    result.push_back(memory_order::release);
-  if (bits & PI_MEMORY_ORDER_ACQ_REL)
-    result.push_back(memory_order::acq_rel);
-  if (bits & PI_MEMORY_ORDER_SEQ_CST)
-    result.push_back(memory_order::seq_cst);
-  return result;
-}
-
-inline std::vector<memory_scope>
-readMemoryScopeBitfield(pi_memory_scope_capabilities bits) {
-  std::vector<memory_scope> result;
-  if (bits & PI_MEMORY_SCOPE_WORK_ITEM)
-    result.push_back(memory_scope::work_item);
-  if (bits & PI_MEMORY_SCOPE_SUB_GROUP)
-    result.push_back(memory_scope::sub_group);
-  if (bits & PI_MEMORY_SCOPE_WORK_GROUP)
-    result.push_back(memory_scope::work_group);
-  if (bits & PI_MEMORY_SCOPE_DEVICE)
-    result.push_back(memory_scope::device);
-  if (bits & PI_MEMORY_SCOPE_SYSTEM)
-    result.push_back(memory_scope::system);
-  return result;
-}
 
 #ifndef __SYCL_DEVICE_ONLY__
 static constexpr std::memory_order getStdMemoryOrder(sycl::memory_order order) {

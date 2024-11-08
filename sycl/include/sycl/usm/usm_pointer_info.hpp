@@ -24,7 +24,8 @@ class context;
 __SYCL_EXPORT usm::alloc get_pointer_type(const void *ptr, const context &ctxt);
 
 /// Queries the device against which the pointer was allocated
-/// Throws an invalid_object_error if ptr is a host allocation.
+/// Throws an exception with errc::invalid error code if ptr is a host
+/// allocation.
 ///
 /// \param ptr is the USM pointer to query
 /// \param ctxt is the sycl context the ptr was allocated in

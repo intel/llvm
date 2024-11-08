@@ -49,23 +49,11 @@ constexpr size_t ReqSubGroupSize = 8;
 template <typename...> class KernelNameOverGroup;
 template <typename...> class KernelNameJoint;
 
-template <typename Properties>
-constexpr bool IsOutputBlocked(Properties properties) {
-  if constexpr (properties.template has_property<
-                    oneapi_exp::output_data_placement_key>())
-    return properties.template get_property<
-               oneapi_exp::output_data_placement_key>() ==
-           oneapi_exp::output_data_placement<
-               oneapi_exp::group_algorithm_data_placement::blocked>;
-  else
-    return true;
-}
-
-// Write data from In to Out in blocked/striped way.
+// Read/Write data from In to Out in blocked/striped way.
 template <typename T, typename Properties>
-void writeBlockedOrStriped(const std::vector<T> &In, std::vector<T> &Out,
-                           size_t MaxGroupSize, size_t ElementsPerWorkItem,
-                           Properties Prop) {
+void ReadWriteBlockedOrStriped(const std::vector<T> &In, std::vector<T> &Out,
+                               size_t MaxGroupSize, size_t ElementsPerWorkItem,
+                               Properties Prop, bool Read) {
   assert(In.size() == Out.size());
   size_t index = {};
   size_t shift = {};
@@ -79,13 +67,18 @@ void writeBlockedOrStriped(const std::vector<T> &In, std::vector<T> &Out,
     for (std::uint32_t j = 0; j < GroupSize; ++j) {
       for (std::uint32_t k = 0; k < ElementsPerWorkItem; ++k) {
         index = ChunkStart + j * ElementsPerWorkItem + k;
-        if constexpr (IsOutputBlocked(Prop)) {
+        if (Read && oneapi_exp::detail::isInputBlocked(Prop) ||
+            !Read && oneapi_exp::detail::isOutputBlocked(Prop)) {
           shift = index;
         } else {
           shift = ChunkStart + k * GroupSize + j;
         }
-        if (index < Out.size() && shift < In.size())
-          Out[index] = In[shift];
+        if (index < Out.size() && shift < In.size()) {
+          if (Read)
+            Out[shift] = In[index];
+          else
+            Out[index] = In[shift];
+        }
       }
     }
   }

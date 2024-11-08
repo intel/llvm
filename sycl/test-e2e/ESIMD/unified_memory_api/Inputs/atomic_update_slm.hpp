@@ -65,8 +65,6 @@ const char *to_string(atomic_op op) {
     return "load";
   case atomic_op::store:
     return "store";
-  case atomic_op::predec:
-    return "predec";
   }
   return "<unknown>";
 }

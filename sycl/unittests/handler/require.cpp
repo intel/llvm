@@ -1,10 +1,10 @@
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/sycl.hpp>
 
 TEST(Require, RequireWithNonPlaceholderAccessor) {
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::queue Q;
   int data = 5;
   {
@@ -21,7 +21,7 @@ TEST(Require, RequireWithNonPlaceholderAccessor) {
 TEST(Require, checkIfAccBoundedToHandler) {
   std::string msg("placeholder accessor must be bound by calling "
                   "handler::require() before it can be used.");
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::queue Q;
   int data = 0;
 

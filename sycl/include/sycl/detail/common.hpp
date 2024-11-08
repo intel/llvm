@@ -10,7 +10,6 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/pi.h>                   // for pi_int32
 
 #include <array>       // for array
 #include <cassert>     // for assert
@@ -141,6 +140,9 @@ public:
   /// @return The code location information saved in the TLS slot. If not TLS
   /// entry has been set up, a default coe location is returned.
   const detail::code_location &query();
+  /// @brief Returns true if the TLS slot was cleared when this object was
+  /// constructed.
+  bool isToplevel() const { return !MLocalScope; }
 
 private:
   // The flag that is used to determine if the object is in a local scope or in
@@ -159,21 +161,13 @@ private:
 #define __SYCL_ASSERT(x) assert(x)
 #endif // #ifdef __SYCL_DEVICE_ONLY__
 
-#define __SYCL_PI_ERROR_REPORT                                                 \
+#define __SYCL_UR_ERROR_REPORT                                                 \
   "Native API failed. " /*__FILE__*/                                           \
   /* TODO: replace __FILE__ to report only relative path*/                     \
   /* ":" __SYCL_STRINGIFY(__LINE__) ": " */                                    \
                           "Native API returns: "
 
 #include <sycl/exception.hpp>
-
-// Helper for enabling empty-base optimizations on MSVC.
-// TODO: Remove this when MSVC has this optimization enabled by default.
-#ifdef _MSC_VER
-#define __SYCL_EBO __declspec(empty_bases)
-#else
-#define __SYCL_EBO
-#endif
 
 namespace sycl {
 inline namespace _V1 {
@@ -295,12 +289,6 @@ size_t getLinearIndex(const T<Dims> &Index, const U<Dims> &Range) {
     LinearIndex = LinearIndex * Range[I] + Index[I];
   return LinearIndex;
 }
-
-template <typename T> struct InlineVariableHelper {
-  static constexpr T value{};
-};
-
-template <typename T> constexpr T InlineVariableHelper<T>::value;
 
 // The function extends or truncates number of dimensions of objects of id
 // or ranges classes. When extending the new values are filled with

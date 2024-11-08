@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>            // for __spirv_MemoryBarrier
-#include <CL/__spirv/spirv_types.hpp>          // for Scope, __ocl_event_t
+#include <sycl/__spirv/spirv_ops.hpp>          // for __spirv_MemoryBarrier
+#include <sycl/__spirv/spirv_types.hpp>        // for Scope, __ocl_event_t
 #include <sycl/access/access.hpp>              // for decorated, mode, addr...
 #include <sycl/detail/common.hpp>              // for NDLoop, __SYCL_ASSERT
 #include <sycl/detail/defines.hpp>             // for __SYCL_TYPE
@@ -449,12 +449,12 @@ public:
     using QualSrcT =
         std::conditional_t<std::is_const_v<SrcT>, const uint8_t, uint8_t>;
     auto DestP = multi_ptr<uint8_t, DestS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<uint8_t, DestS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<uint8_t, DestS,
+                                            access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -478,12 +478,12 @@ public:
     using QualSrcVecT =
         std::conditional_t<std::is_const_v<SrcT>, std::add_const_t<VecT>, VecT>;
     auto DestP = multi_ptr<VecT, DestS, access::decorated::yes>(
-        detail::cast_AS<
+        reinterpret_cast<
             typename multi_ptr<VecT, DestS, access::decorated::yes>::pointer>(
             Dest.get_decorated()));
     auto SrcP = multi_ptr<QualSrcVecT, SrcS, access::decorated::yes>(
-        detail::cast_AS<typename multi_ptr<QualSrcVecT, SrcS,
-                                           access::decorated::yes>::pointer>(
+        reinterpret_cast<typename multi_ptr<QualSrcVecT, SrcS,
+                                            access::decorated::yes>::pointer>(
             Src.get_decorated()));
     return async_work_group_copy(DestP, SrcP, NumElements, Stride);
   }
@@ -673,13 +673,7 @@ protected:
   friend class detail::Builder;
   group(const range<Dimensions> &G, const range<Dimensions> &L,
         const range<Dimensions> GroupRange, const id<Dimensions> &I)
-      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {
-    // Make sure local range divides global without remainder:
-    __SYCL_ASSERT(((G % L).size() == 0) &&
-                  "global range is not multiple of local");
-    __SYCL_ASSERT((((G / L) - GroupRange).size() == 0) &&
-                  "inconsistent group constructor arguments");
-  }
+      : globalRange(G), localRange(L), groupRange(GroupRange), index(I) {}
 };
 } // namespace _V1
 } // namespace sycl

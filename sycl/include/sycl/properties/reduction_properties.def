@@ -1,0 +1,12 @@
+// --*- c++ -*---
+#ifndef __SYCL_DATA_LESS_PROP
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#endif
+#ifndef __SYCL_MANUALLY_DEFINED_PROP
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+#endif
+
+__SYCL_DATA_LESS_PROP(property::reduction, initialize_to_identity, InitializeToIdentity)
+
+#undef __SYCL_DATA_LESS_PROP
+#undef __SYCL_MANUALLY_DEFINED_PROP

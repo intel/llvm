@@ -111,7 +111,7 @@ struct sub_group_mask {
       size_t RemainingBytes = sizeof(Bits) - BytesCopied;
       size_t BytesToCopy =
           RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
-      sycl::detail::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied,
+      sycl::detail::memcpy_no_adl(reinterpret_cast<char *>(&Bits) + BytesCopied,
                            &val[I], BytesToCopy);
       BytesCopied += BytesToCopy;
     }
@@ -359,3 +359,11 @@ group_ballot(Group g, bool predicate) {
 } // namespace ext::oneapi
 } // namespace _V1
 } // namespace sycl
+
+// We have a cyclic dependency with
+//   sub_group_mask.hpp
+//   detail/spirv.hpp
+//   non_uniform_groups.hpp
+// "Break" it by including this at the end (instead of beginning). Ideally, we
+// should refactor this somehow...
+#include <sycl/detail/spirv.hpp>

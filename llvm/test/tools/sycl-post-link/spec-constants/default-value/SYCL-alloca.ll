@@ -17,7 +17,7 @@
 @size_i32_stable_name = private unnamed_addr constant [36 x i8] c"_ZTS14name_generatorIL_Z8size_i32EE\00", align 1
 @size_i16_stable_name = private unnamed_addr constant [36 x i8] c"_ZTS14name_generatorIL_Z8size_i16EE\00", align 1
 
-define dso_local void @private_alloca() {
+define spir_kernel void @private_alloca() {
 ; CHECK: alloca double, i32 120, align 8
   call ptr @llvm.sycl.alloca.p0.p4.p4.p4.f64(ptr addrspace(4) addrspacecast (ptr @size_i32_stable_name to ptr addrspace(4)), ptr addrspace(4) addrspacecast (ptr addrspace(1) @size_i32 to ptr addrspace(4)), ptr addrspace(4) null, double 0.000000e+00, i64 8)
 ; CHECK: alloca float, i64 10, align 8

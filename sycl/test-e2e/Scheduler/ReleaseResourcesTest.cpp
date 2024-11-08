@@ -1,5 +1,5 @@
-// RUN: %{build} -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s %if !windows %{--check-prefix=CHECK-RELEASE%}
 //
 // XFAIL: hip_nvidia
 
@@ -45,11 +45,18 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> piContextCreate
-// CHECK:---> piextQueueCreate
-// CHECK:---> piProgramCreate
-// CHECK:---> piKernelCreate
-// CHECK:---> piQueueRelease
-// CHECK:---> piContextRelease
-// CHECK:---> piKernelRelease
-// CHECK:---> piProgramRelease
+// CHECK: <--- urContextCreate
+// CHECK: <--- urQueueCreate
+// CHECK: <--- urProgramCreate
+// CHECK: <--- urKernelCreate
+
+// On Windows, dlls unloading is inconsistent and if we try to release these UR
+// objects manually, inconsistent hangs happen due to a race between unloading
+// the UR adapters dlls (in addition to their dependency dlls) and the releasing
+// of these UR objects. So, we currently shutdown without releasing them and
+// windows should handle the memory cleanup.
+
+// CHECK-RELEASE: <--- urQueueRelease
+// CHECK-RELEASE: <--- urContextRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease

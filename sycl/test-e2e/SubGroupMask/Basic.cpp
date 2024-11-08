@@ -6,8 +6,6 @@
 // GroupNonUniformBallot capability is supported on Intel GPU only
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: ze_debug
-
 //==---------- Basic.cpp - sub-group mask basic test -----------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
@@ -37,7 +35,7 @@ int main() {
         auto resacc = resbuf.get_access<access::mode::read_write>(cgh);
 
         cgh.parallel_for<class sub_group_mask_test>(
-            NdRange, [=](nd_item<1> NdItem) [[intel::reqd_sub_group_size(32)]] {
+            NdRange, [=](nd_item<1> NdItem) [[sycl::reqd_sub_group_size(32)]] {
               size_t GID = NdItem.get_global_linear_id();
               auto SG = NdItem.get_sub_group();
               // AAAAAAAA

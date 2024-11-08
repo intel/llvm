@@ -335,20 +335,18 @@ SYCL_ESIMD_FUNCTION SYCL_EXTERNAL simd<float, 16> foo() {
   }
   __esimd_fence(fence_mask::global_coherent_fence);
   // CHECK: call void @llvm.genx.fence(i8 1)
-  __esimd_fence(fence_mask::l3_flush_instructions);
+  __esimd_fence(fence_mask::l2_flush_instructions);
   // CHECK: call void @llvm.genx.fence(i8 2)
-  __esimd_fence(fence_mask::l3_flush_texture_data);
+  __esimd_fence(fence_mask::l2_flush_texture_data);
   // CHECK: call void @llvm.genx.fence(i8 4)
-  __esimd_fence(fence_mask::l3_flush_constant_data);
+  __esimd_fence(fence_mask::l2_flush_constant_data);
   // CHECK: call void @llvm.genx.fence(i8 8)
-  __esimd_fence(fence_mask::l3_flush_rw_data);
+  __esimd_fence(fence_mask::l2_flush_rw_data);
   // CHECK: call void @llvm.genx.fence(i8 16)
   __esimd_fence(fence_mask::local_barrier);
   // CHECK: call void @llvm.genx.fence(i8 32)
   __esimd_fence(fence_mask::l1_flush_ro_data);
   // CHECK: call void @llvm.genx.fence(i8 64)
-  __esimd_fence(fence_mask::sw_barrier);
-  // CHECK: call void @llvm.genx.fence(i8 -128)
 
   return d;
 }

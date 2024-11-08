@@ -8,6 +8,7 @@
 //
 // REQUIRES: opencl,gpu,cpu,accelerator
 
+#include "../helpers.hpp"
 #include <iostream>
 #include <sycl/detail/core.hpp>
 
@@ -15,33 +16,29 @@ using namespace sycl;
 using namespace std;
 
 int main() {
-  const char *envVal = getenv("ONEAPI_DEVICE_SELECTOR");
+  std::string envVal = env::getVal("ONEAPI_DEVICE_SELECTOR");
   string forcedPIs;
-  if (envVal) {
+  if (envVal.empty()) {
     forcedPIs = envVal;
   }
 
   {
-    default_selector ds;
-    device d = ds.select_device();
+    device d(default_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos &&
-           "default_selector failed to find an opencl device");
+           "default_selector_v failed to find an opencl device");
   }
   {
-    gpu_selector gs;
-    device d = gs.select_device();
+    device d(gpu_selector_v);
     string name = d.get_platform().get_info<info::platform::name>();
     assert(name.find("OpenCL") != string::npos &&
-           "gpu_selector failed to find an opencl device");
+           "gpu_selector_v failed to find an opencl device");
   }
   {
-    cpu_selector cs;
-    device d = cs.select_device();
+    device d(cpu_selector_v);
   }
   {
-    accelerator_selector as;
-    device d = as.select_device();
+    device d(accelerator_selector_v);
   }
 
   return 0;

@@ -150,6 +150,24 @@ struct ExtractProperties<PropertyArgsT,
   }
 };
 
+// Get the value of a property from a property list
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename PropertiesT>
+struct GetPropertyValueFromPropList {};
+
+template <typename PropKey, typename ConstType, typename DefaultPropVal,
+          typename... PropertiesT>
+struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
+                                    std::tuple<PropertiesT...>> {
+  using prop_val_t = std::conditional_t<
+      ContainsProperty<PropKey, std::tuple<PropertiesT...>>::value,
+      typename FindCompileTimePropertyValueType<
+          PropKey, std::tuple<PropertiesT...>>::type,
+      DefaultPropVal>;
+  static constexpr ConstType value =
+      PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
+};
+
 } // namespace detail
 
 template <typename PropertiesT> class properties {
@@ -182,6 +200,10 @@ public:
     static_assert(NumContainedProps == sizeof...(PropertyValueTs),
                   "One or more property argument is not a property in the "
                   "property list.");
+    // We're in process of refactoring properties infrastructure, make sure that
+    // any newly added properties use `detail::property_base`!
+    static_assert(
+        (std::is_base_of_v<detail::property_tag, PropertyValueTs> && ...));
   }
 
   template <typename PropertyT>
@@ -283,10 +305,21 @@ struct ValueOrDefault<
   }
 };
 
-template <typename SyclT, typename PropertiesT> struct all_props_are_keys_of;
+// helper: check_all_props_are_keys_of
+template <typename SyclT> constexpr bool check_all_props_are_keys_of() {
+  return true;
+}
 
+template <typename SyclT, typename FirstProp, typename... RestProps>
+constexpr bool check_all_props_are_keys_of() {
+  return ext::oneapi::experimental::is_property_key_of<FirstProp,
+                                                       SyclT>::value &&
+         check_all_props_are_keys_of<SyclT, RestProps...>();
+}
+
+// all_props_are_keys_of
 template <typename SyclT, typename PropertiesT>
-struct all_props_are_keys_of : std::true_type {};
+struct all_props_are_keys_of : std::false_type {};
 
 template <typename SyclT>
 struct all_props_are_keys_of<SyclT,
@@ -295,17 +328,15 @@ struct all_props_are_keys_of<SyclT,
 
 template <typename SyclT, typename PropT>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT>>>
+    SyclT, ext::oneapi::experimental::detail::properties_t<PropT>>
     : std::bool_constant<
           ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
 };
 
-template <typename SyclT, typename PropT, typename... PropTs>
+template <typename SyclT, typename... Props>
 struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::properties<std::tuple<PropT, PropTs...>>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value &&
-          all_props_are_keys_of<SyclT, PropTs...>()> {};
+    SyclT, ext::oneapi::experimental::detail::properties_t<Props...>>
+    : std::bool_constant<check_all_props_are_keys_of<SyclT, Props...>()> {};
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

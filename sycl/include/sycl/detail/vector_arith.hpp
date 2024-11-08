@@ -21,7 +21,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-template <typename DataT, int NumElem> class vec;
+template <typename DataT, int NumElem> class __SYCL_EBO vec;
 
 namespace detail {
 
@@ -113,7 +113,7 @@ template <typename DataT, int NumElements>
 class vec_arith : public vec_arith_common<DataT, NumElements> {
 protected:
   using vec_t = vec<DataT, NumElements>;
-  using ocl_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using ocl_t = detail::fixed_width_signed<sizeof(DataT)>;
   template <typename T> using vec_data = vec_helper<T>;
 
   // operator!.
@@ -287,7 +287,7 @@ protected:
   __SYCL_BINOP(<<, <<=, true, (!detail::is_vgenfloat_v<DataT>))
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 }; // class vec_arith<>
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
@@ -340,7 +340,7 @@ protected:
   __SYCL_BINOP(^, ^=, false, true)
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 #endif // (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
 
@@ -383,7 +383,7 @@ protected:
 #endif
 
   // friends
-  template <typename T1, int T2> friend class vec;
+  template <typename T1, int T2> friend class __SYCL_EBO vec;
 };
 
 #undef __SYCL_BINOP

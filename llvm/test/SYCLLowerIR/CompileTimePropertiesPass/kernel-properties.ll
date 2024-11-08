@@ -37,9 +37,9 @@ attributes #2 = { convergent norecurse "frame-pointer"="all" "min-legal-vector-w
 !4 = !{i32 7, !"frame-pointer", i32 2}
 
 ; CHECK-IR-DAG: ![[SGSizeMD0]] = !{i32 3}
-; CHECK-IR-DAG: ![[WGSizeMD0]] = !{i{{[0-9]+}} 1}
-; CHECK-IR-DAG: ![[WGSizeHintMD0]] = !{i{{[0-9]+}} 2}
-; CHECK-IR-DAG: ![[WGSizeMD1]] = !{i{{[0-9]+}} 5, i{{[0-9]+}} 4}
-; CHECK-IR-DAG: ![[WGSizeHintMD1]] = !{i{{[0-9]+}} 7, i{{[0-9]+}} 6}
-; CHECK-IR-DAG: ![[WGSizeMD2]] = !{i{{[0-9]+}} 10, i{{[0-9]+}} 9, i{{[0-9]+}} 8}
-; CHECK-IR-DAG: ![[WGSizeHintMD2]] = !{i{{[0-9]+}} 13, i{{[0-9]+}} 12, i{{[0-9]+}} 11}
+; CHECK-IR-DAG: ![[WGSizeMD0]] = !{[[SIZE_TY:i[0-9]+]] 1, [[SIZE_TY]] 1, [[SIZE_TY]] 1}
+; CHECK-IR-DAG: ![[WGSizeHintMD0]] = !{[[SIZE_TY]] 2, [[SIZE_TY]] 1, [[SIZE_TY]] 1}
+; CHECK-IR-DAG: ![[WGSizeMD1]] = !{[[SIZE_TY]] 5, [[SIZE_TY]] 4, [[SIZE_TY]] 1}
+; CHECK-IR-DAG: ![[WGSizeHintMD1]] = !{[[SIZE_TY]] 7, [[SIZE_TY]] 6, [[SIZE_TY]] 1}
+; CHECK-IR-DAG: ![[WGSizeMD2]] = !{[[SIZE_TY]] 10, [[SIZE_TY]] 9, [[SIZE_TY]] 8}
+; CHECK-IR-DAG: ![[WGSizeHintMD2]] = !{[[SIZE_TY]] 13, [[SIZE_TY]] 12, [[SIZE_TY]] 11}

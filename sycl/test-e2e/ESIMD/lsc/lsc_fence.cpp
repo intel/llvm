@@ -5,7 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// REQUIRES: gpu-intel-pvc || gpu-intel-dg2
+// REQUIRES: arch-intel_gpu_pvc || gpu-intel-dg2
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
@@ -71,7 +71,7 @@ bool testGlobal(queue &Q, int OddOrEven /*0 - Even, 1 - Odd*/) {
                               A + Offset, simd<int, SIMDSize>{5});
 
                           // Protect from reordering the writes to A and B.
-                          lsc_fence<lsc_memory_kind::untyped_global>();
+                          fence<memory_kind::global>();
 
                           lsc_block_store<int, SIMDSize>(
                               B + Offset, simd<int, SIMDSize>{1});
@@ -79,7 +79,7 @@ bool testGlobal(queue &Q, int OddOrEven /*0 - Even, 1 - Odd*/) {
                           auto BVec = lsc_block_load<int, SIMDSize>(B + Offset);
 
                           // Protect from reordering the reads from B and A.
-                          lsc_fence<lsc_memory_kind::untyped_global>();
+                          fence<memory_kind::global>();
 
                           auto AVec = lsc_block_load<int, SIMDSize>(A + Offset);
 
@@ -153,13 +153,13 @@ bool testLocal(queue &Q) {
              if (NdId.get_local_id(1) == 0) {
                lsc_slm_block_store<int, SIMDSize>(ByteOffsetA,
                                                   simd<int, SIMDSize>(5));
-               lsc_fence<lsc_memory_kind::shared_local>();
+               fence<memory_kind::local>();
                lsc_slm_block_store<int, SIMDSize>(ByteOffsetB,
                                                   simd<int, SIMDSize>(1));
              } else {
                simd<int, SIMDSize> BVec =
                    lsc_slm_block_load<int, SIMDSize>(ByteOffsetB);
-               lsc_fence<lsc_memory_kind::shared_local>();
+               fence<memory_kind::local>();
                simd<int, SIMDSize> AVec =
                    lsc_slm_block_load<int, SIMDSize>(ByteOffsetA);
 

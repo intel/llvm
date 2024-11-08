@@ -10,11 +10,10 @@
 
 #include <sycl/detail/defines.hpp>            // for __SYCL_TYPE
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/pi.h>                   // for PI_ERROR_INVALID_OPERATION
 #include <sycl/exception.hpp>                 // for feature_not_supported
 
 #ifdef __SYCL_DEVICE_ONLY__
-#include <CL/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
 #endif
 
 #include <type_traits> // for remove_reference_t
@@ -49,11 +48,9 @@ public:
 #ifdef __SYCL_DEVICE_ONLY__
     return getSpecializationConstantOnDevice<S>();
 #else
-    // TODO: add support of host device
-    throw sycl::feature_not_supported(
-        "kernel_handler::get_specialization_constant() is not yet supported by "
-        "host device.",
-        PI_ERROR_INVALID_OPERATION);
+    throw sycl::exception(make_error_code(errc::feature_not_supported),
+                          "kernel_handler::get_specialization_constant() is "
+                          "not supported on host.");
 #endif // __SYCL_DEVICE_ONLY__
   }
 

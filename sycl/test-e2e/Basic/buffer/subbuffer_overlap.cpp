@@ -1,6 +1,6 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
@@ -16,14 +16,14 @@ int main() {
   for (auto &e : sycl::host_accessor{b})
     e = idx++ % size;
 
-  // CHECK: piMemBufferPartition
-  // CHECK: pi_buffer_region origin/size : 256/64
+  // CHECK: <--- urMemBufferPartition
+  // CHECK: .origin = 256, .size = 64
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{sub1, cgh};
     cgh.parallel_for(size, [=](auto id) { acc[id] += 1; });
   });
-  // CHECK: piMemBufferPartition
-  // CHECK: pi_buffer_region origin/size : 256/128
+  // CHECK: <--- urMemBufferPartition
+  // CHECK: .origin = 256, .size = 128
   q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{sub2, cgh};
     cgh.parallel_for(size * 2, [=](auto id) { acc[id] -= 1; });

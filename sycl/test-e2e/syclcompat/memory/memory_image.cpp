@@ -20,7 +20,7 @@
  *    3D memory copy tests for new image/memcpy_parameter API
  **************************************************************************/
 
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // FIXME(@intel/syclcompat-lib-reviewers): These are some limited tests for the
@@ -205,7 +205,6 @@ void test_memcpy3D_async_parameter_offset() {
 
   // alloc memory.
   extent = sycl::range<3>(sizeof(float) * width, height, depth);
-  // test_feature:malloc
   d_data = (syclcompat::pitched_data)syclcompat::malloc(extent);
 
   // copy to Device.

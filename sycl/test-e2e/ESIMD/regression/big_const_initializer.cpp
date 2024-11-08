@@ -59,7 +59,7 @@ int main(int argc, char **argv) {
     std::cout << "*** EXCEPTION caught: " << e.what() << "\n";
     return 1;
   }
-  auto acc = r.template get_host_access(sycl::read_only);
+  auto acc = r.get_host_access(sycl::read_only);
   for (int i = 0; i < N_PRINT; i++) {
     std::cout << acc[i] << " ";
   }

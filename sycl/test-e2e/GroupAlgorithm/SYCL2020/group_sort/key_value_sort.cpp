@@ -120,7 +120,7 @@ void RunSortKeyValueOverGroup(sycl::queue &Q,
                                                        CGH);
 
        auto KeyValueSortKernel =
-           [=](sycl::nd_item<Dims> id) [[intel::reqd_sub_group_size(
+           [=](sycl::nd_item<Dims> id) [[sycl::reqd_sub_group_size(
                ReqSubGroupSize)]] {
              const size_t GlobalLinearID = id.get_global_linear_id();
 
@@ -269,9 +269,9 @@ void RunOverType(sycl::queue &Q, size_t DataSize) {
   auto RunOnDataAndComp = [&](const std::vector<KeyTy> &Keys,
                               const std::vector<ValueTy> &Data,
                               const auto &Comparator) {
-    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 1>(Q, Data, Keys,
+    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 1>(Q, Keys, Data,
                                                       Comparator);
-    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 2>(Q, Data, Keys,
+    RunSortKeyValueOverGroup<UseGroupT::WorkGroup, 2>(Q, Keys, Data,
                                                       Comparator);
 
     if (Q.get_backend() == sycl::backend::ext_oneapi_cuda ||
@@ -280,8 +280,8 @@ void RunOverType(sycl::queue &Q, size_t DataSize) {
       return;
     }
 
-    RunSortKeyValueOverGroup<UseGroupT::SubGroup, 1>(Q, Data, Keys, Comparator);
-    RunSortKeyValueOverGroup<UseGroupT::SubGroup, 2>(Q, Data, Keys, Comparator);
+    RunSortKeyValueOverGroup<UseGroupT::SubGroup, 1>(Q, Keys, Data, Comparator);
+    RunSortKeyValueOverGroup<UseGroupT::SubGroup, 2>(Q, Keys, Data, Comparator);
   };
 
   RunOnDataAndComp(KeysRandom, DataRandom, std::less<KeyTy>{});

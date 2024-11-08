@@ -8,9 +8,10 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include "ur_mock_helpers.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <cassert>
 
@@ -20,65 +21,66 @@ struct TestCtx {
   queue &Q1;
   queue &Q2;
 
-  std::shared_ptr<detail::context_impl> Ctx1;
-  std::shared_ptr<detail::context_impl> Ctx2;
+  // These used to be shared_ptr but that was causing problems due to Mock
+  // teardown clearing default overrides between tests.
+  const detail::context_impl &Ctx1;
+  const detail::context_impl &Ctx2;
 
-  pi_event EventCtx1 = nullptr;
+  ur_event_handle_t EventCtx1 = nullptr;
 
-  pi_event EventCtx2 = nullptr;
+  ur_event_handle_t EventCtx2 = nullptr;
 
   bool EventCtx1WasWaited = false;
   bool EventCtx2WasWaited = false;
 
   TestCtx(queue &Queue1, queue &Queue2)
-      : Q1(Queue1), Q2(Queue2), Ctx1{detail::getSyclObjImpl(Q1.get_context())},
-        Ctx2{detail::getSyclObjImpl(Q2.get_context())} {
+      : Q1(Queue1), Q2(Queue2),
+        Ctx1(*detail::getSyclObjImpl(Q1.get_context()).get()),
+        Ctx2(*detail::getSyclObjImpl(Q2.get_context()).get()) {
 
-    pi_result Res = mock_piEventCreate((pi_context)0x0, &EventCtx1);
-    EXPECT_TRUE(PI_SUCCESS == Res);
-
-    Res = mock_piEventCreate((pi_context)0x0, &EventCtx2);
-    EXPECT_TRUE(PI_SUCCESS == Res);
+    EventCtx1 = mock::createDummyHandle<ur_event_handle_t>();
+    EventCtx2 = mock::createDummyHandle<ur_event_handle_t>();
   }
 };
 
 std::unique_ptr<TestCtx> TestContext;
 
-pi_result waitFunc(pi_uint32 N, const pi_event *List) {
-  EXPECT_EQ(N, 1u) << "piEventsWait called for different contexts\n";
+ur_result_t urEventWaitRedefineCheckEvents(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEvents, 1u)
+      << "urEnqueueEventsWait called for different contexts\n";
 
-  EXPECT_TRUE((TestContext->EventCtx1 == *List) ||
-              (TestContext->EventCtx2 == *List))
-      << "piEventsWait called for unknown event";
+  EXPECT_TRUE((TestContext->EventCtx1 == **params.pphEventWaitList) ||
+              (TestContext->EventCtx2 == **params.pphEventWaitList))
+      << "urEventsWait called for unknown event";
 
-  if (TestContext->EventCtx1 == *List)
+  if (TestContext->EventCtx1 == **params.pphEventWaitList)
     TestContext->EventCtx1WasWaited = true;
 
-  if (TestContext->EventCtx2 == *List)
+  if (TestContext->EventCtx2 == **params.pphEventWaitList)
     TestContext->EventCtx2WasWaited = true;
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result getEventInfoFunc(pi_event Event, pi_event_info PName, size_t PVSize,
-                           void *PV, size_t *PVSizeRet) {
-  EXPECT_EQ(PName, PI_EVENT_INFO_CONTEXT) << "Unknown param name";
+ur_result_t getEventInfoFunc(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_EVENT_INFO_CONTEXT) << "Unknown param name";
 
-  if (Event == TestContext->EventCtx1)
-    *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx1->getHandleRef());
-  else if (Event == TestContext->EventCtx2)
-    *reinterpret_cast<pi_context *>(PV) =
-        reinterpret_cast<pi_context>(TestContext->Ctx2->getHandleRef());
+  if (*params.phEvent == TestContext->EventCtx1)
+    *reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue) =
+        reinterpret_cast<ur_context_handle_t>(TestContext->Ctx1.getHandleRef());
+  else if (*params.phEvent == TestContext->EventCtx2)
+    *reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue) =
+        reinterpret_cast<ur_context_handle_t>(TestContext->Ctx2.getHandleRef());
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 static bool GpiEventsWaitRedefineCalled = false;
-pi_result piEventsWaitRedefine(pi_uint32 num_events,
-                               const pi_event *event_list) {
+ur_result_t urEventsWaitRedefineCheckCalled(void *) {
   GpiEventsWaitRedefineCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class StreamAUXCmdsWait_TestKernel;
@@ -100,34 +102,28 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::PiImage Img = generateDefaultImage();
-sycl::unittest::PiImageArray<1> ImgArray{&Img};
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 class EventImplProxyT : public sycl::detail::event_impl {
 public:
   using sycl::detail::event_impl::MPostCompleteEvents;
   using sycl::detail::event_impl::MState;
+  using sycl::detail::event_impl::MWeakPostCompleteEvents;
 };
 
 class QueueImplProxyT : public sycl::detail::queue_impl {
@@ -138,8 +134,8 @@ public:
 TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
   {
-    sycl::unittest::PiMock Mock;
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
         detail::getSyclObjImpl(Q);
@@ -163,7 +159,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1u)
+    ASSERT_EQ(EventImplProxy->MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();
@@ -173,23 +169,21 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
   }
 
   {
-    sycl::unittest::PiMock Mock;
-    sycl::platform Plt = Mock.getPlatform();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
     sycl::queue Q(Plt.get_devices()[0]);
     std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
         detail::getSyclObjImpl(Q);
 
-    Mock.redefineBefore<detail::PiApiKind::piEventsWait>(piEventsWaitRedefine);
+    mock::getCallbacks().set_before_callback("urEventWait",
+                                             &urEventsWaitRedefineCheckCalled);
 
     auto QueueImplProxy = std::static_pointer_cast<QueueImplProxyT>(QueueImpl);
 
-    pi_event PIEvent = nullptr;
-    pi_result Res =
-        mock_piEventCreate(/*context = */ (pi_context)0x1, &PIEvent);
-    ASSERT_TRUE(PI_SUCCESS == Res);
+    ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
-    EventImpl->getHandleRef() = PIEvent;
+    EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
 
@@ -201,11 +195,12 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 }
 
 TEST_F(SchedulerTest, CommandsWaitForEvents) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
-  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(waitFunc);
-  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(getEventInfoFunc);
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &urEventWaitRedefineCheckEvents);
+  mock::getCallbacks().set_before_callback("urEventGetInfo", &getEventInfoFunc);
 
   context Ctx1{Plt.get_devices()[0]};
   queue Q1{Ctx1, default_selector_v};
@@ -225,7 +220,7 @@ TEST_F(SchedulerTest, CommandsWaitForEvents) {
   Events.push_back(E1);
   Events.push_back(E2);
 
-  pi_event EventResult = nullptr;
+  ur_event_handle_t EventResult = nullptr;
 
   Cmd.waitForEventsCall(nullptr, Events, EventResult);
 

@@ -1,7 +1,7 @@
 // REQUIRES: level_zero
 // UNSUPPORTED: ze_debug
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 //
 //==--- level-zero-static-link-flow.cpp.cpp - Check L0 static link flow --==//
 //
@@ -16,13 +16,13 @@
 //===--------------------------------------------------------------===//
 
 // The key thing we check here is that the call to "zeModuleCreate" does not
-// happen from "piProgramCompile".  Instead, we expect it to be delayed and
-// called from "piProgramLink".
+// happen from "urProgramCompile".  Instead, we expect it to be delayed and
+// called from "urProgramLink".
 //
-// CHECK: ---> piProgramCreate
-// CHECK: ---> piProgramCompile
+// CHECK: ---> urProgramCreate
+// CHECK: ---> urProgramCompile
 // CHECK-NOT: ZE ---> zeModuleCreate
-// CHECK: ---> piProgramLink
+// CHECK: ---> urProgramLink
 // CHECK: ZE ---> zeModuleCreate
 
 #include <sycl/detail/core.hpp>

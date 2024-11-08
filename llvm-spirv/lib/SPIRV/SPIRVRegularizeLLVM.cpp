@@ -35,7 +35,6 @@
 // This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvregular"
 
 #include "SPIRVRegularizeLLVM.h"
 #include "OCLUtil.h"
@@ -53,6 +52,8 @@
 
 #include <set>
 #include <vector>
+
+#define DEBUG_TYPE "spvregular"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -569,16 +570,18 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
     return;
   auto *ArgDecoMD = dyn_cast<MDNode>(MD);
   assert(ArgDecoMD && "Decoration list must be a metadata node");
+  std::vector<Instruction *> CreatedGeps;
   for (unsigned I = 0, E = ArgDecoMD->getNumOperands(); I != E; ++I) {
     auto *DecoMD = dyn_cast<MDNode>(ArgDecoMD->getOperand(I));
     if (!DecoMD) {
-      assert(!"Decoration does not name metadata");
+      assert(false && "Decoration does not name metadata");
       return;
     }
 
     constexpr size_t CacheControlsNumOps = 4;
     if (DecoMD->getNumOperands() != CacheControlsNumOps) {
-      assert(!"Cache controls metadata on instruction must have 4 operands");
+      assert(false &&
+             "Cache controls metadata on instruction must have 4 operands");
       return;
     }
 
@@ -591,25 +594,42 @@ void prepareCacheControlsTranslation(Metadata *MD, Instruction *Inst) {
             ->getZExtValue();
     Value *PtrInstOp = Inst->getOperand(TargetArgNo);
     if (!PtrInstOp->getType()->isPointerTy()) {
-      assert(!"Cache controls must decorate a pointer");
+      assert(false && "Cache controls must decorate a pointer");
       return;
     }
 
     // Create dummy GEP for SSA copy of the pointer operand. Lets do our best
     // to guess pointee type here, but if we won't - just pointer is also fine,
-    // if necessary TypeScavenger will adjust types and create bitcasts.
+    // if necessary TypeScavenger will adjust types and create bitcasts. If
+    // memory instruction operand is already created zero GEP - create nothing
+    // and use the old GEP.
+    SmallVector<Metadata *, 4> MDs;
+    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
+    if (auto *const GEP = dyn_cast<GetElementPtrInst>(PtrInstOp)) {
+      if (GEP->hasAllZeroIndices() &&
+          (std::find(CreatedGeps.begin(), CreatedGeps.end(), GEP) !=
+           std::end(CreatedGeps))) {
+        MDs.push_back(MDNode::get(Inst->getContext(), OPs));
+        // If the existing GEP has SPIRV_MD_DECORATIONS metadata - copy it
+        if (auto *OldMD = GEP->getMetadata(SPIRV_MD_DECORATIONS))
+          for (unsigned I = 0, E = OldMD->getNumOperands(); I != E; ++I)
+            if (auto *DecoMD = dyn_cast<MDNode>(OldMD->getOperand(I)))
+              MDs.push_back(DecoMD);
+        MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
+        GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
+        return;
+      }
+    }
     IRBuilder Builder(Inst);
-    Type *GEPTy = PtrInstOp->getType();
+    Type *GEPTy = Builder.getInt8Ty();
     if (auto *LI = dyn_cast<LoadInst>(Inst))
       GEPTy = LI->getType();
     else if (auto *SI = dyn_cast<StoreInst>(Inst))
       GEPTy = SI->getValueOperand()->getType();
     auto *GEP =
         cast<Instruction>(Builder.CreateConstGEP1_32(GEPTy, PtrInstOp, 0));
+    CreatedGeps.push_back(GEP);
     Inst->setOperand(TargetArgNo, GEP);
-
-    SmallVector<Metadata *, 4> MDs;
-    std::vector<Metadata *> OPs = {KindMD, LevelMD, ControlMD};
     MDs.push_back(MDNode::get(Inst->getContext(), OPs));
     MDNode *MDList = MDNode::get(Inst->getContext(), MDs);
     GEP->setMetadata(SPIRV_MD_DECORATIONS, MDList);
@@ -766,14 +786,6 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // %1 = insertvalue { i32, i1 } undef, i32 %cmpxchg.res, 0
           // %2 = insertvalue { i32, i1 } %1, i1 %cmpxchg.success, 1
 
-          // To get memory scope argument we use Cmpxchg->getSyncScopeID()
-          // but LLVM's cmpxchg instruction is not aware of OpenCL(or SPIR-V)
-          // memory scope enumeration. If the scope is not set and assuming the
-          // produced SPIR-V module will be consumed in an OpenCL environment,
-          // we can use the same memory scope as OpenCL atomic functions that do
-          // not have memory_scope argument, i.e. memory_scope_device. See the
-          // OpenCL C specification p6.13.11. Atomic Functions
-
           // cmpxchg LLVM instruction returns a pair {i32, i1}: the original
           // value and a flag indicating success (true) or failure (false).
           // OpAtomicCompareExchange SPIR-V instruction returns only the
@@ -784,15 +796,9 @@ bool SPIRVRegularizeLLVMBase::regularize() {
           // comparator, which matches with semantics of the flag returned by
           // cmpxchg.
           Value *Ptr = Cmpxchg->getPointerOperand();
-          SmallVector<StringRef> SSIDs;
-          Cmpxchg->getContext().getSyncScopeNames(SSIDs);
 
-          spv::Scope S;
-          // Fill unknown syncscope value to default Device scope.
-          if (!OCLStrMemScopeMap::find(SSIDs[Cmpxchg->getSyncScopeID()].str(),
-                                       &S)) {
-            S = ScopeDevice;
-          }
+          spv::Scope S =
+              toSPIRVScope(Cmpxchg->getContext(), Cmpxchg->getSyncScopeID());
           Value *MemoryScope = getInt32(M, S);
           auto SuccessOrder = static_cast<OCLMemOrderKind>(
               llvm::toCABI(Cmpxchg->getSuccessOrdering()));

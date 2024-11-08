@@ -3,7 +3,8 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   PrepareSYCLNativeCPU.cpp
   RenameKernelSYCLNativeCPU.cpp
   ConvertToMuxBuiltinsSYCLNativeCPU.cpp
-
+  FixABIMuxBuiltinsSYCLNativeCPU.cpp
+  FAtomicsNativeCPU.cpp
 
   ADDITIONAL_HEADER_DIRS
   ${LLVM_MAIN_INCLUDE_DIR}/llvm/SYCLLowerIR
@@ -13,6 +14,7 @@ add_llvm_component_library(LLVMSYCLNativeCPUUtils
   Core
   Support
   Passes
+  SYCLLowerIR
   Target
   TargetParser
   TransformUtils
@@ -26,20 +28,22 @@ option(NATIVECPU_OCK_USE_FETCHCONTENT "Use FetchContent to acquire oneAPI Constr
 option(NATIVECPU_USE_OCK "Use the oneAPI Construction Kit for Native CPU" ON)
 
 # Don't fetch OCK if Native CPU is not enabled.
-if(NOT "native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if(NOT "native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(NATIVECPU_USE_OCK Off CACHE BOOL "Use the oneAPI Construction Kit for Native CPU" FORCE)
 endif()
 
 if(NATIVECPU_USE_OCK)
   if(NATIVECPU_OCK_USE_FETCHCONTENT)
     set(OCK_GIT_INTERNAL_REPO "https://github.com/codeplaysoftware/oneapi-construction-kit.git")
-    # commit 05e6e1b211704224fbdc6394d85d637f57fafdaf
-    # Merge: 256027e8 fbc2e567
-    # Author: Pietro Ghiglio <pietro.ghiglio@codeplay.com>
-    # Date:   Fri May 17 13:08:15 2024 +0200
-    # Merge pull request #458 from PietroGhg/pietro/link_aggressiveinstcombine
-    # Link vecz to aggressiveinstcombine
-    set(OCK_GIT_INTERNAL_TAG 05e6e1b211704224fbdc6394d85d637f57fafdaf)
+    # commit d983db7aa87fc1a6f7cdb46e3ced63f6f145749e
+    # Merge: 1d3a925c 2c510ca2
+    # Author: Harald van Dijk <harald.vandijk@codeplay.com>
+    # Date:   Tue Oct 15 15:50:57 2024 +0100
+    # 
+    #     Merge pull request #566 from hvdijk/fix-clang-format
+    #     
+    #     clang-format: fix output.
+    set(OCK_GIT_INTERNAL_TAG d983db7aa87fc1a6f7cdb46e3ced63f6f145749e)
 
     # Overwrite OCK_GIT_INTERNAL_REPO/OCK_GIT_INTERNAL_TAG if the corresponding options are set
     if(OCK_GIT_REPO)

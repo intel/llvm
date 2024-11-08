@@ -1,5 +1,9 @@
-// REQUIRES: CUDA || HIP
-// RUN: %{build} %if hip %{ -DSYCL_EXT_ONEAPI_BACKEND_HIP %} %else %{ %if cuda %{ -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL %} %else %{ %if level_zero %{ -DSYCL_EXT_ONEAPI_BACKEND_L0 %} %} %} -o %t.out
+// XFAIL: any-device-is-opencl, any-device-is-cuda, any-device-is-level_zero, gpu-intel-dg2, hip_amd
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15819
+// RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
+// RUN: %if any-device-is-level_zero %{ %{build} -DBUILD_FOR_L0 -o %t-l0.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -DBUILD_FOR_CUDA -o %t-cuda.out %}
+// RUN: %if any-device-is-hip %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
@@ -7,19 +11,19 @@
 #include <sycl/usm.hpp>
 using namespace sycl;
 
-#ifdef SYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL
+#ifdef BUILD_FOR_CUDA
 #include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_cuda;
 using nativeDevice = CUdevice;
 using nativeQueue = CUstream;
 using nativeEvent = CUevent;
-#elif defined(SYCL_EXT_ONEAPI_BACKEND_HIP)
+#elif defined(BUILD_FOR_HIP)
 #include <sycl/ext/oneapi/backend/hip.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_hip;
 using nativeDevice = hipDevice_t;
 using nativeQueue = hipStream_t;
 using nativeEvent = hipEvent_t;
-#elif defined(SYCL_EXT_ONEAPI_BACKEND_L0)
+#elif defined(BUILD_FOR_L0)
 constexpr auto BACKEND = backend::ext_oneapi_level_zero;
 using nativeDevice = ze_device_handle_t;
 using nativeQueue = ze_command_queue_handle_t;
@@ -81,6 +85,15 @@ int main() {
 
   auto Event3 = InteropQueue.memcpy(&vec[0], A, N * sizeof(int), Event2);
   Event3.wait();
+
+  if constexpr (BACKEND == backend::ext_oneapi_hip) {
+    try {
+      backend_traits<BACKEND>::return_type<context> NativeContext =
+            get_native<BACKEND>(Context);
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::feature_not_supported);
+    }
+  }
 
   free(A, InteropQueue);
 

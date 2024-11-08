@@ -31,10 +31,10 @@
 #endif
 
 /* Function Attributes */
-#include <func.h>
+#include <clc/clcfunc.h>
 
 /* 6.1 Supported Data Types */
-#include <types.h>
+#include <clc/clctypes.h>
 
 /* 6.2.3 Explicit Conversions */
 #include <clc/convert.h>

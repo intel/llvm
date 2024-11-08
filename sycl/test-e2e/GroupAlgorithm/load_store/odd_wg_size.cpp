@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -Wno-error=incorrect-sub-group-size -o %t.out
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
@@ -41,7 +41,7 @@ template <int SG_SIZE, int WG_SIZE> void test(queue &q) {
 
     cgh.parallel_for(
         nd_range<1>{global_size, wg_size},
-        [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(SG_SIZE)]] {
+        [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(SG_SIZE)]] {
           auto gid = ndi.get_global_id(0);
           auto g = ndi.get_group();
           auto offset = g.get_group_id(0) * g.get_local_range(0) * elems_per_wi;

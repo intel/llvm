@@ -156,6 +156,32 @@ function(llvm_ExternalProject_Add name source_dir)
     set_target_properties(${name}-clear PROPERTIES FOLDER "${ARG_FOLDER}")
   endif ()
 
+  set(DEFAULT_PASSTHROUGH_VARIABLES
+    LibEdit_INCLUDE_DIRS
+    LibEdit_LIBRARIES
+    ZLIB_INCLUDE_DIR
+    ZLIB_LIBRARY
+    zstd_INCLUDE_DIR
+    zstd_LIBRARY
+    LIBXML2_LIBRARY
+    LIBXML2_INCLUDE_DIR
+    CURL_INCLUDE_DIR
+    CURL_LIBRARY
+    HTTPLIB_INCLUDE_DIR
+    HTTPLIB_HEADER_PATH
+    Python3_EXECUTABLE
+    Python3_LIBRARIES
+    Python3_INCLUDE_DIRS
+    Python3_RPATH
+    )
+  foreach(variable ${DEFAULT_PASSTHROUGH_VARIABLES})
+    get_property(is_value_set CACHE ${variable} PROPERTY VALUE SET)
+    if(${is_value_set})
+      get_property(value CACHE ${variable} PROPERTY VALUE)
+      list(APPEND CMAKE_CACHE_DEFAULT_ARGS "-D${variable}:STRING=${value}")
+    endif()
+  endforeach()
+
   # Find all variables that start with a prefix and propagate them through
   get_cmake_property(variableNames VARIABLES)
 
@@ -240,6 +266,11 @@ function(llvm_ExternalProject_Add name source_dir)
       list(APPEND compiler_args -DCMAKE_RC_COMPILER=${LLVM_RUNTIME_OUTPUT_INTDIR}/llvm-rc${CMAKE_EXECUTABLE_SUFFIX})
     endif()
     list(APPEND ARG_DEPENDS ${TOOLCHAIN_TOOLS})
+    # Add LLVMgold.so dependency if it is available, as clang may need it for
+    # LTO.
+    if(CLANG_IN_TOOLCHAIN AND TARGET LLVMgold)
+      list(APPEND ARG_DEPENDS LLVMgold)
+    endif()
   endif()
 
   if(ARG_STRIP_TOOL)
@@ -293,7 +324,7 @@ function(llvm_ExternalProject_Add name source_dir)
       endif()
       set(flag_types ASM C CXX MODULE_LINKER SHARED_LINKER EXE_LINKER)
       foreach(type ${flag_types})
-        set(${type}_flag -DCMAKE_${type}_FLAGS=-resource-dir=${resource_dir})
+        set(${type}_flag -DCMAKE_${type}_FLAGS_INIT=-resource-dir=${resource_dir})
       endforeach()
       string(REPLACE ";" "|" flag_string "${flag_types}")
       foreach(arg ${ARG_CMAKE_ARGS})
@@ -358,6 +389,7 @@ function(llvm_ExternalProject_Add name source_dir)
                -DCMAKE_EXPORT_COMPILE_COMMANDS=1
                ${cmake_args}
                ${PASSTHROUGH_VARIABLES}
+    CMAKE_CACHE_DEFAULT_ARGS ${CMAKE_CACHE_DEFAULT_ARGS}
     INSTALL_COMMAND ""
     STEP_TARGETS configure build
     BUILD_ALWAYS 1

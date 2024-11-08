@@ -326,6 +326,86 @@ of `sycl::multi_ptr`. The property list associated with the
 `annotated_ptr` argument represents the compile-time constant
 properties for cache control included in the SYCL extenion link:../../proposed/sycl_ext_intel_cache_controls.asciidoc[sycl_ext_intel_cache_controls]
 
+
+==== Offset Load
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    multi_ptr<T2, Space, IsDecorated> base_src, size_t row_index,
+    size_t col_index, size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          use Use, layout Layout,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    multi_ptr<T2, Space, IsDecorated> base_src, size_t row_index,
+    size_t col_index size_t stride);
+
+// Only available when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+    annotated_ptr<T2, PropertyListT> base_src, size_t row_index, size_t
+    col_index, size_t stride, layout Layout);
+
+// Only available when Layout != layout::dynamic
+// and when std::is_same_v<T1, std::remove_const_t<T2>>
+template <typename Group, typename T1, typename T2,
+          size_t Rows, size_t Cols, use Use, layout Layout,
+          typename PropertyListT>
+void joint_matrix_load(Group g,
+    joint_matrix<Group, T1, Use, Rows, Cols, Layout> &res,
+    annotated_ptr<T2, PropertyListT> base_src, size_t row_index, size_t
+    col_index, size_t stride);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+These overloads of `joint_matrix_load` takes the pointer `base_src` to
+designate the base pointer of the global memory matrix. The
+coordinates `row_index` and `col_index` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+
+==== Offset Store
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+// T1 must be the same as T2
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          access::address_space Space, access::decorated IsDecorated>
+void joint_matrix_store(Group g,
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   multi_ptr<T2, Space, IsDecorated> base_dest, size_t row_index,
+   size_t col_index, size_t stride, layout Layout);
+
+template <typename Group, typename T1, typename T2, size_t Rows, size_t Cols,
+          typename PropertyListT>
+void joint_matrix_store(Group g,
+   const joint_matrix<Group, T1, use::accumulator, Rows, Cols, layout::dynamic> &res,
+   annotated_ptr<T2, PropertyListT> base_dest, size_t row_index, size_t
+          col_index, size_t stride, layout Layout);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+These overloads of `joint_matrix_store` takes the pointer `base_dest` to
+designate the base pointer of the global memory matrix. The
+coordinates `row_index` and `col_index` into the global matrix to
+calculate the  pointer offset to load/store are given as separate
+arguments.
+
 ==== Multiply and Add
 
 ```c++
@@ -401,9 +481,14 @@ of the link:sycl_ext_intel_matrix.asciidoc[sycl_ext_intel_matrix]
 
 Besides the `Group` and the `joint_matrix` arguments,
 `joint_matrix_apply` takes a C++ Callable object which is invoked once
-for each element of the matrix. This callable object must be invocable
-with a single parameter of type `T&`. Commonly, applications pass a
-lambda expression.
+for each element of the matrix. There are two cases: (1) one matrix is
+passed, (2) two matrices are passed.
+
+===== Unary Operation
+In this case, `joint_matrix_apply` takes one `joint_matrix`
+argument. The callable object must be invocable with a single
+parameter of type `T&`. Commonly, applications pass a lambda
+expression.
 
 ```c++
 namespace sycl::ext::oneapi::experimental::matrix {
@@ -424,6 +509,39 @@ example, is applied on each of the elements of `C`.
 joint_matrix_apply(sg, C, [=](T &x) {
     x *= alpha;
     relu(x);
+});
+```
+
+===== Binary Operation
+In this case, `joint_matrix_apply` takes two `joint_matrix` arguments:
+`jm0` and `jm1` that have the same `use`, number of rows, number of
+columns, and `layout`. `jm0` and `jm1` can be read-only, write-only,
+or read and write arguments. The callable object must be invocable
+with two parameters `x` and `y` of types `T0&` amd `T1&`, where `x` is
+an element from `jm0` and `y` is an element from `jm1`. Moreover, `x`
+and `y` are guaranteed to have identical coordinates in their
+respective matrices. Commonly, applications pass a lambda expression.
+
+```c++
+namespace sycl::ext::oneapi::experimental::matrix {
+
+template<typename Group, typename T0, typename T1, use Use,
+  size_t Rows, size_t Cols, layout Layout, typename F>
+void joint_matrix_apply(Group g,
+          joint_matrix<Group, T0, Use, Rows, Cols, Layout>& jm0,
+          joint_matrix<Group, T1, Use, Rows, Cols, Layout>& jm1,
+	  F&& func);
+
+} // namespace sycl::ext::oneapi::experimental::matrix
+```
+
+In the following example, every element `x` of the matrix `C` is
+multiplied by `alpha`. The result is returned into the element `y` of
+the matrix `D`.
+
+```c++
+joint_matrix_apply(sg, C, D, [=](const T &x, T &y) {
+    y = x * alpha;
 });
 ```
 
@@ -524,7 +642,7 @@ float *buf = malloc_shared<float>(M*K, q);
 auto pBuf = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(buf);
 
-joint_matrix_load(sg, tA, pBuf + Offset, Stride);
+joint_matrix_load(sg, tA, pBuf + Offset, stride);
 ```
 
 ==== store
@@ -538,7 +656,7 @@ float *buf = malloc_shared<float>(M*K, q);
 auto pBuf = address_space_cast<sycl::access::address_space::global_space,
                                sycl::access::decorated::no>(buf);
 
-joint_matrix_store(sg, tA, pBuf + Offset, Stride, layout::row_major);
+joint_matrix_store(sg, tA, pBuf + Offset, stride, layout::row_major);
 ```
 
 ==== fill
@@ -941,7 +1059,7 @@ for (int i = 0; sizeof(combinations); i++) {
 }
 ```
 
-=== Appendix: Supported Combinations Per Hardware
+=== Appendix: Supported Combinations and Restrictions Per Hardware
 The table below provides a list of the combinations that
 `joint_matrix` implementations support on each of Intel AMX and Intel
 XMX hardware. Note that these can be returned using
@@ -979,52 +1097,125 @@ is shown in a single column in the table below.
 
 ==== Intel XMX Supported Combinations
 This is currently available in devices with the architecture
-`architecture::intel_gpu_pvc`, `architecture::intel_gpu_dg2_g10`,
-`architecture::intel_gpu_dg2_g11`, and
-`architecture::intel_gpu_dg2_g12`.
-In these architectures'
-implementation, the type of the C matrix must be the same as the type
-of the D matrix. Therefore, that common type is shown in a single
-column in the table below.
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`, `architecture::intel_gpu_dg2_g10`,
+`architecture::intel_gpu_dg2_g11`, `architecture::intel_gpu_dg2_g12`,
+and `architecture::intel_gpu_arl_h`.
 
 [frame="none",options="header"]
 |======================
-| A type | B type | C and D type | M | N | K | device
+| A type | B type | C type | D type | M | N | K | device
 .2+| `matrix_type::uint8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
-|`architecture::intel_gpu_pvc`
+`matrix_type::sint32` .2+| `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32
+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::uint8`  .2+| `matrix_type::sint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`matrix_type::sint32` .2+|`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::uint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`matrix_type::sint32` .2+|`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
 .2+| `matrix_type::sint8`  .2+| `matrix_type::sint8` .2+|
-`matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
-`architecture::intel_gpu_pvc`
+`matrix_type::sint32` .2+| `matrix_type::sint32`  .2+|  +<=+ 8 |  16 .2+|  32 |
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |8|`architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.2+|`matrix_type::fp16`       .2+|  `matrix_type::fp16`   .2+|
-`matrix_type::fp32`   .2+|  +<=+ 8 |  16   .2+|  16 |
-`architecture::intel_gpu_pvc`
-|8| `architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
-.5+|  `matrix_type::bf16`       .5+|  `matrix_type::bf16`   .5+|
-`matrix_type::fp32`  | 16 | 16 | 16 .4+|`architecture::intel_gpu_pvc`
-| 1 | 64 | 16 | 32 | 64 | 16
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
+.8+|`matrix_type::fp16`       .8+|  `matrix_type::fp16`   .8+|
+`matrix_type::fp32` .8+|`matrix_type::fp32`  .1+| 16 .1+| 16 | 16
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+.2+| 1 .2+| 64 | 16 |32
+.2+| 32 .2+| 64 | 16 |32
 .2+|  +<=+ 8 |  16   .2+|  16
-|8 | `architecture::intel_gpu_dg2_g10,
-architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`
+|8 .2+| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
+.1+| 32 .1+| 32 .1+| 16
+.6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
+`matrix_type::fp16` .6+|`matrix_type::fp32`  .1+|  +<=+ 8 |  16   .1+|  16
+.6+| `architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 | 16 | 32
+.6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
+`matrix_type::fp32` .6+|`matrix_type::fp16`  .1+|  +<=+ 8 |  16    .1+|  16
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 |16 | 32
+.6+|`matrix_type::fp16`       .6+|  `matrix_type::fp16`   .6+|
+`matrix_type::fp16` .6+|`matrix_type::fp16`  .1+|  +<=+ 8 |  16   .1+|  16
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 |32 .2+| 32 .2+| 64 | 16 | 32
+.8+|  `matrix_type::bf16`       .8+|  `matrix_type::bf16`   .8+|
+`matrix_type::fp32` .8+| `matrix_type::fp32`  | 16 | 16 | 16
+.6+|`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+.2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 | 16 |32
+.2+|  +<=+ 8 |  16   .2+|  16
+|8 .2+| `architecture::intel_gpu_dg2_g10,
+architecture::intel_gpu_dg2_g11, architecture::intel_gpu_dg2_g12`,
+`architecture::intel_gpu_arl_h`
+.1+| 32 .1+| 32 .1+| 16
+.6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
+`matrix_type::bf16` .6+|`matrix_type::fp32`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 |16 | 32
+.6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
+`matrix_type::fp32` .6+|`matrix_type::bf16`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 |16 | 32
+.6+|`matrix_type::bf16`       .6+|  `matrix_type::bf16`   .6+|
+`matrix_type::bf16` .6+|`matrix_type::bf16`  .1+|  +<=+ 8 |  16   .1+|  16 .6+|
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
+| 16 | 16 | 16 .2+| 1 .2+| 64 | 16 | 32
+.2+| 32 .2+| 64 |16 | 32
 |  `matrix_type::tf32`       |  `matrix_type::tf32`   |
-`matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
-`architecture::intel_gpu_pvc`
+`matrix_type::fp32` .2+| `matrix_type::fp32`   |  +<=+ 8 |  16   |  8 |
+`architecture::intel_gpu_pvc`, `architecture::intel_gpu_bmg_g21`,
+`architecture::intel_gpu_lnl_m`
 |======================
+
+===== Restrictions on `architecture::intel_gpu_pvc`
+
+- The `stride` parameter to `joint_matrix_load` and
+  `joint_matrix_store` has the following restrictions:
+
+* The value `stride * sizeof(T1)` must be a multiple of 8, and
+* The value of `stride * sizeof(T1)` must not exceed `2^24^`.
+
+- The base pointer argument to `joint_matrix_load` and
+`joint_matrix_store` must be 4 bytes aligned.
+
+- In the case of the offset overloads of `joint_matrix_load` and
+`joint_matrix_store`, for 8 bits data type, `row_index` must be a
+multiple of 4. For 16 bits data type, `row_index` must be a multiple
+of 2. So `row_index` must be a multiple of 4 divided by size of the
+element type (`4/sizeof(T)`).
+
+- If these restrictions are not satisfied, users can switch to slower
+implementations of `joint_matrix_load` and `joint_matrix_store` by
+setting the driver flag `IGC_JointMatrixLoadStoreOpt=1`.
 
 ==== Nvidia Tensor Cores Supported Combinations
 The complete set of matrix data types and shapes that are supported by

@@ -15,10 +15,11 @@ target_link_libraries(sycl-ls
   PRIVATE
     ${sycl_lib}
     OpenCL-Headers
+    UnifiedRuntime-Headers
 )
 if (WIN32)
   # 0x900: Search for the dependency DLLs only in the System32 directory and in the directory with sycl-ls.exe
-  target_link_options(sycl-ls PRIVATE /DEPENDENTLOADFLAG:0x900)
+  target_link_options(sycl-ls PRIVATE LINKER:/DEPENDENTLOADFLAG:0x900)
 endif()
 install(TARGETS sycl-ls
   RUNTIME DESTINATION "bin" COMPONENT sycl-ls)

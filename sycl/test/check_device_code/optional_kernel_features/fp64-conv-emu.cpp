@@ -9,14 +9,22 @@
 
 #include <sycl/sycl.hpp>
 
+struct T1 {
+  double x;
+};
+struct T2 {
+  struct T1 y;
+};
 int main() {
   sycl::queue q;
   q.submit([&](sycl::handler &h) {
     h.single_task([=]() {
       double a[10];
       double b[10];
+      struct T2 tmp;
       int i = 4;
       b[i] = a[i] + 1.0;
+      tmp.y.x = a[i] + 1.0;
     });
   });
   return 0;

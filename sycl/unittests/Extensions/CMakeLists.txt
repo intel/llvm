@@ -12,6 +12,13 @@ add_sycl_unittest(ExtensionsTests OBJECT
   OneAPIProd.cpp
   EnqueueFunctionsEvents.cpp
   DiscardEvent.cpp
+  ProfilingTag.cpp
+  KernelProperties.cpp
+  NoDeviceIPVersion.cpp
+  WorkGroupMemoryBackendArgument.cpp
+  GetLastEvent.cpp
+  BFloat16.cpp
 )
 
 add_subdirectory(CommandGraph)
+add_subdirectory(VirtualFunctions)
