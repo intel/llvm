@@ -1,7 +1,6 @@
-// This test checks edge cases handling for std::exp(std::complex<double>) used
+// This test checks edge cases handling for std::exp(std::complex<float>) used
 // in SYCL kernels.
 //
-// REQUIRES: aspect-fp64
 // UNSUPPORTED: hip || cuda
 // UNSUPPORTED-INTENDED: This test is intended for backends with SPIR-V support.
 //
@@ -10,4 +9,4 @@
 
 #include "exp-std-complex-edge-cases.hpp"
 
-int main() { return test<double>(); }
+int main() { return test<float>(); }
