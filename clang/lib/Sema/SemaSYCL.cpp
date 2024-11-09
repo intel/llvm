@@ -3956,20 +3956,20 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // to public just for the duration of this default initialization.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
-    AccessSpecifier default_constructor_access;
-    CXXConstructorDecl *default_constructor;
+    AccessSpecifier DefaultConstructorAccess;
+    CXXConstructorDecl *DefaultConstructor;
     std::for_each(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
                   [&](auto elem) {
                     if (elem->isDefaultConstructor()) {
-                      default_constructor_access = elem->getAccess();
+                      DefaultConstructorAccess = elem->getAccess();
                       elem->setAccess(AS_public);
-                      default_constructor = elem;
+                      DefaultConstructor = elem;
                     }
                   });
 
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    default_constructor->setAccess(default_constructor_access);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
     addFieldMemberExpr(FD, Ty);
 
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
