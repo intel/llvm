@@ -360,7 +360,6 @@ private:
 
 public:
   // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
-  // It is included at the _end_ of this file
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
   vec<convertT, NumElements> convert() const;
@@ -1317,5 +1316,3 @@ private:
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
-
-#include <sycl/detail/vector_convert.hpp>

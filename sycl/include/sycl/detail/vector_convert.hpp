@@ -58,6 +58,7 @@
 #include <sycl/exception.hpp>                  // for errc
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
+#include <sycl/vector.hpp>
 
 #ifndef __SYCL_DEVICE_ONLY__
 #include <cfenv> // for fesetround, fegetround
@@ -152,6 +153,7 @@ __imf_ushort_as_bfloat16(unsigned short x);
 #endif // __SYCL_DEVICE_ONLY__ && (defined(__SPIR__) || defined(__SPIRV__))
 
 namespace sycl {
+
 inline namespace _V1 {
 #ifndef __SYCL_DEVICE_ONLY__
 // TODO: Refactor includes so we can just "#include".

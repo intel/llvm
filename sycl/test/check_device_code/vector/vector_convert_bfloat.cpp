@@ -5,6 +5,7 @@
 // REQUIRES: linux
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/vector.hpp>
 
