@@ -19,6 +19,8 @@
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 #include <sycl/pointers.hpp>
 
+#include <sycl/detail/boost/mp11/algorithm.hpp>
+
 #include <cstddef>
 #include <string_view>
 #include <tuple>
