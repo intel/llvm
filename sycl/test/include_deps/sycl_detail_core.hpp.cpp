@@ -128,6 +128,7 @@
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
 // CHECK-NEXT: sub_group.hpp
+// CHECK-NEXT: detail/optional.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp

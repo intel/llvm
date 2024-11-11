@@ -374,8 +374,8 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  if (SubmitInfo.impl && SubmitInfo.impl->MPostProcessorFunc) {
-    auto &PostProcess = *(SubmitInfo.impl->MPostProcessorFunc);
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
 
     bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;

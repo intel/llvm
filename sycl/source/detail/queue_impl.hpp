@@ -69,7 +69,7 @@ enum QueueOrder { Ordered, OOO };
 
 // Implementation of the submission information storage.
 struct SubmissionInfoImpl {
-  std::optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
+  optional<detail::SubmitPostProcessF> MPostProcessorFunc = std::nullopt;
   std::shared_ptr<detail::queue_impl> MSecondaryQueue = nullptr;
 };
 
@@ -345,9 +345,9 @@ public:
                const SubmitPostProcessF *PostProcess = nullptr) {
     event ResEvent;
     SubmissionInfo SI{};
-    SI.SetSecondaryQueue(SecondQueue);
+    SI.SecondaryQueue() = SecondQueue;
     if (PostProcess)
-      SI.SetPostProcessing(*PostProcess);
+      SI.PostProcessorFunc() = *PostProcess;
     return submit_with_event(CGF, Self, SI, Loc, IsTopCodeLoc);
   }
 
@@ -364,10 +364,10 @@ public:
                           const std::shared_ptr<queue_impl> &Self,
                           const SubmissionInfo &SubmitInfo,
                           const detail::code_location &Loc, bool IsTopCodeLoc) {
-    if (SubmitInfo.impl && SubmitInfo.impl->MSecondaryQueue) {
+    if (SubmitInfo.SecondaryQueue()) {
       event ResEvent;
       const std::shared_ptr<queue_impl> SecondQueue =
-          SubmitInfo.impl->MSecondaryQueue;
+          SubmitInfo.SecondaryQueue();
       try {
         ResEvent = submit_impl(CGF, Self, Self, SecondQueue,
                                /*CallerNeedsEvent=*/true, Loc, IsTopCodeLoc,
@@ -390,9 +390,9 @@ public:
                             const SubmissionInfo &SubmitInfo,
                             const detail::code_location &Loc,
                             bool IsTopCodeLoc) {
-    if (SubmitInfo.impl && SubmitInfo.impl->MSecondaryQueue) {
+    if (SubmitInfo.SecondaryQueue()) {
       const std::shared_ptr<queue_impl> SecondQueue =
-          SubmitInfo.impl->MSecondaryQueue;
+          SubmitInfo.SecondaryQueue();
       try {
         submit_impl(CGF, Self, Self, SecondQueue,
                     /*CallerNeedsEvent=*/false, Loc, IsTopCodeLoc, SubmitInfo);

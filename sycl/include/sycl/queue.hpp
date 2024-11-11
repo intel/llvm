@@ -22,12 +22,13 @@
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_queue_info_...
 #include <sycl/detail/kernel_desc.hpp>        // for KernelInfo
-#include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/device.hpp>                    // for device
-#include <sycl/device_selector.hpp>           // for device_selector
-#include <sycl/event.hpp>                     // for event
-#include <sycl/exception.hpp>                 // for make_error_code
-#include <sycl/exception_list.hpp>            // for defaultAsyncHa...
+#include <sycl/detail/optional.hpp>
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
+#include <sycl/device.hpp>                 // for device
+#include <sycl/device_selector.hpp>        // for device_selector
+#include <sycl/event.hpp>                  // for event
+#include <sycl/exception.hpp>              // for make_error_code
+#include <sycl/exception_list.hpp>         // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
 #include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
@@ -94,12 +95,15 @@ struct SubmissionInfoImpl;
 
 class __SYCL_EXPORT SubmissionInfo {
 public:
-  SubmissionInfo() = default;
+  SubmissionInfo();
 
-  void SetPostProcessing(const SubmitPostProcessF &PostProcessorFunc);
-  void
-  SetSecondaryQueue(const std::shared_ptr<detail::queue_impl> &SecondaryQueue);
+  sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc();
+  const sycl::detail::optional<SubmitPostProcessF> &PostProcessorFunc() const;
 
+  std::shared_ptr<detail::queue_impl> &SecondaryQueue();
+  const std::shared_ptr<detail::queue_impl> &SecondaryQueue() const;
+
+private:
   std::shared_ptr<SubmissionInfoImpl> impl = nullptr;
 };
 } // namespace detail
@@ -2806,10 +2810,11 @@ private:
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     detail::SubmissionInfo SI{};
     if (SecondaryQueuePtr)
-      SI.SetSecondaryQueue(detail::getSyclObjImpl(*SecondaryQueuePtr));
+      SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
 #if __SYCL_USE_FALLBACK_ASSERT
-    SI.SetPostProcessing([this, &SecondaryQueuePtr, &TlsCodeLocCapture](
-                             bool IsKernel, bool KernelUsesAssert, event &E) {
+    SI.PostProcessorFunc() = [this, &SecondaryQueuePtr, &TlsCodeLocCapture](
+                                 bool IsKernel, bool KernelUsesAssert,
+                                 event &E) {
       if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
           KernelUsesAssert && !device_has(aspect::accelerator)) {
         // __devicelib_assert_fail isn't supported by Device-side Runtime
@@ -2819,7 +2824,7 @@ private:
         submitAssertCapture(*this, E, SecondaryQueuePtr,
                             TlsCodeLocCapture.query());
       }
-    });
+    };
 #endif // __SYCL_USE_FALLBACK_ASSERT
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());

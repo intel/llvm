@@ -21,18 +21,24 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
-void SubmissionInfo::SetPostProcessing(
-    const SubmitPostProcessF &PostProcessorFunc) {
-  if (!impl)
-    impl = std::make_shared<SubmissionInfoImpl>();
-  impl->MPostProcessorFunc = std::move(PostProcessorFunc);
+SubmissionInfo::SubmissionInfo()
+    : impl{std::make_shared<SubmissionInfoImpl>()} {}
+
+optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() {
+  return impl->MPostProcessorFunc;
 }
 
-void SubmissionInfo::SetSecondaryQueue(
-    const std::shared_ptr<detail::queue_impl> &SecondaryQueue) {
-  if (!impl)
-    impl = std::make_shared<SubmissionInfoImpl>();
-  impl->MSecondaryQueue = SecondaryQueue;
+const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
+  return impl->MPostProcessorFunc;
+}
+
+std::shared_ptr<detail::queue_impl> & SubmissionInfo::SecondaryQueue() {
+  return impl->MSecondaryQueue;
+}
+
+const std::shared_ptr<detail::queue_impl> &
+SubmissionInfo::SecondaryQueue() const {
+  return impl->MSecondaryQueue;
 }
 } // namespace detail
 
@@ -216,14 +222,14 @@ event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const detail::SubmitPostProcessF &PostProcess) {
   detail::SubmissionInfo SI{};
-  SI.SetPostProcessing(std::move(PostProcess));
+  SI.PostProcessorFunc() = std::move(PostProcess);
   return submit_with_event_impl(CGH, SI, CodeLoc, true);
 }
 event queue::submit_impl_and_postprocess(
     std::function<void(handler &)> CGH, const detail::code_location &CodeLoc,
     const detail::SubmitPostProcessF &PostProcess, bool IsTopCodeLoc) {
   detail::SubmissionInfo SI{};
-  SI.SetPostProcessing(std::move(PostProcess));
+  SI.PostProcessorFunc() = std::move(PostProcess);
   return submit_with_event_impl(CGH, SI, CodeLoc, IsTopCodeLoc);
 }
 
