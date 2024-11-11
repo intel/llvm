@@ -1,7 +1,7 @@
-# commit 3edf99755ce2af3b53102a7d8438e0fe969efac3
-# Merge: 5955bad3 0b968661
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Wed Nov 6 11:07:29 2024 +0000
-#    Merge pull request #2082 from RossBrunton/ross/multiadapt
-#    [CI] Add "loader" support to conformance testing
-set(UNIFIED_RUNTIME_TAG 3edf99755ce2af3b53102a7d8438e0fe969efac3)
+# commit 2eae687a4cf24ba02ee8e9ebb9552c1d392972ee
+# Merge: 1ba7f39a 2a081891
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Mon Nov 11 13:35:24 2024 +0000
+#     Merge pull request #2112 from martygrant/martin/context-cts-spec-gap
+#     Improvements to align CTS and Spec for Context
+set(UNIFIED_RUNTIME_TAG 2eae687a4cf24ba02ee8e9ebb9552c1d392972ee)
