@@ -665,8 +665,9 @@ protected:
   sub_group() = default;
 };
 
-template <int Dimensions>
-sub_group nd_item<Dimensions>::get_sub_group() const { return sub_group(); }
+template <int Dimensions> sub_group nd_item<Dimensions>::get_sub_group() const {
+  return sub_group();
+}
 
 } // namespace _V1
 } // namespace sycl
