@@ -301,6 +301,13 @@ inline uptr MemToShadow_PVC(uptr addr, uint32_t as) {
 inline uptr MemToShadow(uptr addr, uint32_t as) {
   uptr shadow_ptr = 0;
 
+#if defined(__LIBDEVICE_PVC__)
+  shadow_ptr = MemToShadow_PVC(addr, as);
+#elif defined(__LIBDEVICE_CPU__)
+  shadow_ptr = MemToShadow_CPU(addr);
+#elif defined(__LIBDEVICE_DG2__)
+  shadow_ptr = MemToShadow_DG2(addr, as);
+#else
   auto launch_info = (__SYCL_GLOBAL__ const LaunchInfo *)__AsanLaunchInfo;
   if (launch_info->DeviceTy == DeviceType::CPU) {
     shadow_ptr = MemToShadow_CPU(addr);
@@ -314,6 +321,7 @@ inline uptr MemToShadow(uptr addr, uint32_t as) {
     __asan_report_unknown_device();
     return 0;
   }
+#endif
 
   ASAN_DEBUG(
       if (shadow_ptr) {
