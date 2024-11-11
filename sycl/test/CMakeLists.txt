@@ -96,6 +96,7 @@ add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   EXCLUDE_FROM_CHECK_ALL
   )
 
-if(SYCL_ENABLE_EXTENSION_JIT)
+if(NOT WIN32 AND SYCL_ENABLE_EXTENSION_JIT)
+  # lit-based testing of JIT passes isn't supported on Windows.
   add_dependencies(check-sycl check-sycl-jit)
-endif(SYCL_ENABLE_EXTENSION_JIT)
+endif()
