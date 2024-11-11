@@ -635,13 +635,15 @@
 ?GDBMethodsAnchor@UnsampledImageAccessorBaseHost@detail@_V1@sycl@@IEAAXXZ
 ?GetRangeRoundingSettings@handler@_V1@sycl@@AEAAXAEA_K00@Z
 ?HasAssociatedAccessor@handler@_V1@sycl@@AEBA_NPEAVAccessorImplHost@detail@23@W4target@access@23@@Z
+?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
+?PostProcessorFunc@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$optional@V?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@234@XZ
 ?PushBack@exception_list@_V1@sycl@@AEAAX$$QEAVexception_ptr@std@@@Z
 ?PushBack@exception_list@_V1@sycl@@AEAAXAEBVexception_ptr@std@@@Z
 ?RangeRoundingTrace@handler@_V1@sycl@@AEAA_NXZ
+?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEAAAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
+?SecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEBAAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@XZ
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXVinterop_handle@_V1@sycl@@@Z@std@@@Z
 ?SetHostTask@handler@_V1@sycl@@AEAAX$$QEAV?$function@$$A6AXXZ@std@@@Z
-?SetPostProcessing@SubmissionInfo@detail@_V1@sycl@@QEAAXAEBV?$function@$$A6AX_N0AEAVevent@_V1@sycl@@@Z@std@@@Z
-?SetSecondaryQueue@SubmissionInfo@detail@_V1@sycl@@QEAAXAEBV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$00@12@V312@0@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$01@12@V312@0@Z
 ?__abs_diff_impl@_V1@sycl@@YA?AV?$vec@C$02@12@V312@0@Z
