@@ -20,7 +20,7 @@
  * THE SOFTWARE.
  */
 
-#include "func.h"
+#include <clc/clcfunc.h>
 
 _CLC_DECL bool __clc_subnormals_disabled();
 _CLC_DECL bool __clc_fp16_subnormals_supported();
