@@ -2812,19 +2812,19 @@ private:
     if (SecondaryQueuePtr)
       SI.SecondaryQueue() = detail::getSyclObjImpl(*SecondaryQueuePtr);
 #if __SYCL_USE_FALLBACK_ASSERT
-    SI.PostProcessorFunc() = [this, &SecondaryQueuePtr, &TlsCodeLocCapture](
-                                 bool IsKernel, bool KernelUsesAssert,
-                                 event &E) {
-      if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
-          KernelUsesAssert && !device_has(aspect::accelerator)) {
-        // __devicelib_assert_fail isn't supported by Device-side Runtime
-        // Linking against fallback impl of __devicelib_assert_fail is
-        // performed by program manager class
-        // Fallback assert isn't supported for FPGA
-        submitAssertCapture(*this, E, SecondaryQueuePtr,
-                            TlsCodeLocCapture.query());
-      }
-    };
+    SI.PostProcessorFunc() =
+        [this, &SecondaryQueuePtr,
+         &TlsCodeLocCapture](bool IsKernel, bool KernelUsesAssert, event &E) {
+          if (IsKernel && !device_has(aspect::ext_oneapi_native_assert) &&
+              KernelUsesAssert && !device_has(aspect::accelerator)) {
+            // __devicelib_assert_fail isn't supported by Device-side Runtime
+            // Linking against fallback impl of __devicelib_assert_fail is
+            // performed by program manager class
+            // Fallback assert isn't supported for FPGA
+            submitAssertCapture(*this, E, SecondaryQueuePtr,
+                                TlsCodeLocCapture.query());
+          }
+        };
 #endif // __SYCL_USE_FALLBACK_ASSERT
     return submit_with_event_impl(CGF, SI, TlsCodeLocCapture.query(),
                                   TlsCodeLocCapture.isToplevel());
