@@ -153,14 +153,10 @@ static Value *emitBuiltinMemSet(Function *F, IRBuilder<> &B,
   int64_t byte = 0;
   // Initially we use 64bit loads and stores, in order to avoid emitting too
   // many instructions.
-  // We can't just get an Int64PtrTy because we need the correct address space
-  Type *DstInt64PtrTy = B.getInt64Ty()->getPointerTo(
-      cast<PointerType>(DstPtr->getType())->getAddressSpace());
 
   for (; byte <= Bytes - 8; byte += 8) {
     Value *Idx = B.getIntN(PtrBits, byte);
-    Value *OffsetDstPtr = B.CreateBitCast(
-        B.CreateInBoundsGEP(Int8Ty, DstPtr, Idx), DstInt64PtrTy, DstName);
+    Value *OffsetDstPtr = B.CreateInBoundsGEP(Int8Ty, DstPtr, Idx);
     MS = B.CreateStore(StoredValue64, OffsetDstPtr, IsVolatile);
 
     // Set alignments for store to be minimum of that from
@@ -223,19 +219,12 @@ static Value *emitBuiltinMemCpy(Function *F, IRBuilder<> &B,
   int64_t byte = 0;
   // Initially we use 64bit loads and stores, in order to avoid emitting too
   // many instructions...
-  // We can't just get an Int64PtrTy because we need the correct address space
   Type *Int64Ty = B.getInt64Ty();
-  Type *SrcInt64PtrTy = Int64Ty->getPointerTo(
-      cast<PointerType>(SrcPtr->getType())->getAddressSpace());
-  Type *DstInt64PtrTy = Int64Ty->getPointerTo(
-      cast<PointerType>(DstPtr->getType())->getAddressSpace());
 
   for (; byte <= Length - 8; byte += 8) {
     Value *Idx = B.getIntN(PtrBits, byte);
-    Value *OffsetSrcPtr = B.CreateBitCast(
-        B.CreateInBoundsGEP(Int8Ty, SrcPtr, Idx), SrcInt64PtrTy);
-    Value *OffsetDstPtr = B.CreateBitCast(
-        B.CreateInBoundsGEP(Int8Ty, DstPtr, Idx), DstInt64PtrTy, DstName);
+    Value *OffsetSrcPtr = B.CreateInBoundsGEP(Int8Ty, SrcPtr, Idx);
+    Value *OffsetDstPtr = B.CreateInBoundsGEP(Int8Ty, DstPtr, Idx);
     LoadInst *LoadValue =
         B.CreateLoad(Int64Ty, OffsetSrcPtr, IsVolatile, SrcName);
     MC = B.CreateStore(LoadValue, OffsetDstPtr, IsVolatile);

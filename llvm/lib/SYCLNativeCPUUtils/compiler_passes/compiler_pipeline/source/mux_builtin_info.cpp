@@ -1208,7 +1208,7 @@ BIMuxInfoConcept::getMuxSchedulingParameters(Module &M) {
     auto *const WIInfoS = getWorkItemInfoStructTy(M);
     WIInfo.ID = SchedParamIndices::WI;
     WIInfo.ParamPointeeTy = WIInfoS;
-    WIInfo.ParamTy = WIInfoS->getPointerTo();
+    WIInfo.ParamTy = PointerType::get(WIInfoS, /*AddressSpace=*/0);
     WIInfo.ParamName = "wi-info";
     WIInfo.ParamDebugName = WIInfoS->getStructName().str();
     WIInfo.PassedExternally = false;
@@ -1224,7 +1224,7 @@ BIMuxInfoConcept::getMuxSchedulingParameters(Module &M) {
     auto *const WGInfoS = getWorkGroupInfoStructTy(M);
     WGInfo.ID = SchedParamIndices::WG;
     WGInfo.ParamPointeeTy = WGInfoS;
-    WGInfo.ParamTy = WGInfoS->getPointerTo();
+    WGInfo.ParamTy = PointerType::get(WGInfoS, /*AddressSpace=*/0);
     WGInfo.ParamName = "wg-info";
     WGInfo.ParamDebugName = WGInfoS->getStructName().str();
     WGInfo.PassedExternally = true;

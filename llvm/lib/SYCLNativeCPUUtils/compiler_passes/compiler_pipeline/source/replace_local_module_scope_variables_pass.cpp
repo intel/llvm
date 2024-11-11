@@ -354,7 +354,8 @@ PreservedAnalyses compiler::utils::ReplaceLocalModuleScopeVariablesPass::run(
 
   // change all our functions to take a pointer to the new structTy we created
   const AttributeSet defaultAttrs;
-  addParamToAllRequiredFunctions(M, structTy->getPointerTo(), defaultAttrs);
+  addParamToAllRequiredFunctions(
+      M, PointerType::get(structTy, /*AddressSpace=*/0), defaultAttrs);
 
   // Check if we have debug info, if so we need to fix it up to turn global
   // variable entries into local variable ones.
