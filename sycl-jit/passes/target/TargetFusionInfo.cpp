@@ -355,9 +355,12 @@ public:
     Name = Name.drop_front(Name.find(SPIRVBuiltinPrefix) +
                            SPIRVBuiltinPrefix.size());
     // Check that Name does not start with any name in UnsafeBuiltIns
-    const auto *Iter =
-        std::upper_bound(UnsafeBuiltIns.begin(), UnsafeBuiltIns.end(), Name);
-    return Iter == UnsafeBuiltIns.begin() || !Name.starts_with(*(Iter - 1));
+    for (const StringRef &Unsafe : UnsafeBuiltIns) {
+      if (Name.starts_with(Unsafe)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   unsigned getIndexSpaceBuiltinBitwidth() const override { return 64; }
