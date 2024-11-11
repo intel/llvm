@@ -98,6 +98,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextGetInfo(
                            UR_MEMORY_SCOPE_CAPABILITY_FLAG_DEVICE;
     return ReturnValue(Capabilities);
   }
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
   case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
     // 2D USM memcpy is supported.
     return ReturnValue(true);

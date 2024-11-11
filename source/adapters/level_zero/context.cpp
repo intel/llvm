@@ -126,13 +126,16 @@ ur_result_t urContextGetInfo(
         UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
     return ReturnValue(Capabilities);
   }
+  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  }
 
   default:
     // TODO: implement other parameters
-    die("urGetContextInfo: unsuppported ParamName.");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
-
-  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t urContextGetNativeHandle(
