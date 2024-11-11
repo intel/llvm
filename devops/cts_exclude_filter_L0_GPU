@@ -1,5 +1,2 @@
-# These two take too much time
-kernel_bundle
-marray
 # CMPLRLLVM-61839
 multi_ptr
