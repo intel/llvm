@@ -185,7 +185,7 @@ function(add_devicelibs filename)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SRC;EXTRA_OPTS;DEPENDENCIES"
+    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS"
     ${ARGN})
 
   foreach(filetype IN LISTS filetypes)
@@ -197,15 +197,18 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
-    compile_lib(${filename}-${arch}
-      FILETYPE bc
-      SRC ${ARG_SRC}
-      DEPENDENCIES ${ARG_DEPENDENCIES}
-      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
-                 ${compile_opts_${arch}})
+    list(FIND ${ARG_SKIP_ARCHS} ${arch} skip_idx)
+    if (skip_idx EQUAL -1)
+      compile_lib(${filename}-${arch}
+        FILETYPE bc
+        SRC ${ARG_SRC}
+        DEPENDENCIES ${ARG_DEPENDENCIES}
+        EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
+                   ${compile_opts_${arch}})
 
-    append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
-      PROPERTY_NAME BC_DEVICE_LIBS_${arch})
+      append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
+        PROPERTY_NAME BC_DEVICE_LIBS_${arch})
+    endif()
   endforeach()
 endfunction()
 
@@ -321,7 +324,8 @@ add_devicelibs(libsycl-native-bfloat16
 add_devicelibs(libsycl-fallback-gsort
   SRC fallback-gsort.cpp
   DEPENDENCIES ${gsort_obj_deps}
-  EXTRA_OPTS -fno-sycl-instrument-device-code)
+  EXTRA_OPTS -fno-sycl-instrument-device-code
+  SKIP_ARCHS amdgcn-amd-amdhsa)
 
 # Create dependency and source lists for Intel math function libraries.
 file(MAKE_DIRECTORY ${obj_binary_dir}/libdevice)
