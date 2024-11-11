@@ -9,6 +9,7 @@
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/sycl_span.hpp>
+#include <sycl/sub_group.hpp>
 
 using namespace sycl;
 
