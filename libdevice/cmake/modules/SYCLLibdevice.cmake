@@ -197,8 +197,8 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
-    list(FIND ${ARG_SKIP_ARCHS} ${arch} skip_idx)
-    if (skip_idx EQUAL -1)
+    list(FIND ${ARG_SKIP_ARCHS} "${arch}" skip_idx)
+    if (${skip_idx} EQUAL -1)
       compile_lib(${filename}-${arch}
         FILETYPE bc
         SRC ${ARG_SRC}
