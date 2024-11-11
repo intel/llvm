@@ -1726,8 +1726,10 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
       Policy.SuppressScope = OldSupressScope;
       return;
     }
-    if (Qualifier && !(Policy.SuppressTypedefs &&
-                       T->getNamedType()->getTypeClass() == Type::Typedef))
+    if (Qualifier &&
+        !(Policy.SuppressTypedefs &&
+          T->getNamedType()->getTypeClass() == Type::Typedef) &&
+        !Policy.EnforceScopeForElaboratedTypes)
       Qualifier->print(OS, Policy);
   }
 
