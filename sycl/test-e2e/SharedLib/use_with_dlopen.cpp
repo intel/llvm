@@ -14,9 +14,9 @@
 // RUN: %{run} %t3.out
 
 // This causes SEG. FAULT.
-// RUNx: %{compile} -o %t4.out -DRUN_LAST
-// RUNx: %{run} %t4.out
-// RUNx-TRACKER: https://github.com/intel/llvm/issues/16031
+// Enable the lines below when the issue is fixed - https://github.com/intel/llvm/issues/16031
+// %{compile} -o %t4.out -DRUN_LAST
+// %{run} %t4.out
 
 #include <sycl/detail/core.hpp>
 

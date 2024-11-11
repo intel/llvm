@@ -1,4 +1,4 @@
-// REQUIRES: ocloc, gpu, linux
+// REQUIRES: ocloc, gpu, linux, aspect-fp64
 // UNSUPPORTED: cuda, hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
