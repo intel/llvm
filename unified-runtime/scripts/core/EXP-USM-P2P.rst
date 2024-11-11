@@ -37,12 +37,11 @@ Level Zero.
 API
 --------------------------------------------------------------------------------
 
-Macros
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-* ${X}_USM_P2P_EXTENSION_STRING_EXP
-
 Enums
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* ${x}_device_info_t
+    * ${X}_DEVICE_INFO_USM_P2P_SUPPORT_EXP
 
 * ${x}_exp_peer_info_t
 
@@ -55,9 +54,11 @@ Functions
 Support
 --------------------------------------------------------------------------------
 
-Adapters which support this experimental feature *must* return the valid string
-defined in ``${X}_USM_P2P_EXTENSION_STRING_EXP`` as one of the options from
-${x}DeviceGetInfo when querying for ${X}_DEVICE_INFO_EXTENSIONS.
+Adapters which support this experimental feature *must* return ``true`` when
+queried for ${X}_DEVICE_INFO_USM_P2P_SUPPORT_EXP via ${x}DeviceGetInfo.
+Conversely, before using any of the functionality defined in this experimental
+feature the user *must* use the device query to determine if the adapter
+supports this feature.
 
 Changelog
 --------------------------------------------------------------------------------
@@ -71,8 +72,12 @@ Changelog
 +-----------+---------------------------------------------+
 | 1.2       | Switch Info types from uint32_t to int      |
 +-----------+---------------------------------------------+
+| 1.3       | Switch from extension string macro to       |
+|           | device info enum for reporting support.     |
++-----------+---------------------------------------------+
 
 Contributors
 --------------------------------------------------------------------------------
 
 * JackAKirk `jack.kirk@codeplay.com <jack.kirk@codeplay.com>`_
+* Aaron Greig `aaron.greig@codeplay.com <aaron.greig@codeplay.com>`_
