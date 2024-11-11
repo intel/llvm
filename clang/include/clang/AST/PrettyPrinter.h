@@ -238,7 +238,6 @@ struct PrintingPolicy {
   LLVM_PREFERRED_TYPE(bool)
   unsigned SuppressDefaultTemplateArgs : 1;
 
-
   /// When true, print template arguments that match the default argument for
   /// the parameter, even if they're not specified in the source.
   LLVM_PREFERRED_TYPE(bool)
