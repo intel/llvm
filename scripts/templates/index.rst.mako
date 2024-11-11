@@ -16,5 +16,6 @@
    core/CONTRIB.rst
    core/CUDA.rst
    core/HIP.rst
+   core/LEVEL_ZERO.rst
    exp-features.rst
    api.rst
