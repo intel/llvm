@@ -32,7 +32,7 @@ const optional<SubmitPostProcessF> &SubmissionInfo::PostProcessorFunc() const {
   return impl->MPostProcessorFunc;
 }
 
-std::shared_ptr<detail::queue_impl> & SubmissionInfo::SecondaryQueue() {
+std::shared_ptr<detail::queue_impl> &SubmissionInfo::SecondaryQueue() {
   return impl->MSecondaryQueue;
 }
 

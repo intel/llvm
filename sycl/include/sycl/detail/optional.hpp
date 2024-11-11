@@ -75,7 +75,7 @@ public:
     return *this;
   }
 
-  optional &operator=(T &&Value){
+  optional &operator=(T &&Value) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
     ContainsValue = true;
@@ -83,7 +83,7 @@ public:
     return *this;
   }
 
-  optional &operator=(const T &Value){
+  optional &operator=(const T &Value) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
     ContainsValue = true;
@@ -91,8 +91,7 @@ public:
     return *this;
   }
 
-  template <typename U>
-  optional &operator=(const std::optional<U> &Other) {
+  template <typename U> optional &operator=(const std::optional<U> &Other) {
     if (has_value())
       reinterpret_cast<T *>(Storage)->~T();
     ContainsValue = Other;
