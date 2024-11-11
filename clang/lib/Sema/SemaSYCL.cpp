@@ -6464,7 +6464,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
 
     O << "\n";
     O << "// Forward declarations of kernel and its argument types:\n";
-    Policy.SuppressDefaultTemplateArgs = false;
     FwdDeclEmitter.Visit(K.SyclKernel->getType());
     O << "\n";
 
@@ -6472,6 +6471,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "extern \"C\" ";
     std::string ParmList;
     bool FirstParam = true;
+    Policy.SuppressDefaultTemplateArgs = false;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
@@ -6482,9 +6482,21 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
-    Policy.EnforceDefaultTemplateArgs = true;
     Policy.FullyQualifiedName = true;
     Policy.EnforceScopeForElaboratedTypes = true;
+
+    // SuppressDefaultTemplateArguments is a downstream addition that suppresses
+    // default template arguments in function declarations. It should be set to
+    // true to emit function declaration that won't cause any compilation errors
+    // when present in the integration header.
+    // SuppressDefaultTemplateArgs is a flag from community code which adds
+    // suppression of template arguments that match default template arguments
+    // in template-ids printing.
+    Policy.SuppressDefaultTemplateArguments = true;
+    // EnforceDefaultTemplateArgs is a downstream addition that forces printing
+    // template arguments that match default template arguments while printing
+    // template-ids, even if the source code doesn't referece them.
+    Policy.EnforceDefaultTemplateArgs = true;
     if (FTD) {
       FTD->print(O, Policy);
     } else {
@@ -6513,10 +6525,6 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     }
     O << ";\n";
     O << "}\n";
-    Policy.SuppressDefaultTemplateArgs = true;
-    Policy.EnforceDefaultTemplateArgs = false;
-    Policy.FullyQualifiedName = false;
-    Policy.EnforceScopeForElaboratedTypes = false;
 
     // Generate is_kernel, is_single_task_kernel and nd_range_kernel functions.
     O << "namespace sycl {\n";
