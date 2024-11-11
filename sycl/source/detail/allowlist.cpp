@@ -190,7 +190,7 @@ AllowListParsedT parseAllowList(const std::string &AllowListRaw) {
                          Key) != SupportedKeyNamesRequireRegexValue.end()) {
         const std::string Prefix("{{");
         // TODO: can be changed to string_view::starts_with after switching
-        // DPC++ RT to C++20
+        // the runtime to C++20
         if (Prefix != AllowListRaw.substr(ValueStart, Prefix.length())) {
           throw sycl::exception(
               sycl::make_error_code(sycl::errc::runtime),
@@ -302,7 +302,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
          "SYCL_DEVICE_ALLOWLIST.");
   auto EqualityComp = [&](const std::string &KeyName,
                           const DeviceDescT &AllowListDeviceDesc) {
-    // change to map::contains after switching DPC++ RT to C++20
+    // change to map::contains after switching the runtime to C++20
     if (AllowListDeviceDesc.find(KeyName) != AllowListDeviceDesc.end())
       if (AllowListDeviceDesc.at(KeyName) != DeviceDesc.at(KeyName))
         return false;
