@@ -15,6 +15,7 @@
 {{OPT}}InvalidUpdateTest.NotUpdatableCommandBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}InvalidUpdateTest.InvalidDimensions/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}USMFillCommandTest.UpdateNull/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMFillCommandTest.UpdateBeforeEnqueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}BufferSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
