@@ -339,7 +339,6 @@ void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
   private_merge_sort_key_value_helper(keys, vals, n, scratch, comp, &keys_back,
                                       &vals_back);
 
-
   const size_t local_idx = __get_wg_local_linear_id();
   for (size_t i = 0; i < n; ++i) {
     keys[i] = keys_back[local_idx * n + i];
@@ -349,13 +348,12 @@ void private_merge_sort_key_value_close(KeyT *keys, ValT *vals, size_t n,
 
 template <typename KeyT, typename ValT, typename Compare>
 void private_merge_sort_key_value_spread(KeyT *keys, ValT *vals, size_t n,
-                                        uint8_t *scratch, Compare comp) {
+                                         uint8_t *scratch, Compare comp) {
 
   KeyT *keys_back = nullptr;
   ValT *vals_back = nullptr;
   private_merge_sort_key_value_helper(keys, vals, n, scratch, comp, &keys_back,
                                       &vals_back);
-
 
   const size_t local_idx = __get_wg_local_linear_id();
   const size_t wg_size = __get_wg_local_range();

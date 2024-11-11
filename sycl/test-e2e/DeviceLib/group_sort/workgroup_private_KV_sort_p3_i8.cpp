@@ -4,13 +4,11 @@
 // RUN: %{build}  -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 
-
 // RUN: %{build} -DDES -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build}  -DDES -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
-
 
 // RUN: %{build} -DSPREAD -o %t.out
 // RUN: %{run} %t.out
@@ -33,10 +31,10 @@ int main() {
 
   {
     constexpr static int NUM = 35;
-    int8_t ikeys[NUM] = {1,   -11,  1,   9,   -3,  100, 34,  8,  121,
-                          -77,  125, 23,  36,  -2,  -111, 91,  88, -2,
-                          51,  -23, -81, 83, 31, 42, 2, 1,  -99,
-                          124, 12,  0,   -81, 17, 15,  101, 44};
+    int8_t ikeys[NUM] = {1,   -11, 1,   9,   -3, 100,  34,  8,  121,
+                         -77, 125, 23,  36,  -2, -111, 91,  88, -2,
+                         51,  -23, -81, 83,  31, 42,   2,   1,  -99,
+                         124, 12,  0,   -81, 17, 15,   101, 44};
     uint32_t ivals[NUM] = {99,   32,    1,    2,      67,   9123, 453,
                            435,  91111, 777,  165,    145,  2456, 88811,
                            761,  96,    765,  10000,  6364, 90,   525,

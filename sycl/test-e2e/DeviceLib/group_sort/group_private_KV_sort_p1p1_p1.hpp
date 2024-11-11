@@ -1166,8 +1166,10 @@ void test_work_group_KV_private_sort(sycl::queue &q, const KeyT keys[NUM],
   for (size_t idx = 0; idx < NUM; ++idx) {
     size_t idx1 = idx / WG_SZ;
     size_t idx2 = idx % WG_SZ;
-    if ((output_keys[idx2 * num_per_work_item + idx1] != std::get<0>(sorted_vec[idx])) ||
-        (output_vals[idx2 * num_per_work_item + idx1] != std::get<1>(sorted_vec[idx]))) {
+    if ((output_keys[idx2 * num_per_work_item + idx1] !=
+         std::get<0>(sorted_vec[idx])) ||
+        (output_vals[idx2 * num_per_work_item + idx1] !=
+         std::get<1>(sorted_vec[idx]))) {
       std::cout << "idx: " << idx << std::endl;
       fails = true;
       break;

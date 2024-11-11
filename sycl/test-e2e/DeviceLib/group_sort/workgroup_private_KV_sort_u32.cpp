@@ -4,13 +4,11 @@
 // RUN: %{build}  -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
 
-
 // RUN: %{build} -DDES -o %t.out
 // RUN: %{run} %t.out
 
 // RUN: %{build}  -DDES -fsycl-device-lib-jit-link -o %t.out
 // RUN: %{run} %t.out
-
 
 // RUN: %{build} -DSPREAD -o %t.out
 // RUN: %{run} %t.out
