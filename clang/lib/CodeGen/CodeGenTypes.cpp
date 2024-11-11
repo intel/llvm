@@ -661,7 +661,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       if (ClangETy && ClangETy->isStructureOrClassType()) {
         RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
         if (RD && RD->getQualifiedNameAsString() ==
-                             "__spv::__spirv_CooperativeMatrixKHR") {
+                      "__spv::__spirv_CooperativeMatrixKHR") {
           ResultType = ConvertSPVCooperativeMatrixType(RD);
           break;
         } else if (RD && RD->getQualifiedNameAsString() ==

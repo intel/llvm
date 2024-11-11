@@ -460,8 +460,8 @@ joint_matrix_mad(
 #else
   constexpr uint32_t MatrixOperand =
       sycl::detail::CalculateMatrixOperand<Ta, Tb, Tc>();
-  D.spvm = __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm,
-                                              MatrixOperand);
+  D.spvm =
+      __spirv_CooperativeMatrixMulAddKHR(A.spvm, B.spvm, C.spvm, MatrixOperand);
 #endif // defined(__NVPTX__)
 #else
   std::ignore = A;
