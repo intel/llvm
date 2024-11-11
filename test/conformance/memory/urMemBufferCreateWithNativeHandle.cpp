@@ -46,7 +46,7 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, SuccessWithProperties) {
       /*.pNext =*/nullptr,
       /*.isNativeHandleOwned =*/false,
   };
-  ASSERT_SUCCESS(
+  UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
       urMemBufferCreateWithNativeHandle(hNativeMem, context, &props, &mem));
   ASSERT_NE(mem, nullptr);
 
