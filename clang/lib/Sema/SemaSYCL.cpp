@@ -3957,16 +3957,11 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
-    CXXConstructorDecl *DefaultConstructor;
-    std::for_each(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
-                  [&](auto elem) {
-                    if (elem->isDefaultConstructor()) {
-                      DefaultConstructorAccess = elem->getAccess();
-                      elem->setAccess(AS_public);
-                      DefaultConstructor = elem;
-                    }
-                  });
-
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     DefaultConstructor->setAccess(DefaultConstructorAccess);
