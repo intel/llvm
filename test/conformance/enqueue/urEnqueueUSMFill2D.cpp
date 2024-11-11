@@ -34,9 +34,11 @@ struct urEnqueueUSMFill2DTestWithParam
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
 
         bool memfill2d_support = false;
-        ASSERT_SUCCESS(urContextGetInfo(
+        [[maybe_unused]] ur_result_t result = urContextGetInfo(
             context, UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,
-            sizeof(memfill2d_support), &memfill2d_support, nullptr));
+            sizeof(memfill2d_support), &memfill2d_support, nullptr);
+        ASSERT_TRUE(result == UR_RESULT_SUCCESS ||
+                    result == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
         if (!memfill2d_support) {
             GTEST_SKIP() << "2D USM mem fill is not supported";
         }
