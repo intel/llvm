@@ -12,8 +12,6 @@ type: header
 desc: "Intel $OneApi Unified Runtime Experimental APIs for multi-device compile"
 ordinal: "99"
 --- #--------------------------------------------------------------------------
-name: $X_MULTI_DEVICE_COMPILE_EXTENSION_STRING_EXP
-value: "\"$x_exp_multi_device_compile\""
 type: enum
 extend: true
 typed_etors: true
@@ -21,7 +19,7 @@ desc: "Extension enums for $x_device_info_t to support multi device compile."
 name: $x_device_info_t
 etors:
     - name: MULTI_DEVICE_COMPILE_SUPPORT_EXP
-      value: "0x7000"
+      value: "0x6000"
       desc: "[$x_bool_t] Returns true if the device supports the multi device compile experimental feature."
 --- #--------------------------------------------------------------------------
 type: function

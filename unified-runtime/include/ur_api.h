@@ -2060,7 +2060,8 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_VERSION = 70,
   /// [char[]] Version of backend runtime
   UR_DEVICE_INFO_BACKEND_RUNTIME_VERSION = 71,
-  /// [char[]] Return a space separated list of extension names
+  /// [char[]] Return a string representing any backend extensions supported
+  /// by the adapter. Format and content is entirely adapter defined.
   UR_DEVICE_INFO_EXTENSIONS = 72,
   /// [size_t] Maximum size in bytes of internal printf buffer
   UR_DEVICE_INFO_PRINTF_BUFFER_SIZE = 73,
@@ -2300,7 +2301,7 @@ typedef enum ur_device_info_t {
   UR_DEVICE_INFO_COOPERATIVE_KERNEL_SUPPORT_EXP = 0x5000,
   /// [::ur_bool_t] Returns true if the device supports the multi device
   /// compile experimental feature.
-  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x7000,
+  UR_DEVICE_INFO_MULTI_DEVICE_COMPILE_SUPPORT_EXP = 0x6000,
   /// @cond
   UR_DEVICE_INFO_FORCE_UINT32 = 0x7fffffff
   /// @endcond
