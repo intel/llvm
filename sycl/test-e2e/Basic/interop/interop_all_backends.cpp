@@ -1,14 +1,14 @@
 // RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
-// RUN: %if any-device-is-cuda %{ %{build} -isystem %sycl_include -DBUILD_FOR_CUDA -o %t-cuda.out %}
+// RUN: %if any-device-is-cuda %{ %{build} -isystem %sycl_include -DBUILD_FOR_CUDA -DSYCL_EXT_ONEAPI_BACKEND_CUDA -DSYCL_EXT_ONEAPI_BACKEND_CUDA_EXPERIMENTAL -o %t-cuda.out %}
 // RUN: %if any-device-is-hip %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}
 
+#include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/properties/all_properties.hpp>
 #include <sycl/usm.hpp>
 using namespace sycl;
 
 #ifdef BUILD_FOR_CUDA
-#include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_cuda;
 using nativeDevice = CUdevice;
 using nativeQueue = CUstream;
@@ -20,7 +20,6 @@ using nativeDevice = device;
 using nativeQueue = ihipStream_t;
 using nativeEvent = ihipEvent_t;
 #else
-#include <sycl/backend.hpp>
 constexpr auto BACKEND = backend::opencl;
 using nativeDevice = cl_device_id;
 using nativeQueue = cl_command_queue;
