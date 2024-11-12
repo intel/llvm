@@ -3391,6 +3391,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
   // Device image has the compile_target property, so it is AOT compiled for
   // some device, check if that architecture is Device's architecture.
   auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
+  // Drop 8 bytes describing the size of the byte array.
   CompileTargetByteArray.dropBytes(8);
   std::string_view CompileTarget(
       reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
