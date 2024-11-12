@@ -3381,9 +3381,30 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
         return Prop->Name == std::string_view("compile_target");
       });
-  // Device image has no compile_target property, so it is JIT compiled.
+  // Device image has no compile_target property, check target.
   if (PropIt == PropRange.end()) {
-    return true;
+    sycl::backend BE = Dev.get_backend();
+    const char *Target = Img.getRawData().DeviceTargetSpec;
+    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
+      return (BE == sycl::backend::opencl ||
+              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+               0) {
+      return Dev.is_cpu();
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
+      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
+                              BE == sycl::backend::ext_oneapi_level_zero);
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
+      return Dev.is_accelerator();
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+      return BE == sycl::backend::ext_oneapi_cuda;
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+      return BE == sycl::backend::ext_oneapi_hip;
+    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
+      return BE == sycl::backend::ext_oneapi_native_cpu;
+    }
+    assert(false);
+    return false;
   }
 
   // Device image has the compile_target property, so it is AOT compiled for
