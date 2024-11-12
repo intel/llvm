@@ -1,4 +1,6 @@
-// RUN: %{build} -std=c++23 -o %t.out
+// DEFINE: %{cpp23} = %if cl_options %{/std:c++23%} %else %{-std=c++23%}
+
+// RUN: %{build} %{cpp23} -o %t.out
 // RUN: %{run} %t.out
 //
 // UNSUPPORTED: opencl && gpu

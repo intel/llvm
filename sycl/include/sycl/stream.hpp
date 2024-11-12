@@ -28,7 +28,6 @@
 #include <sycl/nd_range.hpp>                  // for nd_range
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/range.hpp>                     // for range
-#include <sycl/sub_group.hpp>                 // for multi_ptr
 #include <sycl/vector.hpp>                    // for vec, SwizzleOp
 
 #include <cstddef>     // for size_t, byte

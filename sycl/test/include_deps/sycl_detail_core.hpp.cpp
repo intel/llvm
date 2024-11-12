@@ -97,6 +97,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
+// CHECK-NEXT: info/device_traits_2020_deprecated.def
 // CHECK-NEXT: info/device_traits_deprecated.def
 // CHECK-NEXT: info/device_traits.def
 // CHECK-NEXT: info/queue_traits.def
@@ -127,7 +128,6 @@
 // CHECK-NEXT: kernel_handler.hpp
 // CHECK-NEXT: nd_item.hpp
 // CHECK-NEXT: nd_range.hpp
-// CHECK-NEXT: sub_group.hpp
 // CHECK-NEXT: device.hpp
 // CHECK-NEXT: kernel_bundle_enums.hpp
 // CHECK-NEXT: event.hpp
