@@ -3089,7 +3089,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     }
   };
 
-  auto ParseFPAccOption = [&](StringRef Val, bool &NoOffloadFlag) {
+  auto parseFPAccOption = [&](StringRef Val, bool &NoOffloadFlag) {
     SmallVector<StringRef, 8> ValuesArr;
     Val.split(ValuesArr, ":");
     if (ValuesArr.size() == 1)
@@ -3210,11 +3210,11 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
       FPAccuracy = Val;
       if (NoOffloadFP32PrecDiv) {
         EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-div");
-        ParseFPAccOption(Val, NoOffloadFP32PrecDiv);
+        parseFPAccOption(Val, NoOffloadFP32PrecDiv);
       }
       if (NoOffloadFP32PrecSqrt) {
         EmitAccuracyDiag(D, JA, FPAccuracy, "-fno-offload-fp32-prec-sqrt");
-        ParseFPAccOption(Val, NoOffloadFP32PrecSqrt);
+        parseFPAccOption(Val, NoOffloadFP32PrecSqrt);
       }
       break;
     }
