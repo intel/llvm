@@ -97,6 +97,7 @@
 // CHECK-NEXT: ext/oneapi/matrix/matrix-unified-utils.hpp
 // CHECK-NEXT: info/platform_traits.def
 // CHECK-NEXT: info/context_traits.def
+// CHECK-NEXT: info/device_traits_2020_deprecated.def
 // CHECK-NEXT: info/device_traits_deprecated.def
 // CHECK-NEXT: info/device_traits.def
 // CHECK-NEXT: info/queue_traits.def
