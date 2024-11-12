@@ -1,6 +1,4 @@
-// RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
-// RUN: %if any-device-is-cuda %{ %{build} -isystem %sycl_include -DBUILD_FOR_CUDA -o %t-cuda.out %}
-// RUN: %if any-device-is-hip %{ %{build} -DBUILD_FOR_HIP -o %t-hip.out %}
+// RUN: %if any-device-is-level_zero %{ %{build} -isystem %sycl_include -DBUILD_FOR_L0 -o %t-l0.out %}
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
@@ -8,24 +6,10 @@
 #include <sycl/usm.hpp>
 using namespace sycl;
 
-#ifdef BUILD_FOR_CUDA
-#include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
-constexpr auto BACKEND = backend::ext_oneapi_cuda;
-using nativeDevice = CUdevice;
-using nativeQueue = CUstream;
-using nativeEvent = CUevent;
-#elif defined(BUILD_FOR_HIP)
-#include <sycl/ext/oneapi/backend/hip.hpp>
-constexpr auto BACKEND = backend::ext_oneapi_hip;
-using nativeDevice = device;
-using nativeQueue = ihipStream_t;
-using nativeEvent = ihipEvent_t;
-#else
-constexpr auto BACKEND = backend::opencl;
-using nativeDevice = cl_device_id;
-using nativeQueue = cl_command_queue;
-using nativeEvent = cl_event;
-#endif
+constexpr auto BACKEND = backend::ext_oneapi_level_zero;
+using nativeDevice = ze_device_handle_t;
+using nativeQueue = ze_command_queue_handle_t;
+using nativeEvent = ze_event_handle_t;
 
 constexpr int N = 100;
 constexpr int VAL = 3;
@@ -54,7 +38,9 @@ int main() {
   queue Queue(InteropDevice, {sycl::property::queue::in_order()});
   backend_traits<BACKEND>::return_type<queue> NativeQueue =
       get_native<BACKEND>(Queue);
-  auto InteropQueue = make_queue<BACKEND>(NativeQueue, Context);
+  backend_traits<BACKEND>::input_type<queue> InputType(NativeQueue, Device);
+  
+  auto InteropQueue = make_queue<BACKEND>(InputType, Context);
 
   auto A = (int *)malloc_device(N * sizeof(int), InteropQueue);
   std::vector<int> vec(N, 0);
@@ -66,8 +52,10 @@ int main() {
 
   backend_traits<BACKEND>::return_type<event> NativeEvent =
       get_native<BACKEND>(Event);
+  backend_traits<BACKEND>::input_type<event> EventInputType;
+  EventInputType.NativeHandle = NativeEvent;
   // Create sycl event with a native event.
-  event InteropEvent = make_event<BACKEND>(NativeEvent, Context);
+  event InteropEvent = make_event<BACKEND>(EventInputType, Context);
 
   // depends_on sycl event created from a native event.
   auto Event2 = InteropQueue.submit([&](handler &h) {
