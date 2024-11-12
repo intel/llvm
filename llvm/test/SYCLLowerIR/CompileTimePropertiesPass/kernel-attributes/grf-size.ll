@@ -1,12 +1,13 @@
-; Check we create RegisterAllocMode metadata if there is a non-ESIMD kernel with that property
+; Check we create RegisterAllocMode metadata if there is a kernel with that property
 ; RUN: opt -passes=compile-time-properties %s -S | FileCheck %s --check-prefix CHECK-IR
 
 ; Function Attrs: convergent norecurse
 define weak_odr dso_local spir_kernel void @sycl_grf_size() #1 {
 ; CHECK-IR-NOT: !RegisterAllocMode
 ; CHECK-IR: sycl_grf_size() #[[#Attr1:]]{{.*}}!RegisterAllocMode ![[#MDVal:]] {
+; CHECK-IR: esimd_grf_size() #[[#Attr2:]]{{.*}}!RegisterAllocMode ![[#MDVal]] {
 ; CHECK-IR-NOT: !RegisterAllocMode
-; CHECK-IR: ![[#MDVal]] = !{i32 2}
+; CHECK-IR: ![[#MDVal]] = !{i32 256}
 entry:
   ret void
 }

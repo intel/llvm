@@ -887,7 +887,8 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
             ",+SPV_INTEL_optnone"
             ",+SPV_KHR_non_semantic_info"
             ",+SPV_KHR_cooperative_matrix"
-            ",+SPV_EXT_shader_atomic_float16_add";
+            ",+SPV_EXT_shader_atomic_float16_add"
+            ",+SPV_INTEL_maximum_registers";
   if (IsCPU)
     ExtArg += ",+SPV_INTEL_fp_max_error";
   TranslatorArgs.push_back(Args.MakeArgString(ExtArg));

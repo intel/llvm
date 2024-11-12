@@ -1,7 +1,9 @@
-; Check we don't assert for different GRF values and don't add the RegisterAllocMode metadata
+; Check we don't assert for different GRF values and add the RegisterAllocMode metadata
 ; RUN: opt -passes=compile-time-properties %s -S | FileCheck %s --implicit-check-not=RegisterAllocMode
 
-; CHECK: spir_kernel void @foo()
+; CHECK: spir_kernel void @foo() #[[#Attr:]]{{.*}}!RegisterAllocMode ![[#MDVal:]] {
+; CHECK-IR: ![[#MDVal]] = !{i32 16384}
+
 define weak_odr dso_local spir_kernel void @foo() #0 {
 entry:
   ret void
