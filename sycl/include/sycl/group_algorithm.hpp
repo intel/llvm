@@ -21,7 +21,6 @@
 #include <sycl/known_identity.hpp>     // for known_identity_v
 #include <sycl/nd_item.hpp>            // for nd_item
 #include <sycl/range.hpp>              // for range
-#include <sycl/sub_group.hpp>          // for sub_group
 #include <sycl/types.hpp>              // for vec
 
 #ifdef __SYCL_DEVICE_ONLY__
@@ -37,6 +36,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+struct sub_group;
 namespace detail {
 
 // ---- linear_id_to_id
