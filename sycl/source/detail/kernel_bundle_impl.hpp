@@ -595,6 +595,7 @@ public:
                             "kernel_bundle<bundle_state:ext_oneapi_source>.");
 
     std::string AdjustedName = adjust_kernel_name(Name, Language);
+
     if (!ext_oneapi_has_kernel(Name))
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + AdjustedName +

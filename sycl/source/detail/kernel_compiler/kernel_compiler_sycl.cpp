@@ -13,6 +13,8 @@
 #include "../jit_compiler.hpp"
 #endif
 
+#include <sstream>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
@@ -33,8 +35,19 @@ spirv_vec_t SYCL_JIT_to_SPIRV(
     [[maybe_unused]] std::string *LogPtr,
     [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
 #if SYCL_EXT_JIT_ENABLE
+  // RegisteredKernelNames may contain template specialization that
+  // we want to make sure are instantiated.  So we just put them in main()
+  // which ensures they are instantiated.
+  std::stringstream ss;
+  ss << SYCLSource << "\n";
+  ss << "int main() {\n";
+  for (const std::string &KernelName : RegisteredKernelNames) {
+    ss << "  (void)" << KernelName << ";\n";
+  }
+  ss << "  return 0;\n}\n" << std::endl;
+
   return sycl::detail::jit_compiler::get_instance().compileSYCL(
-      "rtc", SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+      "rtc", ss.str(), IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
 #else
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler via sycl-jit is not available");
