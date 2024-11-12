@@ -16,9 +16,9 @@ namespace syclext = sycl::ext::oneapi::experimental;
 constexpr size_t NumberOfDevices = 3;
 
 std::array<ur_device_handle_t, NumberOfDevices> GlobalDevicesHandle{
-      mock::createDummyHandle<ur_device_handle_t>(),
-      mock::createDummyHandle<ur_device_handle_t>(),
-      mock::createDummyHandle<ur_device_handle_t>(),
+    mock::createDummyHandle<ur_device_handle_t>(),
+    mock::createDummyHandle<ur_device_handle_t>(),
+    mock::createDummyHandle<ur_device_handle_t>(),
 };
 
 ur_result_t setup_urDeviceGet(void *pParams) {
@@ -37,80 +37,83 @@ ur_result_t setup_urDeviceGet(void *pParams) {
 }
 ur_result_t setup_urDeviceGetInfo(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
-  switch (*params.ppropName){
-    case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT:{
-      if (*params.ppPropValue) {
-        if(*params.phDevice == GlobalDevicesHandle[0]){
-          return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-        }
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    if (*params.ppPropValue) {
+      if (*params.phDevice == GlobalDevicesHandle[0]) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
       }
-      break;
     }
-    default:{
-      break;
-    }
+    break;
+  }
+  default: {
+    break;
+  }
   }
   return UR_RESULT_SUCCESS;
 }
 
 TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityContext) {
-  
+
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &setup_urDeviceGet);  
+  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
   mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);  
+                                            &setup_urDeviceGetInfo);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
-    syclext::get_mem_granularity(Context, syclext::granularity_mode::recommended);
+    syclext::get_mem_granularity(Context,
+                                 syclext::granularity_mode::recommended);
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "One or more devices in the context does not support aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(), "One or more devices in the context does not "
+                           "support aspect::ext_oneapi_virtual_mem.");
   }
 
   try {
     syclext::get_mem_granularity(Context, syclext::granularity_mode::minimum);
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "One or more devices in the context does not support aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(), "One or more devices in the context does not "
+                           "support aspect::ext_oneapi_virtual_mem.");
   }
 }
 
 TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityDevice) {
-  
+
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &setup_urDeviceGet);  
+  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
   mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);  
+                                            &setup_urDeviceGetInfo);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
-    syclext::get_mem_granularity(Context.get_devices().front(), Context, syclext::granularity_mode::recommended);
+    syclext::get_mem_granularity(Context.get_devices().front(), Context,
+                                 syclext::granularity_mode::recommended);
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "Device does not support aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(),
+                 "Device does not support aspect::ext_oneapi_virtual_mem.");
   }
 
   try {
-    syclext::get_mem_granularity(Context.get_devices().front(), Context, syclext::granularity_mode::minimum);
+    syclext::get_mem_granularity(Context.get_devices().front(), Context,
+                                 syclext::granularity_mode::minimum);
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "Device does not support aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(),
+                 "Device does not support aspect::ext_oneapi_virtual_mem.");
   }
 }
-
 
 TEST(VirtualMemoryMultipleDevices, ReserveVirtualMemoryRange) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &setup_urDeviceGet);  
+  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
   mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);  
+                                            &setup_urDeviceGetInfo);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
@@ -118,26 +121,27 @@ TEST(VirtualMemoryMultipleDevices, ReserveVirtualMemoryRange) {
     syclext::reserve_virtual_mem(0, sizeof(int), Context);
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "One or more devices in the supplied context does not support "
-        "aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(),
+                 "One or more devices in the supplied context does not support "
+                 "aspect::ext_oneapi_virtual_mem.");
   }
 }
-
 
 TEST(VirtualMemoryMultipleDevices, ReservePhysicalMemory) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet",
-                                            &setup_urDeviceGet);  
+  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
   mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);  
+                                            &setup_urDeviceGetInfo);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
-    syclext::physical_mem PhysicalMem{Context.get_devices().front(), Context, sizeof(int)};
+    syclext::physical_mem PhysicalMem{Context.get_devices().front(), Context,
+                                      sizeof(int)};
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
-    EXPECT_STREQ(e.what(), "Device does not support aspect::ext_oneapi_virtual_mem.");
+    EXPECT_STREQ(e.what(),
+                 "Device does not support aspect::ext_oneapi_virtual_mem.");
   }
 }
