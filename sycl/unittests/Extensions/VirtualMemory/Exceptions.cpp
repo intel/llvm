@@ -42,7 +42,7 @@ ur_result_t after_urDeviceGetInfo_AllDevices(void *pParams) {
   switch (*params.ppropName) {
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     if (*params.ppPropValue)
-      *static_cast<ur_bool_t *>(*params.ppPropValue) =  VirtualMemSupported;
+      *static_cast<ur_bool_t *>(*params.ppPropValue) = VirtualMemSupported;
     return UR_RESULT_SUCCESS;
   }
   default:;
@@ -55,9 +55,9 @@ ur_result_t after_urDeviceGetInfo_SingleDevice(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   switch (*params.ppropName) {
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
-    if (*params.ppPropValue){
-      if (*params.phDevice == GlobalDevicesHandle[0]){
-        *static_cast<ur_bool_t *>(*params.ppPropValue) =  VirtualMemSupported;
+    if (*params.ppPropValue) {
+      if (*params.phDevice == GlobalDevicesHandle[0]) {
+        *static_cast<ur_bool_t *>(*params.ppPropValue) = VirtualMemSupported;
       }
     }
     return UR_RESULT_SUCCESS;
@@ -71,8 +71,8 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityContext) {
 
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &after_urDeviceGetInfo_SingleDevice<false>);
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", &after_urDeviceGetInfo_SingleDevice<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
@@ -100,8 +100,8 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityDevice) {
 
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &after_urDeviceGetInfo_AllDevices<false>);
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", &after_urDeviceGetInfo_AllDevices<false>);
 
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
@@ -131,8 +131,8 @@ TEST(VirtualMemoryMultipleDevices, ReserveVirtualMemoryRange) {
 
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &after_urDeviceGetInfo_SingleDevice<false>);
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", &after_urDeviceGetInfo_SingleDevice<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
@@ -151,8 +151,8 @@ TEST(VirtualMemoryMultipleDevices, ReservePhysicalMemory) {
 
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
-                                            &after_urDeviceGetInfo_AllDevices<false>);
+  mock::getCallbacks().set_after_callback(
+      "urDeviceGetInfo", &after_urDeviceGetInfo_AllDevices<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
