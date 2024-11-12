@@ -3383,9 +3383,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
       });
   // Device image has no compile_target property, so it is JIT compiled.
   if (PropIt == PropRange.end()) {
-    sycl::backend BE = Dev.get_backend();
-    return (BE == sycl::backend::opencl ||
-            BE == sycl::backend::ext_oneapi_level_zero);
+    return true;
   }
 
   // Device image has the compile_target property, so it is AOT compiled for
