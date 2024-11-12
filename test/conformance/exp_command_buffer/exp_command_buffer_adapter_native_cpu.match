@@ -15,12 +15,14 @@
 {{OPT}}InvalidUpdateTest.NotUpdatableCommandBuffer/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}InvalidUpdateTest.InvalidDimensions/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMFillCommandTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}USMFillCommandTest.UpdateNull/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMFillCommandTest.UpdateBeforeEnqueue/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultipleFillCommandTest.UpdateAllKernels/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}BufferSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}USMMultiSaxpyKernelTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}USMMultiSaxpyKernelTest.UpdateNullptrKernel/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update3D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update2D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}NDRangeUpdateTest.Update1D/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
@@ -36,3 +38,7 @@
 {{OPT}}KernelCommandEventSyncUpdateTest.TwoWaitEvents/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidWaitUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 {{OPT}}KernelCommandEventSyncUpdateTest.InvalidSignalUpdate/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryUpdateTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryUpdateTest.UpdateParametersAndLocalSize/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryMultiUpdateTest.UpdateParameters/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+{{OPT}}LocalMemoryMultiUpdateTest.UpdateWithoutBlocking/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}

@@ -9,6 +9,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "context.hpp"
+#include "adapter.hpp"
 
 #include <mutex>
 #include <set>
@@ -88,7 +89,7 @@ urContextGetInfo(ur_context_handle_t hContext, ur_context_info_t propName,
   case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
     /* These queries should be dealt with in context_impl.cpp by calling the
      * queries of each device separately and building the intersection set. */
-    return UR_RESULT_ERROR_INVALID_ARGUMENT;
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
   case UR_CONTEXT_INFO_NUM_DEVICES:
   case UR_CONTEXT_INFO_DEVICES:
@@ -169,6 +170,13 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextCreateWithNativeHandle(
 UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     ur_context_handle_t hContext, ur_context_extended_deleter_t pfnDeleter,
     void *pUserData) {
+  if (!ur::cl::getAdapter()->clSetContextDestructorCallback) {
+    ur::cl::getAdapter()->log.warning(
+        "clSetContextDestructorCallback not found, consider upgrading the "
+        "OpenCL-ICD-Loader to the latest version.");
+    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  }
+
   static std::unordered_map<ur_context_handle_t,
                             std::set<ur_context_extended_deleter_t>>
       ContextCallbackMap;
@@ -212,7 +220,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urContextSetExtendedDeleter(
     auto *C = static_cast<ContextCallback *>(pUserData);
     C->execute();
   };
-  CL_RETURN_ON_FAILURE(clSetContextDestructorCallback(
+  CL_RETURN_ON_FAILURE(ur::cl::getAdapter()->clSetContextDestructorCallback(
       cl_adapter::cast<cl_context>(hContext), ClCallback, Callback));
 
   return UR_RESULT_SUCCESS;

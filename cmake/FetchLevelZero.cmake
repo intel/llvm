@@ -40,7 +40,7 @@ if (NOT DEFINED LEVEL_ZERO_LIBRARY OR NOT DEFINED LEVEL_ZERO_INCLUDE_DIR)
         set(UR_LEVEL_ZERO_LOADER_REPO "https://github.com/oneapi-src/level-zero.git")
     endif()
     if (UR_LEVEL_ZERO_LOADER_TAG STREQUAL "")
-        set(UR_LEVEL_ZERO_LOADER_TAG v1.17.39)
+        set(UR_LEVEL_ZERO_LOADER_TAG v1.18.5)
     endif()
 
     # Disable due to a bug https://github.com/oneapi-src/level-zero/issues/104

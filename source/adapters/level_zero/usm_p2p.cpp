@@ -41,7 +41,7 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
 
   UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
 
-  bool propertyValue = false;
+  int propertyValue = 0;
   switch (propName) {
   case UR_EXP_PEER_INFO_UR_PEER_ACCESS_SUPPORTED: {
     bool p2pAccessSupported = false;

@@ -179,11 +179,13 @@ template <class T> struct ZeCache : private T {
 
   ZeCache() : T{} {}
 
-  // Access to the fields of the original T data structure.
-  T *operator->() {
+  T &get() {
     std::call_once(Computed, Compute, static_cast<T &>(*this));
-    return this;
+    return *this;
   }
+
+  // Access to the fields of the original T data structure.
+  T *operator->() { return &get(); }
 };
 
 // Helper for one-liner validation
@@ -302,7 +304,8 @@ public:
 
   // Array return value where element type is differrent from T
   template <class RetType, class T>
-  ur_result_t operator()(const T *t, size_t s) {
+  std::enable_if_t<!std::is_same_v<RetType, T>, ur_result_t>
+  operator()(const T *t, size_t s) {
     return ur::getInfoArray<T, RetType>(s, param_value_size, param_value,
                                         param_value_size_ret, t);
   }

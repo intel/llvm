@@ -39,9 +39,11 @@ SanitizerInterceptor::~SanitizerInterceptor() {
 
     m_Quarantine = nullptr;
     m_MemBufferMap.clear();
-    m_AllocationMap.clear();
     m_KernelMap.clear();
     m_ContextMap.clear();
+    // AllocationMap need to be cleared after ContextMap because memory leak
+    // detection depends on it.
+    m_AllocationMap.clear();
 
     for (auto Adapter : m_Adapters) {
         getContext()->urDdiTable.Global.pfnAdapterRelease(Adapter);
@@ -290,7 +292,7 @@ ur_result_t SanitizerInterceptor::postLaunchKernel(ur_kernel_handle_t Kernel,
                 ReportFatalError(AH);
             }
             if (!AH.IsRecover) {
-                exit(1);
+                exitWithErrors();
             }
         }
     }
@@ -616,7 +618,7 @@ ur_result_t SanitizerInterceptor::prepareLaunch(
                         ContextInfo->Handle, DeviceInfo->Handle, (uptr)Ptr)) {
                     ReportInvalidKernelArgument(Kernel, ArgIndex, (uptr)Ptr,
                                                 ValidateResult, PtrPair.second);
-                    exit(1);
+                    exitWithErrors();
                 }
             }
         }
@@ -837,8 +839,9 @@ ContextInfo::~ContextInfo() {
         getContext()->urDdiTable.Context.pfnRelease(Handle);
     assert(Result == UR_RESULT_SUCCESS);
 
-    if (getContext()->interceptor->getOptions().DetectLeaks) {
-        // check memory leaks
+    // check memory leaks
+    if (getContext()->interceptor->getOptions().DetectLeaks &&
+        getContext()->interceptor->isNormalExit()) {
         std::vector<AllocationIterator> AllocInfos =
             getContext()->interceptor->findAllocInfoByContext(Handle);
         for (const auto &It : AllocInfos) {

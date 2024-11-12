@@ -63,4 +63,4 @@ jobs:
 
     - name: Test adapters
       working-directory: ${{github.workspace}}/build
-      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "enqueue|kernel|integration|exp_command_buffer|exp_enqueue_native|exp_launch_properties|exp_usm_p2p" --timeout 180
+      run: env UR_CTS_ADAPTER_PLATFORM="${{matrix.adapter.platform}}" ctest -C ${{matrix.build_type}} --output-on-failure -L "conformance" -E "exp_command_buffer" --timeout 180

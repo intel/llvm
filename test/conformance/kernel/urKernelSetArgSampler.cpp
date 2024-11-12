@@ -8,12 +8,6 @@
 struct urKernelSetArgSamplerTestWithParam
     : uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT> {
     void SetUp() {
-        program_name = "image_copy";
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
-        UUR_RETURN_ON_FATAL_FAILURE(
-            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::Build());
-
         const auto param = getParam();
         const auto normalized = std::get<0>(param);
         const auto addr_mode = std::get<1>(param);
@@ -26,7 +20,21 @@ struct urKernelSetArgSamplerTestWithParam
             addr_mode,                      /* addressingMode */
             filter_mode                     /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+
+        program_name = "image_copy";
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::SetUp());
+
+        auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        } else {
+            ASSERT_SUCCESS(ret);
+        }
+
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urBaseKernelTestWithParam<uur::SamplerCreateParamT>::Build());
     }
 
     void TearDown() {
@@ -62,7 +70,7 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
     void SetUp() {
         program_name = "image_copy";
         UUR_RETURN_ON_FATAL_FAILURE(urBaseKernelTest::SetUp());
-        Build();
+
         ur_sampler_desc_t sampler_desc = {
             UR_STRUCTURE_TYPE_SAMPLER_DESC,   /* sType */
             nullptr,                          /* pNext */
@@ -70,7 +78,16 @@ struct urKernelSetArgSamplerTest : uur::urBaseKernelTest {
             UR_SAMPLER_ADDRESSING_MODE_CLAMP, /* addressingMode */
             UR_SAMPLER_FILTER_MODE_NEAREST    /* filterMode */
         };
-        ASSERT_SUCCESS(urSamplerCreate(context, &sampler_desc, &sampler));
+
+        auto ret = urSamplerCreate(context, &sampler_desc, &sampler);
+        if (ret == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||
+            ret == UR_RESULT_ERROR_UNINITIALIZED) {
+            GTEST_SKIP() << "urSamplerCreate not supported";
+        } else {
+            ASSERT_SUCCESS(ret);
+        }
+
+        Build();
     }
 
     void TearDown() {

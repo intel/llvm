@@ -1,50 +1,39 @@
-name: Compute Benchmarks
+name: Benchmarks Reusable
 
 on:
-  # Can be triggered via manual "dispatch" (from workflow view in GitHub Actions tab)
-  workflow_dispatch:
-    # acceptable input for adapter-specific runs
+  workflow_call:
     inputs:
       str_name:
-        description: Formatted adapter name
-        type: choice
         required: true
-        default: 'level_zero'
-        options:
-          - level_zero
-          - level_zero_v2
-      unit:
-        description: Test unit (cpu/gpu)
-        type: choice
-        required: true
-        default: 'gpu'
-        options:
-          - cpu
-          - gpu
-      pr_no:
-        description: PR number (if 0, it'll run on the main)
-        type: number
-        required: true
-      bench_script_params:
-        description: Parameters passed to script executing benchmark
         type: string
+      unit:
+        required: true
+        type: string
+      pr_no:
+        required: true
+        # even though this is a number, this is a workaround for issues with
+        # reusable workflow calls that result in "Unexpected value '0'" error.
+        type: string
+      bench_script_params:
         required: false
+        type: string
         default: ''
       sycl_config_params:
-        description: Extra params for SYCL configuration
-        type: string
         required: false
+        type: string
         default: ''
       sycl_repo:
-        description: 'Compiler repo'
-        type: string
         required: true
+        type: string
         default: 'intel/llvm'
       sycl_commit:
-        description: 'Compiler commit'
-        type: string
         required: false
+        type: string
         default: ''
+      upload_report:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -56,19 +45,17 @@ jobs:
     strategy:
       matrix:
         adapter: [
-          {str_name: "${{inputs.str_name}}",
-          sycl_config: "${{inputs.sycl_config_params}}",
-          unit: "${{inputs.unit}}"
+          {str_name: "${{ inputs.str_name }}",
+          sycl_config: "${{ inputs.sycl_config_params }}",
+          unit: "${{ inputs.unit }}"
           }
         ]
         build_type: [Release]
         compiler: [{c: clang, cxx: clang++}]
 
-    runs-on: "${{inputs.str_name}}_PERF"
+    runs-on: "${{ inputs.str_name }}_PERF"
 
     steps:
-    # Workspace on self-hosted runners is not cleaned automatically.
-    # We have to delete the files created outside of using actions.
     - name: Cleanup self-hosted workspace
       if: always()
       run: |
@@ -99,7 +86,8 @@ jobs:
         path: ur-repo
 
     - name: Install pip packages
-      run: pip install -r ${{github.workspace}}/ur-repo/third_party/requirements.txt
+      run: |
+        pip install --force-reinstall -r ${{github.workspace}}/ur-repo/third_party/benchmark_requirements.txt
 
     # We need to fetch special ref for proper PR's merge commit. Note, this ref may be absent if the PR is already merged.
     - name: Fetch PR's merge commit
@@ -169,13 +157,15 @@ jobs:
       run: cmake --install ${{github.workspace}}/ur_build
 
     - name: Run benchmarks
+      working-directory: ${{ github.workspace }}/ur-repo/
       id: benchmarks
       run: >
-        numactl -N 0 ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py 
-        ~/bench_workdir 
-        ${{github.workspace}}/sycl_build
-        ${{github.workspace}}/ur_install
-        ${{ matrix.adapter.str_name }}
+        numactl -N 0 ${{ github.workspace }}/ur-repo/scripts/benchmarks/main.py
+        ~/bench_workdir
+        --sycl ${{ github.workspace }}/sycl_build
+        --ur ${{ github.workspace }}/ur_install
+        --adapter ${{ matrix.adapter.str_name }}
+        ${{ inputs.upload_report && '--output-html' || '' }}
         ${{ inputs.bench_script_params }}
 
     - name: Add comment to PR
@@ -186,7 +176,7 @@ jobs:
           let markdown = ""
           try {
             const fs = require('fs');
-            markdown = fs.readFileSync('benchmark_results.md', 'utf8');
+            markdown = fs.readFileSync('ur-repo/benchmark_results.md', 'utf8');
           } catch(err) {
           }
 
@@ -204,3 +194,10 @@ jobs:
             repo: context.repo.repo,
             body: body
           })
+
+    - name: Upload HTML report
+      if: ${{ always() && inputs.upload_report }}
+      uses: actions/cache/save@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+      with:
+        path: ur-repo/benchmark_results.html
+        key: benchmark-results-${{ matrix.adapter.str_name }}-${{ github.run_id }}

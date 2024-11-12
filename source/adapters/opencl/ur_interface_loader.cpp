@@ -154,6 +154,7 @@ urGetMemProcAddrTable(ur_api_version_t Version, ur_mem_dditable_t *pDdiTable) {
   pDdiTable->pfnBufferPartition = urMemBufferPartition;
   pDdiTable->pfnBufferCreateWithNativeHandle =
       urMemBufferCreateWithNativeHandle;
+  pDdiTable->pfnImageCreateWithNativeHandle = urMemImageCreateWithNativeHandle;
   pDdiTable->pfnGetInfo = urMemGetInfo;
   pDdiTable->pfnGetNativeHandle = urMemGetNativeHandle;
   pDdiTable->pfnImageCreate = urMemImageCreate;
@@ -238,10 +239,10 @@ urGetUSMProcAddrTable(ur_api_version_t Version, ur_usm_dditable_t *pDdiTable) {
   pDdiTable->pfnFree = urUSMFree;
   pDdiTable->pfnGetMemAllocInfo = urUSMGetMemAllocInfo;
   pDdiTable->pfnHostAlloc = urUSMHostAlloc;
-  pDdiTable->pfnPoolCreate = nullptr;
-  pDdiTable->pfnPoolRetain = nullptr;
-  pDdiTable->pfnPoolRelease = nullptr;
-  pDdiTable->pfnPoolGetInfo = nullptr;
+  pDdiTable->pfnPoolCreate = urUSMPoolCreate;
+  pDdiTable->pfnPoolRetain = urUSMPoolRetain;
+  pDdiTable->pfnPoolRelease = urUSMPoolRelease;
+  pDdiTable->pfnPoolGetInfo = urUSMPoolGetInfo;
   pDdiTable->pfnSharedAlloc = urUSMSharedAlloc;
   return UR_RESULT_SUCCESS;
 }
