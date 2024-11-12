@@ -319,6 +319,20 @@ static ur_result_t redefinedProgramGetInfo(void *pParams) {
     return UR_RESULT_SUCCESS;
   }
 
+  // Required if program cache eviction is enabled.
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName ||
+      UR_PROGRAM_INFO_NUM_DEVICES == *params.ppropName) {
+
+    size_t BinarySize = 1;
+
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &BinarySize, sizeof(size_t));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(size_t);
+
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 

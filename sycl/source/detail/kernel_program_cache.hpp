@@ -21,7 +21,9 @@
 #include <atomic>
 #include <condition_variable>
 #include <iomanip>
+#include <list>
 #include <mutex>
+#include <numeric>
 #include <set>
 #include <thread>
 #include <type_traits>
@@ -130,7 +132,15 @@ public:
   struct ProgramCache {
     ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
     ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
+    // Mapping between a UR program and its size.
+    ::boost::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
+    size_t ProgramCacheSizeInBytes = 0;
+    inline size_t GetProgramCacheSizeInBytes() const noexcept {
+      return ProgramCacheSizeInBytes;
+    }
+
+    // Returns number of entries in the cache.
     size_t size() const noexcept { return Cache.size(); }
   };
 
@@ -175,6 +185,54 @@ public:
   using KernelFastCacheT =
       ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
+  // DS to hold data and functions related to Program cache eviction.
+  struct EvictionListT {
+    // Linked list of cache entries to be evicted in case of cache overflow.
+    std::list<ProgramCacheKeyT> MProgramEvictionList;
+
+    // Mapping between program handle and the iterator to the eviction list.
+    ::boost::unordered_map<ProgramCacheKeyT,
+                           std::list<ProgramCacheKeyT>::iterator>
+        MProgramToEvictionListMap;
+
+    void clear() {
+      MProgramEvictionList.clear();
+      MProgramToEvictionListMap.clear();
+    }
+
+    void emplaceBack(const ProgramCacheKeyT &CacheKey) {
+      MProgramEvictionList.emplace_back(CacheKey);
+
+      // In std::list, the iterators are not invalidated when elements are
+      // added/removed/moved to the list. So, we can safely store the iterators.
+      MProgramToEvictionListMap[CacheKey] =
+          std::prev(MProgramEvictionList.end());
+      traceProgram("Program added to the end of eviction list.", CacheKey);
+    }
+
+    // This function is called on the hot path, whenever a kernel/program
+    // is accessed. So, it should be very fast.
+    void moveToEnd(const ProgramCacheKeyT &CacheKey) {
+      auto It = MProgramToEvictionListMap.find(CacheKey);
+      if (It != MProgramToEvictionListMap.end()) {
+        MProgramEvictionList.splice(MProgramEvictionList.end(),
+                                    MProgramEvictionList, It->second);
+        traceProgram("Program moved to the end of eviction list.", CacheKey);
+      } else
+        // This should never happen.
+        assert(false && "Program not found in the eviction list.");
+    }
+
+    bool empty() { return MProgramEvictionList.empty(); }
+
+    void popFront() {
+      if (!MProgramEvictionList.empty()) {
+        MProgramToEvictionListMap.erase(MProgramEvictionList.front());
+        MProgramEvictionList.pop_front();
+      }
+    }
+  };
+
   ~KernelProgramCache() = default;
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
@@ -188,12 +246,23 @@ public:
 
     int ImageId = CacheKey.first.second;
     std::stringstream DeviceList;
+    std::vector<unsigned char> SerializedObjVec = CacheKey.first.first;
+
+    // Convert spec constants to string. Spec constants are stored as
+    // ASCII values, so we need need to convert them to int and then to
+    // string.
+    std::string SerializedObjString;
+    for (unsigned char c : SerializedObjVec)
+      SerializedObjString += std::to_string((int)c) + ",";
+
     for (const auto &Device : CacheKey.second)
       DeviceList << "0x" << std::setbase(16)
                  << reinterpret_cast<uintptr_t>(Device) << ",";
 
     std::string Identifier = "[Key:{imageId = " + std::to_string(ImageId) +
-                             ",urDevice = " + DeviceList.str() + "}]: ";
+                             ",urDevice = " + DeviceList.str() +
+                             ", serializedObj = " + SerializedObjString +
+                             "}]: ";
 
     std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
               << "][Program Cache]" << Identifier << Msg << std::endl;
@@ -259,8 +328,7 @@ public:
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
       traceProgram("Program inserted.", CacheKey);
-    } else
-      traceProgram("Program fetched.", CacheKey);
+    }
     return DidInsert;
   }
 
@@ -291,11 +359,186 @@ public:
 
   template <typename KeyT, typename ValT>
   void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
+
+    ur_program_handle_t Program = std::get<3>(CacheVal);
+    // Save kernel in fast cache only if the corresponding program is also
+    // in the cache.
+    {
+      auto LockedCache = acquireCachedPrograms();
+      auto &ProgCache = LockedCache.get();
+      if (ProgCache.ProgramSizeMap.find(Program) ==
+          ProgCache.ProgramSizeMap.end())
+        return;
+    }
+
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
     traceKernel("Kernel inserted.", std::get<3>(CacheKey), true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
+
+    if (SYCLConfig<
+            SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize()) {
+
+      // Save reference between the program and the fast cache key.
+      MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
+    }
+  }
+
+  // Evict programs from cache to free up space.
+  void evictPrograms(int DesiredCacheSize, int CurrentCacheSize) {
+
+    // Figure out how many programs from the beginning we need to evict.
+    // [FIXME] Will the race on MCachedPrograms.Cache.empty() be a problem?
+    size_t EvictSize = CurrentCacheSize - DesiredCacheSize;
+    if (EvictSize <= 0 || MCachedPrograms.Cache.empty())
+      return;
+
+    // Evict programs from the beginning of the cache.
+    {
+      std::lock_guard<std::mutex> Lock(MProgramEvictionListMutex);
+
+      // Traverse the eviction list and remove the LRU programs.
+      // The LRU programs will be at the front of the list.
+      while (EvictSize > 0 && !MEvictionList.empty()) {
+        ProgramCacheKeyT CacheKey = MEvictionList.MProgramEvictionList.front();
+        auto LockedCache = acquireCachedPrograms();
+        auto &ProgCache = LockedCache.get();
+        auto It = ProgCache.Cache.find(CacheKey);
+        if (It != ProgCache.Cache.end()) {
+          // We are about to remove this program now.
+          // (1) Remove it from KernelPerProgram cache.
+          // (2) Remove corresponding entries from KernelFastCache.
+          // (3) Remove it from ProgramCache KeyMap.
+          // (4) Remove it from the ProgramCache.
+          // (5) Remove it from ProgramSizeMap.
+          // (6) Update the cache size.
+
+          // Remove entry from the KernelsPerProgram cache.
+          ur_program_handle_t NativePrg = It->second->Val;
+          {
+            auto LockedCacheKP = acquireKernelsPerProgramCache();
+            LockedCacheKP.get().erase(NativePrg);
+          }
+
+          // Remove corresponding entries from KernelFastCache.
+          auto FastCacheKeyItr =
+              MProgramToKernelFastCacheKeyMap.find(NativePrg);
+          if (FastCacheKeyItr != MProgramToKernelFastCacheKeyMap.end()) {
+            for (const auto &FastCacheKey : FastCacheKeyItr->second) {
+              std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
+              MKernelFastCache.erase(FastCacheKey);
+              traceKernel("Kernel evicted.", std::get<3>(FastCacheKey), true);
+            }
+            MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
+          }
+
+          // Remove entry from ProgramCache KeyMap.
+          CommonProgramKeyT CommonKey =
+              std::make_pair(CacheKey.first.second, CacheKey.second);
+          // Since KeyMap is a multi-map, we need to iterate over all entries
+          // with this CommonKey and remove those that match the CacheKey.
+          auto KeyMapItrRange = LockedCache.get().KeyMap.equal_range(CommonKey);
+          for (auto KeyMapItr = KeyMapItrRange.first;
+               KeyMapItr != KeyMapItrRange.second; ++KeyMapItr) {
+            if (KeyMapItr->second == CacheKey) {
+              LockedCache.get().KeyMap.erase(KeyMapItr);
+              break;
+            }
+          }
+
+          // Get size of the program.
+          size_t ProgramSize = MCachedPrograms.ProgramSizeMap[It->second->Val];
+          // Evict program from the cache.
+          ProgCache.Cache.erase(It);
+          // Remove program size from the cache size.
+          MCachedPrograms.ProgramCacheSizeInBytes -= ProgramSize;
+          // Remove program size from the eviction list.
+          EvictSize -= ProgramSize;
+
+          MCachedPrograms.ProgramSizeMap.erase(NativePrg);
+
+          traceProgram("Program evicted.", CacheKey);
+        } else
+          // This should never happen.
+          assert(false && "Program not found in the cache.");
+
+        // Remove the program from the eviction list.
+        MEvictionList.popFront();
+      }
+    }
+  }
+
+  // Register that a program has been fetched from the cache.
+  // If it is the first time the program is fetched, add it to the eviction
+  // list.
+  void registerProgramFetch(const ProgramCacheKeyT &CacheKey,
+                            const ur_program_handle_t &Program,
+                            const bool IsBuilt) {
+
+    static size_t ProgramCacheEvictionThreshold = static_cast<size_t>(
+        SYCLConfig<
+            SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize());
+
+    // No need to populate the eviction list if eviction is disabled.
+    if (ProgramCacheEvictionThreshold == 0)
+      return;
+
+    // If the program is not in the cache, add it to the cache.
+    if (IsBuilt) {
+      // This is the first time we are adding this entry. Add it to the end of
+      // eviction list.
+      {
+        std::lock_guard<std::mutex> Lock(MProgramEvictionListMutex);
+        MEvictionList.emplaceBack(CacheKey);
+      }
+
+      // Store size of the program and check if we need to evict some entries.
+      // Get Size of the program.
+      size_t ProgramSize;
+      auto Adapter = getAdapter();
+
+      try {
+        // Get number of devices this program was built for.
+        unsigned int DeviceNum = 0;
+        Adapter->call<UrApiKind::urProgramGetInfo>(
+            Program, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+            nullptr);
+
+        // Get binary sizes for each device.
+        std::vector<size_t> BinarySizes(DeviceNum);
+        Adapter->call<UrApiKind::urProgramGetInfo>(
+            Program, UR_PROGRAM_INFO_BINARY_SIZES,
+            sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+
+        // Sum up binary sizes.
+        ProgramSize =
+            std::accumulate(BinarySizes.begin(), BinarySizes.end(), 0);
+      } catch (const exception &Ex) {
+        std::cerr << "Failed to get program size: " << Ex.what() << std::endl;
+        std::rethrow_exception(std::current_exception());
+      }
+      // Store program size in the cache.
+      size_t CurrCacheSize = 0;
+      {
+        std::lock_guard<std::mutex> Lock(MProgramCacheMutex);
+        MCachedPrograms.ProgramSizeMap[Program] = ProgramSize;
+        MCachedPrograms.ProgramCacheSizeInBytes += ProgramSize;
+        CurrCacheSize = MCachedPrograms.ProgramCacheSizeInBytes;
+      }
+
+      // Evict programs if the cache size exceeds the threshold.
+      if (CurrCacheSize > ProgramCacheEvictionThreshold)
+        evictPrograms(ProgramCacheEvictionThreshold, CurrCacheSize);
+    }
+    // If the program is already in the cache, move it to the end of the list.
+    // Since we are following LRU eviction policy, we need to move the program
+    // to the end of the list. Items in the front of the list are the least
+    // recently This code path is "hot" and should be very fast.
+    else {
+      std::lock_guard<std::mutex> Lock(MProgramEvictionListMutex);
+      MEvictionList.moveToEnd(CacheKey);
+    }
   }
 
   /// Clears cache state.
@@ -308,6 +551,11 @@ public:
     MCachedPrograms = ProgramCache{};
     MKernelsPerProgramCache = KernelCacheT{};
     MKernelFastCache = KernelFastCacheT{};
+    MProgramToKernelFastCacheKeyMap.clear();
+
+    // Clear the eviction lists and its mutexes.
+    std::lock_guard<std::mutex> L4(MProgramEvictionListMutex);
+    MEvictionList.clear();
   }
 
   /// Try to fetch entity (kernel or program) from cache. If there is no such
@@ -332,8 +580,10 @@ public:
   ///
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
-  template <errc Errc, typename GetCachedBuildFT, typename BuildFT>
-  auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build) {
+  template <errc Errc, typename GetCachedBuildFT, typename BuildFT,
+            typename EvicFT = void *>
+  auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
+                  EvicFT &&EvictFnc = nullptr) {
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
@@ -347,8 +597,11 @@ public:
         BuildState NewState = BuildResult->waitUntilTransition();
 
         // Build succeeded.
-        if (NewState == BuildState::BS_Done)
+        if (NewState == BuildState::BS_Done) {
+          if constexpr (!std::is_same_v<EvicFT, void *>)
+            EvictFnc(BuildResult->Val, 0);
           return BuildResult;
+        }
 
         // Build failed, or this is the last attempt.
         if (NewState == BuildState::BS_Failed ||
@@ -371,6 +624,9 @@ public:
       // only the building thread will run this
       try {
         BuildResult->Val = Build();
+
+        if constexpr (!std::is_same_v<EvicFT, void *>)
+          EvictFnc(BuildResult->Val, 1);
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
         return BuildResult;
@@ -405,6 +661,16 @@ private:
 
   std::mutex MKernelFastCacheMutex;
   KernelFastCacheT MKernelFastCache;
+
+  // Map between fast kernel cache keys and program handle.
+  // MKernelFastCacheMutex will be used for synchronization.
+  std::unordered_map<ur_program_handle_t, std::vector<KernelFastCacheKeyT>>
+      MProgramToKernelFastCacheKeyMap;
+
+  EvictionListT MEvictionList;
+  // Mutexes that will be used when accessing the eviction lists.
+  std::mutex MProgramEvictionListMutex;
+
   friend class ::MockKernelProgramCache;
 
   const AdapterPtr &getAdapter();
