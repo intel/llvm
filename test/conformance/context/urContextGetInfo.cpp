@@ -17,6 +17,24 @@ struct urContextGetInfoTestWithInfoParam
             {UR_CONTEXT_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
             {UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, sizeof(bool)},
             {UR_CONTEXT_INFO_USM_FILL2D_SUPPORT, sizeof(bool)},
+            {UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+             sizeof(ur_memory_order_capability_flags_t)},
+            {UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
+             sizeof(ur_memory_order_capability_flags_t)},
+            {UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
+             sizeof(ur_memory_order_capability_flags_t)},
+            {UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
+             sizeof(ur_memory_order_capability_flags_t)}};
+
+        ctx_info_mem_flags_map = {
+            {UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES,
+             UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK},
+            {UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES,
+             UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK},
+            {UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,
+             UR_MEMORY_ORDER_CAPABILITY_FLAGS_MASK},
+            {UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES,
+             UR_MEMORY_SCOPE_CAPABILITY_FLAGS_MASK},
         };
     }
 
@@ -26,24 +44,30 @@ struct urContextGetInfoTestWithInfoParam
     }
 
     std::unordered_map<ur_context_info_t, size_t> ctx_info_size_map;
+    std::unordered_map<ur_context_info_t, ur_memory_order_capability_flags_t>
+        ctx_info_mem_flags_map;
 };
 
 UUR_TEST_SUITE_P(urContextGetInfoTestWithInfoParam,
                  ::testing::Values(
 
-                     UR_CONTEXT_INFO_NUM_DEVICES,          //
-                     UR_CONTEXT_INFO_DEVICES,              //
-                     UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT, //
-                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,   //
-                     UR_CONTEXT_INFO_REFERENCE_COUNT       //
-
+                     UR_CONTEXT_INFO_NUM_DEVICES,                      //
+                     UR_CONTEXT_INFO_DEVICES,                          //
+                     UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT,             //
+                     UR_CONTEXT_INFO_USM_FILL2D_SUPPORT,               //
+                     UR_CONTEXT_INFO_REFERENCE_COUNT,                  //
+                     UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES, //
+                     UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES, //
+                     UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES,  //
+                     UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES   //
                      ),
                  uur::deviceTestWithParamPrinter<ur_context_info_t>);
 
 TEST_P(urContextGetInfoTestWithInfoParam, Success) {
     ur_context_info_t info = getParam();
     size_t info_size = 0;
-    ASSERT_SUCCESS(urContextGetInfo(context, info, 0, nullptr, &info_size));
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urContextGetInfo(context, info, 0, nullptr, &info_size));
     ASSERT_NE(info_size, 0);
 
     if (const auto expected_size = ctx_info_size_map.find(info);

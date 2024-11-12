@@ -157,7 +157,7 @@ static ur_result_t synchronousZeCopy(ur_context_handle_t hContext,
       hDevice
           ->QueueGroup[ur_device_handle_t_::queue_group_info_t::type::Compute]
           .ZeOrdinal,
-      ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
+      true, ZE_COMMAND_QUEUE_MODE_SYNCHRONOUS, ZE_COMMAND_QUEUE_PRIORITY_NORMAL,
       std::nullopt);
 
   ZE2UR_CALL(zeCommandListAppendMemoryCopy,
@@ -521,6 +521,9 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
   case UR_MEM_INFO_SIZE: {
     // Get size of the allocation
     return returnValue(size_t{hMemory->getSize()});
+  }
+  case UR_MEM_INFO_REFERENCE_COUNT: {
+    return returnValue(hMemory->getRefCount().load());
   }
   default: {
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

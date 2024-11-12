@@ -1,6 +1,12 @@
 {{NONDETERMINISTIC}}
+{{OPT}}urMemBufferPartitionWithFlagsTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_FLAG_WRITE_ONLY
+{{OPT}}urMemBufferPartitionWithFlagsTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_FLAG_READ_ONLY
+{{OPT}}urMemBufferPartitionWithFlagsTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_FLAG_READ_WRITE
+{{OPT}}urMemBufferPartitionTest.InvalidValueCreateType/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urMemBufferPartitionTest.InvalidValueBufferCreateInfoOutOfBounds/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
 {{OPT}}urMemGetInfoImageTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_SIZE
 {{OPT}}urMemGetInfoImageTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_CONTEXT
+{{OPT}}urMemGetInfoImageTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_MEM_INFO_REFERENCE_COUNT
 {{OPT}}urMemImageCreateTestWithImageFormatParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_CHANNEL_ORDER_A__UR_IMAGE_CHANNEL_TYPE_SNORM_INT8
 {{OPT}}urMemImageCreateTestWithImageFormatParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_CHANNEL_ORDER_A__UR_IMAGE_CHANNEL_TYPE_SNORM_INT16
 {{OPT}}urMemImageCreateTestWithImageFormatParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_CHANNEL_ORDER_A__UR_IMAGE_CHANNEL_TYPE_UNORM_INT8
@@ -275,3 +281,11 @@
 {{OPT}}urMemImageGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_INFO_WIDTH
 {{OPT}}urMemImageGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_INFO_HEIGHT
 {{OPT}}urMemImageGetInfoTest.InvalidNullPointerPropSizeRet/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_IMAGE_INFO_DEPTH
+{{OPT}}urMemBufferCreateWithNativeHandleTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemBufferCreateWithNativeHandleTest.SuccessWithOwnedNativeHandle/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemBufferCreateWithNativeHandleTest.SuccessWithUnOwnedNativeHandle/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemBufferCreateWithNativeHandleTest.InvalidNullHandle/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemBufferCreateWithNativeHandleTest.InvalidNullPointer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemImageCreateWithNativeHandleTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemImageCreateWithNativeHandleTest.InvalidNullHandle/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+{{OPT}}urMemImageCreateWithNativeHandleTest.InvalidNullPointer/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}

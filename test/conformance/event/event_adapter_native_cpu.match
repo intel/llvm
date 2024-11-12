@@ -1,4 +1,4 @@
-{{NONDETERMINISTIC}}
+# Note: This file is only for use with cts_exe.py
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_COMMAND_QUEUE
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_CONTEXT
 urEventGetInfoTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_EVENT_INFO_COMMAND_TYPE
@@ -31,3 +31,9 @@ urEventSetCallbackTest.AllStates/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urEventSetCallbackTest.EventAlreadyCompleted/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urEventSetCallbackNegativeTest.InvalidNullPointerCallback/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urEventSetCallbackNegativeTest.InvalidEnumeration/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+
+# These crash when ran through the loader
+{{OPT}}urEventRetainTest.InvalidNullHandle/*
+{{OPT}}urEventReleaseTest.InvalidNullHandle/*
+{{OPT}}urEventGetNativeHandleTest.InvalidNullHandleEvent/*
+{{OPT}}urEventSetCallbackNegativeTest.InvalidNullHandleEvent/*
