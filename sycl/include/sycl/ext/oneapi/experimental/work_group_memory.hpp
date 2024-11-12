@@ -57,7 +57,7 @@ public:
   // closed.
   work_group_memory() = default;
 
-  work_group_memory(const indeterminate_t &){};
+  work_group_memory(const indeterminate_t &) {};
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
