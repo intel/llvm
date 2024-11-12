@@ -157,7 +157,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if "run-mode" not in test.config.available_features:
-            if "unsplit-mode" in test.requires or "TEMPORARY_DISABLED" in test.requires:
+            if "unsplit-test-mode" in test.requires or "TEMPORARY_DISABLED" in test.requires:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )

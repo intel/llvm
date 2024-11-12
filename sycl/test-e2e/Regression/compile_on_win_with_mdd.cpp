@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 
 // RUN: %clangxx --driver-mode=cl -fsycl /MDd -c %s -o %t.obj
 // RUN: %clangxx --driver-mode=cl -fsycl %t.obj -Wno-unused-command-line-argument -o %t.out

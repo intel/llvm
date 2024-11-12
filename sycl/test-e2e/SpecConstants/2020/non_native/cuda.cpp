@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %S/Inputs/common.cpp -o %t.out
 // RUN: %{run-unfiltered-devices} env ONEAPI_DEVICE_SELECTOR="cuda:*" %t.out

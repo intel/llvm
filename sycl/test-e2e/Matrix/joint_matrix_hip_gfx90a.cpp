@@ -10,7 +10,7 @@
 // RUN: %{run} %t.out
 
 // REQUIRES: gpu-amd-gfx90a
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 
 #include "joint_matrix_hip_apply.hpp"
 #include "joint_matrix_hip_copy.hpp"

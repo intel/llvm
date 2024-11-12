@@ -1,5 +1,5 @@
 // REQUIRES: gpu, hip, sycl-ls
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 
 // RUN: env ONEAPI_DEVICE_SELECTOR="hip:*" sycl-ls --verbose >%t.hip.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-HIP,CHECK-CUSTOM-GPU-HIP --input-file %t.hip.out

@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 // REQUIRES: cuda, cuda_dev_kit
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 
 #include <iostream>
 #include <sycl/backend.hpp>

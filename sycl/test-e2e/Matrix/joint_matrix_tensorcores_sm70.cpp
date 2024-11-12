@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: cuda
-// REQUIRES: unsplit-mode
+// REQUIRES: unsplit-test-mode
 // RUN: %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_70 -o %t.out
 // RUN: %{run} %t.out
 //
