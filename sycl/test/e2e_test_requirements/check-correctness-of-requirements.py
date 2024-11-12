@@ -17,6 +17,8 @@ def parse_defines(path, macro, prefix):
 
 def parse_requirements(input_data_path, sycl_include_dir_path):
     available_features = {
+        # for completely disabled tests
+        "true",
         # host OS:
         "windows",
         "system-windows",
