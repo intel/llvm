@@ -284,11 +284,8 @@ jobs:
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
         else
           if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            if [ "${{ runner.name }}" == "cp-amd-runner" ]; then
-              echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1030"' >> $GITHUB_OUTPUT
-            else
-              echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-            fi
+            amd_arch="$( env ONEAPI_DEVICE_SELECTOR=hip:gpu sycl-ls --verbose 2>&1 | grep 'Architecture:' | sed 's|\s*Architecture: amd_gpu_||g' )"
+            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH='$amd_arch'' >> $GITHUB_OUTPUT
           else
             echo 'opts=' >> $GITHUB_OUTPUT
           fi
