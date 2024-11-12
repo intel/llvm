@@ -253,9 +253,9 @@ public:
 
   // Compile-time property.
   template <typename property_key_t>
-  static constexpr auto get_property()
-      -> std::enable_if_t<std::is_empty_v<prop_t<property_key_t>>,
-                          prop_t<property_key_t>> {
+  static constexpr auto
+  get_property() -> std::enable_if_t<std::is_empty_v<prop_t<property_key_t>>,
+                                     prop_t<property_key_t>> {
     return prop_t<property_key_t>{};
   }
 
