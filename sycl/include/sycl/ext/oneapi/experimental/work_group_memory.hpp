@@ -49,14 +49,15 @@ private:
   using decoratedPtr = typename sycl::detail::DecoratedType<
       value_type, access::address_space::local_space>::type *;
 
+public:
   // Frontend requires special types to have a default constructor in order to
   // have a uniform way of initializing an object of special type to then call
-  // the __init method on it. This is purely an implementation detail and not
-  // part of the spec.
+  // the __init method on it. This is currently not part of the spec.
+  // TODO: Remove this once https://github.com/intel/llvm/issues/16061 is
+  // closed.
   work_group_memory() = default;
 
-public:
-  work_group_memory(const indeterminate_t &) {};
+  work_group_memory(const indeterminate_t &){};
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
