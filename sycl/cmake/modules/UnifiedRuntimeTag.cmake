@@ -1,7 +1,7 @@
-# commit 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d
-# Merge: a5a649f3 34b66fda
+# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
+# Merge: 2eae687a 9339e374
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 6 16:45:49 2024 +0000
-#     Merge pull request #2276 from rafbiels/rafbiels/fix-hip-evbase
-#     Set the right HIP device before creating base event counter
-set(UNIFIED_RUNTIME_TAG 2858a8a28d0b6524a3b2b0e25a597d1c8295ce9d)
+# Date:   Tue Nov 12 11:47:03 2024 +0000
+#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
+#     Wrap linker flags on Windows for IntelLLLVM
+set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
