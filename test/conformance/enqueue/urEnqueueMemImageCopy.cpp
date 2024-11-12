@@ -12,6 +12,15 @@ struct urEnqueueMemImageCopyTest
     };
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urQueueTestWithParam::SetUp());
+
+        ur_bool_t imageSupported;
+        ASSERT_SUCCESS(
+            urDeviceGetInfo(this->device, UR_DEVICE_INFO_IMAGE_SUPPORTED,
+                            sizeof(ur_bool_t), &imageSupported, nullptr));
+        if (!imageSupported) {
+            GTEST_SKIP();
+        }
+
         type = getParam();
         size = (type == UR_MEM_TYPE_IMAGE1D) ? ur_rect_region_t{width, 1, 1}
                : (type == UR_MEM_TYPE_IMAGE2D)

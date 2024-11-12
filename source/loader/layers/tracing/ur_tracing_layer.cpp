@@ -15,6 +15,7 @@
 #include "xpti/xpti_data_types.h"
 #include "xpti/xpti_trace_framework.h"
 #include <atomic>
+#include <cstdint>
 #include <optional>
 #include <sstream>
 
@@ -59,6 +60,12 @@ void context_t::notify(uint16_t trace_type, uint32_t id, const char *name,
 }
 
 uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
+    // we use UINT64_MAX as a special value that means "tracing disabled",
+    // so that we don't have to repeat this check in notify_end.
+    if (!xptiCheckTraceEnabled(call_stream_id)) {
+        return UINT64_MAX;
+    }
+
     if (auto loc = codelocData.get_codeloc()) {
         xpti::payload_t payload =
             xpti::payload_t(loc->functionName, loc->sourceFile, loc->lineNumber,
@@ -77,6 +84,10 @@ uint64_t context_t::notify_begin(uint32_t id, const char *name, void *args) {
 
 void context_t::notify_end(uint32_t id, const char *name, void *args,
                            ur_result_t *resultp, uint64_t instance) {
+    if (instance == UINT64_MAX) { // tracing disabled
+        return;
+    }
+
     notify((uint16_t)xpti::trace_point_type_t::function_with_args_end, id, name,
            args, resultp, instance);
 }

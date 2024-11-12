@@ -14,7 +14,9 @@
 
 #include <cinttypes>
 
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 namespace ur_sanitizer_layer {
+#endif // !__SPIR__ && !__SPIRV__
 
 enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
 
@@ -69,7 +71,7 @@ struct LocalArgsInfo {
     uint64_t SizeWithRedZone = 0;
 };
 
-constexpr std::size_t ASAN_MAX_NUM_REPORTS = 10;
+constexpr uint64_t ASAN_MAX_NUM_REPORTS = 10;
 
 struct LaunchInfo {
     uintptr_t GlobalShadowOffset = 0;
@@ -87,6 +89,7 @@ struct LaunchInfo {
     DeviceType DeviceTy = DeviceType::UNKNOWN;
     uint32_t Debug = 0;
 
+    int ReportFlag = 0;
     DeviceSanitizerReport SanitizerReport[ASAN_MAX_NUM_REPORTS];
 };
 
@@ -95,7 +98,7 @@ constexpr unsigned ASAN_SHADOW_GRANULARITY = 1ULL << ASAN_SHADOW_SCALE;
 
 // Based on the observation, only the last 24 bits of the address of the private
 // variable have changed
-constexpr std::size_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
+constexpr uint64_t ASAN_PRIVATE_SIZE = 0xffffffULL + 1;
 
 // These magic values are written to shadow for better error
 // reporting.
@@ -161,4 +164,6 @@ inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
     }
 }
 
+#if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer
+#endif // !__SPIR__ && !__SPIRV__

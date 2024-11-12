@@ -24,7 +24,8 @@
 
 #define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
     auto status = ret;                                                         \
-    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {                       \
+    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                       \
+        status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {                   \
         GTEST_SKIP();                                                          \
     } else {                                                                   \
         ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
@@ -205,6 +206,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &image_format, &image_desc, nullptr,
+                                        &image));
     }
 
     void TearDown() override {
@@ -215,7 +219,7 @@ struct urMemImageTest : urContextTest {
     }
 
     ur_image_format_t image_format = {
-        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
+        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_RGBA,
         /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
     };
     ur_image_desc_t image_desc = {
@@ -226,8 +230,8 @@ struct urMemImageTest : urContextTest {
         /*.height =*/16,
         /*.depth =*/1,
         /*.arraySize =*/1,
-        /*.rowPitch =*/16 * sizeof(char[4]),
-        /*.slicePitch =*/16 * 16 * sizeof(char[4]),
+        /*.rowPitch =*/0,
+        /*.slicePitch =*/0,
         /*.numMipLevel =*/0,
         /*.numSamples =*/0,
     };
@@ -846,6 +850,11 @@ struct urUSMDeviceAllocTest : urQueueTest {
 struct urUSMPoolTest : urContextTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTest::SetUp());
+        ur_bool_t poolSupport = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(device, poolSupport));
+        if (!poolSupport) {
+            GTEST_SKIP() << "USM pools are not supported.";
+        }
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));
@@ -864,6 +873,11 @@ struct urUSMPoolTest : urContextTest {
 template <class T> struct urUSMPoolTestWithParam : urContextTestWithParam<T> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urContextTestWithParam<T>::SetUp());
+        ur_bool_t poolSupport = false;
+        ASSERT_SUCCESS(uur::GetDeviceUSMPoolSupport(this->device, poolSupport));
+        if (!poolSupport) {
+            GTEST_SKIP() << "USM pools are not supported.";
+        }
         ur_usm_pool_desc_t pool_desc{UR_STRUCTURE_TYPE_USM_POOL_DESC, nullptr,
                                      0};
         ASSERT_SUCCESS(urUSMPoolCreate(this->context, &pool_desc, &pool));

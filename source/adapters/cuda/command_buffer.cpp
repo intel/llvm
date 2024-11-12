@@ -1237,18 +1237,19 @@ validateCommandDesc(kernel_command_handle *Command,
 }
 
 /**
- * Updates the arguments of CommandDesc->hNewKernel
- * @param[in] Device The device associated with the kernel being updated.
+ * Updates the arguments of a kernel command.
+ * @param[in] Command The command associated with the kernel node being updated.
  * @param[in] UpdateCommandDesc The update command description that contains the
- * new kernel and its arguments.
+ * new arguments.
  * @return UR_RESULT_SUCCESS or an error code on failure
  */
 ur_result_t
-updateKernelArguments(ur_device_handle_t Device,
+updateKernelArguments(kernel_command_handle *Command,
                       const ur_exp_command_buffer_update_kernel_launch_desc_t
                           *UpdateCommandDesc) {
 
-  ur_kernel_handle_t NewKernel = UpdateCommandDesc->hNewKernel;
+  ur_kernel_handle_t Kernel = Command->Kernel;
+  ur_device_handle_t Device = Command->CommandBuffer->Device;
 
   // Update pointer arguments to the kernel
   uint32_t NumPointerArgs = UpdateCommandDesc->numNewPointerArgs;
@@ -1261,7 +1262,7 @@ updateKernelArguments(ur_device_handle_t Device,
 
     ur_result_t Result = UR_RESULT_SUCCESS;
     try {
-      NewKernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
+      Kernel->setKernelArg(ArgIndex, sizeof(ArgValue), ArgValue);
     } catch (ur_result_t Err) {
       Result = Err;
       return Result;
@@ -1280,10 +1281,10 @@ updateKernelArguments(ur_device_handle_t Device,
     ur_result_t Result = UR_RESULT_SUCCESS;
     try {
       if (ArgValue == nullptr) {
-        NewKernel->setKernelArg(ArgIndex, 0, nullptr);
+        Kernel->setKernelArg(ArgIndex, 0, nullptr);
       } else {
         CUdeviceptr CuPtr = std::get<BufferMem>(ArgValue->Mem).getPtr(Device);
-        NewKernel->setKernelArg(ArgIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
+        Kernel->setKernelArg(ArgIndex, sizeof(CUdeviceptr), (void *)&CuPtr);
       }
     } catch (ur_result_t Err) {
       Result = Err;
@@ -1303,7 +1304,12 @@ updateKernelArguments(ur_device_handle_t Device,
 
     ur_result_t Result = UR_RESULT_SUCCESS;
     try {
-      NewKernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      // Local memory args are passed as value args with nullptr value
+      if (ArgValue) {
+        Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      } else {
+        Kernel->setKernelLocalArg(ArgIndex, ArgSize);
+      }
     } catch (ur_result_t Err) {
       Result = Err;
       return Result;
@@ -1364,9 +1370,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urCommandBufferUpdateKernelLaunchExp(
   auto KernelCommandHandle = static_cast<kernel_command_handle *>(hCommand);
 
   UR_CHECK_ERROR(validateCommandDesc(KernelCommandHandle, pUpdateKernelLaunch));
-  UR_CHECK_ERROR(
-      updateKernelArguments(CommandBuffer->Device, pUpdateKernelLaunch));
   UR_CHECK_ERROR(updateCommand(KernelCommandHandle, pUpdateKernelLaunch));
+  UR_CHECK_ERROR(
+      updateKernelArguments(KernelCommandHandle, pUpdateKernelLaunch));
 
   // If no work-size is provided make sure we pass nullptr to setKernelParams so
   // it can guess the local work size.
