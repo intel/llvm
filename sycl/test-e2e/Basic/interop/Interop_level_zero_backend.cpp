@@ -39,7 +39,7 @@ int main() {
   backend_traits<BACKEND>::return_type<queue> NativeQueue =
       get_native<BACKEND>(Queue);
   backend_traits<BACKEND>::input_type<queue> InputType(NativeQueue, Device);
-  
+
   auto InteropQueue = make_queue<BACKEND>(InputType, Context);
 
   auto A = (int *)malloc_device(N * sizeof(int), InteropQueue);
@@ -69,7 +69,7 @@ int main() {
   if constexpr (BACKEND == backend::ext_oneapi_hip) {
     try {
       backend_traits<BACKEND>::return_type<context> NativeContext =
-            get_native<BACKEND>(Context);
+          get_native<BACKEND>(Context);
     } catch (sycl::exception &e) {
       assert(e.code() == sycl::errc::feature_not_supported);
     }
