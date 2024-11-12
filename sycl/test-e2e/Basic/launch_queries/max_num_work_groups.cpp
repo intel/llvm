@@ -176,6 +176,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
   // returns 0 possible work-groups, test that the kernel launch will fail.
   // A configuration that defines a work-group size larger than the maximum
   // possible should result in failure.
+  bool result{0};
   try {
     launch_range = sycl::nd_range<1>{sycl::range<1>{NumWorkItems},
                                      sycl::range<1>{workGroupSize}};
@@ -190,11 +191,12 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
          cgh.parallel_for(launch_range, KernelName{acc});
        }
      }).wait_and_throw();
+    // We shouldn't be here, exception is expected
     if constexpr (KernelName::HasLocalMemory)
       std::cerr << "Test (LocalMemory) with exceeded resource limits failed\n";
     else
       std::cerr << "Test with exceed resource limits failed\n";
-    return 1; // We shouldn't be here, exception is expected
+    result = 1;
   } catch (const sycl::exception &e) {
     // 'nd_range' error is the expected outcome from the above launch config.
     if (e.code() == sycl::make_error_code(sycl::errc::nd_range)) {
@@ -205,7 +207,7 @@ int test_max_num_work_groups(sycl::queue &q, const sycl::device &dev) {
     return 1;
   }
 
-  return 0;
+  return result;
 }
 
 } // namespace
