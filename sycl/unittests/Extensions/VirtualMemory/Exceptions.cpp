@@ -35,20 +35,34 @@ ur_result_t setup_urDeviceGet(void *pParams) {
   }
   return UR_RESULT_SUCCESS;
 }
-ur_result_t setup_urDeviceGetInfo(void *pParams) {
+
+template <bool VirtualMemSupported>
+ur_result_t after_urDeviceGetInfo_AllDevices(void *pParams) {
   auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
   switch (*params.ppropName) {
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
-    if (*params.ppPropValue) {
-      if (*params.phDevice == GlobalDevicesHandle[0]) {
-        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    if (*params.ppPropValue)
+      *static_cast<ur_bool_t *>(*params.ppPropValue) =  VirtualMemSupported;
+    return UR_RESULT_SUCCESS;
+  }
+  default:;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+template <bool VirtualMemSupported>
+ur_result_t after_urDeviceGetInfo_SingleDevice(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+    if (*params.ppPropValue){
+      if (*params.phDevice == GlobalDevicesHandle[0]){
+        *static_cast<ur_bool_t *>(*params.ppPropValue) =  VirtualMemSupported;
       }
     }
-    break;
+    return UR_RESULT_SUCCESS;
   }
-  default: {
-    break;
-  }
+  default:;
   }
   return UR_RESULT_SUCCESS;
 }
@@ -56,15 +70,16 @@ ur_result_t setup_urDeviceGetInfo(void *pParams) {
 TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityContext) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &after_urDeviceGetInfo_SingleDevice<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
     syclext::get_mem_granularity(Context,
                                  syclext::granularity_mode::recommended);
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(), "One or more devices in the context does not "
@@ -73,6 +88,7 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityContext) {
 
   try {
     syclext::get_mem_granularity(Context, syclext::granularity_mode::minimum);
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(), "One or more devices in the context does not "
@@ -83,15 +99,17 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityContext) {
 TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityDevice) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &after_urDeviceGetInfo_AllDevices<false>);
+
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
-    syclext::get_mem_granularity(Context.get_devices().front(), Context,
+    syclext::get_mem_granularity(Context.get_devices()[0], Context,
                                  syclext::granularity_mode::recommended);
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(),
@@ -99,8 +117,9 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityDevice) {
   }
 
   try {
-    syclext::get_mem_granularity(Context.get_devices().front(), Context,
+    syclext::get_mem_granularity(Context.get_devices()[0], Context,
                                  syclext::granularity_mode::minimum);
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(),
@@ -111,14 +130,15 @@ TEST(VirtualMemoryMultipleDevices, ThrowExceptionForGetMemGranularityDevice) {
 TEST(VirtualMemoryMultipleDevices, ReserveVirtualMemoryRange) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &after_urDeviceGetInfo_SingleDevice<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
     syclext::reserve_virtual_mem(0, sizeof(int), Context);
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(),
@@ -130,15 +150,16 @@ TEST(VirtualMemoryMultipleDevices, ReserveVirtualMemoryRange) {
 TEST(VirtualMemoryMultipleDevices, ReservePhysicalMemory) {
 
   sycl::unittest::UrMock<> Mock;
-  mock::getCallbacks().set_replace_callback("urDeviceGet", &setup_urDeviceGet);
-  mock::getCallbacks().set_replace_callback("urDeviceGetInfo",
-                                            &setup_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &setup_urDeviceGet);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                            &after_urDeviceGetInfo_AllDevices<false>);
   sycl::platform Platform = sycl::platform();
   sycl::context Context{Platform};
 
   try {
-    syclext::physical_mem PhysicalMem{Context.get_devices().front(), Context,
+    syclext::physical_mem PhysicalMem{Context.get_devices()[0], Context,
                                       sizeof(int)};
+    FAIL() << "No exception thrown.";
   } catch (sycl::exception &e) {
     EXPECT_EQ(e.code(), sycl::errc::feature_not_supported);
     EXPECT_STREQ(e.what(),
