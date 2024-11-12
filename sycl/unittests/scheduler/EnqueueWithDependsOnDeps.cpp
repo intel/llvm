@@ -303,9 +303,9 @@ ur_result_t redefinedextUSMEnqueueMemcpy(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
-ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+ur_result_t redefinedEnqueueEventsWaitWithBarrierExt(void *pParams) {
   auto params =
-      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+      *static_cast<ur_enqueue_events_wait_with_barrier_ext_params_t *>(pParams);
   **params.pphEvent = mock::createDummyHandle<ur_event_handle_t>();
   for (auto i = 0u; i < *params.pnumEventsInWaitList; i++) {
     EventsInWaitList.push_back((*params.pphEventWaitList)[i]);
@@ -362,7 +362,8 @@ TEST_F(DependsOnTests, ShortcutFunctionWithWaitList) {
 
 TEST_F(DependsOnTests, BarrierWithWaitList) {
   mock::getCallbacks().set_before_callback(
-      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+      "urEnqueueEventsWaitWithBarrierExt",
+      &redefinedEnqueueEventsWaitWithBarrierExt);
   sycl::queue Queue = detail::createSyclObjFromImpl<queue>(QueueDevImpl);
 
   auto HostTaskEvent =
