@@ -1,5 +1,5 @@
-// Test -fsycl-allow-device-image-dependencies with a single dynamic library on Windows
-// and Linux.
+// Test -fsycl-allow-device-image-dependencies with a single dynamic library on
+// Windows and Linux.
 
 // UNSUPPORTED: cuda || hip
 
