@@ -1341,7 +1341,7 @@ void CheckJITCompilationForImage(const RTDeviceBinaryImage *const &Image,
 
 const char *getArchName(const device &Device) {
   namespace syclex = sycl::ext::oneapi::experimental;
-  auto Arch = Device.get_info<syclex::info::device::architecture>();
+  auto Arch = getSyclObjImpl(Device)->getDeviceArch();
   switch (Arch) {
 #define __SYCL_ARCHITECTURE(ARCH, VAL)                                         \
   case syclex::architecture::ARCH:                                             \
@@ -1369,45 +1369,14 @@ RTDeviceBinaryImage *getBinImageFromMultiMap(
 
   // Here, we aim to select all the device images from the
   // [ItBegin, ItEnd) range that are AOT compiled for Device
-  // (checked using info::device::architecture) or  JIT compiled.
+  // (checked using info::device::architecture) or JIT compiled.
   // This selection will then be passed to urDeviceSelectBinary
   // for final selection.
-  std::string_view ArchName = getArchName(Device);
   std::vector<RTDeviceBinaryImage *> DeviceFilteredImgs;
   DeviceFilteredImgs.reserve(std::distance(ItBegin, ItEnd));
   for (auto It = ItBegin; It != ItEnd; ++It) {
-    auto PropRange = It->second->getDeviceRequirements();
-    auto PropIt =
-        std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
-          return Prop->Name == std::string_view("compile_target");
-        });
-    auto AddImg = [&]() { DeviceFilteredImgs.push_back(It->second); };
-
-    // Device image has no compile_target property, so it is JIT compiled.
-    if (PropIt == PropRange.end()) {
-      AddImg();
-      continue;
-    }
-
-    // Device image has the compile_target property, so it is AOT compiled for
-    // some device, check if that architecture is Device's architecture.
-    auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
-    CompileTargetByteArray.dropBytes(8);
-    std::string_view CompileTarget(
-        reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
-        CompileTargetByteArray.size());
-    // Note: there are no explicit targets for CPUs, so on x86_64,
-    // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
-    // compile target image.
-    // TODO: When dedicated targets for CPU are added, (i.e.
-    // -fsycl-targets=intel_cpu_spr etc.) remove this special
-    // handling of CPU targets.
-    if ((ArchName == CompileTarget) ||
-        (CompileTarget == "spir64_x86_64" &&
-         (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
-          ArchName == "intel_cpu_gnr"))) {
-      AddImg();
-    }
+    if (doesImageTargetMatchDevice(*It->second, Device))
+      DeviceFilteredImgs.push_back(It->second);
   }
 
   if (DeviceFilteredImgs.empty())
@@ -3403,6 +3372,40 @@ checkDevSupportDeviceRequirements(const device &Dev,
   }
 
   return {};
+}
+
+bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                const device &Dev) {
+  auto PropRange = Img.getDeviceRequirements();
+  auto PropIt =
+      std::find_if(PropRange.begin(), PropRange.end(), [&](const auto &Prop) {
+        return Prop->Name == std::string_view("compile_target");
+      });
+  // Device image has no compile_target property, so it is JIT compiled.
+  if (PropIt == PropRange.end()) {
+    sycl::backend BE = Dev.get_backend();
+    return (BE == sycl::backend::opencl ||
+            BE == sycl::backend::ext_oneapi_level_zero);
+  }
+
+  // Device image has the compile_target property, so it is AOT compiled for
+  // some device, check if that architecture is Device's architecture.
+  auto CompileTargetByteArray = DeviceBinaryProperty(*PropIt).asByteArray();
+  CompileTargetByteArray.dropBytes(8);
+  std::string_view CompileTarget(
+      reinterpret_cast<const char *>(&CompileTargetByteArray[0]),
+      CompileTargetByteArray.size());
+  std::string_view ArchName = getArchName(Dev);
+  // Note: there are no explicit targets for CPUs, so on x86_64,
+  // intel_cpu_spr, and intel_cpu_gnr, we use a spir64_x86_64
+  // compile target image.
+  // TODO: When dedicated targets for CPU are added, (i.e.
+  // -fsycl-targets=intel_cpu_spr etc.) remove this special
+  // handling of CPU targets.
+  return ((ArchName == CompileTarget) ||
+          (CompileTarget == "spir64_x86_64" &&
+           (ArchName == "x86_64" || ArchName == "intel_cpu_spr" ||
+            ArchName == "intel_cpu_gnr")));
 }
 
 } // namespace detail
