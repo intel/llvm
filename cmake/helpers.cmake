@@ -131,9 +131,9 @@ function(add_ur_target_link_options name)
         endif()
     elseif(MSVC)
         target_link_options(${name} PRIVATE
-            /DYNAMICBASE
-            /HIGHENTROPYVA
-            /NXCOMPAT
+            LINKER:/DYNAMICBASE
+            LINKER:/HIGHENTROPYVA
+            LINKER:/NXCOMPAT
         )
     endif()
 endfunction()
@@ -141,7 +141,7 @@ endfunction()
 function(add_ur_target_exec_options name)
     if(MSVC)
         target_link_options(${name} PRIVATE
-            /ALLOWISOLATION
+            LINKER:/ALLOWISOLATION
         )
     endif()
 endfunction()
@@ -159,7 +159,7 @@ function(add_ur_library name)
     add_ur_target_link_options(${name})
     if(MSVC)
         target_link_options(${name} PRIVATE
-            $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:/DEPENDENTLOADFLAG:0x2000>
+            $<$<STREQUAL:$<TARGET_LINKER_FILE_NAME:${name}>,link.exe>:LINKER:/DEPENDENTLOADFLAG:0x2000>
         )
     endif()
 endfunction()
