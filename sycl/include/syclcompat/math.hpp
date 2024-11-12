@@ -118,6 +118,37 @@ public:
   }
 };
 
+// Vectorized_binary for logical operations
+template <typename VecT, class BinaryOperation>
+class vectorized_binary<
+    VecT, BinaryOperation,
+    std::enable_if_t<std::is_same_v<
+        bool, decltype(std::declval<BinaryOperation>()(
+                  std::declval<typename VecT::element_type>(),
+                  std::declval<typename VecT::element_type>()))>>> {
+public:
+  inline VecT operator()(VecT a, VecT b, const BinaryOperation binary_op) {
+    unsigned result = 0;
+    constexpr size_t elem_size = 8 * sizeof(typename VecT::element_type);
+    static_assert(elem_size < 32,
+                  "Vector element size must be less than 4 bytes");
+    constexpr unsigned bool_mask = (1U << elem_size) - 1;
+
+    for (size_t i = 0; i < a.size(); ++i) {
+      bool comp_result = binary_op(a[i], b[i]);
+      result |= (comp_result ? bool_mask : 0U) << (i * elem_size);
+    }
+
+    VecT v4;
+    for (size_t i = 0; i < v4.size(); ++i) {
+      v4[i] = static_cast<typename VecT::element_type>(
+          (result >> (i * elem_size)) & bool_mask);
+    }
+
+    return v4;
+  }
+};
+
 /// Extend the 'val' to 'bit' size, zero extend for unsigned int and signed
 /// extend for signed int. Returns a signed integer type.
 template <typename ValueT>
@@ -856,23 +887,24 @@ pow(const ValueT a, const ValueU b) {
 /// Performs relu saturation.
 /// \param [in] a The input value
 /// \returns the relu saturation result
-template <typename ValueT>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>, ValueT>
-relu(const ValueT a) {
-  if (!detail::isnan(a) && a < ValueT(0))
+template <typename ValueT> inline ValueT relu(const ValueT a) {
+  if constexpr (syclcompat::is_floating_point_v<ValueT>)
+    if (detail::isnan(a))
+      return a;
+  if (a < ValueT(0))
     return ValueT(0);
   return a;
 }
-template <class ValueT>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
-                        sycl::vec<ValueT, 2>>
-relu(const sycl::vec<ValueT, 2> a) {
-  return {relu(a[0]), relu(a[1])};
+template <class ValueT, int NumElements>
+inline sycl::vec<ValueT, NumElements>
+relu(const sycl::vec<ValueT, NumElements> a) {
+  sycl::vec<ValueT, NumElements> ret;
+  for (int i = 0; i < NumElements; ++i)
+    ret[i] = relu(a[i]);
+  return ret;
 }
 template <class ValueT>
-inline std::enable_if_t<syclcompat::is_floating_point_v<ValueT>,
-                        sycl::marray<ValueT, 2>>
-relu(const sycl::marray<ValueT, 2> a) {
+inline sycl::marray<ValueT, 2> relu(const sycl::marray<ValueT, 2> a) {
   return {relu(a[0]), relu(a[1])};
 }
 
@@ -990,6 +1022,10 @@ struct maximum {
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::max(x, y);
   }
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
+    return (x >= y) ? ((*pred = true), x) : ((*pred = false), y);
+  }
 };
 
 /// A sycl::min wrapper functors.
@@ -997,6 +1033,10 @@ struct minimum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const {
     return sycl::min(x, y);
+  }
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const {
+    return (x <= y) ? ((*pred = true), x) : ((*pred = false), y);
   }
 };
 
@@ -1031,23 +1071,85 @@ struct average {
 
 } // namespace detail
 
-/// Compute vectorized binary operation value for two values, with each value
+/// Compute vectorized binary operation value for two/four values, with each
 /// treated as a vector type \p VecT.
 /// \tparam [in] VecT The type of the vector
 /// \tparam [in] BinaryOperation The binary operation class
 /// \param [in] a The first value
 /// \param [in] b The second value
+/// \param [in] binary_op The operation to do with the two values
+/// \param [in] need_relu Whether the result need relu saturation
 /// \returns The vectorized binary operation value of the two values
 template <typename VecT, class BinaryOperation>
 inline unsigned vectorized_binary(unsigned a, unsigned b,
-                                  const BinaryOperation binary_op) {
+                                  const BinaryOperation binary_op,
+                                  [[maybe_unused]] bool need_relu = false) {
   sycl::vec<unsigned, 1> v0{a}, v1{b};
   auto v2 = v0.as<VecT>();
   auto v3 = v1.as<VecT>();
   auto v4 =
       detail::vectorized_binary<VecT, BinaryOperation>()(v2, v3, binary_op);
+  if constexpr (!std::is_same_v<
+                    bool, decltype(std::declval<BinaryOperation>()(
+                              std::declval<typename VecT::element_type>(),
+                              std::declval<typename VecT::element_type>()))>) {
+    if (need_relu)
+      v4 = relu(v4);
+  }
   v0 = v4.template as<sycl::vec<unsigned, 1>>();
   return v0;
+}
+
+/// Compute two vectorized binary operation value with pred for three values,
+/// with each value treated as a 2 \p T type elements vector type.
+///
+/// \tparam [in] VecT The type of the vector
+/// \tparam [in] BinaryOperation1 The first binary operation class
+/// \tparam [in] BinaryOperation2 The second binary operation class
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] c The third value
+/// \param [in] binary_op1 The first operation to do with the first two values
+/// \param [in] binary_op2 The second operation to do with the third values
+/// \param [in] need_relu Whether the result need relu saturation
+/// \returns The two vectorized binary operation value of the three values
+template <typename VecT, typename BinaryOperation1, typename BinaryOperation2>
+inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
+                                   const BinaryOperation1 binary_op1,
+                                   const BinaryOperation2 binary_op2,
+                                   bool need_relu = false) {
+  const auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
+  const auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
+  const auto v3 = sycl::vec<unsigned, 1>(c).as<VecT>();
+  auto v4 =
+      detail::vectorized_binary<VecT, BinaryOperation1>()(v1, v2, binary_op1);
+  v4 = detail::vectorized_binary<VecT, BinaryOperation2>()(v4, v3, binary_op2);
+  if (need_relu)
+    v4 = relu(v4);
+  return v4.template as<sycl::vec<unsigned, 1>>();
+}
+
+/// Compute vectorized binary operation value with pred for two values, with
+/// each value treated as a 2 \p T type elements vector type.
+///
+/// \tparam [in] VecT The type of the vector
+/// \tparam [in] BinaryOperation The binary operation class
+/// \param [in] a The first value
+/// \param [in] b The second value
+/// \param [in] binary_op The operation with pred to do with the two values
+/// \param [out] pred_hi The pred pointer that pass into high halfword operation
+/// \param [out] pred_lo The pred pointer that pass into low halfword operation
+/// \returns The vectorized binary operation value of the two values
+template <typename VecT, typename BinaryOperation>
+inline unsigned vectorized_binary_with_pred(unsigned a, unsigned b,
+                                            const BinaryOperation binary_op,
+                                            bool *pred_hi, bool *pred_lo) {
+  auto v1 = sycl::vec<unsigned, 1>(a).as<VecT>();
+  auto v2 = sycl::vec<unsigned, 1>(b).as<VecT>();
+  VecT ret;
+  ret[0] = binary_op(v1[0], v2[0], pred_lo);
+  ret[1] = binary_op(v1[1], v2[1], pred_hi);
+  return ret.template as<sycl::vec<unsigned, 1>>();
 }
 
 template <typename T1, typename T2>

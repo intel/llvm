@@ -4658,10 +4658,14 @@ def image__base : Separate<["-"], "image_base">;
 def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, EnumName<"include">,
     MetaVarName<"<file>">, HelpText<"Include file before parsing">,
     Visibility<[ClangOption, CC1Option]>;
-def include_footer : Separate<["-"], "include-footer">, Group<clang_i_Group>,
+def include_internal_footer : Separate<["-"], "include-internal-footer">, Group<clang_i_Group>,
     Visibility<[CC1Option]>,
     HelpText<"Name of the footer integration file">,  MetaVarName<"<file>">,
     MarshallingInfoString<PreprocessorOpts<"IncludeFooter">>;
+def include_internal_header : Separate<["-"], "include-internal-header">, Group<clang_i_Group>,
+    Visibility<[CC1Option]>,
+    HelpText<"Name of the header integration file">,  MetaVarName<"<file>">,
+    MarshallingInfoString<PreprocessorOpts<"IncludeHeader">>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>,
   Visibility<[ClangOption, CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">,
@@ -6873,6 +6877,11 @@ defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-me
   NegFlag<SetFalse, [], [ClangOption, CLOption], "Do not enforce using "
           "stateless memory accesses.">,
   BothFlags<[], [ClangOption, CLOption, CC1Option], "">>;
+defm sycl_rtc_mode: BoolFOption<"sycl-rtc-mode",
+  LangOpts<"SYCLRTCMode">, DefaultFalse,
+  PosFlag<SetTrue, [], [ClangOption], "Enable">,
+  NegFlag<SetFalse, [], [ClangOption], "Disable">,
+  BothFlags<[HelpHidden], [ClangOption, CC1Option], " RTC mode in SYCL.">>;
 // TODO: Remove this option once ESIMD headers are updated to
 // guard vectors to be device only.
 def fno_sycl_esimd_build_host_code :  Flag<["-"], "fno-sycl-esimd-build-host-code">,
