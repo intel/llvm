@@ -2190,8 +2190,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVLoad(Function *F, unsigned Width,
       Data = B.CreateInsertElement(Data, Lane, Index, "vload_insert");
     }
   } else {
-    PointerType *VecPtrTy = DataTy->getPointerTo(PtrTy->getAddressSpace());
-    Value *VecBase = B.CreateBitCast(GEPBase, VecPtrTy, "vload_ptr");
+    Value *VecBase = B.CreateBitCast(GEPBase, PtrTy, "vload_ptr");
     auto *Load = B.CreateLoad(DataTy, VecBase, false, "vload");
 
     const unsigned Align = DataTy->getScalarSizeInBits() / 8;
@@ -2251,8 +2250,7 @@ Value *CLBuiltinInfo::emitBuiltinInlineVStore(Function *F, unsigned Width,
       Store = B.CreateStore(Lane, GEP, false);
     }
   } else {
-    PointerType *VecPtrTy = VecDataTy->getPointerTo(PtrTy->getAddressSpace());
-    Value *VecBase = B.CreateBitCast(GEPBase, VecPtrTy, "vstore_ptr");
+    Value *VecBase = B.CreateBitCast(GEPBase, PtrTy, "vstore_ptr");
     Store = B.CreateStore(Data, VecBase, false);
 
     const unsigned Align = VecDataTy->getScalarSizeInBits() / 8;
