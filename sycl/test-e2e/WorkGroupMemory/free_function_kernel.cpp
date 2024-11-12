@@ -13,12 +13,13 @@
 #include <sycl/usm.hpp>
 
 using namespace sycl;
+namespace syclexp = sycl::ext::oneapi::experimental;
 
 queue q;
 context ctx = q.get_context();
 
-void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
-                sycl::ext::oneapi::experimental::work_group_memory<int> ret,
+void sum_helper(syclexp::work_group_memory<int[]> mem,
+                syclexp::work_group_memory<int> ret,
                 size_t WGSIZE) {
   for (int i = 0; i < WGSIZE; ++i) {
     ret += mem[i];
@@ -27,9 +28,9 @@ void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
 
 SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
     (ext::oneapi::experimental::nd_range_kernel<1>))
-void sum(sycl::ext::oneapi::experimental::work_group_memory<int[]> mem,
+void sum(syclexp::work_group_memory<int[]> mem,
          int *buf,
-         sycl::ext::oneapi::experimental::work_group_memory<int> result,
+         syclexp::work_group_memory<int> result,
          int expected, size_t WGSIZE, bool UseHelper) {
   const auto it = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
   size_t local_id = it.get_local_id();
@@ -67,8 +68,8 @@ void test(size_t SIZE, size_t WGSIZE, bool UseHelper) {
   kernel_id sum_id = ext::oneapi::experimental::get_kernel_id<sum>();
   kernel k_sum = Bundle.get_kernel(sum_id);
   q.submit([&](sycl::handler &cgh) {
-     ext::oneapi::experimental::work_group_memory<int[]> mem{WGSIZE, cgh};
-     ext::oneapi::experimental ::work_group_memory<int> result{cgh};
+     syclexp::work_group_memory<int[]> mem{WGSIZE, cgh};
+     syclexp::work_group_memory<int> result{cgh};
      cgh.set_args(mem, buf, result, expected, WGSIZE, UseHelper);
      nd_range ndr{{SIZE}, {WGSIZE}};
      cgh.parallel_for(ndr, k_sum);
