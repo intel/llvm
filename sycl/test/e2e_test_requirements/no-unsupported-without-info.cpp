@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 477
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 486
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -78,12 +78,14 @@
 // CHECK-NEXT: Basic/build_log.cpp
 // CHECK-NEXT: Basic/code_location_e2e.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
+// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/group_async_copy.cpp
 // CHECK-NEXT: Basic/host-task-dependency.cpp
 // CHECK-NEXT: Basic/image/image.cpp
+// CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readsampler.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readwrite.cpp
@@ -242,6 +244,7 @@
 // CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
+// CHECK-NEXT: GroupAlgorithm/barrier.cpp
 // CHECK-NEXT: GroupAlgorithm/reduce_sycl2020.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
@@ -249,6 +252,8 @@
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
 // CHECK-NEXT: InOrderEventsExt/get_last_event.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
+// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
+// CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
 // CHECK-NEXT: KernelAndProgram/build-log.cpp
@@ -437,6 +442,8 @@
 // CHECK-NEXT: Regression/DAE-separate-compile.cpp
 // CHECK-NEXT: Regression/acos.cpp
 // CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
+// CHECK-NEXT: Regression/complex_global_object.cpp
+// CHECK-NEXT: Regression/event_destruction.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/image_access.cpp
@@ -471,7 +478,9 @@
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
+// CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/multiple-targets.cpp
+// CHECK-NEXT: SubGroup/generic_reduce.cpp
 // CHECK-NEXT: Tracing/code_location_queue_copy.cpp
 // CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
 // CHECK-NEXT: Tracing/code_location_queue_submit.cpp
