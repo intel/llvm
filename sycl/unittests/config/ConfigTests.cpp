@@ -325,33 +325,21 @@ TEST(ConfigTests, CheckSyclCacheTraceTest) {
   TestConfig(0, 0, 0, 0);
 }
 
-// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts a string value of the form
-// "ProgramCacheSize:KernelCache_size:FastKernelCacheSize", where
-// ProgramCacheSize, KernelCacheSize, and FastKernelCacheSize are
-// the maximum size of the in-memory Program, kernel, and fast kernel cache.
+// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies
+// the maximum size of the in-memory Program cache.
 // Cache eviction is performed when the cache size exceeds the threshold.
-// The thresholds are specified in bytes and parsed as integers.
-// The default value is "0:0:0" which means that eviction is disabled.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
 TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
 
   using InMemEvicType =
       sycl::detail::SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
 
   // Lambda to test parsing of SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
-  auto TestConfig = [](int expectedProgramCacheSize,
-                       int expectedKernelCacheSize,
-                       int expectedFastKernelCacheSize) {
+  auto TestConfig = [](int expectedProgramCacheSize) {
     EXPECT_EQ(expectedProgramCacheSize, InMemEvicType::getProgramCacheSize());
-    EXPECT_EQ(expectedKernelCacheSize, InMemEvicType::getKernelCacheSize());
-    EXPECT_EQ(expectedFastKernelCacheSize,
-              InMemEvicType::getFastKernelCacheSize());
-
     EXPECT_EQ(expectedProgramCacheSize > 0,
               InMemEvicType::isProgramCacheEvictionEnabled());
-    EXPECT_EQ(expectedKernelCacheSize > 0,
-              InMemEvicType::isKernelCacheEvictionEnabled());
-    EXPECT_EQ(expectedFastKernelCacheSize > 0,
-              InMemEvicType::isFastKernelCacheEvictionEnabled());
   };
 
   // Lambda to set SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
@@ -369,31 +357,25 @@ TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
     SetSyclInMemCacheEvictionThresholdEnv(value);
     try {
       InMemEvicType::reset();
-      TestConfig(0, 0, 0);
+      TestConfig(0);
       FAIL() << errMsg;
     } catch (...) {
     }
   };
 
   // Test eviction threshold with zero.
-  SetSyclInMemCacheEvictionThresholdEnv("0:0:0");
+  SetSyclInMemCacheEvictionThresholdEnv("0");
   sycl::detail::readConfig(true);
-  TestConfig(0, 0, 0);
+  TestConfig(0);
 
   // Test invalid values.
-  TestInvalidValues("-1:0:0", "Should throw exception for negative value");
-  TestInvalidValues("a:0:0", "Should throw exception for non-integer value");
-  TestInvalidValues("0:a:0", "Should throw exception for non-integer value");
-  TestInvalidValues("0:0:a", "Should throw exception for non-integer value");
-  TestInvalidValues("", "Should throw exception for empty value");
-  TestInvalidValues("0:0", "Should throw exception for invalid input");
-  TestInvalidValues("0", "Should throw exception for invalid input");
-  TestInvalidValues("random", "Should throw exception for invalid input");
+  TestInvalidValues("-1", "Should throw exception for negative value");
+  TestInvalidValues("a", "Should throw exception for non-integer value");
 
   // Test valid values.
-  SetSyclInMemCacheEvictionThresholdEnv("1024:2048:4096");
+  SetSyclInMemCacheEvictionThresholdEnv("1024");
   InMemEvicType::reset();
-  TestConfig(1024, 2048, 4096);
+  TestConfig(1024);
 
   // When SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD is not set, it should default to
   // 0:0:0.
@@ -403,5 +385,5 @@ TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
   unsetenv("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD");
 #endif
   InMemEvicType::reset();
-  TestConfig(0, 0, 0);
+  TestConfig(0);
 }

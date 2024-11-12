@@ -14,7 +14,7 @@ compiler and runtime.
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
 | `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
 | `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
-| `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` | See [below](#sycl_in_mem_cache_eviction_threshold) | Controls cache eviction of in-memory caches. |
+| `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` | Positive integer  | `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` accepts an integer that specifies the maximum size of the in-memory Program cache in bytes. Eviction is performed when the cache size exceeds the threshold. The default value is 0 which means that eviction is disabled.  |
 | `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches persistent cache eviction off when the variable is set. |
 | `SYCL_CACHE_MAX_SIZE` | Positive integer | Persistent cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
 | `SYCL_CACHE_THRESHOLD` | Positive integer | Persistent cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
@@ -138,12 +138,6 @@ A `sycl::exception` with `sycl::errc::invalid` is thrown during submission of a 
 If this environment variable is not set, the preferred work-group size for reductions is implementation defined.
 
 Note that conflicting configuration tuples in the same list will favor the last entry. For example, a list `cpu:32,gpu:32,cpu:16` will set the preferred work-group size of reductions to 32 for GPUs and 16 for CPUs. This also applies to `*`, for example `cpu:32,*:16` sets the preferred work-group size of reductions on all devices to 16, while `*:16,cpu:32` sets the preferred work-group size of reductions to 32 on CPUs and to 16 on all other devices.
-
-### `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD`
-
-`SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` accepts a string value of the form "ProgramCacheSize:KernelCache_size:FastKernelCacheSize", where ProgramCacheSize, KernelCacheSize, and FastKernelCacheSize are the maximum size of the in-memory Program, kernel, and fast kernel cache. Cache eviction is performed when the cache size exceeds the threshold. The thresholds are specified in bytes and parsed as integers.
-
-The default value is "0:0:0" which means that eviction is disabled.
 
 ## Range Rounding Environment Variables
 

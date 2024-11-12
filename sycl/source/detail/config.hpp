@@ -756,75 +756,45 @@ private:
   }
 };
 
-// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts a string value of the form
-// "ProgramCacheSize:KernelCache_size:FastKernelCacheSize", where
-// ProgramCacheSize, KernelCacheSize, and FastKernelCacheSize are
-// the maximum size of the in-memory Program, kernel, and fast kernel cache.
+// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies
+// the maximum size of the in-memory Program cache.
 // Cache eviction is performed when the cache size exceeds the threshold.
-// The thresholds are specified in bytes and parsed as integers.
-// The default value is "0:0:0" which means that eviction is disabled.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
 template <> class SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD> {
   using BaseT = SYCLConfigBase<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
 
 public:
-  static std::tuple<int, int, int> get() { return getCachedValue(); }
+  static int get() { return getCachedValue(); }
   static void reset() { (void)getCachedValue(true); }
 
-  static int getProgramCacheSize() { return std::get<0>(getCachedValue()); }
-  static int getKernelCacheSize() { return std::get<1>(getCachedValue()); }
-  static int getFastKernelCacheSize() { return std::get<2>(getCachedValue()); }
+  static int getProgramCacheSize() { return getCachedValue(); }
 
   static bool isProgramCacheEvictionEnabled() {
     return getProgramCacheSize() > 0;
   }
-  static bool isKernelCacheEvictionEnabled() {
-    return getKernelCacheSize() > 0;
-  }
-  static bool isFastKernelCacheEvictionEnabled() {
-    return getFastKernelCacheSize() > 0;
-  }
 
 private:
-  static std::tuple<int, int, int> getCachedValue(bool ResetCache = false) {
+  static int getCachedValue(bool ResetCache = false) {
     const auto Parser = []() {
       const char *ValStr = BaseT::getRawValue();
 
-      // Ensure the the input string is not null and in correct format.
+      // Disable eviction by default.
       if (!ValStr)
-        return std::tuple<int, int, int>{0, 0, 0};
+        return 0;
 
-      std::string InputString{ValStr};
-      size_t Pos = 0;
-      std::array<int, 3> CacheSizes;
-
-      // Ensure that input has exactly 2 ":"
-      if (std::count(InputString.begin(), InputString.end(), ':') != 2) {
+      int CacheSize = 0;
+      try {
+        CacheSize = std::stoi(ValStr);
+        if (CacheSize < 0)
+          throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
+      } catch (...) {
         std::string Msg = std::string{
             "Invalid input to SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD"};
         throw exception(make_error_code(errc::runtime), Msg);
       }
 
-      for (int &CacheSize : CacheSizes) {
-        size_t NextPos = InputString.find(':', Pos);
-        if (NextPos == std::string::npos)
-          NextPos = InputString.size();
-        std::string CacheSizeStr = InputString.substr(Pos, NextPos - Pos);
-        try {
-          CacheSize = std::stoi(CacheSizeStr);
-          // This exception will anyway be caught by the catch block.
-          if (CacheSize < 0)
-            throw exception(make_error_code(errc::runtime), "");
-        } catch (...) {
-
-          std::string Msg = std::string{
-              "Invalid input to SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD"};
-          throw exception(make_error_code(errc::runtime), Msg);
-        }
-        Pos = NextPos + 1;
-      }
-
-      return std::tuple<int, int, int>{CacheSizes[0], CacheSizes[1],
-                                       CacheSizes[2]};
+      return CacheSize;
     };
 
     static auto EvictionThresholds = Parser();
