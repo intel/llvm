@@ -144,5 +144,13 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
     *ppPlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
+  if (pFrontendOption == "-foffload-fp32-prec-div") {
+    *ppPlatformOption = "-cl-fp32-correctly-rounded-divide-div";
+    return UR_RESULT_SUCCESS;
+  }
+  if (pFrontendOption == "-foffload-fp32-prec-sqrt") {
+    *ppPlatformOption = "-cl-fp32-correctly-rounded-divide-sqrt";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
