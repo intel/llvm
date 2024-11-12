@@ -6,19 +6,21 @@
 #include <map>
 #include <uur/fixtures.h>
 
-using urMemGetInfoTest = uur::urMemBufferTestWithParam<ur_mem_info_t>;
+using urMemGetInfoTestWithParam = uur::urMemBufferTestWithParam<ur_mem_info_t>;
 
-static constexpr std::array<ur_mem_info_t, 2> mem_info_values{
-    UR_MEM_INFO_SIZE, UR_MEM_INFO_CONTEXT};
+static constexpr std::array<ur_mem_info_t, 3> mem_info_values{
+    UR_MEM_INFO_SIZE, UR_MEM_INFO_CONTEXT, UR_MEM_INFO_REFERENCE_COUNT};
 static std::unordered_map<ur_mem_info_t, size_t> mem_info_size_map = {
     {UR_MEM_INFO_SIZE, sizeof(size_t)},
     {UR_MEM_INFO_CONTEXT, sizeof(ur_context_handle_t)},
+    {UR_MEM_INFO_REFERENCE_COUNT, sizeof(uint32_t)},
 };
 
-UUR_TEST_SUITE_P(urMemGetInfoTest, ::testing::ValuesIn(mem_info_values),
+UUR_TEST_SUITE_P(urMemGetInfoTestWithParam,
+                 ::testing::ValuesIn(mem_info_values),
                  uur::deviceTestWithParamPrinter<ur_mem_info_t>);
 
-TEST_P(urMemGetInfoTest, Success) {
+TEST_P(urMemGetInfoTestWithParam, Success) {
     ur_mem_info_t info = getParam();
     size_t size;
     ASSERT_SUCCESS(urMemGetInfo(buffer, info, 0, nullptr, &size));
@@ -44,10 +46,19 @@ TEST_P(urMemGetInfoTest, Success) {
         ASSERT_GE(*returned_size, allocation_size);
         break;
     }
+    case UR_MEM_INFO_REFERENCE_COUNT: {
+        const size_t ReferenceCount =
+            *reinterpret_cast<const uint32_t *>(info_data.data());
+        ASSERT_GT(ReferenceCount, 0);
+        break;
+    }
     default:
         break;
     }
 }
+
+using urMemGetInfoTest = uur::urMemBufferTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemGetInfoTest);
 
 TEST_P(urMemGetInfoTest, InvalidNullHandleMemory) {
     size_t mem_size = 0;
@@ -108,16 +119,30 @@ TEST_P(urMemGetInfoImageTest, Success) {
     std::vector<uint8_t> info_data(size);
     ASSERT_SUCCESS(urMemGetInfo(image, info, size, info_data.data(), nullptr));
 
-    if (info == UR_MEM_INFO_SIZE) {
+    switch (info) {
+    case UR_MEM_INFO_SIZE: {
         const size_t ExpectedPixelSize = sizeof(float) * 4 /*NumChannels*/;
         const size_t ExpectedImageSize = ExpectedPixelSize * desc.arraySize *
                                          desc.width * desc.height * desc.depth;
         const size_t ImageSizeBytes =
             *reinterpret_cast<const size_t *>(info_data.data());
         ASSERT_EQ(ImageSizeBytes, ExpectedImageSize);
-    } else if (info == UR_MEM_INFO_CONTEXT) {
+        break;
+    }
+    case UR_MEM_INFO_CONTEXT: {
         ur_context_handle_t InfoContext =
             *reinterpret_cast<ur_context_handle_t *>(info_data.data());
         ASSERT_EQ(InfoContext, context);
+        break;
+    }
+    case UR_MEM_INFO_REFERENCE_COUNT: {
+        const size_t ReferenceCount =
+            *reinterpret_cast<const uint32_t *>(info_data.data());
+        ASSERT_GT(ReferenceCount, 0);
+        break;
+    }
+
+    default:
+        break;
     }
 }

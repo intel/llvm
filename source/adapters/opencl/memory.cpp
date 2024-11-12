@@ -186,6 +186,8 @@ cl_int mapURMemInfoToCL(ur_mem_info_t URPropName) {
     return CL_MEM_SIZE;
   case UR_MEM_INFO_CONTEXT:
     return CL_MEM_CONTEXT;
+  case UR_MEM_INFO_REFERENCE_COUNT:
+    return CL_MEM_REFERENCE_COUNT;
   default:
     return -1;
   }

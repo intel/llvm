@@ -1,0 +1,3 @@
+# Note: This file is only for use with cts_exe.py, not the legacy match checker
+# These crash when ran through the loader
+{{OPT}}urEventSetCallbackTest.ValidateParameters/*

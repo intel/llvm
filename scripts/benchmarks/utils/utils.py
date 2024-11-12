@@ -4,12 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 import os
-import json
 import shutil
 import subprocess # nosec B404
-from pathlib import Path
-from benches.result import Result
 from benches.options import options
+from pathlib import Path
 
 def run(command, env_vars={}, cwd=None, add_sycl=False):
     try:
@@ -50,25 +48,6 @@ def git_clone(dir, name, repo, commit):
     else:
         raise Exception(f"The directory {repo_path} exists but is not a git repository.")
     return repo_path
-
-def save_benchmark_results(dir, save_name, benchmark_data: list[Result]):
-    serialized = [res.to_json() for res in benchmark_data]
-    results_dir = Path(os.path.join(dir, 'results'))
-    os.makedirs(results_dir, exist_ok=True)
-
-    file_path = Path(os.path.join(results_dir, f"{save_name}.json"))
-    with file_path.open('w') as file:
-        json.dump(serialized, file, indent=4)
-    print(f"Benchmark results saved to {file_path}")
-
-def load_benchmark_results(dir, compare_name) -> list[Result]:
-    file_path = Path(os.path.join(dir, 'results', f"{compare_name}.json"))
-    if file_path.exists():
-        with file_path.open('r') as file:
-            data = json.load(file)
-            return [Result.from_json(item) for item in data]
-    else:
-        return None
 
 def prepare_bench_cwd(dir):
     # we need 2 deep to workaround a problem with a fixed relative path in cudaSift

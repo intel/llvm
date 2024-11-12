@@ -856,7 +856,7 @@ ur_result_t urBindlessImagesImageCopyExp(
   ur_command_list_ptr_t CommandList{};
   UR_CALL(hQueue->Context->getAvailableCommandList(
       hQueue, CommandList, UseCopyEngine, numEventsInWaitList, phEventWaitList,
-      OkToBatch));
+      OkToBatch, nullptr /*ForcedCmdQueue*/));
 
   ze_event_handle_t ZeEvent = nullptr;
   ur_event_handle_t InternalEvent;

@@ -8,6 +8,7 @@
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/oneapi-src/unified-runtime/badge)](https://securityscorecards.dev/viewer/?uri=github.com/oneapi-src/unified-runtime)
 [![Trivy](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/trivy.yml)
 [![Deploy documentation to Pages](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/docs.yml)
+[![Compute Benchmarks Nightly](https://github.com/oneapi-src/unified-runtime/actions/workflows/benchmarks-nightly.yml/badge.svg)](https://github.com/oneapi-src/unified-runtime/actions/workflows/benchmarks-nightly.yml)
 
 <!-- TODO: add general description and purpose of the project -->
 
