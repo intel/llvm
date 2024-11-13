@@ -360,15 +360,22 @@ public:
   template <typename KeyT, typename ValT>
   void saveKernel(KeyT &&CacheKey, ValT &&CacheVal) {
 
-    ur_program_handle_t Program = std::get<3>(CacheVal);
-    // Save kernel in fast cache only if the corresponding program is also
-    // in the cache.
-    {
-      auto LockedCache = acquireCachedPrograms();
-      auto &ProgCache = LockedCache.get();
-      if (ProgCache.ProgramSizeMap.find(Program) ==
-          ProgCache.ProgramSizeMap.end())
-        return;
+    if (SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::
+            isProgramCacheEvictionEnabled()) {
+
+      ur_program_handle_t Program = std::get<3>(CacheVal);
+      // Save kernel in fast cache only if the corresponding program is also
+      // in the cache.
+      {
+        auto LockedCache = acquireCachedPrograms();
+        auto &ProgCache = LockedCache.get();
+        if (ProgCache.ProgramSizeMap.find(Program) ==
+            ProgCache.ProgramSizeMap.end())
+          return;
+      }
+
+      // Save reference between the program and the fast cache key.
+      MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
     }
 
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
@@ -376,13 +383,6 @@ public:
     // smth in the cache
     traceKernel("Kernel inserted.", std::get<3>(CacheKey), true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
-
-    if (SYCLConfig<
-            SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize()) {
-
-      // Save reference between the program and the fast cache key.
-      MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
-    }
   }
 
   // Evict programs from cache to free up space.

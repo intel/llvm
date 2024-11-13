@@ -39,7 +39,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <functional>
 #include <memory>
 #include <mutex>
 #include <sstream>
