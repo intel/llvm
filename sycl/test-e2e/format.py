@@ -157,7 +157,10 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.split_mode == "build-only":
-            if "unsplit-test-mode" in test.requires or "TEMPORARY_DISABLED" in test.requires:
+            if (
+                "unsplit-test-mode" in test.requires
+                or "TEMPORARY_DISABLED" in test.requires
+            ):
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )
@@ -297,7 +300,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if (len(devices_for_test) > 1 or test.config.split_mode == "build-only"):
+        if len(devices_for_test) > 1 or test.config.split_mode == "build-only":
             return result
 
         # Single device - might be an XFAIL.
