@@ -3388,19 +3388,19 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
       return (BE == sycl::backend::opencl ||
               BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
                0) {
       return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
       return Dev.is_gpu() && (BE == sycl::backend::opencl ||
                               BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
       return Dev.is_accelerator();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
       return BE == sycl::backend::ext_oneapi_cuda;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
       return BE == sycl::backend::ext_oneapi_hip;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
+    } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
       return BE == sycl::backend::ext_oneapi_native_cpu;
     }
     assert(false);
