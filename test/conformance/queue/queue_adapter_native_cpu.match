@@ -23,7 +23,6 @@ urQueueCreateWithParamTest.MatchingDeviceHandles/SYCL_NATIVE_CPU___SYCL_Native_C
 urQueueCreateWithParamTest.MatchingDeviceHandles/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_FLAG_SUBMISSION_IMMEDIATE
 urQueueCreateWithParamTest.MatchingDeviceHandles/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_FLAG_USE_DEFAULT_STREAM
 urQueueCreateWithParamTest.MatchingDeviceHandles/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM
-urQueueFinishTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urQueueFlushTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
 urQueueGetInfoTestWithInfoParam.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_INFO_CONTEXT
 urQueueGetInfoTestWithInfoParam.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__UR_QUEUE_INFO_DEVICE
