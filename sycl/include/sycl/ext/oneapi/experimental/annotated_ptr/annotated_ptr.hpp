@@ -61,8 +61,9 @@ using PropertiesFilter =
 
 // filter properties that are applied on annotations
 template <typename... Props>
-using annotation_filter = properties<
-    PropertiesFilter<std::tuple<Props...>, propagateToPtrAnnotation>>;
+using annotation_filter =
+    properties<PropertiesFilter<detail::properties_type_list<Props...>,
+                                propagateToPtrAnnotation>>;
 } // namespace detail
 
 template <typename I, typename P> struct annotationHelper {};
@@ -245,7 +246,8 @@ annotated_ptr(T *, Args...)
     -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
+annotated_ptr(annotated_ptr<T, old>,
+              properties<detail::properties_type_list<ArgT...>>)
     -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides

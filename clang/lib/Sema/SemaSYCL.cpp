@@ -2040,6 +2040,11 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
+    if (SemaSYCLRef.getLangOpts().SYCLRTCMode) {
+      // When compiling in RTC mode, the restriction regarding forward
+      // declarations doesn't apply, as we don't need the integration header.
+      return isValid();
+    }
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     // For free functions all struct/class kernel arguments are forward declared
     // in integration header, that adds additional restrictions for kernel
@@ -3167,7 +3172,7 @@ public:
 //        // code
 //      }
 //
-//      [[intel::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
+//      [[sycl::reqd_sub_group_size(4)]] void operator()(sycl::id<1> id) const
 //      {
 //        // code
 //      }
@@ -4693,6 +4698,9 @@ public:
                           CurOffset + offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::stream)) {
       addParam(FD, FieldTy, SYCLIntegrationHeader::kind_stream);
+    } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(FD, FieldTy));
     } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::sampler) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_ptr) ||
                SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::annotated_arg)) {
@@ -5773,6 +5781,7 @@ static const char *paramKind2Str(KernelParamKind K) {
     CASE(stream);
     CASE(specialization_constants_buffer);
     CASE(pointer);
+    CASE(work_group_memory);
   }
   return "<ERROR>";
 
@@ -6448,6 +6457,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
+
+  // The rest of this function only applies to free-function kernels. However,
+  // in RTC mode, we do not need integration header information for
+  // free-function kernels, so we can return early here.
+  if (S.getLangOpts().SYCLRTCMode) {
+    return;
+  }
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;

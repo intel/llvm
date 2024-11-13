@@ -12,7 +12,8 @@
 #include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
 #include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
 #include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
-#include <sycl/ext/oneapi/properties/property.hpp> // for PropertyID, IsRun...
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <array>       // for tuple_element
 #include <stddef.h>    // for size_t
@@ -23,58 +24,38 @@
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
-
-// Forward declaration
-template <typename PropertyT, typename... Ts> struct property_value;
-
 namespace detail {
+template <typename... property_tys> struct properties_type_list;
 
 //******************************************************************************
 // Misc
 //******************************************************************************
 
-// Checks if a type is a tuple.
-template <typename T> struct IsTuple : std::false_type {};
-template <typename... Ts> struct IsTuple<std::tuple<Ts...>> : std::true_type {};
-
-// Gets the first type in a parameter pack of types.
-template <typename... Ts>
-using GetFirstType = typename std::tuple_element<0, std::tuple<Ts...>>::type;
-
-// Prepends a value to a tuple.
-template <typename T, typename Tuple> struct PrependTuple {};
-template <typename T, typename... Ts>
-struct PrependTuple<T, std::tuple<Ts...>> {
-  using type = std::tuple<T, Ts...>;
+#if __has_builtin(__type_pack_element)
+template <int N, typename... Ts>
+using nth_type_t = __type_pack_element<N, Ts...>;
+#else
+template <int N, typename T, typename... Ts> struct nth_type {
+  using type = typename nth_type<N - 1, Ts...>::type;
 };
 
-// Checks if a type T has a static value member variable.
-template <typename T, typename U = int> struct HasValue : std::false_type {};
-template <typename T>
-struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
+template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
+  using type = T;
+};
+
+template <int N, typename... Ts>
+using nth_type_t = typename nth_type<N, Ts...>::type;
+#endif
+
+template <typename T, typename PropList> struct PrependProperty {};
+template <typename T, typename... Ts>
+struct PrependProperty<T, properties_type_list<Ts...>> {
+  using type = properties_type_list<T, Ts...>;
+};
 
 //******************************************************************************
 // Property identification
 //******************************************************************************
-
-// Checks if a type is a compile-time property values.
-// Note: This is specialized for property_value elsewhere.
-template <typename PropertyT>
-struct IsCompileTimePropertyValue : std::false_type {};
-
-// Checks if a type is either a runtime property or if it is a compile-time
-// property
-template <typename T> struct IsProperty {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
-};
-
-// Checks if a type is a valid property value, i.e either runtime property or
-// property_value with a valid compile-time property
-template <typename T> struct IsPropertyValue {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
-};
 
 // Checks that all types in a tuple are valid properties.
 template <typename T> struct AllPropertyValues {};
@@ -94,13 +75,13 @@ struct AllPropertyValues<std::tuple<T, Ts...>>
 // false the head will be void and the tail will be the full tuple.
 template <typename T1, bool ShouldSplit> struct HeadSplit {};
 template <typename T, typename... Ts>
-struct HeadSplit<std::tuple<T, Ts...>, true> {
+struct HeadSplit<properties_type_list<T, Ts...>, true> {
   using htype = T;
-  using ttype = std::tuple<Ts...>;
+  using ttype = properties_type_list<Ts...>;
 };
-template <typename... Ts> struct HeadSplit<std::tuple<Ts...>, false> {
+template <typename... Ts> struct HeadSplit<properties_type_list<Ts...>, false> {
   using htype = void;
-  using ttype = std::tuple<Ts...>;
+  using ttype = properties_type_list<Ts...>;
 };
 
 // Selects the one of two types that is not void. This assumes that at least one
@@ -126,29 +107,9 @@ template <typename... Ts> struct Sorted {
   using sortedProperties =
       sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
   using type =
-      sycl::detail::boost::mp11::mp_rename<sortedProperties, std::tuple>;
+      sycl::detail::boost::mp11::mp_rename<sortedProperties,
+                                           detail::properties_type_list>;
 };
-
-// Checks if the types in a tuple are sorted w.r.t. their PropertyID.
-template <typename T> struct IsSorted {};
-template <typename... Ts>
-struct IsSorted<std::tuple<Ts...>> : std::true_type {};
-template <typename T> struct IsSorted<std::tuple<T>> : std::true_type {};
-template <typename L, typename R, typename... Rest>
-struct IsSorted<std::tuple<L, R, Rest...>>
-    : std::conditional_t<PropertyID<L>::value <= PropertyID<R>::value,
-                         IsSorted<std::tuple<R, Rest...>>, std::false_type> {};
-
-// Checks that all types in a sorted tuple have unique PropertyID.
-template <typename T> struct SortedAllUnique {};
-template <typename... Ts>
-struct SortedAllUnique<std::tuple<Ts...>> : std::true_type {};
-template <typename T> struct SortedAllUnique<std::tuple<T>> : std::true_type {};
-template <typename L, typename R, typename... Rest>
-struct SortedAllUnique<std::tuple<L, R, Rest...>>
-    : std::conditional_t<PropertyID<L>::value != PropertyID<R>::value,
-                         SortedAllUnique<std::tuple<R, Rest...>>,
-                         std::false_type> {};
 
 //******************************************************************************
 // Property merging
@@ -159,48 +120,53 @@ struct SortedAllUnique<std::tuple<L, R, Rest...>>
 // NOTE: This assumes that the properties are in sorted order.
 template <typename LHSPropertyT, typename RHSPropertyT> struct MergeProperties;
 
-template <> struct MergeProperties<std::tuple<>, std::tuple<>> {
-  using type = std::tuple<>;
+template <>
+struct MergeProperties<properties_type_list<>, properties_type_list<>> {
+  using type = properties_type_list<>;
 };
 
 template <typename... LHSPropertyTs>
-struct MergeProperties<std::tuple<LHSPropertyTs...>, std::tuple<>> {
-  using type = std::tuple<LHSPropertyTs...>;
+struct MergeProperties<properties_type_list<LHSPropertyTs...>,
+                       properties_type_list<>> {
+  using type = properties_type_list<LHSPropertyTs...>;
 };
 
 template <typename... RHSPropertyTs>
-struct MergeProperties<std::tuple<>, std::tuple<RHSPropertyTs...>> {
-  using type = std::tuple<RHSPropertyTs...>;
+struct MergeProperties<properties_type_list<>,
+                       properties_type_list<RHSPropertyTs...>> {
+  using type = properties_type_list<RHSPropertyTs...>;
 };
 
 // Identical properties are allowed, but only one will carry over.
 template <typename PropertyT, typename... LHSPropertyTs,
           typename... RHSPropertyTs>
-struct MergeProperties<std::tuple<PropertyT, LHSPropertyTs...>,
-                       std::tuple<PropertyT, RHSPropertyTs...>> {
+struct MergeProperties<properties_type_list<PropertyT, LHSPropertyTs...>,
+                       properties_type_list<PropertyT, RHSPropertyTs...>> {
   using merge_tails =
-      typename MergeProperties<std::tuple<LHSPropertyTs...>,
-                               std::tuple<RHSPropertyTs...>>::type;
-  using type = typename PrependTuple<PropertyT, merge_tails>::type;
+      typename MergeProperties<properties_type_list<LHSPropertyTs...>,
+                               properties_type_list<RHSPropertyTs...>>::type;
+  using type = typename PrependProperty<PropertyT, merge_tails>::type;
 };
 
 template <typename... LHSPropertyTs, typename... RHSPropertyTs>
-struct MergeProperties<std::tuple<LHSPropertyTs...>,
-                       std::tuple<RHSPropertyTs...>> {
-  using l_head = GetFirstType<LHSPropertyTs...>;
-  using r_head = GetFirstType<RHSPropertyTs...>;
+struct MergeProperties<properties_type_list<LHSPropertyTs...>,
+                       properties_type_list<RHSPropertyTs...>> {
+  using l_head = nth_type_t<0, LHSPropertyTs...>;
+  using r_head = nth_type_t<0, RHSPropertyTs...>;
   static_assert(
       PropertyID<l_head>::value != PropertyID<r_head>::value,
       "Failed to merge property lists due to conflicting properties.");
   static constexpr bool left_has_min =
       PropertyID<l_head>::value < PropertyID<r_head>::value;
-  using l_split = HeadSplit<std::tuple<LHSPropertyTs...>, left_has_min>;
-  using r_split = HeadSplit<std::tuple<RHSPropertyTs...>, !left_has_min>;
+  using l_split =
+      HeadSplit<properties_type_list<LHSPropertyTs...>, left_has_min>;
+  using r_split =
+      HeadSplit<properties_type_list<RHSPropertyTs...>, !left_has_min>;
   using min = typename SelectNonVoid<typename l_split::htype,
                                      typename r_split::htype>::type;
   using merge_tails = typename MergeProperties<typename l_split::ttype,
                                                typename r_split::ttype>::type;
-  using type = typename PrependTuple<min, merge_tails>::type;
+  using type = typename PrependProperty<min, merge_tails>::type;
 };
 
 //******************************************************************************

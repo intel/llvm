@@ -14,6 +14,7 @@
 #include "fusion/FusionPipeline.h"
 #include "helper/ConfigHelper.h"
 #include "helper/ErrorHandling.h"
+#include "rtc/DeviceCompilation.h"
 #include "translation/KernelTranslation.h"
 #include "translation/SPIRVLLVMTranslation.h"
 #include <llvm/Support/Error.h>
@@ -70,10 +71,9 @@ static bool isTargetFormatSupported(BinaryFormat TargetFormat) {
   }
 }
 
-extern "C" JITResult
-materializeSpecConstants(const char *KernelName,
-                         jit_compiler::SYCLKernelBinaryInfo &BinInfo,
-                         View<unsigned char> SpecConstBlob) {
+extern "C" KF_EXPORT_SYMBOL JITResult materializeSpecConstants(
+    const char *KernelName, jit_compiler::SYCLKernelBinaryInfo &BinInfo,
+    View<unsigned char> SpecConstBlob) {
   auto &JITCtx = JITContext::getInstance();
 
   TargetInfo TargetInfo = ConfigHelper::get<option::JITTargetInfo>();
@@ -114,12 +114,11 @@ materializeSpecConstants(const char *KernelName,
   return JITResult{MaterializerKernelInfo};
 }
 
-extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
-                                 const char *FusedKernelName,
-                                 View<ParameterIdentity> Identities,
-                                 BarrierFlags BarriersFlags,
-                                 View<ParameterInternalization> Internalization,
-                                 View<jit_compiler::JITConstant> Constants) {
+extern "C" KF_EXPORT_SYMBOL JITResult
+fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
+            View<ParameterIdentity> Identities, BarrierFlags BarriersFlags,
+            View<ParameterInternalization> Internalization,
+            View<jit_compiler::JITConstant> Constants) {
 
   std::vector<std::string> KernelsToFuse;
   llvm::transform(KernelInformation, std::back_inserter(KernelsToFuse),
@@ -235,8 +234,35 @@ extern "C" JITResult fuseKernels(View<SYCLKernelInfo> KernelInformation,
   return JITResult{FusedKernelInfo};
 }
 
-extern "C" void resetJITConfiguration() { ConfigHelper::reset(); }
+extern "C" KF_EXPORT_SYMBOL JITResult
+compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
+            View<const char *> UserArgs) {
+  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
+  if (!ModuleOrErr) {
+    return errorToFusionResult(ModuleOrErr.takeError(),
+                               "Device compilation failed");
+  }
+  std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
 
-extern "C" void addToJITConfiguration(OptionStorage &&Opt) {
+  SYCLKernelInfo Kernel;
+  auto Error = translation::KernelTranslator::translateKernel(
+      Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
+
+  auto *LLVMCtx = &Module->getContext();
+  Module.reset();
+  delete LLVMCtx;
+
+  if (Error) {
+    return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
+  }
+
+  return JITResult{Kernel};
+}
+
+extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {
+  ConfigHelper::reset();
+}
+
+extern "C" KF_EXPORT_SYMBOL void addToJITConfiguration(OptionStorage &&Opt) {
   ConfigHelper::getConfig().set(std::move(Opt));
 }

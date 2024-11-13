@@ -169,7 +169,6 @@ jobs:
           --cmake-opt=-DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
           --cmake-opt="-DLLVM_INSTALL_UTILS=ON" \
           --cmake-opt="-DNATIVECPU_USE_OCK=Off" \
-          --cmake-opt="-DSYCL_PI_TESTS=OFF" \
           --cmake-opt="-DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=SPIRV"
     - name: Compile
       id: build
@@ -212,6 +211,12 @@ jobs:
       if: always() && !cancelled() && contains(inputs.changes, 'libdevice')
       run: |
         cmake --build $GITHUB_WORKSPACE/build --target check-libdevice
+    - name: Check E2E test requirements
+      if: always() && !cancelled() && !contains(inputs.changes, 'sycl')
+      run: |
+        # TODO consider moving this to Dockerfile.
+        export LD_LIBRARY_PATH=/usr/local/cuda/compat/:/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+        LIT_OPTS="--allow-empty-runs" LIT_FILTER="e2e_test_requirements" cmake --build $GITHUB_WORKSPACE/build --target check-sycl
     - name: Install
       if: ${{ always() && !cancelled() && steps.build.conclusion == 'success' }}
       # TODO replace utility installation with a single CMake target

@@ -3,6 +3,10 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
+
 ; CHECK-DAG: Constant [[#]] [[#CrossDeviceScope:]] 0
 ; CHECK-DAG: Constant [[#]] [[#Release:]] 4
 ; CHECK-DAG: Constant [[#]] [[#SequentiallyConsistent:]] 16
@@ -14,7 +18,7 @@ target triple = "spir64"
 ; Function Attrs: nounwind
 define dso_local spir_func void @test() {
 entry:
-; CHECK: Variable [[#]] [[#PTR:]]
+; CHECK: {{(Variable|UntypedVariableKHR)}} [[#]] [[#PTR:]]
   %0 = alloca i32
 
 ; CHECK: AtomicStore [[#PTR]] [[#CrossDeviceScope]] {{.+}} [[#]]
