@@ -38,17 +38,17 @@ config.required_features = []
 config.unsupported_features = []
 
 # split-mode: Set if tests should run normally or with split build/run
-match lit_config.params.get("split-mode", "both"):
-    case "run":
-        config.split_mode = "run-only"
+match lit_config.params.get("test-mode", "full"):
+    case "run-only":
+        config.test_mode = "run-only"
         config.available_features.add("run-mode")
-    case "build":
-        config.split_mode = "build-only"
+    case "build-only":
+        config.test_mode = "build-only"
         config.sycl_devices = []
     case _:
-        config.split_mode = "unsplit"
+        config.test_mode = "full"
         config.available_features.add("run-mode")
-        config.available_features.add("unsplit-test-mode")
+        config.available_features.add("run-and-build-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [

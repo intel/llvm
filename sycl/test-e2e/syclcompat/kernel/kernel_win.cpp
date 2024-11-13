@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // DEFINE: %{sharedflag} = %if cl_options %{/clang:-shared%} %else %{-shared%}
 

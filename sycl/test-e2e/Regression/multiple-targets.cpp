@@ -3,7 +3,7 @@
 // The test is repeated for per_kernel device code splitting.
 //
 // REQUIRES: cuda || hip || native_cpu
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 // RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple},spir64 -o %t1.out %s
 // RUN: %{run} %t1.out
 //

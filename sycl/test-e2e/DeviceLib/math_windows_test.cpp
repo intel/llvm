@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // TODO: Add hypotf case back when the missing symbol is fixed.
 

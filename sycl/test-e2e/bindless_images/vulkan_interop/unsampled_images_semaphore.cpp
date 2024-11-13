@@ -1,6 +1,6 @@
 // REQUIRES: cuda
 // REQUIRES: vulkan
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // RUN: %{build} %link-vulkan -o %t.out
 // RUN: %{run} %t.out

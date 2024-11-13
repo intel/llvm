@@ -1,5 +1,5 @@
 // REQUIRES: gpu, cuda, cuda_dev_kit
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 // RUN: %{build} %cuda_options -o %t.out
 // RUN: %{run} %t.out
 //

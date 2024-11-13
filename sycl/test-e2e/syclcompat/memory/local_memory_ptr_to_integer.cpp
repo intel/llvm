@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 // RUN:  %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN:  %{run} %t.out
 #include <sycl/detail/core.hpp>

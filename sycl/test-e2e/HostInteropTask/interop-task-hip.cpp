@@ -3,7 +3,7 @@
 // RUN: %{build} -Wno-error=deprecated-declarations -o %t.out -I%rocm_path/include -L%rocm_path/lib -lamdhip64
 // RUN: %{run} %t.out
 // REQUIRES: hip
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 #include <iostream>
 #include <sycl/backend.hpp>

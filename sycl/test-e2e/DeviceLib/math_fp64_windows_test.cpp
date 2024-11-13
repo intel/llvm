@@ -1,5 +1,5 @@
 // REQUIRES: aspect-fp64, windows
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 

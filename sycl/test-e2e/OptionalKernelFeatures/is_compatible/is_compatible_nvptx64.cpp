@@ -1,5 +1,5 @@
 // REQUIRES: cuda, opencl, gpu, cpu
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // RUN: %clangxx -fsycl -fsycl-targets=nvptx64-nvidia-cuda %S/Inputs/is_compatible_with_env.cpp -o %t.out
 

@@ -1,5 +1,5 @@
 // REQUIRES: gpu, cuda
-// REQUIRES: unsplit-test-mode
+// REQUIRES: run-and-build-mode
 
 // RUN: env ONEAPI_DEVICE_SELECTOR="cuda:*" sycl-ls --verbose >%t.cuda.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-CUDA,CHECK-CUSTOM-GPU-CUDA --input-file %t.cuda.out
