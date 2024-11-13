@@ -676,8 +676,7 @@ getTripleBasedSYCLPostLinkOpts(const ArgList &Args,
   if ((!Args.hasFlag(OPT_no_sycl_remove_unused_external_funcs,
                      OPT_sycl_remove_unused_external_funcs, false) &&
        !SYCLNativeCPU) &&
-      !Args.hasFlag(OPT_sycl_allow_device_image_dependencies,
-                    OPT_no_sycl_allow_device_image_dependencies, false) &&
+      !Args.hasArg(OPT_sycl_allow_device_image_dependencies) &&
       !Triple.isNVPTX() && !Triple.isAMDGPU())
     PostLinkArgs.push_back("-emit-only-kernels-as-entry-points");
 
