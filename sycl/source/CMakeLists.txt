@@ -8,17 +8,10 @@ configure_file(
   ${CMAKE_CURRENT_BINARY_DIR}/version.rc
   @ONLY)
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  if (NOT DEFINED LLVM_EXTERNAL_XPTI_SOURCE_DIR)
-    message (FATAL_ERROR "Undefined LLVM_EXTERNAL_XPTI_SOURCE_DIR variable: Must be set when XPTI tracing is set to ON")
-  endif()
-  include_directories(${LLVM_EXTERNAL_XPTI_SOURCE_DIR}/include)
-endif()
-
 function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   # Add an optional argument so we can get the library name to
   # link with for Windows Debug version
-  cmake_parse_arguments(ARG "" "XPTI_LIB;IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
+  cmake_parse_arguments(ARG "" "IMPLIB_NAME" "COMPILE_OPTIONS;SOURCES" ${ARGN})
 
   add_library(${LIB_OBJ_NAME} OBJECT ${ARG_SOURCES})
   add_library(${LIB_NAME} SHARED
@@ -63,11 +56,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   )
 
   set_target_properties(${LIB_NAME} PROPERTIES LINKER_LANGUAGE CXX)
-
-  if (SYCL_ENABLE_XPTI_TRACING)
-    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE XPTI_ENABLE_INSTRUMENTATION XPTI_STATIC_LIBRARY)
-    target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
-  endif()
 
   if (NOT LLVM_ENABLE_ZSTD)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
@@ -128,9 +116,6 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       target_link_libraries(
           ${LIB_NAME} PRIVATE "-Wl,--version-script=${linker_script}")
       set_target_properties(${LIB_NAME} PROPERTIES LINK_DEPENDS ${linker_script})
-    endif()
-    if (SYCL_ENABLE_XPTI_TRACING)
-      target_link_libraries(${LIB_NAME} PRIVATE ${CMAKE_DL_LIBS})
     endif()
   endif()
 
@@ -346,16 +331,9 @@ if (MSVC)
   endforeach()
 
   set(WIN_DUPE "1")
-  if (SYCL_ENABLE_XPTI_TRACING)
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object XPTI_LIB xptid COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
-  else()
-    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
-    if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-      add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
-    endif()
+  add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}d sycld_object COMPILE_OPTIONS "/MDd" SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME sycld)
+  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+    add_sycl_rt_library(sycl${SYCL_MAJOR_VERSION}-previewd sycl-previewd_object COMPILE_OPTIONS "/MDd" "/D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME sycl-previewd)
   endif()
   unset(WIN_DUPE)
   add_library(sycld ALIAS sycl${SYCL_MAJOR_VERSION}d)
@@ -380,16 +358,9 @@ endif()
 # Version-agnostic name of the import library, has effect on Windows only.
 set(IMPLIB_NAME "sycl")
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  add_sycl_rt_library(${LIB_NAME} sycl_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS}  SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object XPTI_LIB xpti COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
-else()
-  add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
-  if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
-    add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
-  endif()
+add_sycl_rt_library(${LIB_NAME} sycl_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} SOURCES ${SYCL_NON_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME})
+if(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB)
+  add_sycl_rt_library(${LIB_NAME}-preview sycl-preview_object COMPILE_OPTIONS ${SYCL_EXTRA_OPTS} "-D__INTEL_PREVIEW_BREAKING_CHANGES" SOURCES ${SYCL_PREVIEW_SOURCES} IMPLIB_NAME ${IMPLIB_NAME}-preview)
 endif()
 
 if (WIN32)

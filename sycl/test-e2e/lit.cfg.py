@@ -76,10 +76,6 @@ possibly_dangerous_env_vars = [
     "LIBCLANG_CODE_COMPLETION_LOGGING",
 ]
 
-# Names of the Release and Debug versions of the XPTIFW library
-XPTIFW_RELEASE = "xptifw"
-XPTIFW_DEBUG = "xptifwd"
-
 # Clang/Win32 may refer to %INCLUDE%. vsvarsall.bat sets it.
 if platform.system() != "Windows":
     possibly_dangerous_env_vars.append("INCLUDE")
@@ -590,45 +586,6 @@ if lit_config.params.get("ze_debug"):
 
 if config.run_launcher:
     config.substitutions.append(("%e2e_tests_root", config.test_source_root))
-
-# TODO properly set XPTIFW include and runtime dirs
-xptifw_lib_dir = os.path.join(config.dpcpp_root_dir, "lib")
-xptifw_dispatcher = ""
-if platform.system() == "Linux":
-    xptifw_dispatcher = os.path.join(xptifw_lib_dir, "libxptifw.so")
-elif platform.system() == "Windows":
-    # Use debug version of xptifw library if tests are built with \MDd.
-    xptifw_dispatcher_name = (
-        XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
-    )
-    xptifw_dispatcher = os.path.join(
-        config.dpcpp_root_dir, "bin", xptifw_dispatcher_name + ".dll"
-    )
-xptifw_includes = os.path.join(config.dpcpp_root_dir, "include")
-if os.path.exists(xptifw_lib_dir) and os.path.exists(
-    os.path.join(xptifw_includes, "xpti", "xpti_trace_framework.h")
-):
-    config.available_features.add("xptifw")
-    config.substitutions.append(("%xptifw_dispatcher", xptifw_dispatcher))
-    if cl_options:
-        # Use debug version of xptifw library if tests are built with \MDd.
-        xptifw_lib_name = XPTIFW_DEBUG if "/MDd" in config.cxx_flags else XPTIFW_RELEASE
-        xptifw_lib = os.path.normpath(
-            os.path.join(xptifw_lib_dir, xptifw_lib_name + ".lib")
-        )
-        config.substitutions.append(
-            (
-                "%xptifw_lib",
-                f" {xptifw_lib} /I{xptifw_includes} ",
-            )
-        )
-    else:
-        config.substitutions.append(
-            (
-                "%xptifw_lib",
-                " -L{} -lxptifw -I{} ".format(xptifw_lib_dir, xptifw_includes),
-            )
-        )
 
 # Tools for which we add a corresponding feature when available.
 feature_tools = [

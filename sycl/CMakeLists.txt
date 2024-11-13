@@ -31,14 +31,6 @@ endif()
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
 
-if (NOT XPTI_INCLUDES)
-  set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
-endif()
-
-if (NOT XPTI_PROXY_SRC)
-  set(XPTI_PROXY_SRC ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/src/xpti_proxy.cpp)
-endif()
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/modules")
 include(AddSYCLExecutable)
 include(AddSYCL)
@@ -121,10 +113,6 @@ if(SYCL_ENABLE_WERROR)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror")
   endif()
 endif()
-
-# Create a soft option for enabling or disabling the instrumentation
-# of the SYCL runtime and expect enabling
-option(SYCL_ENABLE_XPTI_TRACING "Enable tracing of SYCL constructs" OFF)
 
 # Get clang's version
 include(VersionFromVCS)
@@ -354,14 +342,6 @@ if (NOT WIN32)
     COMPONENT sycl-headers-extras)
 endif()
 
-if (SYCL_ENABLE_XPTI_TRACING)
-  if (MSVC)
-    set(XPTIFW_LIBS xpti xptid xptifw xptifwd)
-  else()
-    set(XPTIFW_LIBS xpti xptifw)
-  endif()
-endif()
-
 # SYCL toolchain builds all components: compiler, libraries, headers, etc.
 add_custom_target(sycl-compiler
   DEPENDS append-file
@@ -392,7 +372,6 @@ add_custom_target( sycl-toolchain ALL
   DEPENDS sycl-runtime-libraries
           sycl-compiler
           sycl-ls
-          ${XPTIFW_LIBS}
   COMMENT "Building SYCL compiler toolchain..."
 )
 
@@ -470,7 +449,6 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      libsycldevice
      unified-memory-framework
      unified-runtime-loader
-     ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
 
