@@ -1567,6 +1567,15 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUndef:
     return mapValue(BV, UndefValue::get(transType(BV->getType())));
 
+  case OpSizeOf: {
+    Type *ResTy = transType(BV->getType());
+    auto *BI = static_cast<SPIRVSizeOf *>(BV);
+    SPIRVType *TypeArg = reinterpret_cast<SPIRVType *>(BI->getOpValue(0));
+    Type *EltTy = transType(TypeArg->getPointerElementType());
+    uint64_t Size = M->getDataLayout().getTypeStoreSize(EltTy).getFixedValue();
+    return mapValue(BV, ConstantInt::get(ResTy, Size));
+  }
+
   case OpVariable:
   case OpUntypedVariableKHR: {
     auto *BVar = static_cast<SPIRVVariableBase *>(BV);
