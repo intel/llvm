@@ -140,7 +140,7 @@ class SobelFilter(VelocityBase):
         super().__init__("sobel_filter", "sobel_filter", vb)
 
     def download_deps(self):
-        self.download_untar("sobel_filter", "https://github.com/oneapi-src/Velocity-Bench/raw/main/sobel_filter/res/sobel_filter_data.tgz?download=", "sobel_filter_data.tgz")
+        self.download("sobel_filter", "https://github.com/oneapi-src/Velocity-Bench/raw/main/sobel_filter/res/sobel_filter_data.tgz?download=", "sobel_filter_data.tgz", untar=True)
         return
 
     def name(self):
@@ -203,7 +203,7 @@ class Easywave(VelocityBase):
         super().__init__("easywave", "easyWave_sycl", vb)
 
     def download_deps(self):
-        self.download_untar("easywave", "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz", "examples.tar.gz")
+        self.download("easywave", "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz", "examples.tar.gz", untar=True)
 
     def name(self):
         return "Velocity-Bench Easywave"
