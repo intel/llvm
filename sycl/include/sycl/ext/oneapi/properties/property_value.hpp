@@ -79,6 +79,9 @@ template <typename V, typename O>
 struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
     : is_property_key_of<typename V::key_t, O> {};
 
+template <typename V>
+inline constexpr bool is_property_value_v = is_property_value<V>::value;
+
 namespace detail {
 
 // Specialization of PropertyID for propagating IDs through property_value.
