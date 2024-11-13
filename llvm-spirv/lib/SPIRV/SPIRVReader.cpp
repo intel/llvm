@@ -2218,7 +2218,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
   case OpUntypedInBoundsPtrAccessChainKHR: {
     auto *AC = static_cast<SPIRVAccessChainBase *>(BV);
     auto *Base = transValue(AC->getBase(), F, BB);
-    SPIRVType *BaseSPVTy = AC->getBase()->getType();
+    SPIRVType *BaseSPVTy = AC->getBaseType();
     if (BaseSPVTy->isTypePointer() &&
         BaseSPVTy->getPointerElementType()->isTypeCooperativeMatrixKHR()) {
       return mapValue(BV, transSPIRVBuiltinFromInst(AC, BB));
@@ -2227,7 +2227,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BaseSPVTy->isTypeVector()
             ? transType(
                   BaseSPVTy->getVectorComponentType()->getPointerElementType())
-            : transType(BaseSPVTy->getPointerElementType());
+        : BaseSPVTy->isTypePointer()
+            ? transType(BaseSPVTy->getPointerElementType())
+            : transType(BaseSPVTy);
     auto Index = transValue(AC->getIndices(), F, BB);
     if (!AC->hasPtrIndex())
       Index.insert(Index.begin(), getInt32(M, 0));
