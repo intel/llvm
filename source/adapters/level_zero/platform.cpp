@@ -198,7 +198,7 @@ ur_result_t urPlatformGetBackendOption(
   }
   if (pFrontendOption == "-foffload-fp32-prec-div") {
     *ppPlatformOption = "-ze-fp32-correctly-rounded-divide-div";
-     return UR_RESULT_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
   if (pFrontendOption == "-foffload-fp32-prec-sqrt") {
     *ppPlatformOption = "-ze-fp32-correctly-rounded-divide-sqrt";
