@@ -1,0 +1,57 @@
+; Check OpAtomicCompareExchangeWeak is treated as OpAtomicCompareExchange
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.3 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=CL2.0 --spirv-target-env="SPV-IR" -o - %t.spv | llvm-dis | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpCapability Int8
+          %1 = OpExtInstImport "OpenCL.std"
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %19 "test_atomic_global"
+               OpSource OpenCL_C 200000
+               OpName %test_atomic_global "test_atomic_global"
+               OpName %dst "dst"
+               OpName %object "object"
+               OpName %expected "expected"
+               OpName %desired "desired"
+               OpName %dst_0 "dst"
+               OpName %object_0 "object"
+               OpName %expected_0 "expected"
+               OpName %desired_0 "desired"
+               OpDecorate %test_atomic_global LinkageAttributes "test_atomic_global" Export
+               OpDecorate %dst_0 Volatile
+       %uint = OpTypeInt 32 0
+      %uchar = OpTypeInt 8 0
+     %uint_1 = OpConstant %uint 1
+    %uint_16 = OpConstant %uint 16
+     %uint_0 = OpConstant %uint 0
+       %void = OpTypeVoid
+%_ptr_CrossWorkgroup_uint = OpTypePointer CrossWorkgroup %uint
+%_ptr_CrossWorkgroup_uchar = OpTypePointer CrossWorkgroup %uchar
+          %7 = OpTypeFunction %void %_ptr_CrossWorkgroup_uint %_ptr_CrossWorkgroup_uchar %_ptr_CrossWorkgroup_uchar %uint
+%test_atomic_global = OpFunction %void None %7
+        %dst = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+     %object = OpFunctionParameter %_ptr_CrossWorkgroup_uchar
+   %expected = OpFunctionParameter %_ptr_CrossWorkgroup_uchar
+    %desired = OpFunctionParameter %uint
+         %13 = OpLabel
+         %17 = OpAtomicCompareExchange %uint %dst %uint_1 %uint_16 %uint_16 %uint_1 %uint_0
+         %18 = OpAtomicCompareExchangeWeak %uint %dst %uint_1 %uint_16 %uint_16 %uint_1 %uint_0
+               OpReturn
+               OpFunctionEnd
+         %19 = OpFunction %void None %7
+      %dst_0 = OpFunctionParameter %_ptr_CrossWorkgroup_uint
+   %object_0 = OpFunctionParameter %_ptr_CrossWorkgroup_uchar
+ %expected_0 = OpFunctionParameter %_ptr_CrossWorkgroup_uchar
+  %desired_0 = OpFunctionParameter %uint
+         %24 = OpLabel
+         %25 = OpFunctionCall %void %test_atomic_global %dst_0 %object_0 %expected_0 %desired_0
+               OpReturn
+               OpFunctionEnd
+
+; CHECK: call spir_func i32 @_Z29__spirv_AtomicCompareExchangePU3AS1iiiiii(
+; CHECK-NOT: call spir_func i32 @_Z33__spirv_AtomicCompareExchangeWeakPU3AS1iiiiii(

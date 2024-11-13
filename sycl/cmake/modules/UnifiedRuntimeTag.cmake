@@ -1,7 +1,7 @@
-# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
-# Merge: 2eae687a 9339e374
+# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
+# Merge: 9a209aa5 b1222f08
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 12 11:47:03 2024 +0000
-#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
-#     Wrap linker flags on Windows for IntelLLLVM
-set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
+# Date:   Wed Nov 13 09:57:16 2024 +0000
+#     Merge pull request #2254 from PietroGhg/pietro/events_rr
+#     [NATIVECPU] Implement events on Native CPU
+set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)
