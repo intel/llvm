@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+
 #include "SYCL.h"
 #include "CommonArgs.h"
 #include "clang/Driver/Action.h"
@@ -152,14 +153,36 @@ SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
 }
 
 void SYCLInstallationDetector::getSYCLDeviceLibPath(
-    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const {
+    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths,
+    bool GetSPV) const {
+  auto TargetTriple = llvm::Triple(D.getTargetTriple());
   for (const auto &IC : InstallationCandidates) {
     llvm::SmallString<128> InstallLibPath(IC.str());
-    InstallLibPath.append("/lib");
+    if (GetSPV && TargetTriple.isOSWindows())
+      InstallLibPath.append("/bin");
+    else
+      InstallLibPath.append("/lib");
     DeviceLibPaths.emplace_back(InstallLibPath);
   }
 
-  DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+  if (!GetSPV || !TargetTriple.isOSWindows())
+    DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
+}
+
+void SYCLInstallationDetector::getSYCLDeviceLibPath(
+    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths, bool GetSPV) const {
+  auto TargetTriple = llvm::Triple(D.getTargetTriple());
+  for (const auto &IC : InstallationCandidates) {
+    llvm::SmallString<128> InstallLibPath(IC.str());
+    if (GetSPV && TargetTriple.isOSWindows())
+      InstallLibPath.append("/bin");
+    else
+      InstallLibPath.append("/lib");
+    DeviceLibPaths.emplace_back(InstallLibPath);
+  }
+
+  if (!GetSPV || !TargetTriple.isOSWindows())
+    DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
 void SYCLInstallationDetector::AddSYCLIncludeArgs(
