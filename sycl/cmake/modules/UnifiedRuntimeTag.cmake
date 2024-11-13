@@ -1,7 +1,7 @@
-# commit ed9fe09f9987bbe86715f191e6dbe5695ebf0306
-# Merge: 09ae26af dc5246dd
+# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
+# Merge: 2eae687a 9339e374
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 8 10:29:25 2024 +0000
-#     Merge pull request #2279 from nrspruit/update_loader_1_18
-#     [L0] Update Level Zero Loader version to v1.18.5
-set(UNIFIED_RUNTIME_TAG ed9fe09f9987bbe86715f191e6dbe5695ebf0306)
+# Date:   Tue Nov 12 11:47:03 2024 +0000
+#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
+#     Wrap linker flags on Windows for IntelLLLVM
+set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
