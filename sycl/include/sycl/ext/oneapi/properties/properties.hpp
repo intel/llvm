@@ -318,14 +318,16 @@ public:
 template <typename... unsorted_property_tys,
           typename = std::enable_if_t<
               detail::properties_are_valid_for_ctad<unsorted_property_tys...>>>
-properties(unsorted_property_tys... props) -> properties<
-    typename detail::properties_sorter<unsorted_property_tys...>::type>;
+properties(unsorted_property_tys... props)
+    -> properties<
+        typename detail::properties_sorter<unsorted_property_tys...>::type>;
 
 template <typename... unsorted_property_tys,
           typename = std::enable_if_t<
               !detail::properties_are_valid_for_ctad<unsorted_property_tys...>>>
-properties(unsorted_property_tys... props) -> properties<
-    detail::invalid_properties_type_list<unsorted_property_tys...>>;
+properties(unsorted_property_tys... props)
+    -> properties<
+        detail::invalid_properties_type_list<unsorted_property_tys...>>;
 
 using empty_properties_t = decltype(properties{});
 
