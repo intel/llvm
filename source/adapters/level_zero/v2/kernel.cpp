@@ -70,8 +70,10 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
 
 ur_kernel_handle_t_::ur_kernel_handle_t_(
     ur_native_handle_t hNativeKernel, ur_program_handle_t hProgram,
+    ur_context_handle_t context,
     const ur_kernel_native_properties_t *pProperties)
-    : hProgram(hProgram), deviceKernels(1) {
+    : hProgram(hProgram),
+      deviceKernels(context ? context->getPlatform()->getNumDevices() : 0) {
   ur::level_zero::urProgramRetain(hProgram);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
@@ -82,7 +84,12 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     throw UR_RESULT_ERROR_INVALID_KERNEL;
   }
 
-  deviceKernels.back().emplace(nullptr, zeKernel, ownZeHandle);
+  for (auto &Dev : context->getDevices()) {
+    deviceKernels[*Dev->Id].emplace(Dev, zeKernel, ownZeHandle);
+
+    // owned only by the first entry
+    ownZeHandle = false;
+  }
   completeInitialization();
 }
 
@@ -126,20 +133,6 @@ size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   // root-device's kernel can be submitted to a sub-device's queue
   if (hDevice->isSubDevice()) {
     hDevice = hDevice->RootDevice;
-  }
-
-  // supports kernels created from native handle
-  if (deviceKernels.size() == 1) {
-    assert(deviceKernels[0].has_value());
-    assert(deviceKernels[0].value().hKernel.get());
-
-    auto &kernel = deviceKernels[0].value();
-
-    if (kernel.hDevice != hDevice) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
-    }
-
-    return 0;
   }
 
   if (!deviceKernels[hDevice->Id.value()].has_value()) {
@@ -341,8 +334,12 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
                                ur_program_handle_t hProgram,
                                const ur_kernel_native_properties_t *pProperties,
                                ur_kernel_handle_t *phKernel) {
-  std::ignore = hContext;
-  *phKernel = new ur_kernel_handle_t_(hNativeKernel, hProgram, pProperties);
+  if (!hProgram) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  *phKernel =
+      new ur_kernel_handle_t_(hNativeKernel, hProgram, hContext, pProperties);
   return UR_RESULT_SUCCESS;
 }
 
