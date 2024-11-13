@@ -1912,8 +1912,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
-        PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString(BackendOptName)});
+        PerDeviceArgs.push_back({Args.MakeArgString(DeviceName),
+                                 Args.MakeArgString(BackendOptName)});
       else if (IsJIT)
         BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                             ":" + BackendOptName));
