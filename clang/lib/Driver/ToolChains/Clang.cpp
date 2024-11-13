@@ -2959,7 +2959,7 @@ static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
   }
 }
 
-auto SplitFPAccuracyVal = [](StringRef Val) {
+static SmallVector<StringRef, 8> SplitFPAccuracyVal(StringRef Val) {
   SmallVector<StringRef, 8> ValuesArr;
   SmallVector<StringRef, 8> FuncsArr;
   Val.split(ValuesArr, ":");
@@ -2968,7 +2968,7 @@ auto SplitFPAccuracyVal = [](StringRef Val) {
     x.split(FuncsArr, ",");
   }
   return FuncsArr;
-};
+}
 
 static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                        bool OFastEnabled, const ArgList &Args,
