@@ -1,7 +1,7 @@
-# commit fa8cc8ec16c1a2cf0926cc64026edc6a254ff0c2
-# Merge: 3d58884b 1984ceb1
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 31 14:05:55 2024 +0000
-#     Merge pull request #2228 from nrspruit/copy_engine_refactor
-#     [L0] Refactor Copy Engine Usage checks for Performance
-set(UNIFIED_RUNTIME_TAG pietro/events_rr)
+# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
+# Merge: 9a209aa5 b1222f08
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 13 09:57:16 2024 +0000
+#     Merge pull request #2254 from PietroGhg/pietro/events_rr
+#     [NATIVECPU] Implement events on Native CPU
+set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)
