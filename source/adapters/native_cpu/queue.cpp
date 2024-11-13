@@ -31,11 +31,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueGetInfo(ur_queue_handle_t hQueue,
 UR_APIEXPORT ur_result_t UR_APICALL urQueueCreate(
     ur_context_handle_t hContext, ur_device_handle_t hDevice,
     const ur_queue_properties_t *pProperties, ur_queue_handle_t *phQueue) {
-  std::ignore = hContext;
-  std::ignore = hDevice;
-  std::ignore = pProperties;
+  // TODO: UR_QUEUE_FLAG_PROFILING_ENABLE and other props
 
-  auto Queue = new ur_queue_handle_t_(hDevice);
+  auto Queue = new ur_queue_handle_t_(hDevice, hContext, pProperties);
   *phQueue = Queue;
 
   return UR_RESULT_SUCCESS;
@@ -78,8 +76,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urQueueCreateWithNativeHandle(
 }
 
 UR_APIEXPORT ur_result_t UR_APICALL urQueueFinish(ur_queue_handle_t hQueue) {
-  std::ignore = hQueue;
-  // TODO: is this fine as no-op?
+  hQueue->finish();
   return UR_RESULT_SUCCESS;
 }
 
