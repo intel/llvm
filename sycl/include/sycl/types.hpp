@@ -14,7 +14,6 @@
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/is_device_copyable.hpp>
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/exception.hpp>                  // for make_error_code, errc
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...

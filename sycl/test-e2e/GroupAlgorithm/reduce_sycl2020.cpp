@@ -6,6 +6,9 @@
 // UNSUPPORTED: arch-intel_gpu_pvc && !igc-dev
 
 #include "support.h"
+
+#include <sycl/sub_group.hpp>
+
 #include <algorithm>
 #include <cassert>
 #include <complex>
