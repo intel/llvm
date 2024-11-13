@@ -139,9 +139,7 @@ void ur_event_handle_t_::wait() {
   if (done) {
     return;
   }
-  for (auto &f : futures) {
-    f.wait();
-  }
+  this->futures.wait();
   queue->removeEvent(this);
   done = true;
   // The callback may need to acquire the lock, so we unlock it here

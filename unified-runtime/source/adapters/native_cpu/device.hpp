@@ -14,11 +14,8 @@
 #include <ur/ur.hpp>
 
 struct ur_device_handle_t_ {
-#ifdef NATIVECPU_WITH_ONETBB
-  native_cpu::TBB_threadpool tp;
-#else
-  native_cpu::threadpool_t tp;
-#endif
+  native_cpu::ThreadPoolType tp;
+
   ur_device_handle_t_(ur_platform_handle_t ArgPlt);
 
   const uint64_t mem_size;

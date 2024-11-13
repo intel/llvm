@@ -26,8 +26,8 @@ struct NDRDescT {
   RangeT GlobalOffset;
   RangeT GlobalSize;
   RangeT LocalSize;
-  NDRDescT(uint32_t WorkDim, const size_t *GlobalWorkOffset,
-           const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
+  inline NDRDescT(uint32_t WorkDim, const size_t *GlobalWorkOffset,
+                  const size_t *GlobalWorkSize, const size_t *LocalWorkSize)
       : WorkDim(WorkDim) {
     for (uint32_t I = 0; I < WorkDim; I++) {
       GlobalOffset[I] = GlobalWorkOffset[I];
@@ -53,8 +53,8 @@ struct NDRDescT {
 } // namespace native_cpu
 
 #ifdef NATIVECPU_USE_OCK
-static native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
-                                         size_t itemsPerThread) {
+static inline native_cpu::state getResizedState(const native_cpu::NDRDescT &ndr,
+                                                size_t itemsPerThread) {
   native_cpu::state resized_state(
       ndr.GlobalSize[0], ndr.GlobalSize[1], ndr.GlobalSize[2], itemsPerThread,
       ndr.LocalSize[1], ndr.LocalSize[2], ndr.GlobalOffset[0],
@@ -106,12 +106,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
                            pLocalWorkSize);
   auto &tp = hQueue->getDevice()->tp;
   const size_t numParallelThreads = tp.num_threads();
-//<<<<<<< HEAD:unified-runtime/source/adapters/native_cpu/enqueue.cpp
-//  std::vector<std::future<void>> futures;
   std::vector<std::function<void(size_t, ur_kernel_handle_t_ &)>> groups;
-//=======
   auto Tasks = native_cpu::getScheduler(tp);
-//>>>>>>> 5406b39f26c6 ([NATIVECPU] Simple TBB backend):source/adapters/native_cpu/enqueue.cpp
   auto numWG0 = ndr.GlobalSize[0] / ndr.LocalSize[0];
   auto numWG1 = ndr.GlobalSize[1] / ndr.LocalSize[1];
   auto numWG2 = ndr.GlobalSize[2] / ndr.LocalSize[2];
@@ -185,7 +181,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
 
   } else {
     // We are running a parallel_for over an nd_range
-
     if (numWG1 * numWG2 >= numParallelThreads) {
       // Dimensions 1 and 2 have enough work, split them across the threadpool
       for (unsigned g2 = 0; g2 < numWG2; g2++) {
@@ -232,7 +227,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
               });
         }
       }
-
       // schedule the remaining tasks
       auto remainder = numGroups % numParallelThreads;
       if (remainder) {
@@ -248,8 +242,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
     }
   }
 
-  Tasks.wait();
 #endif // NATIVECPU_USE_OCK
+  event->set_futures(Tasks.getTaskInfo());
 
   if (phEvent) {
     *phEvent = event;

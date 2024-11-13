@@ -14,6 +14,7 @@
 #include <future>
 #include <mutex>
 #include <vector>
+#include "threadpool.hpp"
 
 struct ur_event_handle_t_ : RefCounted {
 
@@ -42,7 +43,8 @@ struct ur_event_handle_t_ : RefCounted {
 
   ur_command_t getCommandType() const { return command_type; }
 
-  void set_futures(std::vector<std::future<void>> &fs) {
+  // todo: get rid of this function
+  void set_futures(native_cpu::TasksInfoType &&fs) {
     std::lock_guard<std::mutex> lock(mutex);
     futures = std::move(fs);
   }
@@ -61,7 +63,7 @@ private:
   ur_command_t command_type;
   bool done;
   std::mutex mutex;
-  std::vector<std::future<void>> futures;
+  native_cpu::TasksInfoType futures;
   std::packaged_task<void()> callback;
   uint64_t timestamp_start = 0;
   uint64_t timestamp_end = 0;
