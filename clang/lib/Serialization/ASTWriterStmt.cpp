@@ -2956,6 +2956,12 @@ void ASTStmtWriter::VisitOpenACCLoopConstruct(OpenACCLoopConstruct *S) {
   Code = serialization::STMT_OPENACC_LOOP_CONSTRUCT;
 }
 
+void ASTStmtWriter::VisitOpenACCCombinedConstruct(OpenACCCombinedConstruct *S) {
+  VisitStmt(S);
+  VisitOpenACCAssociatedStmtConstruct(S);
+  Code = serialization::STMT_OPENACC_COMBINED_CONSTRUCT;
+}
+
 //===----------------------------------------------------------------------===//
 // HLSL Constructs/Directives.
 //===----------------------------------------------------------------------===//
