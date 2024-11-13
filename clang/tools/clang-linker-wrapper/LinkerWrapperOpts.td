@@ -248,6 +248,3 @@ def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
 def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
   Flags<[WrapperOnlyOption, HelpHidden]>,
   HelpText<"Allow dependencies between device code images">;
-def no_sycl_allow_device_image_dependencies : Flag<["--", "-"], "no-sycl-allow-device-image-dependencies">,
-  Flags<[WrapperOnlyOption, HelpHidden]>,
-  HelpText<"Dno not allow dependencies between device code images (default)">;

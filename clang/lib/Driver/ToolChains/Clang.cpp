@@ -11486,12 +11486,11 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
     if (Args.hasArg(options::OPT_fsycl_embed_ir))
       CmdArgs.push_back(Args.MakeArgString("-sycl-embed-ir"));
 
-    if (Args.hasArg(options::OPT_fsycl_allow_device_image_dependencies))
+    if (Args.hasArg(options::OPT_fsycl_allow_device_image_dependencies,
+                    options::OPT_fno_sycl_allow_device_image_dependencies,
+                    false))
       CmdArgs.push_back(
           Args.MakeArgString("-sycl-allow-device-image-dependencies"));
-    if (Args.hasArg(options::OPT_fno_sycl_allow_device_image_dependencies))
-      CmdArgs.push_back(
-          Args.MakeArgString("-no-sycl-allow-device-image-dependencies"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and

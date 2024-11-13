@@ -195,3 +195,20 @@
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
 // NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}} "--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
+
+/// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -###  --offload-new-driver \
+// RUN:          -fsycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_DYNAMIC_LINKING %s
+// CHECK_DYNAMIC_LINKING: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
+
+/// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN:          -fno-sycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+// CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
+
+/// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+// CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
