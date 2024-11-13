@@ -1,7 +1,7 @@
-# commit 2eae687a4cf24ba02ee8e9ebb9552c1d392972ee
-# Merge: 1ba7f39a 2a081891
+# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
+# Merge: 2eae687a 9339e374
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Mon Nov 11 13:35:24 2024 +0000
-#     Merge pull request #2112 from martygrant/martin/context-cts-spec-gap
-#     Improvements to align CTS and Spec for Context
-set(UNIFIED_RUNTIME_TAG 2eae687a4cf24ba02ee8e9ebb9552c1d392972ee)
+# Date:   Tue Nov 12 11:47:03 2024 +0000
+#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
+#     Wrap linker flags on Windows for IntelLLLVM
+set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
