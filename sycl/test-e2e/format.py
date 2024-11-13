@@ -156,7 +156,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
 
         devices_for_test = []
         triples = set()
-        if "run-mode" not in test.config.available_features:
+        if test.config.split_mode == "build-only":
             if "unsplit-test-mode" in test.requires or "TEMPORARY_DISABLED" in test.requires:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
@@ -237,8 +237,8 @@ class SYCLEndToEndTest(lit.formats.ShTest):
                 for i in ["%{run}", "%{run-unfiltered-devices}", "%if run-mode"]
             )
 
-            if (is_run_line and "run-mode" not in test.config.available_features) or (
-                not is_run_line and "build-mode" not in test.config.available_features
+            if (is_run_line and test.config.split_mode == "build-only") or (
+                not is_run_line and test.config.split_mode == "run-only"
             ):
                 directive.command = ""
 
@@ -297,10 +297,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
             test, litConfig, useExternalSh, script, tmpBase
         )
 
-        if (
-            len(devices_for_test) > 1
-            or "run-mode" not in test.config.available_features
-        ):
+        if (len(devices_for_test) > 1 or test.config.split_mode == "build-only"):
             return result
 
         # Single device - might be an XFAIL.
