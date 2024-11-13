@@ -3,6 +3,7 @@
 //
 
 // UNSUPPORTED: gpu-intel-gen12
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16072
 
 // Test work_group_dynamic extension with allocation size specified at runtime.
 

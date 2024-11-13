@@ -4,4 +4,4 @@
 # Date:   Wed Nov 13 09:57:16 2024 +0000
 #     Merge pull request #2254 from PietroGhg/pietro/events_rr
 #     [NATIVECPU] Implement events on Native CPU
-set(UNIFIED_RUNTIME_TAG 2fd32a76ac0094232eb747158768c68c073ea07b)
+set(UNIFIED_RUNTIME_TAG 55f2d0258701fbf4e84c83ca7d23c1f6da6b3a36)
