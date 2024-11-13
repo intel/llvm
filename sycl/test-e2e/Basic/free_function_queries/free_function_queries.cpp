@@ -1,5 +1,5 @@
 // FIXME: Investigate OS-agnostic failures
-// REQUIRES: TEMPORARY_DISABLED
+// UNSUPPORTED: true
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 

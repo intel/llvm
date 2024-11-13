@@ -8,13 +8,13 @@
 // >> device compilation...
 // RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -o a_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -Wno-error=ignored-attributes -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=ignored-attributes -isystem %sycl_include -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- compile src2
 // >> device compilation...
 // RUN: %clangxx -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -o b_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -Wno-error=ignored-attributes -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=ignored-attributes -isystem %sycl_include -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- bundle .o with .spv
 // >> run bundler

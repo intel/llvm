@@ -9,6 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 int main(int argc, char *argv[]) {
   sycl::queue queue;

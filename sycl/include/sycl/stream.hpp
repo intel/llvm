@@ -24,12 +24,12 @@
 #include <sycl/half_type.hpp>                 // for half, operator-, operator<
 #include <sycl/handler.hpp>                   // for handler
 #include <sycl/item.hpp>                      // for item
-#include <sycl/nd_item.hpp>                   // for nd_item
-#include <sycl/nd_range.hpp>                  // for nd_range
-#include <sycl/property_list.hpp>             // for property_list
-#include <sycl/range.hpp>                     // for range
-#include <sycl/sub_group.hpp>                 // for multi_ptr
-#include <sycl/types.hpp>                     // for vec, SwizzleOp
+#include <sycl/multi_ptr.hpp>
+#include <sycl/nd_item.hpp>       // for nd_item
+#include <sycl/nd_range.hpp>      // for nd_range
+#include <sycl/property_list.hpp> // for property_list
+#include <sycl/range.hpp>         // for range
+#include <sycl/types.hpp>         // for vec, SwizzleOp
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr

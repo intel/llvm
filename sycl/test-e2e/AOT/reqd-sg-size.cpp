@@ -14,6 +14,7 @@
 #include <iostream>
 
 #include <sycl/detail/core.hpp>
+#include <sycl/sub_group.hpp>
 
 using namespace sycl;
 
