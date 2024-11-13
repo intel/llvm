@@ -9,6 +9,7 @@
 using namespace sycl;
 
 #ifdef BUILD_FOR_CUDA
+#include <sycl/ext/oneapi/experimental/backend/cuda.hpp>
 constexpr auto BACKEND = backend::ext_oneapi_cuda;
 using nativeDevice = CUdevice;
 using nativeQueue = CUstream;
