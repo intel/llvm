@@ -3116,7 +3116,6 @@ bool LLVMToSPIRVBase::transDecoration(Value *V, SPIRVValue *BV) {
         if (RetAttrs.hasAttribute(Attribute::NoFPClass)) {
           FPClassTest RetTest =
               RetAttrs.getAttribute(Attribute::NoFPClass).getNoFPClass();
-          AttributeSet RetAttrs = FAttrs.getRetAttrs();
           // Only Nan and Inf tests are representable in SPIR-V now.
           bool ToAddNoNan = RetTest & fcNan;
           bool ToAddNoInf = RetTest & fcInf;
