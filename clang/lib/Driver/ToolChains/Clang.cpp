@@ -10947,6 +10947,21 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
+
+  SYCLInstallationDetector SYCLInstall(TC.getDriver());
+  SmallVector<SmallString<128>, 4> SpvLocCandidates;
+  SmallString<128> FallbackAssertName("libsycl-fallback-cassert.spv");
+  SYCLInstall.getSYCLDeviceLibPath(SpvLocCandidates, true);
+  for (const auto &SpvLoc : SpvLocCandidates) {
+    SmallString<128> FullLibName(SpvLoc);
+    llvm::sys::path::append(FullLibName, FallbackAssertName);
+    if (llvm::sys::fs::exists(FullLibName)) {
+      SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+      SYCLDeviceLibDir += SpvLoc.str();
+      addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
+      break;
+    }
+  }
 }
 
 // On Intel targets we don't need non-kernel functions as entry points,
