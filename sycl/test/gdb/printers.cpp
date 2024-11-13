@@ -68,7 +68,7 @@ sycl::range<1> r(3);
 // CHECK:        24 |       element_type * _M_ptr
 
 // DEVICE:        0 | class sycl::detail::AccessorImplDevice<1>
-// DEVICE:        0 |   class sycl::id<1> Offset
+// DEVICE:        0 |   class sycl::id<> Offset
 // DEVICE:        8 |   class sycl::range<> AccessRange
 // DEVICE:       16 |   class sycl::range<> MemRange
 

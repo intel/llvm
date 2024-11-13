@@ -484,7 +484,6 @@ event handler::finalize() {
                     "Internal Error. Command group cannot be constructed.");
 
   // Propagate MIsTopCodeLoc state to CommandGroup.
-  // Will be used for XPTI payload generation for CG's related events.
   CommandGroup->MIsTopCodeLoc = impl->MIsTopCodeLoc;
 
   // If there is a graph associated with the handler we are in the explicit

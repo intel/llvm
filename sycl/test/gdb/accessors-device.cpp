@@ -17,7 +17,7 @@ int main() {
 // AccessorImplDevice must have MemRange and Offset fields
 
 // CHECK:           0 | class sycl::detail::AccessorImplDevice<1>
-// CHECK-NEXT:      0 |   class sycl::id<1> Offset
+// CHECK-NEXT:      0 |   class sycl::id<> Offset
 // CHECK-NEXT:      0 |     class sycl::detail::array<> (base)
 // CHECK-NEXT:      0 |       size_t[1] common_array
 // CHECK-NEXT:      8 |   class sycl::range<> AccessRange
@@ -35,7 +35,7 @@ int main() {
 // CHECK-NEXT:      0 |   class sycl::detail::accessor_common<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> (base) (empty)
 // CHECK-NEXT:      0 |   class sycl::detail::OwnerLessBase<class sycl::accessor<int, 1, sycl::access::mode::read_write, sycl::access::target::global_buffer, sycl::access::placeholder::false_t> > (base) (empty)
 // CHECK-NEXT:      0 |   class sycl::detail::AccessorImplDevice<1> impl
-// CHECK-NEXT:      0 |     class sycl::id<1> Offset
+// CHECK-NEXT:      0 |     class sycl::id<> Offset
 // CHECK-NEXT:      0 |       class sycl::detail::array<> (base)
 // CHECK-NEXT:      0 |         size_t[1] common_array
 // CHECK-NEXT:      8 |     class sycl::range<> AccessRange
