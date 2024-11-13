@@ -2959,10 +2959,23 @@ static void EmitAccuracyDiag(const Driver &D, const JobAction &JA,
   }
 }
 
+auto SplitFPAccuracyVal = [](StringRef Val) {
+  SmallVector<StringRef, 8> ValuesArr;
+  SmallVector<StringRef, 8> FuncsArr;
+  Val.split(ValuesArr, ":");
+  if (ValuesArr.size() > 1) {
+    StringRef x = ValuesArr[1];
+    x.split(FuncsArr, ",");
+  }
+  return FuncsArr;
+};
+
 static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
                                        bool OFastEnabled, const ArgList &Args,
                                        ArgStringList &CmdArgs,
-                                       const JobAction &JA) {
+                                       const JobAction &JA,
+                                       bool &NoOffloadFP32PrecDiv,
+                                       bool &NoOffloadFP32PrecSqrt) {
   // Handle various floating point optimization flags, mapping them to the
   // appropriate LLVM code generation flags. This is complicated by several
   // "umbrella" flags, so we do this by stepping through the flags incrementally
@@ -3007,8 +3020,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
-  bool NoOffloadFP32PrecDiv = false;
-  bool NoOffloadFP32PrecSqrt = false;
   bool IsDeviceOffloading = JA.isDeviceOffloading(Action::OFK_SYCL);
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
@@ -3077,7 +3088,6 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     if (IsDeviceOffloading) {
       if (!FPAccuracy.empty())
         EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
-
       if (SPIRVArg == "-fno-offload-fp32-prec-div")
         NoOffloadFP32PrecDiv = true;
       else if (SPIRVArg == "-fno-offload-fp32-prec-sqrt")
@@ -3090,20 +3100,12 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   };
 
   auto parseFPAccOption = [&](StringRef Val, bool &NoOffloadFlag) {
-    SmallVector<StringRef, 8> ValuesArr;
-    Val.split(ValuesArr, ":");
-    if (ValuesArr.size() == 1)
-      NoOffloadFlag = false;
-    if (ValuesArr.size() > 1) {
-      StringRef x = ValuesArr[1];
-      SmallVector<StringRef, 8> FuncsArr;
-      x.split(FuncsArr, ",");
-      for (const auto &V : FuncsArr) {
-        if (V == "fdiv")
-          NoOffloadFlag = false;
-        else if (V == "sqrt")
-          NoOffloadFlag = false;
-      }
+    SmallVector<StringRef, 8> FuncsArr = SplitFPAccuracyVal(Val);
+    for (const auto &V : FuncsArr) {
+      if (V == "fdiv")
+        NoOffloadFlag = false;
+      else if (V == "sqrt")
+        NoOffloadFlag = false;
     }
   };
 
@@ -5389,6 +5391,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       Args.hasArg(options::OPT_mkernel, options::OPT_fapple_kext);
   const Driver &D = TC.getDriver();
   ArgStringList CmdArgs;
+  bool NoOffloadFP32PrecDiv = false;
+  bool NoOffloadFP32PrecSqrt = false;
 
   assert(Inputs.size() >= 1 && "Must have at least one input.");
   // CUDA/HIP compilation may have multiple inputs (source file + results of
@@ -6197,7 +6201,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                        options::OPT_fno_optimize_sibling_calls);
 
     RenderFloatingPointOptions(TC, D, isOptimizationLevelFast(Args), Args,
-                               CmdArgs, JA);
+                               CmdArgs, JA, NoOffloadFP32PrecDiv,
+                               NoOffloadFP32PrecSqrt);
 
     // Render ABI arguments
     switch (TC.getArch()) {
@@ -6671,7 +6676,8 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
                    options::OPT_fno_protect_parens, false))
     CmdArgs.push_back("-fprotect-parens");
 
-  RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs, JA);
+  RenderFloatingPointOptions(TC, D, OFastEnabled, Args, CmdArgs, JA,
+                             NoOffloadFP32PrecDiv, NoOffloadFP32PrecSqrt);
 
   if (Arg *A = Args.getLastArg(options::OPT_fextend_args_EQ)) {
     const llvm::Triple::ArchType Arch = TC.getArch();
@@ -6722,8 +6728,18 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       FpAccuracyAttr += OptStr.str();
     }
   };
-  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ))
-    RenderFPAccuracyOptions(A);
+  auto shouldAddFpAccuracyOption = [&](StringRef Val, StringRef Func) {
+    SmallVector<StringRef, 8> FuncsArr = SplitFPAccuracyVal(Val);
+    for (const auto &V : FuncsArr)
+      return (V == Func);
+    return false;
+  };
+
+  for (StringRef A : Args.getAllArgValues(options::OPT_ffp_accuracy_EQ)) {
+    if (!(NoOffloadFP32PrecDiv && shouldAddFpAccuracyOption(A, "fdiv")) &&
+        !(NoOffloadFP32PrecSqrt && shouldAddFpAccuracyOption(A, "sqrt")))
+      RenderFPAccuracyOptions(A);
+  }
   if (!FpAccuracyAttr.empty())
     CmdArgs.push_back(Args.MakeArgString(FpAccuracyAttr));
 

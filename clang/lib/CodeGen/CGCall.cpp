@@ -1882,8 +1882,13 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef FPAccuracyVal;
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-      FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
-          ID, FuncType, convertFPAccuracy(FuncMapIt->second));
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+        FPAccuracyVal = "2.5";
+      else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
+        FPAccuracyVal = "3.0";
+      else
+        FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
+            ID, FuncType, convertFPAccuracy(FuncMapIt->second));
       assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
       FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
@@ -1891,21 +1896,26 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     }
   }
   if (FuncAttrs.attrs().size() == 0) {
-    StringRef FPAccuracyVal =
-        llvm::StringSwitch<StringRef>(Name)
-            .Case("sqrt", getLangOpts().OffloadFP32PrecSqrt ? "" : "3.0")
-            .Case("fdiv", getLangOpts().OffloadFP32PrecDiv ? "" : "2.5")
-            .Default("");
-    if (FPAccuracyVal.empty()) {
-      if (!getLangOpts().FPAccuracyVal.empty()) {
+    if (!getLangOpts().FPAccuracyVal.empty()) {
+      StringRef FPAccuracyVal;
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+        FPAccuracyVal = "2.5";
+      else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
+        FPAccuracyVal = "3.0";
+      else
         FPAccuracyVal = llvm::fp::getAccuracyForFPBuiltin(
             ID, FuncType, convertFPAccuracy(getLangOpts().FPAccuracyVal));
-        assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
-        MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
-            Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
+      assert(!FPAccuracyVal.empty() && "A valid accuracy value is expected");
+      FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
+      MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
+          Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
+    } else {
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv") {
+        FuncAttrs.addAttribute("fpbuiltin-max-error", "2.5");
+      } else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt") {
+        FuncAttrs.addAttribute("fpbuiltin-max-error", "3.0");
       }
     }
-    FuncAttrs.addAttribute("fpbuiltin-max-error", FPAccuracyVal);
   }
 }
 
