@@ -23,7 +23,7 @@
 // We need hardware which can support at least 2 sub-group sizes, since that
 // hardware (presumably) supports the `intel_reqd_sub_group_size` attribute.
 // REQUIRES: sg-32 && sg-16
-// RUN: %clangxx -fsycl -fsycl-targets=%sycl_triple %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} -o - | FileCheck %s
+// RUN: %clangxx -fsycl -fsycl-device-only -Xclang -fsycl-is-device %if cl_options %{/clang:-S /clang:-emit-llvm%} %else %{-S -emit-llvm%} %s -o - | FileCheck %s
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/properties/properties.hpp>

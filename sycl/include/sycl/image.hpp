@@ -22,7 +22,6 @@
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
@@ -112,15 +111,12 @@ namespace detail {
 
 class image_impl;
 
-// validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
-template <typename T>
-using is_validImageDataT = typename detail::is_contained<
-    T, type_list<vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
-                 vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>>::type;
-
+// Valid image DataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename DataT>
-using EnableIfImgAccDataT =
-    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+using EnableIfImgAccDataT = typename std::enable_if_t<
+    check_type_in_v<DataT, vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+                    vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>,
+    DataT>;
 
 inline image_channel_type FormatChannelType(image_format Format) {
   switch (Format) {

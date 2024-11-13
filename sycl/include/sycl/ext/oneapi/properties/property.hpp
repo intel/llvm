@@ -94,7 +94,7 @@ enum PropKind : uint32_t {
 namespace sycl::ext::oneapi::experimental {
 
 // (2.)
-struct foo : detail::run_time_property_key<PropKind::Foo> {
+struct foo : detail::run_time_property_key<foo, PropKind::Foo> {
   foo(int v) : value(v) {}
   int value;
 };
@@ -215,10 +215,35 @@ enum PropKind : uint32_t {
   PropKindSize = 79,
 };
 
+template <typename PropertyT> struct PropertyToKind {
+  static constexpr PropKind Kind = PropertyT::Kind;
+};
+
+struct property_tag {};
+template <typename property_t, PropKind Kind,
+          typename property_key_t = property_t>
+struct property_base : property_tag {
+  using key_t = property_key_t;
+#if !defined(_MSC_VER)
+  // Temporary, to ensure new code matches previous behavior and to catch any
+  // silly copy-paste mistakes. MSVC can't compile it, but linux-only is enough
+  // for this temporary check.
+  static_assert([]() constexpr {
+    if constexpr (std::is_same_v<property_t, key_t>)
+      // key_t is incomplete at this point for runtime properties.
+      return true;
+    else
+      return Kind == PropertyToKind<key_t>::Kind;
+  }());
+#endif
+};
+
 struct property_key_base_tag {};
 struct compile_time_property_key_base_tag : property_key_base_tag {};
 
-template <PropKind Kind_> struct run_time_property_key : property_key_base_tag {
+template <typename property_t, PropKind Kind_>
+struct run_time_property_key : property_key_base_tag,
+                               property_base<property_t, Kind_> {
 protected:
   static constexpr PropKind Kind = Kind_;
 
@@ -233,12 +258,6 @@ protected:
 
   template <typename T>
   friend struct PropertyToKind;
-};
-
-// This trait must be specialized for all properties and must have a unique
-// constexpr PropKind member named Kind.
-template <typename PropertyT> struct PropertyToKind {
-  static constexpr PropKind Kind = PropertyT::Kind;
 };
 
 // Get unique ID for property.
