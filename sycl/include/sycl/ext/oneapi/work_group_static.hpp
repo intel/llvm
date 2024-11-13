@@ -34,7 +34,7 @@ public:
       std::is_trivially_destructible_v<T> &&
           std::is_trivially_constructible_v<T>,
       "Can only be used with trivially constructible and destructible types");
-  static_assert(!std::is_const_v<T> || !std::is_volatile_v<T>,
+  static_assert(!std::is_const_v<T> && !std::is_volatile_v<T>,
                 "Can only be used with non const and non volatile types");
   __SYCL_ALWAYS_INLINE work_group_static() = default;
   work_group_static(const work_group_static &) = delete;

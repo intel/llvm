@@ -7,9 +7,9 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
-#include <sycl/detail/defines_elementary.hpp> // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/sycl_builtins.hpp>      // for __sycl_allocateLocalMemory
-#include <sycl/exception.hpp>                 // for exception
+#include <sycl/detail/defines_elementary.hpp>      // for __SYCL_ALWAYS_INLINE
+#include <sycl/detail/sycl_local_mem_builtins.hpp> // for __sycl_allocateLocalMemory
+#include <sycl/exception.hpp>                      // for exception
 #include <sycl/ext/oneapi/properties/properties.hpp> // for properties
 
 namespace sycl {
@@ -32,7 +32,7 @@ inline void *get_work_group_scratch_memory() {
 struct work_group_scratch_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
           work_group_scratch_size,
-          ::sycl::ext::oneapi::experimental::detail::WorkGroupStaticMem> {
+          ::sycl::ext::oneapi::experimental::detail::PropKind::WorkGroupScratchSize> {
   // Runtime property part
   constexpr work_group_scratch_size(size_t bytes) : size(bytes) {}
 
@@ -40,12 +40,6 @@ struct work_group_scratch_size
 };
 
 using work_group_scratch_size_key = work_group_scratch_size;
-
-template <> struct is_property_key<work_group_scratch_size> : std::true_type {};
-
-template <>
-struct is_property_value<work_group_scratch_size>
-    : is_property_key<work_group_scratch_size> {};
 
 namespace detail {
 template <> struct PropertyMetaInfo<work_group_scratch_size> {

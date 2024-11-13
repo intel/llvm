@@ -1,4 +1,4 @@
-//==---------------- sycl_builtins.hpp --- SYCL access ---------------------==//
+//==----- sycl_local_mem_builtins.hpp --- SYCL local memory builtins ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
