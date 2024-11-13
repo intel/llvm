@@ -131,6 +131,8 @@ public:
   /// @details If a previous populated TLS entry exists, this constructor will
   /// capture the informationa and allow you to query the information later.
   tls_code_loc_t();
+  tls_code_loc_t(const tls_code_loc_t &TLSCodeLoc) = default;
+  tls_code_loc_t &operator=(const tls_code_loc_t &TLSCodeLoc) = default;
   /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
   /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
