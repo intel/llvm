@@ -9560,6 +9560,7 @@ typedef enum ur_exp_launch_property_id_t {
     UR_EXP_LAUNCH_PROPERTY_ID_IGNORE = 0,            ///< The property has no effect
     UR_EXP_LAUNCH_PROPERTY_ID_COOPERATIVE = 1,       ///< Whether to launch a cooperative kernel
     UR_EXP_LAUNCH_PROPERTY_ID_CLUSTER_DIMENSION = 2, ///< work-group cluster dimensions
+    UR_EXP_LAUNCH_PROPERTY_ID_WORK_GROUP_MEMORY = 3, ///< Implicit work group memory allocation
     /// @cond
     UR_EXP_LAUNCH_PROPERTY_ID_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -9573,10 +9574,12 @@ typedef enum ur_exp_launch_property_id_t {
 ///   _Analogues_
 ///     - **CUlaunchAttributeValue**
 typedef union ur_exp_launch_property_value_t {
-    uint32_t clusterDim[3]; ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
-                            ///< value must be a divisor of the corresponding global work-size
-                            ///< dimension (in units of work-group).
-    int cooperative;        ///< [in] non-zero value indicates a cooperative kernel
+    uint32_t clusterDim[3];    ///< [in] dimensions of the cluster (units of work-group) (x, y, z). Each
+                               ///< value must be a divisor of the corresponding global work-size
+                               ///< dimension (in units of work-group).
+    int cooperative;           ///< [in] non-zero value indicates a cooperative kernel
+    size_t workgroup_mem_size; ///< [in] non-zero value indicates the amount of work group memory to
+                               ///< allocate in bytes
 
 } ur_exp_launch_property_value_t;
 
@@ -9617,6 +9620,7 @@ typedef struct ur_exp_launch_property_t {
 ///         + NULL == hQueue
 ///         + NULL == hKernel
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_POINTER
+///         + `NULL == pGlobalWorkOffset`
 ///         + `NULL == pGlobalWorkSize`
 ///         + `NULL == launchPropList`
 ///         + NULL == pGlobalWorkSize
@@ -9645,6 +9649,8 @@ urEnqueueKernelLaunchCustomExp(
     ur_kernel_handle_t hKernel,                     ///< [in] handle of the kernel object
     uint32_t workDim,                               ///< [in] number of dimensions, from 1 to 3, to specify the global and
                                                     ///< work-group work-items
+    const size_t *pGlobalWorkOffset,                ///< [in] pointer to an array of workDim unsigned values that specify the
+                                                    ///< offset used to calculate the global ID of a work-item
     const size_t *pGlobalWorkSize,                  ///< [in] pointer to an array of workDim unsigned values that specify the
                                                     ///< number of global work-items in workDim that will execute the kernel
                                                     ///< function
@@ -11554,6 +11560,7 @@ typedef struct ur_enqueue_kernel_launch_custom_exp_params_t {
     ur_queue_handle_t *phQueue;
     ur_kernel_handle_t *phKernel;
     uint32_t *pworkDim;
+    const size_t **ppGlobalWorkOffset;
     const size_t **ppGlobalWorkSize;
     const size_t **ppLocalWorkSize;
     uint32_t *pnumPropsInLaunchPropList;
