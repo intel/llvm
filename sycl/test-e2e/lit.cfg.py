@@ -805,6 +805,11 @@ else:
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
     )
+
+# Update each device's features with anything added during HIP device handling
+for sycl_device in config.sycl_devices:
+    config.sycl_dev_features[sycl_device] = config.sycl_dev_features[sycl_device].union(config.available_features)
+
 # Set timeout for a single test
 try:
     import psutil
