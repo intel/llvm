@@ -193,10 +193,12 @@ class atomic {
 public:
   template <typename pointerT, access::decorated IsDecorated>
 #ifdef __SYCL_DEVICE_ONLY__
-  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
+  atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
       : Ptr(GetDecoratedPtr(ptr))
 #else
-  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
+  atomic(multi_ptr<pointerT, addressSpace, IsDecorated> ptr)
       : Ptr(reinterpret_cast<std::atomic<T> *>(ptr.get()))
 #endif
   {
@@ -210,7 +212,8 @@ public:
             typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
-  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") atomic(const atomic<T, access::address_space::ext_intel_global_device_space>
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
+  atomic(const atomic<T, access::address_space::ext_intel_global_device_space>
              &RHS) {
     Ptr = RHS.Ptr;
   }
@@ -219,7 +222,8 @@ public:
             typename = typename std::enable_if_t<
                 _Space == addressSpace &&
                 addressSpace == access::address_space::global_space>>
-  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead") atomic(
+  __SYCL2020_DEPRECATED("use sycl::atomic_ref instead")
+  atomic(
       atomic<T, access::address_space::ext_intel_global_device_space> &&RHS) {
     Ptr = RHS.Ptr;
   }
