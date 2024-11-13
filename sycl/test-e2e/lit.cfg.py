@@ -770,13 +770,17 @@ for sycl_device in config.sycl_devices:
 if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
     if not config.amd_arch:
         amd_arch_prefix = "arch-amd_gpu_"
-        amd_device_arch = [i for i in config.sycl_dev_features["hip:gpu"] if amd_arch_prefix in i]
+        amd_device_arch = [
+            i for i in config.sycl_dev_features["hip:gpu"] if amd_arch_prefix in i
+        ]
         if len(amd_device_arch) == 0:
             lit_config.error(
                 "Cannot detect architecture for AMD HIP device, specify it explicitly"
             )
         if len(amd_device_arch) > 1:
-            lit_config.warning("Multiple AMD HIP devices, using the architecture from the first one")
+            lit_config.warning(
+                "Multiple AMD HIP devices, using the architecture from the first one"
+            )
         config.amd_arch = amd_device_arch[0].replace(amd_arch_prefix, "")
     llvm_config.with_system_environment("ROCM_PATH")
     config.available_features.add("hip_amd")
@@ -808,7 +812,9 @@ else:
 
 # Update each device's features with anything added during HIP device handling
 for sycl_device in config.sycl_devices:
-    config.sycl_dev_features[sycl_device] = config.sycl_dev_features[sycl_device].union(config.available_features)
+    config.sycl_dev_features[sycl_device] = config.sycl_dev_features[sycl_device].union(
+        config.available_features
+    )
 
 # Set timeout for a single test
 try:
