@@ -19,6 +19,8 @@
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
+#include <sstream>
+
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
@@ -1176,17 +1178,18 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
   // RegisteredKernelNames may contain template specialization that
   // we want to make sure are instantiated.  So we just put them in main()
   // which ensures they are instantiated.
-  std::stringstream ss;
-  ss << SYCLSource << "\n";
+  std::ostringstream ss;
   ss << "int main() {\n";
   for (const std::string &KernelName : RegisteredKernelNames) {
     ss << "  (void)" << KernelName << ";\n";
   }
   ss << "  return 0;\n}\n" << std::endl;
 
+  std::string FinalSource = SYCLSource + ss.str();
+
   std::string SYCLFileName = Id + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
-                                          ss.str().c_str()};
+                                          FinalSource.c_str()};
 
   std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
   IncludeFilesView.reserve(IncludePairs.size());
