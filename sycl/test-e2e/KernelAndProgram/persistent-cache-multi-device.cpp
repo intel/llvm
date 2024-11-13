@@ -23,7 +23,7 @@ int main(void) {
   sycl::buffer<int, 1> bufA(sz);
   auto bundle = sycl::get_kernel_bundle<bundle_state::input>(ctx);
   // CHECK-BUILD: [Persistent Cache]: device binary has been cached
-  // CHECK-CACHE: [Persistent Cache]: using cached binary
+  // CHECK-CACHE: [Persistent Cache]: using cached device binary
   auto bundle_exe = sycl::build(bundle, {devs[0], devs[2]});
   auto kernel = bundle_exe.get_kernel(sycl::get_kernel_id<SimpleKernel>());
   sycl::queue q(devs[2]);
