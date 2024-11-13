@@ -441,7 +441,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():       
+    for line in sp.splitlines():
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -770,7 +770,7 @@ for sycl_device in config.sycl_devices:
             if amd_arch_prefix not in arch or len(architecture_feature) != 1:
                 lit_config.error(
                     "Cannot detect architecture for AMD HIP device, specify it explicitly"
-                )          
+                )
             config.amd_arch = arch.replace(amd_arch_prefix, "")
         llvm_config.with_system_environment("ROCM_PATH")
         config.available_features.add("hip_amd")
@@ -804,7 +804,7 @@ else:
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
-    )        
+    )
 
 # Set timeout for a single test
 try:
