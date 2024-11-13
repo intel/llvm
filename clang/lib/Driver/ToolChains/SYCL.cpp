@@ -169,22 +169,6 @@ void SYCLInstallationDetector::getSYCLDeviceLibPath(
     DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
 }
 
-void SYCLInstallationDetector::getSYCLDeviceLibPath(
-    llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths, bool GetSPV) const {
-  auto TargetTriple = llvm::Triple(D.getTargetTriple());
-  for (const auto &IC : InstallationCandidates) {
-    llvm::SmallString<128> InstallLibPath(IC.str());
-    if (GetSPV && TargetTriple.isOSWindows())
-      InstallLibPath.append("/bin");
-    else
-      InstallLibPath.append("/lib");
-    DeviceLibPaths.emplace_back(InstallLibPath);
-  }
-
-  if (!GetSPV || !TargetTriple.isOSWindows())
-    DeviceLibPaths.emplace_back(D.SysRoot + "/lib");
-}
-
 void SYCLInstallationDetector::AddSYCLIncludeArgs(
     const ArgList &DriverArgs, ArgStringList &CC1Args) const {
   // Add the SYCL header search locations in the specified order.
