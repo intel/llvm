@@ -1737,8 +1737,7 @@ public:
 #endif
       () const {
     const size_t LinearIndex = getLinearIndex(id<AdjustedDim>());
-    return Test(multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr() +
-                                                             LinearIndex));
+    return multi_ptr<DataT, AS, access::decorated::yes>(getQualifiedPtr() + LinearIndex);
   }
 
   template <int Dims = Dimensions,
