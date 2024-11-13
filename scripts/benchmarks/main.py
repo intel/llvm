@@ -8,6 +8,7 @@
 from benches.compute import *
 from benches.velocity import VelocityBench
 from benches.syclbench import *
+from benches.llamacpp import *
 from benches.test import TestSuite
 from benches.options import Compare, options
 from output_markdown import generate_markdown
@@ -27,7 +28,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     suites = [
         ComputeBench(directory),
         VelocityBench(directory),
-        SyclBench(directory)
+        SyclBench(directory),
+        LlamaCppBench(directory),
         #TestSuite()
     ] if not options.dry_run else []
 
@@ -64,7 +66,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         try:
             merged_env_vars = {**additional_env_vars}
             iteration_results = []
-            for iter in range(options.iterations):
+            iterations = options.iterations if not benchmark.ignore_iterations() else 1
+            for iter in range(iterations):
                 print(f"running {benchmark.name()}, iteration {iter}... ", end='', flush=True)
                 bench_results = benchmark.run(merged_env_vars)
                 if bench_results is not None:
