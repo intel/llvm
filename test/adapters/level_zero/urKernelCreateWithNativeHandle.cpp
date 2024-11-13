@@ -8,7 +8,7 @@
 #include "ze_api.h"
 #include <uur/fixtures.h>
 
-using urLevelZeroKernelNativeHandleTest = uur::urContextTest;
+using urLevelZeroKernelNativeHandleTest = uur::urQueueTest;
 UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urLevelZeroKernelNativeHandleTest);
 
 TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
@@ -59,6 +59,13 @@ TEST_P(urLevelZeroKernelNativeHandleTest, OwnedHandleRelease) {
     ur_kernel_handle_t kernel;
     ASSERT_SUCCESS(urKernelCreateWithNativeHandle(
         (ur_native_handle_t)native_kernel, context, program, &kprops, &kernel));
+
+    size_t global_offset = 0;
+    size_t local_size = 1;
+    size_t global_size = 1;
+    ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, 1, &global_offset,
+                                         &local_size, &global_size, 0, nullptr,
+                                         nullptr));
 
     ASSERT_SUCCESS(urKernelRelease(kernel));
     ASSERT_SUCCESS(urProgramRelease(program));
