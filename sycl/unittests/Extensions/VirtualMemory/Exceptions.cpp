@@ -59,8 +59,8 @@ ur_result_t after_urDeviceGetInfo_SingleDevice(void *pParams) {
   case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
     if (*params->ppPropValue) {
       if (*params->phDevice == GlobalDevicesHandle[0]) {
-        *static_cast<ur_bool_t *>(*params->ppPropValue) =VirtualMemSupported;
-      }  
+        *static_cast<ur_bool_t *>(*params->ppPropValue) = VirtualMemSupported;
+      }
     }
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(ur_bool_t);
