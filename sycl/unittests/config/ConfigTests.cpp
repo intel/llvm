@@ -335,14 +335,14 @@ TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
   using InMemEvicType =
       sycl::detail::SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
 
-  // Lambda to test parsing of SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
+  // Lambda to test parsing of SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD.
   auto TestConfig = [](int expectedProgramCacheSize) {
     EXPECT_EQ(expectedProgramCacheSize, InMemEvicType::getProgramCacheSize());
     EXPECT_EQ(expectedProgramCacheSize > 0,
               InMemEvicType::isProgramCacheEvictionEnabled());
   };
 
-  // Lambda to set SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
+  // Lambda to set SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD.
   auto SetSyclInMemCacheEvictionThresholdEnv = [](const char *value) {
 #ifdef _WIN32
     _putenv_s("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD", value);

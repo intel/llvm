@@ -4,7 +4,7 @@
 // Therefore, adding O0.
 // RUN: %{build} %O0 -o %t.out
 
-// RUN: env SYCL_CACHE_TRACE=2 SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD=20000 %{run} %t.out 2> %t.trace3
+// RUN: env SYCL_CACHE_TRACE=2 SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD=50000 %{run} %t.out 2> %t.trace3
 // RUN: FileCheck %s --input-file=%t.trace3 --check-prefix=CHECK-CACHE-TRACE
 
 #include <sycl/detail/core.hpp>

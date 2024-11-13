@@ -790,7 +790,8 @@ private:
           throw INVALID_CONFIG_EXCEPTION(BaseT, "Value must be non-negative");
       } catch (...) {
         std::string Msg = std::string{
-            "Invalid input to SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD"};
+            "Invalid input to SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD. Please try "
+            "a positive integer."};
         throw exception(make_error_code(errc::runtime), Msg);
       }
 

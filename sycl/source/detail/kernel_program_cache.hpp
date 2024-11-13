@@ -220,7 +220,8 @@ public:
         traceProgram("Program moved to the end of eviction list.", CacheKey);
       } else
         // This should never happen.
-        assert(false && "Program not found in the eviction list.");
+        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                              "Program not found in the eviction list.");
     }
 
     bool empty() { return MProgramEvictionList.empty(); }
@@ -252,6 +253,7 @@ public:
     // ASCII values, so we need need to convert them to int and then to
     // string.
     std::string SerializedObjString;
+    SerializedObjString.reserve(SerializedObjVec.size() * sizeof(size_t));
     for (unsigned char c : SerializedObjVec)
       SerializedObjString += std::to_string((int)c) + ",";
 
@@ -386,25 +388,25 @@ public:
   }
 
   // Evict programs from cache to free up space.
-  void evictPrograms(size_t DesiredCacheSize, int CurrentCacheSize) {
+  void evictPrograms(size_t DesiredCacheSize, size_t CurrentCacheSize) {
 
     // Figure out how many programs from the beginning we need to evict.
-    // [FIXME] Will the race on MCachedPrograms.Cache.empty() be a problem?
-    size_t EvictSize = CurrentCacheSize - DesiredCacheSize;
-    if (EvictSize <= 0 || MCachedPrograms.Cache.empty())
+    if (CurrentCacheSize < DesiredCacheSize || MCachedPrograms.Cache.empty())
       return;
 
     // Evict programs from the beginning of the cache.
     {
       std::lock_guard<std::mutex> Lock(MProgramEvictionListMutex);
 
+      size_t CurrCacheSize = MCachedPrograms.ProgramCacheSizeInBytes;
       // Traverse the eviction list and remove the LRU programs.
       // The LRU programs will be at the front of the list.
-      while (EvictSize > DesiredCacheSize && !MEvictionList.empty()) {
+      while (CurrCacheSize > DesiredCacheSize && !MEvictionList.empty()) {
         ProgramCacheKeyT CacheKey = MEvictionList.MProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
         auto &ProgCache = LockedCache.get();
         auto It = ProgCache.Cache.find(CacheKey);
+
         if (It != ProgCache.Cache.end()) {
           // We are about to remove this program now.
           // (1) Remove it from KernelPerProgram cache.
@@ -459,16 +461,15 @@ public:
           ProgCache.Cache.erase(It);
           // Remove program size from the cache size.
           MCachedPrograms.ProgramCacheSizeInBytes -= ProgramSize;
-          // Remove program size from the eviction list.
-          EvictSize -= ProgramSize;
-
           MCachedPrograms.ProgramSizeMap.erase(NativePrg);
 
           traceProgram("Program evicted.", CacheKey);
         } else
           // This should never happen.
-          assert(false && "Program not found in the cache.");
+          throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
+                                "Program not found in the cache.");
 
+        CurrCacheSize = MCachedPrograms.ProgramCacheSizeInBytes;
         // Remove the program from the eviction list.
         MEvictionList.popFront();
       }
@@ -587,9 +588,9 @@ public:
   /// \return a pointer to cached build result, return value must not be
   /// nullptr.
   template <errc Errc, typename GetCachedBuildFT, typename BuildFT,
-            typename EvicFT = void *>
+            typename EvictFT = void *>
   auto getOrBuild(GetCachedBuildFT &&GetCachedBuild, BuildFT &&Build,
-                  EvicFT &&EvictFnc = nullptr) {
+                  EvictFT &&EvictFunc = nullptr) {
     using BuildState = KernelProgramCache::BuildState;
     constexpr size_t MaxAttempts = 2;
     for (size_t AttemptCounter = 0;; ++AttemptCounter) {
@@ -604,8 +605,8 @@ public:
 
         // Build succeeded.
         if (NewState == BuildState::BS_Done) {
-          if constexpr (!std::is_same_v<EvicFT, void *>)
-            EvictFnc(BuildResult->Val, 0);
+          if constexpr (!std::is_same_v<EvictFT, void *>)
+            EvictFunc(BuildResult->Val, 0);
           return BuildResult;
         }
 
@@ -631,8 +632,8 @@ public:
       try {
         BuildResult->Val = Build();
 
-        if constexpr (!std::is_same_v<EvicFT, void *>)
-          EvictFnc(BuildResult->Val, 1);
+        if constexpr (!std::is_same_v<EvictFT, void *>)
+          EvictFunc(BuildResult->Val, 1);
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
         return BuildResult;
