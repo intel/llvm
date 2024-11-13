@@ -386,7 +386,7 @@ public:
   }
 
   // Evict programs from cache to free up space.
-  void evictPrograms(int DesiredCacheSize, int CurrentCacheSize) {
+  void evictPrograms(size_t DesiredCacheSize, int CurrentCacheSize) {
 
     // Figure out how many programs from the beginning we need to evict.
     // [FIXME] Will the race on MCachedPrograms.Cache.empty() be a problem?
@@ -400,7 +400,7 @@ public:
 
       // Traverse the eviction list and remove the LRU programs.
       // The LRU programs will be at the front of the list.
-      while (EvictSize > 0 && !MEvictionList.empty()) {
+      while (EvictSize > DesiredCacheSize && !MEvictionList.empty()) {
         ProgramCacheKeyT CacheKey = MEvictionList.MProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
         auto &ProgCache = LockedCache.get();
@@ -418,6 +418,12 @@ public:
           ur_program_handle_t NativePrg = It->second->Val;
           {
             auto LockedCacheKP = acquireKernelsPerProgramCache();
+            // List kernels that are to be removed from the cache, if tracing is
+            // enabled.
+            if (SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()) {
+              for (const auto &Kernel : LockedCacheKP.get()[NativePrg])
+                traceKernel("Kernel evicted.", Kernel.first);
+            }
             LockedCacheKP.get().erase(NativePrg);
           }
 
