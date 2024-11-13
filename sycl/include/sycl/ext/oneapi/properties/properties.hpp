@@ -134,32 +134,36 @@ template <typename... property_tys> struct properties_type_list;
 template <typename... property_tys> struct invalid_properties_type_list {};
 
 template <typename... property_tys> struct properties_sorter {
-  static constexpr auto sorted_indices = []() constexpr {
-    int idx = 0;
-    int N = sizeof...(property_tys);
-    // std::sort isn't constexpr until C++20. Also, it's possible there will be
-    // a compiler builtin to sort types, in which case we should start using
-    // that.
-    std::array to_sort{std::pair{PropertyID<property_tys>::value, idx++}...};
-    auto swap_pair = [](auto &x, auto &y) constexpr {
-      auto tmp_first = x.first;
-      auto tmp_second = x.second;
-      x.first = y.first;
-      x.second = y.second;
-      y.first = tmp_first;
-      y.second = tmp_second;
-    };
-    for (int i = 0; i < N; ++i)
-      for (int j = i; j < N; ++j)
-        if (to_sort[j].first < to_sort[i].first)
-          swap_pair(to_sort[i], to_sort[j]);
+  // Not using "auto" due to MSVC bug in v19.36 and older. v19.37 and later is
+  // able to compile "auto" just fine. See https://godbolt.org/z/eW3rjjs7n.
+  static constexpr std::array<int, sizeof...(property_tys)> sorted_indices =
+      []() constexpr {
+        int idx = 0;
+        int N = sizeof...(property_tys);
+        // std::sort isn't constexpr until C++20. Also, it's possible there will
+        // be a compiler builtin to sort types, in which case we should start
+        // using that.
+        std::array to_sort{
+            std::pair{PropertyID<property_tys>::value, idx++}...};
+        auto swap_pair = [](auto &x, auto &y) constexpr {
+          auto tmp_first = x.first;
+          auto tmp_second = x.second;
+          x.first = y.first;
+          x.second = y.second;
+          y.first = tmp_first;
+          y.second = tmp_second;
+        };
+        for (int i = 0; i < N; ++i)
+          for (int j = i; j < N; ++j)
+            if (to_sort[j].first < to_sort[i].first)
+              swap_pair(to_sort[i], to_sort[j]);
 
-    std::array<int, sizeof...(property_tys)> sorted_indices{};
-    for (int i = 0; i < N; ++i)
-      sorted_indices[i] = to_sort[i].second;
+        std::array<int, sizeof...(property_tys)> sorted_indices{};
+        for (int i = 0; i < N; ++i)
+          sorted_indices[i] = to_sort[i].second;
 
-    return sorted_indices;
-  }();
+        return sorted_indices;
+      }();
 
   template <typename> struct helper;
   template <int... IdxSeq>
