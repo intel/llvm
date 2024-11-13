@@ -21,7 +21,7 @@ on:
 
 concurrency:
   #  Cancel a currently running workflow from the same PR or commit hash.
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  group: "${{ github.actor }}-${{ github.head_ref || github.ref_name }}"
   cancel-in-progress: true
 
 permissions: read-all
