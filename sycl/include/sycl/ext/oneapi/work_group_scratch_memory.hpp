@@ -48,16 +48,6 @@ template <> struct PropertyMetaInfo<work_group_scratch_size> {
 };
 
 } // namespace detail
-
-inline bool operator==(const work_group_scratch_size &lhs,
-                       const work_group_scratch_size &rhs) {
-  return lhs.size == rhs.size;
-}
-inline bool operator!=(const work_group_scratch_size &lhs,
-                       const work_group_scratch_size &rhs) {
-  return !(lhs == rhs);
-}
-
 } // namespace experimental
 } // namespace ext::oneapi
 } // namespace _V1
