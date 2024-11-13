@@ -180,12 +180,8 @@ For a description of parallel for range rounding in DPC++ see
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `INTEL_ENABLE_OFFLOAD_ANNOTATIONS` | Any(\*) | Enables ITT Annotations support for SYCL runtime. This variable should only be used by tools, that support ITT Annotations. |
-| `XPTI_FRAMEWORK_DISPATCHER`(\*\*) | Path to dispatcher library | Loads XPTI instrumentation dispatcher framework library. See [XPTI Framework documentation][xpti] for more info |
-| `XPTI_TRACE_ENABLE`(\*\*) | `1`, `true`, `0`, `false` | Enables XPTI instrumentation. See [XPTI Framework documentation][xpti] for more info |
-| `XPTI_SUBSCRIBERS`(\*\*) | Comma separated list of subscriber libraries | Loads XPTI subscribers. See [XPTI Framework documentation][xpti] for more info |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
-`(**) Note: These variables come from XPTI framework`
 
 ## Debugging variables for DPC++ Runtime
 
@@ -298,5 +294,4 @@ variables in production code.</span>
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
-[xpti]: https://github.com/intel/llvm/blob/sycl/xptifw/doc/XPTI_Framework.md
 [range-rounding]: https://github.com/intel/llvm/blob/sycl/sycl/doc/design/ParallelForRangeRounding.md
