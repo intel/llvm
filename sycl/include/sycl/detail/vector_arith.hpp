@@ -10,7 +10,6 @@
 
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16

@@ -41,9 +41,11 @@ struct PropertyValueBase<T> : public detail::SingleNontypePropertyValueBase<T> {
 } // namespace detail
 
 template <typename PropertyT, typename... Ts>
-struct property_value : public detail::PropertyValueBase<Ts...> {
-  using key_t = PropertyT;
-};
+struct property_value
+    : public detail::PropertyValueBase<Ts...>,
+      public detail::property_base<property_value<PropertyT, Ts...>,
+                                   detail::PropertyToKind<PropertyT>::Kind,
+                                   PropertyT> {};
 
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
@@ -76,6 +78,9 @@ struct is_property_value<V, std::void_t<typename V::key_t>>
 template <typename V, typename O>
 struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
     : is_property_key_of<typename V::key_t, O> {};
+
+template <typename V>
+inline constexpr bool is_property_value_v = is_property_value<V>::value;
 
 namespace detail {
 

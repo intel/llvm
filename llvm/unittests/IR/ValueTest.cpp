@@ -50,7 +50,6 @@ TEST(ValueTest, UsedInBasicBlock) {
 
 TEST(GlobalTest, CreateAddressSpace) {
   LLVMContext Ctx;
-  Ctx.setOpaquePointers(true);
   std::unique_ptr<Module> M(new Module("TestModule", Ctx));
   Type *Int8Ty = Type::getInt8Ty(Ctx);
   Type *Int32Ty = Type::getInt32Ty(Ctx);
@@ -118,7 +117,6 @@ TEST(ValueTest, printSlots) {
   // Check that Value::print() and Value::printAsOperand() work with and
   // without a slot tracker.
   LLVMContext C;
-  C.setOpaquePointers(true);
 
   const char *ModuleString = "@g0 = external global %500\n"
                              "@g1 = external global %900\n"

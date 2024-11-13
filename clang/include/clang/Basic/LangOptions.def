@@ -326,6 +326,7 @@ LANGOPT(SYCLExperimentalRangeRounding, 1, 0, "Use experimental parallel for rang
 LANGOPT(SYCLEnableIntHeaderDiags, 1, 0, "Enable diagnostics that require the "
         "SYCL integration header")
 LANGOPT(SYCLIsNativeCPU      , 1, 0, "Generate code for SYCL Native CPU")
+LANGOPT(SYCLRTCMode, 1, 0, "Compile in RTC mode")
 
 LANGOPT(HIPUseNewLaunchAPI, 1, 0, "Use new kernel launching API for HIP")
 LANGOPT(OffloadUniformBlock, 1, 0, "Assume that kernels are launched with uniform block sizes (default true for CUDA/HIP and false otherwise)")
@@ -388,6 +389,8 @@ BENIGN_LANGOPT(CompatibilityQualifiedIdBlockParamTypeChecking, 1, 0,
 LANGOPT(ObjCDisableDirectMethodsForTesting, 1, 0,
         "Disable recognition of objc_direct methods")
 LANGOPT(CFProtectionBranch , 1, 0, "Control-Flow Branch Protection enabled")
+ENUM_LANGOPT(CFBranchLabelScheme, CFBranchLabelSchemeKind, 2, CFBranchLabelSchemeKind::Default,
+             "Control-Flow Branch Protection Label Scheme")
 LANGOPT(FakeAddressSpaceMap , 1, 0, "OpenCL fake address space map")
 LANGOPT(OpenCLForceVectorABI, 1, 0, "OpenCL vector to scalar coercion disabling")
 ENUM_LANGOPT(AddressSpaceMapMangling , AddrSpaceMapMangling, 2, ASMM_Target, "OpenCL address space map mangling mode")

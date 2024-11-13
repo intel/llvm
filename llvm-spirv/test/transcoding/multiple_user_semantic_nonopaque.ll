@@ -10,12 +10,23 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 
+; Check the same with untyped pointers enabled
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
+; Check that even when FPGA memory extensions are enabled - yet we have
+; UserSemantic decoration be generated
+; RUN: llvm-as %s -o %t.bc
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_fpga_memory_accesses,+SPV_INTEL_fpga_memory_attributes,+SPV_KHR_untyped_pointers -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+
 ; CHECK-SPIRV: Decorate [[#Var:]] UserSemantic "var_annotation_a"
 ; CHECK-SPIRV: Decorate [[#Var]] UserSemantic "var_annotation_b"
 ; CHECK-SPIRV: Decorate [[#Var2:]] UserSemantic "class_annotation_a"
 ; CHECK-SPIRV: Decorate [[#Var2]] UserSemantic "class_annotation_b"
-; CHECK-SPIRV-DAG: Variable [[#]] [[#Var]] [[#]]
-; CHECK-SPIRV-DAG: Variable [[#]] [[#Var2]] [[#]]
+; CHECK-SPIRV-DAG: {{(Variable|UntypedVariableKHR)}} [[#]] [[#Var]] [[#]]
+; CHECK-SPIRV-DAG: {{(Variable|UntypedVariableKHR)}} [[#]] [[#Var2]] [[#]]
 
 ; CHECK-LLVM-DAG: @[[StrA:[0-9_.]+]] = {{.*}}"var_annotation_a\00"
 ; CHECK-LLVM-DAG: @[[StrB:[0-9_.]+]] = {{.*}}"var_annotation_b\00"
