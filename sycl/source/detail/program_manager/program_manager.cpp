@@ -3403,6 +3403,7 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
     } if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
       return BE == sycl::backend::ext_oneapi_native_cpu;
     }
+    std::cerr << Target << std::endl;
     assert(false);
     return false;
   }
