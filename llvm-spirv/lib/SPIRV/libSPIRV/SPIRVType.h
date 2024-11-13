@@ -109,6 +109,7 @@ public:
   bool isTypeSubgroupAvcINTEL() const;
   bool isTypeSubgroupAvcMceINTEL() const;
   bool isTypeTaskSequenceINTEL() const;
+  bool isSPIRVOpaqueType() const;
 };
 
 class SPIRVTypeVoid : public SPIRVType {
