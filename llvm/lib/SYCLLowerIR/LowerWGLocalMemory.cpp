@@ -204,8 +204,9 @@ static bool dynamicWGLocalMemory(Module &M) {
         GlobalVariable::NotThreadLocal, // ThreadLocalMode
         LocalAS                         // AddressSpace
     );
+    constexpr int DefaultMaxAlignment = 128;
     if (!TT.isSPIROrSPIRV())
-      LocalMemArrayGV->setAlignment(Align{128});
+      LocalMemArrayGV->setAlignment(Align{DefaultMaxAlignment});
   }
   lowerLocalMemCall(DLMFunc, [&](CallInst *CI) {
     lowerDynamicLocalMemCallDirect(CI, TT, LocalMemArrayGV);
