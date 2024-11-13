@@ -122,6 +122,10 @@ if __name__ == "__main__":
     parser.add_argument("rest", nargs=argparse.REMAINDER)
     args = parser.parse_args()
 
+    if args.test_command is None or args.failslist is None:
+        print("Usage: cts_exe.py --test_command (test binary) --failslist (match file) -- (test arguments)")
+        sys.exit(1)
+
     base_invocation = [args.test_command] + args.rest
 
     if os.environ.get("GTEST_OUTPUT") is not None:
