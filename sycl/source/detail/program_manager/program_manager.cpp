@@ -3399,17 +3399,18 @@ bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
       return Dev.is_accelerator();
     }
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
+    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0 ||
+        strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64) == 0) {
       return BE == sycl::backend::ext_oneapi_cuda;
     }
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
+    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0 ||
+        strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN) == 0) {
       return BE == sycl::backend::ext_oneapi_hip;
     }
     if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
       return BE == sycl::backend::ext_oneapi_native_cpu;
     }
-    std::cerr << Target << std::endl;
-    assert(false);
+    assert(false && "Unexpected image target");
     return false;
   }
 
