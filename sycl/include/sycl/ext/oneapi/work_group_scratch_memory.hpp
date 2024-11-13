@@ -31,8 +31,8 @@ inline void *get_work_group_scratch_memory() {
 // Property
 struct work_group_scratch_size
     : ::sycl::ext::oneapi::experimental::detail::run_time_property_key<
-          work_group_scratch_size,
-          ::sycl::ext::oneapi::experimental::detail::PropKind::WorkGroupScratchSize> {
+          work_group_scratch_size, ::sycl::ext::oneapi::experimental::detail::
+                                       PropKind::WorkGroupScratchSize> {
   // Runtime property part
   constexpr work_group_scratch_size(size_t bytes) : size(bytes) {}
 

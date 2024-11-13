@@ -171,7 +171,8 @@ static bool allocaWGLocalMemory(Module &M) {
 }
 
 // For dynamic memory we have 2 case:
-//   - Direct for CUDA/HIP: we create a placeholder and set the memory on launch.
+//   - Direct for CUDA/HIP: we create a placeholder and set the memory on
+//   launch.
 //   - Indirect for OpenCL/Level0: we create a shared value holding the pointer
 //   to the buffer passed as argument.
 static bool dynamicWGLocalMemory(Module &M) {
