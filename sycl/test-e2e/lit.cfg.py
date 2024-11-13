@@ -441,7 +441,7 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
         "{} {}".format(config.run_launcher, sycl_ls) if config.run_launcher else sycl_ls
     )
     sp = subprocess.check_output(cmd, text=True, shell=True)
-    for line in sp.splitlines():
+    for line in sp.splitlines():       
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -761,40 +761,36 @@ for sycl_device in config.sycl_devices:
     # Use short names for LIT rules.
     features.add(be)
 
+    if be == "hip" and config.hip_platform == "AMD":
+        if not config.amd_arch:
+            arch = ""
+            for a in architecture_feature:
+                arch = a
+            amd_arch_prefix = "arch-amd_gpu_"
+            if amd_arch_prefix not in arch or len(architecture_feature) != 1:
+                lit_config.error(
+                    "Cannot detect architecture for AMD HIP device, specify it explicitly"
+                )          
+            config.amd_arch = arch.replace(amd_arch_prefix, "")
+        llvm_config.with_system_environment("ROCM_PATH")
+        config.available_features.add("hip_amd")
+        arch_flag = (
+            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
+        )
+        config.substitutions.append(
+            ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+        )
+    elif be == "hip" and config.hip_platform == "NVIDIA":
+        config.available_features.add("hip_nvidia")
+        arch_flag = ""
+    else:
+        arch_flag = ""
+
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
         config.intel_driver_ver[sycl_device] = intel_driver_ver
     else:
         config.intel_driver_ver[sycl_device] = {}
-
-if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
-    if not config.amd_arch:
-        amd_arch_prefix = "arch-amd_gpu_"
-        amd_device_arch = [
-            i for i in config.sycl_dev_features["hip:gpu"] if amd_arch_prefix in i
-        ]
-        if len(amd_device_arch) == 0:
-            lit_config.error(
-                "Cannot detect architecture for AMD HIP device, specify it explicitly"
-            )
-        if len(amd_device_arch) > 1:
-            lit_config.warning(
-                "Multiple AMD HIP devices, using the architecture from the first one"
-            )
-        config.amd_arch = amd_device_arch[0].replace(amd_arch_prefix, "")
-    llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
-    arch_flag = (
-        "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-    )
-    config.substitutions.append(
-        ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
-    )
-elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
-    config.available_features.add("hip_nvidia")
-    arch_flag = ""
-else:
-    arch_flag = ""
 
 if lit_config.params.get("compatibility_testing", False):
     config.substitutions.append(("%clangxx", " true "))
@@ -808,13 +804,7 @@ else:
     )
     config.substitutions.append(
         ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
-    )
-
-# Update each device's features with anything added during HIP device handling
-for sycl_device in config.sycl_devices:
-    config.sycl_dev_features[sycl_device] = config.sycl_dev_features[sycl_device].union(
-        config.available_features
-    )
+    )        
 
 # Set timeout for a single test
 try:
