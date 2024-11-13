@@ -1,7 +1,7 @@
-# commit b0a9e2be61ad42d3447f1f246120ab25119a03e0
-# Merge: fa8cc8ec a0cf2ce2
+# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
+# Merge: 9a209aa5 b1222f08
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Mon Nov 4 10:00:08 2024 +0000
-#     Merge pull request #2165 from aarongreig/aaron/makeUSMPoolsOptional
-#     Make USM pools optional with a device query to report support.
-set(UNIFIED_RUNTIME_TAG b0a9e2be61ad42d3447f1f246120ab25119a03e0)
+# Date:   Wed Nov 13 09:57:16 2024 +0000
+#     Merge pull request #2254 from PietroGhg/pietro/events_rr
+#     [NATIVECPU] Implement events on Native CPU
+set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)

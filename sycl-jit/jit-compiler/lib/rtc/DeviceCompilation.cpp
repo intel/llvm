@@ -20,6 +20,49 @@
 static char X; // Dummy symbol, used as an anchor for `dlinfo` below.
 #endif
 
+#ifdef _WIN32
+#include <filesystem> // For std::filesystem::path ( C++17 only )
+#include <shlwapi.h>  // For PathRemoveFileSpec
+#include <windows.h>  // For GetModuleFileName, HMODULE, DWORD, MAX_PATH
+
+// cribbed from sycl/source/detail/os_util.cpp
+using OSModuleHandle = intptr_t;
+static constexpr OSModuleHandle ExeModuleHandle = -1;
+static OSModuleHandle getOSModuleHandle(const void *VirtAddr) {
+  HMODULE PhModule;
+  DWORD Flag = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+  auto LpModuleAddr = reinterpret_cast<LPCSTR>(VirtAddr);
+  if (!GetModuleHandleExA(Flag, LpModuleAddr, &PhModule)) {
+    // Expect the caller to check for zero and take
+    // necessary action
+    return 0;
+  }
+  if (PhModule == GetModuleHandleA(nullptr))
+    return ExeModuleHandle;
+  return reinterpret_cast<OSModuleHandle>(PhModule);
+}
+
+// cribbed from sycl/source/detail/os_util.cpp
+/// Returns an absolute path where the object was found.
+std::wstring getCurrentDSODir() {
+  wchar_t Path[MAX_PATH];
+  auto Handle = getOSModuleHandle(reinterpret_cast<void *>(&getCurrentDSODir));
+  DWORD Ret = GetModuleFileName(
+      reinterpret_cast<HMODULE>(ExeModuleHandle == Handle ? 0 : Handle), Path,
+      MAX_PATH);
+  assert(Ret < MAX_PATH && "Path is longer than MAX_PATH?");
+  assert(Ret > 0 && "GetModuleFileName failed");
+  (void)Ret;
+
+  BOOL RetCode = PathRemoveFileSpec(Path);
+  assert(RetCode && "PathRemoveFileSpec failed");
+  (void)RetCode;
+
+  return Path;
+}
+#endif // _WIN32
+
 static constexpr auto InvalidDPCPPRoot = "<invalid>";
 
 static const std::string &getDPCPPRoot() {
@@ -41,6 +84,10 @@ static const std::string &getDPCPPRoot() {
     }
   }
 #endif // _GNU_SOURCE
+
+#ifdef _WIN32
+  DPCPPRoot = std::filesystem::path(getCurrentDSODir()).parent_path().string();
+#endif // _WIN32
 
   // TODO: Implemenent other means of determining the DPCPP root, e.g.
   //       evaluating the `CMPLR_ROOT` env.
