@@ -28,7 +28,7 @@ config.excludes = ["Inputs"]
 config.test_source_root = os.path.dirname(__file__)
 
 # test_exec_root: The root path where tests should be run.
-config.test_exec_root = config.sycl_obj_root
+config.test_exec_root = config.sycl_obj_root 
 
 # allow expanding substitutions that are based on other substitutions
 config.recursiveExpansionLimit = 10
