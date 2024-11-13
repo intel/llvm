@@ -60,7 +60,7 @@ sycl::getKernelNamesUsingImplicitLocalMem(const Module &M) {
         if (F.getAttributes().hasParamAttr(Arg.getArgNo(),
                                            WORK_GROUP_STATIC_ARG_ATTR))
           return Arg.getArgNo();
-      // Not lowered to an implicit arg or DAE
+      // Not lowered to an implicit arg or DAE.
       return -1;
     };
     llvm::for_each(M.functions(), [&](const Function &F) {
@@ -171,9 +171,9 @@ static bool allocaWGLocalMemory(Module &M) {
 }
 
 // For dynamic memory we have 2 case:
-//   - Direct for CUDA/HIP: we create a placeholder and set the memory on launch
+//   - Direct for CUDA/HIP: we create a placeholder and set the memory on launch.
 //   - Indirect for OpenCL/Level0: we create a shared value holding the pointer
-//   to the buffer passed as argument
+//   to the buffer passed as argument.
 static bool dynamicWGLocalMemory(Module &M) {
   Function *DLMFunc = M.getFunction(SYCL_DYNAMIC_LOCALMEM_CALL);
   if (!DLMFunc)
@@ -272,7 +272,7 @@ static bool dynamicWGLocalMemory(Module &M) {
       OldKernel->getAllMetadata(MDs);
       for (const auto &MD : MDs)
         NewFunc->addMetadata(MD.first, *MD.second);
-      // Store the pointer to the implict local memory into the global
+      // Store the pointer to the implicit local memory into the global
       // handler.
       IRBuilder<> Builder(&NewFunc->getEntryBlock(),
                           NewFunc->getEntryBlock().getFirstNonPHIIt());
