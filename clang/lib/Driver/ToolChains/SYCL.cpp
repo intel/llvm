@@ -1935,6 +1935,7 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
   if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
     BeArgs.push_back("-ze-fp64-gen-conv-emu");
+
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
@@ -2061,9 +2062,18 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     if (Args.hasFlag(options::OPT_ftarget_export_symbols,
                      options::OPT_fno_target_export_symbols, false))
       BeArgs.push_back("-library-compilation");
-  } else if (IsJIT)
+    // -foffload-fp32-prec-[sqrt/div]
+    if (Args.hasArg(options::OPT_foffload_fp32_prec_div) ||
+        Args.hasArg(options::OPT_foffload_fp32_prec_sqrt))
+      BeArgs.push_back("-ze-fp32-correctly-rounded-divide-sqrt");
+  } else if (IsJIT) {
     // -ftarget-compile-fast JIT
     Args.AddLastArg(BeArgs, options::OPT_ftarget_compile_fast);
+    // -foffload-fp32-prec-div JIT
+    Args.AddLastArg(BeArgs, options::OPT_foffload_fp32_prec_div);
+    // -foffload-fp32-prec-sqrt JIT
+    Args.AddLastArg(BeArgs, options::OPT_OPT_foffload_fp32_prec_sqrt);
+  }
   if (IsGen) {
     for (auto [DeviceName, BackendArgStr] : PerDeviceArgs) {
       CmdArgs.push_back("-device_options");
