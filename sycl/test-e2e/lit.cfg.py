@@ -442,8 +442,6 @@ if len(config.sycl_devices) == 1 and config.sycl_devices[0] == "all":
     for line in sp.splitlines():
         if "Intel(R) Data Center GPU Max 1100" in line:
             config.available_features.add("gpu-intel-pvc-1T")
-        if "gfx90a" in line:
-            config.available_features.add("gpu-amd-gfx90a")
         if not line.startswith("["):
             continue
         (backend, device) = line[1:].split("]")[0].split(":")
@@ -539,39 +537,6 @@ if "cuda:gpu" in config.sycl_devices:
     else:
         config.cuda_libs_dir = os.path.join(os.environ["CUDA_PATH"], r"lib64")
         config.cuda_include = os.path.join(os.environ["CUDA_PATH"], "include")
-
-# FIXME: This needs to be made per-device as well, possibly with a helper.
-if "hip:gpu" in config.sycl_devices and config.hip_platform == "AMD":
-    if not config.amd_arch:
-        lit_config.error(
-            "Cannot run tests for HIP without an offload-arch. Please "
-            + "specify one via the 'amd_arch' parameter or 'AMD_ARCH' CMake "
-            + "variable."
-        )
-    llvm_config.with_system_environment("ROCM_PATH")
-    config.available_features.add("hip_amd")
-    arch_flag = (
-        "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
-    )
-elif "hip:gpu" in config.sycl_devices and config.hip_platform == "NVIDIA":
-    config.available_features.add("hip_nvidia")
-    arch_flag = ""
-else:
-    arch_flag = ""
-
-if lit_config.params.get("compatibility_testing", False):
-    config.substitutions.append(("%clangxx", " true "))
-    config.substitutions.append(("%clang", " true "))
-else:
-    config.substitutions.append(
-        (
-            "%clangxx",
-            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
-        )
-    )
-    config.substitutions.append(
-        ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
-    )
 
 config.substitutions.append(("%threads_lib", config.sycl_threads_lib))
 
@@ -805,11 +770,49 @@ for sycl_device in config.sycl_devices:
     # Use short names for LIT rules.
     features.add(be)
 
+    if be == "hip" and config.hip_platform == "AMD":
+        if not config.amd_arch:
+            # Guaranteed to be a single element in the set
+            arch = [x for x in architecture_feature][0]
+            amd_arch_prefix = "arch-amd_gpu_"
+            if amd_arch_prefix not in arch or len(architecture_feature) != 1:
+                lit_config.error(
+                    "Cannot detect architecture for AMD HIP device, specify it explicitly"
+                )
+            config.amd_arch = arch.replace(amd_arch_prefix, "")
+        llvm_config.with_system_environment("ROCM_PATH")
+        config.available_features.add("hip_amd")
+        arch_flag = (
+            "-Xsycl-target-backend=amdgcn-amd-amdhsa --offload-arch=" + config.amd_arch
+        )
+        config.substitutions.append(
+            ("%rocm_path", os.environ.get("ROCM_PATH", "/opt/rocm"))
+        )
+    elif be == "hip" and config.hip_platform == "NVIDIA":
+        config.available_features.add("hip_nvidia")
+        arch_flag = ""
+    else:
+        arch_flag = ""
+
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
         config.intel_driver_ver[sycl_device] = intel_driver_ver
     else:
         config.intel_driver_ver[sycl_device] = {}
+
+if lit_config.params.get("compatibility_testing", False):
+    config.substitutions.append(("%clangxx", " true "))
+    config.substitutions.append(("%clang", " true "))
+else:
+    config.substitutions.append(
+        (
+            "%clangxx",
+            " " + config.dpcpp_compiler + " " + config.cxx_flags + " " + arch_flag,
+        )
+    )
+    config.substitutions.append(
+        ("%clang", " " + config.dpcpp_compiler + " " + config.c_flags)
+    )
 
 # Set timeout for a single test
 try:
