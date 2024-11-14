@@ -297,6 +297,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
                          [&]() { return UR_RESULT_SUCCESS; });
 }
 
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 template <bool IsRead>
 static inline ur_result_t enqueueMemBufferReadWriteRect_impl(
     ur_queue_handle_t hQueue, ur_mem_handle_t Buff, bool,

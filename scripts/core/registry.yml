@@ -604,6 +604,9 @@ etors:
 - name: BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesMapExternalLinearMemoryExp
   value: '245'
+- name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
+  desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
+  value: '246'
 ---
 type: enum
 desc: Defines structure types

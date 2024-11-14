@@ -436,6 +436,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 }
 
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 /// General 3D memory copy operation.
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
