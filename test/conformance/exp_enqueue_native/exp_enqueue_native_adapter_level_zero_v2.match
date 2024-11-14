@@ -1,5 +1,4 @@
-{{NONDETERMINISTIC}}
-urLevelZeroEnqueueNativeCommandTest.Success{{.*}}
-urLevelZeroEnqueueNativeCommandTest.Dependencies{{.*}}
-urLevelZeroEnqueueNativeCommandTest.DependenciesURBefore{{.*}}
-urLevelZeroEnqueueNativeCommandTest.DependenciesURAfter{{.*}}
+urLevelZeroEnqueueNativeCommandTest.Success*
+urLevelZeroEnqueueNativeCommandTest.Dependencies*
+urLevelZeroEnqueueNativeCommandTest.DependenciesURBefore*
+urLevelZeroEnqueueNativeCommandTest.DependenciesURAfter*

@@ -12,11 +12,7 @@ struct urMultiDeviceProgramCreateWithBinaryTest
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiDeviceProgramTest::SetUp());
 
-        // First obtain binaries for all devices from the compiler SPIRV program.
-        devices = uur::DevicesEnvironment::instance->devices;
-        if (devices.size() < 2) {
-            GTEST_SKIP();
-        }
+        // First obtain binaries for all devices from the compiled SPIRV program.
         ASSERT_SUCCESS(urProgramBuild(context, program, nullptr));
         size_t binary_sizes_len = 0;
         ASSERT_SUCCESS(urProgramGetInfo(program, UR_PROGRAM_INFO_BINARY_SIZES,
@@ -51,7 +47,6 @@ struct urMultiDeviceProgramCreateWithBinaryTest
     }
 
     std::vector<std::vector<uint8_t>> binaries;
-    std::vector<ur_device_handle_t> devices;
     std::vector<const uint8_t *> pointers;
     std::vector<size_t> binary_sizes;
     ur_program_handle_t binary_program = nullptr;
