@@ -3954,6 +3954,8 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   // typically if this is the case the default constructor will be private and
   // in such cases we must manually override the access specifier from private
   // to public just for the duration of this default initialization.
+  // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
+  // is closed.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;

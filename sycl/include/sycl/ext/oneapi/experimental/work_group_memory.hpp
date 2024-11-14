@@ -53,6 +53,8 @@ private:
   // have a uniform way of initializing an object of special type to then call
   // the __init method on it. This is purely an implementation detail and not
   // part of the spec.
+  // TODO: Revisit this once https://github.com/intel/llvm/issues/16061 is
+  // closed.
   work_group_memory() = default;
 
 #ifdef __SYCL_DEVICE_ONLY__
