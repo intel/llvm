@@ -324,8 +324,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueKernelLaunch(
         ThreadsPerBlock[0], ThreadsPerBlock[1], ThreadsPerBlock[2],
         hKernel->getLocalSize(), HIPStream, ArgIndices.data(), nullptr));
 
-    hKernel->clearLocalSize();
-
     if (phEvent) {
       UR_CHECK_ERROR(RetImplEvent->record());
       *phEvent = RetImplEvent.release();
