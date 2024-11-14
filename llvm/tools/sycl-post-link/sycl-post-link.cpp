@@ -104,7 +104,7 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
-cl::opt<std::string> DeviceLibDir{
+cl::opt<std::string> DeviceLibSPVDir{
     "device-lib-spv-dir",
     cl::desc("Directory where sycl fallback spirv device libraries  reside"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
@@ -312,8 +312,12 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
+
+  StringRef SPVDir = "";
+  if (DeviceLibSPVDir.getNumOccurrences() > 0)
+    SPVDir = DeviceLibSPVDir;
   auto PropSet =
-      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps, SPVDir);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {

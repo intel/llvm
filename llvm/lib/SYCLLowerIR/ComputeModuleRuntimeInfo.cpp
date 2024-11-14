@@ -17,12 +17,13 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
-#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
+#include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include <queue>
 #include <unordered_set>
+
 #ifndef NDEBUG
 constexpr int DebugModuleProps = 0;
 #endif
@@ -161,14 +162,17 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps) {
+                                     const GlobalBinImageProps &GlobProps,
+                                     const StringRef &DeviceLibSPVLoc) {
 
   PropSetRegTy PropSet;
   {
-    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
-    std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
-    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
+    SmallVector<StringRef, 16> RequiredLibs;
+    llvm::getRequiredSYCLDeviceLibs(M, RequiredLibs);
+    for (auto RL : RequiredLibs) {
+    }
   }
+
   {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                 computeDeviceRequirements(M, EntryPoints).asMap());

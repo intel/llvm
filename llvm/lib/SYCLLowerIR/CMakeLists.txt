@@ -61,7 +61,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLAddOptLevelAttribute.cpp
   SYCLConditionalCallOnDevice.cpp
   SYCLCreateNVVMAnnotations.cpp
-  SYCLDeviceLibReqMask.cpp
+  SYCLRequiredDeviceLibs.cpp
   SYCLDeviceRequirements.cpp
   SYCLKernelParamOptInfo.cpp
   SYCLJointMatrixTransform.cpp
