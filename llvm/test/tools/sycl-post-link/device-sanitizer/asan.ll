@@ -1,10 +1,13 @@
 ; This test checks that the post-link tool properly generates "asanUsed=1"
-; in [SYCL/misc properties]
+; in prop file, and fixes the attributes and metadata of @__AsanKernelMetadata
 
 ; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.table
-; RUN: FileCheck %s -input-file=%t_0.prop
-; CHECK: [SYCL/misc properties]
-; CHECK: asanUsed=1
+
+; RUN: FileCheck %s -input-file=%t_0.prop --check-prefix CHECK-PROP
+; CHECK-PROP: [SYCL/misc properties]
+; CHECK-PROP: asanUsed=1
+
+; RUN: FileCheck %s -input-file=%t_0.ll --check-prefix CHECK-IR
 
 ; ModuleID = 'parallel_for_int.cpp'
 source_filename = "parallel_for_int.cpp"
@@ -15,6 +18,7 @@ $_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel = comdat any
 
 @__asan_kernel = internal addrspace(1) constant [55 x i8] c"_ZTSZZ4mainENKUlRN4sycl3_V17handlerEE_clES2_E8MyKernel\00"
 @__AsanKernelMetadata = appending dso_local local_unnamed_addr addrspace(1) global [1 x { i64, i64 }] [{ i64, i64 } { i64 ptrtoint (ptr addrspace(1) @__asan_kernel to i64), i64 54 }] #2
+; CHECK-IR: @__AsanKernelMetadata {{.*}} !spirv.Decorations
 @__spirv_BuiltInGlobalInvocationId = external dso_local local_unnamed_addr addrspace(1) constant <3 x i64>, align 32
 @__asan_func = internal addrspace(2) constant [106 x i8] c"typeinfo name for main::'lambda'(sycl::_V1::handler&)::operator()(sycl::_V1::handler&) const::MyKernelR_4\00"
 
@@ -48,7 +52,7 @@ declare spir_func void @__itt_offload_wi_finish_wrapper()
 
 attributes #0 = { mustprogress nocallback nofree nosync nounwind willreturn memory(inaccessiblemem: write) }
 attributes #1 = { mustprogress norecurse nounwind sanitize_address uwtable "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "sycl-module-id"="parallel_for_int.cpp" "sycl-optlevel"="2" "uniform-work-group-size"="true" }
-attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="2" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
+attributes #2 = { "sycl-device-global-size"="16" "sycl-device-image-scope" "sycl-host-access"="0" "sycl-unique-id"="_Z20__AsanKernelMetadata" }
 
 !llvm.module.flags = !{!0, !1, !2}
 !opencl.spir.version = !{!3}
