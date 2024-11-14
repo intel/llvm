@@ -3950,25 +3950,24 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // Default inits the type, then calls the init-method in the body.
+  // A type may not have a public default constructor as per its spec so
+  // typically if this is the case the default constructor will be private and
+  // in such cases we must manually override the access specifier from private
+  // to public just for the duration of this default initialization.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
     const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     AccessSpecifier DefaultConstructorAccess;
-    CXXConstructorDecl *DefaultConstructor;
-    std::for_each(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
-                  [&](auto elem) {
-                    if (elem->isDefaultConstructor()) {
-                      DefaultConstructorAccess = elem->getAccess();
-                      elem->setAccess(AS_public);
-                      DefaultConstructor = elem;
-                    }
-                  });
-
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+    
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
-
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
     addFieldMemberExpr(FD, Ty);
 
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     CXXMethodDecl *FinalizeMethod =
         getMethodByName(RecordDecl, FinalizeMethodName);
