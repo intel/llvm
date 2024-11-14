@@ -984,7 +984,9 @@ void handler::prefetch(const void *Ptr, size_t Count) {
   setType(detail::CGType::PrefetchUSM);
 }
 
-void handler::ext_oneapi_prefetch_exp(const void* ptr, size_t Count, ext::oneapi::experimental::migration_direction Direction) {
+void handler::ext_oneapi_prefetch_exp(
+    const void *ptr, size_t Count,
+    ext::oneapi::experimental::migration_direction Direction) {
   throwIfActionIsCreated();
   MDstPtr = const_cast<void *>(ptr);
   MLength = Count;

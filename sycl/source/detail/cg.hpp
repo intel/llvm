@@ -15,9 +15,9 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
-#include <sycl/kernel.hpp>          // for kernel_impl
-#include <sycl/kernel_bundle.hpp>   // for kernel_bundle_impl
 #include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp> // for migration_direction
+#include <sycl/kernel.hpp>                                   // for kernel_impl
+#include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
 #include <assert.h> // for assert
 #include <memory>   // for shared_ptr, unique_ptr
@@ -112,8 +112,8 @@ public:
 
   NDRDescT(sycl::range<3> NumWorkItems, sycl::range<3> LocalSize,
            sycl::id<3> Offset, int DimsArg)
-      : GlobalSize{NumWorkItems}, LocalSize{LocalSize}, GlobalOffset{Offset},
-        Dims{size_t(DimsArg)} {
+      : GlobalSize{NumWorkItems}, LocalSize{LocalSize},
+        GlobalOffset{Offset}, Dims{size_t(DimsArg)} {
     setNDRangeLeftover();
   }
 
@@ -228,7 +228,7 @@ public:
   getAuxiliaryResources() const {
     return {};
   }
-  virtual void clearAuxiliaryResources() {};
+  virtual void clearAuxiliaryResources(){};
 
   virtual ~CG() = default;
 
@@ -319,8 +319,8 @@ public:
   CGCopy(CGType CopyType, void *Src, void *Dst, CG::StorageInitHelper CGData,
          std::vector<std::shared_ptr<const void>> AuxiliaryResources,
          detail::code_location loc = {})
-      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src), MDst(Dst),
-        MAuxiliaryResources{AuxiliaryResources} {}
+      : CG(CopyType, std::move(CGData), std::move(loc)), MSrc(Src),
+        MDst(Dst), MAuxiliaryResources{AuxiliaryResources} {}
   void *getSrc() { return MSrc; }
   void *getDst() { return MDst; }
 
@@ -397,13 +397,16 @@ class CGPrefetchUSM : public CG {
   ext::oneapi::experimental::migration_direction MDirection;
 
 public:
-  CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData, ext::oneapi::experimental::migration_direction Direction,
+  CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                ext::oneapi::experimental::migration_direction Direction,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
         MDst(DstPtr), MLength(Length), MDirection(Direction) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  ext::oneapi::experimental::migration_direction getDirection() { return MDirection; }
+  ext::oneapi::experimental::migration_direction getDirection() {
+    return MDirection;
+  }
 };
 
 /// "Advise USM" command group class.

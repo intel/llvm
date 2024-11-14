@@ -11,10 +11,10 @@
 #include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/access/access.hpp>
 #include <sycl/detail/export.hpp>
+#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
-#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 
 #include <ur_api.h>
 
@@ -150,10 +150,12 @@ public:
                        ur_event_handle_t *OutEvent,
                        const detail::EventImplPtr &OutEventImpl);
 
-  static void prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len, sycl::ext::oneapi::experimental::migration_direction Direction,
-                           std::vector<ur_event_handle_t> DepEvents,
-                           ur_event_handle_t *OutEvent,
-                           const detail::EventImplPtr &OutEventImpl);
+  static void
+  prefetch_usm(void *Ptr, QueueImplPtr Queue, size_t Len,
+               sycl::ext::oneapi::experimental::migration_direction Direction,
+               std::vector<ur_event_handle_t> DepEvents,
+               ur_event_handle_t *OutEvent,
+               const detail::EventImplPtr &OutEventImpl);
 
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          ur_usm_advice_flags_t Advice,

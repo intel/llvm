@@ -30,16 +30,16 @@
 #include <sycl/exception_list.hpp>            // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/graph.hpp>       // for command_graph...
 #include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp> // for migration...
-#include <sycl/ext/oneapi/properties/properties.hpp>    // for empty_properti...
-#include <sycl/handler.hpp>                             // for handler, isDev...
-#include <sycl/id.hpp>                                  // for id
-#include <sycl/kernel.hpp>                              // for auto_name
-#include <sycl/kernel_handler.hpp>                      // for kernel_handler
-#include <sycl/nd_range.hpp>                            // for nd_range
-#include <sycl/property_list.hpp>                       // for property_list
-#include <sycl/range.hpp>                               // for range
+#include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
+#include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properti...
+#include <sycl/handler.hpp>                          // for handler, isDev...
+#include <sycl/id.hpp>                               // for id
+#include <sycl/kernel.hpp>                           // for auto_name
+#include <sycl/kernel_handler.hpp>                   // for kernel_handler
+#include <sycl/nd_range.hpp>                         // for nd_range
+#include <sycl/property_list.hpp>                    // for property_list
+#include <sycl/range.hpp>                            // for range
 
 #include <cstddef>     // for size_t
 #include <functional>  // for function
@@ -757,11 +757,15 @@ public:
   /// \return an event representing prefetch operation.
   event ext_oneapi_prefetch_exp(
       const void *Ptr, size_t Count,
-      ext::oneapi::experimental::migration_direction Direction = ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+      ext::oneapi::experimental::migration_direction Direction =
+          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit([=](handler &CGH) { CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction); },
-                  TlsCodeLocCapture.query());
+    return submit(
+        [=](handler &CGH) {
+          CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
+        },
+        TlsCodeLocCapture.query());
   }
 
   /// Provides hints to the runtime library that data should be made available
@@ -796,7 +800,8 @@ public:
   /// \return an event representing prefetch operation.
   event ext_oneapi_prefetch_exp(
       const void *Ptr, size_t Count, event DepEvent,
-      ext::oneapi::experimental::migration_direction Direction = ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+      ext::oneapi::experimental::migration_direction Direction =
+          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -841,7 +846,8 @@ public:
   /// \return an event representing prefetch operation.
   event ext_oneapi_prefetch_exp(
       const void *Ptr, size_t Count, const std::vector<event> &DepEvents,
-      ext::oneapi::experimental::migration_direction Direction = ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+      ext::oneapi::experimental::migration_direction Direction =
+          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
       const detail::code_location &CodeLoc = detail::code_location::current()) {
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
@@ -2818,7 +2824,8 @@ private:
   queue(std::shared_ptr<detail::queue_impl> impl) : impl(impl) {}
 
   template <class Obj>
-  friend const decltype(Obj::impl)& detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
 

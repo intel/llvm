@@ -32,10 +32,10 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
+#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
-#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
 #include <sycl/ext/oneapi/experimental/virtual_functions.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
@@ -164,8 +164,7 @@ class pipe;
 }
 
 namespace ext ::oneapi ::experimental {
-template <typename, typename>
-class work_group_memory;
+template <typename, typename> class work_group_memory;
 struct image_descriptor;
 } // namespace ext::oneapi::experimental
 
@@ -492,7 +491,8 @@ private:
 
   /// Saves the location of user's code passed in \p CodeLoc for future usage in
   /// finalize() method.
-  /// TODO: remove the first version of this func (the one without the IsTopCodeLoc arg)
+  /// TODO: remove the first version of this func (the one without the
+  /// IsTopCodeLoc arg)
   ///   at the next ABI breaking window since removing it breaks ABI on windows.
   void saveCodeLoc(detail::code_location CodeLoc);
   void saveCodeLoc(detail::code_location CodeLoc, bool IsTopCodeLoc);
@@ -703,8 +703,9 @@ private:
         detail::KernelLambdaHasKernelHandlerArgT<KernelType,
                                                  LambdaArgType>::value;
 
-    MHostKernel = std::make_unique<
-        detail::HostKernel<KernelType, LambdaArgType, Dims>>(KernelFunc);
+    MHostKernel =
+        std::make_unique<detail::HostKernel<KernelType, LambdaArgType, Dims>>(
+            KernelFunc);
 
     constexpr bool KernelHasName =
         detail::getKernelName<KernelName>() != nullptr &&
@@ -2837,11 +2838,14 @@ public:
   /// require it to be available.
   ///
   /// \param CGH is the handler to be used for prefetching.
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the destination.
-  /// \param Count is a number of bytes to be prefetched.
-  /// \param Direction indicates the direction to prefetch data to/from.
-  void ext_oneapi_prefetch_exp(const void* Ptr, size_t Count, ext::oneapi::experimental::migration_direction Direction = ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE);
-  
+  /// \param Ptr is a USM pointer to the memory to be prefetched to the
+  /// destination. \param Count is a number of bytes to be prefetched. \param
+  /// Direction indicates the direction to prefetch data to/from.
+  void ext_oneapi_prefetch_exp(
+      const void *Ptr, size_t Count,
+      ext::oneapi::experimental::migration_direction Direction =
+          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE);
+
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -3271,8 +3275,8 @@ private:
   bool MIsFinalized = false;
   event MLastEvent;
   /// Enum to indicate USM data migration direction
-  ext::oneapi::experimental::migration_direction MDirection = ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE;
-  
+  ext::oneapi::experimental::migration_direction MDirection =
+      ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE;
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;

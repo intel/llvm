@@ -1,4 +1,5 @@
-//==---- prefetch_exp.cpp - Experimental 2-way USM prefetch test ------------==//
+//==---- prefetch_exp.cpp - Experimental 2-way USM prefetch test
+//------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,8 +11,8 @@
 // RUN: %{run} %t1.out
 
 #include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
 #include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 
@@ -32,8 +33,9 @@ int main() {
 
     {
       // Test host to device handler::ext_oneapi_prefetch_exp
-      event init_prefetch = q.submit(
-          [&](handler &cgh) { cgh.ext_oneapi_prefetch_exp(src, sizeof(float) * count); });
+      event init_prefetch = q.submit([&](handler &cgh) {
+        cgh.ext_oneapi_prefetch_exp(src, sizeof(float) * count);
+      });
 
       q.submit([&](handler &cgh) {
         cgh.depends_on(init_prefetch);
@@ -55,8 +57,11 @@ int main() {
             dest[i] = 4 * src[i];
         });
       });
-      event init_prefetch_back = q.submit(
-          [&](handler &cgh) { cgh.ext_oneapi_prefetch_exp(dest, sizeof(float) * count, sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST); });
+      event init_prefetch_back = q.submit([&](handler &cgh) {
+        cgh.ext_oneapi_prefetch_exp(dest, sizeof(float) * count,
+                                    sycl::ext::oneapi::experimental::
+                                        migration_direction::DEVICE_TO_HOST);
+      });
       q.wait_and_throw();
 
       for (int i = 0; i < count; i++) {
@@ -66,7 +71,8 @@ int main() {
 
     // Test queue::prefetch
     {
-      event init_prefetch = q.ext_oneapi_prefetch_exp(src, sizeof(float) * count);
+      event init_prefetch =
+          q.ext_oneapi_prefetch_exp(src, sizeof(float) * count);
 
       q.submit([&](handler &cgh) {
         cgh.depends_on(init_prefetch);
@@ -87,7 +93,9 @@ int main() {
             dest[i] = 6 * src[i];
         });
       });
-      event init_prefetch_back = q.ext_oneapi_prefetch_exp(src, sizeof(float) * count, sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST);
+      event init_prefetch_back = q.ext_oneapi_prefetch_exp(
+          src, sizeof(float) * count,
+          sycl::ext::oneapi::experimental::migration_direction::DEVICE_TO_HOST);
       q.wait_and_throw();
 
       for (int i = 0; i < count; i++) {
