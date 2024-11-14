@@ -1,4 +1,3 @@
-{{NONDETERMINISTIC}}
-urProgramSetSpecializationConstantsTest.InvalidValueSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
-urProgramSetSpecializationConstantsTest.InvalidValueId/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
-urProgramSetSpecializationConstantsTest.InvalidValuePtr/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}
+urProgramSetSpecializationConstantsTest.InvalidValueSize/*
+urProgramSetSpecializationConstantsTest.InvalidValueId/*
+urProgramSetSpecializationConstantsTest.InvalidValuePtr/*

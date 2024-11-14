@@ -23,13 +23,15 @@
     (void)0
 
 #define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
-    auto status = ret;                                                         \
-    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                       \
-        status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {                   \
-        GTEST_SKIP();                                                          \
-    } else {                                                                   \
-        ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
-    }
+    do {                                                                       \
+        auto status = ret;                                                     \
+        if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                   \
+            status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {               \
+            GTEST_SKIP();                                                      \
+        } else {                                                               \
+            ASSERT_EQ(status, UR_RESULT_SUCCESS);                              \
+        }                                                                      \
+    } while (0)
 
 namespace uur {
 
@@ -1586,6 +1588,10 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
             backend == UR_PLATFORM_BACKEND_CUDA) {
             GTEST_SKIP();
         }
+        devices = uur::DevicesEnvironment::instance->devices;
+        if (devices.size() < 2) {
+            GTEST_SKIP();
+        }
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
@@ -1611,6 +1617,7 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
     std::string program_name = "foo";
     ur_program_handle_t program = nullptr;
     std::vector<ur_program_metadata_t> metadatas{};
+    std::vector<ur_device_handle_t> devices;
 };
 
 } // namespace uur

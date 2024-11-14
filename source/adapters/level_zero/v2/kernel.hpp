@@ -39,7 +39,7 @@ public:
 
   // From native handle
   ur_kernel_handle_t_(ur_native_handle_t hNativeKernel,
-                      ur_program_handle_t hProgram,
+                      ur_program_handle_t hProgram, ur_context_handle_t context,
                       const ur_kernel_native_properties_t *pProperties);
 
   // Get L0 kernel handle for a given device
