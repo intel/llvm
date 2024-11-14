@@ -1338,7 +1338,8 @@ SPIRVValue *LLVMToSPIRVBase::transConstantUse(Constant *C,
           Ops = getVec(PtrTy->getId(), Ops);
         }
       }
-      return BM->addPtrAccessChainInst(ExpectedType, Ops, nullptr, true);
+      return BM->addPtrAccessChainInst(ExpectedType, std::move(Ops), nullptr,
+                                       true);
     }
   }
 
@@ -1470,7 +1471,7 @@ SPIRVValue *LLVMToSPIRVBase::transConstant(Value *V) {
           Ops = getVec(PtrTy->getId(), Ops);
         }
       }
-      return BM->addPtrAccessChainInst(TranslatedTy, Ops, nullptr,
+      return BM->addPtrAccessChainInst(TranslatedTy, std::move(Ops), nullptr,
                                        GEP->isInBounds());
     }
     auto *Inst = ConstUE->getAsInstruction();
@@ -2564,8 +2565,8 @@ LLVMToSPIRVBase::transValueWithoutDecoration(Value *V, SPIRVBasicBlock *BB,
       // access chain instructions. Replace return type to do that.
       TranslatedTy = SPVPointerOperand->getType();
 
-    return mapValue(
-        V, BM->addPtrAccessChainInst(TranslatedTy, Ops, BB, GEP->isInBounds()));
+    return mapValue(V, BM->addPtrAccessChainInst(TranslatedTy, std::move(Ops),
+                                                 BB, GEP->isInBounds()));
   }
 
   if (auto *Ext = dyn_cast<ExtractElementInst>(V)) {
@@ -4315,7 +4316,7 @@ SPIRVValue *LLVMToSPIRVBase::transIntrinsicInst(IntrinsicInst *II,
       Zero = BM->addConstant(ResTy, 0);
       APInt MinusOneValue(ResTy->getIntegerBitWidth(), 0, 1);
       MinusOneValue.setAllBits();
-      MinusOne = BM->addConstant(ResTy, MinusOneValue);
+      MinusOne = BM->addConstant(ResTy, std::move(MinusOneValue));
     }
 
     Op OC1 = (IID == Intrinsic::scmp) ? OpSLessThanEqual : OpULessThanEqual;
