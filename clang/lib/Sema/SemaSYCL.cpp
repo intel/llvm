@@ -3951,6 +3951,18 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
 
   // Default inits the type, then calls the init-method in the body.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    CXXConstructorDecl *DefaultConstructor;
+    std::for_each(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                  [&](auto elem) {
+                    if (elem->isDefaultConstructor()) {
+                      DefaultConstructorAccess = elem->getAccess();
+                      elem->setAccess(AS_public);
+                      DefaultConstructor = elem;
+                    }
+                  });
+
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
 
