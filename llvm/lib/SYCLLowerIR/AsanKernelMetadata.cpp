@@ -50,7 +50,7 @@ PreservedAnalyses AsanKernelMetadataPass::run(Module &M,
   MD.push_back(ConstantAsMetadata::get(
       Constant::getIntegerValue(Ty, APInt(32, SPIRV_HOST_ACCESS_DECOR))));
   MD.push_back(
-      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 2))));
+      ConstantAsMetadata::get(Constant::getIntegerValue(Ty, APInt(32, 0))));
   MD.push_back(MDString::get(Ctx, "_Z20__AsanKernelMetadata"));
 
   MDOps.push_back(MDNode::get(Ctx, MD));
