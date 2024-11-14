@@ -154,7 +154,7 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
 }
 
 // Test to verify eviction using concurrent kernel invocation.
-TEST(InMemCacheEvictionTests, TestConcurrentEvictionDifferentQueue) {
+TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
   NumProgramBuild = 0;
   sycl::unittest::UrMock<> Mock;
   mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
@@ -165,25 +165,26 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionDifferentQueue) {
   sycl::platform Plt{sycl::platform()};
   context Ctx{Plt};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
   // accommodate two program.
   setCacheEvictionEnv("20005");
 
-  constexpr size_t ThreadCount = 100;
+  constexpr size_t ThreadCount = 200;
   Barrier barrier(ThreadCount);
   {
     auto ConcurrentInvokeKernels = [&](std::size_t threadId) {
-      queue q(Ctx, default_selector_v);
+
       barrier.wait();
       q.single_task<class Kernel1>([] {});
       q.single_task<class Kernel2>([] {});
       q.single_task<class Kernel3>([] {});
-      q.wait_and_throw();
     };
 
     ThreadPool MPool(ThreadCount, ConcurrentInvokeKernels);
   }
+  q.wait_and_throw();
 
   CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 2);
 }
@@ -200,6 +201,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSmallCache) {
 
   context Ctx{platform()};
   auto CtxImpl = detail::getSyclObjImpl(Ctx);
+  queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 100 eviction threshold will
   // trigger immediate eviction.
@@ -212,14 +214,13 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSmallCache) {
   Barrier barrier(ThreadCount);
   {
     auto ConcurrentInvokeKernels = [&](std::size_t threadId) {
-      queue q(Ctx, default_selector_v);
       barrier.wait();
       q.single_task<class Kernel1>([] {});
-      q.wait_and_throw();
     };
 
     ThreadPool MPool(ThreadCount, ConcurrentInvokeKernels);
   }
+  q.wait_and_throw();
 
   CheckNumberOfEntriesInCacheAndEvictionList(*CtxImpl, 0);
 }
