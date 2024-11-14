@@ -290,6 +290,13 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  return enqueueEventsWaitWithBarrier(numEventsInWaitList, phEventWaitList,
+                                      phEvent);
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
     ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
