@@ -11,10 +11,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urEventCreateWithNativeHandleTest);
 
 TEST_P(urEventCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_event = 0;
-    {
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urEventGetNativeHandle(event, &native_event));
-    }
+
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urEventGetNativeHandle(event, &native_event));
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.
