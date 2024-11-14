@@ -55,8 +55,12 @@ private:
   // part of the spec.
   work_group_memory() = default;
 
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(decoratedPtr ptr) { this->ptr = ptr; }
+#endif
+
 public:
-  work_group_memory(const indeterminate_t &) {};
+  work_group_memory(const indeterminate_t &){};
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
@@ -82,9 +86,7 @@ public:
     *ptr = value;
     return *this;
   }
-#ifdef __SYCL_DEVICE_ONLY__
-  void __init(decoratedPtr ptr) { this->ptr = ptr; }
-#endif
+
 private:
   decoratedPtr ptr;
 };
