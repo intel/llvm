@@ -2040,6 +2040,11 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
+    if (SemaSYCLRef.getLangOpts().SYCLRTCMode) {
+      // When compiling in RTC mode, the restriction regarding forward
+      // declarations doesn't apply, as we don't need the integration header.
+      return isValid();
+    }
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     // For free functions all struct/class kernel arguments are forward declared
     // in integration header, that adds additional restrictions for kernel
@@ -6452,6 +6457,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace detail\n";
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
+
+  // The rest of this function only applies to free-function kernels. However,
+  // in RTC mode, we do not need integration header information for
+  // free-function kernels, so we can return early here.
+  if (S.getLangOpts().SYCLRTCMode) {
+    return;
+  }
 
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;

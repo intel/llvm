@@ -6,7 +6,7 @@
 // CHECK-LABEL: define dso_local spir_func noundef i32 @_Z17atomic_ref_globalRi(
 // CHECK-SAME: ptr addrspace(4) noundef align 4 dereferenceable(4) [[I:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
 // CHECK-NEXT:  [[ENTRY:.*:]]
-// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z33__spirv_GenericCastToPtr_ToGlobalPvi(ptr addrspace(4) noundef [[I]], i32 noundef 5) #[[ATTR3:[0-9]+]]
+// CHECK-NEXT:    [[CALL_I_I_I_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z33__spirv_GenericCastToPtr_ToGlobalPvi(ptr addrspace(4) noundef align 4 dereferenceable(4) [[I]], i32 noundef 5) #[[ATTR3:[0-9]+]]
 // CHECK-NEXT:    [[CALL3_I_I:%.*]] = tail call spir_func noundef i32 @_Z18__spirv_AtomicLoadPU3AS1KiN5__spv5Scope4FlagENS1_19MemorySemanticsMask4FlagE(ptr addrspace(1) noundef [[CALL_I_I_I_I_I_I]], i32 noundef 1, i32 noundef 898) #[[ATTR4:[0-9]+]]
 // CHECK-NEXT:    ret i32 [[CALL3_I_I]]
 //
