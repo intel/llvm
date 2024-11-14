@@ -51,13 +51,12 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 142
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 141
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been properly XFAIL-ed.
 //
-// CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/aspects.cpp
+// CHECK: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
