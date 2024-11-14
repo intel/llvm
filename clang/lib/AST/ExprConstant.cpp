@@ -13709,6 +13709,7 @@ bool IntExprEvaluator::VisitBuiltinCallExpr(const CallExpr *E,
       if (Msk[I])
         Result.setBitVal(P++, Val[I]);
     return Success(Result, E);
+  }
 
   case Builtin::BI__builtin_sycl_is_kernel: {
     return isSYCLFreeFunctionKernel(*this, Info, E, "sycl-single-task-kernel",

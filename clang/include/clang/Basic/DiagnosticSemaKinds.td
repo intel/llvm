@@ -12391,7 +12391,7 @@ def err_builtin_invalid_arg_type: Error <
   "a vector of integers|"
   "an unsigned integer|"
   "an 'int'|"
-  "a vector of floating points}"
+  "a vector of floating points|"
   "a function pointer}1 (was %2)">;
 
 def err_builtin_invalid_arg_value: Error<
