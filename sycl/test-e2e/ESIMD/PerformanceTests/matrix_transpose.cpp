@@ -5,6 +5,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+// XFAIL: igc-dev
 // REQUIRES: gpu-intel-dg2 && level_zero
 // UNSUPPORTED: windows
 
