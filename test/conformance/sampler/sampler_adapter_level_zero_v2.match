@@ -1,9 +1,4 @@
-{{NONDETERMINISTIC}}
-{{OPT}}urSamplerGetInfoTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_SAMPLER_INFO_REFERENCE_COUNT
-{{OPT}}urSamplerGetInfoTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_SAMPLER_INFO_CONTEXT
-{{OPT}}urSamplerGetInfoTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_SAMPLER_INFO_NORMALIZED_COORDS
-{{OPT}}urSamplerGetInfoTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_SAMPLER_INFO_ADDRESSING_MODE
-{{OPT}}urSamplerGetInfoTestWithParam.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_SAMPLER_INFO_FILTER_MODE
-{{OPT}}urSamplerGetInfoTest.InvalidSizePropSizeSmall/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-{{OPT}}urSamplerReleaseTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-{{OPT}}urSamplerRetainTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urSamplerGetInfoTestWithParam.Success/*
+{{OPT}}urSamplerGetInfoTest.InvalidSizePropSizeSmall/*
+{{OPT}}urSamplerReleaseTest.Success/*
+{{OPT}}urSamplerRetainTest.Success/*

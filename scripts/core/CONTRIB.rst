@@ -393,8 +393,6 @@ The format of the match files are as follows:
   matches a single character.
 * Empty lines or lines beginning with ``#`` are ignored.
 * A line beginning with ``{{OPT}}`` is a optional test; see below.
-* For compatibility with an older version of the matching logic, ``{{.*}}`` is
-  interpreted as ``*`` and ``{{NONDETERMINISTIC}}`` is ignored.
 
 Normally tests in the match file must fail (either by crashing or having a test
 failure) for the given adapter. However this can be disabled by prepending

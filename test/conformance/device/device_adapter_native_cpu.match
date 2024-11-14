@@ -1,4 +1,3 @@
-{{NONDETERMINISTIC}}
 urDeviceCreateWithNativeHandleTest.InvalidNullHandlePlatform
 urDeviceCreateWithNativeHandleTest.InvalidNullPointerDevice
 {{OPT}}urDeviceGetGlobalTimestampTest.SuccessSynchronizedTime

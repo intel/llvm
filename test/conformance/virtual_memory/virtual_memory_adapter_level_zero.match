@@ -1,11 +1,5 @@
-{{NONDETERMINISTIC}}
-{{OPT}}urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___3
-{{OPT}}urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___7
-{{OPT}}urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___12
-urPhysicalMemCreateTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___44
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___1
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___2
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___3
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___7
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___12
-urPhysicalMemCreateTest.InvalidSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___44
+{{OPT}}urPhysicalMemCreateTest.Success/*__3
+{{OPT}}urPhysicalMemCreateTest.Success/*__7
+{{OPT}}urPhysicalMemCreateTest.Success/*__12
+urPhysicalMemCreateTest.Success/*__44
+urPhysicalMemCreateTest.InvalidSize/*

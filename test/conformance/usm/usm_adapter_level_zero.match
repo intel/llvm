@@ -1,3 +1,1 @@
-{{NONDETERMINISTIC}}
-{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UsePoolEnabled
-{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UsePoolDisabled
+{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/*

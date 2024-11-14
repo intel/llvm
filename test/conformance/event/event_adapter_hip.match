@@ -1,7 +1,6 @@
-{{NONDETERMINISTIC}}
-urEventGetProfilingInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
-urEventGetProfilingInfoWithTimingComparisonTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urEventSetCallbackTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urEventSetCallbackTest.ValidateParameters/AMD_HIP_BACKEND___{{.*}}_
-urEventSetCallbackTest.AllStates/AMD_HIP_BACKEND___{{.*}}_
-urEventSetCallbackTest.EventAlreadyCompleted/AMD_HIP_BACKEND___{{.*}}_
+urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_COMPLETE
+urEventGetProfilingInfoWithTimingComparisonTest.Success/*
+urEventSetCallbackTest.Success/*
+urEventSetCallbackTest.ValidateParameters/*
+urEventSetCallbackTest.AllStates/*
+urEventSetCallbackTest.EventAlreadyCompleted/*
