@@ -77,7 +77,7 @@ public:
   void __init(decoratedPtr ptr) { this->ptr = ptr; }
 #endif
 private:
-  decoratedPtr ptr;
+  decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -580,7 +580,12 @@ inline __SYCL_ALWAYS_INLINE float round_to_tf32(const float &a) {
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__)
   int32_t tmp_int = __nvvm_f2tf32_rna(a);
-  return __nvvm_bitcast_i2f(tmp_int);
+  union {
+    int32_t i;
+    float f;
+  } u;
+  u.i = tmp_int;
+  return u.f;
 #else
   return __spirv_RoundFToTF32INTEL(a);
 #endif // defined(__NVPTX__)
