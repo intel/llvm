@@ -22,8 +22,12 @@
 namespace umf {
 ur_result_t getProviderNativeError(const char *providerName,
                                    int32_t nativeError) {
-  if (strcmp(providerName, "Level Zero") == 0) {
-    return ze2urResult(static_cast<ze_result_t>(nativeError));
+  if (strcmp(providerName, "LEVEL_ZERO") == 0) {
+    auto zeResult = static_cast<ze_result_t>(nativeError);
+    if (zeResult == ZE_RESULT_ERROR_UNSUPPORTED_SIZE) {
+      return UR_RESULT_ERROR_INVALID_USM_SIZE;
+    }
+    return ze2urResult(zeResult);
   }
 
   return UR_RESULT_ERROR_UNKNOWN;
