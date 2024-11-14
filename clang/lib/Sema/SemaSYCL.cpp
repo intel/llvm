@@ -3964,7 +3964,7 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
                      [](auto it) { return it->isDefaultConstructor(); });
     DefaultConstructorAccess = DefaultConstructor->getAccess();
     DefaultConstructor->setAccess(AS_public);
-    
+
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
     DefaultConstructor->setAccess(DefaultConstructorAccess);
