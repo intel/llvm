@@ -218,13 +218,14 @@ public:
         MProgramEvictionList.splice(MProgramEvictionList.end(),
                                     MProgramEvictionList, It->second);
         traceProgram("Program moved to the end of eviction list.", CacheKey);
-      } else
-        // This should never happen.
-        throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                              "Program not found in the eviction list.");
+      }
+      // else: This can happen if concurrently the program is removed from
+      // eviction list by another thread.
     }
 
     bool empty() { return MProgramEvictionList.empty(); }
+
+    size_t size() { return MProgramEvictionList.size(); }
 
     void popFront() {
       if (!MProgramEvictionList.empty()) {
@@ -292,6 +293,10 @@ public:
 
   Locked<KernelCacheT> acquireKernelsPerProgramCache() {
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
+  }
+
+  Locked<EvictionListT> acquireEvictionList() {
+    return {MEvictionList, MProgramEvictionListMutex};
   }
 
   std::pair<ProgramBuildResultPtr, bool>
@@ -368,13 +373,11 @@ public:
       ur_program_handle_t Program = std::get<3>(CacheVal);
       // Save kernel in fast cache only if the corresponding program is also
       // in the cache.
-      {
-        auto LockedCache = acquireCachedPrograms();
-        auto &ProgCache = LockedCache.get();
-        if (ProgCache.ProgramSizeMap.find(Program) ==
-            ProgCache.ProgramSizeMap.end())
-          return;
-      }
+      auto LockedCache = acquireCachedPrograms();
+      auto &ProgCache = LockedCache.get();
+      if (ProgCache.ProgramSizeMap.find(Program) ==
+          ProgCache.ProgramSizeMap.end())
+        return;
 
       // Save reference between the program and the fast cache key.
       MProgramToKernelFastCacheKeyMap[Program].emplace_back(CacheKey);
@@ -483,9 +486,8 @@ public:
                             const ur_program_handle_t &Program,
                             const bool IsBuilt) {
 
-    static size_t ProgramCacheEvictionThreshold = static_cast<size_t>(
-        SYCLConfig<
-            SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize());
+    size_t ProgramCacheEvictionThreshold =
+        SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>::getProgramCacheSize();
 
     // No need to populate the eviction list if eviction is disabled.
     if (ProgramCacheEvictionThreshold == 0)
@@ -561,7 +563,7 @@ public:
     MProgramToKernelFastCacheKeyMap.clear();
 
     // Clear the eviction lists and its mutexes.
-    std::lock_guard<std::mutex> L4(MProgramEvictionListMutex);
+    std::lock_guard<std::mutex> EvictionListLock(MProgramEvictionListMutex);
     MEvictionList.clear();
   }
 
