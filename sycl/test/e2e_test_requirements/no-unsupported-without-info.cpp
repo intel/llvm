@@ -30,7 +30,7 @@
 // - ...and check if the list of improperly UNSUPPORTED tests needs to be updated.
 //
 // RUN: grep -rI "UNSUPPORTED:" %S/../../test-e2e \
-// RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
+// RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "UNSUPPORTED:" | \
 // RUN: grep -Pv "UNSUPPORTED-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)|(?:UNSUPPORTED-INTENDED:\s*.+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-UNSUPPORTED-WITHOUT-INFO
@@ -45,7 +45,7 @@
 //
 // That number *must not* increase. Any PR which causes this number to grow
 // should be rejected and it should be updated to either keep the number as-is
-// or have it reduced (preferrably, down to zero).
+// or have it reduced (preferably, down to zero).
 //
 // If you see this test failed for your patch, it means that you either
 // introduced UNSUPPORTED directive to a test improperly, or broke the format of an
@@ -54,10 +54,10 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 487
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 486
 //
 // List of improperly UNSUPPORTED tests.
-// Remove the CHECK once the test has been propely UNSUPPORTED.
+// Remove the CHECK once the test has been properly UNSUPPORTED.
 //
 // CHECK: AOT/early_aot.cpp
 // CHECK-NEXT: AOT/gpu.cpp
@@ -78,12 +78,14 @@
 // CHECK-NEXT: Basic/build_log.cpp
 // CHECK-NEXT: Basic/code_location_e2e.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
+// CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries_sub_group.cpp
 // CHECK-NEXT: Basic/gpu_max_wgs_error.cpp
 // CHECK-NEXT: Basic/group_async_copy.cpp
 // CHECK-NEXT: Basic/host-task-dependency.cpp
 // CHECK-NEXT: Basic/image/image.cpp
+// CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/image/image_accessor_range.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readsampler.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readwrite.cpp
@@ -104,15 +106,6 @@
 // CHECK-NEXT: Config/kernel_from_file.cpp
 // CHECK-NEXT: DeviceArchitecture/device_architecture_comparison_on_host.cpp
 // CHECK-NEXT: DeviceCodeSplit/aot-gpu.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_arrow.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_arrow_dis.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_device_only.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_device_only_dis.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_operator_passthrough.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_operator_passthrough_dis.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_static.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_subscript.cpp
-// CHECK-NEXT: DeviceGlobal/device_global_subscript_dis.cpp
 // CHECK-NEXT: DeviceImageDependencies/dynamic.cpp
 // CHECK-NEXT: DeviceImageDependencies/free_function_kernels.cpp
 // CHECK-NEXT: DeviceImageDependencies/math_device_lib.cpp
@@ -122,7 +115,6 @@
 // CHECK-NEXT: DeviceLib/cmath-aot.cpp
 // CHECK-NEXT: DeviceLib/cmath_fp64_test.cpp
 // CHECK-NEXT: DeviceLib/complex-fpga.cpp
-// CHECK-NEXT: DeviceLib/exp/exp-std-complex-double-edge-cases.cpp
 // CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
 // CHECK-NEXT: DeviceLib/imf_bfloat16_integeral_convesions.cpp
 // CHECK-NEXT: DeviceLib/imf_double2bfloat16.cpp
@@ -252,6 +244,7 @@
 // CHECK-NEXT: Graph/RecordReplay/work_group_size_prop.cpp
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
+// CHECK-NEXT: GroupAlgorithm/barrier.cpp
 // CHECK-NEXT: GroupAlgorithm/reduce_sycl2020.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
@@ -259,6 +252,8 @@
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
 // CHECK-NEXT: InOrderEventsExt/get_last_event.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
+// CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
+// CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Regression/ImplicitSubgroup/call_vadd_1d_spill.cpp
 // CHECK-NEXT: InvokeSimd/Regression/call_vadd_1d_spill.cpp
 // CHECK-NEXT: KernelAndProgram/build-log.cpp
@@ -447,6 +442,8 @@
 // CHECK-NEXT: Regression/DAE-separate-compile.cpp
 // CHECK-NEXT: Regression/acos.cpp
 // CHECK-NEXT: Regression/barrier_waitlist_with_interop_event.cpp
+// CHECK-NEXT: Regression/complex_global_object.cpp
+// CHECK-NEXT: Regression/event_destruction.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/image_access.cpp
@@ -481,7 +478,9 @@
 // CHECK-NEXT: SpecConstants/2020/kernel-bundle-api.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
+// CHECK-NEXT: SpecConstants/2020/non_native/gpu.cpp
 // CHECK-NEXT: SpecConstants/2020/non_native/multiple-targets.cpp
+// CHECK-NEXT: SubGroup/generic_reduce.cpp
 // CHECK-NEXT: Tracing/code_location_queue_copy.cpp
 // CHECK-NEXT: Tracing/code_location_queue_parallel_for.cpp
 // CHECK-NEXT: Tracing/code_location_queue_submit.cpp

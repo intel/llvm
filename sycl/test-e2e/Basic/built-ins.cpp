@@ -4,8 +4,9 @@
 // RUN: %{build} -D__SYCL_USE_VARIADIC_SPIRV_OCL_PRINTF__ -Wno-#warnings -o %t_var.out
 // RUN: %{run} %t_var.out | FileCheck %s
 
-// Hits an assertion with AMD:
-// XFAIL: hip_amd
+// Hits an assertion and kernel page fault with AMD:
+// UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14404
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>

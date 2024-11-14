@@ -284,7 +284,11 @@ jobs:
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
         else
           if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
+            if [ "${{ runner.name }}" == "cp-amd-runner" ]; then
+              echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1030"' >> $GITHUB_OUTPUT
+            else
+              echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
+            fi
           else
             echo 'opts=' >> $GITHUB_OUTPUT
           fi
