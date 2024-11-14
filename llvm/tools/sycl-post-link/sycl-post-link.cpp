@@ -792,10 +792,12 @@ processInputModule(std::unique_ptr<Module> M) {
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // Instrument each image scope device globals if the module has been
-  // instrumented by sanitizer pass.
+  // AddressSanitizer specific passes
   if (isModuleUsingAsan(*M)) {
+    // Instrument each image scope device globals
     Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+    // Fix attributes and metadata of the global variable
+    // "__AsanKernelMetadata"
     Modified |= runModulePass<AsanKernelMetadataPass>(*M);
   }
 
