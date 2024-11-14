@@ -1315,7 +1315,8 @@ static GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
 }
 
 // Append a new argument "__asan_launch" to user's spir_kernels
-static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
+static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM,
+                                 bool HasESIMD) {
   SmallVector<Function *> SpirFixupKernels;
   SmallVector<Constant *, 8> SpirKernelsMetadata;
 
@@ -1328,23 +1329,24 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
   //  uptr unmangled_kernel_name_size
   StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
 
-  for (Function &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
+  if (!HasESIMD)
+    for (Function &F : M) {
+      if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+        continue;
 
-    if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
-        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
-      continue;
+      if (!F.hasFnAttribute(Attribute::SanitizeAddress) ||
+          F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+        continue;
 
-    SpirFixupKernels.emplace_back(&F);
+      SpirFixupKernels.emplace_back(&F);
 
-    auto KernelName = F.getName();
-    auto *KernelNameGV = GetOrCreateGlobalString(M, "__asan_kernel", KernelName,
-                                                 kSpirOffloadGlobalAS);
-    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
-        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
-        ConstantInt::get(IntptrTy, KernelName.size())));
-  }
+      auto KernelName = F.getName();
+      auto *KernelNameGV = GetOrCreateGlobalString(
+          M, "__asan_kernel", KernelName, kSpirOffloadGlobalAS);
+      SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+          StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+          ConstantInt::get(IntptrTy, KernelName.size())));
+    }
 
   // Create global variable to record spirv kernels' information
   ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
@@ -1511,14 +1513,22 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
   if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
+    // FIXME: W/A skip instrumentation if this module has ESIMD
+    bool HasESIMD = false;
+    for (auto &F : M) {
+      if (F.hasMetadata("sycl_explicit_simd")) {
+        HasESIMD = true;
+        break;
+      }
+    }
+
     // Make sure "__AsanKernelMetadata" always exists
-    ExtendSpirKernelArgs(M, FAM);
+    ExtendSpirKernelArgs(M, FAM, HasESIMD);
     Modified = true;
 
-    // FIXME: W/A skip instrumentation if this module has ESIMD
-    for (auto &F : M) {
-      if (F.hasMetadata("sycl_explicit_simd"))
-        return PreservedAnalyses::none();
+    if (HasESIMD) {
+      GlobalStringMap.clear();
+      return PreservedAnalyses::none();
     }
   }
 
@@ -1533,10 +1543,11 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
       FunctionSanitizer.instrumentInitAsanLaunchInfo(F, &TLI);
   }
   Modified |= ModuleSanitizer.instrumentModule();
-  if (!Modified)
-    return PreservedAnalyses::all();
 
   GlobalStringMap.clear();
+
+  if (!Modified)
+    return PreservedAnalyses::all();
 
   PreservedAnalyses PA = PreservedAnalyses::none();
   // GlobalsAA is considered stateless and does not get invalidated unless
