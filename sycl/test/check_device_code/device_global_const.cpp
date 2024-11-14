@@ -13,8 +13,8 @@ device_global<const int> DeviceGlobalVar;
 int main() {
   queue Q;
   Q.single_task([]() {
-    // CHECK-CONST: (ptr addrspace(4) @DeviceGlobalVar
-    // CHECK: (ptr addrspace(1) @DeviceGlobalVar
+    // CHECK-CONST: addrspace(4) @DeviceGlobalVar
+    // CHECK: addrspace(1) @DeviceGlobalVar
     volatile int ReadVal = DeviceGlobalVar;
   });
   return 0;
