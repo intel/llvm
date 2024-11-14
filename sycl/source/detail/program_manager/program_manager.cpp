@@ -710,12 +710,23 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
         }
       }
 
-      // TODO: Complete this part about handling of incompatible device images.
       // If device image uses the same virtual function set, then we only
       // link it if it is compatible.
       // However, if device image provides virtual function set and it is
       // incompatible, then we should link its "dummy" version to avoid link
       // errors about unresolved external symbols.
+      // Note: we only link when exactly one of
+      // doesDevSupportDeviceRequirements(Dev, *BinImage) and
+      // isDummyImage is true. We don't want to link every dummy image,
+      // otherwise we could run into linking errors defining the same symbol
+      // multiple times. For every image providing virtual functions that has
+      // a dummy image, the dummy image will have the same device requirements
+      // as the original image. So when the dummy image does support the
+      // device requirements, we know that the corresponding image providing
+      // actual definitions will be linked and not the dummy. And vice versa:
+      // when the dummy image does not support the device requirements, we
+      // know the corresponding image providing virtual functions was not
+      // linked and we must link the dummy image.
       if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage == 1)
         DeviceImagesToLink.insert(BinImage);
     }
