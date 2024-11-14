@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/boost/mp11/algorithm.hpp>        // for mp_sort_q
-#include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
-#include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
-#include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
@@ -92,23 +88,6 @@ template <typename LHS> struct SelectNonVoid<LHS, void> {
 };
 template <typename RHS> struct SelectNonVoid<void, RHS> {
   using type = RHS;
-};
-
-// Sort types accoring to their PropertyID.
-struct SortByPropertyId {
-  template <typename T1, typename T2>
-  using fn = sycl::detail::boost::mp11::mp_bool<(PropertyID<T1>::value <
-                                                 PropertyID<T2>::value)>;
-};
-template <typename... Ts> struct Sorted {
-  static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
-                "Unrecognized property in property list.");
-  using properties = sycl::detail::boost::mp11::mp_list<Ts...>;
-  using sortedProperties =
-      sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
-  using type =
-      sycl::detail::boost::mp11::mp_rename<sortedProperties,
-                                           detail::properties_type_list>;
 };
 
 //******************************************************************************
