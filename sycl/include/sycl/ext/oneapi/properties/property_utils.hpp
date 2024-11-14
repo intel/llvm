@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/boost/mp11/algorithm.hpp>        // for mp_sort_q
-#include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
-#include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
-#include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
@@ -92,23 +88,6 @@ template <typename LHS> struct SelectNonVoid<LHS, void> {
 };
 template <typename RHS> struct SelectNonVoid<void, RHS> {
   using type = RHS;
-};
-
-// Sort types accoring to their PropertyID.
-struct SortByPropertyId {
-  template <typename T1, typename T2>
-  using fn = sycl::detail::boost::mp11::mp_bool<(PropertyID<T1>::value <
-                                                 PropertyID<T2>::value)>;
-};
-template <typename... Ts> struct Sorted {
-  static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
-                "Unrecognized property in property list.");
-  using properties = sycl::detail::boost::mp11::mp_list<Ts...>;
-  using sortedProperties =
-      sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
-  using type =
-      sycl::detail::boost::mp11::mp_rename<sortedProperties,
-                                           detail::properties_type_list>;
 };
 
 //******************************************************************************
@@ -325,6 +304,50 @@ template <typename PropT, bool Condition>
 struct ConditionalPropertyMetaInfo
     : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
                          IgnoredPropertyMetaInfo> {};
+
+template <template <typename> typename predicate, typename... property_tys>
+struct filter_properties_impl {
+  static constexpr auto idx_info = []() constexpr {
+    constexpr int N = sizeof...(property_tys);
+    std::array<int, N> indexes{};
+    int num_matched = 0;
+    int idx = 0;
+    (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
+      ...));
+
+    return std::pair{indexes, num_matched};
+  }();
+
+  // Helper to convert constexpr indices values to an std::index_sequence type.
+  // Values -> type is the key here.
+  template <int... Idx>
+  static constexpr auto idx_seq(std::integer_sequence<int, Idx...>) {
+    return std::integer_sequence<int, idx_info.first[Idx]...>{};
+  }
+
+  using selected_idx_seq =
+      decltype(idx_seq(std::make_integer_sequence<int, idx_info.second>{}));
+
+  // Using prop_list_ty so that we don't need to explicitly spell out
+  //  `properties` template parameters' implementation-details.
+  template <typename prop_list_ty, int... Idxs>
+  static constexpr auto apply_impl(const prop_list_ty &props,
+                                   std::integer_sequence<int, Idxs...>) {
+    return properties{props.template get_property<
+        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
+  }
+
+  template <typename prop_list_ty>
+  static constexpr auto apply(const prop_list_ty &props) {
+    return apply_impl(props, selected_idx_seq{});
+  }
+};
+
+template <template <typename> typename predicate, typename... property_tys>
+constexpr auto filter_properties(
+    const properties<properties_type_list<property_tys...>> &props) {
+  return filter_properties_impl<predicate, property_tys...>::apply(props);
+}
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
