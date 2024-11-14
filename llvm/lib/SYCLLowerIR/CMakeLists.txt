@@ -67,6 +67,7 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLJointMatrixTransform.cpp
   SYCLPropagateAspectsUsage.cpp
   SYCLPropagateJointMatrixUsage.cpp
+  SYCLSqrtFDivMaxErrorCleanUp.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
   SanitizeDeviceGlobal.cpp
