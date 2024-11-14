@@ -1111,8 +1111,10 @@ wrapSYCLBinariesFromFile(std::vector<module_split::SplitModule> &SplitModules,
     if (!MBOrDesc)
       return createFileError(SI.ModuleFilePath, MBOrDesc.getError());
 
-    StringRef ImageTarget = IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
-    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols, ImageTarget);
+    StringRef ImageTarget =
+        IsEmbeddedIR ? StringRef(EmbeddedIRTarget) : StringRef(RegularTarget);
+    Images.emplace_back(std::move(*MBOrDesc), SI.Properties, SI.Symbols,
+                        ImageTarget);
   }
 
   LLVMContext C;
@@ -1197,7 +1199,8 @@ static Expected<StringRef> runCompile(StringRef &InputFile,
 static Expected<StringRef>
 runWrapperAndCompile(std::vector<module_split::SplitModule> &SplitModules,
                      const ArgList &Args, bool IsEmbeddedIR = false) {
-  auto OutputFile = sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
+  auto OutputFile =
+      sycl::wrapSYCLBinariesFromFile(SplitModules, Args, IsEmbeddedIR);
   if (!OutputFile)
     return OutputFile.takeError();
   // call to clang
@@ -2416,8 +2419,8 @@ Expected<SmallVector<StringRef>> linkAndWrapDeviceFiles(
         // of sycl-post-link (filetable referencing LLVM Bitcode + symbols)
         // through the offload wrapper and link the resulting object to the
         // application.
-        auto OutputFile =
-            sycl::runWrapperAndCompile(SplitModules, LinkerArgs, /* IsEmbeddedIR */ true);
+        auto OutputFile = sycl::runWrapperAndCompile(SplitModules, LinkerArgs,
+                                                     /* IsEmbeddedIR */ true);
         if (!OutputFile)
           return OutputFile.takeError();
         WrappedOutput.push_back(*OutputFile);
