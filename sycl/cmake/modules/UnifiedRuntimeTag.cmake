@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
+# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
+# Merge: 9a209aa5 b1222f08
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 13 09:57:16 2024 +0000
+#     Merge pull request #2254 from PietroGhg/pietro/events_rr
+#     [NATIVECPU] Implement events on Native CPU
+set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)

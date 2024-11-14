@@ -3,12 +3,18 @@
 ; RUN: FileCheck < %t %s
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o %t
+; RUN: FileCheck < %t %s
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"
 target triple = "spir64-unknown-unknown"
 
 
 ; CHECK: 8 Decorate [[ID:[0-9]*]] LinkageAttributes "imageSampler" Export
-; CHECK: 5 Variable {{[0-9]*}} [[ID]] 0 {{[0-9]*}}
+; CHECK: {{Variable|UntypedVariableKHR}} {{[0-9]*}} [[ID]] 0 {{[0-9]*}}
 
 @imageSampler = addrspace(2) constant i32 36, align 4
 

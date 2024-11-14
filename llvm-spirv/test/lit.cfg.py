@@ -75,6 +75,8 @@ if config.spirv_tools_have_spirv_link:
     config.available_features.add('spirv-link')
     using_spirv_tools = True
 
+# Unlike spirv-{as,dis,link} above, running spirv-val is optional: if spirv-val is
+# not available, the test must still run and just skip any spirv-val commands.
 if config.spirv_tools_have_spirv_val:
     llvm_config.add_tool_substitutions(['spirv-val'], [config.spirv_tools_bin_dir])
     using_spirv_tools = True
