@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 // XFAIL: igc-dev
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16088
 // REQUIRES: gpu-intel-dg2 && level_zero
 // UNSUPPORTED: windows
 
