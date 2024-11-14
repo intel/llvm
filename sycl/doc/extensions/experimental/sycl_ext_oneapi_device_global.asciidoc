@@ -199,7 +199,7 @@ _T_ is restricted to types that have a trivial destructor. _PropertyListT_ enabl
 
 [NOTE]
 ====
-If _T_ is prepended `const` then in the cuda and hip backends the compiler will use the constant address space for the `device_global` instead of the global address space. This allows for optimizations such as using the Nvidia constant cache, and is equivalent to usage of __constant_\_ in the CUDA and HIP native programming languages.
+If _T_ is prepended `const` then in the cuda and hip backends the compiler will use the constant address space for the `device_global` instead of the global address space. This allows for optimizations such as using the Nvidia constant cache, and is equivalent to usage of $$`__constant__`$$ in the CUDA and HIP native programming languages.
 ====
 
 When compiling with {cpp} versions before {cpp}20, _T_ must also have a trivial default constructor. In this case, the allocation of type _T_ for a given `device_global` is zero-initialized on a given device prior to the first access to that `device_global` on that device. For the purposes of this definition an access can be a direct access of the `device_global` in kernel code or a copy to or from that `device_global` enqueued to the given device.
