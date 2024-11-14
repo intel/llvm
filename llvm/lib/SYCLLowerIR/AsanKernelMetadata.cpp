@@ -38,7 +38,7 @@ PreservedAnalyses AsanKernelMetadataPass::run(Module &M,
   // Fix attributes
   KernelMetadata->addAttribute(
       "sycl-device-global-size",
-      std::to_string(DL.getTypeAllocSize(KernelMetadata->getType())));
+      std::to_string(DL.getTypeAllocSize(KernelMetadata->getValueType())));
 
   // Fix metadata
   unsigned MDKindID = Ctx.getMDKindID(SPIRV_DECOR_MD_KIND);
