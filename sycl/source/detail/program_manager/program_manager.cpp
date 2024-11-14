@@ -671,10 +671,11 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
   std::set<std::string> HandledSets;
   std::queue<std::string> WorkList;
   for (const sycl_device_binary_property &VFProp : Img.getVirtualFunctions()) {
-    std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+    std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
     // Device image passed to this function is expected to contain SYCL kernels
     // and therefore it may only use virtual function sets, but cannot provide
-    // them. We expect to see just a single property here
+    // them. Additionally, it cannot be a dummy image.
+    // We expect to see just a single property here
     assert(std::string(VFProp->Name) == "uses-virtual-functions-set" &&
            "Unexpected virtual function property");
     for (const auto &SetName : detail::split_string(StrValue, ',')) {
@@ -695,9 +696,14 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // virtual-functions-set properties, but their handling is the same: we
       // just grab all sets they reference and add them for consideration if
       // we haven't done so already.
+      bool isDummyImage = false;
       for (const sycl_device_binary_property &VFProp :
            BinImage->getVirtualFunctions()) {
-        std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+        if (VFProp->Name == std::string_view("dummy-image")) {
+          isDummyImage = true;
+          continue;
+        }
+        std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
         for (const auto &SetName : detail::split_string(StrValue, ',')) {
           if (HandledSets.insert(SetName).second)
             WorkList.push(SetName);
@@ -710,7 +716,7 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // However, if device image provides virtual function set and it is
       // incompatible, then we should link its "dummy" version to avoid link
       // errors about unresolved external symbols.
-      if (doesDevSupportDeviceRequirements(Dev, *BinImage))
+      if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage == 1)
         DeviceImagesToLink.insert(BinImage);
     }
   }
@@ -1797,7 +1803,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
     // Record mapping between virtual function sets and device images
     for (const sycl_device_binary_property &VFProp :
          Img->getVirtualFunctions()) {
-      std::string StrValue = DeviceBinaryProperty(VFProp).asCString();
+      if (VFProp->Name == std::string_view("dummy-image"))
+        continue;
+      std::string_view StrValue = DeviceBinaryProperty(VFProp).asStringView();
       for (const auto &SetName : detail::split_string(StrValue, ','))
         m_VFSet2BinImage[SetName].insert(Img.get());
     }
