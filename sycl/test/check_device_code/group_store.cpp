@@ -41,15 +41,15 @@ using plain_global_ptr = typename sycl::detail::DecoratedType<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, plain_global_ptr<int>, naive_blocked>(
     sycl::sub_group, const int &, plain_global_ptr<int>, naive_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !srcloc [[META5:![0-9]+]] !sycl_fixed_targets [[META6:![0-9]+]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] comdat !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5:[0-9]+]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[TMP0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7:![0-9]+]]
-// CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8:![0-9]+]]
+// CHECK-NEXT:    store i32 [[TMP1]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -57,8 +57,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, plain_global_ptr<int>, opt_blocked>(
     sycl::sub_group, const int &, plain_global_ptr<int>, opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_RKSM_SN_T2_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_RKSN_SO_T2_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META6]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
@@ -71,23 +71,23 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
+// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT:%.*]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
 // CHECK:       if.end.i:
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], i32 noundef [[TMP3]]) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_.exit:
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
 // CHECK-NEXT:    ret void
 
 // Check that contiguous_memory can be auto-detected.
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, plain_global_ptr<int>, full_group_blocked>(
     sycl::sub_group, const int &, plain_global_ptr<int>, full_group_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESM_RKSK_SL_T2_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.12") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META6]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
@@ -100,15 +100,15 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[IDXPROM_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
+// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(1) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESN_NS0_4SPANISL_XT1_EEESM_T3__EXIT:%.*]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESO_NS0_4SPANISM_XT1_EEESN_T3__EXIT:%.*]]
 // CHECK:       if.end.i:
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], i32 noundef [[TMP3]]) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESN_NS0_4SPANISL_XT1_EEESM_T3__EXIT]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_.exit:
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESO_NS0_4SPANISM_XT1_EEESN_T3__EXIT]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_.exit:
 // CHECK-NEXT:    ret void
 
 // SYCL 2020's accessor can't be statically known to be contiguous.
@@ -118,19 +118,19 @@ using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, accessor_iter_t, full_group_blocked>(
     sycl::sub_group, const int &, accessor_iter_t, full_group_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_RKSL_SM_T2_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.2") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_RKSM_SN_T2_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.12") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META6]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[AGG_TMP2_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11:![0-9]+]]
+// CHECK-NEXT:    [[AGG_TMP2_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA12:![0-9]+]]
 // CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
-// CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13:![0-9]+]]
+// CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA14:![0-9]+]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    [[TMP0:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[CONV5_I_I:%.*]] = sext i32 [[TMP0]] to i64
 // CHECK-NEXT:    [[TMP1:%.*]] = getelementptr i32, ptr addrspace(4) [[AGG_TMP2_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP2_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[ADD_PTR_I_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[TMP1]], i64 [[CONV5_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[ADD_PTR_I_I_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
+// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[ADD_PTR_I_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -140,20 +140,20 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
                                                         const int &,
                                                         accessor_iter_t,
                                                         opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_RKSN_SO_T2_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META5]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiNS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T1_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_RKSO_SP_T2_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr addrspace(4) noundef align 4 dereferenceable(4) [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPERTIES:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META6]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[AGG_TMP2_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[AGG_TMP2_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
-// CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
+// CHECK-NEXT:    [[AGG_TMP2_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP2_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA14]]
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP2_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP2_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(4) [[ADD_PTR_I_I_I]] to i64
 // CHECK-NEXT:    [[REM_I_I_I:%.*]] = and i64 [[TMP0]], 15
 // CHECK-NEXT:    [[CMP1_I_I_I:%.*]] = icmp eq i64 [[REM_I_I_I]], 0
-// CHECK-NEXT:    br i1 [[CMP1_I_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL6DETAIL16GET_BLOCK_OP_PTRILI16ELM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEDAT1_T2__EXIT_I:%.*]], label [[IF_THEN_I:%.*]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental6detail16get_block_op_ptrILi16ELm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEDaT1_T2_.exit.i:
+// CHECK-NEXT:    br i1 [[CMP1_I_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL6DETAIL16GET_BLOCK_OP_PTRILI16ELM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS4_20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEEDAT1_T2__EXIT_I:%.*]], label [[IF_THEN_I:%.*]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental6detail16get_block_op_ptrILi16ELm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEEDaT1_T2_.exit.i:
 // CHECK-NEXT:    [[CALL_I_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef nonnull [[ADD_PTR_I_I_I]], i32 noundef 5) #[[ATTR6:[0-9]+]]
 // CHECK-NEXT:    [[TOBOOL_NOT_I:%.*]] = icmp eq ptr addrspace(1) [[CALL_I_I_I_I]], null
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT_I]], label [[IF_THEN_I]], label [[IF_END_I:%.*]]
@@ -162,15 +162,15 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4
 // CHECK-NEXT:    [[CONV5_I_I:%.*]] = sext i32 [[TMP1]] to i64
 // CHECK-NEXT:    [[ADD_PTR_I_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[ADD_PTR_I_I_I]], i64 [[CONV5_I_I]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
-// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[ADD_PTR_I_I_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
+// CHECK-NEXT:    store i32 [[TMP2]], ptr addrspace(4) [[ADD_PTR_I_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSD_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSD_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       if.end.i:
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[IN]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIjEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[CALL_I_I_I_I]], i32 noundef [[TMP3]]) #[[ATTR5]]
-// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
+// CHECK-NEXT:    br label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKILM1ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSD_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSD_INS3_14FULL_GROUP_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKiLm1ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSD_INS3_21contiguous_memory_keyEJEEENSD_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    ret void
 
 // Four shorts in blocked data layout could be stored as a single 64-bit
@@ -178,8 +178,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, short, 4, plain_global_ptr<short>, opt_blocked>(
     sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.4") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15:![0-9]+]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.14") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16:![0-9]+]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [4 x i16], align 2
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
@@ -189,50 +189,50 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[CMP1_I_NOT:%.*]] = icmp eq i64 [[REM_I]], 0
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META16:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META17:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = shl i32 [[TMP3]], 2
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA20:![0-9]+]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP21:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP22:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7:[0-9]+]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA23:![0-9]+]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA24:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA25:![0-9]+]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA26:![0-9]+]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELImEvPU3AS1mT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], i64 noundef [[TMP6]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP26:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP27:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -241,8 +241,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, const short, 4, plain_global_ptr<short>, opt_blocked>(
     sycl::sub_group, span<const short, 4>, plain_global_ptr<short>,
     opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.5") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.15") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [4 x i16], align 2
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
@@ -252,50 +252,50 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[CMP1_I_NOT:%.*]] = icmp eq i64 [[REM_I]], 0
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META27:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META28:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = shl i32 [[TMP3]], 2
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEKSLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP30:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP31:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEKsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEENSC_INSA_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA31:![0-9]+]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA32:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA25]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load i64, ptr [[VALUES]], align 2, !tbaa [[TBAA26]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELImEvPU3AS1mT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], i64 noundef [[TMP6]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP5]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP7]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP33:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP34:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -303,30 +303,30 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 3, plain_global_ptr<int>, opt_blocked>(
     sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.6") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.16") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META34:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META35:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP2]], 3
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP37:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP38:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -335,30 +335,30 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 4, plain_global_ptr<int>, opt_blocked>(
     sycl::sub_group, span<int, 4>, plain_global_ptr<int>, opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.7") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.17") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META38:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META39:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = shl i32 [[TMP2]], 2
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM4EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM4EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = or disjoint i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP41:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP42:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm4EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -366,30 +366,30 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 7, plain_global_ptr<int>, opt_blocked>(
     sycl::sub_group, span<int, 7>, plain_global_ptr<int>, opt_blocked);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.8") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.0") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.18") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.4") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META42:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META43:![0-9]+]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP2]], 7
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 7
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM7EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 7
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM7EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI0EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[MUL_I_I]], [[I_0_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP45:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP46:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm7EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi0EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -400,17 +400,17 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 2, plain_global_ptr<int>, naive_striped>(
     sycl::sub_group, span<int, 2>, plain_global_ptr<int>, naive_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.10") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.19") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.20") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA46:![0-9]+]]
-// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META48:![0-9]+]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META51:![0-9]+]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA47:![0-9]+]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META49:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META52:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
@@ -418,21 +418,21 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP0]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I:%.*]] = mul nuw nsw i32 [[TMP2]], [[I_0]]
 // CHECK-NEXT:    [[ADD_I:%.*]] = add i32 [[TMP1]], [[MUL_I]]
 // CHECK-NEXT:    [[IDXPROM:%.*]] = sext i32 [[ADD_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM]]
-// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP3]], ptr addrspace(1) [[ARRAYIDX]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP54:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP55:![0-9]+]]
 
 // Check that optimized implementation is selected.
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 2, plain_global_ptr<int>, opt_striped>(
     sycl::sub_group, span<int, 2>, plain_global_ptr<int>, opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.19") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [2 x i32], align 4
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
@@ -442,51 +442,51 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[CMP1_I_NOT:%.*]] = icmp eq i64 [[REM_I]], 0
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META55:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META58:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META56:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META59:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP61:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP62:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
-// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA46]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA47]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA26]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIDv2_jEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], <2 x i32> noundef [[TMP7]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP62:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP63:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -494,8 +494,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 2, plain_global_ptr<int>, full_group_striped>(
     sycl::sub_group, span<int, 2>, plain_global_ptr<int>, full_group_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESM_NS0_4spanISK_XT1_EEESL_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.13") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.19") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.27") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [2 x i32], align 4
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
@@ -505,51 +505,51 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[CMP1_I_NOT:%.*]] = icmp eq i64 [[REM_I]], 0
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META63:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META66:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META64:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META67:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESP_NS0_4SPANISN_XT1_EEESO_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP69:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP70:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
-// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA46]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA47]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA26]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIDv2_jEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], <2 x i32> noundef [[TMP7]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I20]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP70:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP71:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -560,35 +560,35 @@ using accessor_iter_t = accessor<int, 1, access_mode::write, target::device,
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 2, accessor_iter_t, full_group_striped>(
     sycl::sub_group, span<int, 2>, accessor_iter_t, full_group_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESN_NS0_4spanISL_XT1_EEESM_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.13") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.19") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.27") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
-// CHECK-NEXT:    [[AGG_TMP4_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
+// CHECK-NEXT:    [[AGG_TMP4_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[AGG_TMP4_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
-// CHECK-NEXT:    [[AGG_TMP4_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP4_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
+// CHECK-NEXT:    [[AGG_TMP4_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP4_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA14]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META71:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META74:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META72:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META75:![0-9]+]]
 // CHECK-NEXT:    [[TMP4:%.*]] = getelementptr i32, ptr addrspace(4) [[AGG_TMP4_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP4_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESQ_NS0_4SPANISO_XT1_EEESP_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
 // CHECK-NEXT:    [[CONV5_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[TMP4]], i64 [[CONV5_I]]
-// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP77:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP78:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_14full_group_keyEJEEENSC_INSA_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -598,70 +598,70 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
                                                            span<int, 2>,
                                                            accessor_iter_t,
                                                            opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.9") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESQ_NS0_4spanISO_XT1_EEESP_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.19") align 8 [[IN:%.*]], ptr noundef byval(%"class.sycl::_V1::detail::accessor_iterator") align 8 [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [2 x i32], align 4
-// CHECK-NEXT:    [[AGG_TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[AGG_TMP_SROA_0_0_COPYLOAD:%.*]] = load ptr addrspace(4), ptr [[OUT_PTR]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[AGG_TMP_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX:%.*]] = getelementptr inbounds i8, ptr [[OUT_PTR]], i64 8
-// CHECK-NEXT:    [[AGG_TMP_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA13]]
+// CHECK-NEXT:    [[AGG_TMP_SROA_2_0_COPYLOAD:%.*]] = load i64, ptr [[AGG_TMP_SROA_2_0_OUT_PTR_ASCAST_SROA_IDX]], align 8, !tbaa [[TBAA14]]
 // CHECK-NEXT:    [[ADD_PTR_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[AGG_TMP_SROA_0_0_COPYLOAD]], i64 [[AGG_TMP_SROA_2_0_COPYLOAD]]
 // CHECK-NEXT:    [[CMP_I_I:%.*]] = icmp ne ptr addrspace(4) [[ADD_PTR_I_I]], null
 // CHECK-NEXT:    tail call void @llvm.assume(i1 [[CMP_I_I]])
 // CHECK-NEXT:    [[TMP0:%.*]] = ptrtoint ptr addrspace(4) [[ADD_PTR_I_I]] to i64
 // CHECK-NEXT:    [[REM_I_I:%.*]] = and i64 [[TMP0]], 15
 // CHECK-NEXT:    [[CMP1_I_I:%.*]] = icmp eq i64 [[REM_I_I]], 0
-// CHECK-NEXT:    br i1 [[CMP1_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL6DETAIL16GET_BLOCK_OP_PTRILI16ELM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEDAT1_T2__EXIT:%.*]], label [[IF_THEN:%.*]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental6detail16get_block_op_ptrILi16ELm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEDaT1_T2_.exit:
+// CHECK-NEXT:    br i1 [[CMP1_I_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL6DETAIL16GET_BLOCK_OP_PTRILI16ELM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS4_20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEEEEEEEEEDAT1_T2__EXIT:%.*]], label [[IF_THEN:%.*]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental6detail16get_block_op_ptrILi16ELm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS4_20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEEDaT1_T2_.exit:
 // CHECK-NEXT:    [[CALL_I_I_I:%.*]] = tail call spir_func noundef ptr addrspace(1) @_Z41__spirv_GenericCastToPtrExplicit_ToGlobalPvi(ptr addrspace(4) noundef nonnull [[ADD_PTR_I_I]], i32 noundef 5) #[[ATTR6]]
 // CHECK-NEXT:    [[TOBOOL_NOT:%.*]] = icmp eq ptr addrspace(1) [[CALL_I_I_I]], null
 // CHECK-NEXT:    br i1 [[TOBOOL_NOT]], label [[IF_THEN]], label [[IF_END:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META78:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META81:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META79:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META82:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 2
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 2
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM2ENS0_6DETAIL17ACCESSOR_ITERATORIILI1EEENS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSC_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSC_INS3_14FULL_GROUP_KEYEJEEENSC_INSA_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESS_NS0_4SPANISQ_XT1_EEESR_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul nuw nsw i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
 // CHECK-NEXT:    [[CONV5_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ADD_PTR_I_I_I:%.*]] = getelementptr i32, ptr addrspace(4) [[ADD_PTR_I_I]], i64 [[CONV5_I]]
-// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP5]], ptr addrspace(4) [[ADD_PTR_I_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP84:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP85:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm2ENS0_6detail17accessor_iteratorIiLi1EEENS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSC_INS3_21contiguous_memory_keyEJEEENSC_INS3_14full_group_keyEJEEENSC_INSA_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESS_NS0_4spanISQ_XT1_EEESR_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
-// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA46]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA47]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 2
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 2
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA25]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load <2 x i32>, ptr [[VALUES]], align 4, !tbaa [[TBAA26]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIDv2_jEvPU3AS1jT_(ptr addrspace(1) noundef nonnull [[CALL_I_I_I]], <2 x i32> noundef [[TMP7]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP8:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [2 x i32], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP8]], ptr [[ARRAYIDX]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP85:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP86:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -670,8 +670,8 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, short, 4, plain_global_ptr<short>, opt_striped>(
     sycl::sub_group, span<short, 4>, plain_global_ptr<short>, opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.4") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.14") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
 // CHECK-NEXT:    [[VALUES:%.*]] = alloca [4 x i16], align 2
 // CHECK-NEXT:    [[CMP_I:%.*]] = icmp ne ptr addrspace(1) [[OUT_PTR]], null
@@ -681,51 +681,51 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 // CHECK-NEXT:    [[CMP1_I_NOT:%.*]] = icmp eq i64 [[REM_I]], 0
 // CHECK-NEXT:    br i1 [[CMP1_I_NOT]], label [[IF_END:%.*]], label [[IF_THEN:%.*]]
 // CHECK:       if.then:
-// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP1:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP2:%.*]] = inttoptr i64 [[TMP1]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META86:![0-9]+]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META89:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META87:![0-9]+]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META90:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[IF_THEN]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp ult i32 [[I_0_I]], 4
-// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I19:%.*]] = icmp samesign ult i32 [[I_0_I]], 4
+// CHECK-NEXT:    br i1 [[CMP_I19]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPESLM4EPU3AS1SNS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP2]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    [[TMP5:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP4]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP3]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i16, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP5]], ptr addrspace(1) [[ARRAYIDX_I]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP92:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP93:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEsLm4EPU3AS1sNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    br label [[CLEANUP:%.*]]
 // CHECK:       if.end:
 // CHECK-NEXT:    call void @llvm.lifetime.start.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
-// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA23]]
+// CHECK-NEXT:    [[TMP6:%.*]] = load ptr addrspace(4), ptr [[IN]], align 8, !tbaa [[TBAA24]]
 // CHECK-NEXT:    br label [[FOR_COND:%.*]]
 // CHECK:       for.cond:
 // CHECK-NEXT:    [[I_0:%.*]] = phi i32 [ 0, [[IF_END]] ], [ [[INC:%.*]], [[FOR_BODY:%.*]] ]
-// CHECK-NEXT:    [[CMP:%.*]] = icmp ult i32 [[I_0]], 4
+// CHECK-NEXT:    [[CMP:%.*]] = icmp samesign ult i32 [[I_0]], 4
 // CHECK-NEXT:    br i1 [[CMP]], label [[FOR_BODY]], label [[FOR_COND_CLEANUP:%.*]]
 // CHECK:       for.cond.cleanup:
-// CHECK-NEXT:    [[TMP7:%.*]] = load <4 x i16>, ptr [[VALUES]], align 2, !tbaa [[TBAA25]]
+// CHECK-NEXT:    [[TMP7:%.*]] = load <4 x i16>, ptr [[VALUES]], align 2, !tbaa [[TBAA26]]
 // CHECK-NEXT:    tail call spir_func void @_Z31__spirv_SubgroupBlockWriteINTELIDv4_tEvPU3AS1tT_(ptr addrspace(1) noundef nonnull [[OUT_PTR]], <4 x i16> noundef [[TMP7]]) #[[ATTR5]]
 // CHECK-NEXT:    call void @llvm.lifetime.end.p0(i64 8, ptr nonnull [[VALUES]]) #[[ATTR7]]
 // CHECK-NEXT:    br label [[CLEANUP]]
 // CHECK:       for.body:
 // CHECK-NEXT:    [[CONV:%.*]] = zext nneg i32 [[I_0]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I20:%.*]] = getelementptr inbounds nuw i16, ptr addrspace(4) [[TMP6]], i64 [[CONV]]
-// CHECK-NEXT:    [[TMP8:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    [[TMP8:%.*]] = load i16, ptr addrspace(4) [[ARRAYIDX_I20]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[ARRAYIDX:%.*]] = getelementptr inbounds [4 x i16], ptr [[VALUES]], i64 0, i64 [[CONV]]
-// CHECK-NEXT:    store i16 [[TMP8]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA19]]
+// CHECK-NEXT:    store i16 [[TMP8]], ptr [[ARRAYIDX]], align 2, !tbaa [[TBAA20]]
 // CHECK-NEXT:    [[INC]] = add nuw nsw i32 [[I_0]], 1
-// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP93:![0-9]+]]
+// CHECK-NEXT:    br label [[FOR_COND]], !llvm.loop [[LOOP94:![0-9]+]]
 // CHECK:       cleanup:
 // CHECK-NEXT:    ret void
 
@@ -733,31 +733,31 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 3, plain_global_ptr<int>, opt_striped>(
     sycl::sub_group, span<int, 3>, plain_global_ptr<int>, opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.6") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.16") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META94:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META97:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META95:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META98:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 3
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 3
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM3EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP100:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP101:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm3EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -765,31 +765,31 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 16, plain_global_ptr<int>, opt_striped>(
     sycl::sub_group, span<int, 16>, plain_global_ptr<int>, opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.15") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.29") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META101:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META104:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META102:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META105:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 16
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM16EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 16
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM16EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP107:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP108:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm16EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void
 
@@ -797,30 +797,30 @@ template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
 template SYCL_EXTERNAL void sycl::ext::oneapi::experimental::group_store<
     sycl::sub_group, int, 11, plain_global_ptr<int>, opt_striped>(
     sycl::sub_group, span<int, 11>, plain_global_ptr<int>, opt_striped);
-// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESO_NS0_4spanISM_XT1_EEESN_T3_(
-// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.16") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.11") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META15]] !sycl_fixed_targets [[META6]] {
+// CHECK-LABEL: define weak_odr dso_local spir_func void @_ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESP_NS0_4spanISN_XT1_EEESO_T3_(
+// CHECK-SAME: ptr noundef byval(%"struct.sycl::_V1::sub_group") align 1 [[G:%.*]], ptr noundef byval(%"class.sycl::_V1::span.30") align 8 [[IN:%.*]], ptr addrspace(1) noundef [[OUT_PTR:%.*]], ptr noundef byval(%"class.sycl::_V1::ext::oneapi::experimental::properties.25") align 1 [[PROPS:%.*]]) local_unnamed_addr #[[ATTR0]] comdat !srcloc [[META16]] !sycl_fixed_targets [[META7]] {
 // CHECK-NEXT:  entry:
-// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA11]]
+// CHECK-NEXT:    [[TMP0:%.*]] = load i64, ptr [[IN]], align 8, !tbaa [[TBAA12]]
 // CHECK-NEXT:    [[TMP1:%.*]] = inttoptr i64 [[TMP0]] to ptr addrspace(4)
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
-// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA7]], !noalias [[META108:![0-9]+]]
-// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA7]], !noalias [[META111:![0-9]+]]
+// CHECK-NEXT:    [[TMP2:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupLocalInvocationId, align 4, !tbaa [[TBAA8]], !noalias [[META109:![0-9]+]]
+// CHECK-NEXT:    [[TMP3:%.*]] = load i32, ptr addrspace(1) @__spirv_BuiltInSubgroupSize, align 4, !tbaa [[TBAA8]], !noalias [[META112:![0-9]+]]
 // CHECK-NEXT:    br label [[FOR_COND_I:%.*]]
 // CHECK:       for.cond.i:
 // CHECK-NEXT:    [[I_0_I:%.*]] = phi i32 [ 0, [[ENTRY:%.*]] ], [ [[INC_I:%.*]], [[FOR_BODY_I:%.*]] ]
-// CHECK-NEXT:    [[CMP_I:%.*]] = icmp ult i32 [[I_0_I]], 11
-// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM11EPU3AS1INS3_10PROPERTIESIST5TUPLEIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSA_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSA_INS3_14FULL_GROUP_KEYEJEEENSA_INS3_6DETAIL9NAIVE_KEYEJEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
+// CHECK-NEXT:    [[CMP_I:%.*]] = icmp samesign ult i32 [[I_0_I]], 11
+// CHECK-NEXT:    br i1 [[CMP_I]], label [[FOR_BODY_I]], label [[_ZN4SYCL3_V13EXT6ONEAPI12EXPERIMENTAL11GROUP_STOREINS0_9SUB_GROUPEILM11EPU3AS1INS3_10PROPERTIESINS3_6DETAIL20PROPERTIES_TYPE_LISTIJNS3_14PROPERTY_VALUEINS3_18DATA_PLACEMENT_KEYEJST17INTEGRAL_CONSTANTIILI1EEEEENSB_INS3_21CONTIGUOUS_MEMORY_KEYEJEEENSB_INS3_14FULL_GROUP_KEYEJEEENSB_INS9_9NAIVE_KEYEJEEEEEEEEEENST9ENABLE_IFIXAASR6DETAILE18VERIFY_STORE_TYPESIT0_T2_ESR6DETAILE18IS_GENERIC_GROUP_VIT_EEVE4TYPEESR_NS0_4SPANISP_XT1_EEESQ_T3__EXIT:%.*]]
 // CHECK:       for.body.i:
 // CHECK-NEXT:    [[CONV_I:%.*]] = zext nneg i32 [[I_0_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I_I:%.*]] = getelementptr inbounds nuw i32, ptr addrspace(4) [[TMP1]], i64 [[CONV_I]]
-// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    [[TMP4:%.*]] = load i32, ptr addrspace(4) [[ARRAYIDX_I_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[MUL_I_I:%.*]] = mul i32 [[TMP3]], [[I_0_I]]
 // CHECK-NEXT:    [[ADD_I_I:%.*]] = add i32 [[TMP2]], [[MUL_I_I]]
 // CHECK-NEXT:    [[IDXPROM_I:%.*]] = sext i32 [[ADD_I_I]] to i64
 // CHECK-NEXT:    [[ARRAYIDX_I:%.*]] = getelementptr inbounds i32, ptr addrspace(1) [[OUT_PTR]], i64 [[IDXPROM_I]]
-// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA7]]
+// CHECK-NEXT:    store i32 [[TMP4]], ptr addrspace(1) [[ARRAYIDX_I]], align 4, !tbaa [[TBAA8]]
 // CHECK-NEXT:    [[INC_I]] = add nuw nsw i32 [[I_0_I]], 1
-// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP114:![0-9]+]]
-// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesISt5tupleIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSA_INS3_21contiguous_memory_keyEJEEENSA_INS3_14full_group_keyEJEEENSA_INS3_6detail9naive_keyEJEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
+// CHECK-NEXT:    br label [[FOR_COND_I]], !llvm.loop [[LOOP115:![0-9]+]]
+// CHECK:       _ZN4sycl3_V13ext6oneapi12experimental11group_storeINS0_9sub_groupEiLm11EPU3AS1iNS3_10propertiesINS3_6detail20properties_type_listIJNS3_14property_valueINS3_18data_placement_keyEJSt17integral_constantIiLi1EEEEENSB_INS3_21contiguous_memory_keyEJEEENSB_INS3_14full_group_keyEJEEENSB_INS9_9naive_keyEJEEEEEEEEEENSt9enable_ifIXaasr6detailE18verify_store_typesIT0_T2_Esr6detailE18is_generic_group_vIT_EEvE4typeESR_NS0_4spanISP_XT1_EEESQ_T3_.exit:
 // CHECK-NEXT:    tail call spir_func void @_Z22__spirv_ControlBarrierjjj(i32 noundef 3, i32 noundef 3, i32 noundef 912) #[[ATTR5]]
 // CHECK-NEXT:    ret void

@@ -1,8 +1,15 @@
 ; Check that we can handle constant expressions correctly.
 ; RUN: llvm-as %s -o %t.bc
-; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.bc -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv %t.bc -o %t.spv
 ; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; TODO: enable once spirv tools support untyped access instructions as spec constants arguments.
+; R/UN: spirv-val %t.spv
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
@@ -14,8 +21,10 @@ target triple = "spir-unknown-unknown"
 ; CHECK-SPIRV-DAG: 4 TypeInt [[U64:[0-9]+]] 64 0
 ; CHECK-SPIRV-DAG: 4 Constant [[U32]] [[I320:[0-9]+]] 0
 ; CHECK-SPIRV-DAG: 4 Constant [[U32]] [[I323:[0-9]+]] 3
-; CHECK-SPIRV: 4 TypePointer [[AS2:[0-9]+]] 0 [[U8]]
-; CHECK-SPIRV: 4 TypePointer [[AS1:[0-9]+]] 5 [[U8]]
+; CHECK-SPIRV-TYPED-PTR: 4 TypePointer [[AS2:[0-9]+]] 0 [[U8]]
+; CHECK-SPIRV-TYPED-PTR: 4 TypePointer [[AS1:[0-9]+]] 5 [[U8]]
+; CHECK-SPIRV-UNTYPED-PTR: 3 TypeUntypedPointerKHR [[AS2:[0-9]+]] 0
+; CHECK-SPIRV-UNTYPED-PTR: 3 TypeUntypedPointerKHR [[AS1:[0-9]+]] 5
 ; CHECK-SPIRV-DAG: 4 TypeStruct [[STRUCTTY:[0-9]+]]
 ; CHECK-SPIRV-DAG: 4 TypeArray [[ARRAYTY:[0-9]+]] [[AS1]] [[I323]]
 
@@ -27,7 +36,8 @@ target triple = "spir-unknown-unknown"
 
 @struct = addrspace(1) global {ptr addrspace(2), ptr addrspace(1)} { ptr addrspace(2) @astr, ptr addrspace(1) @i64arr }
 
-; CHECK-SPIRV: 7 SpecConstantOp [[AS2]] [[ASTRC:[0-9]+]] 70 [[ASTR]] [[I320]] [[I320]]
+; CHECK-SPIRV-TYPED-PTR: 7 SpecConstantOp [[AS2]] [[ASTRC:[0-9]+]] 70 [[ASTR]] [[I320]] [[I320]]
+; CHECK-SPIRV-UNTYPED-PTR: 8 SpecConstantOp [[AS2]] [[ASTRC:[0-9]+]] 4424 [[#]] [[ASTR]] [[I320]] [[I320]]
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC:[0-9]+]] 124 [[I64ARR]]
 ; CHECK-SPIRV: 5 ConstantComposite [[STRUCTTY]] [[STRUCT_INIT:[0-9]+]] [[ASTRC]] [[I64ARRC]]
 ; CHECK-SPIRV: 5 Variable {{[0-9]+}} [[STRUCT:[0-9]+]] 5 [[STRUCT_INIT]]
@@ -36,7 +46,8 @@ target triple = "spir-unknown-unknown"
 
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[I64ARRC2:[0-9]+]] 124 [[I64ARR]]
 ; CHECK-SPIRV: 5 SpecConstantOp [[AS1]] [[STRUCTC:[0-9]+]] 124 [[STRUCT]]
-; CHECK-SPIRV: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 67 [[I64ARR]]
+; CHECK-SPIRV-TYPED-PTR: 7 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 67 [[I64ARR]]
+; CHECK-SPIRV-UNTYPED-PTR: 8 SpecConstantOp {{[0-9]+}} [[GEP:[0-9]+]] 4423 [[#]] [[I64ARR]]
 ; CHECK-SPIRV: 6 ConstantComposite [[ARRAYTY]] [[ARRAY_INIT:[0-9]+]] [[I64ARRC2]] [[STRUCTC]] [[GEP]]
 ; CHECK-SPIRV: 5 Variable {{[0-9]+}} [[ARRAY:[0-9]+]] 5 [[ARRAY_INIT]]
 

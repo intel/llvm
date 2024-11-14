@@ -345,6 +345,84 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
   return NeedLibs;
 }
 
+struct OclocInfo {
+  const char *DeviceName;
+  const char *PackageName;
+  const char *Version;
+  SmallVector<int, 8> HexValues;
+};
+
+// The PVCDevices data structure is organized by device name, with the
+// corresponding ocloc split release, version and possible Hex representations
+// of various PVC devices.  This information is gathered from the following:
+// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
+// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_additional.inl
+static OclocInfo PVCDevices[] = {
+    {"pvc-sdv", "gen12+", "12.60.1", {}},
+    {"pvc",
+     "gen12+",
+     "12.60.7",
+     {0x0BD0, 0x0BD5, 0x0BD6, 0x0BD7, 0x0BD8, 0x0BD9, 0x0BDA, 0x0BDB}}};
+
+static std::string getDeviceArg(const ArgStringList &CmdArgs) {
+  bool DeviceSeen = false;
+  std::string DeviceArg;
+  for (StringRef Arg : CmdArgs) {
+    // -device <arg> comes in as a single arg, split up all potential space
+    // separated values.
+    SmallVector<StringRef> SplitArgs;
+    Arg.split(SplitArgs, ' ');
+    for (StringRef SplitArg : SplitArgs) {
+      if (DeviceSeen) {
+        DeviceArg = SplitArg.str();
+        break;
+      }
+      if (SplitArg == "-device")
+        DeviceSeen = true;
+    }
+    if (DeviceSeen)
+      break;
+  }
+
+  return DeviceArg;
+}
+
+static bool checkPVCDevice(std::string SingleArg, std::string &DevArg) {
+  // Handle shortened versions.
+  bool CheckShortVersion = true;
+  for (auto Char : SingleArg) {
+    if (!std::isdigit(Char) && Char != '.') {
+      CheckShortVersion = false;
+      break;
+    }
+  }
+  // Check for device, version or hex (literal values)
+  for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
+    if (StringRef(SingleArg).equals_insensitive(PVCDevices[I].DeviceName) ||
+        StringRef(SingleArg).equals_insensitive(PVCDevices[I].Version)) {
+      DevArg = SingleArg;
+      return true;
+    }
+
+    for (int HexVal : PVCDevices[I].HexValues) {
+      int Value = 0;
+      if (!StringRef(SingleArg).getAsInteger(0, Value) && Value == HexVal) {
+        // TODO: Pass back the hex string to use for -device_options when
+        // IGC is updated to allow.  Currently -device_options only accepts
+        // the device ID (i.e. pvc) or the version (12.60.7).
+        return true;
+      }
+    }
+    if (CheckShortVersion &&
+        StringRef(PVCDevices[I].Version).starts_with(SingleArg)) {
+      DevArg = SingleArg;
+      return true;
+    }
+  }
+
+  return false;
+}
+
 SmallVector<std::string, 8>
 SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
                          bool IsSpirvAOT) {
@@ -359,6 +437,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     StringRef DeviceLibName;
     StringRef DeviceLibOption;
   };
+
+  enum { JIT = 0, AOT_CPU, AOT_DG2, AOT_PVC };
 
   // Currently, all SYCL device libraries will be linked by default.
   llvm::StringMap<bool> DeviceLibLinkInfo = {
@@ -460,8 +540,11 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-itt-compiler-wrappers", "internal"},
       {"libsycl-itt-stubs", "internal"}};
 #if !defined(_WIN32)
-  const SYCLDeviceLibsList SYCLDeviceSanitizerLibs = {
-      {"libsycl-sanitizer", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceAsanLibs = {
+      {"libsycl-asan", "internal"},
+      {"libsycl-asan-cpu", "internal"},
+      {"libsycl-asan-dg2", "internal"},
+      {"libsycl-asan-pvc", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -493,6 +576,66 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   };
 
+  auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
+    if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
+      return;
+    SmallString<128> LibName(Lib.DeviceLibName);
+    llvm::sys::path::replace_extension(LibName, LibSuffix);
+    LibraryList.push_back(Args.MakeArgString(LibName));
+  };
+
+  // This function is used to check whether there is only one GPU device
+  // (PVC or DG2) specified in AOT compilation mode. If yes, we can use
+  // corresponding libsycl-asan-* to improve device sanitizer performance,
+  // otherwise stick to fallback device sanitizer library used in  JIT mode.
+  auto getSpecificGPUTarget = [](const ArgStringList &CmdArgs) -> size_t {
+    std::string DeviceArg = getDeviceArg(CmdArgs);
+    if ((DeviceArg.empty()) || (DeviceArg.find(",") != std::string::npos))
+      return JIT;
+
+    std::string Temp;
+    if (checkPVCDevice(DeviceArg, Temp))
+      return AOT_PVC;
+
+    if (DeviceArg == "dg2")
+      return AOT_DG2;
+
+    return JIT;
+  };
+
+  auto getSingleBuildTarget = [&]() -> size_t {
+    if (!IsSpirvAOT)
+      return JIT;
+
+    llvm::opt::Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ);
+    if (!SYCLTarget || (SYCLTarget->getValues().size() != 1))
+      return JIT;
+
+    StringRef SYCLTargetStr = SYCLTarget->getValue();
+    if (SYCLTargetStr.starts_with("spir64_x86_64"))
+      return AOT_CPU;
+
+    if (SYCLTargetStr == "intel_gpu_pvc")
+      return AOT_PVC;
+
+    if (SYCLTargetStr.starts_with("intel_gpu_dg2"))
+      return AOT_DG2;
+
+    if (SYCLTargetStr.starts_with("spir64_gen")) {
+      ArgStringList TargArgs;
+      Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
+      Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
+      llvm::opt::Arg *A = nullptr;
+      if ((A = Args.getLastArg(options::OPT_Xsycl_backend_EQ)) &&
+          StringRef(A->getValue()).starts_with("spir64_gen"))
+        TargArgs.push_back(A->getValue(1));
+
+      return getSpecificGPUTarget(TargArgs);
+    }
+
+    return JIT;
+  };
+
   addLibraries(SYCLDeviceWrapperLibs);
   if (IsSpirvAOT)
     addLibraries(SYCLDeviceFallbackLibs);
@@ -512,13 +655,14 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)
+  size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
         A->getValues().size() == 1) {
       std::string SanitizeVal = A->getValue();
       if (SanitizeVal == "address")
-        addLibraries(SYCLDeviceSanitizerLibs);
+        addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
     }
   } else {
     // User can pass -fsanitize=address to device compiler via
@@ -546,7 +690,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
 
     if (IsDeviceAsanEnabled)
-      addLibraries(SYCLDeviceSanitizerLibs);
+      addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   }
 #endif
 
@@ -663,7 +807,10 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
 #if defined(_WIN32)
     "msvc-math",
 #else
-    "sanitizer",
+    "asan",
+    "asan-pvc",
+    "asan-cpu",
+    "asan-dg2",
 #endif
     "imf",
     "imf-fp64",
@@ -1131,87 +1278,23 @@ void SYCL::fpga::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
-struct OclocInfo {
-  const char *DeviceName;
-  const char *PackageName;
-  const char *Version;
-  SmallVector<int, 8> HexValues;
-};
-
-// The PVCDevices data structure is organized by device name, with the
-// corresponding ocloc split release, version and possible Hex representations
-// of various PVC devices.  This information is gathered from the following:
-// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_base.inl
-// https://github.com/intel/compute-runtime/blob/master/shared/source/dll/devices/devices_additional.inl
-static OclocInfo PVCDevices[] = {
-    {"pvc-sdv", "gen12+", "12.60.1", {}},
-    {"pvc",
-     "gen12+",
-     "12.60.7",
-     {0x0BD0, 0x0BD5, 0x0BD6, 0x0BD7, 0x0BD8, 0x0BD9, 0x0BDA, 0x0BDB}}};
-
 // Determine if any of the given arguments contain any PVC based values for
 // the -device option.
 static bool hasPVCDevice(const ArgStringList &CmdArgs, std::string &DevArg) {
-  bool DeviceSeen = false;
-  StringRef DeviceArg;
-  for (StringRef Arg : CmdArgs) {
-    // -device <arg> comes in as a single arg, split up all potential space
-    // separated values.
-    SmallVector<StringRef> SplitArgs;
-    Arg.split(SplitArgs, ' ');
-    for (StringRef SplitArg : SplitArgs) {
-      if (DeviceSeen) {
-        DeviceArg = SplitArg;
-        break;
-      }
-      if (SplitArg == "-device")
-        DeviceSeen = true;
-    }
-    if (DeviceSeen)
-      break;
-  }
-  if (DeviceArg.empty())
+  std::string Res = getDeviceArg(CmdArgs);
+  if (Res.empty())
     return false;
-
   // Go through all of the arguments to '-device' and determine if any of these
   // are pvc based.  We only match literal values and will not find a match
   // when ranges or wildcards are used.
   // Here we parse the targets, tokenizing via ','
+  StringRef DeviceArg(Res.c_str());
   SmallVector<StringRef> SplitArgs;
   DeviceArg.split(SplitArgs, ",");
   for (const auto &SingleArg : SplitArgs) {
-    StringRef OclocTarget;
-    // Handle shortened versions.
-    bool CheckShortVersion = true;
-    for (auto Char : SingleArg.str()) {
-      if (!std::isdigit(Char) && Char != '.') {
-        CheckShortVersion = false;
-        break;
-      }
-    }
-    // Check for device, version or hex (literal values)
-    for (unsigned int I = 0; I < std::size(PVCDevices); I++) {
-      if (SingleArg.equals_insensitive(PVCDevices[I].DeviceName) ||
-          SingleArg.equals_insensitive(PVCDevices[I].Version)) {
-        DevArg = SingleArg.str();
-        return true;
-      }
-      for (int HexVal : PVCDevices[I].HexValues) {
-        int Value = 0;
-        if (!SingleArg.getAsInteger(0, Value) && Value == HexVal) {
-          // TODO: Pass back the hex string to use for -device_options when
-          // IGC is updated to allow.  Currently -device_options only accepts
-          // the device ID (i.e. pvc) or the version (12.60.7).
-          return true;
-        }
-      }
-      if (CheckShortVersion &&
-          StringRef(PVCDevices[I].Version).starts_with(SingleArg)) {
-        DevArg = SingleArg.str();
-        return true;
-      }
-    }
+    bool IsPVC = checkPVCDevice(SingleArg.str(), DevArg);
+    if (IsPVC)
+      return true;
   }
   return false;
 }
@@ -1806,8 +1889,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
-        PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString(BackendOptName)});
+        PerDeviceArgs.push_back({Args.MakeArgString(DeviceName),
+                                 Args.MakeArgString(BackendOptName)});
       else if (IsJIT)
         BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                             ":" + BackendOptName));

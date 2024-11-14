@@ -1,7 +1,7 @@
-# commit f01741af022cfe82afcb026b9aa0be251eb6a497
-# Merge: 004d2474 85bb5f62
+# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
+# Merge: 9a209aa5 b1222f08
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 5 13:39:53 2024 +0000
-#     Merge pull request #2260 from nrspruit/refactor_l0_default_init
-#     [L0] Refactor to remove default constructor inits
-set(UNIFIED_RUNTIME_TAG f01741af022cfe82afcb026b9aa0be251eb6a497)
+# Date:   Wed Nov 13 09:57:16 2024 +0000
+#     Merge pull request #2254 from PietroGhg/pietro/events_rr
+#     [NATIVECPU] Implement events on Native CPU
+set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)

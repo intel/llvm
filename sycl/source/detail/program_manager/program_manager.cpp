@@ -911,7 +911,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   uint32_t ImgId = Img.getImageID();
   const ur_device_handle_t UrDevice = Dev->getHandleRef();
   auto CacheKey = std::make_pair(std::make_pair(std::move(SpecConsts), ImgId),
-                                 std::set{UrDevice});
+                                 std::set<ur_device_handle_t>{UrDevice});
 
   auto GetCachedBuildF = [&Cache, &CacheKey]() {
     return Cache.getOrInsertProgram(CacheKey);
