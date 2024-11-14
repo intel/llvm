@@ -23,50 +23,40 @@ std::array<ur_device_handle_t, NumberOfDevices> GlobalDevicesHandle{
 
 ur_result_t setup_urDeviceGet(void *pParams) {
   auto params = *static_cast<ur_device_get_params_t *>(pParams);
-  if (*params.ppNumDevices)
-    **params.ppNumDevices = 3;
+  if (*params.ppNumDevices){
+    **params.ppNumDevices = NumberOfDevices;
+  }
   if (*params.pphDevices) {
-    if (*params.pNumEntries > 0)
-      (*params.pphDevices)[0] = GlobalDevicesHandle[0];
-    if (*params.pNumEntries > 1)
-      (*params.pphDevices)[1] = GlobalDevicesHandle[1];
-    if (*params.pNumEntries > 2)
-      (*params.pphDevices)[2] = GlobalDevicesHandle[2];
+    for(size_t i=0; i<NumberOfDevices; ++i )
+      (*params.pphDevices)[i] = GlobalDevicesHandle[i];
   }
   return UR_RESULT_SUCCESS;
 }
 
+
 template <bool VirtualMemSupported>
 ur_result_t after_urDeviceGetInfo_AllDevices(void *pParams) {
   auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
-  switch (*params->ppropName) {
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
+  if(*params->ppropName == UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT){
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = VirtualMemSupported;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(ur_bool_t);
     return UR_RESULT_SUCCESS;
   }
-  default:;
-  }
   return UR_RESULT_SUCCESS;
 }
+
 
 template <bool VirtualMemSupported>
 ur_result_t after_urDeviceGetInfo_SingleDevice(void *pParams) {
   auto params = reinterpret_cast<ur_device_get_info_params_t *>(pParams);
-  switch (*params->ppropName) {
-  case UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT: {
-    if (*params->ppPropValue) {
-      if (*params->phDevice == GlobalDevicesHandle[0]) {
-        *static_cast<ur_bool_t *>(*params->ppPropValue) = VirtualMemSupported;
-      }
-    }
+  if(*params->ppropName == UR_DEVICE_INFO_VIRTUAL_MEMORY_SUPPORT){
+    if (*params->ppPropValue && *params->phDevice == GlobalDevicesHandle[0])
+      *static_cast<ur_bool_t *>(*params->ppPropValue) = VirtualMemSupported;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(ur_bool_t);
     return UR_RESULT_SUCCESS;
-  }
-  default:;
   }
   return UR_RESULT_SUCCESS;
 }
