@@ -763,9 +763,8 @@ for sycl_device in config.sycl_devices:
 
     if be == "hip" and config.hip_platform == "AMD":
         if not config.amd_arch:
-            arch = ""
-            for a in architecture_feature:
-                arch = a
+            # Guaranteed to be a single element in the set
+            arch = [x for x in architecture_feature][0]
             amd_arch_prefix = "arch-amd_gpu_"
             if amd_arch_prefix not in arch or len(architecture_feature) != 1:
                 lit_config.error(
