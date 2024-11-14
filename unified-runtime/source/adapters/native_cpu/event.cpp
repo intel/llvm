@@ -13,6 +13,7 @@
 #include "common.hpp"
 #include "event.hpp"
 #include "queue.hpp"
+#include "device.hpp"
 #include <cstdint>
 #include <mutex>
 
@@ -124,7 +125,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueTimestampRecordingExp(
 ur_event_handle_t_::ur_event_handle_t_(ur_queue_handle_t queue,
                                        ur_command_t command_type)
     : queue(queue), context(queue->getContext()), command_type(command_type),
-      done(false) {
+      done(false), futures(queue->getDevice()->tp) {
   this->queue->addEvent(this);
 }
 

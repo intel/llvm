@@ -207,6 +207,7 @@ public:
     return ret;
   }
 };
+using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
 
 class TasksInfo_TP {
   using FType = std::future<void>;
@@ -217,12 +218,13 @@ public:
     for (auto &f : futures)
       f.wait();
   }
+  TasksInfo_TP(simple_threadpool_t &) {}
 };
 
 template <class TP, class TaskInfo> struct Scheduler_base {
   TP &ref;
   TaskInfo ti;
-  Scheduler_base(TP &ref_) : ref(ref_) {}
+  Scheduler_base(TP &ref_) : ref(ref_), ti(ref_) {}
   TaskInfo getTaskInfo() { return std::move(ti); }
 };
 
@@ -234,7 +236,6 @@ template <class TP> struct Scheduler : Scheduler_base<TP, TasksInfo_TP> {
   }
 };
 
-using simple_threadpool_t = threadpool_interface<detail::simple_thread_pool>;
 template <class TPType> inline Scheduler<TPType> getScheduler(TPType &tp) {
   return Scheduler<TPType>(tp);
 }
@@ -253,9 +254,11 @@ struct TBB_threadpool {
   }
 };
 
-struct TBB_TasksInfo {
+class TBB_TasksInfo {
   TBB_threadpool *tp;
+public:
   inline void wait() { tp->tasks.wait(); }
+  TBB_TasksInfo(TBB_threadpool &t) : tp(&t) {}
 };
 
 template <> struct Scheduler<TBB_threadpool> :  Scheduler_base<TBB_threadpool, TBB_TasksInfo> {
@@ -270,14 +273,14 @@ template <> struct Scheduler<TBB_threadpool> :  Scheduler_base<TBB_threadpool, T
   }
 };
 
-using TasksInfoType = TBB_TasksInfo;
-using ThreadPoolType = TBB_threadpool;
+using tasksinfo_t = TBB_TasksInfo;
+using threadpool_t = TBB_threadpool;
 } // namespace native_cpu
 
 #else
 // The default backend
 namespace native_cpu {
-using TasksInfoType = TasksInfo_TP;
-using ThreadPoolType = simple_threadpool_t;
+using tasksinfo_t = TasksInfo_TP;
+using threadpool_t = simple_threadpool_t;
 }
 #endif
