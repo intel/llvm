@@ -154,9 +154,9 @@ static sycl::unittest::MockDeviceImage Imgs[] = {
     generateImage({"KernelH"}, "set-h", /* uses vf set */ true, PROGRAM_H,
                   false, {}),
     generateImage({"DummyKernel7"}, "set-h", /* provides vf set */ false,
-                  PROGRAM_H0, false, {sycl::aspect::fp64}),
+                  PROGRAM_H0, /* isDummy */ false, {sycl::aspect::fp64}),
     generateImage({"DummyKernel7d"}, "set-h", /* provides vf set */ false,
-                  PROGRAM_H0d, true, {sycl::aspect::fp64})};
+                  PROGRAM_H0d, /* isDummy */ true, {sycl::aspect::fp64})};
 
 // Registers mock devices images in the SYCL RT
 static sycl::unittest::MockDeviceImageArray<std::size(Imgs)> ImgArray{Imgs};
