@@ -105,8 +105,8 @@ cl::opt<std::string> OutputDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 cl::opt<std::string> DeviceLibDir{
-    "device-lib-dir",
-    cl::desc("Directory where sycl fallback device libraries reside"),
+    "device-lib-spv-dir",
+    cl::desc("Directory where sycl fallback spirv device libraries  reside"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {

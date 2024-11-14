@@ -10956,7 +10956,7 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
     SmallString<128> FullLibName(SpvLoc);
     llvm::sys::path::append(FullLibName, FallbackAssertName);
     if (llvm::sys::fs::exists(FullLibName)) {
-      SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+      SmallString<128> SYCLDeviceLibDir("--device-lib-spv-dir=");
       SYCLDeviceLibDir += SpvLoc.str();
       addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
       break;
