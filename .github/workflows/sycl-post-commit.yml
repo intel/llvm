@@ -3,13 +3,13 @@ name: SYCL Post Commit
 on:
   push:
     branches:
-    - sycl
-    - sycl-devops-pr/**
-    - sycl-rel-**
+    - 'sycl'
+    - 'sycl-devops-pr/**'
+    - 'sycl-rel-**'
 
   pull_request:
     branches:
-    - sycl    
+    - 'sycl'
     - '!sycl-devops-pr/**'
     paths:
     - .github/workflows/sycl-post-commit.yml
