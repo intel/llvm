@@ -56,8 +56,7 @@
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been properly XFAIL-ed.
 //
-// CHECK: Basic/accessor/accessor.cpp
-// CHECK-NEXT: Basic/aspects.cpp
+// CHECK: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
