@@ -460,7 +460,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferFill(
         // TODO: error checking
         // TODO: handle async
         void *startingPtr = hBuffer->_mem + offset;
-        unsigned steps = size / patternSize;
+        size_t steps = size / patternSize;
         for (unsigned i = 0; i < steps; i++) {
           memcpy(static_cast<int8_t *>(startingPtr) + i * patternSize, pPattern,
                  patternSize);
@@ -601,7 +601,7 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueUSMFill(
           break;
         }
         default: {
-          for (unsigned int step{0}; step < size; step += patternSize) {
+          for (size_t step{0}; step < size; step += patternSize) {
             auto *dest = reinterpret_cast<void *>(
                 reinterpret_cast<uint8_t *>(ptr) + step);
             memcpy(dest, pPattern, patternSize);
