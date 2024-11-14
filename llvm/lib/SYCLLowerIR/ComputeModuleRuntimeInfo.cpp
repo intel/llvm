@@ -17,8 +17,8 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
-#include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
+#include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include <queue>
@@ -466,7 +466,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                   "uses-virtual-functions-set", AllSets);
+                  "uses-virtual-functions-set", AllSets);
     }
   }
 
