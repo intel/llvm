@@ -10,7 +10,6 @@ on:
   pull_request:
     branches:
     - sycl
-    - sycl-devops-pr/**
     paths:
     - .github/workflows/sycl-post-commit.yml
     - .github/workflows/sycl-linux-build.yml
