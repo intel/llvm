@@ -1,9 +1,8 @@
-# Note: This file is only for use with cts_exe.py
-{{OPT}}urEventGetInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_EVENT_INFO_COMMAND_TYPE
-{{OPT}}urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_QUEUED
-{{OPT}}urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_SUBMIT
-{{OPT}}urEventGetProfilingInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
-{{OPT}}urEventGetProfilingInfoWithTimingComparisonTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+{{OPT}}urEventGetInfoTest.Success/*__UR_EVENT_INFO_COMMAND_TYPE
+{{OPT}}urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_QUEUED
+{{OPT}}urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_SUBMIT
+{{OPT}}urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_COMPLETE
+{{OPT}}urEventGetProfilingInfoWithTimingComparisonTest.Success/*
 urEventCreateWithNativeHandleTest.Success/*
 urEventSetCallbackTest.AllStates/*
 urEventSetCallbackTest.EventAlreadyCompleted/*

@@ -146,11 +146,8 @@ if __name__ == "__main__":
         for l in f:
             optional = "{{OPT}}" in l
             l = l.replace("{{OPT}}", "")
-            l = l.replace("{{.*}}", "*")
 
             if l.startswith("#"):
-                continue
-            if l.startswith("{{NONDETERMINISTIC}}"):
                 continue
             if l.strip() == "":
                 continue
