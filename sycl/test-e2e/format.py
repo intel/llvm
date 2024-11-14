@@ -158,7 +158,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         triples = set()
         if test.config.test_mode == "build-only":
             if (
-                "run-and-build-mode" in test.requires
+                "build-and-run-mode" in test.requires
                 or "true" in test.unsupported
             ):
                 return lit.Test.Result(

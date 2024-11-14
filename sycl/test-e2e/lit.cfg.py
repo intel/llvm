@@ -48,7 +48,7 @@ match lit_config.params.get("test-mode", "full"):
     case _:
         config.test_mode = "full"
         config.available_features.add("run-mode")
-        config.available_features.add("run-and-build-mode")
+        config.available_features.add("build-and-run-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [

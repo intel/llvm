@@ -1,5 +1,5 @@
 // REQUIRES: cuda
-// REQUIRES: run-and-build-mode
+// REQUIRES: build-and-run-mode
 // RUN:  %{build} -Xsycl-target-backend --cuda-gpu-arch=sm_75 -o %t.out
 // RUN:  %{run} %t.out
 #include <sycl/detail/core.hpp>

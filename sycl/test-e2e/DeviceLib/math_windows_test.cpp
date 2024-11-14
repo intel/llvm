@@ -1,5 +1,5 @@
 // REQUIRES: windows
-// REQUIRES: run-and-build-mode
+// REQUIRES: build-and-run-mode
 
 // TODO: Add hypotf case back when the missing symbol is fixed.
 

@@ -1,6 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
-// REQUIRES: run-and-build-mode
+// REQUIRES: build-and-run-mode
 
 // RUN: %{build} -l d3d12 -l dxgi -l dxguid -o %t.out
 // RUN: %{run-unfiltered-devices} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out

@@ -1,5 +1,5 @@
 // REQUIRES: cuda, cuda_dev_kit
-// REQUIRES: run-and-build-mode
+// REQUIRES: build-and-run-mode
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
 
