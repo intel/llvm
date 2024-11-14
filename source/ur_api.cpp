@@ -6410,6 +6410,7 @@ ur_result_t UR_APICALL urCommandBufferReleaseExp(
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hCommandBuffer`
 ///     - ::UR_RESULT_ERROR_INVALID_COMMAND_BUFFER_EXP
+///     - ::UR_RESULT_ERROR_INVALID_OPERATION - "If `hCommandBuffer` has already been finalized"
 ///     - ::UR_RESULT_ERROR_OUT_OF_HOST_MEMORY
 ///     - ::UR_RESULT_ERROR_OUT_OF_RESOURCES
 ur_result_t UR_APICALL urCommandBufferFinalizeExp(
