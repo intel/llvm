@@ -3158,7 +3158,7 @@ void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
     if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset))
       Builder.addDereferenceableAttr(MaxOffset);
     SPIRVWord AlignmentBytes = 0;
-    if (BA->hasDecorate(DecorationAlignment, 0, &AlignmentBytes))
+    if (BA->hasAlignment(&AlignmentBytes))
       Builder.addAlignmentAttr(AlignmentBytes);
     I->addAttrs(Builder);
   }
