@@ -37,7 +37,7 @@ config.recursiveExpansionLimit = 10
 config.required_features = []
 config.unsupported_features = []
 
-# split-mode: Set if tests should run normally or with split build/run
+# test-mode: Set if tests should run normally or only build/run
 match lit_config.params.get("test-mode", "full"):
     case "run-only":
         config.test_mode = "run-only"
@@ -46,10 +46,12 @@ match lit_config.params.get("test-mode", "full"):
         config.test_mode = "build-only"
         config.sycl_devices = []
         arch_flag = ""
-    case _:
+    case "full":
         config.test_mode = "full"
         config.available_features.add("run-mode")
         config.available_features.add("build-and-run-mode")
+    case _:
+        lit_config.error("Invalid argument for test-mode")
 
 # Cleanup environment variables which may affect tests
 possibly_dangerous_env_vars = [
