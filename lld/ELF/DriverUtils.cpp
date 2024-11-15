@@ -52,7 +52,7 @@ ELFOptTable::ELFOptTable() : GenericOptTable(optInfo) {}
 
 // Set color diagnostics according to --color-diagnostics={auto,always,never}
 // or --no-color-diagnostics flags.
-static void handleColorDiagnostics(opt::InputArgList &args) {
+static void handleColorDiagnostics(Ctx &ctx, opt::InputArgList &args) {
   auto *arg = args.getLastArg(OPT_color_diagnostics);
   if (!arg)
     return;
@@ -120,7 +120,7 @@ opt::InputArgList ELFOptTable::parse(ArrayRef<const char *> argv) {
   concatLTOPluginOptions(vec);
   args = this->ParseArgs(vec, missingIndex, missingCount);
 
-  handleColorDiagnostics(args);
+  handleColorDiagnostics(ctx, args);
   if (missingCount)
     ErrAlways(ctx) << Twine(args.getArgString(missingIndex))
                    << ": missing argument";
