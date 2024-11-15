@@ -1,12 +1,13 @@
 #pragma once
 
+#include "common.hpp"
+#include "common_lambda.hpp"
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/group_barrier.hpp>
 #include <sycl/usm.hpp>
-#include "common.hpp"
 
 using namespace sycl;
 

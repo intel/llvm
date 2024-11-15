@@ -12,19 +12,6 @@
 
 using namespace sycl;
 
-template <typename T> struct S {
-  T val;
-};
- 
-template <typename T> struct M {
-  T val;
-};
-
-union U {
-  S<int> s;
-  M<int> m;
-};
-
 template <typename T>
 void sum_helper(sycl::ext::oneapi::experimental::work_group_memory<T[]> mem,
                 sycl::ext::oneapi::experimental::work_group_memory<T> ret,
