@@ -157,10 +157,7 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         devices_for_test = []
         triples = set()
         if test.config.test_mode == "build-only":
-            if (
-                "build-and-run-mode" in test.requires
-                or "true" in test.unsupported
-            ):
+            if "build-and-run-mode" in test.requires or "true" in test.unsupported:
                 return lit.Test.Result(
                     lit.Test.UNSUPPORTED, "Test unsupported for this environment"
                 )
