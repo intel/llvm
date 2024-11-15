@@ -6,7 +6,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/specialization_id.hpp>
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 #include <algorithm>
 

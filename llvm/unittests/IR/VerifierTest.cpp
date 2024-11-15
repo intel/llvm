@@ -146,7 +146,6 @@ TEST(VerifierTest, InvalidNoFPClassAttribute) {
 
 TEST(VerifierTest, CrossModuleRef) {
   LLVMContext C;
-  C.setOpaquePointers(true);
   Module M1("M1", C);
   Module M2("M2", C);
   Module M3("M3", C);
@@ -272,7 +271,7 @@ TEST(VerifierTest, DetectInvalidDebugInfo) {
 
 TEST(VerifierTest, MDNodeWrongContext) {
   LLVMContext C1, C2;
-  auto *Node = MDNode::get(C1, std::nullopt);
+  auto *Node = MDNode::get(C1, {});
 
   Module M("M", C2);
   auto *NamedNode = M.getOrInsertNamedMetadata("test");
