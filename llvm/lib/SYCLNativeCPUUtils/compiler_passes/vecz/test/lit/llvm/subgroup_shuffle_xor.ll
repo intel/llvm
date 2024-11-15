@@ -24,9 +24,9 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; The XOR'd sub-group local IDs
 ; CHECK: [[XORIDS:%.*]] = xor <4 x i32>
 ; Which mux sub-group each of the XOR'd sub-group local IDs correspond to
-; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; Which vector group element each of the XOR'd sub-group local IDs correspond to
-; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 
 ; Extract the first XOR'd vector-local sub-group local ID from the vector of vector indices
 ; CHECK: [[IDXELT0:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 0
@@ -72,8 +72,8 @@ define spir_kernel void @kernel_varying_data_const_value(ptr %in, ptr %out) {
 ; This should just be the same as the previous kernel. The uniform value doesn't change anything.
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_varying_data_uniform_value(ptr %in, i32 %val, ptr %out)
 ; CHECK: [[XORIDS:%.*]] = xor <4 x i32>
-; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[IDXELT0:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 0
 ; CHECK: [[ELT0:%.*]] = extractelement <4 x half> [[DATA:%.*]], i32 [[IDXELT0]]
 ; CHECK: [[ID0:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 0
@@ -120,8 +120,8 @@ define spir_kernel void @kernel_uniform_data_uniform_value(half %data, i32 %val,
 ; This should just be the same as the previous kernel. The varying value doesn't change anything.
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_varying_data_varying_value(ptr %in, ptr %vals, ptr %out)
 ; CHECK: [[XORIDS:%.*]] = xor <4 x i32>
-; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[IDXELT0:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 0
 ; CHECK: [[ELT0:%.*]] = extractelement <4 x half> [[DATA:%.*]], i32 [[IDXELT0]]
 ; CHECK: [[ID0:%.*]] = extractelement <4 x i32> [[MUXXORIDS]], i32 0
@@ -157,8 +157,8 @@ define spir_kernel void @kernel_varying_data_varying_value(ptr %in, ptr %vals, p
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_varying_vec_data_varying_value(ptr %in, ptr %vals, ptr %out)
 ; CHECK: [[XORIDS:%.*]] = xor <4 x i32>
-; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK-DAG: [[MUXXORIDS:%.*]] = udiv <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK-DAG: [[VECXORIDS:%.*]] = urem <4 x i32> [[XORIDS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 
 ; CHECK: [[IDXELT0:%.*]] = extractelement <4 x i32> [[VECXORIDS]], i32 0
 ; CHECK: [[MULIDXELT0:%.*]] = mul i32 [[IDXELT0]], 2

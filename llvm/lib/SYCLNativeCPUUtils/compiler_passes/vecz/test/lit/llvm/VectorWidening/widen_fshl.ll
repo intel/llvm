@@ -42,7 +42,7 @@ declare i8 @llvm.fshl.i8(i8, i8, i8)
 ; It checks that the fshl intrinsic of i8 gets widened by a factor of 16
 ; CHECK: %[[LDA:.+]] = load <16 x i8>, ptr %{{.+}}
 ; CHECK: %[[LDB:.+]] = load <16 x i8>, ptr %{{.+}}
-; CHECK: %[[RES:.+]] = call <16 x i8> @llvm.fshl.v16i8(<16 x i8> %[[LDA]], <16 x i8> %[[LDB]], <16 x i8> <{{(i8 4, )+i8 4}}>)
+; CHECK: %[[RES:.+]] = call <16 x i8> @llvm.fshl.v16i8(<16 x i8> %[[LDA]], <16 x i8> %[[LDB]], <16 x i8> {{<(i8 4(, )?)+>|splat \(i8 4\)}})
 ; CHECK: store <16 x i8> %[[RES]], ptr %{{.+}}
 
 ; CHECK: ret void

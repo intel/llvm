@@ -92,12 +92,12 @@ declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: if.then:
 ; CHECK: %[[GEP1:.+]] = getelementptr i32, ptr %b, <4 x i64>
-; CHECK: store <4 x i32> <i32 11, i32 11, i32 11, i32 11>, ptr %{{.+}}, align 4
+; CHECK: store <4 x i32> {{<(i32 11(, )?)+>|splat \(i32 11\)}}, ptr %{{.+}}, align 4
 ; CHECK: br label %if.end
 
 ; CHECK: if.else:
 ; CHECK: %[[GEP2:.+]] = getelementptr i32, ptr %b, <4 x i64>
-; CHECK: store <4 x i32> <i32 13, i32 13, i32 13, i32 13>, ptr %{{.+}}, align 4
+; CHECK: store <4 x i32> {{<(i32 13(, )?)+>|splat \(i32 13\)}}, ptr %{{.+}}, align 4
 ; CHECK: br label %if.end
 
 ; CHECK: if.end:

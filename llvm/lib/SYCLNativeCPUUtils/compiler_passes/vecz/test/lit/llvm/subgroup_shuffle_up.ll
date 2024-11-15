@@ -24,17 +24,17 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; CHECK: [[LHS:%.*]] = load <4 x float>, ptr %arrayidx.lhs, align 4
 ; CHECK: [[RHS:%.*]] = load <4 x float>, ptr %arrayidx.rhs, align 4
 
-; CHECK: [[DELTAS:%.*]] = sub <4 x i32> {{%.*}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[DELTAS:%.*]] = sub <4 x i32> {{%.*}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 
-; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[SIGNDIFF:%.*]] = icmp slt <4 x i32> [[ARGXOR]], zeroinitializer
 ; CHECK: [[REMNONZERO:%.*]] = icmp ne <4 x i32> [[REMAINDER]], zeroinitializer
 ; CHECK: [[CONDITION:%.*]] = and <4 x i1> [[REMNONZERO]], [[SIGNDIFF]]
 
-; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], <i32 1, i32 1, i32 1, i32 1>
-; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], <i32 4, i32 4, i32 4, i32 4> 
+; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], {{<(i32 4(, )?)+>|splat \(i32 4\)}} 
 
 ; CHECK: [[MUXIDS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[MIN1]], <4 x i32> [[QUOTIENT]]
 ; CHECK: [[VECELTS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[PLUSR]], <4 x i32> [[REMAINDER]]
@@ -77,17 +77,17 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 }
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_vec_data(ptr %lhsptr, ptr %rhsptr, ptr %out)
-; CHECK: [[DELTAS:%.*]] = sub <4 x i32> {{%.*}}, <i32 2, i32 2, i32 2, i32 2>
-; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[DELTAS:%.*]] = sub <4 x i32> {{%.*}}, {{<(i32 2(, )?)+>|splat \(i32 2\)}}
+; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 
-; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[SIGNDIFF:%.*]] = icmp slt <4 x i32> [[ARGXOR]], zeroinitializer
 ; CHECK: [[REMNONZERO:%.*]] = icmp ne <4 x i32> [[REMAINDER]], zeroinitializer
 ; CHECK: [[CONDITION:%.*]] = and <4 x i1> [[REMNONZERO]], [[SIGNDIFF]]
 
-; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], <i32 1, i32 1, i32 1, i32 1>
-; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], <i32 4, i32 4, i32 4, i32 4> 
+; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], {{<(i32 4(, )?)+>|splat \(i32 4\)}} 
 
 ; CHECK: [[MUXIDS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[MIN1]], <4 x i32> [[QUOTIENT]]
 ; CHECK: [[VECELTS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[PLUSR]], <4 x i32> [[REMAINDER]]
@@ -183,16 +183,16 @@ define spir_kernel void @kernel_vec_data(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[DELTALD:%.*]] = load <4 x i32>, ptr %arrayidx.deltas, align 4
 
 ; CHECK: [[DELTAS:%.*]] = sub <4 x i32> {{%.*}}, [[DELTALD]]
-; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[QUOTIENT:%.*]] = sdiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[REMAINDER:%.*]] = srem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 
-; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[ARGXOR:%.*]] = xor <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[SIGNDIFF:%.*]] = icmp slt <4 x i32> [[ARGXOR]], zeroinitializer
 ; CHECK: [[REMNONZERO:%.*]] = icmp ne <4 x i32> [[REMAINDER]], zeroinitializer
 ; CHECK: [[CONDITION:%.*]] = and <4 x i1> [[REMNONZERO]], [[SIGNDIFF]]
 
-; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], <i32 1, i32 1, i32 1, i32 1>
-; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], <i32 4, i32 4, i32 4, i32 4> 
+; CHECK: [[MIN1:%.*]] = sub <4 x i32> [[QUOTIENT]], {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: [[PLUSR:%.*]] = add <4 x i32> [[REMAINDER]], {{<(i32 4(, )?)+>|splat \(i32 4\)}} 
 
 ; CHECK: [[MUXIDS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[MIN1]], <4 x i32> [[QUOTIENT]]
 ; CHECK: [[VECELTS:%.*]] = select <4 x i1> [[CONDITION]], <4 x i32> [[PLUSR]], <4 x i32> [[REMAINDER]]

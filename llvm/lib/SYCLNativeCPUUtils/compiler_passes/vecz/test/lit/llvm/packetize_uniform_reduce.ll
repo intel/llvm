@@ -67,7 +67,7 @@ for.end:                                          ; preds = %for.cond
 ; CHECK: insertelement <4 x i64> {{poison|undef}}, i64 %{{.+}}, {{(i32|i64)}} 0
 ; CHECK: shufflevector <4 x i64> %{{.+}}, <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: phi <4 x i32>
-; CHECK: mul <4 x i32> %{{.+}}, <i32 3, i32 3, i32 3, i32 3>
+; CHECK: mul <4 x i32> %{{.+}}, {{<(i32 3(, )?)+>|splat \(i32 3\)}}
 ; CHECK: urem <4 x i64>
 ; CHECK: icmp eq <4 x i64> %{{.+}}, zeroinitializer
 

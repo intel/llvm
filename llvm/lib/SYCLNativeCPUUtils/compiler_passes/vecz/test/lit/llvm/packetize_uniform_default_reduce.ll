@@ -160,6 +160,6 @@ if.end:                                           ; preds = %entry, %if.then
 ; CHECK: phi i32
 ; CHECK: mul i32 %{{.+}}, 3
 ; CHECK: icmp eq <4 x i64> %{{.+}}, zeroinitializer
-; CHECK: call void @__vecz_b_masked_store4_Dv4_ju3ptrU3AS3Dv4_b(<4 x i32> <i32 5, i32 5, i32 5, i32 5>
+; CHECK: call void @__vecz_b_masked_store4_Dv4_ju3ptrU3AS3Dv4_b(<4 x i32> {{<(i32 5(, )?)+>|splat \(i32 5\)}}
 ; CHECK: shl i32 %{{.+}}, 1
 ; CHECK: ret void
