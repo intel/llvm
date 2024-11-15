@@ -45,6 +45,7 @@ match lit_config.params.get("test-mode", "full"):
     case "build-only":
         config.test_mode = "build-only"
         config.sycl_devices = []
+        arch_flag = ""
     case _:
         config.test_mode = "full"
         config.available_features.add("run-mode")
