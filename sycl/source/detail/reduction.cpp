@@ -83,8 +83,6 @@ __SYCL_EXPORT uint32_t reduGetMaxNumConcurrentWorkGroups(
   return NumThreads;
 }
 
-// TODO: Remove this!!! - it was only a temporary fix.
-#define USE_CONSERVATIVE_CUDA_MAX_WG_SIZE_WORKAROUND 0
 /// Check if the (unsigned) value of N is a power-of-two.
 [[maybe_unused]] static inline bool IsPowerOfTwo(size_t N) noexcept {
   return (N & (N - 1)) == 0;
@@ -128,7 +126,6 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
     WGSize /= 2;
   }
 
-#if USE_CONSERVATIVE_CUDA_MAX_WG_SIZE_WORKAROUND
   // Terrible consrevative workaround without access to kernel properties.
   if (Dev.get_backend() == backend::ext_oneapi_cuda) {
     namespace codeplay = sycl::ext::codeplay;
@@ -140,7 +137,6 @@ reduGetMaxWGSize(std::shared_ptr<sycl::detail::queue_impl> Queue,
     while (WGSize * MaxRegsPerWI > MaxRegsPerWG || !IsPowerOfTwo(WGSize))
       WGSize--;
   }
-#endif
   return WGSize;
 }
 
