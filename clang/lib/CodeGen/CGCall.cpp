@@ -2995,7 +2995,7 @@ namespace {
   };
 }
 
-static bool HasSYCLRestrictPropertyIRAttr(const VarDecl *Arg,
+static bool hasSYCLRestrictPropertyIRAttr(const VarDecl *Arg,
                                           const ASTContext &Context) {
   auto *IRAttr = Arg->getAttr<SYCLAddIRAttributesKernelParameterAttr>();
   if (!IRAttr)
@@ -3237,7 +3237,7 @@ void CodeGenFunction::EmitFunctionProlog(const CGFunctionInfo &FI,
             (Arg->getType()->isPointerType() &&
              ((CurCodeDecl &&
                CurCodeDecl->hasAttr<SYCLIntelKernelArgsRestrictAttr>()) ||
-              HasSYCLRestrictPropertyIRAttr(Arg, getContext()))) ||
+              hasSYCLRestrictPropertyIRAttr(Arg, getContext()))) ||
             (Arg->hasAttr<RestrictAttr>() && Arg->getType()->isPointerType()))
           AI->addAttr(llvm::Attribute::NoAlias);
       }
