@@ -7,6 +7,14 @@
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_INTEL_task_sequence,+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: llvm-spirv %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
 ; Source SYCL code example
 ; int mult(int a, int b) {
 ;   return a * b;
