@@ -168,7 +168,7 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
-  // accommodate two program.
+  // accommodate two programs.
   setCacheEvictionEnv("20005");
 
   constexpr size_t ThreadCount = 200;

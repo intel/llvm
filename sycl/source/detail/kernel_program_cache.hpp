@@ -129,11 +129,44 @@ public:
   using CommonProgramKeyT =
       std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
+  // A custom hashing and equality function for ProgramCacheKeyT.
+  // These are used to compare and hash the keys in the cache.
+  struct ProgramCacheKeyHash {
+    std::size_t operator()(const ProgramCacheKeyT &Key) const {
+      std::size_t Hash = 0;
+      // Hash the serialized object, representing spec consts.
+      for (const auto &Elem : Key.first.first)
+        Hash ^= std::hash<unsigned char>{}(Elem);
+
+      // Hash the imageId.
+      Hash ^= std::hash<std::uintptr_t>{}(Key.first.second);
+
+      // Hash the devices.
+      for (const auto &Elem : Key.second)
+        Hash ^= std::hash<void *>{}(static_cast<void *>(Elem));
+      return Hash;
+    }
+  };
+
+  struct ProgramCacheKeyEqual {
+    bool operator()(const ProgramCacheKeyT &LHS,
+                    const ProgramCacheKeyT &RHS) const {
+      // Check equality of SerializedObj (Spec const)
+      return std::equal(LHS.first.first.begin(), LHS.first.first.end(),
+                        RHS.first.first.begin()) &&
+             // Check equality of imageId
+             LHS.first.second == RHS.first.second &&
+             // Check equality of devices
+             std::equal(LHS.second.begin(), LHS.second.end(),
+                        RHS.second.begin(), RHS.second.end());
+    }
+  };
+
   struct ProgramCache {
     ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
     ::boost::unordered_multimap<CommonProgramKeyT, ProgramCacheKeyT> KeyMap;
     // Mapping between a UR program and its size.
-    ::boost::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
+    std::unordered_map<ur_program_handle_t, size_t> ProgramSizeMap;
 
     size_t ProgramCacheSizeInBytes = 0;
     inline size_t GetProgramCacheSizeInBytes() const noexcept {
@@ -191,8 +224,8 @@ public:
     std::list<ProgramCacheKeyT> MProgramEvictionList;
 
     // Mapping between program handle and the iterator to the eviction list.
-    ::boost::unordered_map<ProgramCacheKeyT,
-                           std::list<ProgramCacheKeyT>::iterator>
+    std::unordered_map<ProgramCacheKeyT, std::list<ProgramCacheKeyT>::iterator,
+                       ProgramCacheKeyHash, ProgramCacheKeyEqual>
         MProgramToEvictionListMap;
 
     void clear() {
