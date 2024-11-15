@@ -19,10 +19,12 @@ add_llvm_library(sycl-jit
    BitReader
    Core
    Support
+   Option
    Analysis
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
