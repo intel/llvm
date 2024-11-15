@@ -163,10 +163,19 @@ public:
       ::boost::unordered_map<ur_program_handle_t, KernelByNameT>;
 
   using KernelFastCacheKeyT =
-      std::tuple<SerializedObj, ur_device_handle_t, std::string, std::string>;
+      std::tuple<SerializedObj,      /* Serialized spec constants. */
+                 ur_device_handle_t, /* UR device handle pointer */
+                 std::string         /* Kernel Name */
+                 >;
+
   using KernelFastCacheValT =
-      std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
-                 ur_program_handle_t>;
+      std::tuple<ur_kernel_handle_t,    /* UR kernel handle pointer. */
+                 std::mutex *,          /* Mutex guarding this kernel. */
+                 const KernelArgMask *, /* Eliminated kernel argument mask. */
+                 ur_program_handle_t /* UR program handle corresponding to this
+                                     kernel. */
+                 >;
+
   // This container is used as a fast path for retrieving cached kernels.
   // unordered_flat_map is used here to reduce lookup overhead.
   // The slow path is used only once for each newly created kernel, so the
@@ -283,7 +292,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
-      traceKernel("Kernel fetched.", std::get<3>(CacheKey), true);
+      traceKernel("Kernel fetched.", std::get<2>(CacheKey), true);
       return It->second;
     }
     return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
@@ -294,7 +303,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
-    traceKernel("Kernel inserted.", std::get<3>(CacheKey), true);
+    traceKernel("Kernel inserted.", std::get<2>(CacheKey), true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 
