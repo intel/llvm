@@ -38,6 +38,20 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 class context_impl;
+
+// During SYCL program execution SYCL runtime will create internal objects
+// representing kernels and programs, it may also invoke JIT compiler to bring
+// kernels in a program to executable state. Those runtime operations are quite
+// expensive. To avoid redundant operations and to speed up the execution, SYCL
+// runtime employs in-memory cache for kernels and programs. When a kernel is
+// invoked multiple times, the runtime will fetch the kernel from the cache
+// instead of creating it from scratch.
+// By default, there  is no upper bound on the cache size.
+// When the system runs out of memory, the cache will be cleared. Alternatively,
+// the cache size can be limited by setting SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
+// to a positive value. When the cache size exceeds the threshold, the least
+// recently used programs, and associated kernels, will be evicted from the
+// cache.
 class KernelProgramCache {
 public:
   /// Denotes build error data. The data is filled in from sycl::exception

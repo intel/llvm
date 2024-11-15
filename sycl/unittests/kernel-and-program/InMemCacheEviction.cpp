@@ -116,7 +116,7 @@ TEST(InMemCacheEvictionTests, TestBasicEvictionAndLRU) {
   queue q(Ctx, default_selector_v);
 
   // One program is of 10000 bytes, so 20005 eviction threshold can
-  // accommodate two program.
+  // accommodate two programs.
   setCacheEvictionEnv("20005");
 
   // Cache is empty, so one urProgramCreateWithIL call.
@@ -175,7 +175,6 @@ TEST(InMemCacheEvictionTests, TestConcurrentEvictionSameQueue) {
   Barrier barrier(ThreadCount);
   {
     auto ConcurrentInvokeKernels = [&](std::size_t threadId) {
-
       barrier.wait();
       q.single_task<class Kernel1>([] {});
       q.single_task<class Kernel2>([] {});
