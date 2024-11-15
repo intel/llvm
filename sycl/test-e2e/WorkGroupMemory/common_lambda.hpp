@@ -12,9 +12,13 @@
 
 using namespace sycl;
 
-template <typename T> struct S { T val; };
-
-template <typename T> struct M { T val; };
+template <typename T> struct S {
+  T val;
+};
+ 
+template <typename T> struct M {
+  T val;
+};
 
 union U {
   S<int> s;

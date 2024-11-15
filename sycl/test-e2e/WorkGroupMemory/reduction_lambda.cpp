@@ -22,7 +22,7 @@ void test_struct(size_t SIZE, size_t WGSIZE) {
   }
   nd_range ndr{{SIZE}, {WGSIZE}};
   q.submit([&](sycl::handler &cgh) {
-     ext::oneapi::experimental::work_group_memory<S<T>[]> mem { WGSIZE, cgh };
+     ext::oneapi::experimental::work_group_memory<S<T>[]> mem{WGSIZE, cgh};
      ext::oneapi::experimental ::work_group_memory<T> result{cgh};
      cgh.parallel_for(ndr, [=](nd_item<> it) {
        size_t local_id = it.get_local_id();
@@ -184,8 +184,13 @@ template <typename T, typename... Ts> void test_vec() {
 }
 
 template <typename T, typename... Ts> void test_atomic_ref() {
-  assert(sizeof(T) == 4 ||
-         (sizeof(T) == 8 && q.get_device().has(aspect::atomic64)));
+  if (!(sizeof(T) == 4 ||
+        (sizeof(T) == 8 && q.get_device().has(aspect::atomic64)))) {
+    std::cout << "Invalid type used with atomic_ref!\nSkipping the test!";
+    return;
+  }
+  if (!check_half_aspect<T>(q) || !check_double_aspect<T>(q))
+    return;
   constexpr size_t WGSIZE = 8;
   T *buf = malloc_shared<T>(WGSIZE, q);
   assert(buf && "Shared USM allocation failed!");
