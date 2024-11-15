@@ -1,6 +1,7 @@
-# commit 15aaebe7cd61f3f979a1ad3e7a6de621185f2fe4
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Fri Oct 18 14:14:24 2024 +0100
+# commit 30391c65d2d2ccc7ee3688a14815804bfb7fdf05
+# Merge: 5e6d79b3 58dabfe8
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Fri Nov 15 15:13:20 2024 +0000
+#     Merge pull request #2222 from RossBrunton/ross/cfi
 #     Enable -flto and -fsanitize=cfi in clang
-set(UNIFIED_RUNTIME_REPO "https://github.com/RossBrunton/unified-runtime.git")
-set(UNIFIED_RUNTIME_TAG 15aaebe7cd61f3f979a1ad3e7a6de621185f2fe4)
+set(UNIFIED_RUNTIME_TAG 30391c65d2d2ccc7ee3688a14815804bfb7fdf05)
