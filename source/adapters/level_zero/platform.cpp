@@ -196,11 +196,8 @@ ur_result_t urPlatformGetBackendOption(
     *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
-  if (FrontendOption == "-foffload-fp32-prec-div"sv) {
-    *PlatformOption = "-ze-fp32-correctly-rounded-divide-div";
-    return UR_RESULT_SUCCESS;
-  }
-  if (FrontendOption == "-foffload-fp32-prec-sqrt"sv) {
+  if (FrontendOption == "-foffload-fp32-prec-div"sv ||
+      FrontendOption == "-foffload-fp32-prec-sqrt"sv) {
     *PlatformOption = "-ze-fp32-correctly-rounded-divide-sqrt";
     return UR_RESULT_SUCCESS;
   }
