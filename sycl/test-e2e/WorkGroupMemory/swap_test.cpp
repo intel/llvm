@@ -49,7 +49,7 @@ template <typename T> void swap_scalar(T &a, T &b) {
       syclexp::work_group_memory<T> temp{cgh};
       sycl::nd_range<1> ndr{size, wgsize};
       cgh.parallel_for(ndr, [=](sycl::nd_item<1> it) {
-        syclexp::work_group_memory<T> temp2;
+        syclexp::work_group_memory<T> temp2{syclexp::indeterminate};
         temp2 = temp; // temp and temp2 have the same underlying data
         temp = acc_a[0];
         acc_a[0] = acc_b[0];
@@ -264,7 +264,7 @@ void swap_array_2d(T (&a)[N][N], T (&b)[N][N], size_t batch_size) {
         const auto j = it.get_global_id()[1];
         temp[i][j] = acc_a[i][j];
         acc_a[i][j] = acc_b[i][j];
-        syclexp::work_group_memory<T[N][N]> temp2;
+        syclexp::work_group_memory<T[N][N]> temp2{syclexp::indeterminate};
         temp2 = temp;
         acc_b[i][j] = temp2[i][j];
       });

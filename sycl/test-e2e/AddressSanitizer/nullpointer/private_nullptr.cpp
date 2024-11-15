@@ -6,6 +6,9 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
+// FIXME: There's an issue in gfx driver, so this test pending here.
+// XFAIL: *
+
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/address_cast.hpp>
 
@@ -19,14 +22,15 @@ int main() {
         sycl::nd_range<1>(N, 1), [=](sycl::nd_item<1> item) {
           auto private_array =
               sycl::ext::oneapi::experimental::static_address_cast<
-                  sycl::access::address_space::private_space>(array);
+                  sycl::access::address_space::private_space,
+                  sycl::access::decorated::no>(array);
           private_array[0] = 0;
         });
     Q.wait();
   });
   // CHECK: ERROR: DeviceSanitizer: null-pointer-access on Unknown Memory
   // CHECK: WRITE of size 4 at kernel {{<.*MyKernel>}} LID(0, 0, 0) GID({{.*}}, 0, 0)
-  // CHECK: {{.*private_nullptr.cpp}}:[[@LINE-6]]
+  // CHECK: {{.*private_nullptr.cpp}}:[[@LINE-5]]
 
   return 0;
 }
