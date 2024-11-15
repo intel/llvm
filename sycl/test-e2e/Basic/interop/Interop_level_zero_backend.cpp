@@ -1,4 +1,4 @@
-// RUN: %if any-device-is-level_zero %{ %{build} -isystem %sycl_include -DBUILD_FOR_L0 -o %t-l0.out %}
+// RUN: %if any-device-is-level_zero %{ %{build} -isystem %sycl_include -o %t-l0.out %}
 
 #include <sycl/backend.hpp>
 #include <sycl/detail/core.hpp>
