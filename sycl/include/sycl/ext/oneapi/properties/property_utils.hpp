@@ -305,6 +305,50 @@ struct ConditionalPropertyMetaInfo
     : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
                          IgnoredPropertyMetaInfo> {};
 
+template <template <typename> typename predicate, typename... property_tys>
+struct filter_properties_impl {
+  static constexpr auto idx_info = []() constexpr {
+    constexpr int N = sizeof...(property_tys);
+    std::array<int, N> indexes{};
+    int num_matched = 0;
+    int idx = 0;
+    (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
+      ...));
+
+    return std::pair{indexes, num_matched};
+  }();
+
+  // Helper to convert constexpr indices values to an std::index_sequence type.
+  // Values -> type is the key here.
+  template <int... Idx>
+  static constexpr auto idx_seq(std::integer_sequence<int, Idx...>) {
+    return std::integer_sequence<int, idx_info.first[Idx]...>{};
+  }
+
+  using selected_idx_seq =
+      decltype(idx_seq(std::make_integer_sequence<int, idx_info.second>{}));
+
+  // Using prop_list_ty so that we don't need to explicitly spell out
+  //  `properties` template parameters' implementation-details.
+  template <typename prop_list_ty, int... Idxs>
+  static constexpr auto apply_impl(const prop_list_ty &props,
+                                   std::integer_sequence<int, Idxs...>) {
+    return properties{props.template get_property<
+        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
+  }
+
+  template <typename prop_list_ty>
+  static constexpr auto apply(const prop_list_ty &props) {
+    return apply_impl(props, selected_idx_seq{});
+  }
+};
+
+template <template <typename> typename predicate, typename... property_tys>
+constexpr auto filter_properties(
+    const properties<properties_type_list<property_tys...>> &props) {
+  return filter_properties_impl<predicate, property_tys...>::apply(props);
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
