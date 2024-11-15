@@ -99,4 +99,6 @@ template <>
 struct stype_map<ur_exp_image_copy_region_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_IMAGE_COPY_REGION> {};
 template <>
 struct stype_map<ur_exp_enqueue_native_command_properties_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES> {};
+template <>
+struct stype_map<ur_exp_enqueue_ext_properties_t> : stype_map_impl<UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES> {};
 
