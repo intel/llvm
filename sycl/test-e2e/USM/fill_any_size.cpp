@@ -50,7 +50,7 @@ int test(sycl::queue &q, uint8_t firstValue = 0) {
   sycl::free(dptr, q);
 
   if (!pass || verbose) {
-    printf("Pattern size %3lu bytes, %s values (initial %3u) %s\n", PatternSize,
+    printf("Pattern size %3zu bytes, %s values (initial %3u) %s\n", PatternSize,
            (SameValue ? " equal" : "varied"), firstValue,
            (pass ? "== PASS ==" : "== FAIL =="));
   }
@@ -71,9 +71,9 @@ int main() {
   sycl::queue q{};
   int failures = testSizes(q, std::make_index_sequence<MaxPatternSize>{});
   if (failures > 0) {
-    printf("%d / %lu tests failed\n", failures, 2 * MaxPatternSize);
+    printf("%d / %zu tests failed\n", failures, 2u * MaxPatternSize);
   } else {
-    printf("All %lu tests passed\n", 2 * MaxPatternSize);
+    printf("All %zu tests passed\n", 2u * MaxPatternSize);
   }
   return failures;
 }
