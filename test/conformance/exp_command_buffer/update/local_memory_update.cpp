@@ -16,6 +16,11 @@ struct LocalMemoryUpdateTestBase
         UUR_RETURN_ON_FATAL_FAILURE(
             urUpdatableCommandBufferExpExecutionTest::SetUp());
 
+        if (backend == UR_PLATFORM_BACKEND_LEVEL_ZERO) {
+            GTEST_SKIP()
+                << "Local memory argument update not supported on Level Zero.";
+        }
+
         // HIP has extra args for local memory so we define an offset for arg indices here for updating
         hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
         ur_device_usm_access_capability_flags_t shared_usm_flags;
@@ -239,6 +244,70 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSameLocalSize) {
     uint32_t *new_X = (uint32_t *)shared_ptrs[3];
     uint32_t *new_Y = (uint32_t *)shared_ptrs[4];
     Validate(new_output, new_X, new_Y, new_A, global_size, local_size);
+}
+
+// Test only passing local memory parameters to update with the original values.
+TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
+    // Run command-buffer prior to update an verify output
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    uint32_t *output = (uint32_t *)shared_ptrs[0];
+    uint32_t *X = (uint32_t *)shared_ptrs[1];
+    uint32_t *Y = (uint32_t *)shared_ptrs[2];
+    Validate(output, X, Y, A, global_size, local_size);
+
+    // Update inputs
+    std::array<ur_exp_command_buffer_update_value_arg_desc_t, 2>
+        new_value_descs;
+
+    // New local_mem_a at index 0
+    new_value_descs[0] = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
+        nullptr,                                                    // pNext
+        0,                                                          // argIndex
+        local_mem_a_size,                                           // argSize
+        nullptr, // pProperties
+        nullptr, // hArgValue
+    };
+
+    // New local_mem_b at index 1
+    new_value_descs[1] = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
+        nullptr,                                                    // pNext
+        1 + hip_arg_offset,                                         // argIndex
+        local_mem_b_size,                                           // argSize
+        nullptr, // pProperties
+        nullptr, // hArgValue
+    };
+
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        kernel,                 // hNewKernel
+        0,                      // numNewMemObjArgs
+        0,                      // numNewPointerArgs
+        new_value_descs.size(), // numNewValueArgs
+        n_dimensions,           // newWorkDim
+        nullptr,                // pNewMemObjArgList
+        nullptr,                // pNewPointerArgList
+        new_value_descs.data(), // pNewValueArgList
+        nullptr,                // pNewGlobalWorkOffset
+        nullptr,                // pNewGlobalWorkSize
+        nullptr,                // pNewLocalWorkSize
+    };
+
+    // Update kernel and enqueue command-buffer again
+    ASSERT_SUCCESS(
+        urCommandBufferUpdateKernelLaunchExp(command_handle, &update_desc));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // Verify that update occurred correctly
+    Validate(output, X, Y, A, global_size, local_size);
 }
 
 // Test updating A,X,Y parameters to new values and omitting local memory parameters
