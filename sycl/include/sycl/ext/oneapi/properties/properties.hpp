@@ -343,19 +343,9 @@ template <typename... PropertyValueTs>
 using properties_t =
     properties<detail::properties_type_list<PropertyValueTs...>>;
 
-// Helper for merging two property lists;
 template <typename LHSPropertiesT, typename RHSPropertiesT>
-struct merged_properties;
-template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
-struct merged_properties<properties_t<LHSPropertiesTs...>,
-                         properties_t<RHSPropertiesTs...>> {
-  using type = properties<
-      typename MergeProperties<properties_type_list<LHSPropertiesTs...>,
-                               properties_type_list<RHSPropertiesTs...>>::type>;
-};
-template <typename LHSPropertiesT, typename RHSPropertiesT>
-using merged_properties_t =
-    typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
+using merged_properties_t = decltype(merge_properties(
+    std::declval<LHSPropertiesT>(), std::declval<RHSPropertiesT>()));
 
 template <typename Properties, typename PropertyKey, typename Cond = void>
 struct ValueOrDefault {
