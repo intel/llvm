@@ -1107,7 +1107,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
                              CU_DEVICE_ATTRIBUTE_COMPUTE_CAPABILITY_MAJOR) >= 9;
     return ReturnValue(static_cast<bool>(Value));
   }
-
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(false);
   default:
     break;
   }

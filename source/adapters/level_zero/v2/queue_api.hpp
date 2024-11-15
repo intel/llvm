@@ -148,6 +148,10 @@ struct ur_queue_handle_t_ {
       const ur_exp_launch_property_t *, uint32_t, const ur_event_handle_t *,
       ur_event_handle_t *) = 0;
   virtual ur_result_t
+  enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
+                                  uint32_t, const ur_event_handle_t *,
+                                  ur_event_handle_t *) = 0;
+  virtual ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,
                           const ur_exp_enqueue_native_command_properties_t *,

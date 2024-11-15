@@ -723,6 +723,11 @@ ur_result_t urUsmP2PPeerAccessGetInfoExp(ur_device_handle_t commandDevice,
                                          ur_exp_peer_info_t propName,
                                          size_t propSize, void *pPropValue,
                                          size_t *pPropSizeRet);
+ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue,
+    const ur_exp_enqueue_ext_properties_t *pProperties,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent);
 ur_result_t urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue,
     ur_exp_enqueue_native_command_function_t pfnNativeEnqueue, void *data,
