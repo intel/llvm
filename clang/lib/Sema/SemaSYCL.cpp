@@ -3950,13 +3950,26 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // Default inits the type, then calls the init-method in the body.
+  // A type may not have a public default constructor as per its spec so
+  // typically if this is the case the default constructor will be private and
+  // in such cases we must manually override the access specifier from private
+  // to public just for the duration of this default initialization.
+  // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
+  // is closed.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
-
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
     addFieldMemberExpr(FD, Ty);
 
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     CXXMethodDecl *FinalizeMethod =
         getMethodByName(RecordDecl, FinalizeMethodName);
@@ -3970,9 +3983,17 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    const auto *BaseRecordDecl = BS.getType()->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(BaseRecordDecl->ctor_begin(), BaseRecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
+    createSpecialMethodCall(BaseRecordDecl, getInitMethodName(), BodyStmts);
     return true;
   }
 
@@ -4669,16 +4690,21 @@ public:
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BC,
                              QualType FieldTy) final {
-    const auto *AccTy =
-        cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    assert(AccTy->getTemplateArgs().size() >= 2 &&
-           "Incorrect template args for Accessor Type");
-    int Dims = static_cast<int>(
-        AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-    int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        CurOffset +
-                            offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    if (isSyclAccessorType(FieldTy)) {
+      const auto *AccTy =
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+      assert(AccTy->getTemplateArgs().size() >= 2 &&
+             "Incorrect template args for Accessor Type");
+      int Dims = static_cast<int>(
+          AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+      int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
+      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                          CurOffset +
+                              offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    }
     return true;
   }
 
