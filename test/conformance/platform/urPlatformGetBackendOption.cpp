@@ -46,5 +46,5 @@ TEST_F(urPlatfromGetBackendOptionTest, InvalidValueFrontendOption) {
     const char *platformOption = nullptr;
     ASSERT_EQ_RESULT(
         UR_RESULT_ERROR_INVALID_VALUE,
-        urPlatformGetBackendOption(platform, "-sycl-sucks", &platformOption));
+        urPlatformGetBackendOption(platform, "-invalid-opt", &platformOption));
 }
