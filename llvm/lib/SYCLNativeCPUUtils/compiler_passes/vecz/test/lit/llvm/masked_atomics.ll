@@ -24,7 +24,7 @@ define spir_kernel void @test_fn(ptr %p) {
 entry:
 ; CHECK: [[SPLAT_PTR_INS:%.*]] = insertelement <4 x ptr> poison, ptr %p, i64 0
 ; CHECK: [[SPLAT_PTR:%.*]] = shufflevector <4 x ptr> [[SPLAT_PTR_INS]], <4 x ptr> poison, <4 x i32> zeroinitializer
-; CHECK: [[CMP:%.*]] = icmp sgt <4 x i64> <i64 3, i64 3, i64 3, i64 3>, 
+; CHECK: [[CMP:%.*]] = icmp sgt <4 x i64> {{<(i64 3(, )?)+>|splat \(i64 3\)}}, 
   %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp sgt i64 3, %call
 ; CHECK: [[VEC_PTR:%.*]] = getelementptr i32, ptr %p, <4 x i64>
@@ -33,16 +33,16 @@ entry:
 
 if.then:                                          ; preds = %entry
 ; CHECK: = call <4 x i32> @__vecz_b_v4_masked_atomicrmw_add_align4_acquire_1_Dv4_u3ptrDv4_jDv4_b(
-; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> <i32 1, i32 1, i32 1, i32 1>, <4 x i1> [[CMP]]
+; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> {{<(i32 1(, )?)+>|splat \(i32 1\)}}, <4 x i1> [[CMP]]
   %old0 = atomicrmw add ptr %p, i32 1 acquire
 ; CHECK: = call <4 x i32> @__vecz_b_v4_masked_atomicrmw_add_align4_acquire_1_Dv4_u3ptrDv4_jDv4_b(
-; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x i32> <i32 1, i32 1, i32 1, i32 1>, <4 x i1> [[CMP]]
+; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x i32> {{<(i32 1(, )?)+>|splat \(i32 1\)}}, <4 x i1> [[CMP]]
   %old1 = atomicrmw add ptr %wi_p_i32, i32 1 acquire
 ; CHECK: = call <4 x i32> @__vecz_b_v4_masked_atomicrmw_umin_align2_monotonic_1_Dv4_u3ptrDv4_jDv4_b(
-; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x i32> <i32 1, i32 1, i32 1, i32 1>, <4 x i1> [[CMP]]
+; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x i32> {{<(i32 1(, )?)+>|splat \(i32 1\)}}, <4 x i1> [[CMP]]
   %old2 = atomicrmw umin ptr %wi_p_i32, i32 1 monotonic, align 2
 ; CHECK: = call <4 x float> @__vecz_b_v4_masked_atomicrmw_volatile_fmax_align4_seqcst_0_Dv4_u3ptrDv4_fDv4_b(
-; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x float> <float 1.000000e+00, float 1.000000e+00, float 1.000000e+00, float 1.000000e+00>, <4 x i1> [[CMP]]
+; CHECK-SAME: <4 x ptr> [[VEC_PTR]], <4 x float> {{<(float 1.000000e\+00(, )?)+>|splat \(float 1.000000e\+00\)}}, <4 x i1> [[CMP]]
   %old3 = atomicrmw volatile fmax ptr %wi_p_i32, float 1.0 syncscope("singlethread") seq_cst
   br label %if.end
 

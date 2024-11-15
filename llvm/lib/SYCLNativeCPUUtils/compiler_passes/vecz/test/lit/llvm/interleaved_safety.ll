@@ -80,13 +80,13 @@ attributes #3 = { nobuiltin nounwind }
 
 ; And in between them there should be a barrier call
 ; CHECK: call void @__mux_work_group_barrier
-; CHECK: call void @__vecz_b_interleaved_store8_4_Dv4_du3ptrU3AS1(<4 x double> <double 1.600000e+01, double 1.600000e+01, double 1.600000e+01, double 1.600000e+01>
+; CHECK: call void @__vecz_b_interleaved_store8_4_Dv4_du3ptrU3AS1(<4 x double> {{<(double 1.600000e\+01(, )?)+>|splat \(double 1.600000e\+01\)}}
 ; CHECK: call <4 x double> @__vecz_b_interleaved_load8_4_Dv4_du3ptrU3AS1
 ; CHECK: call <4 x double> @__vecz_b_interleaved_load8_4_Dv4_du3ptrU3AS1
 
 ; There shouldn't be any more interleaved loads or stores left
 ; CHECK-NOT: call <4 x double> @__vecz_b_interleaved_load4_Dv4_du3ptrU3AS1
-; CHECK-NOT: call void @__vecz_b_interleaved_store8_4_Dv4_du3ptrU3AS1(<4 x double> <double 1.600000e+01, double 1.600000e+01, double 1.600000e+01, double 1.600000e+01>
+; CHECK-NOT: call void @__vecz_b_interleaved_store8_4_Dv4_du3ptrU3AS1(<4 x double> {{<(double 1.600000e\+01(, )?)+>|splat \(double 1.600000e\+01\)}}
 
 ; There should be some sufflevector instructions after the simplification
 ; CHECK: shufflevector

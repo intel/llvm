@@ -83,5 +83,5 @@ declare i64 @__mux_get_global_size(i32)
 ; This test checks if a uniform <4 x i32> phi is not scalarized
 ; CHECK: define spir_kernel void @__vecz_v4_vector_loop
 ; CHECK: %[[STOREMERGE:.+]] = phi <4 x i32> [ %[[INC:.+]], %for.body ], [ zeroinitializer, %entry.ROSCC ]
-; CHECK: %[[INC]] = add <4 x i32> %storemerge, <i32 1, i32 1, i32 1, i32 1>
+; CHECK: %[[INC]] = add <4 x i32> %storemerge, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
 ; CHECK: ret void

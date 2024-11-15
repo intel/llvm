@@ -42,5 +42,5 @@ declare i64 @__mux_get_global_id(i32)
 
 ; CHECK: %[[SELECT:.+]] = select i1 %cond, ptr %c0, ptr %c1
 ; CHECK: %[[BASE:.+]] = getelementptr i64, ptr %[[SELECT]], i64 0
-; CHECK: store <4 x i64> <i64 1, i64 1, i64 1, i64 1>, ptr %[[BASE]], align 4
+; CHECK: store <4 x i64> {{<(i64 1(, )?)+>|splat \(i64 1\)}}, ptr %[[BASE]], align 4
 ; CHECK: ret void

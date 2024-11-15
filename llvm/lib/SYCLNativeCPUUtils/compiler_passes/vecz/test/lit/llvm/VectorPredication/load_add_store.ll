@@ -45,10 +45,10 @@ entry:
 ; CHECK_4F: [[WREM:%.*]] = sub nuw nsw i64 [[LSIZE]], [[LID]]
 ; CHECK_4F: [[T0:%.*]] = call i64 @llvm.umin.i64(i64 [[WREM]], i64 4)
 ; CHECK_4F: [[VL:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[T0]] to i32
-; CHECK_4F: [[LHS:%.*]] = call <4 x i32> @llvm.vp.load.v4i32.p0(ptr {{%.*}}, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, i32 [[VL]])
-; CHECK_4F: [[RHS:%.*]] = call <4 x i32> @llvm.vp.load.v4i32.p0(ptr {{%.*}}, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, i32 [[VL]])
-; CHECK_4F: [[ADD:%.*]] = call <4 x i32> @llvm.vp.add.v4i32(<4 x i32> [[LHS]], <4 x i32> [[RHS]], <4 x i1> <i1 true, i1 true, i1 true, i1 true>, i32 [[VL]])
-; CHECK_4F: call void @llvm.vp.store.v4i32.p0(<4 x i32> [[ADD]], ptr {{%.*}}, <4 x i1> <i1 true, i1 true, i1 true, i1 true>, i32 [[VL]])
+; CHECK_4F: [[LHS:%.*]] = call <4 x i32> @llvm.vp.load.v4i32.p0(ptr {{%.*}}, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[VL]])
+; CHECK_4F: [[RHS:%.*]] = call <4 x i32> @llvm.vp.load.v4i32.p0(ptr {{%.*}}, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[VL]])
+; CHECK_4F: [[ADD:%.*]] = call <4 x i32> @llvm.vp.add.v4i32(<4 x i32> [[LHS]], <4 x i32> [[RHS]], <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[VL]])
+; CHECK_4F: call void @llvm.vp.store.v4i32.p0(<4 x i32> [[ADD]], ptr {{%.*}}, <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[VL]])
 
 ; CHECK_1S: define spir_kernel void @__vecz_nxv4_vp_load_add_store_i32(
 ; CHECK_1S: [[LID:%.*]] = call i64 @__mux_get_local_id(i32 0)
@@ -84,10 +84,10 @@ entry:
 ; CHECK_V4_2F: [[VL:%.*]] = trunc {{(nuw )?(nsw )?}}i64 [[T0]] to i32
 ; Each WI performs 4 elements, so multiply the VL by 4
 ; CHECK_V4_2F: [[SVL:%.*]] = shl nuw nsw i32 [[VL]], 2
-; CHECK_V4_2F: [[LHS:%.*]] = call <8 x i32> @llvm.vp.load.v8i32.p0(ptr {{%.*}}, <8 x i1> <i1 true, i1 true, i1 true, i1  true, i1 true, i1 true, i1 true, i1 true>, i32 [[SVL]])
-; CHECK_V4_2F: [[RHS:%.*]] = call <8 x i32> @llvm.vp.load.v8i32.p0(ptr {{%.*}}, <8 x i1> <i1 true, i1 true, i1 true, i1  true, i1 true, i1 true, i1 true, i1 true>, i32 [[SVL]])
-; CHECK_V4_2F: [[ADD:%.*]] = call <8 x i32> @llvm.vp.add.v8i32(<8 x i32> [[LHS]], <8 x i32> [[RHS]], <8 x i1> <i1 true, i1 true, i1 true, i1  true, i1 true, i1 true, i1 true, i1 true>, i32 [[SVL]])
-; CHECK_V4_2F: call void @llvm.vp.store.v8i32.p0(<8 x i32> [[ADD]], ptr {{%.*}}, <8 x i1> <i1 true, i1 true, i1 true, i1  true, i1 true, i1 true, i1 true, i1 true>, i32 [[SVL]])
+; CHECK_V4_2F: [[LHS:%.*]] = call <8 x i32> @llvm.vp.load.v8i32.p0(ptr {{%.*}}, <8 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[SVL]])
+; CHECK_V4_2F: [[RHS:%.*]] = call <8 x i32> @llvm.vp.load.v8i32.p0(ptr {{%.*}}, <8 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[SVL]])
+; CHECK_V4_2F: [[ADD:%.*]] = call <8 x i32> @llvm.vp.add.v8i32(<8 x i32> [[LHS]], <8 x i32> [[RHS]], <8 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[SVL]])
+; CHECK_V4_2F: call void @llvm.vp.store.v8i32.p0(<8 x i32> [[ADD]], ptr {{%.*}}, <8 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}, i32 [[SVL]])
 
 ; CHECK_V4_1S: define spir_kernel void @__vecz_nxv4_vp_load_add_store_v4i32(
 ; CHECK_V4_1S: [[LID:%.*]] = call i64 @__mux_get_local_id(i32 0)

@@ -24,7 +24,7 @@ define spir_kernel void @test_fn(ptr %p, ptr %q, ptr %r) {
 entry:
 ; CHECK: [[SPLAT_PTR_INS:%.*]] = insertelement <4 x ptr> poison, ptr %p, i64 0
 ; CHECK: [[SPLAT_PTR:%.*]] = shufflevector <4 x ptr> [[SPLAT_PTR_INS]], <4 x ptr> poison, <4 x i32> zeroinitializer
-; CHECK: [[CMP:%.*]] = icmp sgt <4 x i64> <i64 3, i64 3, i64 3, i64 3>, 
+; CHECK: [[CMP:%.*]] = icmp sgt <4 x i64> {{<(i64 3(, )?)+>|splat \(i64 3\)}}, 
   %call = call i64 @__mux_get_global_id(i32 0)
   %cmp = icmp sgt i64 3, %call
 ; CHECK: [[VEC_PTR:%.*]] = getelementptr i32, ptr %p, <4 x i64>
@@ -33,8 +33,8 @@ entry:
 
 if.then:                                          ; preds = %entry
 ; CHECK: [[CALL:%.*]] = call { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_align4_acquire_monotonic_1_Dv4_u3ptrDv4_jDv4_jDv4_b(
-; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> <i32 1, i32 1, i32 1, i32 1>,
-; CHECK-SAME: <4 x i32> <i32 2, i32 2, i32 2, i32 2>, <4 x i1> [[CMP]]
+; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> {{<(i32 1(, )?)+>|splat \(i32 1\)}},
+; CHECK-SAME: <4 x i32> {{<(i32 2(, )?)+>|splat \(i32 2\)}}, <4 x i1> [[CMP]]
   %old0 = cmpxchg ptr %p, i32 1, i32 2 acquire monotonic
   %val0 = extractvalue { i32, i1 } %old0, 0
   %success0 = extractvalue { i32, i1 } %old0, 1

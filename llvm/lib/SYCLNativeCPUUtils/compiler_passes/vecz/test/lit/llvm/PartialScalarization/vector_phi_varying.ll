@@ -87,8 +87,8 @@ declare i64 @__mux_get_global_size(i32)
 ; CHECK: %storemerge{{[0-9]+}} = phi <4 x i32> [ %{{[0-9]+}}, %entry.ROSCC ], [ %inc{{[0-9]+}}, %for.cond ]
 ; CHECK: %storemerge{{[0-9]+}} = phi <4 x i32> [ %{{[0-9]+}}, %entry.ROSCC ], [ %inc{{[0-9]+}}, %for.cond ]
 ; CHECK: %storemerge{{[0-9]+}} = phi <4 x i32> [ %{{[0-9]+}}, %entry.ROSCC ], [ %inc{{[0-9]+}}, %for.cond ]
-; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, <i32 1, i32 1, i32 1, i32 1>
+; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: %inc{{[0-9]+}} = add <4 x i32> %storemerge{{[0-9]+}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
 ; CHECK: ret void

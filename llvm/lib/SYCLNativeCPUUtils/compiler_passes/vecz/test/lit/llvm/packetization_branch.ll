@@ -54,7 +54,7 @@ declare i64 @__mux_get_global_id(i32)
 ; CHECK: %[[GID_SPLAT:.+]] = shufflevector <4 x i64> %[[GID_SPLATINSERT:.+]], <4 x i64> {{poison|undef}}, <4 x i32> zeroinitializer
 ; CHECK: %[[GID:.+]] = add <4 x i64> %[[GID_SPLAT]], <i64 0, i64 1, i64 2, i64 3>
 ; CHECK: %[[CMP3:.+]] = icmp eq <4 x i64> %[[A_SPLAT]], %[[GID]]
-; CHECK: %[[NOT_CMP4:.+]] = xor <4 x i1> %[[CMP3]], <i1 true, i1 true, i1 true, i1 true>
+; CHECK: %[[NOT_CMP4:.+]] = xor <4 x i1> %[[CMP3]], {{<(i1 true(, )?)+>|splat \(i1 true\)}}
 
 ; CHECK: %[[IDX:.+]] = sext i32 %a to i64
 ; CHECK: %[[GEP1:.+]] = getelementptr inbounds i32, ptr %b, i64 %[[IDX]]

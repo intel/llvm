@@ -28,9 +28,9 @@ entry:
 
 ; Test that this cmpxchg is packetized by generating a call to an all-true masked version.
 ; CHECK: [[A0:%.*]] = call { <4 x i32>, <4 x i1> } @__vecz_b_v4_masked_cmpxchg_align4_acquire_monotonic_1_Dv4_u3ptrDv4_jDv4_jDv4_b(
-; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> <i32 1, i32 1, i32 1, i32 1>,
-; CHECK-SAME: <4 x i32> <i32 2, i32 2, i32 2, i32 2>,
-; CHECK-SAME: <4 x i1> <i1 true, i1 true, i1 true, i1 true>
+; CHECK-SAME: <4 x ptr> [[SPLAT_PTR]], <4 x i32> {{<(i32 1(, )?)+>|splat \(i32 1\)}},
+; CHECK-SAME: <4 x i32> {{<(i32 2(, )?)+>|splat \(i32 2\)}},
+; CHECK-SAME: <4 x i1> {{<(i1 true(, )?)+>|splat \(i1 true\)}}
   %old0 = cmpxchg ptr %p, i32 1, i32 2 acquire monotonic
 ; CHECK: [[EXT0:%.*]] = extractvalue { <4 x i32>, <4 x i1> } [[A0]], 0
   %val0 = extractvalue { i32, i1 } %old0, 0

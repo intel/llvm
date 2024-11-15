@@ -24,9 +24,9 @@ target datalayout = "e-p:64:64:64-m:e-i64:64-f80:128-n8:16:32:64-S128"
 ; CHECK: [[LHS:%.*]] = load <4 x float>, ptr %arrayidx.lhs, align 4
 ; CHECK: [[RHS:%.*]] = load <4 x float>, ptr %arrayidx.rhs, align 4
 
-; CHECK: [[DELTAS:%.*]] = add <4 x i32> {{%.*}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[DELTAS:%.*]] = add <4 x i32> {{%.*}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[MUXDELTAS:%.*]] = sub <4 x i32> [[MUXIDS]], {{%.*}}
 
 ; CHECK: [[DELTA0:%.*]] = extractelement <4 x i32> [[MUXDELTAS]], i32 0
@@ -65,9 +65,9 @@ define spir_kernel void @kernel(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 }
 
 ; CHECK-LABEL: define spir_kernel void @__vecz_v4_kernel_vec_data(ptr %lhsptr, ptr %rhsptr, ptr %out)
-; CHECK: [[DELTAS:%.*]] = add <4 x i32> {{%.*}}, <i32 2, i32 2, i32 2, i32 2>
-; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[DELTAS:%.*]] = add <4 x i32> {{%.*}}, {{<(i32 2(, )?)+>|splat \(i32 2\)}}
+; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[MUXDELTAS:%.*]] = sub <4 x i32> [[MUXIDS]], {{%.*}}
 
 ; CHECK: [[DELTA0:%.*]] = extractelement <4 x i32> [[MUXDELTAS]], i32 0
@@ -159,8 +159,8 @@ define spir_kernel void @kernel_vec_data(ptr %lhsptr, ptr %rhsptr, ptr %out) {
 ; CHECK: [[DELTALD:%.*]] = load <4 x i32>, ptr %arrayidx.deltas, align 4
 
 ; CHECK: [[DELTAS:%.*]] = add <4 x i32> {{%.*}}, [[DELTALD]]
-; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
-; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], <i32 4, i32 4, i32 4, i32 4>
+; CHECK: [[MUXIDS:%.*]] = udiv <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
+; CHECK: [[VECELTS:%.*]] = urem <4 x i32> [[DELTAS]], {{<(i32 4(, )?)+>|splat \(i32 4\)}}
 ; CHECK: [[MUXDELTAS:%.*]] = sub <4 x i32> [[MUXIDS]], {{%.*}}
 
 ; CHECK: [[DELTA0:%.*]] = extractelement <4 x i32> [[MUXDELTAS]], i32 0

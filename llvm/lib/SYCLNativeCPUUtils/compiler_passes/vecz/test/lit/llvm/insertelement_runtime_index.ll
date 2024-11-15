@@ -40,13 +40,13 @@ entry:
 
 ; Four icmps and selects
 ; CHECK: icmp eq <4 x i32> %{{.+}}, zeroinitializer
-; CHECK: select <4 x i1> %{{.+}}, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
-; CHECK: icmp eq <4 x i32> %{{.+}}, <i32 1, i32 1, i32 1, i32 1>
-; CHECK: select <4 x i1> %{{.+}}, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
-; CHECK: icmp eq <4 x i32> %{{.+}}, <i32 2, i32 2, i32 2, i32 2>
-; CHECK: select <4 x i1> %{{.+}}, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
-; CHECK: icmp eq <4 x i32> %{{.+}}, <i32 3, i32 3, i32 3, i32 3>
-; CHECK: select <4 x i1> %{{.+}}, <4 x i32> <i32 42, i32 42, i32 42, i32 42>
+; CHECK: select <4 x i1> %{{.+}}, <4 x i32> {{<(i32 42(, )?)+>|splat \(i32 42\)}}
+; CHECK: icmp eq <4 x i32> %{{.+}}, {{<(i32 1(, )?)+>|splat \(i32 1\)}}
+; CHECK: select <4 x i1> %{{.+}}, <4 x i32> {{<(i32 42(, )?)+>|splat \(i32 42\)}}
+; CHECK: icmp eq <4 x i32> %{{.+}}, {{<(i32 2(, )?)+>|splat \(i32 2\)}}
+; CHECK: select <4 x i1> %{{.+}}, <4 x i32> {{<(i32 42(, )?)+>|splat \(i32 42\)}}
+; CHECK: icmp eq <4 x i32> %{{.+}}, {{<(i32 3(, )?)+>|splat \(i32 3\)}}
+; CHECK: select <4 x i1> %{{.+}}, <4 x i32> {{<(i32 42(, )?)+>|splat \(i32 42\)}}
 
 ; Four stores
 ; CHECK: store <4 x i32>
