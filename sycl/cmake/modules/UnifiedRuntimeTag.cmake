@@ -4,4 +4,4 @@
 # Date:   Thu Nov 14 14:38:05 2024 +0100
 #    Merge pull request #2253 from pbalcer/low-power-events   
 #    add low-power events experimental extension spec
-set(UNIFIED_RUNTIME_TAG bb8bbe3a8d9b8257009e7da9bdfaf74438ac1b7a)
+set(UNIFIED_RUNTIME_TAG 66c80c9c639cf149de0aac911be875f9bc1fcd30)
