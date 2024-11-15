@@ -14,7 +14,7 @@ jobs:
   coverity:
     name: Coverity
     # run only on upstream; forks don't have token for upstream's cov project
-    if: github.repository == 'oneapi-src/unified-memory-framework'
+    if: github.repository == 'oneapi-src/unified-runtime'
     runs-on: ubuntu-latest
 
     steps:
@@ -64,10 +64,10 @@ jobs:
           if [ -n "$COVERITY_DIR" ]; then
             export PATH="$PATH:$COVERITY_DIR/bin"
           fi
-          cov-build --dir ${{github.workspace}}/coverity-files cmake --build ${{github.workspace}}/build --config Release -j$(nproc)
+          cov-build --dir ${{github.workspace}}/cov-int cmake --build ${{github.workspace}}/build --config Release -j$(nproc)
 
       - name: Create tarball to analyze
-        run: tar czvf ur-coverity-files.tgz coverity-files
+        run: tar czvf cov-int_ur.tgz cov-int
 
       - name: Push tarball to scan
         run: |
@@ -75,7 +75,7 @@ jobs:
           COMMIT_ID=$(echo $GITHUB_SHA)
           curl --form token=${{ secrets.COVERITY_SCAN_TOKEN }} \
           --form email=bb-ur@intel.com \
-          --form file=@ur-coverity-files.tgz \
+          --form file=@cov-int_ur.tgz \
           --form version="$COMMIT_ID" \
           --form description="$BRANCH_NAME:$COMMIT_ID" \
           https://scan.coverity.com/builds\?project\=oneapi-src%2Funified-runtime
