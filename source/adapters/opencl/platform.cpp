@@ -144,11 +144,8 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
     *ppPlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
-  if (pFrontendOption == "-foffload-fp32-prec-div"sv) {
-    *ppPlatformOption = "-cl-fp32-correctly-rounded-divide-div";
-    return UR_RESULT_SUCCESS;
-  }
-  if (pFrontendOption == "-foffload-fp32-prec-sqrt"sv) {
+  if (pFrontendOption == "-foffload-fp32-prec-div"sv ||
+      pFrontendOption == "-foffload-fp32-prec-sqrt"sv) {
     *ppPlatformOption = "-cl-fp32-correctly-rounded-divide-sqrt";
     return UR_RESULT_SUCCESS;
   }
