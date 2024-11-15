@@ -91,8 +91,8 @@
 
 
 // CHECK: "-triple" "spir64{{.*}}" "-fsycl-is-device"{{.*}}
-
-// CHECK-NOT: "-triple{{.*}}" "-fsycl-is-host"{{.*}} "-foffload-fp32-prec-div" "-foffload-fp32-prec-sqrt"s
+// CHECK-NOT: "-foffload-fp32-prec-div"
+// CHECK-NOT: "-foffload-fp32-prec-sqrt"
 
 // NO_PREC_DIV: "-triple" "spir64{{.*}}"{{.*}} "-fsycl-is-device"{{.*}} "-fno-offload-fp32-prec-div"
 

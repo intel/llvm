@@ -3020,7 +3020,9 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
-  bool IsDeviceOffloading = JA.isDeviceOffloading(Action::OFK_SYCL);
+  bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL) &&
+                                  !JA.isDeviceOffloading(Action::OFK_Cuda) &&
+                                  !JA.isOffloading(Action::OFK_HIP);
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&]() {
@@ -3050,7 +3052,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
               : ComplexArithmeticStr(LangOptions::ComplexRangeKind::CX_Basic));
     Range = LangOptions::ComplexRangeKind::CX_Basic;
     SeenUnsafeMathModeOption = true;
-    if (IsDeviceOffloading) {
+    if (IsFp32PrecDivSqrtAllowed) {
       // when fp-model=fast is used the default precision for division and
       // sqrt is not precise.
       NoOffloadFP32PrecDiv = true;
@@ -3085,7 +3087,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   }
 
   auto addSPIRVArgs = [&](StringRef SPIRVArg) {
-    if (IsDeviceOffloading) {
+    if (IsFp32PrecDivSqrtAllowed) {
       if (!FPAccuracy.empty())
         EmitAccuracyDiag(D, JA, FPAccuracy, SPIRVArg);
       if (SPIRVArg == "-fno-offload-fp32-prec-div")
@@ -3631,7 +3633,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
     CmdArgs.push_back("-fno-cx-limited-range");
   if (Args.hasArg(options::OPT_fno_cx_fortran_rules))
     CmdArgs.push_back("-fno-cx-fortran-rules");
-  if (IsDeviceOffloading) {
+  if (IsFp32PrecDivSqrtAllowed) {
     if (NoOffloadFP32PrecDiv)
       CmdArgs.push_back("-fno-offload-fp32-prec-div");
     if (NoOffloadFP32PrecSqrt)
