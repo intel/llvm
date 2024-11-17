@@ -12,9 +12,9 @@
 #include <detail/scheduler/commands.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE
 
 #include <unordered_map>
 
@@ -25,10 +25,8 @@ struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
+using JITEnvVar = DynArray<char>;
 } // namespace jit_compiler
-
-struct pi_device_binaries_struct;
-struct _pi_offload_entry_struct;
 
 namespace sycl {
 inline namespace _V1 {
@@ -40,6 +38,17 @@ public:
   std::unique_ptr<detail::CG>
   fuseKernels(QueueImplPtr Queue, std::vector<ExecCGCommand *> &InputKernels,
               const property_list &);
+  ur_kernel_handle_t
+  materializeSpecConstants(QueueImplPtr Queue,
+                           const RTDeviceBinaryImage *BinImage,
+                           const std::string &KernelName,
+                           const std::vector<unsigned char> &SpecConstBlob);
+
+  std::vector<uint8_t> compileSYCL(
+      const std::string &Id, const std::string &SYCLSource,
+      const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+      const std::vector<std::string> &UserArgs, std::string *LogPtr,
+      const std::vector<std::string> &RegisteredKernelNames);
 
   bool isAvailable() { return Available; }
 
@@ -56,7 +65,7 @@ private:
   jit_compiler &operator=(const jit_compiler &) = delete;
   jit_compiler &operator=(const jit_compiler &&) = delete;
 
-  pi_device_binaries
+  sycl_device_binaries
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
 
@@ -69,18 +78,23 @@ private:
   // Indicate availability of the JIT compiler
   bool Available;
 
-  // Manages the lifetime of the PI structs for device binaries.
+  // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
 
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
   // Handles to the entry points of the lazily loaded JIT library.
   using FuseKernelsFuncT = decltype(::jit_compiler::fuseKernels) *;
+  using MaterializeSpecConstFuncT =
+      decltype(::jit_compiler::materializeSpecConstants) *;
+  using CompileSYCLFuncT = decltype(::jit_compiler::compileSYCL) *;
   using ResetConfigFuncT = decltype(::jit_compiler::resetJITConfiguration) *;
   using AddToConfigFuncT = decltype(::jit_compiler::addToJITConfiguration) *;
   FuseKernelsFuncT FuseKernelsHandle = nullptr;
+  MaterializeSpecConstFuncT MaterializeSpecConstHandle = nullptr;
+  CompileSYCLFuncT CompileSYCLHandle = nullptr;
   ResetConfigFuncT ResetConfigHandle = nullptr;
   AddToConfigFuncT AddToConfigHandle = nullptr;
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE
 };
 
 } // namespace detail

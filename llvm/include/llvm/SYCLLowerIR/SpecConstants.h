@@ -59,7 +59,7 @@ public:
   enum class HandlingMode { default_values, emulation, native };
 
 public:
-  SpecConstantsPass(HandlingMode Mode) : Mode(Mode) {}
+  SpecConstantsPass(HandlingMode Mode = HandlingMode::emulation) : Mode(Mode) {}
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &MAM);
 
   // Searches given module for occurrences of specialization constant-specific
@@ -72,8 +72,13 @@ public:
   collectSpecConstantDefaultValuesMetadata(const Module &M,
                                            std::vector<char> &DefaultValues);
 
+  // Name of the metadata which indicates this module was proccessed with the
+  // default values handing mode.
+  static constexpr char SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING[] =
+      "sycl.specialization-constants-default-values-module";
+
 private:
-  HandlingMode Mode = HandlingMode::emulation;
+  HandlingMode Mode;
 };
 
 bool checkModuleContainsSpecConsts(const Module &M);

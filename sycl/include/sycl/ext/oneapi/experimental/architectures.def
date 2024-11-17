@@ -17,6 +17,8 @@
 //     device::get_info<ext::oneapi::experimental::info::device::architecture>
 //   - alias of architecture if this is Intel GPU architecture in format
 //     intel_gpu_<intel_gpu_arch_version>
+//   - supported aspects of architecture in
+//     llvm/include/llvm/SYCLLowerIR/DeviceConfigFile.td 
 //
 // Important note about keeping architecture IDs below unique:
 //   - the architecture ID must be a hex number with 16 digits
@@ -112,6 +114,9 @@ __SYCL_ARCHITECTURE(nvidia_gpu_sm_90a, 0x01000000000090a0)
 __SYCL_ARCHITECTURE(amd_gpu_gfx700, 0x0200000000070000)
 __SYCL_ARCHITECTURE(amd_gpu_gfx701, 0x0200000000070100)
 __SYCL_ARCHITECTURE(amd_gpu_gfx702, 0x0200000000070200)
+__SYCL_ARCHITECTURE(amd_gpu_gfx703, 0x0200000000070300)
+__SYCL_ARCHITECTURE(amd_gpu_gfx704, 0x0200000000070400)
+__SYCL_ARCHITECTURE(amd_gpu_gfx705, 0x0200000000070500)
 __SYCL_ARCHITECTURE(amd_gpu_gfx801, 0x0200000000080100)
 __SYCL_ARCHITECTURE(amd_gpu_gfx802, 0x0200000000080200)
 __SYCL_ARCHITECTURE(amd_gpu_gfx803, 0x0200000000080300)

@@ -74,7 +74,7 @@ int main() {
   // Coherency test 1
   //
   // The following test validates if memory access is fine with memory allocated
-  // using malloc_managed() and COARSE_GRAINED advice set via mem_advise().
+  // using malloc_managed() and NON_COHERENT advice set via mem_advise().
   //
   // Coarse grained memory is only guaranteed to be coherent outside of GPU
   // kernels that modify it. Changes applied to coarse-grained memory by a GPU
@@ -84,7 +84,8 @@ int main() {
   // GPUs) if those changes were made before the kernel launched.
 
   // Hint to use coarse-grain memory.
-  q.mem_advise(ptr, sizeof(int), int{PI_MEM_ADVICE_HIP_SET_COARSE_GRAINED});
+  q.mem_advise(ptr, sizeof(int),
+               int{UR_USM_ADVICE_FLAG_SET_NON_COHERENT_MEMORY});
 
   int init_val{9};
   int expected{init_val * init_val};
@@ -112,7 +113,8 @@ int main() {
   // coherently communicate with each other while the GPU kernel is running.
 
   // Hint to use fine-grain memory.
-  q.mem_advise(ptr, sizeof(int), int{PI_MEM_ADVICE_HIP_UNSET_COARSE_GRAINED});
+  q.mem_advise(ptr, sizeof(int),
+               int{UR_USM_ADVICE_FLAG_CLEAR_NON_COHERENT_MEMORY});
 
   init_val = 1;
   expected = 4;

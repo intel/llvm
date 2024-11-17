@@ -7,7 +7,6 @@
 //===----------------------------------------------------------------------===//
 
 // REQUIRES: ocloc && (opencl || level_zero)
-// UNSUPPORTED: accelerator
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -40,6 +39,26 @@ int main() {
     assert(version.major != 20 && version.minor != 20 && version.patch != 20 &&
            "version not updated");
   }
+
+  // test without version pointer
+  bool has_bf16_conversion =
+      d.ext_oneapi_supports_cl_extension("cl_intel_bf16_conversion");
+  std::cout << "has_bf16_conversion: " << has_bf16_conversion << std::endl;
+  bool has_subgroup_matrix_multiply_accumulate =
+      d.ext_oneapi_supports_cl_extension(
+          "cl_intel_subgroup_matrix_multiply_accumulate");
+  std::cout << "has_subgroup_matrix_multiply_accumulate: "
+            << has_subgroup_matrix_multiply_accumulate << std::endl;
+  bool has_subgroup_matrix_multiply_accumulate_tensor_float32 =
+      d.ext_oneapi_supports_cl_extension(
+          "cl_intel_subgroup_matrix_multiply_accumulate_tensor_float32");
+  std::cout << "has_subgroup_matrix_multiply_accumulate_tensor_float32: "
+            << has_subgroup_matrix_multiply_accumulate_tensor_float32
+            << std::endl;
+  bool has_subgroup_2d_block_io =
+      d.ext_oneapi_supports_cl_extension("cl_intel_subgroup_2d_block_io");
+  std::cout << "has_subgroup_2d_block_io: " << has_subgroup_2d_block_io
+            << std::endl;
 
   // no supported devices support EMBEDDED_PROFILE at this time.
   assert(d.ext_oneapi_cl_profile() == "FULL_PROFILE" &&

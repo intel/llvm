@@ -149,6 +149,9 @@ public:
       ExtStatusMap[Extension] = Allow;
   }
 
+  std::vector<std::string>
+  getAllowedSPIRVExtensionNames(std::function<bool(ExtensionID)> &Filter) const;
+
   VersionNumber getMaxVersion() const { return MaxVersion; }
 
   bool isGenArgNameMDEnabled() const { return GenKernelArgNameMD; }
@@ -233,10 +236,21 @@ public:
     PreserveOCLKernelArgTypeMetadataThroughString = Value;
   }
 
+  bool shouldEmitFunctionPtrAddrSpace() const noexcept {
+    return EmitFunctionPtrAddrSpace;
+  }
+
+  void setEmitFunctionPtrAddrSpace(bool Value) noexcept {
+    EmitFunctionPtrAddrSpace = Value;
+  }
+
   void setBuiltinFormat(BuiltinFormat Value) noexcept {
     SPIRVBuiltinFormat = Value;
   }
   BuiltinFormat getBuiltinFormat() const noexcept { return SPIRVBuiltinFormat; }
+
+  void setUseLLVMTarget(bool Flag) noexcept { UseLLVMTarget = Flag; }
+  bool getUseLLVMTarget() const noexcept { return UseLLVMTarget; }
 
 private:
   // Common translation options
@@ -281,9 +295,16 @@ private:
   // kernel_arg_type_qual metadata through OpString
   bool PreserveOCLKernelArgTypeMetadataThroughString = false;
 
+  // Controls if CodeSectionINTEL can be emitted and consumed with a dedicated
+  // address space
+  bool EmitFunctionPtrAddrSpace = false;
+
   bool PreserveAuxData = false;
 
   BuiltinFormat SPIRVBuiltinFormat = BuiltinFormat::Function;
+
+  // Convert LLVM to SPIR-V using the LLVM SPIR-V Backend target
+  bool UseLLVMTarget = false;
 };
 
 } // namespace SPIRV

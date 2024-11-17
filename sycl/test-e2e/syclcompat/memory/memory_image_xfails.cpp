@@ -30,7 +30,7 @@
 //
 // ===---------------------------------------------------------------------===//
 
-// RUN: %clangxx -std=c++20 -fsycl -fsycl-targets=%{sycl_triple} %s -o %t.out
+// RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
 // Tests for the sycl::events returned from syclcompat::*Async API calls

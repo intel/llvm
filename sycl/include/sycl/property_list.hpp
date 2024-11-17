@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h>                    // for PI_ERROR_INVALID_VALUE
 #include <sycl/detail/property_helper.hpp>     // for DataLessPropKind, Pro...
 #include <sycl/detail/property_list_base.hpp>  // for PropertyListBase
 #include <sycl/exception.hpp>
@@ -24,6 +23,9 @@ inline namespace _V1 {
 namespace ext::oneapi {
 template <typename... PropsT> class accessor_property_list;
 } // namespace ext::oneapi
+namespace detail {
+class PropertyValidator;
+} // namespace detail
 
 /// Objects of the property_list class are containers for the SYCL properties
 ///
@@ -73,7 +75,19 @@ private:
 
   template <typename... PropsT>
   friend class ext::oneapi::accessor_property_list;
+  friend class detail::PropertyValidator;
 };
+
+namespace detail {
+class PropertyValidator {
+public:
+  static void checkPropsAndThrow(const property_list &PropList,
+                                 std::function<bool(int)> FunctionForDataless,
+                                 std::function<bool(int)> FunctionForData) {
+    PropList.checkPropsAndThrow(FunctionForDataless, FunctionForData);
+  }
+};
+} // namespace detail
 
 } // namespace _V1
 } // namespace sycl

@@ -47,6 +47,11 @@ XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
                                            xpti::trace_event_data_t *,
                                            uint64_t /*Instance*/,
                                            const void *UserData);
+XPTI_CALLBACK_API void urBeginEndCallback(uint16_t TraceType,
+                                          xpti::trace_event_data_t *,
+                                          xpti::trace_event_data_t *,
+                                          uint64_t /*Instance*/,
+                                          const void *UserData);
 XPTI_CALLBACK_API void taskBeginEndCallback(uint16_t TraceType,
                                             xpti::trace_event_data_t *,
                                             xpti::trace_event_data_t *,
@@ -72,12 +77,12 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
   }
 
   std::string_view NameView{StreamName};
-  if (NameView == "sycl.pi") {
+  if (NameView == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
-    xptiRegisterCallback(StreamID, xpti::trace_function_begin,
-                         apiBeginEndCallback);
-    xptiRegisterCallback(StreamID, xpti::trace_function_end,
-                         apiBeginEndCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
+                         urBeginEndCallback);
+    xptiRegisterCallback(StreamID, xpti::trace_function_with_args_end,
+                         urBeginEndCallback);
   } else if (NameView == "sycl") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_task_begin,
@@ -118,6 +123,21 @@ XPTI_CALLBACK_API void apiBeginEndCallback(uint16_t TraceType,
                         TS);
   } else {
     GWriter->writeEnd(static_cast<const char *>(UserData), "API", PID, TID, TS);
+  }
+}
+
+XPTI_CALLBACK_API void urBeginEndCallback(uint16_t TraceType,
+                                          xpti::trace_event_data_t *,
+                                          xpti::trace_event_data_t *,
+                                          uint64_t /*Instance*/,
+                                          const void *UserData) {
+  auto [TID, PID, TS] = measure();
+  auto *Name =
+      static_cast<const xpti::function_with_args_t *>(UserData)->function_name;
+  if (TraceType == xpti::trace_function_with_args_begin) {
+    GWriter->writeBegin(Name, "API", PID, TID, TS);
+  } else {
+    GWriter->writeEnd(Name, "API", PID, TID, TS);
   }
 }
 

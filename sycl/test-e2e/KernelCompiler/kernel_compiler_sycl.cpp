@@ -9,8 +9,39 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// -- Test the kernel_compiler with SYCL source.
 // RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+
+// If clang++ is not on the PATH, or if sycl was compiled with GCC < 8, then
+// the kernel_compiler is not available for SYCL language.
+// Note: this 'invoking clang++' version for SYCL language support is temporary,
+// and will be replaced by the SYCL_JIT version soon.
+// DEFINE: %{available} = %t.out available
+
+// RUN: %if available %{  %{run} %t.out  %}
+// RUN: %if available %{ %{l0_leak_check} %{run} %t.out %}
+
+// -- Test again, with caching.
+// 'reading-from-cache' is just a string we pass to differentiate between the
+// two runs.
+
+// DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
+// RUN: rm -rf %t/cache_dir
+// RUN:  %if available %{  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE %}
+// RUN:  %if available %{  %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE %}
+
+// -- Add leak check.
+// RUN: rm -rf %t/cache_dir
+// RUN: %if available %{  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE  %}
+// RUN: %if available %{ %{l0_leak_check} %{cache_vars} %t.out reading-from-cache 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE  %}
+
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
+// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
+
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
+// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
+// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
@@ -21,10 +52,17 @@ auto constexpr AddEmH = R"===(
   }
 )===";
 
+auto constexpr PlusEmH = R"===(
+  int PlusEm(int a, int b){
+    return a + b + 6;
+  }
+)===";
+
 // TODO: remove SYCL_EXTERNAL once it is no longer needed.
 auto constexpr SYCLSource = R"===(
 #include <sycl/sycl.hpp>
-#include "AddEm.h"
+#include "intermediate/AddEm.h"
+#include "intermediate/PlusEm.h"
 
 // use extern "C" to avoid name mangling
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
@@ -45,7 +83,7 @@ void ff_templated(T *ptr) {
   sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
 
   sycl::id<1> GId = Item.get_global_id();
-  ptr[GId.get(0)] = GId.get(0) + 39;
+  ptr[GId.get(0)] = PlusEm(GId.get(0), 38);
 }
 )===";
 
@@ -100,15 +138,15 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   Queue.wait();
 
   for (int i = 0; i < Range; i++) {
-    std::cout << usmPtr[i] << " ";
-    assert(usmPtr[i] = i + seed);
+    std::cout << usmPtr[i] << "=" << (i + seed) << " ";
+    assert(usmPtr[i] == i + seed);
   }
   std::cout << std::endl;
 
   sycl::free(usmPtr, Queue);
 }
 
-void test_build_and_run() {
+void test_build_and_run(bool readingFromCache) {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -127,9 +165,11 @@ void test_build_and_run() {
   }
 
   // Create from source.
+  syclex::include_files incFiles{"intermediate/AddEm.h", AddEmH};
+  incFiles.add("intermediate/PlusEm.h", PlusEmH);
   source_kb kbSrc = syclex::create_kernel_bundle_from_source(
       ctx, syclex::source_language::sycl, SYCLSource,
-      syclex::properties{syclex::include_files{"AddEm.h", AddEmH}});
+      syclex::properties{incFiles});
 
   // Double check kernel_bundle.get_source() / get_backend().
   sycl::context ctxRes = kbSrc.get_context();
@@ -146,11 +186,15 @@ void test_build_and_run() {
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs,
-      syclex::properties{// syclex::build_options{flags},
-                         syclex::save_log{&log},
+      syclex::properties{syclex::build_options{flags}, syclex::save_log{&log},
                          syclex::registered_kernel_names{"ff_templated<int>"}});
-  assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
-         std::string::npos);
+
+  // If the kernel was restored from cache, there will not have been
+  // any warning issued by the compilation of the kernel.
+  if (!readingFromCache) {
+    assert(log.find("warning: 'this_nd_item<1>' is deprecated") !=
+           std::string::npos);
+  }
 
   // clang-format off
 
@@ -168,8 +212,8 @@ void test_build_and_run() {
   // clang-format on
 
   // Test the kernels.
-  test_1(q, k, 37 + 5); // AddEm will add 5 more.
-  test_1(q, k2, 39);
+  test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
+  test_1(q, k2, 38 + 6); // ff_templated seeds 38. PlusEm adds 6 more.
 }
 
 void test_error() {
@@ -263,10 +307,24 @@ void test_esimd() {
   sycl::free(C, q);
 }
 
-int main() {
+int main(int argc, char *argv[]) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  bool readingFromCache = false;
+
+  // Check if the argument is present
+  if (argc > 1) {
+    std::string argument(argv[1]);
+    if (argument == "reading-from-cache") {
+      readingFromCache = true;
+    } else if (argument == "available") {
+      sycl::device d;
+      bool avail = d.ext_oneapi_can_compile(syclex::source_language::sycl);
+      return avail;
+    }
+  }
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  test_build_and_run();
+  test_build_and_run(readingFromCache);
   test_error();
   test_esimd();
 #else

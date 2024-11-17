@@ -25,6 +25,10 @@ on:
         description: 'Upload documentation'
         required: false
         type: boolean
+    secrets:
+      RELEASE_TASKS_USER_TOKEN:
+        description: "Secret used to check user permissions."
+        required: false
 
 jobs:
   release-doxygen:
@@ -52,7 +56,8 @@ jobs:
               graphviz \
               python3-github \
               ninja-build \
-              texlive-font-utils
+              texlive-font-utils \
+              libhwloc-dev
           pip3 install --user -r ./llvm/docs/requirements.txt
 
       - name: Build Doxygen
@@ -63,5 +68,6 @@ jobs:
         if: env.upload
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          USER_TOKEN: ${{ secrets.RELEASE_TASKS_USER_TOKEN }}
         run: |
-          ./llvm/utils/release/github-upload-release.py --token "$GITHUB_TOKEN" --release "${{ inputs.release-version }}" --user "${{ github.actor }}" upload --files ./*doxygen*.tar.xz
+          ./llvm/utils/release/github-upload-release.py --token "$GITHUB_TOKEN" --release "${{ inputs.release-version }}" --user "${{ github.actor }}" --user-token "$USER_TOKEN" upload --files ./*doxygen*.tar.xz

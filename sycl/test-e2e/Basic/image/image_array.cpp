@@ -5,6 +5,7 @@
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: gpu
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15398
 
 //==------------------- image.cpp - SYCL image basic test -----------------==//
 //

@@ -95,6 +95,9 @@ and not recommended to use in production environment.
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx703 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx704 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx705 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
@@ -104,13 +107,13 @@ and not recommended to use in production environment.
     * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (CDNA1) architecture
     * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (CDNA2) architecture
     * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture
@@ -135,9 +138,8 @@ and not recommended to use in production environment.
 
 **`-sycl-std=<value>`** [EXPERIMENTAL]
 
-    SYCL language standard to compile for. Possible values:
-    * 121 - SYCL 1.2.1 [DEPRECATED]
-    * 2020 - SYCL 2020
+    SYCL language standard to compile for. Currently the possible value is:
+    * 2020 - for SYCL 2020
     It doesn't guarantee specific standard compliance, but some selected
     compiler features change behavior.
     It is under development and not recommended to use in production
@@ -148,7 +150,7 @@ and not recommended to use in production environment.
 
     Enables/Disables unnamed SYCL lambda kernels support.
     The default value depends on the SYCL language standard: it is enabled
-    by default for SYCL 2020, and disabled for SYCL 1.2.1.
+    by default for SYCL 2020.
 
 **`-f[no-]sycl-explicit-simd`** [DEPRECATED]
 
@@ -195,6 +197,19 @@ and not recommended to use in production environment.
     specific compilers (e.g. OpenCL/Level Zero/Nvidia/AMD target compilers)
     which may or may not perform additional inlining.
     Default value is 225.
+
+**`--offload-compress`**
+
+    Enables device image compression for SYCL offloading. Device images
+    are compressed using `zstd` compression algorithm and only if their size
+    exceeds 512 bytes.
+    Default value is false.
+
+**`--offload-compression-level=<int>`**
+
+    `zstd` compression level used to compress device images when `--offload-
+    compress` is enabled.
+    The default value is 10.
 
 ## Target toolchain options
 
@@ -284,16 +299,6 @@ and not recommended to use in production environment.
     device libraries for VTune(R). This provides annotations to intercept
     various events inside JIT generated kernels. These device libraries are
     linked in by default.
-
-**`-f[no-]sycl-link-huge-device-code`** [DEPRECATED]
-
-    Place device code later in the linked binary in order to avoid precluding
-    32-bit PC relative relocations between surrounding ELF sections when device
-    code is larger than 2GiB. This is disabled by default.
-
-    Deprecated in favor of `-f[no-]link-huge-device-code`.
-
-    NOTE: This option is currently only supported on Linux.
 
 **`-fsycl-force-target=<T>`**
 

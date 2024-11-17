@@ -71,23 +71,7 @@ bool stream::operator==(const stream &RHS) const { return (impl == RHS.impl); }
 
 bool stream::operator!=(const stream &RHS) const { return !(impl == RHS.impl); }
 
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT bool stream::has_property<param_type>() const noexcept {       \
-    return impl->has_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
-
-#define __SYCL_PARAM_TRAITS_SPEC(param_type)                                   \
-  template <>                                                                  \
-  __SYCL_EXPORT param_type stream::get_property<param_type>() const {          \
-    return impl->get_property<param_type>();                                   \
-  }
-#include <sycl/detail/properties_traits.def>
-
-#undef __SYCL_PARAM_TRAITS_SPEC
+const property_list &stream::getPropList() const { return impl->getPropList(); }
 
 } // namespace _V1
 } // namespace sycl

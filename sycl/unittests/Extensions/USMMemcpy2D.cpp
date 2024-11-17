@@ -10,9 +10,9 @@
 
 #include <detail/queue_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -125,285 +125,204 @@ struct KernelInfo<class __usmmemcpy2d<unsigned char>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateMemopsImage() {
-  using namespace sycl::unittest;
-
-  PiPropertySet PropSet;
-
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
-
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels(
-      {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
-       USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
-
-  return Img;
-}
-
 namespace {
-sycl::unittest::PiImage Imgs[] = {generateMemopsImage()};
-sycl::unittest::PiImageArray<1> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {sycl::unittest::generateDefaultImage(
+    {USMFillHelperKernelNameLong, USMFillHelperKernelNameChar,
+     USMMemcpyHelperKernelNameLong, USMMemcpyHelperKernelNameChar})};
+sycl::unittest::MockDeviceImageArray<1> ImgArray{Imgs};
 
-size_t LastMemopsQuery = 0;
+ur_context_info_t LastMemopsQuery = UR_CONTEXT_INFO_NUM_DEVICES;
 
-struct Fill2DStruct {
-  pi_queue queue;
-  void *ptr;
+struct Fill2dParams {
+  ur_queue_handle_t hQueue;
+  void *pMem;
   size_t pitch;
-  size_t pattern_size;
-  const void *pattern;
+  size_t patternSize;
+  std::vector<char> pattern;
   size_t width;
   size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
 } LastFill2D;
 
-struct Memset2DStruct {
-  pi_queue queue;
-  void *ptr;
-  size_t pitch;
-  int value;
+struct Memcpy2dParams {
+  ur_queue_handle_t hQueue;
+  void *pDst;
+  size_t dstPitch;
+  const void *pSrc;
+  size_t srcPitch;
   size_t width;
   size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
-} LastMemset2D;
-
-struct Memcpy2DStruct {
-  pi_queue queue;
-  pi_bool blocking;
-  void *dst_ptr;
-  size_t dst_pitch;
-  const void *src_ptr;
-  size_t src_pitch;
-  size_t width;
-  size_t height;
-  pi_uint32 num_events_in_waitlist;
-  const pi_event *events_waitlist;
-  pi_event *event;
 } LastMemcpy2D;
 
-std::map<pi_kernel, std::string> KernelToNameMap;
+std::map<ur_kernel_handle_t, std::string> KernelToNameMap;
 
 template <bool MemfillSupported, bool MemsetSupported, bool MemcpySupported>
-pi_result after_piContextGetInfo(pi_context context, pi_context_info param_name,
-                                 size_t param_value_size, void *param_value,
-                                 size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT:
-    LastMemopsQuery = param_name;
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = MemfillSupported;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_bool);
-    return PI_SUCCESS;
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT:
-    LastMemopsQuery = param_name;
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = MemsetSupported;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_bool);
-    return PI_SUCCESS;
-  case PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
-    LastMemopsQuery = param_name;
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = MemcpySupported;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_bool);
-    return PI_SUCCESS;
+ur_result_t after_urContextGetInfo(void *pParams) {
+  auto params = *static_cast<ur_context_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
+    LastMemopsQuery = *params.ppropName;
+    if (*params.ppPropValue)
+      *static_cast<ur_bool_t *>(*params.ppPropValue) = MemfillSupported;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_bool_t);
+    return UR_RESULT_SUCCESS;
+  case UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT:
+    LastMemopsQuery = *params.ppropName;
+    if (*params.ppPropValue)
+      *static_cast<ur_bool_t *>(*params.ppPropValue) = MemcpySupported;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_bool_t);
+    return UR_RESULT_SUCCESS;
   default:;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result after_piDeviceGetInfo(pi_device device, pi_device_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
-    if (param_value) {
-      assert(param_value_size == 3 * sizeof(size_t));
-      size_t *Ptr = static_cast<size_t *>(param_value);
+ur_result_t after_urDeviceGetInfo(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_DEVICE_INFO_MAX_WORK_ITEM_SIZES:
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == 3 * sizeof(size_t));
+      size_t *Ptr = static_cast<size_t *>(*params.ppPropValue);
       Ptr[0] = 32;
       Ptr[1] = 32;
       Ptr[2] = 32;
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = 3 * sizeof(size_t);
-    return PI_SUCCESS;
-  case PI_DEVICE_INFO_MAX_COMPUTE_UNITS:
-    if (param_value) {
-      assert(param_value_size == sizeof(pi_uint32));
-      *static_cast<pi_uint32 *>(param_value) = 256;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = 3 * sizeof(size_t);
+    return UR_RESULT_SUCCESS;
+  case UR_DEVICE_INFO_MAX_COMPUTE_UNITS:
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(uint32_t));
+      *static_cast<uint32_t *>(*params.ppPropValue) = 256;
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = 3 * sizeof(size_t);
-    return PI_SUCCESS;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = 3 * sizeof(size_t);
+    return UR_RESULT_SUCCESS;
   default:;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-template <pi_usm_type USMType>
-pi_result after_piextUSMGetMemAllocInfo(pi_context, const void *,
-                                        pi_mem_alloc_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_MEM_ALLOC_TYPE: {
-    if (param_value) {
-      assert(param_value_size == sizeof(pi_usm_type));
-      *static_cast<pi_usm_type *>(param_value) = USMType;
+template <ur_usm_type_t USMType>
+ur_result_t after_urUSMGetMemAllocInfo(void *pParams) {
+  auto params = *static_cast<ur_usm_get_mem_alloc_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_USM_ALLOC_INFO_TYPE: {
+    if (*params.ppPropValue) {
+      assert(*params.ppropSize == sizeof(ur_usm_type_t));
+      *static_cast<ur_usm_type_t *>(*params.ppPropValue) = USMType;
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_usm_type);
-    return PI_SUCCESS;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_usm_type_t);
+    return UR_RESULT_SUCCESS;
   }
   default:;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefine_piextUSMEnqueueFill2D(pi_queue queue, void *ptr,
-                                         size_t pitch, size_t pattern_size,
-                                         const void *pattern, size_t width,
-                                         size_t height,
-                                         pi_uint32 num_events_in_waitlist,
-                                         const pi_event *events_waitlist,
-                                         pi_event *event) {
-  LastFill2D =
-      Fill2DStruct{queue,           ptr,   pitch,  pattern_size,
-                   pattern,         width, height, num_events_in_waitlist,
-                   events_waitlist, event};
-  return PI_SUCCESS;
+ur_result_t redefine_urEnqueueUSMFill2D(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_fill_2d_params_t *>(pParams);
+  LastFill2D = Fill2dParams{*params.phQueue,
+                            *params.ppMem,
+                            *params.ppitch,
+                            *params.ppatternSize,
+                            std::vector<char>(*params.ppatternSize),
+                            *params.pwidth,
+                            *params.pheight};
+  std::memcpy(LastFill2D.pattern.data(), *params.ppPattern,
+              *params.ppatternSize);
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefine_piextUSMEnqueueMemset2D(pi_queue queue, void *ptr,
-                                           size_t pitch, int value,
-                                           size_t width, size_t height,
-                                           pi_uint32 num_events_in_waitlist,
-                                           const pi_event *events_waitlist,
-                                           pi_event *event) {
-  LastMemset2D = Memset2DStruct{queue,
-                                ptr,
-                                pitch,
-                                value,
-                                width,
-                                height,
-                                num_events_in_waitlist,
-                                events_waitlist,
-                                event};
-  return PI_SUCCESS;
+ur_result_t redefine_urEnqueueUSMMemcpy2D(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_memcpy_2d_params_t *>(pParams);
+  LastMemcpy2D = Memcpy2dParams{
+      *params.phQueue,   *params.ppDst,  *params.pdstPitch, *params.ppSrc,
+      *params.psrcPitch, *params.pwidth, *params.pheight};
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefine_piextUSMEnqueueMemcpy2D(
-    pi_queue queue, pi_bool blocking, void *dst_ptr, size_t dst_pitch,
-    const void *src_ptr, size_t src_pitch, size_t width, size_t height,
-    pi_uint32 num_events_in_waitlist, const pi_event *events_waitlist,
-    pi_event *event) {
-  LastMemcpy2D =
-      Memcpy2DStruct{queue,           blocking, dst_ptr,
-                     dst_pitch,       src_ptr,  src_pitch,
-                     width,           height,   num_events_in_waitlist,
-                     events_waitlist, event};
-  return PI_SUCCESS;
-}
-
-pi_result after_piKernelCreate(pi_program, const char *kernel_name,
-                               pi_kernel *ret_kernel) {
-  KernelToNameMap[*ret_kernel] = kernel_name;
-  return PI_SUCCESS;
+ur_result_t after_urKernelCreate(void *pParams) {
+  auto params = *static_cast<ur_kernel_create_params_t *>(pParams);
+  KernelToNameMap[**params.pphKernel] = *params.ppKernelName;
+  return UR_RESULT_SUCCESS;
 }
 
 std::string LastEnqueuedKernel;
 
-pi_result after_piEnqueueKernelLaunch(pi_queue, pi_kernel kernel, pi_uint32,
-                                      const size_t *, const size_t *,
-                                      const size_t *, pi_uint32,
-                                      const pi_event *, pi_event *) {
-  auto KernelIt = KernelToNameMap.find(kernel);
+ur_result_t after_urEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  auto KernelIt = KernelToNameMap.find(*params.phKernel);
   EXPECT_TRUE(KernelIt != KernelToNameMap.end());
   LastEnqueuedKernel = KernelIt->second;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 } // namespace
 
 // Tests that the right APIs are called when they are reported as supported
 // natively.
 TEST(USMMemcpy2DTest, USMMemops2DSupported) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
   std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
       sycl::detail::getSyclObjImpl(Q);
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      after_piContextGetInfo<true, true, true>);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueFill2D>(
-      redefine_piextUSMEnqueueFill2D);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemset2D>(
-      redefine_piextUSMEnqueueMemset2D);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
-      redefine_piextUSMEnqueueMemcpy2D);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+  mock::getCallbacks().set_after_callback(
+      "urContextGetInfo", &after_urContextGetInfo<true, true, true>);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
+                                            &redefine_urEnqueueUSMFill2D);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy2D",
+                                            &redefine_urEnqueueUSMMemcpy2D);
+  mock::getCallbacks().set_after_callback(
+      "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery == PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastFill2D.ptr, (void *)Ptr1);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
-  EXPECT_EQ(LastFill2D.pattern_size, sizeof(long));
+  EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
   EXPECT_EQ(LastFill2D.width, (size_t)4);
   EXPECT_EQ(LastFill2D.height, (size_t)2);
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
-  EXPECT_EQ(LastMemset2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemset2D.ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemset2D.pitch, (size_t)5 * sizeof(long));
-  EXPECT_EQ(LastMemset2D.value, 123);
-  EXPECT_EQ(LastMemset2D.width, (size_t)4 * sizeof(long));
-  EXPECT_EQ(LastMemset2D.height, (size_t)2);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_EQ(LastFill2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
+  EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
+  EXPECT_EQ(LastFill2D.pattern[0], 123);
+  EXPECT_EQ(LastFill2D.width, (size_t)4 * sizeof(long));
+  EXPECT_EQ(LastFill2D.height, (size_t)2);
 
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemcpy2D.dst_ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemcpy2D.dst_pitch, (size_t)5 * sizeof(long));
-  EXPECT_EQ(LastMemcpy2D.src_ptr, (void *)Ptr2);
-  EXPECT_EQ(LastMemcpy2D.src_pitch, (size_t)8 * sizeof(long));
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
+  EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
+  EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
+  EXPECT_EQ(LastMemcpy2D.srcPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.width, (size_t)4 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.height, (size_t)2);
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemcpy2D.dst_ptr, (void *)Ptr2);
-  EXPECT_EQ(LastMemcpy2D.dst_pitch, (size_t)8 * sizeof(long));
-  EXPECT_EQ(LastMemcpy2D.src_ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemcpy2D.src_pitch, (size_t)5 * sizeof(long));
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_EQ(LastMemcpy2D.hQueue, (ur_queue_handle_t)QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
+  EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
+  EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);
+  EXPECT_EQ(LastMemcpy2D.srcPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.width, (size_t)4 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.height, (size_t)2);
 }
@@ -411,207 +330,189 @@ TEST(USMMemcpy2DTest, USMMemops2DSupported) {
 // Tests that the right fallback kernels are called when a backend does not
 // support the APIs natively.
 TEST(USMMemcpy2DTest, USMMemops2DUnsupported) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      after_piContextGetInfo<false, false, false>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
-      after_piKernelCreate);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      after_piEnqueueKernelLaunch);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+  mock::getCallbacks().set_after_callback(
+      "urContextGetInfo", &after_urContextGetInfo<false, false, false>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urKernelCreate",
+                                          &after_urKernelCreate);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery == PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameLong);
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameChar);
 
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameChar);
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameLong);
 }
 
 // Tests that the right paths are taken when the backend only supports native
 // USM fill.
 TEST(USMMemcpy2DTest, USMFillSupportedOnly) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
   std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
       sycl::detail::getSyclObjImpl(Q);
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      after_piContextGetInfo<true, false, false>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
-      after_piKernelCreate);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      after_piEnqueueKernelLaunch);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueFill2D>(
-      redefine_piextUSMEnqueueFill2D);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+  mock::getCallbacks().set_after_callback(
+      "urContextGetInfo", &after_urContextGetInfo<true, false, false>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urKernelCreate",
+                                          &after_urKernelCreate);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
+                                            &redefine_urEnqueueUSMFill2D);
+  mock::getCallbacks().set_after_callback(
+      "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery == PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastFill2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastFill2D.ptr, (void *)Ptr1);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
   EXPECT_EQ(LastFill2D.pitch, (size_t)5);
-  EXPECT_EQ(LastFill2D.pattern_size, sizeof(long));
+  EXPECT_EQ(LastFill2D.patternSize, sizeof(long));
   EXPECT_EQ(LastFill2D.width, (size_t)4);
   EXPECT_EQ(LastFill2D.height, (size_t)2);
   EXPECT_NE(LastEnqueuedKernel, USMFillHelperKernelNameLong);
 
-  Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
-  EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameChar);
-
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameChar);
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameLong);
 }
 
 // Tests that the right paths are taken when the backend only supports native
 // USM memset.
 TEST(USMMemcpy2DTest, USMMemsetSupportedOnly) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
   std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
       sycl::detail::getSyclObjImpl(Q);
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      after_piContextGetInfo<false, true, false>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
-      after_piKernelCreate);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      after_piEnqueueKernelLaunch);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemset2D>(
-      redefine_piextUSMEnqueueMemset2D);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+  // Enable fill + set, they are implemented with the same entry point in the
+  // backend so supporting one means supporting both.
+  mock::getCallbacks().set_after_callback(
+      "urContextGetInfo", &after_urContextGetInfo<true, true, false>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urKernelCreate",
+                                          &after_urKernelCreate);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback(
+      "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill2D",
+                                            &redefine_urEnqueueUSMFill2D);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
 
-  Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery == PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT);
-  EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameLong);
-
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
-  EXPECT_EQ(LastMemset2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemset2D.ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemset2D.pitch, (size_t)5 * sizeof(long));
-  EXPECT_EQ(LastMemset2D.value, 123);
-  EXPECT_EQ(LastMemset2D.width, (size_t)4 * sizeof(long));
-  EXPECT_EQ(LastMemset2D.height, (size_t)2);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_EQ(LastFill2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastFill2D.pMem, (void *)Ptr1);
+  EXPECT_EQ(LastFill2D.pitch, (size_t)5 * sizeof(long));
+  EXPECT_EQ(LastFill2D.pattern[0], 123);
+  EXPECT_EQ(LastFill2D.width, (size_t)4 * sizeof(long));
+  EXPECT_EQ(LastFill2D.height, (size_t)2);
   EXPECT_NE(LastEnqueuedKernel, USMFillHelperKernelNameChar);
 
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameChar);
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMMemcpyHelperKernelNameLong);
 }
 
 // Tests that the right paths are taken when the backend only supports native
 // USM memcpy.
 TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
   std::shared_ptr<sycl::detail::queue_impl> QueueImpl =
       sycl::detail::getSyclObjImpl(Q);
 
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      after_piContextGetInfo<false, false, true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piKernelCreate>(
-      after_piKernelCreate);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueKernelLaunch>(
-      after_piEnqueueKernelLaunch);
-  Mock.redefine<sycl::detail::PiApiKind::piextUSMEnqueueMemcpy2D>(
-      redefine_piextUSMEnqueueMemcpy2D);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piextUSMGetMemAllocInfo>(
-      after_piextUSMGetMemAllocInfo<PI_MEM_TYPE_DEVICE>);
+  mock::getCallbacks().set_after_callback(
+      "urContextGetInfo", &after_urContextGetInfo<false, false, true>);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo);
+  mock::getCallbacks().set_after_callback("urKernelCreate",
+                                          &after_urKernelCreate);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &after_urEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy2D",
+                                            &redefine_urEnqueueUSMMemcpy2D);
+  mock::getCallbacks().set_after_callback(
+      "urUSMGetMemAllocInfo", &after_urUSMGetMemAllocInfo<UR_USM_TYPE_DEVICE>);
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);
   long *Ptr2 = sycl::malloc_device<long>(16, Q);
 
   Q.ext_oneapi_fill2d(Ptr1, 5, 42l, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery == PI_EXT_ONEAPI_CONTEXT_INFO_USM_FILL2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameLong);
 
   Q.ext_oneapi_memset2d(Ptr1, 5 * sizeof(long), 123, 4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMSET2D_SUPPORT);
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_FILL2D_SUPPORT);
   EXPECT_EQ(LastEnqueuedKernel, USMFillHelperKernelNameChar);
 
   Q.ext_oneapi_memcpy2d(Ptr1, 5 * sizeof(long), Ptr2, 8 * sizeof(long),
                         4 * sizeof(long), 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemcpy2D.dst_ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemcpy2D.dst_pitch, (size_t)5 * sizeof(long));
-  EXPECT_EQ(LastMemcpy2D.src_ptr, (void *)Ptr2);
-  EXPECT_EQ(LastMemcpy2D.src_pitch, (size_t)8 * sizeof(long));
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr1);
+  EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)5 * sizeof(long));
+  EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr2);
+  EXPECT_EQ(LastMemcpy2D.srcPitch, (size_t)8 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.width, (size_t)4 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.height, (size_t)2);
   EXPECT_NE(LastEnqueuedKernel, USMMemcpyHelperKernelNameChar);
 
   Q.ext_oneapi_copy2d(Ptr1, 5, Ptr2, 8, 4, 2);
-  EXPECT_TRUE(LastMemopsQuery ==
-              PI_EXT_ONEAPI_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
-  EXPECT_EQ(LastMemcpy2D.queue, (pi_queue)QueueImpl->getHandleRef());
-  EXPECT_EQ(LastMemcpy2D.dst_ptr, (void *)Ptr2);
-  EXPECT_EQ(LastMemcpy2D.dst_pitch, (size_t)8 * sizeof(long));
-  EXPECT_EQ(LastMemcpy2D.src_ptr, (void *)Ptr1);
-  EXPECT_EQ(LastMemcpy2D.src_pitch, (size_t)5 * sizeof(long));
+  EXPECT_TRUE(LastMemopsQuery == UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT);
+  EXPECT_EQ(LastMemcpy2D.hQueue, QueueImpl->getHandleRef());
+  EXPECT_EQ(LastMemcpy2D.pDst, (void *)Ptr2);
+  EXPECT_EQ(LastMemcpy2D.dstPitch, (size_t)8 * sizeof(long));
+  EXPECT_EQ(LastMemcpy2D.pSrc, (void *)Ptr1);
+  EXPECT_EQ(LastMemcpy2D.srcPitch, (size_t)5 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.width, (size_t)4 * sizeof(long));
   EXPECT_EQ(LastMemcpy2D.height, (size_t)2);
   EXPECT_NE(LastEnqueuedKernel, USMMemcpyHelperKernelNameLong);
@@ -620,8 +521,8 @@ TEST(USMMemcpy2DTest, USMMemcpySupportedOnly) {
 // Negative tests for cases where USM 2D memory operations are expected to throw
 // exceptions.
 TEST(USMMemcpy2DTest, NegativeUSM2DOps) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue Q{Plt.get_devices()[0]};
 
   long *Ptr1 = sycl::malloc_device<long>(10, Q);

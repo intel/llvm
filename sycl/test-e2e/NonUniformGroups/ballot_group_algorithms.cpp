@@ -1,13 +1,16 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 //
-// REQUIRES: gpu
+// RUN: %if any-device-is-cpu && opencl-aot %{ %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s %}
+// RUN: %if cpu %{ %{run} %t.x86.out %}
+//
+// REQUIRES: cpu || gpu
 // REQUIRES: sg-32
 // REQUIRES: aspect-ext_oneapi_ballot_group
 
 // Fails in Nightly testing on the self-hosted CUDA runner:
-// https://github.com/intel/llvm/issues/12995.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/12995
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>

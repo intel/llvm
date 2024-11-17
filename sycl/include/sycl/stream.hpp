@@ -14,11 +14,9 @@
 #include <sycl/atomic.hpp>         // for atomic
 #include <sycl/builtins.hpp>       // for isinf, isnan, signbit
 #include <sycl/detail/array.hpp>   // for array
-#include <sycl/detail/cg.hpp>      // for stream_impl
 #include <sycl/detail/defines.hpp> // for __SYCL_SPECIAL_CLASS, __S...
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
-#include <sycl/detail/item_base.hpp>          // for id, range
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
 #include <sycl/ext/oneapi/bfloat16.hpp>       // for bfloat16
 #include <sycl/group.hpp>                     // for group
@@ -30,8 +28,7 @@
 #include <sycl/nd_range.hpp>                  // for nd_range
 #include <sycl/property_list.hpp>             // for property_list
 #include <sycl/range.hpp>                     // for range
-#include <sycl/sub_group.hpp>                 // for multi_ptr
-#include <sycl/types.hpp>                     // for vec, SwizzleOp
+#include <sycl/vector.hpp>                    // for vec, SwizzleOp
 
 #include <cstddef>     // for size_t, byte
 #include <memory>      // for hash, shared_ptr
@@ -43,6 +40,8 @@ namespace sycl {
 inline namespace _V1 {
 
 namespace detail {
+
+class stream_impl;
 
 using FmtFlags = unsigned int;
 
@@ -913,9 +912,13 @@ public:
 
   bool operator!=(const stream &LHS) const;
 
-  template <typename propertyT> bool has_property() const noexcept;
+  template <typename propertyT> bool has_property() const noexcept {
+    return getPropList().template has_property<propertyT>();
+  }
 
-  template <typename propertyT> propertyT get_property() const;
+  template <typename propertyT> propertyT get_property() const {
+    return getPropList().template get_property<propertyT>();
+  }
 
 private:
 #ifdef __SYCL_DEVICE_ONLY__
@@ -923,7 +926,8 @@ private:
 #else
   std::shared_ptr<detail::stream_impl> impl;
   template <class Obj>
-  friend decltype(Obj::impl) detail::getSyclObjImpl(const Obj &SyclObject);
+  friend const decltype(Obj::impl) &
+  detail::getSyclObjImpl(const Obj &SyclObject);
 #endif
 
   // NOTE: Some members are required for reconstructing the stream, but are not
@@ -1108,6 +1112,8 @@ private:
   template <int Dimensions>
   friend const stream &operator<<(const stream &Out,
                                   const h_item<Dimensions> &RHS);
+
+  const property_list &getPropList() const;
 };
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)

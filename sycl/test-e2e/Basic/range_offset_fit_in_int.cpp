@@ -1,5 +1,5 @@
 // REQUIRES: cpu
-// RUN: %{build} -fsycl-id-queries-fit-in-int -o %t.out
+// RUN: %{build} -Wno-error=deprecated-declarations -fsycl-id-queries-fit-in-int -o %t.out
 // RUN: %{run} %t.out
 
 #include <climits>

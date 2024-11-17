@@ -1,0 +1,33 @@
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.4 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r -o - %t.spv | llvm-dis | FileCheck %s
+
+; SPIR-V
+; Version: 1.4
+; Generator: Khronos LLVM/SPIR-V Translator; 14
+; Bound: 40
+; Schema: 0
+               OpCapability Addresses
+               OpCapability Linkage
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "test"
+               ; Note: this is decorating a variable in the function storage class, which
+               ; is not actually valid according to the SPIR-V spec, but is processed by
+               ; the SPIR-V LLVM Translator and not rejected by spirv-val.
+               OpDecorateString %temp UserSemantic "foo"
+; CHECK: [[STR:@[0-9_.]+]] = {{.*}}foo
+; CHECK: call void @llvm.var.annotation.p0.p0(ptr %{{.*}}, ptr [[STR]], ptr undef, i32 undef, ptr undef)
+       %uint = OpTypeInt 32 0
+       %void = OpTypeVoid
+ %kernel_sig = OpTypeFunction %void %uint
+   %ptr_uint = OpTypePointer Function %uint
+     %kernel = OpFunction %void None %kernel_sig
+          %a = OpFunctionParameter %uint
+      %entry = OpLabel
+       %temp = OpVariable %ptr_uint Function
+        %add = OpIAdd %uint %a %a
+               OpStore %temp %add Aligned 4
+               OpReturn
+               OpFunctionEnd

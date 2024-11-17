@@ -1,0 +1,225 @@
+= sycl_ext_oneapi_get_kernel_info
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 8 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This extension is implemented and fully supported by DPC++.
+
+
+== Overview
+
+Applications sometimes need to query a kernel's information descriptor in order
+to decide how to launch the kernel.
+For example, an application may need to query
+`info::kernel_device_specific::work_group_size` in order to determine the
+nd-range to use when launching the kernel.
+
+Currently, the only way to do this is to create a kernel bundle, get the
+`kernel` object from that bundle, and then query the `kernel` object.
+This is very verbose, especially when the application doesn't need any of the
+other facilities provided by the kernel bundle API.
+
+This extension provides a less verbose way to query a kernel's information
+descriptor without creating a kernel bundle.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_GET_KERNEL_INFO` to one of the values defined in the
+table below.
+Applications can test for the existence of this macro to determine if the
+implementation supports this feature, or applications can test the macro's value
+to determine which of the extension's features the implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+=== New free functions
+
+This extension adds the following new free functions for querying a kernel's
+information descriptors.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+template<typename KernelName, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt);
+
+} // namespace sycl::ext::oneapi
+----
+!====
+
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info()` overload.
+
+_Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
+is defined in the application.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.get_kernel<KernelName>().get_info<Param>();
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+template<typename KernelName, typename Param>
+typename Param::return_type get_kernel_info(const context& ctxt,
+                                            const device& dev);
+
+} // namespace sycl::ext::oneapi
+----
+!====
+
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info(const device &)`
+overload.
+
+_Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
+is defined in the application.
+The device `dev` must be one of the devices contained by `ctxt` or must be a
+descendent device of some device in `ctxt`.
+The kernel `KernelName` must be compatible with the device `dev` as defined by
+`is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+auto bundle =
+  sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.get_kernel<KernelName>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+template<typename KernelName, typename Param>
+typename Param::return_type get_kernel_info(const queue& q);
+
+} // namespace sycl::ext::oneapi
+----
+!====
+
+_Constraints:_ Available only if `Param` is an information descriptor for the
+`kernel` class, which can be used by the `kernel::get_info(const device &)`
+overload.
+
+_Preconditions:_ The `KernelName` must be the type kernel name of a kernel that
+is defined in the application.
+The kernel `KernelName` must be compatible with the device associated with `q`
+as defined by `is_compatible`.
+
+_Returns:_ The same value `ret` that would be computed by:
+
+[source,c++]
+----
+sycl::context ctxt = q.get_context();
+sycl::device dev = q.get_device();
+auto bundle =
+  sycl::get_kernel_bundle<KernelName, sycl::bundle_state::executable>(ctxt);
+auto ret = bundle.get_kernel<KernelName>().get_info<Param>(dev);
+----
+
+_Remarks:_ Each information descriptor may specify additional preconditions,
+exceptions that are thrown, etc.
+
+
+== Issues
+
+* I purposely reduced the exceptions that are required to be thrown for certain
+  error conditions and instead listed these as preconditions.
+  An implementation can still diagnose these error conditions by throwing an
+  exception, but it is not required.
+  Since these APIs are likely on the critical path for launching a kernel, I
+  don't think we want to mandate an error check at runtime.
+  In retrospect, I think this is the right behavior for the core SYCL spec also,
+  and we should consider changing the specified behavior.
+  Thoughts?
+
+* I'm not sure how to formally specify the requirements for `KernelName`.
+  I think an implementation should be able to fail with a link-time error if
+  `KernelName` is not the type-name of some kernel that is defined in the
+  application.
+  However, this seems different from a _Constraint_, which is expected to result
+  in a compile-time error.
+  For now, I just listed it as a _Precondition_, so there is no formal
+  requirement for an implementation to diagnose this error.

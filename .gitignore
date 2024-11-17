@@ -30,6 +30,9 @@
 /build*
 !buildbot
 
+#pulldown temp folder
+/spirv-patches-*
+
 #==============================================================================#
 # Explicit files to ignore (only matches one).
 #==============================================================================#
@@ -52,6 +55,7 @@ autoconf/autom4te.cache
 /CMakeSettings.json
 # CLion project configuration
 /.idea
+/cmake-build*
 
 #==============================================================================#
 # Directories to ignore (do not add trailing '/'s, they skip symlinks).

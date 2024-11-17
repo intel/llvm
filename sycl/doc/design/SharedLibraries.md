@@ -148,12 +148,37 @@ For this purpose DPC++ front-end generates `module-id` attribute on each
 
 ### sycl-post-link changes
 
-In order to support dynamic linking of device code, `sycl-post-link` performs
-2 main tasks:
+When device code splitting is performed during a typical compilation of a SYCL offloading program,
+all dependent device code is brought into a split image in order to construct a complete image.
+When device code splitting is performed during the compilation flow to generate a dynamic library,
+construction of a complete device image is not possible since the dynamic library may rely on
+functions that are not defined in the library. Thus, when supporting dynamic linking a dependency
+to a `canBeImportedFunction` will not cause the dependent function to be added to the image.
 
-- Supplies device images containing exports with an information about exported
-  symbols
-- Supplies device images with an information about imported symbols
+`canBeImportedFunction` is a boolean function accepting a Function input and returns true
+if the Function "can be imported".  A `canBeImportedFunction` is:
+
+  1. Not an intrinsic
+  2. Name does not start with "__"
+  3. Is not a SPIRV, SYCL, or ESIMD builtin function
+  4. Demangled name does not start with "__"
+  5. Must be a `SYCL_EXTERNAL` function
+
+More information about `SYCL_EXTERNAL` can be found in:
+https://registry.khronos.org/SYCL/specs/sycl-2020/html/sycl-2020.html#subsec:syclexternal
+
+In order to support dynamic linking of device code, `sycl-post-link` has
+the following modifications:
+
+- Device images that have a dependency to a `canBeImportedFunction` do not include the
+  function.  Instead the dependency is recorded in the imported symbols property list.
+- An image that provides a `canBeImportedFunction` has the symbol recorded in the exported
+  symbols property list.
+- All functions symbols that are not `canBeImportedFunction` and are not kernels are internalized.
+  Note that kernel functions should not be included in `canBeImportedFunction` since kernels
+  are only callable by host code, and thus would never need to be imported into a device image.
+
+
 
 In addition, `SYCL_EXTERNAL` functions as well as kernels are considered as entry
 points during device code split.

@@ -1,7 +1,7 @@
-// RUN: %{build} -o %t.out
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Remove XFAIL after fixing https://github.com/intel/llvm/issues/13397
-// XFAIL: cpu
 
 #include "helpers.hpp"
 

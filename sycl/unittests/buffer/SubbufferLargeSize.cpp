@@ -11,33 +11,30 @@
 #include <gtest/gtest.h>
 #include <vector>
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
-std::vector<pi_buffer_region_struct> PiMethodData;
+std::vector<ur_buffer_region_t> UrMethodData;
 
-inline pi_result redefinedMemBufferPartition(pi_mem, pi_mem_flags,
-                                             pi_buffer_create_type,
-                                             void *buffer_create_info,
-                                             pi_mem *) {
-  PiMethodData.push_back(
-      *reinterpret_cast<pi_buffer_region>(buffer_create_info));
+inline ur_result_t redefinedMemBufferPartition(void *pParams) {
+  auto params = *static_cast<ur_mem_buffer_partition_params_t *>(pParams);
+  UrMethodData.push_back(**params.ppRegion);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class LargeBufferSizeTest : public ::testing::Test {
 public:
-  LargeBufferSizeTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  LargeBufferSizeTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineAfter<sycl::detail::PiApiKind::piMemBufferPartition>(
-        redefinedMemBufferPartition);
+    mock::getCallbacks().set_after_callback("urMemBufferPartition",
+                                            &redefinedMemBufferPartition);
   }
 
 protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 
@@ -77,9 +74,9 @@ TEST_F(LargeBufferSizeTest, MoreThan32bit) {
       })
       .wait();
 
-  ASSERT_EQ(PiMethodData.size(), 2ul);
-  EXPECT_EQ(PiMethodData[0].origin, 0ul);
-  EXPECT_EQ(PiMethodData[0].size, SubbufferSize1);
-  EXPECT_EQ(PiMethodData[1].origin, OffsetInBytes);
-  EXPECT_EQ(PiMethodData[1].size, SubbufferSize2);
+  ASSERT_EQ(UrMethodData.size(), 2ul);
+  EXPECT_EQ(UrMethodData[0].origin, 0ul);
+  EXPECT_EQ(UrMethodData[0].size, SubbufferSize1);
+  EXPECT_EQ(UrMethodData[1].origin, OffsetInBytes);
+  EXPECT_EQ(UrMethodData[1].size, SubbufferSize2);
 }

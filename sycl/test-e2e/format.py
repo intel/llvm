@@ -186,11 +186,6 @@ class SYCLEndToEndTest(lit.formats.ShTest):
         else:
             substitutions.append(("%{l0_leak_check}", "env UR_L0_LEAKS_DEBUG=1"))
 
-        compilation_cmd_pthread = (
-            "%clangxx -pthread -fsycl -fsycl-targets=%{sycl_triple} %s"
-        )
-        substitutions.append(("%{build_pthread_inc}", compilation_cmd_pthread))
-
         def get_extra_env(sycl_devices):
             # Note: It's possible that the system has a device from below but
             # current llvm-lit invocation isn't configured to include it. We

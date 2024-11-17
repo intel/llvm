@@ -7,6 +7,7 @@
 
 // Test is flaky on Windows, disable until it can be fixed
 // UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/11852
 
 // This test attempts recording a set of kernels after they have already been
 // executed once before.

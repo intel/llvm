@@ -6,15 +6,15 @@
 // FIXME separate compilation requires -fno-sycl-dead-args-optimization
 // >> ---- compile src1
 // >> device compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -c -o a_kernel.bc -Wno-sycl-strict
+// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_a.h %s -o a_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=ignored-attributes -isystem %sycl_include -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT %cxx_std_optionc++17 %include_option sycl_ihdr_a.h %debug_option -c %s -o a.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- compile src2
 // >> device compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -c -o b_kernel.bc -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 -fno-sycl-dead-args-optimization -fsycl-device-only -Xclang -fsycl-int-header=sycl_ihdr_b.h %s -o b_kernel.bc -Wno-sycl-strict
 // >> host compilation...
-// RUN: %clangxx -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
+// RUN: %clangxx -Wno-error=ignored-attributes -isystem %sycl_include -Wno-error=unused-command-line-argument -DSYCL_DISABLE_FALLBACK_ASSERT -DB_CPP=1 %cxx_std_optionc++17 %include_option sycl_ihdr_b.h %debug_option -c %s -o b.o %sycl_options -fno-sycl-dead-args-optimization -Wno-sycl-strict
 //
 // >> ---- bundle .o with .spv
 // >> run bundler
@@ -48,10 +48,10 @@
 // RUN: clang-offload-wrapper -o wrapper.bc -host=x86_64 -kind=sycl -target=spir64 -batch test_spv.table
 //
 // >> compile .bc to .o
-// RUN: %clangxx -c wrapper.bc -o wrapper.o
+// RUN: %clangxx -Wno-error=override-module -c wrapper.bc -o wrapper.o
 //
 // >> ---- link the full hetero app
-// RUN: %clangxx wrapper.o a.o b.o -o app.exe %sycl_options
+// RUN: %clangxx wrapper.o a.o b.o -Wno-unused-command-line-argument -o app.exe %sycl_options
 // RUN: %{run} ./app.exe | FileCheck %s
 // CHECK: pass
 

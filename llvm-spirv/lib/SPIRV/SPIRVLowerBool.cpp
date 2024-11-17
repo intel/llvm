@@ -35,13 +35,14 @@
 // This file implements lowering instructions with bool operands.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spvbool"
 
 #include "SPIRVLowerBool.h"
 #include "SPIRVInternal.h"
 #include "libSPIRV/SPIRVDebug.h"
 
 #include "llvm/IR/IRBuilder.h"
+
+#define DEBUG_TYPE "spvbool"
 
 using namespace llvm;
 using namespace SPIRV;

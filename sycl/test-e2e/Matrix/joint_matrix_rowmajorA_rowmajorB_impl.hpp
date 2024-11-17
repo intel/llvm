@@ -27,7 +27,7 @@ void matrix_multiply(big_matrix<TC, M, N> &C, big_matrix<TA, M, K> &A,
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -144,6 +144,8 @@ int main() {
           gemm_row_major<8, 8, 32, class su_8x8x32, int8_t, uint8_t, int32_t>();
       res += gemm_row_major<8, 8, 32, class uu_8x8x32, uint8_t, uint8_t,
                             int32_t>();
+      // res += gemm_row_major<32, 32, 16, class dg2_bf16_32x32x16, bfloat16,
+      //                       bfloat16, float>();
       break;
     }
   }

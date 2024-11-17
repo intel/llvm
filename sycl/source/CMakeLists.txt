@@ -69,27 +69,34 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     target_link_libraries(${LIB_NAME} PRIVATE ${ARG_XPTI_LIB})
   endif()
 
+  if (NOT LLVM_ENABLE_ZSTD)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_RT_ZSTD_NOT_AVAIABLE)
+  else()
+    target_link_libraries(${LIB_NAME} PRIVATE ${zstd_STATIC_LIBRARY})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${zstd_INCLUDE_DIR})
+  endif()
+
   target_include_directories(${LIB_OBJ_NAME} PRIVATE ${BOOST_UNORDERED_INCLUDE_DIRS})
 
-  # pi_win_proxy_loader
+  # ur_win_proxy_loader
   if (WIN32)
-    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/pi_win_proxy_loader)
+    include_directories(${LLVM_EXTERNAL_SYCL_SOURCE_DIR}/ur_win_proxy_loader)
     if(WIN_DUPE)
-      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loaderd)
+      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loaderd)
       set(MANIFEST_FILE_NAME "sycld.manifest")
     else()
-      target_link_libraries(${LIB_NAME} PUBLIC pi_win_proxy_loader)
+      target_link_libraries(${LIB_NAME} PUBLIC ur_win_proxy_loader)
       set(MANIFEST_FILE_NAME "sycl.manifest")
     endif()
-    # Embed manifest into the sycl.dll where pi_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
+    # Embed manifest into the sycl.dll where ur_win_proxy_loader.dll is described as sycl.dll's private dll and will always be loaded from the same directory.
     # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs (of sycl.dll)
     # from the current directory is only allowed if it is under a directory in the Safe load list.
-    target_link_options(${LIB_NAME} PRIVATE /DEPENDENTLOADFLAG:0x2000 /MANIFEST:NO /MANIFEST:EMBED /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME})
+    target_link_options(${LIB_NAME} PRIVATE "LINKER:/DEPENDENTLOADFLAG:0x2000" "LINKER:/MANIFEST:NO" "LINKER:/MANIFEST:EMBED" "LINKER:/MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/${MANIFEST_FILE_NAME}")
   endif()
 
   target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_INTERNAL_API )
 
-  if (WIN32) 
+  if (WIN32)
     target_compile_definitions(${LIB_OBJ_NAME} PRIVATE __SYCL_BUILD_SYCL_DLL )
     target_link_libraries(${LIB_NAME} PRIVATE shlwapi)
     if (ARG_IMPLIB_NAME)
@@ -110,7 +117,7 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
   else()
     target_compile_options(${LIB_OBJ_NAME} PUBLIC
                            -fvisibility=hidden -fvisibility-inlines-hidden)
-                           
+
     # Sycl math built-in macros cause a GCC 4.6 'note' to be output repeatedly.
     # => note: the ABI for passing parameters with 32-byte alignment has changed in GCC 4.6
     # Seems to be no way to suppress it except use -Wno-psabi
@@ -140,20 +147,22 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
     PRIVATE OpenCL-Headers
   )
 
-  if(SYCL_ENABLE_KERNEL_FUSION)
-    if(NOT DEFINED LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR)
-      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR variable: Must be set when SYCL fusion is enabled")
+  if(SYCL_ENABLE_EXTENSION_JIT)
+    if(NOT DEFINED LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR)
+      message(FATAL_ERROR "Undefined LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR variable: Must be set when extension to JIT SYCL kernels is enabled")
     endif()
-    set(SYCL_FUSION_INCLUDE_DIRS 
-        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/common/include
-        ${LLVM_EXTERNAL_SYCL_FUSION_SOURCE_DIR}/jit-compiler/include)
-    add_dependencies(${LIB_NAME} sycl-fusion)
-    add_dependencies(${LIB_OBJ_NAME} sycl-fusion)
-    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
-    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_FUSION_INCLUDE_DIRS})
+    set(SYCL_JIT_INCLUDE_DIRS
+        ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include
+        ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
+    add_dependencies(${LIB_NAME} sycl-jit)
+    add_dependencies(${LIB_OBJ_NAME} sycl-jit)
+    target_include_directories(${LIB_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
+    target_include_directories(${LIB_OBJ_NAME} PRIVATE ${SYCL_JIT_INCLUDE_DIRS})
     set_property(GLOBAL APPEND PROPERTY SYCL_TOOLCHAIN_INSTALL_COMPONENTS
-       sycl-fusion)
-  endif(SYCL_ENABLE_KERNEL_FUSION)
+       sycl-jit)
+    target_compile_definitions(${LIB_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
+    target_compile_definitions(${LIB_OBJ_NAME} PRIVATE SYCL_EXT_JIT_ENABLE)
+  endif(SYCL_ENABLE_EXTENSION_JIT)
 
   find_package(Threads REQUIRED)
 
@@ -162,6 +171,44 @@ function(add_sycl_rt_library LIB_NAME LIB_OBJ_NAME)
       ${CMAKE_DL_LIBS}
       ${CMAKE_THREAD_LIBS_INIT}
   )
+
+  # Link and include UR
+  target_link_libraries(${LIB_OBJ_NAME}
+    PRIVATE
+      UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
+  )
+
+  target_include_directories(${LIB_OBJ_NAME}
+    PRIVATE
+      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+  )
+
+  add_dependencies(${LIB_OBJ_NAME} UnifiedRuntimeAdapters ur_umf)
+
+  target_link_libraries(${LIB_NAME}
+    PRIVATE
+      UnifiedRuntime-Headers
+      UnifiedRuntimeCommon
+  )
+
+  if (NOT WIN32)
+    target_link_libraries(${LIB_NAME}
+      PRIVATE
+      UnifiedRuntimeLoader
+    )
+  else()
+    add_dependencies(${LIB_NAME} UnifiedRuntimeLoader)
+  endif()
+
+  target_include_directories(${LIB_NAME}
+    PRIVATE
+      "${UNIFIED_RUNTIME_SRC_INCLUDE_DIR}"
+      "${UNIFIED_RUNTIME_COMMON_INCLUDE_DIR}"
+  )
+
+  add_dependencies(${LIB_NAME} UnifiedRuntimeAdapters ur_umf)
 
   add_common_options(${LIB_NAME} ${LIB_OBJ_NAME})
 
@@ -192,7 +239,6 @@ set(SYCL_COMMON_SOURCES
     "detail/allowlist.cpp"
     "detail/bindless_images.cpp"
     "detail/buffer_impl.cpp"
-    "detail/pi.cpp"
     "detail/common.cpp"
     "detail/composite_device/composite_device.cpp"
     "detail/config.cpp"
@@ -207,7 +253,6 @@ set(SYCL_COMMON_SOURCES
     "detail/event_impl.cpp"
     "detail/filter_selector_impl.cpp"
     "detail/fusion/fusion_wrapper.cpp"
-    "detail/fusion/fusion_wrapper_impl.cpp"
     "detail/global_handler.cpp"
     "detail/graph_impl.cpp"
     "detail/helpers.cpp"
@@ -241,6 +286,7 @@ set(SYCL_COMMON_SOURCES
     "detail/spec_constant_impl.cpp"
     "detail/sycl_mem_obj_t.cpp"
     "detail/usm/usm_impl.cpp"
+    "detail/ur.cpp"
     "detail/util.cpp"
     "detail/xpti_registry.cpp"
     "accessor.cpp"
@@ -264,8 +310,8 @@ set(SYCL_COMMON_SOURCES
     "stream.cpp"
     "spirv_ops.cpp"
     "virtual_mem.cpp"
-    "$<$<PLATFORM_ID:Windows>:detail/windows_pi.cpp>"
-    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_pi.cpp>"
+    "$<$<PLATFORM_ID:Windows>:detail/windows_ur.cpp>"
+    "$<$<OR:$<PLATFORM_ID:Linux>,$<PLATFORM_ID:Darwin>>:detail/posix_ur.cpp>"
 )
 
 set(SYCL_NON_PREVIEW_SOURCES "${SYCL_COMMON_SOURCES}"
@@ -310,7 +356,7 @@ if (MSVC)
 endif()
 
 check_cxx_compiler_flag(-fsemantic-interposition HAS_SEMANTIC_INTERPOSITION_FLAG)
-if (HAS_SEMANTIC_INTERPOSITION_FLAG)
+if (HAS_SEMANTIC_INTERPOSITION_FLAG AND NOT CMAKE_SYSTEM_NAME STREQUAL Darwin)
   # See https://github.com/llvm/llvm-project/issues/58295.
   set_source_files_properties(device_selector.cpp PROPERTIES COMPILE_FLAGS -fsemantic-interposition)
 endif()

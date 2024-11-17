@@ -12,6 +12,7 @@
 #include "TreeTransform.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/ASTContext.h"
+#include "clang/AST/ASTLambda.h"
 #include "clang/AST/ASTMutationListener.h"
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/DeclVisitor.h"
@@ -21,6 +22,7 @@
 #include "clang/AST/Mangle.h"
 #include "clang/AST/PrettyDeclStackTrace.h"
 #include "clang/AST/TypeLoc.h"
+#include "clang/AST/TypeOrdering.h"
 #include "clang/Basic/SourceManager.h"
 #include "clang/Basic/TargetInfo.h"
 #include "clang/Sema/EnterExpressionEvaluationContext.h"
@@ -29,6 +31,7 @@
 #include "clang/Sema/ScopeInfo.h"
 #include "clang/Sema/SemaAMDGPU.h"
 #include "clang/Sema/SemaCUDA.h"
+#include "clang/Sema/SemaHLSL.h"
 #include "clang/Sema/SemaInternal.h"
 #include "clang/Sema/SemaObjC.h"
 #include "clang/Sema/SemaOpenMP.h"
@@ -229,7 +232,10 @@ static void instantiateDependentAnnotationAttr(
     ActualArgs.insert(ActualArgs.begin(), Args.begin() + 1, Args.end());
     std::swap(Args, ActualArgs);
   }
-  S.AddAnnotationAttr(New, *Attr, Str, Args);
+  auto *AA = S.CreateAnnotationAttr(*Attr, Str, Args);
+  if (AA) {
+    New->addAttr(AA);
+  }
 }
 
 static Expr *instantiateDependentFunctionAttrCondition(
@@ -331,7 +337,7 @@ instantiateDependentModeAttr(Sema &S,
 static void instantiateOMPDeclareSimdDeclAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const OMPDeclareSimdDeclAttr &Attr, Decl *New) {
-  // Allow 'this' in clauses with varlists.
+  // Allow 'this' in clauses with varlist.
   if (auto *FTD = dyn_cast<FunctionTemplateDecl>(New))
     New = FTD->getTemplatedDecl();
   auto *FD = cast<FunctionDecl>(New);
@@ -414,7 +420,7 @@ static void instantiateOMPDeclareSimdDeclAttr(
 static void instantiateOMPDeclareVariantAttr(
     Sema &S, const MultiLevelTemplateArgumentList &TemplateArgs,
     const OMPDeclareVariantAttr &Attr, Decl *New) {
-  // Allow 'this' in clauses with varlists.
+  // Allow 'this' in clauses with varlist.
   if (auto *FTD = dyn_cast<FunctionTemplateDecl>(New))
     New = FTD->getTemplatedDecl();
   auto *FD = cast<FunctionDecl>(New);
@@ -643,7 +649,8 @@ static void instantiateSYCLIntelForcePow2DepthAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    return S.AddSYCLIntelForcePow2DepthAttr(New, *Attr, Result.getAs<Expr>());
+    return S.SYCL().addSYCLIntelForcePow2DepthAttr(New, *Attr,
+                                                   Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelBankWidthAttr(
@@ -653,7 +660,7 @@ static void instantiateSYCLIntelBankWidthAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelBankWidthAttr(New, *Attr, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelBankWidthAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelNumBanksAttr(
@@ -663,7 +670,7 @@ static void instantiateSYCLIntelNumBanksAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelNumBanksAttr(New, *Attr, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelNumBanksAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelBankBitsAttr(
@@ -678,7 +685,7 @@ static void instantiateSYCLIntelBankBitsAttr(
       return;
     Args.push_back(Result.getAs<Expr>());
   }
-  S.AddSYCLIntelBankBitsAttr(New, *Attr, Args.data(), Args.size());
+  S.SYCL().addSYCLIntelBankBitsAttr(New, *Attr, Args.data(), Args.size());
 }
 
 static void
@@ -691,7 +698,7 @@ instantiateSYCLDeviceHasAttr(Sema &S,
   if (S.SubstExprs(ArrayRef<Expr *>(Attr->aspects_begin(), Attr->aspects_end()),
                    /*IsCall=*/false, TemplateArgs, Args))
     return;
-  S.AddSYCLDeviceHasAttr(New, *Attr, Args.data(), Args.size());
+  S.SYCL().addSYCLDeviceHasAttr(New, *Attr, Args.data(), Args.size());
 }
 
 static void instantiateSYCLUsesAspectsAttr(
@@ -700,13 +707,13 @@ static void instantiateSYCLUsesAspectsAttr(
   EnterExpressionEvaluationContext Unevaluated(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   SmallVector<Expr *, 8> Args;
-  for (auto I : Attr->aspects()) {
+  for (auto *I : Attr->aspects()) {
     ExprResult Result = S.SubstExpr(I, TemplateArgs);
     if (Result.isInvalid())
       return;
     Args.push_back(Result.getAs<Expr>());
   }
-  S.AddSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
+  S.SYCL().addSYCLUsesAspectsAttr(New, *Attr, Args.data(), Args.size());
 }
 
 static void instantiateSYCLIntelPipeIOAttr(
@@ -717,7 +724,7 @@ static void instantiateSYCLIntelPipeIOAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getID(), TemplateArgs);
   if (!Result.isInvalid())
-    S.addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelPipeIOAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelLoopFuseAttr(
@@ -727,7 +734,7 @@ static void instantiateSYCLIntelLoopFuseAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(Attr->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelLoopFuseAttr(New, *Attr, Result.getAs<Expr>());
 }
 
 static void instantiateIntelReqdSubGroupSize(
@@ -737,7 +744,7 @@ static void instantiateIntelReqdSubGroupSize(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddIntelReqdSubGroupSize(New, *A, Result.getAs<Expr>());
+    S.SYCL().addIntelReqdSubGroupSizeAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelNumSimdWorkItemsAttr(
@@ -747,7 +754,7 @@ static void instantiateSYCLIntelNumSimdWorkItemsAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelNumSimdWorkItemsAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
@@ -757,7 +764,8 @@ static void instantiateSYCLIntelSchedulerTargetFmaxMhzAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelSchedulerTargetFmaxMhzAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelSchedulerTargetFmaxMhzAttr(New, *A,
+                                                    Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
@@ -767,7 +775,7 @@ static void instantiateSYCLIntelNoGlobalWorkOffsetAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelNoGlobalWorkOffsetAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
@@ -777,7 +785,7 @@ static void instantiateSYCLIntelMaxGlobalWorkDimAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelMaxGlobalWorkDimAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
@@ -787,8 +795,8 @@ static void instantiateSYCLIntelMinWorkGroupsPerComputeUnitAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelMinWorkGroupsPerComputeUnitAttr(New, *A,
-                                                  Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelMinWorkGroupsPerComputeUnitAttr(New, *A,
+                                                         Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
@@ -798,8 +806,8 @@ static void instantiateSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(New, *A,
-                                                     Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelMaxWorkGroupsPerMultiprocessorAttr(
+        New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMaxConcurrencyAttr(
@@ -809,7 +817,7 @@ static void instantiateSYCLIntelMaxConcurrencyAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelMaxConcurrencyAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelPrivateCopiesAttr(
@@ -819,7 +827,7 @@ static void instantiateSYCLIntelPrivateCopiesAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelPrivateCopiesAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelMaxReplicatesAttr(
@@ -829,7 +837,7 @@ static void instantiateSYCLIntelMaxReplicatesAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelMaxReplicatesAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelInitiationIntervalAttr(
@@ -839,7 +847,7 @@ static void instantiateSYCLIntelInitiationIntervalAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getNExpr(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelInitiationIntervalAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLIntelESimdVectorizeAttr(
@@ -849,7 +857,7 @@ static void instantiateSYCLIntelESimdVectorizeAttr(
       S, Sema::ExpressionEvaluationContext::ConstantEvaluated);
   ExprResult Result = S.SubstExpr(A->getValue(), TemplateArgs);
   if (!Result.isInvalid())
-    S.AddSYCLIntelESimdVectorizeAttr(New, *A, Result.getAs<Expr>());
+    S.SYCL().addSYCLIntelESimdVectorizeAttr(New, *A, Result.getAs<Expr>());
 }
 
 static void instantiateSYCLAddIRAttributesFunctionAttr(
@@ -861,7 +869,7 @@ static void instantiateSYCLAddIRAttributesFunctionAttr(
   if (S.SubstExprs(ArrayRef<Expr *>(A->args_begin(), A->args_end()),
                    /*IsCall=*/false, TemplateArgs, Args))
     return;
-  S.AddSYCLAddIRAttributesFunctionAttr(New, *A, Args);
+  S.SYCL().addSYCLAddIRAttributesFunctionAttr(New, *A, Args);
 }
 
 static void instantiateSYCLAddIRAttributesKernelParameterAttr(
@@ -873,7 +881,7 @@ static void instantiateSYCLAddIRAttributesKernelParameterAttr(
   if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
                    /*IsCall=*/false, TemplateArgs, Args))
     return;
-  S.AddSYCLAddIRAttributesKernelParameterAttr(New, *A, Args);
+  S.SYCL().addSYCLAddIRAttributesKernelParameterAttr(New, *A, Args);
 }
 
 static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
@@ -885,7 +893,7 @@ static void instantiateSYCLAddIRAttributesGlobalVariableAttr(
   if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
                    /*IsCall=*/false, TemplateArgs, Args))
     return;
-  S.AddSYCLAddIRAttributesGlobalVariableAttr(New, *A, Args);
+  S.SYCL().addSYCLAddIRAttributesGlobalVariableAttr(New, *A, Args);
 }
 
 static void instantiateSYCLAddIRAnnotationsMemberAttr(
@@ -897,7 +905,7 @@ static void instantiateSYCLAddIRAnnotationsMemberAttr(
   if (S.SubstExprs(ArrayRef<Expr *>(A->args().begin(), A->args().end()),
                    /*IsCall=*/false, TemplateArgs, Args))
     return;
-  S.AddSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
+  S.SYCL().addSYCLAddIRAnnotationsMemberAttr(New, *A, Args);
 }
 
 static void instantiateSYCLWorkGroupSizeHintAttr(
@@ -915,8 +923,8 @@ static void instantiateSYCLWorkGroupSizeHintAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddSYCLWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
-                                 ZResult.get());
+  S.SYCL().addSYCLWorkGroupSizeHintAttr(New, *A, XResult.get(), YResult.get(),
+                                        ZResult.get());
 }
 
 static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
@@ -934,8 +942,8 @@ static void instantiateSYCLIntelMaxWorkGroupSizeAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
-                                     ZResult.get());
+  S.SYCL().addSYCLIntelMaxWorkGroupSizeAttr(New, *A, XResult.get(),
+                                            YResult.get(), ZResult.get());
 }
 
 static void instantiateSYCLReqdWorkGroupSizeAttr(
@@ -953,8 +961,8 @@ static void instantiateSYCLReqdWorkGroupSizeAttr(
   if (ZResult.isInvalid())
     return;
 
-  S.AddSYCLReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
-                                 ZResult.get());
+  S.SYCL().addSYCLReqdWorkGroupSizeAttr(New, *A, XResult.get(), YResult.get(),
+                                        ZResult.get());
 }
 
 // This doesn't take any template parameters, but we have a custom action that
@@ -1018,7 +1026,7 @@ static void instantiateDependentHLSLParamModifierAttr(
     const HLSLParamModifierAttr *Attr, Decl *New) {
   ParmVarDecl *P = cast<ParmVarDecl>(New);
   P->addAttr(Attr->clone(S.getASTContext()));
-  P->setType(S.getASTContext().getLValueReferenceType(P->getType()));
+  P->setType(S.HLSL().getInoutParameterType(P->getType()));
 }
 
 void Sema::InstantiateAttrsForDecl(
@@ -1363,12 +1371,6 @@ void Sema::InstantiateAttrs(const MultiLevelTemplateArgumentList &TemplateArgs,
   }
 }
 
-/// Update instantiation attributes after template was late parsed.
-///
-/// Some attributes are evaluated based on the body of template. If it is
-/// late parsed, such attributes cannot be evaluated when declaration is
-/// instantiated. This function is used to update instantiation attributes when
-/// template definition is ready.
 void Sema::updateAttrsForLateParsedTemplate(const Decl *Pattern, Decl *Inst) {
   for (const auto *Attr : Pattern->attrs()) {
     if (auto *A = dyn_cast<StrictFPAttr>(Attr)) {
@@ -1379,10 +1381,6 @@ void Sema::updateAttrsForLateParsedTemplate(const Decl *Pattern, Decl *Inst) {
   }
 }
 
-/// In the MS ABI, we need to instantiate default arguments of dllexported
-/// default constructors along with the constructor definition. This allows IR
-/// gen to emit a constructor closure which calls the default constructor with
-/// its default arguments.
 void Sema::InstantiateDefaultCtorDefaultArgs(CXXConstructorDecl *Ctor) {
   assert(Context.getTargetInfo().getCXXABI().isMicrosoft() &&
          Ctor->isDefaultConstructor());
@@ -1576,8 +1574,8 @@ Decl *TemplateDeclInstantiator::VisitTypeAliasDecl(TypeAliasDecl *D) {
   return Typedef;
 }
 
-Decl *
-TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
+Decl *TemplateDeclInstantiator::InstantiateTypeAliasTemplateDecl(
+    TypeAliasTemplateDecl *D) {
   // Create a local instantiation scope for this type alias template, which
   // will contain the instantiations of the template parameters.
   LocalInstantiationScope Scope(SemaRef);
@@ -1623,7 +1621,14 @@ TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   if (!PrevAliasTemplate)
     Inst->setInstantiatedFromMemberTemplate(D);
 
-  Owner->addDecl(Inst);
+  return Inst;
+}
+
+Decl *
+TemplateDeclInstantiator::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
+  Decl *Inst = InstantiateTypeAliasTemplateDecl(D);
+  if (Inst)
+    Owner->addDecl(Inst);
 
   return Inst;
 }
@@ -1963,8 +1968,47 @@ Decl *TemplateDeclInstantiator::VisitFriendDecl(FriendDecl *D) {
     if (D->isUnsupportedFriend()) {
       InstTy = Ty;
     } else {
-      InstTy = SemaRef.SubstType(Ty, TemplateArgs,
-                                 D->getLocation(), DeclarationName());
+      if (D->isPackExpansion()) {
+        SmallVector<UnexpandedParameterPack, 2> Unexpanded;
+        SemaRef.collectUnexpandedParameterPacks(Ty->getTypeLoc(), Unexpanded);
+        assert(!Unexpanded.empty() && "Pack expansion without packs");
+
+        bool ShouldExpand = true;
+        bool RetainExpansion = false;
+        std::optional<unsigned> NumExpansions;
+        if (SemaRef.CheckParameterPacksForExpansion(
+                D->getEllipsisLoc(), D->getSourceRange(), Unexpanded,
+                TemplateArgs, ShouldExpand, RetainExpansion, NumExpansions))
+          return nullptr;
+
+        assert(!RetainExpansion &&
+               "should never retain an expansion for a variadic friend decl");
+
+        if (ShouldExpand) {
+          SmallVector<FriendDecl *> Decls;
+          for (unsigned I = 0; I != *NumExpansions; I++) {
+            Sema::ArgumentPackSubstitutionIndexRAII SubstIndex(SemaRef, I);
+            TypeSourceInfo *TSI = SemaRef.SubstType(
+                Ty, TemplateArgs, D->getEllipsisLoc(), DeclarationName());
+            if (!TSI)
+              return nullptr;
+
+            auto FD =
+                FriendDecl::Create(SemaRef.Context, Owner, D->getLocation(),
+                                   TSI, D->getFriendLoc());
+
+            FD->setAccess(AS_public);
+            Owner->addDecl(FD);
+            Decls.push_back(FD);
+          }
+
+          // Just drop this node; we have no use for it anymore.
+          return nullptr;
+        }
+      }
+
+      InstTy = SemaRef.SubstType(Ty, TemplateArgs, D->getLocation(),
+                                 DeclarationName());
     }
     if (!InstTy)
       return nullptr;
@@ -2713,7 +2757,7 @@ Decl *TemplateDeclInstantiator::VisitFunctionDecl(
         SemaRef.Context, DC, D->getInnerLocStart(),
         InstantiatedExplicitSpecifier, NameInfo, T, TInfo,
         D->getSourceRange().getEnd(), DGuide->getCorrespondingConstructor(),
-        DGuide->getDeductionCandidateKind());
+        DGuide->getDeductionCandidateKind(), TrailingRequiresClause);
     Function->setAccess(D->getAccess());
   } else {
     Function = FunctionDecl::Create(
@@ -3941,6 +3985,10 @@ Decl *TemplateDeclInstantiator::VisitUsingEnumDecl(UsingEnumDecl *D) {
 
   TypeSourceInfo *TSI = SemaRef.SubstType(D->getEnumType(), TemplateArgs,
                                           D->getLocation(), D->getDeclName());
+
+  if (!TSI)
+    return nullptr;
+
   UsingEnumDecl *NewUD =
       UsingEnumDecl::Create(SemaRef.Context, Owner, D->getUsingLoc(),
                             D->getEnumLoc(), D->getLocation(), TSI);
@@ -4105,7 +4153,7 @@ Decl *TemplateDeclInstantiator::VisitUsingPackDecl(UsingPackDecl *D) {
 Decl *TemplateDeclInstantiator::VisitOMPThreadPrivateDecl(
                                      OMPThreadPrivateDecl *D) {
   SmallVector<Expr *, 5> Vars;
-  for (auto *I : D->varlists()) {
+  for (auto *I : D->varlist()) {
     Expr *Var = SemaRef.SubstExpr(I, TemplateArgs).get();
     assert(isa<DeclRefExpr>(Var) && "threadprivate arg is not a DeclRefExpr");
     Vars.push_back(Var);
@@ -4122,7 +4170,7 @@ Decl *TemplateDeclInstantiator::VisitOMPThreadPrivateDecl(
 
 Decl *TemplateDeclInstantiator::VisitOMPAllocateDecl(OMPAllocateDecl *D) {
   SmallVector<Expr *, 5> Vars;
-  for (auto *I : D->varlists()) {
+  for (auto *I : D->varlist()) {
     Expr *Var = SemaRef.SubstExpr(I, TemplateArgs).get();
     assert(isa<DeclRefExpr>(Var) && "allocate arg is not a DeclRefExpr");
     Vars.push_back(Var);
@@ -4299,7 +4347,7 @@ TemplateDeclInstantiator::VisitOMPDeclareMapperDecl(OMPDeclareMapperDecl *D) {
   for (OMPClause *C : D->clauselists()) {
     auto *OldC = cast<OMPMapClause>(C);
     SmallVector<Expr *, 4> NewVars;
-    for (Expr *OE : OldC->varlists()) {
+    for (Expr *OE : OldC->varlist()) {
       Expr *NE = SemaRef.SubstExpr(OE, TemplateArgs).get();
       if (!NE) {
         IsCorrect = false;
@@ -4396,10 +4444,10 @@ TemplateDeclInstantiator::VisitClassTemplateSpecializationDecl(
   // Check that the template argument list is well-formed for this
   // class template.
   SmallVector<TemplateArgument, 4> SugaredConverted, CanonicalConverted;
-  if (SemaRef.CheckTemplateArgumentList(InstClassTemplate, D->getLocation(),
-                                        InstTemplateArgs, false,
-                                        SugaredConverted, CanonicalConverted,
-                                        /*UpdateArgsWithConversions=*/true))
+  if (SemaRef.CheckTemplateArgumentList(
+          InstClassTemplate, D->getLocation(), InstTemplateArgs,
+          /*DefaultArgs=*/{}, false, SugaredConverted, CanonicalConverted,
+          /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Figure out where to insert this class template explicit specialization
@@ -4504,10 +4552,10 @@ Decl *TemplateDeclInstantiator::VisitVarTemplateSpecializationDecl(
 
   // Check that the template argument list is well-formed for this template.
   SmallVector<TemplateArgument, 4> SugaredConverted, CanonicalConverted;
-  if (SemaRef.CheckTemplateArgumentList(InstVarTemplate, D->getLocation(),
-                                        VarTemplateArgsInfo, false,
-                                        SugaredConverted, CanonicalConverted,
-                                        /*UpdateArgsWithConversions=*/true))
+  if (SemaRef.CheckTemplateArgumentList(
+          InstVarTemplate, D->getLocation(), VarTemplateArgsInfo,
+          /*DefaultArgs=*/{}, false, SugaredConverted, CanonicalConverted,
+          /*UpdateArgsWithConversions=*/true))
     return nullptr;
 
   // Check whether we've already seen a declaration of this specialization.
@@ -4772,6 +4820,7 @@ TemplateDeclInstantiator::InstantiateClassTemplatePartialSpecialization(
   SmallVector<TemplateArgument, 4> SugaredConverted, CanonicalConverted;
   if (SemaRef.CheckTemplateArgumentList(
           ClassTemplate, PartialSpec->getLocation(), InstTemplateArgs,
+          /*DefaultArgs=*/{},
           /*PartialTemplateArgs=*/false, SugaredConverted, CanonicalConverted))
     return nullptr;
 
@@ -4883,9 +4932,10 @@ TemplateDeclInstantiator::InstantiateVarTemplatePartialSpecialization(
   // Check that the template argument list is well-formed for this
   // class template.
   SmallVector<TemplateArgument, 4> SugaredConverted, CanonicalConverted;
-  if (SemaRef.CheckTemplateArgumentList(
-          VarTemplate, PartialSpec->getLocation(), InstTemplateArgs,
-          /*PartialTemplateArgs=*/false, SugaredConverted, CanonicalConverted))
+  if (SemaRef.CheckTemplateArgumentList(VarTemplate, PartialSpec->getLocation(),
+                                        InstTemplateArgs, /*DefaultArgs=*/{},
+                                        /*PartialTemplateArgs=*/false,
+                                        SugaredConverted, CanonicalConverted))
     return nullptr;
 
   // Check these arguments are valid for a template partial specialization.
@@ -5066,8 +5116,6 @@ TemplateDeclInstantiator::SubstFunctionType(FunctionDecl *D,
   return NewTInfo;
 }
 
-/// Introduce the instantiated local variables into the local
-/// instantiation scope.
 void Sema::addInstantiatedLocalVarsToScope(FunctionDecl *Function,
                                            const FunctionDecl *PatternDecl,
                                            LocalInstantiationScope &Scope) {
@@ -5096,9 +5144,6 @@ void Sema::addInstantiatedLocalVarsToScope(FunctionDecl *Function,
   }
 }
 
-/// Introduce the instantiated function parameters into the local
-/// instantiation scope, and set the parameter names to those used
-/// in the template.
 bool Sema::addInstantiatedParametersToScope(
     FunctionDecl *Function, const FunctionDecl *PatternDecl,
     LocalInstantiationScope &Scope,
@@ -5164,6 +5209,36 @@ bool Sema::InstantiateDefaultArgument(SourceLocation CallLoc, FunctionDecl *FD,
                                       ParmVarDecl *Param) {
   assert(Param->hasUninstantiatedDefaultArg());
 
+  NamedDecl *Pattern = FD;
+  std::optional<ArrayRef<TemplateArgument>> Innermost;
+
+  // C++ [dcl.fct.default]p4
+  //   For non-template functions, default arguments can be added in later
+  //   declarations of a function that inhabit the same scope.
+  //
+  // C++ [dcl.fct.default]p6
+  //   Except for member functions of templated classes, the default arguments
+  //   in a member function definition that appears outside of the class
+  //   definition are added to the set of default arguments provided by the
+  //   member function declaration in the class definition; the program is
+  //   ill-formed if a default constructor, copy or move constructor, or copy
+  //   or move assignment operator is so declared. Default arguments for a
+  //   member function of a templated class shall be specified on the initial
+  //   declaration of the member function within the templated class.
+  //
+  // We need to collect the template arguments from the context of the function
+  // where the default argument was defined. For a specialization of a function
+  // template explicitly specialized for an implicit instantiation of a class
+  // template, that context is the (implicitly instantiated) declaration in the
+  // definition of the class template specialization.
+  if (FD->isCXXClassMember() &&
+      !isGenericLambdaCallOperatorOrStaticInvokerSpecialization(FD)) {
+    if (FunctionTemplateDecl *FTD = FD->getPrimaryTemplate()) {
+      Pattern = FTD->getFirstDecl();
+      Innermost = FD->getTemplateSpecializationArgs()->asArray();
+    }
+  }
+
   // Instantiate the expression.
   //
   // FIXME: Pass in a correct Pattern argument, otherwise
@@ -5182,8 +5257,8 @@ bool Sema::InstantiateDefaultArgument(SourceLocation CallLoc, FunctionDecl *FD,
   // template<typename T>
   // A<T> Foo(int a = A<T>::FooImpl());
   MultiLevelTemplateArgumentList TemplateArgs =
-      getTemplateInstantiationArgs(FD, FD->getLexicalDeclContext(),
-                                   /*Final=*/false, /*Innermost=*/std::nullopt,
+      getTemplateInstantiationArgs(Pattern, Pattern->getLexicalDeclContext(),
+                                   /*Final=*/false, Innermost,
                                    /*RelativeToPrimary=*/true);
 
   if (SubstDefaultArgument(CallLoc, Param, TemplateArgs, /*ForCallExpr*/ true))
@@ -5225,7 +5300,7 @@ void Sema::InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
   MultiLevelTemplateArgumentList TemplateArgs =
       getTemplateInstantiationArgs(Decl, Decl->getLexicalDeclContext(),
                                    /*Final=*/false, /*Innermost=*/std::nullopt,
-                                   /*RelativeToPrimary*/ true);
+                                   /*RelativeToPrimary=*/true);
 
   // FIXME: We can't use getTemplateInstantiationPattern(false) in general
   // here, because for a non-defining friend declaration in a class template,
@@ -5236,6 +5311,12 @@ void Sema::InstantiateExceptionSpec(SourceLocation PointOfInstantiation,
     UpdateExceptionSpec(Decl, EST_None);
     return;
   }
+
+  // The noexcept specification could reference any lambda captures. Ensure
+  // those are added to the LocalInstantiationScope.
+  LambdaScopeForCallOperatorInstantiationRAII PushLambdaCaptures(
+      *this, Decl, TemplateArgs, Scope,
+      /*ShouldAddDeclsFromParentScope=*/false);
 
   SubstExceptionSpec(Decl, Template->getType()->castAs<FunctionProtoType>(),
                      TemplateArgs);
@@ -5376,11 +5457,6 @@ bool TemplateDeclInstantiator::SubstDefaultedFunction(FunctionDecl *New,
   return false;
 }
 
-/// Instantiate (or find existing instantiation of) a function template with a
-/// given set of template arguments.
-///
-/// Usually this should not be used, and template argument deduction should be
-/// used in its place.
 FunctionDecl *Sema::InstantiateFunctionDeclaration(
     FunctionTemplateDecl *FTD, const TemplateArgumentList *Args,
     SourceLocation Loc, CodeSynthesisContext::SynthesisKind CSC) {
@@ -5398,23 +5474,6 @@ FunctionDecl *Sema::InstantiateFunctionDeclaration(
   return cast_or_null<FunctionDecl>(SubstDecl(FD, FD->getParent(), MArgs));
 }
 
-/// Instantiate the definition of the given function from its
-/// template.
-///
-/// \param PointOfInstantiation the point at which the instantiation was
-/// required. Note that this is not precisely a "point of instantiation"
-/// for the function, but it's close.
-///
-/// \param Function the already-instantiated declaration of a
-/// function template specialization or member function of a class template
-/// specialization.
-///
-/// \param Recursive if true, recursively instantiates any functions that
-/// are required by this instantiation.
-///
-/// \param DefinitionRequired if true, then we are performing an explicit
-/// instantiation where the body of the function is required. Complain if
-/// there is no such body.
 void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
                                          FunctionDecl *Function,
                                          bool Recursive,
@@ -5479,6 +5538,16 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
       Function->setInstantiationIsPending(true);
       PendingInstantiations.push_back(
         std::make_pair(Function, PointOfInstantiation));
+
+      if (llvm::isTimeTraceVerbose()) {
+        llvm::timeTraceAddInstantEvent("DeferInstantiation", [&] {
+          std::string Name;
+          llvm::raw_string_ostream OS(Name);
+          Function->getNameForDiagnostic(OS, getPrintingPolicy(),
+                                         /*Qualified=*/true);
+          return Name;
+        });
+      }
     } else if (TSK == TSK_ImplicitInstantiation) {
       if (AtEndOfTU && !getDiagnostics().hasErrorOccurred() &&
           !getSourceManager().isInSystemHeader(PatternDecl->getBeginLoc())) {
@@ -5504,11 +5573,16 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
   }
 
   llvm::TimeTraceScope TimeScope("InstantiateFunction", [&]() {
-    std::string Name;
-    llvm::raw_string_ostream OS(Name);
+    llvm::TimeTraceMetadata M;
+    llvm::raw_string_ostream OS(M.Detail);
     Function->getNameForDiagnostic(OS, getPrintingPolicy(),
                                    /*Qualified=*/true);
-    return Name;
+    if (llvm::isTimeTraceVerbose()) {
+      auto Loc = SourceMgr.getExpansionLoc(Function->getLocation());
+      M.File = SourceMgr.getFilename(Loc);
+      M.Line = SourceMgr.getExpansionLineNumber(Loc);
+    }
+    return M;
   });
 
   // If we're performing recursive template instantiation, create our own
@@ -5674,8 +5748,7 @@ void Sema::InstantiateFunctionDefinition(SourceLocation PointOfInstantiation,
     SetDeclDefaulted(Function, PatternDecl->getLocation());
   } else {
     MultiLevelTemplateArgumentList TemplateArgs = getTemplateInstantiationArgs(
-        Function, Function->getLexicalDeclContext(), /*Final=*/false,
-        /*Innermost=*/std::nullopt, false, PatternDecl);
+        Function, Function->getLexicalDeclContext());
 
     // Substitute into the qualifier; we can get a substitution failure here
     // through evil use of alias templates.
@@ -5797,8 +5870,6 @@ VarTemplateSpecializationDecl *Sema::BuildVarTemplateInstantiation(
   return VD;
 }
 
-/// Instantiates a variable template specialization by completing it
-/// with appropriate type information and initializer.
 VarTemplateSpecializationDecl *Sema::CompleteVarTemplateSpecializationDecl(
     VarTemplateSpecializationDecl *VarSpec, VarDecl *PatternDecl,
     const MultiLevelTemplateArgumentList &TemplateArgs) {
@@ -5827,9 +5898,6 @@ VarTemplateSpecializationDecl *Sema::CompleteVarTemplateSpecializationDecl(
   return VarSpec;
 }
 
-/// BuildVariableInstantiation - Used after a new variable has been created.
-/// Sets basic variable data and decides whether to postpone the
-/// variable instantiation.
 void Sema::BuildVariableInstantiation(
     VarDecl *NewVar, VarDecl *OldVar,
     const MultiLevelTemplateArgumentList &TemplateArgs,
@@ -5960,7 +6028,6 @@ void Sema::BuildVariableInstantiation(
     DiagnoseUnusedDecl(NewVar);
 }
 
-/// Instantiate the initializer of a variable.
 void Sema::InstantiateVariableInitializer(
     VarDecl *Var, VarDecl *OldVar,
     const MultiLevelTemplateArgumentList &TemplateArgs) {
@@ -5979,7 +6046,10 @@ void Sema::InstantiateVariableInitializer(
     EnterExpressionEvaluationContext Evaluated(
         *this, Sema::ExpressionEvaluationContext::PotentiallyEvaluated, Var);
 
-    keepInLifetimeExtendingContext();
+    currentEvaluationContext().InLifetimeExtendingContext =
+        parentEvaluationContext().InLifetimeExtendingContext;
+    currentEvaluationContext().RebuildDefaultArgOrDefaultInit =
+        parentEvaluationContext().RebuildDefaultArgOrDefaultInit;
     // Instantiate the initializer.
     ExprResult Init;
 
@@ -6030,21 +6100,6 @@ void Sema::InstantiateVariableInitializer(
     CUDA().checkAllowedInitializer(Var);
 }
 
-/// Instantiate the definition of the given variable from its
-/// template.
-///
-/// \param PointOfInstantiation the point at which the instantiation was
-/// required. Note that this is not precisely a "point of instantiation"
-/// for the variable, but it's close.
-///
-/// \param Var the already-instantiated declaration of a templated variable.
-///
-/// \param Recursive if true, recursively instantiates any functions that
-/// are required by this instantiation.
-///
-/// \param DefinitionRequired if true, then we are performing an explicit
-/// instantiation where a definition of the variable is required. Complain
-/// if there is no such definition.
 void Sema::InstantiateVariableDefinition(SourceLocation PointOfInstantiation,
                                          VarDecl *Var, bool Recursive,
                                       bool DefinitionRequired, bool AtEndOfTU) {
@@ -6619,10 +6674,6 @@ static NamedDecl *findInstantiationOf(ASTContext &Ctx,
   return nullptr;
 }
 
-/// Finds the instantiation of the given declaration context
-/// within the current instantiation.
-///
-/// \returns NULL if there was an error
 DeclContext *Sema::FindInstantiatedContext(SourceLocation Loc, DeclContext* DC,
                           const MultiLevelTemplateArgumentList &TemplateArgs) {
   if (NamedDecl *D = dyn_cast<NamedDecl>(DC)) {
@@ -6645,32 +6696,6 @@ static bool isDependentContextAtLevel(DeclContext *DC, unsigned Level) {
   return cast<Decl>(DC)->getTemplateDepth() > Level;
 }
 
-/// Find the instantiation of the given declaration within the
-/// current instantiation.
-///
-/// This routine is intended to be used when \p D is a declaration
-/// referenced from within a template, that needs to mapped into the
-/// corresponding declaration within an instantiation. For example,
-/// given:
-///
-/// \code
-/// template<typename T>
-/// struct X {
-///   enum Kind {
-///     KnownValue = sizeof(T)
-///   };
-///
-///   bool getKind() const { return KnownValue; }
-/// };
-///
-/// template struct X<int>;
-/// \endcode
-///
-/// In the instantiation of X<int>::getKind(), we need to map the \p
-/// EnumConstantDecl for \p KnownValue (which refers to
-/// X<T>::<Kind>::KnownValue) to its instantiation (X<int>::<Kind>::KnownValue).
-/// \p FindInstantiatedDecl performs this mapping from within the instantiation
-/// of X<int>.
 NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
                           const MultiLevelTemplateArgumentList &TemplateArgs,
                           bool FindingInstantiatedContext) {
@@ -6830,15 +6855,24 @@ NamedDecl *Sema::FindInstantiatedDecl(SourceLocation Loc, NamedDecl *D,
                   getTrivialTemplateArgumentLoc(UnpackedArg, QualType(), Loc));
           }
           QualType T = CheckTemplateIdType(TemplateName(TD), Loc, Args);
-          if (T.isNull())
+          // We may get a non-null type with errors, in which case
+          // `getAsCXXRecordDecl` will return `nullptr`. For instance, this
+          // happens when one of the template arguments is an invalid
+          // expression. We return early to avoid triggering the assertion
+          // about the `CodeSynthesisContext`.
+          if (T.isNull() || T->containsErrors())
             return nullptr;
           CXXRecordDecl *SubstRecord = T->getAsCXXRecordDecl();
 
           if (!SubstRecord) {
             // T can be a dependent TemplateSpecializationType when performing a
-            // substitution for building a deduction guide.
-            assert(CodeSynthesisContexts.back().Kind ==
-                   CodeSynthesisContext::BuildingDeductionGuides);
+            // substitution for building a deduction guide or for template
+            // argument deduction in the process of rebuilding immediate
+            // expressions. (Because the default argument that involves a lambda
+            // is untransformed and thus could be dependent at this point.)
+            assert(SemaRef.RebuildingImmediateInvocation ||
+                   CodeSynthesisContexts.back().Kind ==
+                       CodeSynthesisContext::BuildingDeductionGuides);
             // Return a nullptr as a sentinel value, we handle it properly in
             // the TemplateInstantiator::TransformInjectedClassNameType
             // override, which we transform it to a TemplateSpecializationType.
@@ -6984,8 +7018,6 @@ static void processFunctionInstantiation(Sema &S,
   FD->setInstantiationIsPending(false);
 }
 
-/// Performs template instantiation for all implicit template
-/// instantiations we have seen until this point.
 void Sema::PerformPendingInstantiations(bool LocalOnly) {
   std::unique_ptr<MangleContext> MangleCtx(
       getASTContext().createMangleContext());

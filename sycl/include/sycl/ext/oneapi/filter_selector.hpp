@@ -23,6 +23,11 @@ inline namespace _V1 {
 // Forward declarations
 class device;
 class device_selector;
+#ifdef __SYCL_INTERNAL_API
+namespace ONEAPI {
+class filter_selector;
+}
+#endif // __SYCL_INTERNAL_API
 
 namespace ext::oneapi {
 namespace detail {
@@ -31,13 +36,18 @@ class filter_selector_impl;
 
 class __SYCL_EXPORT filter_selector : public device_selector {
 public:
-  filter_selector(const std::string &filter);
+  filter_selector(const std::string &filter)
+      : filter_selector(sycl::detail::string_view{filter}) {}
   int operator()(const device &dev) const override;
   void reset() const;
   device select_device() const override;
+#ifdef __SYCL_INTERNAL_API
+  friend class sycl::ONEAPI::filter_selector;
+#endif
 
 private:
   std::shared_ptr<detail::filter_selector_impl> impl;
+  filter_selector(sycl::detail::string_view filter);
 };
 } // namespace ext::oneapi
 
@@ -46,10 +56,14 @@ namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead") ONEAPI {
 using namespace ext::oneapi;
 class __SYCL_EXPORT filter_selector : public ext::oneapi::filter_selector {
 public:
-  filter_selector(const std::string &filter);
+  filter_selector(const std::string &filter)
+      : filter_selector(sycl::detail::string_view{filter}) {}
   int operator()(const device &dev) const override;
   void reset() const;
   device select_device() const override;
+
+private:
+  filter_selector(sycl::detail::string_view filter);
 };
 } // namespace __SYCL2020_DEPRECATED("use 'ext::oneapi' instead")ONEAPI
 #endif // __SYCL_INTERNAL_API

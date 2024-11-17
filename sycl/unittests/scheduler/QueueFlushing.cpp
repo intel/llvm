@@ -8,40 +8,40 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
+#include "detail/event_impl.hpp"
+#include "ur_mock_helpers.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
-static pi_queue ExpectedDepQueue = nullptr;
+static ur_queue_handle_t ExpectedDepQueue = nullptr;
 static bool QueueFlushed = false;
 static bool EventStatusQueried = false;
-static pi_event_status EventStatus = PI_EVENT_QUEUED;
+static ur_event_status_t EventStatus = UR_EVENT_STATUS_QUEUED;
 
-static pi_result redefinedQueueFlush(pi_queue Queue) {
-  EXPECT_EQ(ExpectedDepQueue, Queue);
+static ur_result_t redefinedQueueFlush(void *pParams) {
+  auto params = *static_cast<ur_queue_flush_params_t *>(pParams);
+  EXPECT_EQ(ExpectedDepQueue, *params.phQueue);
   EXPECT_FALSE(QueueFlushed);
   QueueFlushed = true;
-  EventStatus = PI_EVENT_SUBMITTED;
-  return PI_SUCCESS;
+  EventStatus = UR_EVENT_STATUS_SUBMITTED;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEventGetInfoAfter(pi_event event,
-                                            pi_event_info param_name,
-                                            size_t param_value_size,
-                                            void *param_value,
-                                            size_t *param_value_size_ret) {
-  EXPECT_NE(event, nullptr);
-  if (param_name == PI_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
-    auto *Status = reinterpret_cast<pi_event_status *>(param_value);
+static ur_result_t redefinedEventGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_NE(*params.phEvent, nullptr);
+  if (*params.ppropName == UR_EVENT_INFO_COMMAND_EXECUTION_STATUS) {
+    auto *Status = reinterpret_cast<ur_event_status_t *>(*params.ppPropValue);
     *Status = EventStatus;
     EventStatusQueried = true;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 static void resetTestCtx() {
-  EventStatus = PI_EVENT_QUEUED;
+  EventStatus = UR_EVENT_STATUS_QUEUED;
   QueueFlushed = false;
   EventStatusQueried = false;
 }
@@ -52,11 +52,9 @@ static void addDepAndEnqueue(detail::Command *Cmd,
   MockCommand DepCmd(DepQueue);
   std::vector<detail::Command *> ToCleanUp;
 
-  pi_event PIEvent = nullptr;
-  pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-  EXPECT_TRUE(PI_SUCCESS == CallRet);
+  ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-  DepCmd.getEvent()->getHandleRef() = PIEvent;
+  DepCmd.getEvent()->setHandle(UREvent);
   (void)Cmd->addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
 
   detail::EnqueueResultT Res;
@@ -75,7 +73,7 @@ static void testCommandEnqueue(detail::Command *Cmd,
 static void testEventStatusCheck(detail::Command *Cmd,
                                  detail::QueueImplPtr &DepQueue,
                                  detail::Requirement &MockReq,
-                                 pi_event_status ReturnedEventStatus) {
+                                 ur_event_status_t ReturnedEventStatus) {
   resetTestCtx();
   EventStatus = ReturnedEventStatus;
   addDepAndEnqueue(Cmd, DepQueue, MockReq);
@@ -83,11 +81,12 @@ static void testEventStatusCheck(detail::Command *Cmd,
 }
 
 TEST_F(SchedulerTest, QueueFlushing) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
-  Mock.redefineAfter<detail::PiApiKind::piEventGetInfo>(
-      redefinedEventGetInfoAfter);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urQueueFlush",
+                                           &redefinedQueueFlush);
+  mock::getCallbacks().set_after_callback("urEventGetInfo",
+                                          &redefinedEventGetInfoAfter);
 
   context Ctx{Plt};
   queue QueueA{Ctx, default_selector_v};
@@ -100,14 +99,10 @@ TEST_F(SchedulerTest, QueueFlushing) {
   buffer<int, 1> Buf(&val, range<1>(1));
   detail::Requirement MockReq = getMockRequirement(Buf);
 
-  pi_mem PIBuf = nullptr;
-  pi_result Ret = mock_piMemBufferCreate(/*pi_context=*/0x0,
-                                         PI_MEM_FLAGS_ACCESS_RW, /*size=*/1,
-                                         /*host_ptr=*/nullptr, &PIBuf);
-  EXPECT_TRUE(Ret == PI_SUCCESS);
+  ur_mem_handle_t URBuf = mock::createDummyHandle<ur_mem_handle_t>();
 
   detail::AllocaCommand AllocaCmd = detail::AllocaCommand(QueueImplA, MockReq);
-  AllocaCmd.MMemAllocation = PIBuf;
+  AllocaCmd.MMemAllocation = URBuf;
   void *MockHostPtr;
   detail::EnqueueResultT Res;
   std::vector<detail::Command *> ToCleanUp;
@@ -157,11 +152,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
     detail::EventImplPtr DepEvent{new detail::event_impl(QueueImplB)};
     DepEvent->setContextImpl(QueueImplB->getContextImplPtr());
 
-    pi_event PIEvent = nullptr;
-    pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    EXPECT_TRUE(PI_SUCCESS == CallRet);
+    ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepEvent->getHandleRef() = PIEvent;
+    DepEvent->setHandle(UREvent);
     (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
     EXPECT_TRUE(QueueFlushed);
@@ -179,11 +172,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
       DepEvent.reset(new detail::event_impl(TempQueueImpl));
       DepEvent->setContextImpl(TempQueueImpl->getContextImplPtr());
 
-      pi_event PIEvent = nullptr;
-      pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-      EXPECT_TRUE(PI_SUCCESS == CallRet);
+      ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-      DepEvent->getHandleRef() = PIEvent;
+      DepEvent->setHandle(UREvent);
     }
     (void)Cmd.addDep(DepEvent, ToCleanUp);
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
@@ -205,19 +196,15 @@ TEST_F(SchedulerTest, QueueFlushing) {
                                 access::mode::read_write};
     MockCommand DepCmdA(QueueImplB);
 
-    pi_event PIEvent = nullptr;
-    pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    EXPECT_TRUE(PI_SUCCESS == CallRet);
+    ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmdA.getEvent()->getHandleRef() = PIEvent;
+    DepCmdA.getEvent()->setHandle(UREvent);
     (void)Cmd.addDep(detail::DepDesc{&DepCmdA, &MockReq, nullptr}, ToCleanUp);
     MockCommand DepCmdB(QueueImplB);
 
-    PIEvent = nullptr;
-    CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    EXPECT_TRUE(PI_SUCCESS == CallRet);
+    UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmdB.getEvent()->getHandleRef() = PIEvent;
+    DepCmdB.getEvent()->setHandle(UREvent);
     (void)Cmd.addDep(detail::DepDesc{&DepCmdB, &MockReq, nullptr}, ToCleanUp);
     // The check is performed in redefinedQueueFlush
     MockScheduler::enqueueCommand(&Cmd, Res, detail::NON_BLOCKING);
@@ -230,11 +217,9 @@ TEST_F(SchedulerTest, QueueFlushing) {
                               access::mode::read_write};
     MockCommand DepCmd(QueueImplB);
 
-    pi_event PIEvent = nullptr;
-    pi_result CallRet = mock_piEventCreate(/*pi_context=*/0x0, &PIEvent);
-    EXPECT_TRUE(PI_SUCCESS == CallRet);
+    ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
-    DepCmd.getEvent()->getHandleRef() = PIEvent;
+    DepCmd.getEvent()->setHandle(UREvent);
     (void)CmdA.addDep(detail::DepDesc{&DepCmd, &MockReq, nullptr}, ToCleanUp);
     MockScheduler::enqueueCommand(&CmdA, Res, detail::NON_BLOCKING);
 
@@ -250,16 +235,16 @@ TEST_F(SchedulerTest, QueueFlushing) {
   {
     detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdA, QueueImplB, MockReq, PI_EVENT_SUBMITTED);
+    testEventStatusCheck(&CmdA, QueueImplB, MockReq, UR_EVENT_STATUS_SUBMITTED);
     detail::MapMemObject CmdB{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdB, QueueImplB, MockReq, PI_EVENT_RUNNING);
+    testEventStatusCheck(&CmdB, QueueImplB, MockReq, UR_EVENT_STATUS_RUNNING);
     detail::MapMemObject CmdC{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,
                               access::mode::read_write};
-    testEventStatusCheck(&CmdC, QueueImplB, MockReq, PI_EVENT_COMPLETE);
+    testEventStatusCheck(&CmdC, QueueImplB, MockReq, UR_EVENT_STATUS_COMPLETE);
   }
 
-  // Check that nullptr pi_events are handled correctly.
+  // Check that nullptr UR event handles are handled correctly.
   {
     resetTestCtx();
     detail::MapMemObject CmdA{&AllocaCmd, MockReq, &MockHostPtr, QueueImplA,

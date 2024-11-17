@@ -12,9 +12,8 @@
 #include <detail/config.hpp>
 #include <detail/context_impl.hpp>
 #include <detail/program_manager/program_manager.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -29,38 +28,37 @@ static constexpr auto WarningLevelEnvVar = "SYCL_RT_WARNING_LEVEL";
 
 static bool LogRequested = false;
 
-static pi_result redefinedProgramGetBuildInfo(
-    pi_program program, pi_device device, pi_program_build_info param_name,
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
-
-  if (param_value_size_ret) {
-    *param_value_size_ret = 1;
+static ur_result_t redefinedProgramGetBuildInfo(void *pParams) {
+  auto params = *static_cast<ur_program_get_build_info_params_t *>(pParams);
+  if (*params.ppPropSizeRet) {
+    **params.ppPropSizeRet = 1;
   }
-  if (param_value) {
-    *static_cast<char *>(param_value) = '1';
+  if (*params.ppPropValue) {
+    *static_cast<char *>(*params.ppPropValue) = '1';
   }
 
-  if (param_name == PI_PROGRAM_BUILD_INFO_LOG) {
+  if (*params.ppropName == UR_PROGRAM_BUILD_INFO_LOG) {
     LogRequested = true;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static void setupCommonTestAPIs(sycl::unittest::PiMock &Mock) {
+static void setupCommonTestAPIs(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
-  Mock.redefineBefore<PiApiKind::piProgramGetBuildInfo>(
-      redefinedProgramGetBuildInfo);
+  mock::getCallbacks().set_before_callback("urProgramGetBuildInfo",
+                                           &redefinedProgramGetBuildInfo);
 }
 
 TEST(BuildLog, OutputNothingOnLevel1) {
+  sycl::unittest::UrMock<> mock;
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "1",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];
@@ -80,13 +78,14 @@ TEST(BuildLog, OutputNothingOnLevel1) {
 }
 
 TEST(BuildLog, OutputLogOnLevel2) {
+  sycl::unittest::UrMock<> mock;
   using namespace sycl::detail;
   using namespace sycl::unittest;
   ScopedEnvVar var(WarningLevelEnvVar, "2",
                    SYCLConfig<SYCL_RT_WARNING_LEVEL>::reset);
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   setupCommonTestAPIs(Mock);
 
   const sycl::device Dev = Plt.get_devices()[0];

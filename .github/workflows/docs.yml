@@ -65,7 +65,7 @@ jobs:
           fetch-depth: 1
       - name: Get subprojects that have doc changes
         id: docs-changed-subprojects
-        uses: tj-actions/changed-files@v44
+        uses: tj-actions/changed-files@v45
         with:
           files_yaml: |
             llvm:
@@ -111,7 +111,7 @@ jobs:
         run: |
           sudo apt-get update
           # swig and graphviz are lldb specific dependencies
-          sudo apt-get install -y cmake ninja-build swig graphviz
+          sudo apt-get install -y cmake ninja-build swig graphviz libhwloc-dev
       - name: Build LLVM docs
         if: steps.docs-changed-subprojects.outputs.llvm_any_changed == 'true'
         run: |

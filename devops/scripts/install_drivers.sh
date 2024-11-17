@@ -128,7 +128,7 @@ InstallIGFX () {
     | grep -v "u18" \
     | wget -qi -
   get_release oneapi-src/level-zero $L0_TAG \
-    | grep ".*deb" \
+    | grep ".*u22\.04.*deb" \
     | wget -qi -
   dpkg -i *.deb && rm *.deb *.sum
   IS_IGC_DEV=$(CheckIGCdevTag $IGCTAG)
@@ -143,7 +143,9 @@ InstallIGFX () {
     echo "Download IGC dev git hash $IGC_DEV_VER"
     get_pre_release_igfx $IGC_DEV_URL $IGC_DEV_VER
     echo "Install IGC dev git hash $IGC_DEV_VER"
-    dpkg -i *.deb
+    # New dev IGC packaged iga64 conflicting with iga64 from intel-igc-media
+    # force overwrite to workaround it first.
+    dpkg -i --force-overwrite *.deb
     echo "Install libopencl-clang"
     # Workaround only, will download deb and install with dpkg once fixed.
     cp -d libopencl-clang.so.14*  /usr/local/lib/

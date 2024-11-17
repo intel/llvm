@@ -9,13 +9,12 @@
 #pragma once
 
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
-#include <sycl/half_type.hpp>                 // for half
 
 #include <cstdint> // for uint8_t, int16_t, int32_t
 
 namespace sycl {
 inline namespace _V1 {
-template <typename T, int N> class vec;
+template <typename T, int N> class __SYCL_EBO vec;
 namespace detail::half_impl {
 class half;
 } // namespace detail::half_impl

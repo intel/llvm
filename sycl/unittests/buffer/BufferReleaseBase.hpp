@@ -6,8 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <sycl/accessor.hpp>
 #include <sycl/sycl.hpp>
@@ -39,7 +39,7 @@ public:
 template <sycl::backend Backend>
 class BufferDestructionCheckCommon : public ::testing::Test {
 public:
-  BufferDestructionCheckCommon() : Mock(Backend), Plt(Mock.getPlatform()) {}
+  BufferDestructionCheckCommon() : Mock(), Plt(sycl::platform()) {}
 
 protected:
   void SetUp() override {
@@ -67,7 +67,7 @@ protected:
   }
 
 protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<Backend> Mock;
   sycl::platform Plt;
   MockScheduler *MockSchedulerPtr;
 };

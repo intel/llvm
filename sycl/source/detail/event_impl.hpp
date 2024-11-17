@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/info/info_desc.hpp>
 
 #include <atomic>
@@ -27,7 +27,7 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class plugin;
+class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
@@ -65,7 +65,7 @@ public:
   ///
   /// \param Event is a valid instance of plug-in event.
   /// \param SyclContext is an instance of SYCL context.
-  event_impl(sycl::detail::pi::PiEvent Event, const context &SyclContext);
+  event_impl(ur_event_handle_t Event, const context &SyclContext);
   event_impl(const QueueImplPtr &Queue);
 
   /// Waits for the event.
@@ -126,30 +126,25 @@ public:
   /// Marks this event as completed.
   void setComplete();
 
-  /// Returns raw interoperability event handle. Returned reference will be]
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a reference to an instance of plug-in event handle.
-  sycl::detail::pi::PiEvent &getHandleRef();
-  /// Returns raw interoperability event handle. Returned reference will be]
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a const reference to an instance of plug-in event handle.
-  const sycl::detail::pi::PiEvent &getHandleRef() const;
+  /// Returns raw interoperability event handle.
+  ur_event_handle_t getHandle() const;
+
+  /// Set event handle for this event object.
+  void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
   ///
   /// \return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
-  /// \return the Plugin associated with the context of this event.
+  /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const PluginPtr &getPlugin();
+  const AdapterPtr &getAdapter();
 
   /// Associate event with the context.
   ///
-  /// Provided PiContext inside ContextImplPtr must be associated
-  /// with the PiEvent object stored in this class
+  /// Provided UrContext inside ContextImplPtr must be associated
+  /// with the UrEvent object stored in this class
   ///
   /// @param Context is a shared pointer to an instance of valid context_impl.
   void setContextImpl(const ContextImplPtr &Context);
@@ -179,7 +174,7 @@ public:
   /// Gets the native handle of the SYCL event.
   ///
   /// \return a native handle.
-  pi_native_handle getNative();
+  ur_native_handle_t getNative();
 
   /// Returns vector of event dependencies.
   ///
@@ -240,7 +235,7 @@ public:
   /// have native handle.
   ///
   /// @return true if no associated command and no event handle.
-  bool isNOP() { return !MCommand && !getHandleRef(); }
+  bool isNOP() { return !MCommand && !getHandle(); }
 
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
@@ -270,6 +265,11 @@ public:
     MPostCompleteEvents.push_back(Event);
   }
 
+  void attachEventToCompleteWeak(const std::weak_ptr<event_impl> &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MWeakPostCompleteEvents.push_back(Event);
+  }
+
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
 
   ContextImplPtr getContextImplPtr() {
@@ -280,12 +280,12 @@ public:
 
   // Sets a sync point which is used when this event represents an enqueue to a
   // Command Buffer.
-  void setSyncPoint(sycl::detail::pi::PiExtSyncPoint SyncPoint) {
+  void setSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint) {
     MSyncPoint = SyncPoint;
   }
 
   // Get the sync point associated with this event.
-  sycl::detail::pi::PiExtSyncPoint getSyncPoint() const { return MSyncPoint; }
+  ur_exp_command_buffer_sync_point_t getSyncPoint() const { return MSyncPoint; }
 
   void setCommandGraph(
       std::shared_ptr<ext::oneapi::experimental::detail::graph_impl> Graph) {
@@ -309,12 +309,11 @@ public:
 
   // Sets a command-buffer command when this event represents an enqueue to a
   // Command Buffer.
-  void
-  setCommandBufferCommand(sycl::detail::pi::PiExtCommandBufferCommand Command) {
+  void setCommandBufferCommand(ur_exp_command_buffer_command_handle_t Command) {
     MCommandBufferCommand = Command;
   }
 
-  sycl::detail::pi::PiExtCommandBufferCommand getCommandBufferCommand() const {
+  ur_exp_command_buffer_command_handle_t getCommandBufferCommand() const {
     return MCommandBufferCommand;
   }
 
@@ -330,6 +329,13 @@ public:
 
   bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
 
+  // Check if this event is an interoperability event.
+  bool isInterop() const noexcept {
+    // As an indication of interoperability event, we use the absence of the
+    // queue and command, as well as the fact that it is not in enqueued state.
+    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -340,7 +346,7 @@ protected:
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
 
-  sycl::detail::pi::PiEvent MEvent = nullptr;
+  std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
@@ -359,6 +365,16 @@ protected:
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
+  // short term WA for stream:
+  // MPostCompleteEvents is split into two storages now. Original storage is
+  // used by graph extension and represents backward links.
+  // MWeakPostCompleteEvents represents weak forward references (used in stream
+  // only). Used only for host tasks now since they do not support post enqueue
+  // cleanup and event == nullptr could happen only when host task is completed
+  // (and Command that holding reference to its event is deleted). TO DO: to
+  // eliminate forward references from stream implementation and remove this
+  // storage.
+  std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
@@ -379,14 +395,14 @@ protected:
   bool MEventFromSubmittedExecCommandBuffer = false;
 
   // If this event represents a submission to a
-  // sycl::detail::pi::PiExtCommandBuffer the sync point for that submission is
+  // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
-  sycl::detail::pi::PiExtSyncPoint MSyncPoint = 0;
+  ur_exp_command_buffer_sync_point_t MSyncPoint = 0;
 
   // If this event represents a submission to a
-  // sycl::detail::pi::PiExtCommandBuffer the command-buffer command
+  // ur_exp_command_buffer_command_handle_t the command-buffer command
   // (if any) associated with that submission is stored here.
-  sycl::detail::pi::PiExtCommandBufferCommand MCommandBufferCommand = nullptr;
+  ur_exp_command_buffer_command_handle_t MCommandBufferCommand = nullptr;
 
   // Signifies whether this event is the result of a profiling tag command. This
   // allows for profiling, even if the queue does not have profiling enabled.
@@ -398,13 +414,13 @@ protected:
   // when needed.
   void initContextIfNeeded();
   // Event class represents 3 different kinds of operations:
-  // | type  | has PI event | MContext | MIsHostTask | MIsDefaultConstructed |
+  // | type  | has UR event | MContext | MIsHostTask | MIsDefaultConstructed |
   // | dev   | true         | !nullptr | false       | false                 |
   // | host  | false        | nullptr  | true        | false                 |
   // |default|   *          |    *     | false       | true                  |
   // Default constructed event is created with empty ctor in host code, MContext
   // is lazily initialized with default device context on first context query.
-  // MEvent is lazily created in first pi handle query.
+  // MEvent is lazily created in first ur handle query.
   bool MIsDefaultConstructed = false;
   bool MIsHostEvent = false;
 };

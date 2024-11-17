@@ -148,8 +148,8 @@ std::string OSUtil::getDirName(const char *Path) {
 #elif defined(__SYCL_RT_OS_WINDOWS)
 
 /// Returns an absolute path where the object was found.
-//  pi_win_proxy_loader.dll uses this same logic. If it is changed
-//  significantly, it might be wise to change it there too.
+//  ur_win_proxy_loader.dll and sycl-jit.dll use this same logic. If it is
+//  changed significantly, it might be wise to change it there too.
 std::string OSUtil::getCurrentDSODir() {
   char Path[MAX_PATH];
   Path[0] = '\0';

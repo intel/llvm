@@ -5,11 +5,11 @@
 
 // Test image-specific printers of the Plugin Interace
 //
-// CHECK: ---> piMemImageCreate(
-// CHECK:   image_desc w/h/d : 4 / 4 / 1  --  arrSz/row/slice : 0 / 64 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-// CHECK: ---> piEnqueueMemImageRead(
-// CHECK:   pi_image_offset x/y/z : 0/0/0
-// CHECK:   pi_image_region width/height/depth : 4/4/1
+// CHECK: <--- urMemImageCreate(
+// CHECK-SAME:   image_desc w/h/d : 4 / 4 / 1  --  arrSz/row/slice : 0 / 64 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+// CHECK: <--- urEnqueueMemBufferReadRect(
+// CHECK-SAME:   ur_rect_offset_t x/y/z : 0/0/0
+// CHECK-SAME:   ur_rect_region_t width/height/depth : 4/4/1
 
 #include <sycl/accessor_image.hpp>
 #include <sycl/detail/core.hpp>

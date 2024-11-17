@@ -9,9 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/event_impl.hpp>
 #include <detail/queue_impl.hpp>
@@ -24,19 +23,19 @@ using namespace sycl;
 
 size_t GEventsWaitCounter = 0;
 
-inline pi_result redefinedEventsWait(pi_uint32 num_events,
-                                     const pi_event *event_list) {
-  if (num_events > 0) {
+inline ur_result_t redefinedEventsWait(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
+  if (*params.pnumEvents > 0) {
     GEventsWaitCounter++;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
   GEventsWaitCounter = 0;
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEventWait", &redefinedEventsWait);
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -53,31 +52,29 @@ TEST_F(SchedulerTest, InOrderQueueHostTaskDeps) {
 enum class CommandType { KERNEL = 1, MEMSET = 2 };
 std::vector<std::pair<CommandType, size_t>> ExecutedCommands;
 
-inline pi_result customEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                           const size_t *, const size_t *,
-                                           const size_t *,
-                                           pi_uint32 EventsCount,
-                                           const pi_event *, pi_event *) {
-  ExecutedCommands.push_back({CommandType::KERNEL, EventsCount});
-  return PI_SUCCESS;
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  ExecutedCommands.push_back(
+      {CommandType::KERNEL, *params.pnumEventsInWaitList});
+  return UR_RESULT_SUCCESS;
 }
-inline pi_result customextUSMEnqueueMemset(pi_queue, void *, const void *,
-                                           size_t, size_t,
-                                           pi_uint32 EventsCount,
-                                           const pi_event *, pi_event *) {
-  ExecutedCommands.push_back({CommandType::MEMSET, EventsCount});
-  return PI_SUCCESS;
+
+inline ur_result_t customEnqueueUSMFill(void *pParams) {
+  auto params = *static_cast<ur_enqueue_usm_fill_params_t *>(pParams);
+  ExecutedCommands.push_back(
+      {CommandType::MEMSET, *params.pnumEventsInWaitList});
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
   ExecutedCommands.clear();
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
-      customEnqueueKernelLaunch);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
-      customextUSMEnqueueMemset);
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
+                                           &customEnqueueUSMFill);
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -124,13 +121,13 @@ TEST_F(SchedulerTest, InOrderQueueCrossDeps) {
 
 TEST_F(SchedulerTest, InOrderQueueCrossDepsShortcutFuncs) {
   ExecutedCommands.clear();
-  sycl::unittest::PiMock Mock;
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueKernelLaunch>(
-      customEnqueueKernelLaunch);
-  Mock.redefineBefore<detail::PiApiKind::piextUSMEnqueueFill>(
-      customextUSMEnqueueMemset);
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+  mock::getCallbacks().set_before_callback("urEnqueueUSMFill",
+                                           &customEnqueueUSMFill);
 
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::platform Plt = sycl::platform();
 
   context Ctx{Plt};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};

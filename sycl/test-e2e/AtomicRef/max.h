@@ -257,5 +257,14 @@ template <access::address_space space> void max_test_all() {
   }
 #endif
 
+#ifdef FULL_ATOMIC16_COVERAGE
+  if (!q.get_device().has(aspect::ext_oneapi_atomic16)) {
+    std::cout << "Skipping ext_oneapi_atomic16 tests\n";
+    return;
+  }
+
+  max_test_orders_scopes<space, sycl::half>(q, N);
+#endif
+
   std::cout << "Test passed." << std::endl;
 }

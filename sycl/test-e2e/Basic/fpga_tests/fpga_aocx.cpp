@@ -20,7 +20,7 @@
 // AOCX with source
 // RUN: %clangxx -fsycl -fintelfpga %S/Inputs/fpga_host.cpp %t_image.a -o %t_aocx_src.out
 // AOCX with object
-// RUN: %clangxx -fsycl -fintelfpga %t.o %t_image.a -o %t_aocx_obj.out
+// RUN: %clangxx -fsycl -fintelfpga %t.o %t_image.a -Wno-unused-command-line-argument -o %t_aocx_obj.out
 //
 // RUN: %{run} %t_aocx_src.out
 // RUN: %{run} %t_aocx_obj.out

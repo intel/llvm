@@ -1,17 +1,17 @@
-// RUN: %{build} -DINCLUDE_BEFORE -o %t.out
-// RUN: %{run} %t.out
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -DINCLUDE_BEFORE -o %t1.out
+// RUN: %{run} %t1.out
+// RUN: %{build} -o %t2.out
+// RUN: %{run} %t2.out
 
-// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
-// RUN: %if linux %{ %{run} %t.out %}
-// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t.out %}
-// RUN: %if linux %{ %{run} %t.out %}
+// RUN: %if linux %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t3.out %}
+// RUN: %if linux %{ %{run} %t3.out %}
+// RUN: %if linux %{ %{build} -fsycl-host-compiler=g++ -fsycl-host-compiler-options="-std=c++17" -o %t4.out %}
+// RUN: %if linux %{ %{run} %t4.out %}
 
-// RUN: %if windows %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
-// RUN: %if windows %{ %{run} %t.out %}
-// RUN: %if windows %{ %{build} -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t.out %}
-// RUN: %if windows %{ %{run} %t.out %}
+// RUN: %if windows %{ %{build} -DINCLUDE_BEFORE -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t5.out %}
+// RUN: %if windows %{ %{run} %t5.out %}
+// RUN: %if windows %{ %{build} -fsycl-host-compiler=cl -fsycl-host-compiler-options="/std:c++17" -o %t6.out %}
+// RUN: %if windows %{ %{run} %t6.out %}
 
 // Test scenario when <complex> is included before SYCL headers.
 #ifdef INCLUDE_BEFORE
