@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 485
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 422
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -64,17 +64,13 @@
 // CHECK-NEXT: AOT/multiple-devices.cpp
 // CHECK-NEXT: AddressCast/dynamic_address_cast.cpp
 // CHECK-NEXT: AddressCast/static_address_cast.cpp
-// CHECK-NEXT: AddressSanitizer/nullpointer/global_nullptr.cpp
 // CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneous_kernels.cpp
 // CHECK-NEXT: Assert/assert_in_simultaneously_multiple_tus.cpp
 // CHECK-NEXT: Assert/check_resource_leak.cpp
 // CHECK-NEXT: Assert/check_resource_leak.cpp
-// CHECK-NEXT: AtomicRef/assignment_atomic64_generic.cpp
-// CHECK-NEXT: AtomicRef/exchange.cpp
 // CHECK-NEXT: BFloat16/bfloat16_vec.cpp
 // CHECK-NEXT: Basic/buffer/buffer_create.cpp
-// CHECK-NEXT: Basic/buffer/subbuffer.cpp
 // CHECK-NEXT: Basic/build_log.cpp
 // CHECK-NEXT: Basic/code_location_e2e.cpp
 // CHECK-NEXT: Basic/free_function_queries/free_function_queries.cpp
@@ -90,7 +86,6 @@
 // CHECK-NEXT: Basic/image/image_accessor_readsampler.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readwrite.cpp
 // CHECK-NEXT: Basic/image/image_accessor_readwrite_half.cpp
-// CHECK-NEXT: Basic/image/image_array.cpp
 // CHECK-NEXT: Basic/image/image_array.cpp
 // CHECK-NEXT: Basic/image/image_max_size.cpp
 // CHECK-NEXT: Basic/image/image_read.cpp
@@ -143,7 +138,6 @@
 // CHECK-NEXT: ESIMD/PerformanceTests/invoke_simd_smoke.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/matrix_transpose.cpp
 // CHECK-NEXT: ESIMD/PerformanceTests/stencil2.cpp
-// CHECK-NEXT: ESIMD/addc.cpp
 // CHECK-NEXT: ESIMD/api/bin_and_cmp_ops_heavy.cpp
 // CHECK-NEXT: ESIMD/api/replicate_smoke.cpp
 // CHECK-NEXT: ESIMD/api/simd_copy_to_from.cpp
@@ -162,8 +156,6 @@
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16.cpp
 // CHECK-NEXT: ESIMD/lsc/lsc_usm_store_u8_u16_64.cpp
 // CHECK-NEXT: ESIMD/matrix_transpose2.cpp
-// CHECK-NEXT: ESIMD/named_barriers/loop.cpp
-// CHECK-NEXT: ESIMD/named_barriers/loop_extended.cpp
 // CHECK-NEXT: ESIMD/preemption.cpp
 // CHECK-NEXT: ESIMD/private_memory/private_memory.cpp
 // CHECK-NEXT: ESIMD/regression/bitreverse.cpp
@@ -172,12 +164,6 @@
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_many_funcs.cpp
 // CHECK-NEXT: ESIMD/slm_alloc_many_kernels_one_func.cpp
 // CHECK-NEXT: ESIMD/slm_init_no_inline.cpp
-// CHECK-NEXT: ESIMD/subb.cpp
-// CHECK-NEXT: Graph/Explicit/add_nodes_after_finalize.cpp
-// CHECK-NEXT: Graph/Explicit/basic_usm.cpp
-// CHECK-NEXT: Graph/Explicit/basic_usm_host.cpp
-// CHECK-NEXT: Graph/Explicit/basic_usm_mixed.cpp
-// CHECK-NEXT: Graph/Explicit/basic_usm_shared.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_2d.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_host2target_offset.cpp
@@ -185,34 +171,19 @@
 // CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_2d.cpp
 // CHECK-NEXT: Graph/Explicit/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/Explicit/host_task_multiple_deps.cpp
-// CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/Explicit/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/Explicit/memadvise.cpp
-// CHECK-NEXT: Graph/Explicit/multiple_exec_graphs.cpp
 // CHECK-NEXT: Graph/Explicit/prefetch.cpp
-// CHECK-NEXT: Graph/Explicit/queue_constructor_usm.cpp
-// CHECK-NEXT: Graph/Explicit/queue_shortcuts.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/Explicit/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/Explicit/sub_graph.cpp
 // CHECK-NEXT: Graph/Explicit/usm_copy.cpp
 // CHECK-NEXT: Graph/Explicit/usm_fill.cpp
 // CHECK-NEXT: Graph/Explicit/usm_fill_host.cpp
 // CHECK-NEXT: Graph/Explicit/usm_fill_shared.cpp
 // CHECK-NEXT: Graph/Explicit/usm_memset.cpp
 // CHECK-NEXT: Graph/Explicit/work_group_size_prop.cpp
-// CHECK-NEXT: Graph/RecordReplay/add_nodes_after_finalize.cpp
-// CHECK-NEXT: Graph/RecordReplay/after_use.cpp
-// CHECK-NEXT: Graph/RecordReplay/barrier_with_work.cpp
-// CHECK-NEXT: Graph/RecordReplay/basic_usm.cpp
-// CHECK-NEXT: Graph/RecordReplay/basic_usm_host.cpp
-// CHECK-NEXT: Graph/RecordReplay/basic_usm_mixed.cpp
-// CHECK-NEXT: Graph/RecordReplay/basic_usm_shared.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_2d.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_host2target_offset.cpp
@@ -220,20 +191,13 @@
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_2d.cpp
 // CHECK-NEXT: Graph/RecordReplay/buffer_copy_target2host_offset.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task2_multiple_roots.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task_multiple_deps.cpp
-// CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/host_task_multiple_roots.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-get-native-mem.cpp
 // CHECK-NEXT: Graph/RecordReplay/interop-level-zero-launch-kernel.cpp
 // CHECK-NEXT: Graph/RecordReplay/memadvise.cpp
-// CHECK-NEXT: Graph/RecordReplay/multiple_exec_graphs.cpp
 // CHECK-NEXT: Graph/RecordReplay/prefetch.cpp
-// CHECK-NEXT: Graph/RecordReplay/queue_constructor_usm.cpp
-// CHECK-NEXT: Graph/RecordReplay/queue_shortcuts.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_handler_api.cpp
 // CHECK-NEXT: Graph/RecordReplay/spec_constants_kernel_bundle_api.cpp
-// CHECK-NEXT: Graph/RecordReplay/sub_graph.cpp
 // CHECK-NEXT: Graph/RecordReplay/usm_copy.cpp
 // CHECK-NEXT: Graph/RecordReplay/usm_copy_in_order.cpp
 // CHECK-NEXT: Graph/RecordReplay/usm_fill.cpp
@@ -245,12 +209,10 @@
 // CHECK-NEXT: Graph/UnsupportedDevice/device_query.cpp
 // CHECK-NEXT: GroupAlgorithm/SYCL2020/reduce_over_group_size.cpp
 // CHECK-NEXT: GroupAlgorithm/barrier.cpp
-// CHECK-NEXT: GroupAlgorithm/reduce_sycl2020.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: HierPar/hier_par_wgscope.cpp
 // CHECK-NEXT: HostInteropTask/host-task-failure.cpp
 // CHECK-NEXT: HostInteropTask/interop-task.cpp
-// CHECK-NEXT: InOrderEventsExt/get_last_event.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/SPMD_invoke_ESIMD_external.cpp
 // CHECK-NEXT: InvokeSimd/Feature/ImplicitSubgroup/popcnt.cpp
 // CHECK-NEXT: InvokeSimd/Feature/popcnt.cpp
@@ -357,7 +319,6 @@
 // CHECK-NEXT: NewOffloadDriver/aot-gpu.cpp
 // CHECK-NEXT: NewOffloadDriver/spirv_device_obj_smoke.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp
-// CHECK-NEXT: NonUniformGroups/ballot_group_algorithms.cpp
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
@@ -380,7 +341,6 @@
 // CHECK-NEXT: Plugin/level_zero_batch_event_status.cpp
 // CHECK-NEXT: Plugin/level_zero_batch_test.cpp
 // CHECK-NEXT: Plugin/level_zero_batch_test_copy_with_compute.cpp
-// CHECK-NEXT: Plugin/level_zero_device_free_mem.cpp
 // CHECK-NEXT: Plugin/level_zero_device_scope_events.cpp
 // CHECK-NEXT: Plugin/level_zero_dynamic_batch_test.cpp
 // CHECK-NEXT: Plugin/level_zero_imm_cmdlist_per_thread.cpp
@@ -393,17 +353,7 @@
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp
-// CHECK-NEXT: ProfilingTag/default_queue.cpp
-// CHECK-NEXT: ProfilingTag/default_queue.cpp
 // CHECK-NEXT: ProfilingTag/in_order_profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/in_order_profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/in_order_profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/in_order_profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/in_order_queue.cpp
-// CHECK-NEXT: ProfilingTag/in_order_queue.cpp
-// CHECK-NEXT: ProfilingTag/profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/profiling_queue.cpp
-// CHECK-NEXT: ProfilingTag/profiling_queue.cpp
 // CHECK-NEXT: ProfilingTag/profiling_queue.cpp
 // CHECK-NEXT: ProgramManager/uneven_kernel_split.cpp
 // CHECK-NEXT: Reduction/reduction_big_data.cpp
@@ -446,7 +396,6 @@
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/get_subgroup_sizes.cpp
 // CHECK-NEXT: Regression/image_access.cpp
-// CHECK-NEXT: Regression/in_order_barrier_profiling.cpp
 // CHECK-NEXT: Regression/invalid_reqd_wg_size_correct_exception.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
 // CHECK-NEXT: Regression/kernel_bundle_ignore_sycl_external.cpp
@@ -500,16 +449,12 @@
 // CHECK-NEXT: USM/memops2d/copy2d_dhost_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_dhost_to_host.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_dhost_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_device.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_host.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_host_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_shared_to_device.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/copy2d_shared_to_host.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_shared_to_host.cpp
 // CHECK-NEXT: USM/memops2d/copy2d_shared_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_device_to_device.cpp
@@ -520,21 +465,15 @@
 // CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_host.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_dhost_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_device.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_dhost.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_host.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_host_to_shared.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_host_to_shared.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_device.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_dhost.cpp
-// CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_host.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_host.cpp
 // CHECK-NEXT: USM/memops2d/memcpy2d_shared_to_shared.cpp
 // CHECK-NEXT: USM/pointer_query_descendent_device.cpp
-// CHECK-NEXT: USM/usm_pooling.cpp
-// CHECK-NEXT: VirtualFunctions/misc/group-barrier.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_arith.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_bitwise.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_class.cpp
@@ -542,5 +481,3 @@
 // CHECK-NEXT: syclcompat/atomic/atomic_memory_acq_rel.cpp
 // CHECK-NEXT: syclcompat/atomic/atomic_minmax.cpp
 // CHECK-NEXT: syclcompat/kernel/kernel_lin.cpp
-// CHECK-NEXT: syclcompat/launch/launch.cpp
-// CHECK-NEXT: syclcompat/launch/launch_policy_lmem.cpp

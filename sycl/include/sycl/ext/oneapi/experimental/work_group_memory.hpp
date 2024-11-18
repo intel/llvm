@@ -36,6 +36,9 @@ private:
 } // namespace detail
 namespace ext::oneapi::experimental {
 
+struct indeterminate_t {};
+inline constexpr indeterminate_t indeterminate;
+
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
@@ -46,8 +49,20 @@ private:
   using decoratedPtr = typename sycl::detail::DecoratedType<
       value_type, access::address_space::local_space>::type *;
 
-public:
+  // Frontend requires special types to have a default constructor in order to
+  // have a uniform way of initializing an object of special type to then call
+  // the __init method on it. This is purely an implementation detail and not
+  // part of the spec.
+  // TODO: Revisit this once https://github.com/intel/llvm/issues/16061 is
+  // closed.
   work_group_memory() = default;
+
+#ifdef __SYCL_DEVICE_ONLY__
+  void __init(decoratedPtr ptr) { this->ptr = ptr; }
+#endif
+
+public:
+  work_group_memory(const indeterminate_t &) {};
   work_group_memory(const work_group_memory &rhs) = default;
   work_group_memory &operator=(const work_group_memory &rhs) = default;
   template <typename T = DataT,
@@ -73,11 +88,9 @@ public:
     *ptr = value;
     return *this;
   }
-#ifdef __SYCL_DEVICE_ONLY__
-  void __init(decoratedPtr ptr) { this->ptr = ptr; }
-#endif
+
 private:
-  decoratedPtr ptr;
+  decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -1,4 +1,4 @@
-// REQUIRES: gpu && linux && (opencl || level_zero)
+// REQUIRES: ocloc && gpu && linux && (opencl || level_zero)
 
 // Test to check several use cases for multi-device kernel bundles.
 // Test covers AOT and JIT cases. Kernel is using some math functions to enforce
