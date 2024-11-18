@@ -271,6 +271,8 @@ Resolutions to C++ Defect Reports
 C Language Changes
 ------------------
 
+- Extend clang's ``<limits.h>`` to define ``LONG_LONG_*`` macros for Android's bionic.
+
 C2y Feature Support
 ^^^^^^^^^^^^^^^^^^^
 
@@ -531,6 +533,8 @@ Improvements to Clang's diagnostics
 
 - Clang now diagnoses ``[[deprecated]]`` attribute usage on local variables (#GH90073).
 
+- Improved diagnostic message for ``__builtin_bit_cast`` size mismatch (#GH115870).
+
 Improvements to Clang's time-trace
 ----------------------------------
 
@@ -551,6 +555,8 @@ Bug Fixes in This Version
   the unsupported type instead of the ``register`` keyword (#GH109776).
 - Fixed a crash when emit ctor for global variant with flexible array init (#GH113187).
 - Fixed a crash when GNU statement expression contains invalid statement (#GH113468).
+- Fixed a failed assertion when using ``__attribute__((noderef))`` on an
+  ``_Atomic``-qualified type (#GH116124).
 
 Bug Fixes to Compiler Builtins
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -750,6 +756,7 @@ X86 Support
 - Support ISA of ``AMX-MOVRS``.
 - Support ISA of ``AMX-AVX512``.
 - Support ISA of ``AMX-TF32``.
+- Support ISA of ``MOVRS``.
 
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^

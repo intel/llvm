@@ -140,8 +140,9 @@ mlir::Value getDeviceAddress(mlir::PatternRewriter &rewriter,
   llvm::SmallVector<mlir::Value> args{fir::runtime::createArguments(
       builder, loc, fTy, inputArg, sourceFile, sourceLine)};
   auto call = rewriter.create<fir::CallOp>(loc, callee, args);
-
-  return call->getResult(0);
+  mlir::Value cast = createConvertOp(
+      rewriter, loc, declareOp.getMemref().getType(), call->getResult(0));
+  return cast;
 }
 
 template <typename OpTy>
@@ -251,6 +252,8 @@ struct CUFDeallocateOpConversion
 static bool inDeviceContext(mlir::Operation *op) {
   if (op->getParentOfType<cuf::KernelOp>())
     return true;
+  if (auto funcOp = op->getParentOfType<mlir::gpu::GPUFuncOp>())
+    return true;
   if (auto funcOp = op->getParentOfType<mlir::func::FuncOp>()) {
     if (auto cudaProcAttr =
             funcOp.getOperation()->getAttrOfType<cuf::ProcAttributeAttr>(
@@ -280,7 +283,7 @@ static int computeWidth(mlir::Location loc, mlir::Type type,
         mlir::cast<mlir::FloatType>(t.getElementType()).getWidth() / 8;
     width = 2 * elemSize;
   } else {
-    llvm::report_fatal_error("unsupported type");
+    mlir::emitError(loc, "unsupported type");
   }
   return width;
 }
@@ -570,13 +573,21 @@ struct CUFDataTransferOpConversion
       mlir::Type i64Ty = builder.getI64Type();
       mlir::Value nbElement;
       if (op.getShape()) {
-        auto shapeOp =
-            mlir::dyn_cast<fir::ShapeOp>(op.getShape().getDefiningOp());
-        nbElement = rewriter.create<fir::ConvertOp>(loc, i64Ty,
-                                                    shapeOp.getExtents()[0]);
-        for (unsigned i = 1; i < shapeOp.getExtents().size(); ++i) {
-          auto operand = rewriter.create<fir::ConvertOp>(
-              loc, i64Ty, shapeOp.getExtents()[i]);
+        llvm::SmallVector<mlir::Value> extents;
+        if (auto shapeOp =
+                mlir::dyn_cast<fir::ShapeOp>(op.getShape().getDefiningOp())) {
+          extents = shapeOp.getExtents();
+        } else if (auto shapeShiftOp = mlir::dyn_cast<fir::ShapeShiftOp>(
+                       op.getShape().getDefiningOp())) {
+          for (auto i : llvm::enumerate(shapeShiftOp.getPairs()))
+            if (i.index() & 1)
+              extents.push_back(i.value());
+        }
+
+        nbElement = rewriter.create<fir::ConvertOp>(loc, i64Ty, extents[0]);
+        for (unsigned i = 1; i < extents.size(); ++i) {
+          auto operand =
+              rewriter.create<fir::ConvertOp>(loc, i64Ty, extents[i]);
           nbElement =
               rewriter.create<mlir::arith::MulIOp>(loc, nbElement, operand);
         }
@@ -630,8 +641,14 @@ struct CUFDataTransferOpConversion
       mlir::Value dst = op.getDst();
       mlir::Value src = op.getSrc();
 
-      if (!mlir::isa<fir::BaseBoxType>(srcTy))
+      if (!mlir::isa<fir::BaseBoxType>(srcTy)) {
         src = emboxSrc(rewriter, op, symtab);
+      } else if (mlir::isa<fir::EmboxOp>(src.getDefiningOp())) {
+        // Materialize the box to memory to be able to call the runtime.
+        mlir::Value box = builder.createTemporary(loc, src.getType());
+        builder.create<fir::StoreOp>(loc, src, box);
+        src = box;
+      }
 
       auto fTy = func.getFunctionType();
       mlir::Value sourceFile = fir::factory::locationToFilename(builder, loc);
