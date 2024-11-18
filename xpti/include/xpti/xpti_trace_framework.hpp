@@ -353,7 +353,6 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
-  finally() = default;
   finally(const finally&) = default;
   finally& operator=(const finally&) = default;
   ~finally() {
