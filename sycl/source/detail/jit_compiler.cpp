@@ -1210,45 +1210,32 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
                  std::back_inserter(UserArgsView),
                  [](const auto &Arg) { return Arg.c_str(); });
 
-  // CP --
-  // Redirect stderr to a string stream
-  // std::stringstream error_stream;
-  // the commented code below doesn't work, because ClangTool uses llvm::outs()
-  // and llvm::errs().
-  // std::streambuf *old_stderr = std::cerr.rdbuf();
-  // std::streambuf *old_stdout = std::cout.rdbuf();
-  // std::cerr.rdbuf(error_stream.rdbuf());
-  // std::cout.rdbuf(error_stream.rdbuf());
-
-  // freopen("error_log.txt", "w", stderr);  // <-- this works, but doesn't
-  // capture in a std::string.
-
   // Redirect stderr to a string stream.
 #ifdef _WIN32
   HANDLE read_pipe, write_pipe;
   SECURITY_ATTRIBUTES sa = {sizeof(SECURITY_ATTRIBUTES), NULL, TRUE};
   if (!CreatePipe(&read_pipe, &write_pipe, &sa, 0)) {
-    throw sycl::exception(sycl::errc::runtime, "Failed to create pipe");
+    throw sycl::exception(sycl::errc::build, "Failed to create pipe");
   }
 
   HANDLE saved_stderr = GetStdHandle(STD_ERROR_HANDLE);
   HANDLE saved_stdout = GetStdHandle(STD_OUTPUT_HANDLE);
   if (!SetStdHandle(STD_ERROR_HANDLE, write_pipe) ||
       !SetStdHandle(STD_OUTPUT_HANDLE, write_pipe)) {
-    throw sycl::exception(sycl::errc::runtime,
+    throw sycl::exception(sycl::errc::build,
                           "Failed to redirect stderr/stdout");
   }
 #else
   int pipefd[2];
   if (pipe(pipefd) == -1) {
-    throw sycl::exception(sycl::errc::runtime, "Failed to create pipe");
+    throw sycl::exception(sycl::errc::build, "Failed to create pipe");
   }
 
   int saved_stderr = dup(fileno(stderr));
   int saved_stdout = dup(fileno(stdout));
   if (dup2(pipefd[1], fileno(stderr)) == -1 ||
       dup2(pipefd[1], fileno(stdout)) == -1) {
-    throw sycl::exception(sycl::errc::runtime,
+    throw sycl::exception(sycl::errc::build,
                           "Failed to redirect stderr/stdout");
   }
   close(pipefd[1]);
@@ -1256,11 +1243,8 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
 
   std::stringstream error_stream;
 
+  // Compile it!
   auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
-
-  // Restore stderr/stdout
-  // std::cerr.rdbuf(old_stderr);
-  // std::cout.rdbuf(old_stdout);
 
   // Restore stderr/stdout.
 #ifdef _WIN32
