@@ -155,6 +155,7 @@ void test_build_and_run(bool readingFromCache) {
                  "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
+    assert(ok);
     return;
   }
 
@@ -239,6 +240,41 @@ void test_error() {
   }
 }
 
+void test_unsupported_options() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl);
+  if (!ok) {
+    return;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl, "");
+  std::vector<sycl::device> devs = kbSrc.get_devices();
+
+  auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
+    try {
+      syclex::build(kbSrc, devs,
+                    syclex::properties{syclex::build_options{flags}});
+      assert(false && "unsupported option not detected");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::build);
+      assert(std::string(e.what()).find("Parsing of user arguments failed") !=
+             std::string::npos);
+    }
+  };
+
+  CheckUnsupported({"-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
+  CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+}
+
 void test_esimd() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
@@ -317,6 +353,7 @@ int main(int argc, char *argv[]) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run(readingFromCache);
   test_error();
+  test_unsupported_options();
 
   // TODO: jit_compiler is not supporting ESIMD.
   // test_esimd();
