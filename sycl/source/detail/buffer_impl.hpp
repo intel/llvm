@@ -17,7 +17,6 @@
 #include <sycl/detail/stl_type_traits.hpp> // for iterator_to_const_type_t
 #include <sycl/detail/ur.hpp>
 #include <sycl/property_list.hpp>
-#include <sycl/types.hpp>
 
 #include <cstdint>
 #include <functional>
