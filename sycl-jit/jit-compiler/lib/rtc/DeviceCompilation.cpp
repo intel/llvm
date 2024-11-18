@@ -8,6 +8,8 @@
 
 #include "DeviceCompilation.h"
 
+#include "PostLinkActions.h"
+
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -20,8 +22,10 @@
 
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
-
-#include <array>
+#include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
+#include <llvm/SYCLLowerIR/ModuleSplitter.h>
+#include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/Support/PropertySetIO.h>
 
 using namespace clang;
 using namespace clang::tooling;
@@ -29,6 +33,11 @@ using namespace clang::driver;
 using namespace clang::driver::options;
 using namespace llvm;
 using namespace llvm::opt;
+using namespace llvm::sycl;
+using namespace llvm::module_split;
+using namespace llvm::util;
+using namespace jit_compiler;
+using namespace jit_compiler::post_link;
 
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
@@ -356,6 +365,96 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   return Error::success();
 }
 
+Expected<RTCBundleInfo> jit_compiler::performPostLink(
+    llvm::Module &Module, [[maybe_unused]] const InputArgList &UserArgList) {
+  // This is a simplified version of `processInputModule` in
+  // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
+  // left out of the algorithm for now.
+
+  // After linking device bitcode "llvm.used" holds references to the kernels
+  // that are defined in the device image. But after splitting device image into
+  // separate kernels we may end up with having references to kernel declaration
+  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
+  // and these declarations cause an assertion in llvm-spirv. To workaround this
+  // issue remove "llvm.used" from the input module before performing any other
+  // actions.
+  removeSYCLKernelsConstRefArray(Module);
+
+  // There may be device_global variables kept alive in "llvm.compiler.used"
+  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
+  // symbols are usually removed at backend lowering, but this is handled here
+  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
+  removeDeviceGlobalFromCompilerUsed(Module);
+
+  assert(!isModuleUsingAsan(Module));
+  // Otherwise: Need to instrument each image scope device globals if the module
+  // has been instrumented by sanitizer pass.
+
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
+  runModulePass<SYCLJointMatrixTransformPass>(Module);
+
+  // TODO: Implement actual device code splitting. We're just using the splitter
+  //       to obtain additional information about the module for now.
+  // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
+  //       `shouldEmitOnlyKernelsAsEntryPoints` in
+  //       `clang/lib/Driver/ToolChains/Clang.cpp`.
+  std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
+      ModuleDesc{std::unique_ptr<llvm::Module>{&Module}}, SPLIT_NONE,
+      /*IROutputOnly=*/false,
+      /*EmitOnlyKernelsAsEntryPoints=*/true);
+  bool SplitOccurred = Splitter->remainingSplits() > 1;
+  assert(!SplitOccurred);
+
+  // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
+  //       be processed.
+
+  assert(Splitter->hasMoreSplits());
+  ModuleDesc MDesc = Splitter->nextSplit();
+  assert(&Module == &MDesc.getModule());
+  MDesc.saveSplitInformationAsMetadata();
+
+  RTCBundleInfo BundleInfo;
+  BundleInfo.SymbolTable =
+      decltype(BundleInfo.SymbolTable){MDesc.entries().size()};
+  transform(MDesc.entries(), BundleInfo.SymbolTable.begin(),
+            [](Function *F) { return F->getName(); });
+
+  // TODO: Determine what is requested.
+  GlobalBinImageProps PropReq{
+      /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
+      /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
+      /*DeviceGlobals=*/false};
+  PropertySetRegistry Properties =
+      computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+  // TODO: Manually add `compile_target` property as in
+  //       `saveModuleProperties`?
+  const auto &PropertySets = Properties.getPropSets();
+
+  BundleInfo.Properties = decltype(BundleInfo.Properties){PropertySets.size()};
+  for (auto &&[KV, FrozenPropSet] : zip(PropertySets, BundleInfo.Properties)) {
+    const auto &PropertySetName = KV.first;
+    const auto &PropertySet = KV.second;
+    FrozenPropertySet FPS{PropertySetName.str(), PropertySet.size()};
+    for (auto &&[KV2, FrozenProp] : zip(PropertySet, FPS.Values)) {
+      const auto &PropertyName = KV2.first;
+      const auto &PropertyValue = KV2.second;
+      FrozenProp = PropertyValue.getType() == PropertyValue::Type::UINT32
+                       ? FrozenPropertyValue{PropertyName.str(),
+                                             PropertyValue.asUint32()}
+                       : FrozenPropertyValue{
+                             PropertyName.str(), PropertyValue.asRawByteArray(),
+                             PropertyValue.getRawByteArraySize()};
+    }
+    FrozenPropSet = std::move(FPS);
+  };
+
+  // Regain ownership of the module.
+  MDesc.releaseModulePtr().release();
+
+  return BundleInfo;
+}
+
 Expected<InputArgList>
 jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   unsigned MissingArgIndex, MissingArgCount;
@@ -408,6 +507,18 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
       return createStringError(
           "Device ASAN is not supported for runtime compilation");
     }
+  }
+
+  if (auto DCSMode = AL.getLastArgValue(OPT_fsycl_device_code_split_EQ, "none");
+      DCSMode != "none" && DCSMode != "auto") {
+    return createStringError("Device code splitting is not yet supported");
+  }
+
+  if (AL.hasArg(OPT_fsycl_device_code_split_esimd,
+                OPT_fno_sycl_device_code_split_esimd)) {
+    // TODO: There are more ESIMD-related options.
+    return createStringError(
+        "Runtime compilation of ESIMD kernels is not yet supported");
   }
 
   return Expected<InputArgList>{std::move(AL)};

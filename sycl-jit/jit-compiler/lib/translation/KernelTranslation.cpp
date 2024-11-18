@@ -222,6 +222,20 @@ llvm::Error KernelTranslator::translateKernel(SYCLKernelInfo &Kernel,
   return Error::success();
 }
 
+llvm::Expected<RTCBundleBinaryInfo>
+KernelTranslator::translateBundleToSPIRV(llvm::Module &Mod,
+                                         JITContext &JITCtx) {
+  llvm::Expected<KernelBinary *> BinaryOrError = translateToSPIRV(Mod, JITCtx);
+  if (auto Error = BinaryOrError.takeError()) {
+    return Error;
+  }
+  KernelBinary *Binary = *BinaryOrError;
+  RTCBundleBinaryInfo BBI{BinaryFormat::SPIRV,
+                          Mod.getDataLayout().getPointerSizeInBits(),
+                          Binary->address(), Binary->size()};
+  return BBI;
+}
+
 llvm::Expected<KernelBinary *>
 KernelTranslator::translateToSPIRV(llvm::Module &Mod, JITContext &JITCtx) {
   return SPIRVLLVMTranslator::translateLLVMtoSPIRV(Mod, JITCtx);

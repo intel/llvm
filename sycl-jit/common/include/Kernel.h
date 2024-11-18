@@ -17,6 +17,7 @@
 #include <cstdint>
 #include <cstring>
 #include <functional>
+#include <string_view>
 #include <type_traits>
 
 namespace jit_compiler {
@@ -350,9 +351,58 @@ struct SYCLKernelInfo {
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
 };
 
+// RTC-related datastructures
+// TODO: Consider moving into separate header.
+
 struct InMemoryFile {
   const char *Path;
   const char *Contents;
+};
+
+using RTCBundleBinaryInfo = SYCLKernelBinaryInfo;
+using FrozenSymbolTable = DynArray<sycl::detail::string>;
+
+// Note: `FrozenPropertyValue` and `FrozenPropertySet` constructors take
+// `std::string_view` arguments instead of `const char *` because they will be
+// created from `llvm::SmallString`s, which don't contain the trailing '\0'
+// byte. Hence obtaining a C-string would cause an additional copy.
+
+struct FrozenPropertyValue {
+  sycl::detail::string Name;
+  bool IsUIntValue;
+  uint32_t UIntValue;
+  DynArray<uint8_t> Bytes;
+
+  FrozenPropertyValue() = default;
+  FrozenPropertyValue(FrozenPropertyValue &&) = default;
+  FrozenPropertyValue &operator=(FrozenPropertyValue &&) = default;
+
+  FrozenPropertyValue(std::string_view Name, uint32_t Value)
+      : Name{Name}, IsUIntValue{true}, UIntValue{Value}, Bytes{0} {}
+  FrozenPropertyValue(std::string_view Name, const uint8_t *Ptr, size_t Size)
+      : Name{Name}, IsUIntValue{false}, Bytes{Size} {
+    std::memcpy(Bytes.begin(), Ptr, Size);
+  }
+};
+
+struct FrozenPropertySet {
+  sycl::detail::string Name;
+  DynArray<FrozenPropertyValue> Values;
+
+  FrozenPropertySet() = default;
+  FrozenPropertySet(FrozenPropertySet &&) = default;
+  FrozenPropertySet &operator=(FrozenPropertySet &&) = default;
+
+  FrozenPropertySet(std::string_view Name, size_t Size)
+      : Name{Name}, Values{Size} {}
+};
+
+using FrozenPropertyRegistry = DynArray<FrozenPropertySet>;
+
+struct RTCBundleInfo {
+  RTCBundleBinaryInfo BinaryInfo;
+  FrozenSymbolTable SymbolTable;
+  FrozenPropertyRegistry Properties;
 };
 
 } // namespace jit_compiler

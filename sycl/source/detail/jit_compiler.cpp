@@ -1207,7 +1207,7 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
   // TODO: We currently don't have a meaningful build log.
   (void)LogPtr;
 
-  const auto &BI = Result.getKernelInfo().BinaryInfo;
+  const auto &BI = Result.getBundleInfo().BinaryInfo;
   assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
   std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
   return SPV;

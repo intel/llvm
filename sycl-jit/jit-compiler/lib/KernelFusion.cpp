@@ -25,8 +25,8 @@ using namespace jit_compiler;
 using FusedFunction = helper::FusionHelper::FusedFunction;
 using FusedFunctionList = std::vector<FusedFunction>;
 
-static JITResult errorToFusionResult(llvm::Error &&Err,
-                                     const std::string &Msg) {
+template <typename ResultType>
+static ResultType wrapError(llvm::Error &&Err, const std::string &Msg) {
   std::stringstream ErrMsg;
   ErrMsg << Msg << "\nDetailed information:\n";
   llvm::handleAllErrors(std::move(Err),
@@ -35,7 +35,16 @@ static JITResult errorToFusionResult(llvm::Error &&Err,
                           // compiled without exception support.
                           ErrMsg << "\t" << StrErr.getMessage() << "\n";
                         });
-  return JITResult{ErrMsg.str().c_str()};
+  return ResultType{ErrMsg.str().c_str()};
+}
+
+static JITResult errorToFusionResult(llvm::Error &&Err,
+                                     const std::string &Msg) {
+  return wrapError<JITResult>(std::move(Err), Msg);
+}
+
+static RTCResult errorToRTCResult(llvm::Error &&Err, const std::string &Msg) {
+  return wrapError<RTCResult>(std::move(Err), Msg);
 }
 
 static std::vector<jit_compiler::NDRange>
@@ -234,20 +243,20 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
   return JITResult{FusedKernelInfo};
 }
 
-extern "C" KF_EXPORT_SYMBOL JITResult
+extern "C" KF_EXPORT_SYMBOL RTCResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs) {
   auto UserArgListOrErr = parseUserArgs(UserArgs);
   if (!UserArgListOrErr) {
-    return errorToFusionResult(UserArgListOrErr.takeError(),
-                               "Parsing of user arguments failed");
+    return errorToRTCResult(UserArgListOrErr.takeError(),
+                            "Parsing of user arguments failed");
   }
   llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
 
   auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList);
   if (!ModuleOrErr) {
-    return errorToFusionResult(ModuleOrErr.takeError(),
-                               "Device compilation failed");
+    return errorToRTCResult(ModuleOrErr.takeError(),
+                            "Device compilation failed");
   }
 
   std::unique_ptr<llvm::LLVMContext> Context;
@@ -255,16 +264,26 @@ compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
   Context.reset(&Module->getContext());
 
   if (auto Error = linkDeviceLibraries(*Module, UserArgList)) {
-    return errorToFusionResult(std::move(Error), "Device linking failed");
+    return errorToRTCResult(std::move(Error), "Device linking failed");
   }
 
-  SYCLKernelInfo Kernel;
-  if (auto Error = translation::KernelTranslator::translateKernel(
-          Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV)) {
-    return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
+  auto BundleInfoOrError = performPostLink(*Module, UserArgList);
+  if (!BundleInfoOrError) {
+    return errorToRTCResult(BundleInfoOrError.takeError(),
+                            "Post-link phase failed");
   }
+  auto BundleInfo = std::move(*BundleInfoOrError);
 
-  return JITResult{Kernel};
+  auto BinaryInfoOrError =
+      translation::KernelTranslator::translateBundleToSPIRV(
+          *Module, JITContext::getInstance());
+  if (!BinaryInfoOrError) {
+    return errorToRTCResult(BinaryInfoOrError.takeError(),
+                            "SPIR-V translation failed");
+  }
+  BundleInfo.BinaryInfo = std::move(*BinaryInfoOrError);
+
+  return RTCResult{std::move(BundleInfo)};
 }
 
 extern "C" KF_EXPORT_SYMBOL void resetJITConfiguration() {
