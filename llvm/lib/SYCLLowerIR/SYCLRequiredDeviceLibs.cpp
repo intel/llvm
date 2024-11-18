@@ -760,7 +760,7 @@ namespace llvm {
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
 void getRequiredSYCLDeviceLibs(
-    const Module &M, llvm::SmallVector<llvm::StringRef, 16> &ReqDeviceLibs) {
+    const Module &M, llvm::SmallVector<DeviceLibExt, 16> &ReqDeviceLibs) {
   // Device libraries will be enabled only for spir-v module.
   if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
     return;
@@ -776,9 +776,12 @@ void getRequiredSYCLDeviceLibs(
         continue;
 
       DeviceLibUsed.insert(DeviceLibFuncIter->second);
-      ReqDeviceLibs.push_back(DeviceLibSPVExtMap[DeviceLibFuncIter->second]);
+      ReqDeviceLibs.push_back(DeviceLibFuncIter->second);
     }
   }
 }
 
+const char *getDeviceLibFileName(DeviceLibExt RequiredDeviceLibExt) {
+  return DeviceLibSPVExtMap[RequiredDeviceLibExt];
+}
 } // namespace llvm

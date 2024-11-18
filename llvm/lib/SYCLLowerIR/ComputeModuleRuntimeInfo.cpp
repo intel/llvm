@@ -21,6 +21,8 @@
 #include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
+#include "llvm/Support/FileSystem.h"
+#include "llvm/Support/MemoryBuffer.h"
 #include <queue>
 #include <unordered_set>
 
@@ -167,9 +169,29 @@ PropSetRegTy computeModuleProperties(const Module &M,
 
   PropSetRegTy PropSet;
   {
-    SmallVector<StringRef, 16> RequiredLibs;
+    SmallVector<llvm::DeviceLibExt, 16> RequiredLibs;
     llvm::getRequiredSYCLDeviceLibs(M, RequiredLibs);
-    for (auto RL : RequiredLibs) {
+    for (auto Ext : RequiredLibs) {
+      const char *SPVFileName = llvm::getDeviceLibFileName(Ext);
+      std::string SPVPath =
+          DeviceLibSPVLoc.str() + "/" + std::string(SPVFileName);
+      if (!llvm::sys::fs::exists(SPVPath))
+        continue;
+
+      auto SPVMB = llvm::MemoryBuffer::getFile(SPVPath);
+      if (!SPVMB)
+        continue;
+
+      size_t SPVSize = (*SPVMB)->getBufferSize();
+      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
+          std::aligned_alloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
+      *(reinterpret_cast<uint32_t *>(SPVBuffer)) = static_cast<uint32_t>(Ext);
+      std::memcpy(SPVBuffer + 1, (*SPVMB)->getBufferStart(), SPVSize);
+      llvm::SYCLDeviceLibSPVBinary SPVBinaryObj(SPVBuffer,
+                                                SPVSize + sizeof(uint32_t));
+      PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, SPVFileName,
+                  SPVBinaryObj);
+      std::free(SPVBuffer);
     }
   }
 
