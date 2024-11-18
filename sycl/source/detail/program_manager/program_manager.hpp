@@ -132,6 +132,7 @@ public:
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
       const context &Context, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
+
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS
@@ -147,11 +148,13 @@ public:
                                         const NDRDescT &NDRDesc = {},
                                         bool JITCompilationIsRequired = false);
 
-  ur_program_handle_t getBuiltURProgram(const context &Context,
-                                        const device &Device,
-                                        const std::string &KernelName,
-                                        const property_list &PropList,
-                                        bool JITCompilationIsRequired = false);
+  ur_program_handle_t getBuiltURProgram(
+      const RTDeviceBinaryImage &Img, const context &Context,
+      const std::vector<device> &Devs,
+      const std::set<RTDeviceBinaryImage *> &DeviceImagesToLink,
+      const std::vector<const RTDeviceBinaryImage *> &AllImages,
+      const std::shared_ptr<device_image_impl> &DeviceImageImpl = nullptr,
+      const SerializedObj &SpecConsts = {});
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>
