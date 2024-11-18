@@ -316,10 +316,9 @@ int main(int argc, char *argv[]) {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   test_build_and_run(readingFromCache);
-  // TODO: jit_compiler is not gracefully failing on errors, not logging, or
-  // supporting ESIMD.
+  test_error();
 
-  // test_error();
+  // TODO: jit_compiler is not supporting ESIMD.
   // test_esimd();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
