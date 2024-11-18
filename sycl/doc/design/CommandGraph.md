@@ -343,19 +343,21 @@ version:
 
 - Immediate Append path - Relies on
   [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
-  to submit the command-buffer.
+  to submit the command-buffer. This function is an experimental extension to the level-zero API.
 - Wait event path - Relies on
   [zeCommandQueueExecuteCommandLists](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandqueueexecutecommandlists)
   to submit the command-buffer work. However, this level-zero function has
   limitations and, as such, this path is used only when the immediate append
   path is unavailable.
 
-#### Immediate Append Path implementation details
+#### Immediate Append Path Implementation Details
 
 This path is only available when the device supports immediate command-lists
 and the [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp) 
-API. This API has a `phWaitEvents` argument which allows for a cleaner and more efficient
-implementation than what can be achieved when using the wait-event path
+API. This API can wait on a list of event dependencies using the `phWaitEvents`
+parameter and can signal a return event when finished using the `hSignalEvent`
+parameter. This allows for a cleaner and more efficient implementation than
+what can be achieved when using the wait-event path
 (see [this section](#wait-event-path-implementation-details-) for
 more details about the wait-event path).
 
@@ -390,7 +392,7 @@ we need 2 of these helper command-lists:
   - The `ZeCopyEngineImmediateListHelper`  command-list is used to submit the
 `CopyCommandList`
 
-#### Wait event path implementation details 
+#### Wait event Path Implementation Details
 The UR `urCommandBufferEnqueueExp` interface for submitting a command-buffer
 takes a list of events to wait on, and returns an event representing the
 completion of that specific submission of the command-buffer.
