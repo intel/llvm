@@ -1935,7 +1935,6 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
       Triple.isSPIROrSPIRV() && Triple.getSubArch() == llvm::Triple::NoSubArch;
   if (IsGen && Args.hasArg(options::OPT_fsycl_fp64_conv_emu))
     BeArgs.push_back("-ze-fp64-gen-conv-emu");
-
   if (Arg *A = Args.getLastArg(options::OPT_g_Group, options::OPT__SLASH_Z7))
     if (!A->getOption().matches(options::OPT_g0))
       BeArgs.push_back("-g");
