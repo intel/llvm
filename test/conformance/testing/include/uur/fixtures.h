@@ -209,9 +209,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
-                                        &image_format, &image_desc, nullptr,
-                                        &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &image_format,
+                             &image_desc, nullptr, &image));
     }
 
     void TearDown() override {
@@ -323,8 +323,9 @@ template <class T> struct urMemImageTestWithParam : urContextTestWithParam<T> {
         if (!imageSupported) {
             GTEST_SKIP();
         }
-        ASSERT_SUCCESS(urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE,
-                                        &format, &desc, nullptr, &image));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urMemImageCreate(this->context, UR_MEM_FLAG_READ_WRITE, &format,
+                             &desc, nullptr, &image));
         ASSERT_NE(nullptr, image);
     }
 
