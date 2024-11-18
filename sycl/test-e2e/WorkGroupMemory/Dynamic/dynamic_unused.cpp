@@ -25,19 +25,20 @@ int main() {
 
   queue
       .submit([&](sycl::handler &cgh) {
-    cgh.parallel_for(sycl::nd_range<1>({Size}, {Size}),
-                     sycl_ext::properties{sycl_ext::work_group_scratch_size(
-                         Size * sizeof(DataType))},
-                     [=](sycl::nd_item<1> it) {
-                       b[it.get_local_linear_id()] =
-                           a[it.get_local_linear_id()];
-                     })
-        .wait_and_throw();
+        cgh.parallel_for(sycl::nd_range<1>({Size}, {Size}),
+                         sycl_ext::properties{sycl_ext::work_group_scratch_size(
+                             Size * sizeof(DataType))},
+                         [=](sycl::nd_item<1> it) {
+                           b[it.get_local_linear_id()] =
+                               a[it.get_local_linear_id()];
+                         });
+      })
+      .wait_and_throw();
 
-    queue.copy(b, b_host.data(), Size).wait_and_throw();
-    for (size_t i = 0; i < b_host.size(); i++) {
-      assert(b_host[i] == a_host[i]);
-    }
-    sycl::free(a, queue);
-    sycl::free(b, queue);
+  queue.copy(b, b_host.data(), Size).wait_and_throw();
+  for (size_t i = 0; i < b_host.size(); i++) {
+    assert(b_host[i] == a_host[i]);
+  }
+  sycl::free(a, queue);
+  sycl::free(b, queue);
 }
