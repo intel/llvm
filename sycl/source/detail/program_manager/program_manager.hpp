@@ -58,6 +58,9 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
+bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                const device &Dev);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
@@ -104,7 +107,7 @@ public:
 
   ur_program_handle_t createURProgram(const RTDeviceBinaryImage &Img,
                                       const context &Context,
-                                      const device &Device);
+                                      const std::vector<device> &Devices);
   /// Creates a UR program using either a cached device code binary if present
   /// in the persistent cache or from the supplied device image otherwise.
   /// \param Img The device image used to create the program.
@@ -127,7 +130,7 @@ public:
   std::pair<ur_program_handle_t, bool> getOrCreateURProgram(
       const RTDeviceBinaryImage &Img,
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
-      const context &Context, const device &Device,
+      const context &Context, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
@@ -302,7 +305,8 @@ private:
                                      decltype(&::urProgramRelease)>;
   ProgramPtr build(ProgramPtr Program, const ContextImplPtr Context,
                    const std::string &CompileOptions,
-                   const std::string &LinkOptions, ur_device_handle_t Device,
+                   const std::string &LinkOptions,
+                   std::vector<ur_device_handle_t> &Devices,
                    uint32_t DeviceLibReqMask,
                    const std::vector<ur_program_handle_t> &ProgramsToLink,
                    bool CreatedFromBinary = false);

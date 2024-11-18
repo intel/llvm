@@ -724,6 +724,16 @@ enum ASTRecordTypes {
 
   /// Record code for vtables to emit.
   VTABLES_TO_EMIT = 70,
+
+  /// Record code for the FunctionDecl to lambdas mapping. These lambdas have to
+  /// be loaded right after the function they belong to. It is required to have
+  /// canonical declaration for the lambda class from the same module as
+  /// enclosing function.
+  FUNCTION_DECL_TO_LAMBDAS_MAP = 71,
+
+  /// Record code for Sema's vector of functions/blocks with effects to
+  /// be verified.
+  DECLS_WITH_EFFECTS_TO_VERIFY = 72,
 };
 
 /// Record types used within a source manager block.
@@ -1127,7 +1137,7 @@ enum PredefinedTypeIDs {
 #define WASM_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
 // \brief AMDGPU types with auto numeration
-#define AMDGPU_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
+#define AMDGPU_TYPE(Name, Id, SingletonId, Width, Align) PREDEF_TYPE_##Id##_ID,
 #include "clang/Basic/AMDGPUTypes.def"
 // \brief HLSL intangible types with auto numeration
 #define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) PREDEF_TYPE_##Id##_ID,
@@ -1144,7 +1154,7 @@ enum PredefinedTypeIDs {
 ///
 /// Type IDs for non-predefined types will start at
 /// NUM_PREDEF_TYPE_IDs.
-const unsigned NUM_PREDEF_TYPE_IDS = 517;
+const unsigned NUM_PREDEF_TYPE_IDS = 521;
 
 // Ensure we do not overrun the predefined types we reserved
 // in the enum PredefinedTypeIDs above.
@@ -2003,12 +2013,14 @@ enum StmtCode {
   // SYCLUniqueStableIdExpr
   EXPR_SYCL_UNIQUE_STABLE_ID,
 
-  // OpenACC Constructs
+  // OpenACC Constructs/Exprs
   STMT_OPENACC_COMPUTE_CONSTRUCT,
   STMT_OPENACC_LOOP_CONSTRUCT,
+  EXPR_OPENACC_ASTERISK_SIZE,
 
   // HLSL Constructs
   EXPR_HLSL_OUT_ARG,
+
 };
 
 /// The kinds of designators that can occur in a

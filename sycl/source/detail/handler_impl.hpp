@@ -152,10 +152,6 @@ public:
       ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
       MDynamicParameters;
 
-  // Track whether an NDRange was used when submitting a kernel (as opposed to a
-  // range), needed for graph update
-  bool MNDRangeUsed = false;
-
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after
@@ -197,6 +193,9 @@ public:
 
   /// True if MCodeLoc is sycl entry point code location
   bool MIsTopCodeLoc = true;
+
+  /// List of work group memory objects associated with this handler
+  std::vector<std::shared_ptr<detail::work_group_memory_impl>> MWorkGroupMemoryObjects;
 };
 
 } // namespace detail

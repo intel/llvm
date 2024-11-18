@@ -2,6 +2,9 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: hip_amd
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15791
+
 #include "assignment.h"
 #include <iostream>
 using namespace sycl;

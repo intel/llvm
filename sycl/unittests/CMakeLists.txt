@@ -25,13 +25,7 @@ include(AddSYCLUnitTest)
 
 add_custom_target(check-sycl-unittests)
 
-# TODO UR tests require real hardware and must be moved to sycl/test-e2e.
-option(SYCL_UR_TESTS "Enable UR-specific unit tests" OFF)
-
-if (SYCL_UR_TESTS)
-    add_subdirectory(ur)
-endif()
-
+add_subdirectory(ur)
 add_subdirectory(allowlist)
 add_subdirectory(config)
 add_subdirectory(misc)
@@ -53,9 +47,16 @@ add_subdirectory(accessor)
 add_subdirectory(handler)
 add_subdirectory(builtins)
 add_subdirectory(buffer/l0_specific)
+
+# Enable compression unit-tests only if zstd is present.
+if (LLVM_ENABLE_ZSTD)
+    add_subdirectory(compression)
+endif()
+
 # TODO Enable xpti tests for Windows
 if (NOT WIN32)
     add_subdirectory(xpti_trace)
 endif()
 add_subdirectory(sampler)
 add_subdirectory(reduction)
+add_subdirectory(OneAPIDeviceSelector)

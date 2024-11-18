@@ -1357,6 +1357,9 @@ void JSONNodeDumper::VisitSYCLUniqueStableNameExpr(
 void JSONNodeDumper::VisitSYCLUniqueStableIdExpr(
     const SYCLUniqueStableIdExpr *E) {}
 
+void JSONNodeDumper::VisitOpenACCAsteriskSizeExpr(
+    const OpenACCAsteriskSizeExpr *E) {}
+
 void JSONNodeDumper::VisitPredefinedExpr(const PredefinedExpr *PE) {
   JOS.attribute("name", PredefinedExpr::getIdentKindName(PE->getIdentKind()));
 }

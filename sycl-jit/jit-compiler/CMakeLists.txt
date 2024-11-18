@@ -7,6 +7,7 @@ add_llvm_library(sycl-jit
    lib/fusion/FusionHelper.cpp
    lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
+   lib/rtc/DeviceCompilation.cpp
    lib/helper/ConfigHelper.cpp
 
    SHARED
@@ -18,10 +19,12 @@ add_llvm_library(sycl-jit
    BitReader
    Core
    Support
+   Option
    Analysis
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
@@ -29,7 +32,19 @@ add_llvm_library(sycl-jit
    TargetParser
    MC
    ${LLVM_TARGETS_TO_BUILD}
+
+   LINK_LIBS
+   clangBasic
+   clangDriver
+   clangFrontend
+   clangCodeGen
+   clangTooling
+   clangSerialization
 )
+
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
 
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
@@ -40,6 +55,8 @@ target_include_directories(sycl-jit
   SYSTEM PRIVATE
   ${LLVM_MAIN_INCLUDE_DIR}
   ${LLVM_SPIRV_INCLUDE_DIRS}
+  ${LLVM_EXTERNAL_CLANG_SOURCE_DIR}/include
+  ${CMAKE_BINARY_DIR}/tools/clang/include
 )
 target_include_directories(sycl-jit
   PUBLIC

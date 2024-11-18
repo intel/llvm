@@ -901,7 +901,8 @@ struct build_source_bundle_props;
 // PropertyT syclex::include_files
 /////////////////////////
 struct include_files
-    : detail::run_time_property_key<detail::PropKind::IncludeFiles> {
+    : detail::run_time_property_key<include_files,
+                                    detail::PropKind::IncludeFiles> {
   include_files();
   include_files(const std::string &name, const std::string &content) {
     record.emplace_back(std::make_pair(name, content));
@@ -922,7 +923,8 @@ struct is_property_key_of<include_files_key,
 // PropertyT syclex::build_options
 /////////////////////////
 struct build_options
-    : detail::run_time_property_key<detail::PropKind::BuildOptions> {
+    : detail::run_time_property_key<build_options,
+                                    detail::PropKind::BuildOptions> {
   std::vector<std::string> opts;
   build_options(const std::string &optsArg) : opts{optsArg} {}
   build_options(const std::vector<std::string> &optsArg) : opts(optsArg) {}
@@ -936,7 +938,8 @@ struct is_property_key_of<build_options_key, detail::build_source_bundle_props>
 /////////////////////////
 // PropertyT syclex::save_log
 /////////////////////////
-struct save_log : detail::run_time_property_key<detail::PropKind::BuildLog> {
+struct save_log
+    : detail::run_time_property_key<save_log, detail::PropKind::BuildLog> {
   std::string *log;
   save_log(std::string *logArg) : log(logArg) {}
 };
@@ -950,7 +953,8 @@ struct is_property_key_of<save_log_key, detail::build_source_bundle_props>
 // PropertyT syclex::registered_kernel_names
 /////////////////////////
 struct registered_kernel_names
-    : detail::run_time_property_key<detail::PropKind::RegisteredKernelNames> {
+    : detail::run_time_property_key<registered_kernel_names,
+                                    detail::PropKind::RegisteredKernelNames> {
   std::vector<std::string> kernel_names;
   registered_kernel_names() {}
   registered_kernel_names(const std::string &knArg) : kernel_names{knArg} {}

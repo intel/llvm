@@ -39,6 +39,7 @@
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
+#include <syclcompat/dims.hpp>
 
 #if defined(__NVPTX__)
 #include <sycl/ext/oneapi/experimental/cuda/masked_shuffles.hpp>
@@ -161,6 +162,13 @@ inline double cast_ints_to_double(int high32, int low32) {
 template <typename T> inline T reverse_bits(T a) {
   static_assert(std::is_unsigned<T>::value && std::is_integral<T>::value,
                 "unsigned integer required");
+#if defined(__NVPTX__)
+  if constexpr (sizeof(T) == 4) {
+    unsigned result;
+    asm volatile("brev.b32 %0, %1;" : "=r"(result) : "r"(a));
+    return result;
+  }
+#endif // __NVPTX__
   if (!a)
     return 0;
   T mask = 0;
@@ -918,6 +926,46 @@ public:
   }
 };
 } // namespace experimental
+
+// Calculate the number of work-groups per compute unit
+// \tparam [in] KernelName SYCL kernel name to calculate for
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_dim3 dim3 representing work-group shape
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
+template <class KernelName>
+size_t max_active_work_groups_per_cu(
+    syclcompat::dim3 wg_dim3, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue()) {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  // max_num_work_groups only supports range<3>
+  auto ctx = queue.get_context();
+  auto bundle = sycl::get_kernel_bundle<sycl::bundle_state::executable>(ctx);
+  auto kernel = bundle.template get_kernel<KernelName>();
+  sycl::range<3> wg_range_3d(wg_dim3);
+  size_t max_wgs = kernel.template ext_oneapi_get_info<
+      syclex::info::kernel_queue_specific::max_num_work_groups>(queue, wg_range_3d,
+                                                                local_mem_size);
+  size_t max_compute_units =
+      queue.get_device().get_info<sycl::info::device::max_compute_units>();
+  // Spec dictates max_compute_units > 0, so no need to catch div 0
+  return max_wgs / max_compute_units;
+}
+
+// Calculate the number of work-groups per compute unit
+// \tparam [in] KernelName SYCL kernel name to calculate for
+// \tparam [in] RangeDim the dimension of the sycl::range
+// \param [in] q SYCL queue used to execute kernel
+// \param [in] wg_range SYCL work-group range
+// \param [in] local_mem_size Local memory usage per work-group in bytes
+// \return size_t representing maximum work-groups per compute unit
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(
+    sycl::range<RangeDim> wg_range, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue()) {
+  return max_active_work_groups_per_cu<KernelName>(syclcompat::dim3(wg_range),
+                                                   local_mem_size, queue);
+}
 
 /// If x <= 2, then return a pointer to the default queue;
 /// otherwise, return x reinterpreted as a queue_ptr.

@@ -23,7 +23,7 @@
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu -Xsycl-target-backend \
 // RUN:          "-device skl" --sysroot=%S/Inputs/SYCL -ccc-print-phases %s \
-// RUN:          -fno-sycl-device-lib=all 2>&1 \
+// RUN:          -fsycl-instrument-device-code -fno-sycl-device-lib=all 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CREATE_IMAGE_PHASES
 // CREATE_IMAGE_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
 // CREATE_IMAGE_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
@@ -70,7 +70,7 @@
 // RUN: %clangxx -c -fno-sycl-rdc -fsycl --no-offload-new-driver -fsycl-targets=spir64,spir64_gen \
 // RUN:          --target=x86_64-unknown-linux-gnu --sysroot=%S/Inputs/SYCL \
 // RUN:          -Xsycl-target-backend=spir64_gen "-device skl" \
-// RUN:          -ccc-print-phases %s -fno-sycl-device-lib=all 2>&1 \
+// RUN:          -fsycl-instrument-device-code -ccc-print-phases %s -fno-sycl-device-lib=all 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=JIT_AOT_PHASES
 // JIT_AOT_PHASES: 0: input, "[[INPUT:.+\.cpp]]", c++, (device-sycl)
 // JIT_AOT_PHASES: 1: preprocessor, {0}, c++-cpp-output, (device-sycl)
