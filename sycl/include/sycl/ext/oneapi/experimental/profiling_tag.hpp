@@ -22,6 +22,14 @@ inline event submit_profiling_tag(queue &Queue,
                                   const sycl::detail::code_location &CodeLoc =
                                       sycl::detail::code_location::current()) {
   if (Queue.get_device().has(aspect::ext_oneapi_queue_profiling_tag)) {
+    // If the queue is out-of-order and profiling is enabled, the implementation
+    // can save some operations by just using the required barrier event
+    // directly.
+    if (!Queue.is_in_order() &&
+        Queue.has_property<sycl::property::queue::enable_profiling>())
+      return Queue.ext_oneapi_submit_barrier();
+
+    // Otherwise, we use the internal implementation of the profiling tag.
     return Queue.submit(
         [=](handler &CGH) {
           sycl::detail::HandlerAccess::internalProfilingTagImpl(CGH);
