@@ -54,15 +54,10 @@ template <typename... Ts>
 using contains_alignment =
     detail::ContainsProperty<alignment_key, std::tuple<Ts...>>;
 
-// properties filter
-template <typename property_list, template <class...> typename filter>
-using PropertiesFilter =
-    sycl::detail::boost::mp11::mp_copy_if<property_list, filter>;
-
 // filter properties that are applied on annotations
-template <typename... Props>
-using annotation_filter = properties<
-    PropertiesFilter<std::tuple<Props...>, propagateToPtrAnnotation>>;
+template <typename PropertyListTy>
+using annotation_filter = decltype(filter_properties<propagateToPtrAnnotation>(
+    std::declval<PropertyListTy>()));
 } // namespace detail
 
 template <typename I, typename P> struct annotationHelper {};
@@ -107,8 +102,8 @@ public:
   // implicit conversion with annotaion
   operator T() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, detail::annotation_filter<Props...>>::load(
-        m_Ptr);
+    return annotationHelper<
+        T, detail::annotation_filter<property_list_t>>::load(m_Ptr);
 #else
     return *m_Ptr;
 #endif
@@ -118,8 +113,8 @@ public:
   template <class O, typename = std::enable_if_t<!detail::is_ann_ref_v<O>>>
   T operator=(O &&Obj) const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, detail::annotation_filter<Props...>>::store(
-        m_Ptr, Obj);
+    return annotationHelper<
+        T, detail::annotation_filter<property_list_t>>::store(m_Ptr, Obj);
 #else
     return *m_Ptr = std::forward<O>(Obj);
 #endif
@@ -245,7 +240,8 @@ annotated_ptr(T *, Args...)
     -> annotated_ptr<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_ptr(annotated_ptr<T, old>, properties<std::tuple<ArgT...>>)
+annotated_ptr(annotated_ptr<T, old>,
+              properties<detail::properties_type_list<ArgT...>>)
     -> annotated_ptr<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 #endif // __cpp_deduction_guides
@@ -383,8 +379,8 @@ public:
 
   T *get() const noexcept {
 #ifdef __SYCL_DEVICE_ONLY__
-    return annotationHelper<T, detail::annotation_filter<Props...>>::annotate(
-        m_Ptr);
+    return annotationHelper<
+        T, detail::annotation_filter<property_list_t>>::annotate(m_Ptr);
 #else
     return m_Ptr;
 #endif

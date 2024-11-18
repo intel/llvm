@@ -6,8 +6,8 @@
 // RUN: %{build} %device_asan_flags -O2 -g -o %t3.out
 // RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 
-// See https://github.com/intel/llvm/issues/15453
 // UNSUPPORTED: gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15453
 
 #include <sycl/detail/core.hpp>
 

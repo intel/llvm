@@ -452,15 +452,15 @@ private:
 template <typename DataT>
 class __attribute__((sycl_special_class))
 __SYCL_TYPE(work_group_memory) work_group_memory {
+
+// Default constructor for objects later initialized with __init member.
+  work_group_memory() = default;
+
 public:
   work_group_memory(handler &CGH) {}
-#ifdef __SYCL_DEVICE_ONLY__
-  // Default constructor for objects later initialized with __init member.
-  work_group_memory() = default;
-#endif
 
   void __init(__attribute((opencl_local)) DataT *Ptr) { this->Ptr = Ptr; }
-
+  void use() const {}
 private:
   __attribute((opencl_local)) DataT *Ptr;
 };
