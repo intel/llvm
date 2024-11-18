@@ -48,7 +48,7 @@ struct property_value
                                    PropertyT> {};
 
 template <typename PropertyT, typename... A, typename... B>
-constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
+constexpr std::enable_if_t<std::is_empty_v<property_value<PropertyT, A...>>,
                            bool>
 operator==(const property_value<PropertyT, A...> &,
            const property_value<PropertyT, B...> &) {
@@ -56,31 +56,29 @@ operator==(const property_value<PropertyT, A...> &,
 }
 
 template <typename PropertyT, typename... A, typename... B>
-constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
+constexpr std::enable_if_t<std::is_empty_v<property_value<PropertyT, A...>>,
                            bool>
 operator!=(const property_value<PropertyT, A...> &,
            const property_value<PropertyT, B...> &) {
   return (!std::is_same<A, B>::value || ...);
 }
 
-template <typename V, typename = void> struct is_property_value {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key<V>::value;
-};
-template <typename V, typename O, typename = void> struct is_property_value_of {
-  static constexpr bool value =
-      detail::IsRuntimeProperty<V>::value && is_property_key_of<V, O>::value;
-};
-// Specialization for compile-time-constant properties
 template <typename V>
-struct is_property_value<V, std::void_t<typename V::key_t>>
-    : is_property_key<typename V::key_t> {};
-template <typename V, typename O>
-struct is_property_value_of<V, O, std::void_t<typename V::key_t>>
-    : is_property_key_of<typename V::key_t, O> {};
+struct is_property_value
+    : std::bool_constant<!is_property_list_v<V> &&
+                         std::is_base_of_v<detail::property_tag, V>> {};
 
 template <typename V>
 inline constexpr bool is_property_value_v = is_property_value<V>::value;
+
+template <typename V, typename O> struct is_property_value_of {
+  static constexpr bool value = []() constexpr {
+    if constexpr (is_property_value_v<V>)
+      return is_property_key_of<typename V::key_t, O>::value;
+    else
+      return false;
+  }();
+};
 
 namespace detail {
 
@@ -89,19 +87,6 @@ template <typename PropertyT, typename... PropertyValueTs>
 struct PropertyID<property_value<PropertyT, PropertyValueTs...>>
     : PropertyID<PropertyT> {};
 
-// Checks if a type is a compile-time property values.
-template <typename PropertyT>
-struct IsCompileTimePropertyValue : std::false_type {};
-template <typename PropertyT, typename... PropertyValueTs>
-struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
-    : IsCompileTimeProperty<PropertyT> {};
-
-// Checks if a type is a valid property value, i.e either runtime property or
-// property_value with a valid compile-time property
-template <typename T> struct IsPropertyValue {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
-};
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
