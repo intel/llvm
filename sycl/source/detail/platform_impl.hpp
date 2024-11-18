@@ -46,7 +46,7 @@ public:
     AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
         APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
         &UrBackend, nullptr);
-    MBackend = detail::convertUrBackend(UrBackend);
+    MBackend = convertUrBackend(UrBackend);
   }
 
   ~platform_impl() = default;

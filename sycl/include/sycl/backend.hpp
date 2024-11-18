@@ -28,7 +28,6 @@
 #include <sycl/queue.hpp>                     // for queue, get_native
 #include <ur_api.h>                           // for ur_native_handle_t
 
-
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop
 #endif
@@ -43,7 +42,7 @@
 #include <sycl/detail/backend_traits_hip.hpp>
 #endif
 #if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-// #include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
+#include <sycl/detail/backend_traits_level_zero.hpp> // for _ze_command_lis...
 #endif
 
 #include <sycl/detail/ur.hpp>
@@ -143,7 +142,7 @@ auto get_native(const queue &Obj) -> backend_return_t<BackendName, queue> {
   int32_t IsImmCmdList;
   ur_native_handle_t Handle = Obj.getNative(IsImmCmdList);
   backend_return_t<BackendName, queue> RetVal;
-#if 0 && SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
   if constexpr (BackendName == backend::ext_oneapi_level_zero)
     RetVal = IsImmCmdList
                  ? backend_return_t<BackendName, queue>{reinterpret_cast<
