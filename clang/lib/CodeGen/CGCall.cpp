@@ -1882,7 +1882,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
     StringRef FPAccuracyVal;
     auto FuncMapIt = getLangOpts().FPAccuracyFuncMap.find(Name.str());
     if (FuncMapIt != getLangOpts().FPAccuracyFuncMap.end()) {
-      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "div")
         FPAccuracyVal = "2.5";
       else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
         FPAccuracyVal = "3.0";
@@ -1898,7 +1898,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
   if (FuncAttrs.attrs().size() == 0) {
     if (!getLangOpts().FPAccuracyVal.empty()) {
       StringRef FPAccuracyVal;
-      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv")
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "div")
         FPAccuracyVal = "2.5";
       else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt")
         FPAccuracyVal = "3.0";
@@ -1910,7 +1910,7 @@ void CodeGenModule::getDefaultFunctionFPAccuracyAttributes(
       MD = llvm::ConstantAsMetadata::get(llvm::ConstantInt::get(
           Int32Ty, convertFPAccuracyToAspect(getLangOpts().FPAccuracyVal)));
     } else {
-      if (!getLangOpts().OffloadFP32PrecDiv && Name == "fdiv") {
+      if (!getLangOpts().OffloadFP32PrecDiv && Name == "div") {
         FuncAttrs.addAttribute("fpbuiltin-max-error", "2.5");
       } else if (!getLangOpts().OffloadFP32PrecSqrt && Name == "sqrt") {
         FuncAttrs.addAttribute("fpbuiltin-max-error", "3.0");
@@ -5818,11 +5818,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       bool isFp32SqrtFunction =
           (FuncName == "sqrt" && !getLangOpts().OffloadFP32PrecSqrt &&
            IsFloat32Type);
-      bool isFP32FdivFunction =
-          (FuncName == "fdiv" && !getLangOpts().OffloadFP32PrecDiv &&
-           IsFloat32Type);
-      if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction ||
-          isFP32FdivFunction) {
+      if (hasFPAccuracyFuncMap || hasFPAccuracyVal || isFp32SqrtFunction) {
         CI = MaybeEmitFPBuiltinofFD(IRFuncTy, IRCallArgs, CalleePtr,
                                     FD->getName(), FD->getBuiltinID());
         if (CI)

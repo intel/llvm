@@ -490,29 +490,6 @@ static Value *EmitISOVolatileStore(CodeGenFunction &CGF, const CallExpr *E) {
   return Store;
 }
 
-static CallInst *CreateBuiltinCallWithAttr(CodeGenFunction &CGF, StringRef Name,
-                                           llvm::Function *FPBuiltinF,
-                                           ArrayRef<Value *> Args,
-                                           unsigned ID) {
-  llvm::CallInst *CI = CGF.Builder.CreateCall(FPBuiltinF, Args);
-  // TODO: Replace AttrList with a single attribute. The call can only have a
-  // single FPAccuracy attribute.
-  llvm::AttributeList AttrList;
-  // "sycl_used_aspects" metadata associated with the call.
-  llvm::Metadata *AspectMD = nullptr;
-  // sincos() doesn't return a value, but it still has a type associated with
-  // it that corresponds to the operand type.
-  CGF.CGM.getFPAccuracyFuncAttributes(
-      Name, AttrList, AspectMD, ID,
-      Name == "sincos" ? Args[0]->getType() : FPBuiltinF->getReturnType());
-  CI->setAttributes(AttrList);
-
-  if (CGF.getLangOpts().SYCLIsDevice && AspectMD)
-    CI->setMetadata("sycl_used_aspects",
-                    llvm::MDNode::get(CGF.CGM.getLLVMContext(), AspectMD));
-  return CI;
-}
-
 static Function *getIntrinsic(CodeGenFunction &CGF, llvm::Value *Src0,
                               unsigned FPIntrinsicID, unsigned IntrinsicID,
                               bool HasAccuracyRequirement) {
@@ -558,8 +535,8 @@ static Value *emitUnaryMaybeConstrainedFPBuiltin(
   Function *Func = emitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID,
                                       IntrinsicID, Src0, Name);
   if (Func)
-    return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0},
-                                     FPAccuracyIntrinsicID);
+    return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0},
+                                         FPAccuracyIntrinsicID);
 
   CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
   if (CGF.Builder.getIsFPConstrained()) {
@@ -583,8 +560,8 @@ static Value *emitBinaryMaybeConstrainedFPBuiltin(
   Function *Func = emitMaybeIntrinsic(CGF, E, FPAccuracyIntrinsicID,
                                       IntrinsicID, Src0, Name);
   if (Func)
-    return CreateBuiltinCallWithAttr(CGF, Name, Func, {Src0, Src1},
-                                     FPAccuracyIntrinsicID);
+    return CGF.CreateBuiltinCallWithAttr(Name, Func, {Src0, Src1},
+                                         FPAccuracyIntrinsicID);
 
   CodeGenFunction::CGFPOptionsRAII FPOptsRAII(CGF, E);
   if (CGF.Builder.getIsFPConstrained()) {
@@ -24198,7 +24175,7 @@ llvm::CallInst *CodeGenFunction::MaybeEmitFPBuiltinofFD(
       !LangOpts.OffloadFP32PrecSqrt) {
     llvm::Function *Func =
         CGM.getIntrinsic(FPAccuracyIntrinsicID, IRArgs[0]->getType());
-    return CreateBuiltinCallWithAttr(*this, Name, Func, ArrayRef(IRArgs),
+    return CreateBuiltinCallWithAttr(Name, Func, ArrayRef(IRArgs),
                                      FPAccuracyIntrinsicID);
   }
   return nullptr;

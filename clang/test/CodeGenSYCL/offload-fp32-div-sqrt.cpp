@@ -63,7 +63,7 @@
 // RUN: -ffp-builtin-accuracy=high %s -o - \
 // RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts_spirv32} -ffp-builtin-accuracy=high:fdiv \
+// RUN: %clang_cc1 %{common_opts_spirv32} -ffp-builtin-accuracy=high:div \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
@@ -131,7 +131,7 @@
 // RUN: -ffp-builtin-accuracy=high %s -o - \
 // RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts_spirv64} -ffp-builtin-accuracy=high:fdiv  \
+// RUN: %clang_cc1 %{common_opts_spirv64} -ffp-builtin-accuracy=high:div  \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
@@ -200,7 +200,7 @@
 // RUN: -ffp-builtin-accuracy=high %s -o - \
 // RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts_spir} -ffp-builtin-accuracy=high:fdiv \
+// RUN: %clang_cc1 %{common_opts_spir} -ffp-builtin-accuracy=high:div \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
@@ -268,7 +268,7 @@
 // RUN: -ffp-builtin-accuracy=high %s -o - \
 // RUN: | FileCheck --check-prefix LOW-PREC-DIV %s
 
-// RUN: %clang_cc1 %{common_opts_spir64} -ffp-builtin-accuracy=high:fdiv  \
+// RUN: %clang_cc1 %{common_opts_spir64} -ffp-builtin-accuracy=high:div  \
 // RUN: -fno-offload-fp32-prec-div %s -o - \
 // RUN: | FileCheck --check-prefix ROUNDED-DIV %s
 
@@ -287,7 +287,6 @@
 #include "sycl.hpp"
 
 extern "C" SYCL_EXTERNAL float sqrt(float);
-extern "C" SYCL_EXTERNAL float fdiv(float, float);
 
 using namespace sycl;
 
@@ -297,6 +296,7 @@ int main() {
   float Value1 = .5f;
   float Value2 = .9f;
   queue deviceQueue;
+  float *a;
 
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class KernelSqrt>(numOfItems,
@@ -322,22 +322,22 @@ int main() {
   deviceQueue.submit([&](handler& cgh) {
     cgh.parallel_for<class KernelFdiv>(numOfItems,
     [=](id<1> wiID) {
-      // PREC-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
-      // ROUNDED-SQRT: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
+      // PREC-SQRT: fdiv float {{.*}}, {{.*}}
+      // ROUNDED-SQRT: fdiv float {{.*}}, {{.*}}
       // ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}) #[[ATTR_DIV:[0-9]+]]
-      // PREC-DIV: call spir_func float @fdiv(float noundef {{.*}}, float noundef {{.*}})
+      // PREC-DIV: fdiv float {{.*}}, {{.*}}
       // ROUNDED-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // ROUNDED-DIV-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
-      // PREC-FAST: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(float noundef nofpclass(nan inf) {{.*}}, float noundef nofpclass(nan inf) {{.*}})
+      // PREC-FAST: fdiv reassoc nnan ninf nsz arcp afn float {{.*}}, {{.*}}
       // ROUNDED-DIV-ROUNDED-SQRT: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // PREC-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
-      // ROUNDED-SQRT-PREC-DIV: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @fdiv(float noundef nofpclass(nan inf) {{.*}}, float noundef nofpclass(nan inf) {{.*}})
+      // ROUNDED-SQRT-PREC-DIV: fdiv reassoc nnan ninf nsz arcp afn float {{.*}}, {{.*}}
       // ROUNDED-DIV-PREC-SQRT: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // ROUNDED-DIV-ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // LOW-PREC-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_LOW:[0-9]+]]
       // HIGH-PREC: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_HIGH:[0-9]+]]
-      // LOW-PREC-SQRT: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_LOW:[0-9]+]]
-      (void)fdiv(Value1, Value1);
+      // LOW-PREC-SQRT: fdiv float {{.*}}, {{.*}}
+      a[0] = Value1 / Value2;
     });
   });
 
@@ -355,4 +355,3 @@ return 0;
 // LOW-PREC-DIV: attributes #[[ATTR_FDIV_LOW]] = {{.*}}"fpbuiltin-max-error"="2.5"
 // HIGH-PREC: attributes #[[ATTR_FDIV_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 // LOW-PREC-SQRT: attributes #[[ATTR_SQRT_LOW]] = {{.*}}"fpbuiltin-max-error"="3.0"
-// LOW-PREC-SQRT: attributes #[[ATTR_FDIV_LOW]] = {{.*}}"fpbuiltin-max-error"="1.0"

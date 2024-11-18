@@ -3020,9 +3020,7 @@ static void RenderFloatingPointOptions(const ToolChain &TC, const Driver &D,
   LangOptions::ComplexRangeKind Range = LangOptions::ComplexRangeKind::CX_None;
   std::string ComplexRangeStr = "";
   std::string GccRangeComplexOption = "";
-  bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL) &&
-                                  !JA.isDeviceOffloading(Action::OFK_Cuda) &&
-                                  !JA.isOffloading(Action::OFK_HIP);
+  bool IsFp32PrecDivSqrtAllowed = JA.isDeviceOffloading(Action::OFK_SYCL);
 
   // Lambda to set fast-math options. This is also used by -ffp-model=fast
   auto applyFastMath = [&]() {
