@@ -15,7 +15,6 @@
 #include <sycl/buffer.hpp>                    // for buffer_allocator
 #include <sycl/context.hpp>                   // for context, get_na...
 #include <sycl/detail/backend_traits.hpp>     // for InteropFeatureS...
-#include <sycl/detail/cl.h>                   // for _cl_event
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>         // for createSyclObjFr...
@@ -24,12 +23,11 @@
 #include <sycl/exception.hpp>                 // for make_error_code
 #include <sycl/feature_test.hpp>              // for SYCL_BACKEND_OP...
 #include <sycl/image.hpp>                     // for image, image_al...
-#include <sycl/kernel.hpp>                    // for kernel, get_native
-#include <sycl/kernel_bundle_enums.hpp> // for bundle_state
-#include <sycl/platform.hpp>            // for platform, get_n...
-#include <sycl/property_list.hpp>       // for property_list
-#include <sycl/queue.hpp>
-#include <ur_api.h> // for ur_native_handle_t
+#include <sycl/kernel_bundle_enums.hpp>       // for bundle_state
+#include <sycl/platform.hpp>                  // for platform, get_n...
+#include <sycl/queue.hpp>                     // for queue, get_native
+#include <ur_api.h>                           // for ur_native_handle_t
+
 
 #if SYCL_BACKEND_OPENCL
 #include <sycl/detail/backend_traits_opencl.hpp> // for interop
@@ -60,6 +58,7 @@ inline namespace _V1 {
 
 template<bundle_state State>
 class kernel_bundle;
+class property_list;
 
 namespace detail {
 // TODO each backend can have its own custom errc enumeration
@@ -75,14 +74,6 @@ public:
   template <class T>
   using return_type = typename detail::BackendReturn<Backend, T>::type;
 };
-
-template <backend Backend, typename SyclType>
-using backend_input_t =
-    typename backend_traits<Backend>::template input_type<SyclType>;
-
-template <backend Backend, typename SyclType>
-using backend_return_t =
-    typename backend_traits<Backend>::template return_type<SyclType>;
 
 namespace detail {
 template <backend Backend, typename DataT, int Dimensions, typename AllocatorT>

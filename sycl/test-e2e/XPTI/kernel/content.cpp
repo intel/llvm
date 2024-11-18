@@ -14,6 +14,7 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/reduction.hpp>
+#include <sycl/sub_group.hpp>
 
 using namespace sycl;
 int main() {

@@ -13,7 +13,7 @@
 #include <sycl/functional.hpp>                 // for bit_and, bit_or, bit_xor
 #include <sycl/half_type.hpp>                  // for half
 #include <sycl/marray.hpp>                     // for marray
-#include <sycl/types.hpp>                      // for vec
+#include <sycl/vector.hpp>                     // for vec
 
 #include <cstddef>     // for byte, size_t
 #include <functional>  // for logical_and, logical_or

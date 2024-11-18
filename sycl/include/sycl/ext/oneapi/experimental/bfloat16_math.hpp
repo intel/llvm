@@ -8,9 +8,10 @@
 
 #pragma once
 
-#include <sycl/builtins.hpp>            // for ceil, cos, exp, exp10, exp2
-#include <sycl/builtins_utils_vec.hpp>  // For simplify_if_swizzle, is_swizzle
-#include <sycl/detail/memcpy.hpp>       // sycl::detail::memcpy
+#include <sycl/builtins.hpp>           // for ceil, cos, exp, exp10, exp2
+#include <sycl/builtins_utils_vec.hpp> // For simplify_if_swizzle, is_swizzle
+#include <sycl/detail/memcpy.hpp>      // sycl::detail::memcpy
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/ext/oneapi/bfloat16.hpp> // for bfloat16, bfloat16ToBits
 #include <sycl/marray.hpp>              // for marray
 
