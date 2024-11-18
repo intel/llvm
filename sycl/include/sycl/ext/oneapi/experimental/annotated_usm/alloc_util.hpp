@@ -32,11 +32,9 @@ using MergeUsmKind =
                                 decltype(properties{usm_kind<Kind>})>;
 
 // Check if a property list contains the a certain property
-template <typename PropKey, typename PropertyListT> struct HasProperty {};
-
-template <typename PropKey, typename... Props>
-struct HasProperty<PropKey, detail::properties_t<Props...>>
-    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
+template <typename PropKey, typename PropertyListT>
+struct HasProperty
+    : std::bool_constant<PropertyListT::template has_property<PropKey>()> {};
 
 template <typename PropertyListT>
 using HasAlign = HasProperty<alignment_key, PropertyListT>;
