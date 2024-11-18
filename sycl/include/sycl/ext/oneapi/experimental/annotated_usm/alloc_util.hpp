@@ -92,11 +92,12 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
                     ValidAllocPropertyList<
                         T, detail::properties_t<Props...>>::value> {
   static_assert(is_property_value_v<Prop>);
+  static constexpr bool is_compile_time = std::is_empty_v<Prop>;
   // check if a compile-time property is valid for annotated_ptr
-  static_assert(!std::is_empty_v<Prop> || is_valid_property<T *, Prop>::value,
+  static_assert(!is_compile_time || is_valid_property<T *, Prop>::value,
                 "Found invalid compile-time property in the property list.");
   // check if a runtime property is valid for malloc
-  static_assert(std::is_empty_v<Prop> || IsRuntimePropertyValid<Prop>::value,
+  static_assert(is_compile_time || IsRuntimePropertyValid<Prop>::value,
                 "Found invalid runtime property in the property list.");
 };
 
