@@ -630,8 +630,6 @@ X86 Support
 - Support ISA of ``AMX-AVX512``.
 - Support ISA of ``AMX-TF32``.
 
-- Supported ``-march/tune=diamondrapids``
-
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^
 
