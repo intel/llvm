@@ -353,6 +353,9 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
+  finally() = default;
+  finally(const finally&) = default;
+  finally& operator=(const finally&) = default;
   ~finally() {
     if (xptiTraceEnabled())
       MFunc();
@@ -663,6 +666,11 @@ public:
         (xptiStashTuple(key, value) == xpti::result_t::XPTI_RESULT_SUCCESS);
   }
 
+  // Copy and copy assignment are deleted since we dont want to stash the same
+  // key-value pair multiple times
+  stash_tuple(const stash_tuple&) = delete;
+  stash_tuple& operator=(const stash_tuple&) = delete;
+
   /// @brief Destroys the stash_tuple object and unstashes the key-value pair if
   /// it was stashed successfully earlier.
   ///
@@ -733,6 +741,8 @@ public:
     MUId.p2 = 0;
     MUId.instance = 0;
   };
+
+  ~uid_object_t() = default;
 
   /// @brief Copy constructor for creating a uid_object_t object as a copy of
   /// another.
@@ -1613,6 +1623,33 @@ public:
       }
     }
   }
+
+  tracepoint_t(const tracepoint_t& other) :
+    m_top(false),
+    m_default_stream(other.m_default_stream),
+    m_default_trace_type(other.m_default_trace_type),
+    m_default_name(other.m_default_name),
+    m_default_event_type(other.m_default_event_type),
+    m_default_activity_type(other.m_default_activity_type),
+    m_trace_event(other.m_trace_event),
+    m_parent_event(other.m_parent_event),
+    m_instID(other.m_instID) {}
+
+  tracepoint_t& operator=(const tracepoint_t& other) {
+    if (this != &other) {
+      m_top = false;
+      m_default_stream = other.m_default_stream;
+      m_default_trace_type = other.m_default_trace_type;
+      m_default_name = other.m_default_name;
+      m_default_event_type = other.m_default_event_type;
+      m_default_activity_type = other.m_default_activity_type;
+      m_trace_event = other.m_trace_event;
+      m_parent_event = other.m_parent_event;
+      m_instID = other.m_instID;
+    }
+    return *this;
+  }
+
   ~tracepoint_t() {
     // If tracing is not enabled, don't do anything
     if (!xptiTraceEnabled())
