@@ -6891,10 +6891,6 @@ def fsycl : Flag<["-"], "fsycl">,
   HelpText<"Enables SYCL kernels compilation for device">;
 def fno_sycl : Flag<["-"], "fno-sycl">,
   HelpText<"Disables SYCL kernels compilation for device">;
-def sycl_link : Flag<["--"], "sycl-link">, Flags<[HelpHidden]>,
-  Visibility<[ClangOption, CLOption]>,
-  HelpText<"Perform link through clang-sycl-linker via the target "
-  "offloading toolchain.">;
 defm sycl_early_optimizations :
   OptOutCC1FFlag<"sycl-early-optimizations", "Enable", "Disable", " standard "
                  "optimization pipeline for SYCL device compiler",
@@ -6934,7 +6930,12 @@ def fintelfpga : Flag<["-"], "fintelfpga">,
   MarshallingInfoFlag<LangOpts<"IntelFPGA">>,
   HelpText<"Perform ahead-of-time compilation for FPGA">;
 def fsycl_device_only : Flag<["-"], "fsycl-device-only">,
-  HelpText<"Compile SYCL kernels for device">;
+  Alias<offload_device_only>, HelpText<"Compile SYCL kernels for device only">;
+def fsycl_host_only : Flag<["-"], "fsycl-host-only">,
+  Alias<offload_host_only>, HelpText<"Compile SYCL kernels for host only">;
+def sycl_link : Flag<["--"], "sycl-link">, Flags<[HelpHidden]>,
+  HelpText<"Perform link through clang-sycl-linker via the target "
+  "offloading toolchain.">;
 def fsycl_embed_ir : Flag<["-"], "fsycl-embed-ir">,
   HelpText<"Embed LLVM IR for runtime kernel fusion">;
 defm sycl_esimd_force_stateless_mem : BoolFOption<"sycl-esimd-force-stateless-mem",

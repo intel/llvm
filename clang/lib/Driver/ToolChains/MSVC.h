@@ -12,6 +12,7 @@
 #include "AMDGPU.h"
 #include "Cuda.h"
 #include "LazyDetector.h"
+#include "SYCL.h"
 #include "clang/Driver/Compilation.h"
 #include "clang/Driver/Tool.h"
 #include "clang/Driver/ToolChain.h"

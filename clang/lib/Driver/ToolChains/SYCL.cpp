@@ -1587,32 +1587,32 @@ void SYCL::x86_64::BackendCompiler::ConstructJob(
     C.addCommand(std::move(Cmd));
 }
 
-// Unsupported options for device compilation
+// Unsupported options for SYCL device compilation.
 //  -fcf-protection, -fsanitize, -fprofile-generate, -fprofile-instr-generate
 //  -ftest-coverage, -fcoverage-mapping, -fcreate-profile, -fprofile-arcs
 //  -fcs-profile-generate -forder-file-instrumentation, --coverage
-static std::vector<OptSpecifier> getUnsupportedOpts(void) {
+static std::vector<OptSpecifier> getUnsupportedOpts() {
   std::vector<OptSpecifier> UnsupportedOpts = {
-      options::OPT_fsanitize_EQ,
-      options::OPT_fcf_protection_EQ,
+      options::OPT_fsanitize_EQ,      // -fsanitize
+      options::OPT_fcf_protection_EQ, // -fcf-protection
       options::OPT_fprofile_generate,
       options::OPT_fprofile_generate_EQ,
-      options::OPT_fno_profile_generate,
+      options::OPT_fno_profile_generate, // -f[no-]profile-generate
       options::OPT_ftest_coverage,
-      options::OPT_fno_test_coverage,
+      options::OPT_fno_test_coverage, // -f[no-]test-coverage
       options::OPT_fcoverage_mapping,
-      options::OPT_fno_coverage_mapping,
-      options::OPT_coverage,
+      options::OPT_fno_coverage_mapping, // -f[no-]coverage-mapping
+      options::OPT_coverage,             // --coverage
       options::OPT_fprofile_instr_generate,
       options::OPT_fprofile_instr_generate_EQ,
+      options::OPT_fno_profile_instr_generate, // -f[no-]profile-instr-generate
       options::OPT_fprofile_arcs,
-      options::OPT_fno_profile_arcs,
-      options::OPT_fno_profile_instr_generate,
-      options::OPT_fcreate_profile,
+      options::OPT_fno_profile_arcs, // -f[no-]profile-arcs
+      options::OPT_fcreate_profile,  // -fcreate-profile
       options::OPT_fprofile_instr_use,
-      options::OPT_fprofile_instr_use_EQ,
-      options::OPT_forder_file_instrumentation,
-      options::OPT_fcs_profile_generate,
+      options::OPT_fprofile_instr_use_EQ,       // -fprofile-instr-use
+      options::OPT_forder_file_instrumentation, // -forder-file-instrumentation
+      options::OPT_fcs_profile_generate,        // -fcs-profile-generate
       options::OPT_fcs_profile_generate_EQ};
   return UnsupportedOpts;
 }
@@ -1621,15 +1621,15 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
       IsSYCLNativeCPU(Triple == HostTC.getTriple()), SYCLInstallation(D) {
-  // Lookup binaries into the driver directory, this is used to
-  // discover the clang-offload-bundler executable.
+  // Lookup binaries into the driver directory, this is used to discover any
+  // dependent SYCL offload compilation tools.
   getProgramPaths().push_back(getDriver().Dir);
 
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
       // All sanitizer options are not currently supported, except
-      // AddressSanitizer
+      // AddressSanitizer.
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
