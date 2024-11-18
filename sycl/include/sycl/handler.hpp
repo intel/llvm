@@ -1723,15 +1723,12 @@ public:
   handler &operator=(const handler &) = delete;
   handler &operator=(handler &&) = delete;
 
-  // This is somewhat radical, but to make handler.hpp independtent from
-  // kernel_bundle.hpp, we define those methods within kernel_bundle.hpp
-  // header. Independence is needed in context of potential upcoming split of
-  // sycl.hpp so that users could do fine-grained include's, saving on
-  // compilation time by avoiding using headers for features they don't use.
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   void set_specialization_constant(
       typename std::remove_reference_t<decltype(SpecName)>::value_type Value);
 
+  // Out-of-class definition within kernel_bundle.hpp
   template <auto &SpecName>
   typename std::remove_reference_t<decltype(SpecName)>::value_type
   get_specialization_constant() const;
