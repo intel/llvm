@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <sycl/ext/oneapi/properties/property.hpp>
+
 namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
