@@ -5,11 +5,13 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
-// Remove llvm.fpbuiltin.[sqrt/fdiv] intrinsics to ensure backward compatibility
-// with the old drivers (that don't support SPV_INTEL_fp_max_error extension)
-// in case if they are used with standart for OpenCL max-error (e.g [3.0/2.5]
-// ULP and there are no other llvm.fpbuiltin.* intrinsic functions, fdiv
-// instructions or @sqrt builtins/intrinsics in the module.
+// Remove llvm.fpbuiltin.[sqrt/fdiv] intrinsics to ensure compatibility with the
+// old drivers (that don't support SPV_INTEL_fp_max_error extension).
+// The intrinsic functions are removed in case if they are used with standard
+// for OpenCL max-error (e.g [3.0/2.5] ULP) and there are no:
+// - other llvm.fpbuiltin.* intrinsic functions;
+// - fdiv instructions
+// - @sqrt builtins (both C and C++-styles)/llvm intrinsic in the module.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SYCLSqrtFDivMaxErrorCleanUp.h"
@@ -74,7 +76,7 @@ SYCLSqrtFDivMaxErrorCleanUpPass::run(Module &M,
     }
   }
 
-  // No intrinsics at all - do an early exist
+  // No intrinsics at all - do an early exist.
   if (WorkListSqrt.empty() && WorkListFDiv.empty())
     return PreservedAnalyses::none();
 
