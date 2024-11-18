@@ -327,8 +327,8 @@ template <typename property_list_t> struct checkValidFPGAPropertySet {
   static constexpr bool has_BufferLocation = has_one_of<buffer_location_key>;
 
   static constexpr bool has_InterfaceConfig =
-      has_one_of<buffer_location_key, awidth_key, dwidth_key, latency_key,
-                 read_write_mode_key, maxburst_key, wait_request_key>;
+      has_one_of<awidth_key, dwidth_key, latency_key, read_write_mode_key,
+                 maxburst_key, wait_request_key>;
 
   static constexpr bool value = !(!has_BufferLocation && has_InterfaceConfig);
 };
