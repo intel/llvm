@@ -671,7 +671,7 @@ __SYCL_EXPORT external_semaphore import_external_semaphore(
       sycl::detail::getSyclObjImpl(syclDevice);
   ur_device_handle_t Device = DevImpl->getHandleRef();
 
-  ur_exp_external_semaphore_handle_t urExternalSemaphore;
+  ur_exp_external_semaphore_handle_t urExternalSemaphore = nullptr;
   ur_exp_win32_handle_t urWin32Handle = {};
   urWin32Handle.stype = UR_STRUCTURE_TYPE_EXP_WIN32_HANDLE;
   urWin32Handle.handle = externalSemaphoreDesc.external_resource.handle;

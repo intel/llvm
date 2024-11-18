@@ -4,6 +4,7 @@
 
 // The name mangling for free function kernels currently does not work with PTX.
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16004
 
 #include <cassert>
 #include <sycl/detail/core.hpp>
@@ -14,7 +15,6 @@
 
 using namespace sycl;
 namespace syclexp = sycl::ext::oneapi::experimental;
-
 queue q;
 context ctx = q.get_context();
 

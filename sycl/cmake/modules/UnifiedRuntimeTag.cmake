@@ -1,7 +1,7 @@
-# commit 3d58884b4939d9bd095c917f8dd823ac8486684c
-# Merge: 6ade245e b0bd146a
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Thu Oct 31 14:05:55 2024 +0000
-#     Merge pull request #2228 from nrspruit/copy_engine_refactor
-#     [L0] Refactor Copy Engine Usage checks for Performance
-set(UNIFIED_RUNTIME_TAG 3d58884b4939d9bd095c917f8dd823ac8486684c)
+# commit 30391c65d2d2ccc7ee3688a14815804bfb7fdf05
+# Merge: 5e6d79b3 58dabfe8
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Fri Nov 15 15:13:20 2024 +0000
+#     Merge pull request #2222 from RossBrunton/ross/cfi
+#     Enable -flto and -fsanitize=cfi in clang
+set(UNIFIED_RUNTIME_TAG 30391c65d2d2ccc7ee3688a14815804bfb7fdf05)
