@@ -355,7 +355,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                               bool CallerNeedsEvent,
                               const detail::code_location &Loc,
                               bool IsTopCodeLoc,
-                              const SubmitPostProcessF *PostProcess) {
+                              const SubmissionInfo &SubmitInfo) {
   handler Handler(Self, PrimaryQueue, SecondaryQueue, CallerNeedsEvent);
   Handler.saveCodeLoc(Loc, IsTopCodeLoc);
 
@@ -374,7 +374,9 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
   if (Type == CGType::Kernel)
     Streams = std::move(Handler.MStreamStorage);
 
-  if (PostProcess) {
+  if (SubmitInfo.PostProcessorFunc()) {
+    auto &PostProcess = *SubmitInfo.PostProcessorFunc();
+
     bool IsKernel = Type == CGType::Kernel;
     bool KernelUsesAssert = false;
 
@@ -385,7 +387,7 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
                              Handler.MKernelName.c_str());
     finalizeHandler(Handler, Event);
 
-    (*PostProcess)(IsKernel, KernelUsesAssert, Event);
+    PostProcess(IsKernel, KernelUsesAssert, Event);
   } else
     finalizeHandler(Handler, Event);
 
@@ -416,7 +418,7 @@ event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+      Self, /*CodeLoc*/ {}, /*SubmissionInfo*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>

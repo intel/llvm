@@ -17,6 +17,7 @@
 #include <sycl/device.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/info/info_desc.hpp>
+#include <sycl/queue.hpp>
 
 #include <cassert>
 #include <memory>
