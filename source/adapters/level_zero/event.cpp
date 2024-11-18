@@ -549,7 +549,8 @@ ur_result_t urEventGetProfilingInfo(
 
   // For timestamped events we have the timestamps ready directly on the event
   // handle, so we short-circuit the return.
-  if (isTimestampedEvent) {
+  // We don't support user events with timestamps due to requiring the UrQueue.
+  if (isTimestampedEvent && Event->UrQueue) {
     uint64_t ContextStartTime = Event->RecordEventStartTimestamp;
     switch (PropName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:
