@@ -342,7 +342,7 @@ bool SYCL_JIT_Compilation_Available() {
 #endif
 }
 
-spirv_vec_t SYCL_JIT_to_SPIRV(
+const sycl::detail::RTDeviceBinaryImage &SYCL_JIT_to_SPIRV(
     [[maybe_unused]] const std::string &SYCLSource,
     [[maybe_unused]] include_pairs_t IncludePairs,
     [[maybe_unused]] const std::vector<std::string> &UserArgs,

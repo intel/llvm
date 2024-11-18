@@ -12,6 +12,8 @@
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/device.hpp>
 
+#include <detail/device_binary_image.hpp>
+
 #include <numeric> // std::accumulate
 #include <string>
 #include <vector>
@@ -33,7 +35,7 @@ bool SYCL_Compilation_Available();
 
 std::string userArgsAsString(const std::vector<std::string> &UserArguments);
 
-spirv_vec_t
+const sycl::detail::RTDeviceBinaryImage &
 SYCL_JIT_to_SPIRV(const std::string &Source, include_pairs_t IncludePairs,
                   const std::vector<std::string> &UserArgs, std::string *LogPtr,
                   const std::vector<std::string> &RegisteredKernelNames);

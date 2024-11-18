@@ -44,7 +44,7 @@ public:
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
-  std::vector<uint8_t> compileSYCL(
+  const RTDeviceBinaryImage &compileSYCL(
       const std::string &Id, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
@@ -69,6 +69,9 @@ private:
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
 
+  const RTDeviceBinaryImage &
+  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo);
+
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;
 
@@ -80,6 +83,9 @@ private:
 
   // Manages the lifetime of the UR structs for device binaries.
   std::vector<DeviceBinariesCollection> JITDeviceBinaries;
+
+  // Manages the lifetime of the runtime wrappers for device binary images.
+  std::vector<RTDeviceBinaryImage> RTCDeviceBinaryImages;
 
 #if SYCL_EXT_JIT_ENABLE
   // Handles to the entry points of the lazily loaded JIT library.
