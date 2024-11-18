@@ -98,7 +98,8 @@ queue::queue(cl_command_queue clQueue, const context &SyclContext,
   auto Context = detail::getSyclObjImpl(SyclContext);
   auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
 
-  ur_queue_native_properties_t Properties[] = {UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
+  ur_queue_native_properties_t Properties[] = {
+      UR_STRUCTURE_TYPE_QUEUE_PROPERTIES, nullptr, 0};
   Adapter->call<detail::UrApiKind::urQueueCreateWithNativeHandle>(
       detail::ur::cast<ur_native_handle_t>(clQueue), Context->getHandleRef(),
       nullptr, Properties, &hQueue);

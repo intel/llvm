@@ -52,8 +52,9 @@ void buffer_impl::addInteropObject(
     const AdapterPtr &Adapter = getAdapter();
     ur_native_handle_t NativeHandle = 0;
     Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
-                                                    &NativeHandle);
-    if (std::find(Handles.begin(), Handles.end(), NativeHandle) == Handles.end()) {
+                                                   &NativeHandle);
+    if (std::find(Handles.begin(), Handles.end(), NativeHandle) ==
+        Handles.end()) {
       Handles.push_back(NativeHandle);
     }
   }
