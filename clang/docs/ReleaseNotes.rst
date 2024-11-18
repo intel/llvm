@@ -618,6 +618,8 @@ X86 Support
 
 - All intrinsics in tbmintrin.h can now be used in constant expressions.
 
+- Supported ``-march/tune=diamondrapids``
+
 Arm and AArch64 Support
 ^^^^^^^^^^^^^^^^^^^^^^^
 
