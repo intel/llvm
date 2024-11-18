@@ -132,7 +132,6 @@ public:
       const std::vector<const RTDeviceBinaryImage *> &AllImages,
       const context &Context, const std::vector<device> &Devices,
       const std::string &CompileAndLinkOptions, SerializedObj SpecConsts);
-
   /// Builds or retrieves from cache a program defining the kernel with given
   /// name.
   /// \param M identifies the OS module the kernel comes from (multiple OS

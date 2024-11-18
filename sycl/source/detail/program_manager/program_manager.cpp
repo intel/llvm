@@ -2641,10 +2641,8 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       getSyclObjImpl(DeviceImage);
 
   const context Context = InputImpl->get_context();
-
   const ContextImplPtr ContextImpl = getSyclObjImpl(Context);
 
-  KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
 
   const RTDeviceBinaryImage *ImgPtr = InputImpl->get_bin_image_ref();
   const RTDeviceBinaryImage &Img = *ImgPtr;
