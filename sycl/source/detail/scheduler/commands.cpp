@@ -3448,9 +3448,6 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     // If the queue is not in-order, the implementation will need to first
     // insert a marker event that the timestamp waits for.
-    // Note that with newer versions, MQueue should never have event profiling
-    // enabled here, as an optimization path in the headers will simply return
-    // the event from a barrier.
     ur_event_handle_t PreTimestampMarkerEvent{};
     if (!IsInOrderQueue) {
       // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
