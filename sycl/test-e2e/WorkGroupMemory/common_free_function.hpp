@@ -1,7 +1,6 @@
 #pragma once
 
 #include "common.hpp"
-#include "common_lambda.hpp"
 #include <cassert>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
