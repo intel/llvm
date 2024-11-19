@@ -14,3 +14,4 @@
 // RUN:   "--" "-o" "a.out" %t_1.o --dry-run 2>&1 | FileCheck  %s
 
 // CHECK: llvm-spirv{{.*}}-spirv-debug-info-version=nonsemantic-shader-200
+// CHECK-NOT: ocl-100
