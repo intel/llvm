@@ -132,6 +132,54 @@ constexpr bool properties_are_valid_for_ctad = []() constexpr {
 
 template <typename... property_tys> struct properties_type_list;
 template <typename... property_tys> struct invalid_properties_type_list {};
+
+template <typename... property_tys> struct properties_sorter {
+  // Not using "auto" due to MSVC bug in v19.36 and older. v19.37 and later is
+  // able to compile "auto" just fine. See https://godbolt.org/z/eW3rjjs7n.
+  static constexpr std::array<int, sizeof...(property_tys)> sorted_indices =
+      []() constexpr {
+        int idx = 0;
+        int N = sizeof...(property_tys);
+        // std::sort isn't constexpr until C++20. Also, it's possible there will
+        // be a compiler builtin to sort types, in which case we should start
+        // using that.
+        std::array to_sort{
+            std::pair{PropertyID<property_tys>::value, idx++}...};
+        auto swap_pair = [](auto &x, auto &y) constexpr {
+          auto tmp_first = x.first;
+          auto tmp_second = x.second;
+          x.first = y.first;
+          x.second = y.second;
+          y.first = tmp_first;
+          y.second = tmp_second;
+        };
+        for (int i = 0; i < N; ++i)
+          for (int j = i; j < N; ++j)
+            if (to_sort[j].first < to_sort[i].first)
+              swap_pair(to_sort[i], to_sort[j]);
+
+        std::array<int, sizeof...(property_tys)> sorted_indices{};
+        for (int i = 0; i < N; ++i)
+          sorted_indices[i] = to_sort[i].second;
+
+        return sorted_indices;
+      }();
+
+  template <typename> struct helper;
+  template <int... IdxSeq>
+  struct helper<std::integer_sequence<int, IdxSeq...>> {
+    using type = properties_type_list<
+        nth_type_t<sorted_indices[IdxSeq], property_tys...>...>;
+  };
+
+  using type = typename helper<
+      std::make_integer_sequence<int, sizeof...(property_tys)>>::type;
+};
+// Specialization to avoid zero-size array creation.
+template <> struct properties_sorter<> {
+  using type = properties_type_list<>;
+};
+
 } // namespace detail
 
 template <typename properties_type_list_ty> class __SYCL_EBO properties;
@@ -271,17 +319,19 @@ public:
 };
 
 // Deduction guides
-template <typename... PropertyValueTs,
+template <typename... unsorted_property_tys,
           typename = std::enable_if_t<
-              detail::properties_are_valid_for_ctad<PropertyValueTs...>>>
-properties(PropertyValueTs... props)
-    -> properties<typename detail::Sorted<PropertyValueTs...>::type>;
+              detail::properties_are_valid_for_ctad<unsorted_property_tys...>>>
+properties(unsorted_property_tys... props)
+    -> properties<
+        typename detail::properties_sorter<unsorted_property_tys...>::type>;
 
-template <typename... PropertyValueTs,
+template <typename... unsorted_property_tys,
           typename = std::enable_if_t<
-              !detail::properties_are_valid_for_ctad<PropertyValueTs...>>>
-properties(PropertyValueTs... props)
-    -> properties<detail::invalid_properties_type_list<PropertyValueTs...>>;
+              !detail::properties_are_valid_for_ctad<unsorted_property_tys...>>>
+properties(unsorted_property_tys... props)
+    -> properties<
+        detail::invalid_properties_type_list<unsorted_property_tys...>>;
 
 using empty_properties_t = decltype(properties{});
 
@@ -293,19 +343,9 @@ template <typename... PropertyValueTs>
 using properties_t =
     properties<detail::properties_type_list<PropertyValueTs...>>;
 
-// Helper for merging two property lists;
 template <typename LHSPropertiesT, typename RHSPropertiesT>
-struct merged_properties;
-template <typename... LHSPropertiesTs, typename... RHSPropertiesTs>
-struct merged_properties<properties_t<LHSPropertiesTs...>,
-                         properties_t<RHSPropertiesTs...>> {
-  using type = properties<
-      typename MergeProperties<properties_type_list<LHSPropertiesTs...>,
-                               properties_type_list<RHSPropertiesTs...>>::type>;
-};
-template <typename LHSPropertiesT, typename RHSPropertiesT>
-using merged_properties_t =
-    typename merged_properties<LHSPropertiesT, RHSPropertiesT>::type;
+using merged_properties_t = decltype(merge_properties(
+    std::declval<LHSPropertiesT>(), std::declval<RHSPropertiesT>()));
 
 template <typename Properties, typename PropertyKey, typename Cond = void>
 struct ValueOrDefault {

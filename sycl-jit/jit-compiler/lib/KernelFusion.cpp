@@ -237,22 +237,30 @@ fuseKernels(View<SYCLKernelInfo> KernelInformation, const char *FusedKernelName,
 extern "C" KF_EXPORT_SYMBOL JITResult
 compileSYCL(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
             View<const char *> UserArgs) {
-  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgs);
+  auto UserArgListOrErr = parseUserArgs(UserArgs);
+  if (!UserArgListOrErr) {
+    return errorToFusionResult(UserArgListOrErr.takeError(),
+                               "Parsing of user arguments failed");
+  }
+  llvm::opt::InputArgList UserArgList = std::move(*UserArgListOrErr);
+
+  auto ModuleOrErr = compileDeviceCode(SourceFile, IncludeFiles, UserArgList);
   if (!ModuleOrErr) {
     return errorToFusionResult(ModuleOrErr.takeError(),
                                "Device compilation failed");
   }
+
+  std::unique_ptr<llvm::LLVMContext> Context;
   std::unique_ptr<llvm::Module> Module = std::move(*ModuleOrErr);
+  Context.reset(&Module->getContext());
+
+  if (auto Error = linkDeviceLibraries(*Module, UserArgList)) {
+    return errorToFusionResult(std::move(Error), "Device linking failed");
+  }
 
   SYCLKernelInfo Kernel;
-  auto Error = translation::KernelTranslator::translateKernel(
-      Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV);
-
-  auto *LLVMCtx = &Module->getContext();
-  Module.reset();
-  delete LLVMCtx;
-
-  if (Error) {
+  if (auto Error = translation::KernelTranslator::translateKernel(
+          Kernel, *Module, JITContext::getInstance(), BinaryFormat::SPIRV)) {
     return errorToFusionResult(std::move(Error), "SPIR-V translation failed");
   }
 

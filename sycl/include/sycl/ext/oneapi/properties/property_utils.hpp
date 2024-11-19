@@ -8,10 +8,6 @@
 
 #pragma once
 
-#include <sycl/detail/boost/mp11/algorithm.hpp>        // for mp_sort_q
-#include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
-#include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
-#include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
 #include <sycl/ext/oneapi/properties/property.hpp>
 #include <sycl/ext/oneapi/properties/property_value.hpp>
 
@@ -46,128 +42,6 @@ template <typename T, typename... Ts> struct nth_type<0, T, Ts...> {
 template <int N, typename... Ts>
 using nth_type_t = typename nth_type<N, Ts...>::type;
 #endif
-
-template <typename T, typename PropList> struct PrependProperty {};
-template <typename T, typename... Ts>
-struct PrependProperty<T, properties_type_list<Ts...>> {
-  using type = properties_type_list<T, Ts...>;
-};
-
-//******************************************************************************
-// Property identification
-//******************************************************************************
-
-// Checks that all types in a tuple are valid properties.
-template <typename T> struct AllPropertyValues {};
-template <typename... Ts>
-struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
-template <typename T, typename... Ts>
-struct AllPropertyValues<std::tuple<T, Ts...>>
-    : std::conditional_t<IsPropertyValue<T>::value,
-                         AllPropertyValues<std::tuple<Ts...>>,
-                         std::false_type> {};
-
-//******************************************************************************
-// Property type sorting
-//******************************************************************************
-
-// Splits a tuple into head and tail if ShouldSplit is true. If ShouldSplit is
-// false the head will be void and the tail will be the full tuple.
-template <typename T1, bool ShouldSplit> struct HeadSplit {};
-template <typename T, typename... Ts>
-struct HeadSplit<properties_type_list<T, Ts...>, true> {
-  using htype = T;
-  using ttype = properties_type_list<Ts...>;
-};
-template <typename... Ts> struct HeadSplit<properties_type_list<Ts...>, false> {
-  using htype = void;
-  using ttype = properties_type_list<Ts...>;
-};
-
-// Selects the one of two types that is not void. This assumes that at least one
-// of the two template arguemnts is void.
-template <typename LHS, typename RHS> struct SelectNonVoid {};
-template <typename LHS> struct SelectNonVoid<LHS, void> {
-  using type = LHS;
-};
-template <typename RHS> struct SelectNonVoid<void, RHS> {
-  using type = RHS;
-};
-
-// Sort types accoring to their PropertyID.
-struct SortByPropertyId {
-  template <typename T1, typename T2>
-  using fn = sycl::detail::boost::mp11::mp_bool<(PropertyID<T1>::value <
-                                                 PropertyID<T2>::value)>;
-};
-template <typename... Ts> struct Sorted {
-  static_assert(detail::AllPropertyValues<std::tuple<Ts...>>::value,
-                "Unrecognized property in property list.");
-  using properties = sycl::detail::boost::mp11::mp_list<Ts...>;
-  using sortedProperties =
-      sycl::detail::boost::mp11::mp_sort_q<properties, SortByPropertyId>;
-  using type =
-      sycl::detail::boost::mp11::mp_rename<sortedProperties,
-                                           detail::properties_type_list>;
-};
-
-//******************************************************************************
-// Property merging
-//******************************************************************************
-
-// Merges two sets of properties, failing if two properties are the same but
-// with different values.
-// NOTE: This assumes that the properties are in sorted order.
-template <typename LHSPropertyT, typename RHSPropertyT> struct MergeProperties;
-
-template <>
-struct MergeProperties<properties_type_list<>, properties_type_list<>> {
-  using type = properties_type_list<>;
-};
-
-template <typename... LHSPropertyTs>
-struct MergeProperties<properties_type_list<LHSPropertyTs...>,
-                       properties_type_list<>> {
-  using type = properties_type_list<LHSPropertyTs...>;
-};
-
-template <typename... RHSPropertyTs>
-struct MergeProperties<properties_type_list<>,
-                       properties_type_list<RHSPropertyTs...>> {
-  using type = properties_type_list<RHSPropertyTs...>;
-};
-
-// Identical properties are allowed, but only one will carry over.
-template <typename PropertyT, typename... LHSPropertyTs,
-          typename... RHSPropertyTs>
-struct MergeProperties<properties_type_list<PropertyT, LHSPropertyTs...>,
-                       properties_type_list<PropertyT, RHSPropertyTs...>> {
-  using merge_tails =
-      typename MergeProperties<properties_type_list<LHSPropertyTs...>,
-                               properties_type_list<RHSPropertyTs...>>::type;
-  using type = typename PrependProperty<PropertyT, merge_tails>::type;
-};
-
-template <typename... LHSPropertyTs, typename... RHSPropertyTs>
-struct MergeProperties<properties_type_list<LHSPropertyTs...>,
-                       properties_type_list<RHSPropertyTs...>> {
-  using l_head = nth_type_t<0, LHSPropertyTs...>;
-  using r_head = nth_type_t<0, RHSPropertyTs...>;
-  static_assert(
-      PropertyID<l_head>::value != PropertyID<r_head>::value,
-      "Failed to merge property lists due to conflicting properties.");
-  static constexpr bool left_has_min =
-      PropertyID<l_head>::value < PropertyID<r_head>::value;
-  using l_split =
-      HeadSplit<properties_type_list<LHSPropertyTs...>, left_has_min>;
-  using r_split =
-      HeadSplit<properties_type_list<RHSPropertyTs...>, !left_has_min>;
-  using min = typename SelectNonVoid<typename l_split::htype,
-                                     typename r_split::htype>::type;
-  using merge_tails = typename MergeProperties<typename l_split::ttype,
-                                               typename r_split::ttype>::type;
-  using type = typename PrependProperty<min, merge_tails>::type;
-};
 
 //******************************************************************************
 // Property value tooling
@@ -325,6 +199,88 @@ template <typename PropT, bool Condition>
 struct ConditionalPropertyMetaInfo
     : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
                          IgnoredPropertyMetaInfo> {};
+
+template <template <typename> typename predicate, typename... property_tys>
+struct filter_properties_impl {
+  static constexpr auto idx_info = []() constexpr {
+    constexpr int N = sizeof...(property_tys);
+    std::array<int, N> indexes{};
+    int num_matched = 0;
+    int idx = 0;
+    (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
+      ...));
+
+    return std::pair{indexes, num_matched};
+  }();
+
+  // Helper to convert constexpr indices values to an std::index_sequence type.
+  // Values -> type is the key here.
+  template <int... Idx>
+  static constexpr auto idx_seq(std::integer_sequence<int, Idx...>) {
+    return std::integer_sequence<int, idx_info.first[Idx]...>{};
+  }
+
+  using selected_idx_seq =
+      decltype(idx_seq(std::make_integer_sequence<int, idx_info.second>{}));
+
+  // Using prop_list_ty so that we don't need to explicitly spell out
+  //  `properties` template parameters' implementation-details.
+  template <typename prop_list_ty, int... Idxs>
+  static constexpr auto apply_impl(const prop_list_ty &props,
+                                   std::integer_sequence<int, Idxs...>) {
+    return properties{props.template get_property<
+        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
+  }
+
+  template <typename prop_list_ty>
+  static constexpr auto apply(const prop_list_ty &props) {
+    return apply_impl(props, selected_idx_seq{});
+  }
+};
+
+template <template <typename> typename predicate, typename... property_tys>
+constexpr auto filter_properties(
+    const properties<properties_type_list<property_tys...>> &props) {
+  return filter_properties_impl<predicate, property_tys...>::apply(props);
+}
+
+template <typename... lhs_property_tys> struct merge_filter {
+  template <typename rhs_property_ty>
+  struct predicate
+      : std::bool_constant<!((std::is_same_v<typename lhs_property_tys::key_t,
+                                             typename rhs_property_ty::key_t> ||
+                              ...))> {};
+};
+
+template <typename... lhs_property_tys, typename... rhs_property_tys>
+constexpr auto merge_properties(
+    const properties<properties_type_list<lhs_property_tys...>> &lhs,
+    const properties<properties_type_list<rhs_property_tys...>> &rhs) {
+  auto rhs_unique_props =
+      filter_properties<merge_filter<lhs_property_tys...>::template predicate>(
+          rhs);
+  if constexpr (std::is_same_v<std::decay_t<decltype(rhs)>,
+                               std::decay_t<decltype(rhs_unique_props)>>) {
+    // None of RHS properties share keys with LHS, no conflicts possible.
+    return properties{
+        lhs.template get_property<typename lhs_property_tys::key_t>()...,
+        rhs.template get_property<typename rhs_property_tys::key_t>()...};
+  } else {
+    // Ensure no conflicts, then merge.
+    constexpr auto has_conflict = [](auto *lhs_prop) constexpr {
+      using lhs_property_ty = std::remove_pointer_t<decltype(lhs_prop)>;
+      return (((std::is_same_v<typename lhs_property_ty::key_t,
+                               typename rhs_property_tys::key_t> &&
+                (!std::is_same_v<lhs_property_ty, rhs_property_tys> ||
+                 !std::is_empty_v<lhs_property_ty>)) ||
+               ...));
+    };
+    static_assert(
+        !((has_conflict(static_cast<lhs_property_tys *>(nullptr)) || ...)),
+        "Failed to merge property lists due to conflicting properties.");
+    return merge_properties(lhs, rhs_unique_props);
+  }
+}
 
 } // namespace detail
 } // namespace ext::oneapi::experimental

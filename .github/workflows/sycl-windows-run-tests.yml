@@ -88,6 +88,7 @@ jobs:
         cmake --build build-e2e --target check-sycl-e2e
     - name: Detect hung tests
       shell: powershell
+      if: always()
       run: |
         $exitCode = 0
         $hungTests = Get-Process | Where-Object { ($_.Path -match "llvm\\install") -or ($_.Path -match "llvm\\build-e2e") }
