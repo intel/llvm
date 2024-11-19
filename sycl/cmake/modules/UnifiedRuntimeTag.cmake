@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG simplify-device-global)
+# commit 0ea47d7c70b9a21a3d90612a0a0e7525034e62f7
+# Merge: e3247c23 e36941cb
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Tue Nov 19 10:24:08 2024 +0000
+#     Merge pull request #1584 from zhaomaosu/simplify-device-global
+#     [DeviceSanitizer] Remove device global "__AsanDeviceGlobalCount"
+set(UNIFIED_RUNTIME_TAG 0ea47d7c70b9a21a3d90612a0a0e7525034e62f7)
