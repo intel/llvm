@@ -40,7 +40,7 @@ inline constexpr indeterminate_t indeterminate;
 
 template <typename DataT, typename PropertyListT = empty_properties_t>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
-    : public sycl::detail::work_group_memory_impl {
+    : sycl::detail::work_group_memory_impl {
 public:
   using value_type = std::remove_all_extents_t<DataT>;
 
@@ -89,6 +89,9 @@ public:
   }
 
 private:
+  friend class sycl::handler; // needed in order for handler class to be aware
+                              // of the private inheritance with
+                              // work_group_memory_impl as base class
   decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental
