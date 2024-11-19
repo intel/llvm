@@ -21,7 +21,8 @@ struct LocalMemoryUpdateTestBase
                 << "Local memory argument update not supported on Level Zero.";
         }
 
-        // HIP has extra args for local memory so we define an offset for arg indices here for updating
+        // HIP has extra args for local memory so we define an offset for arg
+        // indices here for updating
         hip_arg_offset = backend == UR_PLATFORM_BACKEND_HIP ? 3 : 0;
         ur_device_usm_access_capability_flags_t shared_usm_flags;
         ASSERT_SUCCESS(
@@ -313,7 +314,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateLocalOnly) {
 // Test updating A,X,Y parameters to new values and omitting local memory parameters
 // from the update.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersEmptyLocalSize) {
-    // Run command-buffer prior to update an verify output
+    // Run command-buffer prior to update and verify output
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
@@ -547,7 +548,7 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersSmallerLocalSize) {
 // Test updating A,X,Y parameters to new values and local memory parameters
 // to new larger values.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
-    // Run command-buffer prior to update an verify output
+    // Run command-buffer prior to update and verify output
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
@@ -700,10 +701,10 @@ TEST_P(LocalMemoryUpdateTest, UpdateParametersLargerLocalSize) {
 }
 
 // Test updating A,X,Y parameters to new values and only one of the local memory
-// parameters, which is set to a new values. Then a separate update call for
+// parameters, which is set to a new value. Then a separate update call for
 // the other local memory argument.
 TEST_P(LocalMemoryUpdateTest, UpdateParametersPartialLocalSize) {
-    // Run command-buffer prior to update an verify output
+    // Run command-buffer prior to update and verify output
     ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
                                              nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
