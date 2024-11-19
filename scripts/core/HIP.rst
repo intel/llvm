@@ -91,6 +91,15 @@ take the extra global offset argument. Use of the global offset is not
 recommended for non SYCL compiler toolchains. This parameter can be ignored if
 the user does not wish to use the global offset.
 
+Local Memory Arguments
+----------------------
+
+.. todo::
+   Copy and update CUDA doc
+
+.. todo::
+   Document what extra args needed on HIP arg with local accessors
+
 Other Notes
 ===========
 
@@ -100,4 +109,5 @@ Contributors
 ------------
 
 * Hugh Delaney `hugh.delaney@codeplay.com <hugh.delaney@codeplay.com>`_
+* Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_
 
