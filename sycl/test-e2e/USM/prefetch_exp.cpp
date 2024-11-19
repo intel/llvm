@@ -33,9 +33,11 @@ int main() {
 
     {
       // Test host to device handler::ext_oneapi_prefetch_exp
-      event init_prefetch = ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
-        ext::oneapi::experimental::prefetch(cgh, src, sizeof(float) * count);
-      });
+      event init_prefetch =
+          ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
+            ext::oneapi::experimental::prefetch(cgh, src,
+                                                sizeof(float) * count);
+          });
 
       q.submit([&](handler &cgh) {
         cgh.depends_on(init_prefetch);
@@ -57,9 +59,12 @@ int main() {
             dest[i] = 4 * src[i];
         });
       });
-      event init_prefetch_back = ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
-        ext::oneapi::experimental::prefetch(cgh, src, sizeof(float) * count, ext::oneapi::experimental::prefetch_type::host);
-      });
+      event init_prefetch_back =
+          ext::oneapi::experimental::submit_with_event(q, [&](handler &cgh) {
+            ext::oneapi::experimental::prefetch(
+                cgh, src, sizeof(float) * count,
+                ext::oneapi::experimental::prefetch_type::host);
+          });
       q.wait_and_throw();
 
       for (int i = 0; i < count; i++) {
@@ -69,7 +74,9 @@ int main() {
 
     // Test queue::prefetch
     {
-      ext::oneapi::experimental::prefetch(q, src, sizeof(float) * count, ext::oneapi::experimental::prefetch_type::device);
+      ext::oneapi::experimental::prefetch(
+          q, src, sizeof(float) * count,
+          ext::oneapi::experimental::prefetch_type::device);
       q.wait_and_throw();
 
       q.submit([&](handler &cgh) {
@@ -91,7 +98,9 @@ int main() {
         });
       });
       q.wait_and_throw();
-      ext::oneapi::experimental::prefetch(q, src, sizeof(float) * count, ext::oneapi::experimental::prefetch_type::host);
+      ext::oneapi::experimental::prefetch(
+          q, src, sizeof(float) * count,
+          ext::oneapi::experimental::prefetch_type::host);
       q.wait_and_throw();
 
       for (int i = 0; i < count; i++) {

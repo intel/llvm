@@ -155,8 +155,8 @@ public:
                std::vector<ur_event_handle_t> DepEvents,
                ur_event_handle_t *OutEvent,
                const detail::EventImplPtr &OutEventImpl,
-               sycl::ext::oneapi::experimental::prefetch_type Dest = sycl::ext::oneapi::experimental::prefetch_type::device
-               );
+               sycl::ext::oneapi::experimental::prefetch_type Dest =
+                   sycl::ext::oneapi::experimental::prefetch_type::device);
 
   static void advise_usm(const void *Ptr, QueueImplPtr Queue, size_t Len,
                          ur_usm_advice_flags_t Advice,
@@ -255,9 +255,9 @@ public:
       sycl::detail::ContextImplPtr Context,
       ur_exp_command_buffer_handle_t CommandBuffer, void *Mem, size_t Length,
       std::vector<ur_exp_command_buffer_sync_point_t> Deps,
-      ur_exp_command_buffer_sync_point_t *OutSyncPoint, 
-      sycl::ext::oneapi::experimental::prefetch_type Dest = sycl::ext::oneapi::experimental::prefetch_type::device
-      );
+      ur_exp_command_buffer_sync_point_t *OutSyncPoint,
+      sycl::ext::oneapi::experimental::prefetch_type Dest =
+          sycl::ext::oneapi::experimental::prefetch_type::device);
 
   static void ext_oneapi_advise_usm_cmd_buffer(
       sycl::detail::ContextImplPtr Context,

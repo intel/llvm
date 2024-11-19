@@ -410,7 +410,7 @@ class CGPrefetchUSMExpD2H : public CG {
 
 public:
   CGPrefetchUSMExpD2H(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
-                detail::code_location loc = {})
+                      detail::code_location loc = {})
       : CG(CGType::PrefetchUSMExpD2H, std::move(CGData), std::move(loc)),
         MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }

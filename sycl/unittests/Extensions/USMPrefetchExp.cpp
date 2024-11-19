@@ -26,20 +26,23 @@ TEST(USMPrefetchExp, CheckURCall) {
       (int *)malloc_shared(sizeof(int) * N, q.get_device(), q.get_context());
 
   // Check handler calls:
-  q.submit(
-      [&](handler &cgh) { sycl::ext::oneapi::experimental::prefetch(cgh, mem, sizeof(int) * N); });
+  q.submit([&](handler &cgh) {
+    sycl::ext::oneapi::experimental::prefetch(cgh, mem, sizeof(int) * N);
+  });
   q.wait_and_throw();
   EXPECT_EQ(urUSMPrefetchDirection, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
 
   q.submit([&](handler &cgh) {
-    sycl::ext::oneapi::experimental::prefetch(cgh, mem, sizeof(int) * N,
+    sycl::ext::oneapi::experimental::prefetch(
+        cgh, mem, sizeof(int) * N,
         sycl::ext::oneapi::experimental::prefetch_type::device);
   });
   q.wait_and_throw();
   EXPECT_EQ(urUSMPrefetchDirection, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
 
   q.submit([&](handler &cgh) {
-    sycl::ext::oneapi::experimental::prefetch(cgh, mem, sizeof(int) * N,
+    sycl::ext::oneapi::experimental::prefetch(
+        cgh, mem, sizeof(int) * N,
         sycl::ext::oneapi::experimental::prefetch_type::host);
   });
   q.wait_and_throw();
@@ -50,11 +53,15 @@ TEST(USMPrefetchExp, CheckURCall) {
   q.wait_and_throw();
   EXPECT_EQ(urUSMPrefetchDirection, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
 
-  sycl::ext::oneapi::experimental::prefetch(q, mem, sizeof(int) * N, sycl::ext::oneapi::experimental::prefetch_type::device);
+  sycl::ext::oneapi::experimental::prefetch(
+      q, mem, sizeof(int) * N,
+      sycl::ext::oneapi::experimental::prefetch_type::device);
   q.wait_and_throw();
   EXPECT_EQ(urUSMPrefetchDirection, UR_USM_MIGRATION_FLAG_HOST_TO_DEVICE);
 
-  sycl::ext::oneapi::experimental::prefetch(q, mem, sizeof(int) * N, sycl::ext::oneapi::experimental::prefetch_type::host);
+  sycl::ext::oneapi::experimental::prefetch(
+      q, mem, sizeof(int) * N,
+      sycl::ext::oneapi::experimental::prefetch_type::host);
   q.wait_and_throw();
   EXPECT_EQ(urUSMPrefetchDirection, UR_USM_MIGRATION_FLAG_DEVICE_TO_HOST);
 

@@ -3538,10 +3538,13 @@ private:
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
 
-  // Implementation of USM prefetch, fetching from device back to host. 
+  // Implementation of USM prefetch, fetching from device back to host.
   void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
-  // Friend prefetch from the enqueue functions extension to allow call to private function ext_oneapi_prefetch_d2h
-  friend void sycl::ext::oneapi::experimental::prefetch(handler &CGH, void *Ptr, size_t NumBytes, sycl::ext::oneapi::experimental::prefetch_type type);
+  // Friend prefetch from the enqueue functions extension to allow call to
+  // private function ext_oneapi_prefetch_d2h
+  friend void sycl::ext::oneapi::experimental::prefetch(
+      handler &CGH, void *Ptr, size_t NumBytes,
+      sycl::ext::oneapi::experimental::prefetch_type type);
 
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {

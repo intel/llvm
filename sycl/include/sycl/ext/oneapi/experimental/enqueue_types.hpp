@@ -12,10 +12,7 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-enum class prefetch_type {
-  device,
-  host
-};
+enum class prefetch_type { device, host };
 
 } // namespace ext::oneapi::experimental
 } // namespace _V1

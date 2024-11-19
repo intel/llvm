@@ -28,8 +28,8 @@
 #include <sycl/detail/cg_types.hpp>
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
-#include <sycl/sampler.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // For prefetch_type
+#include <sycl/sampler.hpp>
 
 #include <cassert>
 #include <optional>
