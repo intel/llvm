@@ -68,7 +68,7 @@
 // 3300+ lines of code
 
 // SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
+#if !SYCL_LANGUAGE_VERSION
 #define __SYCL_NONCONST_FUNCTOR__
 #endif
 
