@@ -147,6 +147,18 @@ public:
                                         const NDRDescT &NDRDesc = {},
                                         bool JITCompilationIsRequired = false);
 
+  /// Builds a program from a given set of images or retrieves that program from
+  /// cache.
+  /// \param Img is the main image the program is built with.
+  /// \param Context is the context the program is built for.
+  /// \param Devs is a vector of devices the program is built for.
+  /// \param DeviceImagesToLink is a set of image dependencies required by the
+  /// main image.
+  /// \param AllImages is a vector of all images the program is built with.
+  /// \param DeviceImageImpl is an optional device_image_impl pointer that
+  /// represents the main image.
+  /// \param SpecConsts is an optional parameter containing spec constant values
+  /// the program should be built with.
   ur_program_handle_t getBuiltURProgram(
       const RTDeviceBinaryImage &Img, const context &Context,
       const std::vector<device> &Devs,
