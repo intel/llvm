@@ -148,6 +148,36 @@ take the extra global offset argument. Use of the global offset is not
 recommended for non SYCL compiler toolchains. This parameter can be ignored if
 the user does not wish to use the global offset.
 
+Local Memory Arguments
+----------------------
+
+In UR local memory is a region of memory shared by all the work-items in
+a work-group. A kernel function signature can include local memory address
+space pointer arguments, which are set by the user with
+``urKernelSetArgLocal`` with the number of bytes of local memory to allocate
+and make available from the pointer argument.
+
+The CUDA adapter implements local memory arguments to a kernel as a single
+``__shared__`` memory allocation, with each local address space pointer argument
+to the kernel converted to a byte offset parameter to the single memory
+allocation. Therefore for ``N`` local arguments that need set on a kernel with
+``urKernelSetArgLocal``, the total aligned size is calculated for the single
+memory allocation by the CUDA adapter and passed as the ``sharedMemBytes``
+argument to ``cuLaunchKernel`` (or variants like ``cuLaunchCooperativeKernel``
+or ``cudaGraphAddKernelNode``).
+
+For each kernel local memory parameter, aligned offsets into the single memory location
+are calculated and passed at runtime via ``kernelParams`` when launching the kernel (or
+adding as a graph node). When a user calls ``urKernelSetArgLocal`` with an
+argument index that has already been set the CUDA adapter recalculates the size of the
+single memory allocation and offsets of any local memory arguments at following indices.
+
+.. warning::
+
+  The CUDA UR adapter implementation of local memory assumes the kernel created
+  has been created by DPC++, instumenting the device code so that local memory
+  arguments are offsets rather than pointers.
+
 Other Notes
 ===========
 
@@ -164,4 +194,5 @@ Contributors
 ------------
 
 * Hugh Delaney `hugh.delaney@codeplay.com <hugh.delaney@codeplay.com>`_
+* Ewan Crawford `ewan@codeplay.com <ewan@codeplay.com>`_
 
