@@ -81,11 +81,12 @@ class SYCLHeadersTest(lit.formats.TestFormat):
             # It means that we have a special test case for a header and we need
             # to execute it as a regular lit sh test
             return lit.TestRunner.executeShTest(
-                    test, litConfig,
-                    False, # execute_external
-                    [], # extra_substitutions
-                    [], # preamble_commands
-                )
+                test,
+                litConfig,
+                False,  # execute_external
+                [],  # extra_substitutions
+                [],  # preamble_commands
+            )
 
         # Otherwise we generate the test on the fly
         command = [
