@@ -215,7 +215,7 @@ ur_result_t createSyncPointAndGetZeEvents(
   UR_CALL(EventCreate(CommandBuffer->Context, nullptr /*Queue*/,
                       false /*IsMultiDevice*/, HostVisible, &LaunchEvent,
                       false /*CounterBasedEventEnabled*/,
-                      !CommandBuffer->IsProfilingEnabled));
+                      !CommandBuffer->IsProfilingEnabled, false));
   LaunchEvent->CommandType = CommandType;
   ZeLaunchEvent = LaunchEvent->ZeEvent;
 

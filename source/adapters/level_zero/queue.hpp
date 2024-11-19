@@ -533,6 +533,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // queue.
   bool doReuseDiscardedEvents();
 
+  bool interruptBasedEventsEnabled();
+
   // Append command to provided command list to wait and reset the last event if
   // it is discarded and create new ur_event_handle_t wrapper using the same
   // native event and put it to the cache. We call this method after each
@@ -556,6 +558,9 @@ struct ur_queue_handle_t_ : _ur_object {
 
   // Returns true if the queue has discard events property.
   bool isDiscardEvents() const;
+
+  // Returns true if the queue has low power events property.
+  bool isLowPowerEvents() const;
 
   // Returns true if the queue has explicit priority set by user.
   bool isPriorityLow() const;
@@ -708,7 +713,7 @@ struct ur_queue_handle_t_ : _ur_object {
 ur_result_t createEventAndAssociateQueue(
     ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
     ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
-    std::optional<bool> HostVisible = std::nullopt);
+    std::optional<bool> HostVisible = std::nullopt, std::optional<bool> InterruptBasedEvents = std::nullopt);
 
 // This helper function checks to see if an event for a command can be included
 // at the end of a command list batch. This will only be true if the event does
