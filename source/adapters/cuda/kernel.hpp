@@ -167,7 +167,7 @@ struct ur_kernel_handle_t_ {
              AlignedLocalSize);
 
       // For every existing local argument which follows at later argument
-      // indices, updated the offset and pointer into the kernel local memory.
+      // indices, update the offset and pointer into the kernel local memory.
       // Required as padding will need to be recalculated.
       const size_t NumArgs = Indices.size() - 1; // Accounts for implicit arg
       for (auto SuccIndex = Index + 1; SuccIndex < NumArgs; SuccIndex++) {
