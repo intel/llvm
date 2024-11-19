@@ -44,20 +44,6 @@ using nth_type_t = typename nth_type<N, Ts...>::type;
 #endif
 
 //******************************************************************************
-// Property identification
-//******************************************************************************
-
-// Checks that all types in a tuple are valid properties.
-template <typename T> struct AllPropertyValues {};
-template <typename... Ts>
-struct AllPropertyValues<std::tuple<Ts...>> : std::true_type {};
-template <typename T, typename... Ts>
-struct AllPropertyValues<std::tuple<T, Ts...>>
-    : std::conditional_t<IsPropertyValue<T>::value,
-                         AllPropertyValues<std::tuple<Ts...>>,
-                         std::false_type> {};
-
-//******************************************************************************
 // Property value tooling
 //******************************************************************************
 

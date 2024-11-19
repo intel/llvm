@@ -32,11 +32,9 @@ using MergeUsmKind =
                                 decltype(properties{usm_kind<Kind>})>;
 
 // Check if a property list contains the a certain property
-template <typename PropKey, typename PropertyListT> struct HasProperty {};
-
-template <typename PropKey, typename... Props>
-struct HasProperty<PropKey, detail::properties_t<Props...>>
-    : detail::ContainsProperty<PropKey, std::tuple<Props...>> {};
+template <typename PropKey, typename PropertyListT>
+struct HasProperty
+    : std::bool_constant<PropertyListT::template has_property<PropKey>()> {};
 
 template <typename PropertyListT>
 using HasAlign = HasProperty<alignment_key, PropertyListT>;
@@ -91,13 +89,13 @@ struct ValidAllocPropertyList<T, detail::properties_t<Prop, Props...>>
                  IsRuntimePropertyValid<Prop>::value) &&
                     ValidAllocPropertyList<
                         T, detail::properties_t<Props...>>::value> {
+  static_assert(is_property_value_v<Prop>);
+  static constexpr bool is_compile_time = std::is_empty_v<Prop>;
   // check if a compile-time property is valid for annotated_ptr
-  static_assert(!detail::IsCompileTimePropertyValue<Prop>::value ||
-                    is_valid_property<T *, Prop>::value,
+  static_assert(!is_compile_time || is_valid_property<T *, Prop>::value,
                 "Found invalid compile-time property in the property list.");
   // check if a runtime property is valid for malloc
-  static_assert(!detail::IsRuntimeProperty<Prop>::value ||
-                    IsRuntimePropertyValid<Prop>::value,
+  static_assert(is_compile_time || IsRuntimePropertyValid<Prop>::value,
                 "Found invalid runtime property in the property list.");
 };
 
@@ -112,15 +110,15 @@ template <> struct GetCompileTimeProperties<empty_properties_t> {
 template <typename Prop>
 struct GetCompileTimeProperties<detail::properties_t<Prop>> {
   using type =
-      std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>, empty_properties_t>;
+      std::conditional_t<std::is_empty_v<Prop>, detail::properties_t<Prop>,
+                         empty_properties_t>;
 };
 
 template <typename Prop, typename... Props>
 struct GetCompileTimeProperties<detail::properties_t<Prop, Props...>> {
   using filtered_this_property_t =
-      std::conditional_t<detail::IsCompileTimePropertyValue<Prop>::value,
-                         detail::properties_t<Prop>, empty_properties_t>;
+      std::conditional_t<std::is_empty_v<Prop>, detail::properties_t<Prop>,
+                         empty_properties_t>;
   using filtered_other_properties_t =
       typename GetCompileTimeProperties<detail::properties_t<Props...>>::type;
   using type = detail::merged_properties_t<filtered_this_property_t,
