@@ -3453,7 +3453,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     // the event from a barrier.
     ur_event_handle_t PreTimestampMarkerEvent{};
     if (!IsInOrderQueue) {
-      Adapter->call<UrApiKind::urEnqueueEventsWait>(
+      // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
+      //        Use that instead once it has been fixed.
+      //        See https://github.com/oneapi-src/unified-runtime/issues/2347.
+      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
           /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
