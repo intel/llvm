@@ -1155,7 +1155,7 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
   Args.AddLastArg(CmdArgs, options::OPT_MP);
   Args.AddLastArg(CmdArgs, options::OPT_MV);
 
-  // Add offload include arguments specific for CUDA/HIP/SYCL. This must happen
+  // Add offload include arguments specific for CUDA/HIP/SYCL.  This must happen
   // before we -I or -include anything else, because we must pick up the
   // CUDA/HIP/SYCL headers from the particular CUDA/ROCm/SYCL installation,
   // rather than from e.g. /usr/local/include.
@@ -1163,8 +1163,6 @@ void Clang::AddPreprocessingOptions(Compilation &C, const JobAction &JA,
     getToolChain().AddCudaIncludeArgs(Args, CmdArgs);
   if (JA.isOffloading(Action::OFK_HIP))
     getToolChain().AddHIPIncludeArgs(Args, CmdArgs);
-  if (JA.isOffloading(Action::OFK_SYCL))
-    getToolChain().AddSYCLIncludeArgs(Args, CmdArgs);
 
   if (JA.isOffloading(Action::OFK_SYCL)) {
     getToolChain().AddSYCLIncludeArgs(Args, CmdArgs);
@@ -5413,21 +5411,21 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
   // second input. Module precompilation accepts a list of header files to
   // include as part of the module. API extraction accepts a list of header
   // files whose API information is emitted in the output. All other jobs are
-  // expected to have exactly one input. SYCL compilation only expects a
-  // single input.
+  // expected to have exactly one input.
+  // SYCL host jobs accept the integration header from the device-side
+  // compilation as a second input.
   bool IsCuda = JA.isOffloading(Action::OFK_Cuda);
   bool IsCudaDevice = JA.isDeviceOffloading(Action::OFK_Cuda);
   bool IsHIP = JA.isOffloading(Action::OFK_HIP);
   bool IsHIPDevice = JA.isDeviceOffloading(Action::OFK_HIP);
-  bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
-  bool IsSYCLDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
   bool IsOpenMPDevice = JA.isDeviceOffloading(Action::OFK_OpenMP);
+  bool IsSYCLDevice = JA.isDeviceOffloading(Action::OFK_SYCL);
+  bool IsSYCL = JA.isOffloading(Action::OFK_SYCL);
   bool IsExtractAPI = isa<ExtractAPIJobAction>(JA);
   bool IsDeviceOffloadAction = !(JA.isDeviceOffloading(Action::OFK_None) ||
                                  JA.isDeviceOffloading(Action::OFK_Host));
   bool IsHostOffloadingAction =
       JA.isHostOffloading(Action::OFK_OpenMP) ||
-      JA.isHostOffloading(Action::OFK_SYCL) ||
       (JA.isHostOffloading(C.getActiveOffloadKinds()) &&
        Args.hasFlag(options::OPT_offload_new_driver,
                     options::OPT_no_offload_new_driver, false));
@@ -5589,7 +5587,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
             StringToOffloadArch(GPUArchName) >= OffloadArch::SM_53)
           CmdArgs.push_back("-fnative-half-type");
       }
-      // Host triple is needed when doing SYCL device compilations.
+      // Pass the triple of host when doing SYCL
       llvm::Triple AuxT = C.getDefaultToolChain().getTriple();
       std::string NormalizedTriple = AuxT.normalize();
       CmdArgs.push_back("-aux-triple");
@@ -5735,7 +5733,7 @@ void Clang::ConstructJob(Compilation &C, const JobAction &JA,
       // performing the host side compilation.
 
       // Let the front-end host compilation flow know about SYCL offload
-      // compilation.
+      // compilation
       CmdArgs.push_back("-fsycl-is-host");
 
       // Add the -include option to add the integration header

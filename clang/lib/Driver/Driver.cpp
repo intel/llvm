@@ -843,9 +843,9 @@ static bool isValidSYCLTriple(llvm::Triple T) {
 
 static const char *getDefaultSYCLArch(Compilation &C) {
   // If -fsycl is supplied we will assume SPIR-V
-  if (C.getDefaultToolChain().getTriple().isArch32Bit())
-    return "spirv32";
-  return "spirv64";
+  if (C.getDefaultToolChain().getTriple().getArch() == llvm::Triple::x86)
+    return "spir";
+  return "spir64";
 }
 
 static bool addSYCLDefaultTriple(Compilation &C,
@@ -862,11 +862,6 @@ static bool addSYCLDefaultTriple(Compilation &C,
       return false;
     // If we encounter a known non-spir* target, do not add the default triple.
     if (SYCLTriple.isNVPTX() || SYCLTriple.isAMDGCN())
-      return false;
-  }
-  for (const auto &SYCLTriple : SYCLTriples) {
-    if (SYCLTriple.getSubArch() == llvm::Triple::NoSubArch &&
-        SYCLTriple.isSPIROrSPIRV())
       return false;
   }
   // Add the default triple as it was not found.
@@ -7501,7 +7496,6 @@ void Driver::BuildActions(Compilation &C, DerivedArgList &Args,
 
   bool UseNewOffloadingDriver =
       C.isOffloadingHostKind(Action::OFK_OpenMP) ||
-      C.isOffloadingHostKind(Action::OFK_SYCL) ||
       Args.hasFlag(options::OPT_foffload_via_llvm,
                    options::OPT_fno_offload_via_llvm, false) ||
       Args.hasFlag(options::OPT_offload_new_driver,
