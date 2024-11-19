@@ -407,6 +407,14 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
 
       return;
     }
+    // Dynamically load the new L0 SysMan separate init and new EXP apis
+    // separately. This must be done to avoid attempting to use symbols that do
+    // not exist in older loader runtimes.
+#ifdef _WIN32
+    GlobalAdapter->processHandle = GetModuleHandle(NULL);
+#else
+    GlobalAdapter->processHandle = nullptr;
+#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [] {
@@ -422,13 +430,13 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       GlobalAdapter->getDeviceByUUIdFunctionPtr =
           (zes_pfnDriverGetDeviceByUuidExp_t)
               ur_loader::LibLoader::getFunctionPtr(
-                  processHandle, "zesDriverGetDeviceByUuidExp");
+                  GlobalAdapter->processHandle, "zesDriverGetDeviceByUuidExp");
       GlobalAdapter->getSysManDriversFunctionPtr =
           (zes_pfnDriverGet_t)ur_loader::LibLoader::getFunctionPtr(
-              processHandle, "zesDriverGet");
+              GlobalAdapter->processHandle, "zesDriverGet");
       GlobalAdapter->sysManInitFunctionPtr =
-          (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(processHandle,
-                                                              "zesInit");
+          (zes_pfnInit_t)ur_loader::LibLoader::getFunctionPtr(
+              GlobalAdapter->processHandle, "zesInit");
     }
     if (GlobalAdapter->getDeviceByUUIdFunctionPtr &&
         GlobalAdapter->getSysManDriversFunctionPtr &&

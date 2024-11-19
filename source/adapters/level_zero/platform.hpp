@@ -12,6 +12,7 @@
 #include "common.hpp"
 #include "ur_api.h"
 #include "ze_api.h"
+#include "ze_ddi.h"
 #include "zes_api.h"
 
 struct ur_device_handle_t_;
