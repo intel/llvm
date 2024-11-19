@@ -875,6 +875,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urPrintMapFlags(enum ur_map_flag_t value, ch
 UR_APIEXPORT ur_result_t UR_APICALL urPrintUsmMigrationFlags(enum ur_usm_migration_flag_t value, char *buffer, const size_t buff_size, size_t *out_size);
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_device_2d_block_array_capability_flag_t enum
+/// @returns
+///     - ::UR_RESULT_SUCCESS
+///     - ::UR_RESULT_ERROR_INVALID_SIZE
+///         - `buff_size < out_size`
+UR_APIEXPORT ur_result_t UR_APICALL urPrintExpDevice_2dBlockArrayCapabilityFlags(enum ur_exp_device_2d_block_array_capability_flag_t value, char *buffer, const size_t buff_size, size_t *out_size);
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Print ur_exp_image_copy_flag_t enum
 /// @returns
 ///     - ::UR_RESULT_SUCCESS
