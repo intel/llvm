@@ -15,7 +15,6 @@
 #include <sycl/detail/ur.hpp>       // for ur_rect_region_t, ur_rect_offset_t
 #include <sycl/event.hpp>           // for event_impl
 #include <sycl/exception_list.hpp>  // for queue_impl
-#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp> // for migration_direction
 #include <sycl/kernel.hpp>                                   // for kernel_impl
 #include <sycl/kernel_bundle.hpp> // for kernel_bundle_impl
 
@@ -394,19 +393,28 @@ public:
 class CGPrefetchUSM : public CG {
   void *MDst;
   size_t MLength;
-  ext::oneapi::experimental::migration_direction MDirection;
 
 public:
   CGPrefetchUSM(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
-                ext::oneapi::experimental::migration_direction Direction,
                 detail::code_location loc = {})
       : CG(CGType::PrefetchUSM, std::move(CGData), std::move(loc)),
-        MDst(DstPtr), MLength(Length), MDirection(Direction) {}
+        MDst(DstPtr), MLength(Length) {}
   void *getDst() { return MDst; }
   size_t getLength() { return MLength; }
-  ext::oneapi::experimental::migration_direction getDirection() {
-    return MDirection;
-  }
+};
+
+/// "Prefetch USM" command group class.
+class CGPrefetchUSMExpD2H : public CG {
+  void *MDst;
+  size_t MLength;
+
+public:
+  CGPrefetchUSMExpD2H(void *DstPtr, size_t Length, CG::StorageInitHelper CGData,
+                detail::code_location loc = {})
+      : CG(CGType::PrefetchUSMExpD2H, std::move(CGData), std::move(loc)),
+        MDst(DstPtr), MLength(Length) {}
+  void *getDst() { return MDst; }
+  size_t getLength() { return MLength; }
 };
 
 /// "Advise USM" command group class.

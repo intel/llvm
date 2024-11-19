@@ -65,6 +65,7 @@ enum class CGType : unsigned int {
   SemaphoreSignal = 25,
   ProfilingTag = 26,
   EnqueueNativeCommand = 27,
+  PrefetchUSMExpD2H = 28,
 };
 
 template <typename, typename T> struct check_fn_signature {

@@ -32,8 +32,8 @@
 #include <sycl/ext/oneapi/bindless_images_mem_handle.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
-#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp>
 #include <sycl/ext/oneapi/experimental/graph.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
 #include <sycl/ext/oneapi/experimental/use_root_sync_prop.hpp>
@@ -163,9 +163,10 @@ template <class _name, class _dataT, int32_t _min_capacity, class _propertiesT,
 class pipe;
 }
 
-namespace ext ::oneapi ::experimental {
+namespace ext::oneapi::experimental {
 template <typename, typename> class work_group_memory;
 struct image_descriptor;
+void prefetch(handler &CGH, void *Ptr, size_t NumBytes, prefetch_type type);
 } // namespace ext::oneapi::experimental
 
 namespace ext::oneapi::experimental::detail {
@@ -2832,20 +2833,6 @@ public:
   /// \param Count is a number of bytes to be prefetched.
   void prefetch(const void *Ptr, size_t Count);
 
-  /// Experimental implementation of prefetch supporting bidirectional USM data
-  /// migration: Provides hints to the runtime library that data should be made
-  /// available on a device earlier than Unified Shared Memory would normally
-  /// require it to be available.
-  ///
-  /// \param CGH is the handler to be used for prefetching.
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the
-  /// destination. \param Count is a number of bytes to be prefetched. \param
-  /// Direction indicates the direction to prefetch data to/from.
-  void ext_oneapi_prefetch_exp(
-      const void *Ptr, size_t Count,
-      ext::oneapi::experimental::migration_direction Direction =
-          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE);
-
   /// Provides additional information to the underlying runtime about how
   /// different allocations are used.
   ///
@@ -3274,9 +3261,6 @@ private:
   detail::code_location MCodeLoc = {};
   bool MIsFinalized = false;
   event MLastEvent;
-  /// Enum to indicate USM data migration direction
-  ext::oneapi::experimental::migration_direction MDirection =
-      ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE;
 
   // Make queue_impl class friend to be able to call finalize method.
   friend class detail::queue_impl;
@@ -3553,6 +3537,11 @@ private:
   void memcpyFromHostOnlyDeviceGlobal(void *Dest, const void *DeviceGlobalPtr,
                                       bool IsDeviceImageScoped, size_t NumBytes,
                                       size_t Offset);
+
+  // Implementation of USM prefetch, fetching from device back to host. 
+  void ext_oneapi_prefetch_d2h(const void *Ptr, size_t Count);
+  // Friend prefetch from the enqueue functions extension to allow call to private function ext_oneapi_prefetch_d2h
+  friend void sycl::ext::oneapi::experimental::prefetch(handler &CGH, void *Ptr, size_t NumBytes, sycl::ext::oneapi::experimental::prefetch_type type);
 
   // Changing values in this will break ABI/API.
   enum class StableKernelCacheConfig : int32_t {

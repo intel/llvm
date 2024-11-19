@@ -29,6 +29,7 @@
 #include <sycl/detail/helpers.hpp>
 #include <sycl/detail/kernel_desc.hpp>
 #include <sycl/sampler.hpp>
+#include <sycl/ext/oneapi/experimental/enqueue_types.hpp> // For prefetch_type
 
 #include <cassert>
 #include <optional>
@@ -1934,6 +1935,9 @@ static std::string_view cgTypeToString(detail::CGType Type) {
   case detail::CGType::PrefetchUSM:
     return "prefetch usm";
     break;
+  case detail::CGType::PrefetchUSMExpD2H:
+    return "prefetch usm (experimental, device to host)";
+    break;
   case detail::CGType::CodeplayHostTask:
     return "host task";
     break;
@@ -3001,8 +3005,21 @@ ur_result_t ExecCGCommand::enqueueImpCommandBuffer() {
     if (auto Result = callMemOpHelper(
             MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
             MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
-            Prefetch->getLength(), Prefetch->getDirection(),
-            std::move(MSyncPointDeps), &OutSyncPoint);
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            sycl::ext::oneapi::experimental::prefetch_type::device);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    MEvent->setSyncPoint(OutSyncPoint);
+    return UR_RESULT_SUCCESS;
+  }
+  case CGType::PrefetchUSMExpD2H: {
+    CGPrefetchUSMExpD2H *Prefetch = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    if (auto Result = callMemOpHelper(
+            MemoryManager::ext_oneapi_prefetch_usm_cmd_buffer,
+            MQueue->getContextImplPtr(), MCommandBuffer, Prefetch->getDst(),
+            Prefetch->getLength(), std::move(MSyncPointDeps), &OutSyncPoint,
+            sycl::ext::oneapi::experimental::prefetch_type::host);
         Result != UR_RESULT_SUCCESS)
       return Result;
 
@@ -3209,8 +3226,23 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
     CGPrefetchUSM *Prefetch = (CGPrefetchUSM *)MCommandGroup.get();
     if (auto Result = callMemOpHelper(
             MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
-            Prefetch->getLength(), Prefetch->getDirection(),
-            std::move(RawEvents), Event, MEvent);
+            Prefetch->getLength(), std::move(RawEvents), Event, MEvent,
+            sycl::ext::oneapi::experimental::prefetch_type::device);
+        Result != UR_RESULT_SUCCESS)
+      return Result;
+
+    if (Event)
+      MEvent->setHandle(*Event);
+    return UR_RESULT_SUCCESS;
+  }
+  // TODO Either remove "PrefetchUSMExpD2H" on next ABI breaking window,
+  // Or rename PrefetchUSM to "PrefetchUSMH2D"
+  case CGType::PrefetchUSMExpD2H: {
+    CGPrefetchUSMExpD2H *Prefetch = (CGPrefetchUSMExpD2H *)MCommandGroup.get();
+    if (auto Result = callMemOpHelper(
+            MemoryManager::prefetch_usm, Prefetch->getDst(), MQueue,
+            Prefetch->getLength(), std::move(RawEvents), Event, MEvent,
+            sycl::ext::oneapi::experimental::prefetch_type::host);
         Result != UR_RESULT_SUCCESS)
       return Result;
 

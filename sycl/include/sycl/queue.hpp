@@ -30,7 +30,6 @@
 #include <sycl/exception_list.hpp>            // for defaultAsyncHa...
 #include <sycl/ext/oneapi/device_global/device_global.hpp> // for device_global
 #include <sycl/ext/oneapi/device_global/properties.hpp> // for device_image_s...
-#include <sycl/ext/oneapi/experimental/USM/prefetch_exp.hpp> // for migration...
 #include <sycl/ext/oneapi/experimental/graph.hpp>    // for command_graph...
 #include <sycl/ext/oneapi/properties/properties.hpp> // for empty_properti...
 #include <sycl/handler.hpp>                          // for handler, isDev...
@@ -746,27 +745,27 @@ public:
                   TlsCodeLocCapture.query());
   }
 
-  /// Experimental implementation of prefetch supporting bidirectional USM data
-  /// migration: Provides hints to the runtime library that data should be made
-  /// available on a device earlier than Unified Shared Memory would normally
-  /// require it to be available.
-  ///
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
-  /// \param Count is a number of bytes to be prefetched.
-  /// \param Direction indicates the direction to prefetch data to/from.
-  /// \return an event representing prefetch operation.
-  event ext_oneapi_prefetch_exp(
-      const void *Ptr, size_t Count,
-      ext::oneapi::experimental::migration_direction Direction =
-          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [=](handler &CGH) {
-          CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
-        },
-        TlsCodeLocCapture.query());
-  }
+//  /// Experimental implementation of prefetch supporting bidirectional USM data
+//  /// migration: Provides hints to the runtime library that data should be made
+//  /// available on a device earlier than Unified Shared Memory would normally
+//  /// require it to be available.
+//  ///
+//  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+//  /// \param Count is a number of bytes to be prefetched.
+//  /// \param Direction indicates the direction to prefetch data to/from.
+//  /// \return an event representing prefetch operation.
+//  event ext_oneapi_prefetch_exp(
+//      const void *Ptr, size_t Count,
+//      ext::oneapi::experimental::migration_direction Direction =
+//          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+//      const detail::code_location &CodeLoc = detail::code_location::current()) {
+//    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+//    return submit(
+//        [=](handler &CGH) {
+//          CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
+//        },
+//        TlsCodeLocCapture.query());
+//  }
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -788,29 +787,29 @@ public:
         TlsCodeLocCapture.query());
   }
 
-  /// Experimental implementation of prefetch supporting bidirectional USM data
-  /// migration: Provides hints to the runtime library that data should be made
-  /// available on a device earlier than Unified Shared Memory would normally
-  /// require it to be available.
-  ///
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
-  /// \param Count is a number of bytes to be prefetched.
-  /// \param DepEvent is an event that specifies the kernel dependencies.
-  /// \param Direction indicates the direction to prefetch data to/from.
-  /// \return an event representing prefetch operation.
-  event ext_oneapi_prefetch_exp(
-      const void *Ptr, size_t Count, event DepEvent,
-      ext::oneapi::experimental::migration_direction Direction =
-          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvent);
-          CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
-        },
-        TlsCodeLocCapture.query());
-  }
+//   /// Experimental implementation of prefetch supporting bidirectional USM data
+//   /// migration: Provides hints to the runtime library that data should be made
+//   /// available on a device earlier than Unified Shared Memory would normally
+//   /// require it to be available.
+//   ///
+//   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+//   /// \param Count is a number of bytes to be prefetched.
+//   /// \param DepEvent is an event that specifies the kernel dependencies.
+//   /// \param Direction indicates the direction to prefetch data to/from.
+//   /// \return an event representing prefetch operation.
+//   event ext_oneapi_prefetch_exp(
+//       const void *Ptr, size_t Count, event DepEvent,
+//       ext::oneapi::experimental::migration_direction Direction =
+//           ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+//       const detail::code_location &CodeLoc = detail::code_location::current()) {
+//     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+//     return submit(
+//         [=](handler &CGH) {
+//           CGH.depends_on(DepEvent);
+//           CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
+//         },
+//         TlsCodeLocCapture.query());
+//   }
 
   /// Provides hints to the runtime library that data should be made available
   /// on a device earlier than Unified Shared Memory would normally require it
@@ -833,30 +832,30 @@ public:
         TlsCodeLocCapture.query());
   }
 
-  /// Experimental implementation of prefetch supporting bidirectional USM data
-  /// migration: Provides hints to the runtime library that data should be made
-  /// available on a device earlier than Unified Shared Memory would normally
-  /// require it to be available.
-  ///
-  /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
-  /// \param Count is a number of bytes to be prefetched.
-  /// \param DepEvents is a vector of events that specifies the kernel
-  /// dependencies.
-  /// \param Direction indicates the direction to prefetch data to/from.
-  /// \return an event representing prefetch operation.
-  event ext_oneapi_prefetch_exp(
-      const void *Ptr, size_t Count, const std::vector<event> &DepEvents,
-      ext::oneapi::experimental::migration_direction Direction =
-          ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
-    detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
-    return submit(
-        [=](handler &CGH) {
-          CGH.depends_on(DepEvents);
-          CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
-        },
-        TlsCodeLocCapture.query());
-  }
+//   /// Experimental implementation of prefetch supporting bidirectional USM data
+//   /// migration: Provides hints to the runtime library that data should be made
+//   /// available on a device earlier than Unified Shared Memory would normally
+//   /// require it to be available.
+//   ///
+//   /// \param Ptr is a USM pointer to the memory to be prefetched to the device.
+//   /// \param Count is a number of bytes to be prefetched.
+//   /// \param DepEvents is a vector of events that specifies the kernel
+//   /// dependencies.
+//   /// \param Direction indicates the direction to prefetch data to/from.
+//   /// \return an event representing prefetch operation.
+//   event ext_oneapi_prefetch_exp(
+//       const void *Ptr, size_t Count, const std::vector<event> &DepEvents,
+//       ext::oneapi::experimental::migration_direction Direction =
+//           ext::oneapi::experimental::migration_direction::HOST_TO_DEVICE,
+//       const detail::code_location &CodeLoc = detail::code_location::current()) {
+//     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
+//     return submit(
+//         [=](handler &CGH) {
+//           CGH.depends_on(DepEvents);
+//           CGH.ext_oneapi_prefetch_exp(Ptr, Count, Direction);
+//         },
+//         TlsCodeLocCapture.query());
+//   }
 
   /// Copies data from one 2D memory region to another, both pointed by
   /// USM pointers.
