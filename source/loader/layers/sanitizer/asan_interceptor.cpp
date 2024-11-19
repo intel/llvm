@@ -417,22 +417,25 @@ ur_result_t SanitizerInterceptor::registerProgram(ur_context_handle_t Context,
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);
 
-        uint64_t NumOfDeviceGlobal;
+        size_t MetadataSize;
+        void *MetadataPtr;
         auto Result =
-            getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-                Queue, Program, kSPIR_AsanDeviceGlobalCount, true,
-                sizeof(NumOfDeviceGlobal), 0, &NumOfDeviceGlobal, 0, nullptr,
-                nullptr);
+            getContext()->urDdiTable.Program.pfnGetGlobalVariablePointer(
+                Device, Program, kSPIR_AsanDeviceGlobalMetadata, &MetadataSize,
+                &MetadataPtr);
         if (Result != UR_RESULT_SUCCESS) {
             getContext()->logger.info("No device globals");
             continue;
         }
 
+        const uint64_t NumOfDeviceGlobal =
+            MetadataSize / sizeof(DeviceGlobalInfo);
+        assert((MetadataSize % sizeof(DeviceGlobalInfo) == 0) &&
+               "DeviceGlobal metadata size is not correct");
         std::vector<DeviceGlobalInfo> GVInfos(NumOfDeviceGlobal);
-        Result = getContext()->urDdiTable.Enqueue.pfnDeviceGlobalVariableRead(
-            Queue, Program, kSPIR_AsanDeviceGlobalMetadata, true,
-            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, &GVInfos[0], 0,
-            nullptr, nullptr);
+        Result = getContext()->urDdiTable.Enqueue.pfnUSMMemcpy(
+            Queue, true, &GVInfos[0], MetadataPtr,
+            sizeof(DeviceGlobalInfo) * NumOfDeviceGlobal, 0, nullptr, nullptr);
         if (Result != UR_RESULT_SUCCESS) {
             getContext()->logger.error("Device Global[{}] Read Failed: {}",
                                        kSPIR_AsanDeviceGlobalMetadata, Result);
