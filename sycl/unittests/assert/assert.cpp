@@ -320,9 +320,7 @@ static ur_result_t redefinedProgramGetInfo(void *pParams) {
   }
 
   // Required if program cache eviction is enabled.
-  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName ||
-      UR_PROGRAM_INFO_NUM_DEVICES == *params.ppropName) {
-
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName) {
     size_t BinarySize = 1;
 
     if (*params.ppPropValue)

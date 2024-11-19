@@ -921,7 +921,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     return BuildF();
 
   auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
-                                       int isBuilt) {
+                                       bool isBuilt) {
     return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 
@@ -940,13 +940,12 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // update it here and re-use that lambda.
     CacheKey.first.second = BImg->getImageID();
     bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
-    if (DidInsert) {
-      // Add to the eviction list.
-      Cache.registerProgramFetch(CacheKey, ResProgram, 1);
+
+    // Add to the eviction list.
+    Cache.registerProgramFetch(CacheKey, ResProgram, DidInsert);
+    if (DidInsert)
       // For every cached copy of the program, we need to increment its refcount
       Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
-    } else
-      Cache.registerProgramFetch(CacheKey, ResProgram, 0);
   }
 
   // If caching is enabled, one copy of the program handle will be
@@ -2742,7 +2741,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   };
 
   auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
-                                       int isBuilt) {
+                                       bool isBuilt) {
     return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 

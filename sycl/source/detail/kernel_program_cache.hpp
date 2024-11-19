@@ -233,7 +233,8 @@ public:
       ::boost::unordered_flat_map<KernelFastCacheKeyT, KernelFastCacheValT>;
 
   // DS to hold data and functions related to Program cache eviction.
-  struct EvictionListT {
+  struct EvictionList {
+  private:
     // Linked list of cache entries to be evicted in case of cache overflow.
     std::list<ProgramCacheKeyT> MProgramEvictionList;
 
@@ -241,6 +242,11 @@ public:
     std::unordered_map<ProgramCacheKeyT, std::list<ProgramCacheKeyT>::iterator,
                        ProgramCacheKeyHash, ProgramCacheKeyEqual>
         MProgramToEvictionListMap;
+
+  public:
+    std::list<ProgramCacheKeyT> &getProgramEvictionList() {
+      return MProgramEvictionList;
+    }
 
     void clear() {
       MProgramEvictionList.clear();
@@ -342,7 +348,7 @@ public:
     return {MKernelsPerProgramCache, MKernelsPerProgramCacheMutex};
   }
 
-  Locked<EvictionListT> acquireEvictionList() {
+  Locked<EvictionList> acquireEvictionList() {
     return {MEvictionList, MProgramEvictionListMutex};
   }
 
@@ -447,12 +453,13 @@ public:
     // Evict programs from the beginning of the cache.
     {
       std::lock_guard<std::mutex> Lock(MProgramEvictionListMutex);
-
+      auto &ProgramEvictionList = MEvictionList.getProgramEvictionList();
       size_t CurrCacheSize = MCachedPrograms.ProgramCacheSizeInBytes;
+
       // Traverse the eviction list and remove the LRU programs.
       // The LRU programs will be at the front of the list.
       while (CurrCacheSize > DesiredCacheSize && !MEvictionList.empty()) {
-        ProgramCacheKeyT CacheKey = MEvictionList.MProgramEvictionList.front();
+        ProgramCacheKeyT CacheKey = ProgramEvictionList.front();
         auto LockedCache = acquireCachedPrograms();
         auto &ProgCache = LockedCache.get();
         auto It = ProgCache.Cache.find(CacheKey);
@@ -551,7 +558,7 @@ public:
 
       // Store size of the program and check if we need to evict some entries.
       // Get Size of the program.
-      size_t ProgramSize;
+      size_t ProgramSize = 0;
       auto Adapter = getAdapter();
 
       try {
@@ -655,7 +662,7 @@ public:
         // Build succeeded.
         if (NewState == BuildState::BS_Done) {
           if constexpr (!std::is_same_v<EvictFT, void *>)
-            EvictFunc(BuildResult->Val, 0);
+            EvictFunc(BuildResult->Val, /*IsBuilt=*/false);
           return BuildResult;
         }
 
@@ -682,7 +689,7 @@ public:
         BuildResult->Val = Build();
 
         if constexpr (!std::is_same_v<EvictFT, void *>)
-          EvictFunc(BuildResult->Val, 1);
+          EvictFunc(BuildResult->Val, /*IsBuilt=*/true);
 
         BuildResult->updateAndNotify(BuildState::BS_Done);
         return BuildResult;
@@ -723,7 +730,7 @@ private:
   std::unordered_map<ur_program_handle_t, std::vector<KernelFastCacheKeyT>>
       MProgramToKernelFastCacheKeyMap;
 
-  EvictionListT MEvictionList;
+  EvictionList MEvictionList;
   // Mutexes that will be used when accessing the eviction lists.
   std::mutex MProgramEvictionListMutex;
 
