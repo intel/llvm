@@ -134,9 +134,11 @@ public:
   /// @brief Iniitializes TLS with CodeLoc if a TLS entry not present
   /// @param CodeLoc The code location information to set up the TLS slot with.
   tls_code_loc_t(const detail::code_location &CodeLoc);
-  // Used to maintain global state, so we do not want to copy
-  tls_code_loc_t(const tls_code_loc_t &) = delete;
-  tls_code_loc_t &operator=(const tls_code_loc_t &) = delete;
+
+  // TODO: delete copy constructor and copy assignment operator during next
+  // ABI breaking window
+  // Used to maintain global state (GCodeLocTLS), so we do not want to copy
+
   /// If the code location is set up by this instance, reset it.
   ~tls_code_loc_t();
   /// @brief  Query the information in the TLS slot
