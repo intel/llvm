@@ -105,7 +105,8 @@ ur_event_handle_t
 ur_queue_immediate_in_order_t::getSignalEvent(ur_event_handle_t *hUserEvent,
                                               ur_command_t commandType) {
   if (hUserEvent) {
-    *hUserEvent = eventPool->allocate(this, commandType);
+    *hUserEvent = eventPool->allocate();
+    (*hUserEvent)->resetQueueAndCommand(this, commandType);
     return *hUserEvent;
   } else {
     return nullptr;

@@ -181,21 +181,6 @@ ur_result_t urKernelGetSuggestedLocalWorkSize(ur_kernel_handle_t hKernel,
   return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
 }
 
-ur_result_t urEventGetNativeHandle(ur_event_handle_t hEvent,
-                                   ur_native_handle_t *phNativeEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
-ur_result_t
-urEventCreateWithNativeHandle(ur_native_handle_t hNativeEvent,
-                              ur_context_handle_t hContext,
-                              const ur_event_native_properties_t *pProperties,
-                              ur_event_handle_t *phEvent) {
-  logger::error("{} function not implemented!", __FUNCTION__);
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 ur_result_t urEventSetCallback(ur_event_handle_t hEvent,
                                ur_execution_info_t execStatus,
                                ur_event_callback_t pfnNotify, void *pUserData) {

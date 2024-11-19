@@ -24,8 +24,7 @@
 namespace v2 {
 static constexpr int EVENTS_BURST = 64;
 
-provider_pool::provider_pool(ur_context_handle_t context,
-                             ur_device_handle_t device, queue_type queue,
+provider_pool::provider_pool(ur_context_handle_t context, queue_type queue,
                              event_flags_t flags) {
   ZeStruct<ze_event_pool_desc_t> desc;
   desc.count = EVENTS_BURST;
@@ -46,10 +45,14 @@ provider_pool::provider_pool(ur_context_handle_t context,
     desc.flags |= ZE_EVENT_POOL_FLAG_KERNEL_TIMESTAMP;
   }
 
+  std::vector<ze_device_handle_t> devices;
+  for (auto &d : context->getDevices()) {
+    devices.push_back(d->ZeDevice);
+  }
+
   ZE2UR_CALL_THROWS(zeEventPoolCreate,
-                    (context->getZeHandle(), &desc, 1,
-                     const_cast<ze_device_handle_t *>(&device->ZeDevice),
-                     pool.ptr()));
+                    (context->getZeHandle(), &desc, devices.size(),
+                     devices.data(), pool.ptr()));
 
   freelist.resize(EVENTS_BURST);
   for (int i = 0; i < EVENTS_BURST; ++i) {
@@ -75,7 +78,7 @@ raii::cache_borrowed_event provider_pool::allocate() {
 size_t provider_pool::nfree() const { return freelist.size(); }
 
 std::unique_ptr<provider_pool> provider_normal::createProviderPool() {
-  return std::make_unique<provider_pool>(urContext, urDevice, queueType, flags);
+  return std::make_unique<provider_pool>(urContext, queueType, flags);
 }
 
 raii::cache_borrowed_event provider_normal::allocate() {
@@ -109,8 +112,6 @@ raii::cache_borrowed_event provider_normal::allocate() {
 
   return allocate();
 }
-
-ur_device_handle_t provider_normal::device() { return urDevice; }
 
 event_flags_t provider_normal::eventFlags() const { return flags; }
 
