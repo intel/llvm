@@ -18,6 +18,8 @@ class SYCLHeadersTest(lit.formats.TestFormat):
 
             # None is a special value we use to distinguish those two cases
             filepath = None
+            # The actual file has .cpp extension as every other test
+            path_in_suite = path_in_suite[:-1] + (path_in_suite[-1] + ".cpp",)
         else:
             # We don't have a dedicated special test for a header, therefore we
             # fallback to a generalized version of it
