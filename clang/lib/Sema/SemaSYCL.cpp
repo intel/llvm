@@ -6613,6 +6613,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
     std::string ParmList;
     bool FirstParam = true;
     Policy.SuppressDefaultTemplateArgs = false;
+    Policy.PrintCanonicalTypes = true;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
@@ -6621,6 +6622,7 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
+    Policy.PrintCanonicalTypes = false;
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
     Policy.FullyQualifiedName = true;
