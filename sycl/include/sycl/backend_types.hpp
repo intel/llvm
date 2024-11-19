@@ -15,6 +15,8 @@
 namespace sycl {
 inline namespace _V1 {
 
+class device;
+
 enum class backend : char {
   host __SYCL2020_DEPRECATED("'host' backend is no longer supported") = 0,
   opencl = 1,
