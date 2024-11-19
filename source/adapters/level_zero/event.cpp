@@ -422,7 +422,8 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
     ur_queue_handle_t Queue, ///< [in] handle of the queue object
     const ur_exp_enqueue_ext_properties_t
-        *, ///< [in][optional] pointer to the extended enqueue properties
+        *EnqueueExtProp, ///< [in][optional] pointer to the extended enqueue
+                         ///< properties
     uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
     const ur_event_handle_t
         *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
@@ -913,7 +914,7 @@ ur_result_t urExtEventCreate(
   UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                       true /*HostVisible*/, Event,
                       false /*CounterBasedEventEnabled*/,
-                      false /*ForceDisableProfiling*/));
+                      false /*ForceDisableProfiling*/, false));
 
   (*Event)->RefCountExternal++;
   if (!(*Event)->CounterBasedEventsEnabled)
@@ -935,7 +936,7 @@ ur_result_t urEventCreateWithNativeHandle(
     UR_CALL(EventCreate(Context, nullptr /*Queue*/, false /*IsMultiDevice*/,
                         true /*HostVisible*/, Event,
                         false /*CounterBasedEventEnabled*/,
-                        false /*ForceDisableProfiling*/));
+                        false /*ForceDisableProfiling*/, false));
 
     (*Event)->RefCountExternal++;
     if (!(*Event)->CounterBasedEventsEnabled)
@@ -1293,7 +1294,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
                         bool IsMultiDevice, bool HostVisible,
                         ur_event_handle_t *RetEvent,
                         bool CounterBasedEventEnabled,
-                        bool ForceDisableProfiling) {
+                        bool ForceDisableProfiling,
+                        bool InterruptBasedEventEnabled) {
   bool ProfilingEnabled =
       ForceDisableProfiling ? false : (!Queue || Queue->isProfilingEnabled());
   bool UsingImmediateCommandlists = !Queue || Queue->UsingImmCmdLists;
@@ -1317,14 +1319,15 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
 
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
-          CounterBasedEventEnabled, UsingImmediateCommandlists))
+          CounterBasedEventEnabled, UsingImmediateCommandlists,
+          Queue->interruptBasedEventsEnabled()))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;
   ZeEventDesc.index = Index;
   ZeEventDesc.wait = 0;
 
-  if (HostVisible || CounterBasedEventEnabled) {
+  if (HostVisible || CounterBasedEventEnabled || InterruptBasedEventEnabled) {
     ZeEventDesc.signal = ZE_EVENT_SCOPE_FLAG_HOST;
   } else {
     //
@@ -1350,6 +1353,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
     return UR_RESULT_ERROR_UNKNOWN;
   }
   (*RetEvent)->CounterBasedEventsEnabled = CounterBasedEventEnabled;
+  (*RetEvent)->InterruptBasedEventsEnabled = InterruptBasedEventEnabled;
   if (HostVisible)
     (*RetEvent)->HostVisibleEvent =
         reinterpret_cast<ur_event_handle_t>(*RetEvent);

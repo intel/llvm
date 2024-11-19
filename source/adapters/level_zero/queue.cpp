@@ -104,10 +104,10 @@ ur_result_t ur_completion_batch::seal(ur_queue_handle_t queue,
   assert(st == ACCUMULATING);
 
   if (!barrierEvent) {
-    UR_CALL(EventCreate(queue->Context, queue, false /*IsMultiDevice*/,
-                        true /*HostVisible*/, &barrierEvent,
-                        false /*CounterBasedEventEnabled*/,
-                        false /*ForceDisableProfiling*/));
+    UR_CALL(EventCreate(
+        queue->Context, queue, false /*IsMultiDevice*/, true /*HostVisible*/,
+        &barrierEvent, false /*CounterBasedEventEnabled*/,
+        false /*ForceDisableProfiling*/, false /*InterruptBasedEventEnabled*/));
   }
 
   // Instead of collecting all the batched events, we simply issue a global
@@ -1494,6 +1494,11 @@ bool ur_queue_handle_t_::doReuseDiscardedEvents() {
   return ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents();
 }
 
+bool ur_queue_handle_t_::interruptBasedEventsEnabled() {
+  return isInOrderQueue() && Device->useDriverInOrderLists() &&
+         isLowPowerEvents();
+}
+
 ur_result_t
 ur_queue_handle_t_::resetDiscardedEvent(ur_command_list_ptr_t CommandList) {
   if (LastCommandEvent && LastCommandEvent->IsDiscarded) {
@@ -1652,6 +1657,10 @@ bool ur_queue_handle_t_::isInOrderQueue() const {
   // If out-of-order queue property is not set, then this is a in-order queue.
   return ((this->Properties & UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE) ==
           0);
+}
+
+bool ur_queue_handle_t_::isLowPowerEvents() const {
+  return ((this->Properties & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) != 0);
 }
 
 // Helper function to perform the necessary cleanup of the events from reset cmd
@@ -1868,12 +1877,10 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 //        visible pool.
 // \param HostVisible tells if the event must be created in the
 //        host-visible pool. If not set then this function will decide.
-ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
-                                         ur_event_handle_t *Event,
-                                         ur_command_t CommandType,
-                                         ur_command_list_ptr_t CommandList,
-                                         bool IsInternal, bool IsMultiDevice,
-                                         std::optional<bool> HostVisible) {
+ur_result_t createEventAndAssociateQueue(
+    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
+    ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
+    std::optional<bool> HostVisible, std::optional<bool> InterruptBasedEvents) {
 
   if (!HostVisible.has_value()) {
     // Internal/discarded events do not need host-scope visibility.
@@ -1888,7 +1895,8 @@ ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
   if (*Event == nullptr)
     UR_CALL(EventCreate(
         Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
-        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/));
+        Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
+        HostVisible.has_value() ? true : Queue->interruptBasedEventsEnabled()));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;

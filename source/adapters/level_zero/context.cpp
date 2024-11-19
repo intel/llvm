@@ -478,7 +478,8 @@ static const uint32_t MaxNumEventsPerPool = [] {
 ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
     ze_event_pool_handle_t &Pool, size_t &Index, bool HostVisible,
     bool ProfilingEnabled, ur_device_handle_t Device,
-    bool CounterBasedEventEnabled, bool UsingImmCmdList) {
+    bool CounterBasedEventEnabled, bool UsingImmCmdList,
+    bool InterruptBasedEventEnabled) {
   // Lock while updating event pool machinery.
   std::scoped_lock<ur_mutex> Lock(ZeEventPoolCacheMutex);
 
@@ -536,6 +537,14 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
       logger::debug("ze_event_pool_desc_t counter based flags set to: {}",
                     counterBasedExt.flags);
       ZeEventPoolDesc.pNext = &counterBasedExt;
+    }
+    if (InterruptBasedEventEnabled) {
+      ze_intel_event_sync_mode_exp_desc_t eventSyncMode = {
+          ZE_INTEL_STRUCTURE_TYPE_EVENT_SYNC_MODE_EXP_DESC, nullptr, 0};
+      eventSyncMode.syncModeFlags =
+          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_LOW_POWER_WAIT |
+          ZE_INTEL_EVENT_SYNC_MODE_EXP_FLAG_SIGNAL_INTERRUPT;
+      ZeEventPoolDesc.pNext = &eventSyncMode;
     }
 
     std::vector<ze_device_handle_t> ZeDevices;

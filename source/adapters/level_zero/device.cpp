@@ -485,6 +485,8 @@ ur_result_t urDeviceGetInfo(
   case UR_DEVICE_INFO_BUILT_IN_KERNELS:
     // TODO: To find out correct value
     return ReturnValue("");
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+    return ReturnValue(UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP);
   case UR_DEVICE_INFO_QUEUE_PROPERTIES:
     return ReturnValue(
         ur_queue_flag_t(UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE |
