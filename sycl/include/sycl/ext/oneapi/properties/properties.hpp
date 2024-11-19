@@ -23,70 +23,6 @@ namespace ext::oneapi::experimental {
 
 namespace detail {
 
-// Checks if a tuple of properties contains a property.
-template <typename PropT, typename PropertiesT>
-struct ContainsProperty : std::false_type {};
-template <typename PropT, typename T, typename... Ts>
-struct ContainsProperty<PropT, std::tuple<T, Ts...>>
-    : ContainsProperty<PropT, std::tuple<Ts...>> {};
-template <typename PropT, typename... Rest>
-struct ContainsProperty<PropT, std::tuple<PropT, Rest...>> : std::true_type {};
-template <typename PropT, typename... PropValuesTs, typename... Rest>
-struct ContainsProperty<
-    PropT, std::tuple<property_value<PropT, PropValuesTs...>, Rest...>>
-    : std::true_type {};
-
-// Finds the full property_value type of a property in a tuple of properties.
-// type is void if the type was not found in the tuple of properties.
-template <typename CTPropertyT, typename PropertiesT = void>
-struct FindCompileTimePropertyValueType {
-  using type = void;
-};
-template <typename CTPropertyT, typename OtherProperty, typename... Rest>
-struct FindCompileTimePropertyValueType<CTPropertyT,
-                                        std::tuple<OtherProperty, Rest...>> {
-  using type =
-      typename FindCompileTimePropertyValueType<CTPropertyT,
-                                                std::tuple<Rest...>>::type;
-};
-template <typename CTPropertyT, typename... CTPropertyValueTs, typename... Rest>
-struct FindCompileTimePropertyValueType<
-    CTPropertyT,
-    std::tuple<property_value<CTPropertyT, CTPropertyValueTs...>, Rest...>> {
-  using type = property_value<CTPropertyT, CTPropertyValueTs...>;
-};
-
-template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
-static constexpr std::enable_if_t<
-    HasProperty,
-    typename FindCompileTimePropertyValueType<CTPropertyT, PropertiesT>::type>
-get_property() {
-  return {};
-}
-
-template <typename CTPropertyT, bool HasProperty, typename PropertiesT = void>
-static constexpr std::enable_if_t<!HasProperty, void> get_property() {
-  return;
-}
-
-// Get the value of a property from a property list
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename PropertiesT>
-struct GetPropertyValueFromPropList {};
-
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename... PropertiesT>
-struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    std::tuple<PropertiesT...>> {
-  using prop_val_t = std::conditional_t<
-      ContainsProperty<PropKey, std::tuple<PropertiesT...>>::value,
-      typename FindCompileTimePropertyValueType<
-          PropKey, std::tuple<PropertiesT...>>::type,
-      DefaultPropVal>;
-  static constexpr ConstType value =
-      PropertyMetaInfo<std::remove_const_t<prop_val_t>>::value;
-};
-
 template <typename... property_tys>
 inline constexpr bool properties_are_unique = []() constexpr {
   if constexpr (sizeof...(property_tys) == 0) {
@@ -241,6 +177,10 @@ public:
       }
     }
   }
+
+  template <typename property_key_t> static constexpr bool has_property() {
+    return false;
+  }
 };
 
 // NOTE: Meta-function to implement CTAD rules isn't allowed to return
@@ -252,9 +192,6 @@ class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
     : private property_tys... {
   static_assert(detail::properties_are_sorted<property_tys...>,
                 "Properties must be sorted!");
-  static_assert(
-      detail::NoConflictingProperties<std::tuple<property_tys...>>::value,
-      "Conflicting properties in property list.");
   using property_tys::get_property_impl...;
 
   template <typename> friend class __SYCL_EBO properties;
@@ -282,6 +219,9 @@ class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
       detail::property_key_tag<property_key_t>{}));
 
 public:
+  // Definition is out-of-class so that `properties` would be complete there and
+  // its interfaces could be used in `ConflictingProperties`' partial
+  // specializations.
   template <
       typename... unsorted_property_tys,
       typename = std::enable_if_t<
@@ -291,8 +231,7 @@ public:
             ...))>,
       typename = std::enable_if_t<
           detail::properties_are_unique<unsorted_property_tys...>>>
-  constexpr properties(unsorted_property_tys... props)
-      : unsorted_property_tys(props)... {}
+  constexpr properties(unsorted_property_tys... props);
 
   template <typename property_key_t> static constexpr bool has_property() {
     return std::is_base_of_v<detail::property_key_tag<property_key_t>,
@@ -317,6 +256,17 @@ public:
     return get_property_impl(detail::property_key_tag<property_key_t>{});
   }
 };
+
+template <typename... property_tys>
+template <typename... unsorted_property_tys, typename, typename, typename>
+constexpr properties<detail::properties_type_list<property_tys...>>::properties(
+    unsorted_property_tys... props)
+    : unsorted_property_tys(props)... {
+  static_assert(((!detail::ConflictingProperties<typename property_tys::key_t,
+                                                 properties>::value &&
+                  ...)),
+                "Conflicting properties in property list.");
+}
 
 // Deduction guides
 template <typename... unsorted_property_tys,
@@ -347,22 +297,20 @@ template <typename LHSPropertiesT, typename RHSPropertiesT>
 using merged_properties_t = decltype(merge_properties(
     std::declval<LHSPropertiesT>(), std::declval<RHSPropertiesT>()));
 
-template <typename Properties, typename PropertyKey, typename Cond = void>
-struct ValueOrDefault {
-  template <typename ValT> static constexpr ValT get(ValT Default) {
-    return Default;
-  }
-};
-
-template <typename Properties, typename PropertyKey>
-struct ValueOrDefault<
-    Properties, PropertyKey,
-    std::enable_if_t<is_property_list_v<Properties> &&
-                     Properties::template has_property<PropertyKey>()>> {
-  template <typename ValT> static constexpr ValT get(ValT) {
-    return Properties::template get_property<PropertyKey>().value;
-  }
-};
+template <typename property_key_t, typename prop_list_t, typename default_t>
+constexpr auto get_property_or(default_t value, const prop_list_t &props) {
+  if constexpr (prop_list_t::template has_property<property_key_t>())
+    return props.template get_property<property_key_t>();
+  else
+    return value;
+}
+template <typename property_key_t, typename prop_list_t, typename default_t>
+constexpr auto get_property_or(default_t value) {
+  if constexpr (prop_list_t::template has_property<property_key_t>())
+    return prop_list_t::template get_property<property_key_t>();
+  else
+    return value;
+}
 
 // helper: check_all_props_are_keys_of
 template <typename SyclT> constexpr bool check_all_props_are_keys_of() {
