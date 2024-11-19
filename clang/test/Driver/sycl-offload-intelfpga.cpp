@@ -24,7 +24,7 @@
 // RUN:   %clangxx -### -fintelfpga %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-HOST-DEVICE %s
 // CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-device"{{.*}} "-fintelfpga"
-// CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fintelfpga"{{.*}} "-fsycl-is-host"
+// CHK-HOST-DEVICE: clang{{.*}} "-cc1"{{.*}} "-fsycl-is-host"{{.*}} "-fintelfpga"
 
 /// FPGA target implies -fsycl-range-rounding=disable
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -32,7 +32,7 @@
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING %s
 // CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
-// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING: clang{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-range-rounding=disable"
 
 /// FPGA target implies -emit-only-kernels-as-entry-points in sycl-post-link
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fintelfpga %s 2>&1 \
@@ -45,7 +45,7 @@
 // RUN:   %clangxx -### -target x86_64-unknown-linux-gnu -fsycl -fsycl-targets=spir64_fpga-unknown-unknown,spir64_gen-unknown-unknown %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-RANGE-ROUNDING-MULTI %s
 // CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_gen-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
-// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-range-rounding=disable"{{.*}} "-fsycl-is-host"
+// CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-fsycl-is-host"{{.*}} "-fsycl-range-rounding=disable"{{.*}}
 // CHK-RANGE-ROUNDING-MULTI: clang{{.*}} "-triple" "spir64_fpga-unknown-unknown"{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-range-rounding=disable"
 
 /// -fintelfpga with -reuse-exe=

@@ -2040,6 +2040,11 @@ public:
   }
 
   bool handleStructType(ParmVarDecl *PD, QualType ParamTy) final {
+    if (SemaSYCLRef.getLangOpts().SYCLRTCMode) {
+      // When compiling in RTC mode, the restriction regarding forward
+      // declarations doesn't apply, as we don't need the integration header.
+      return isValid();
+    }
     CXXRecordDecl *RD = ParamTy->getAsCXXRecordDecl();
     // For free functions all struct/class kernel arguments are forward declared
     // in integration header, that adds additional restrictions for kernel
@@ -3945,13 +3950,26 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   // Default inits the type, then calls the init-method in the body.
+  // A type may not have a public default constructor as per its spec so
+  // typically if this is the case the default constructor will be private and
+  // in such cases we must manually override the access specifier from private
+  // to public just for the duration of this default initialization.
+  // TODO: Revisit this approach once https://github.com/intel/llvm/issues/16061
+  // is closed.
   bool handleSpecialType(FieldDecl *FD, QualType Ty) {
+    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(RecordDecl->ctor_begin(), RecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+
     addFieldInit(FD, Ty, std::nullopt,
                  InitializationKind::CreateDefault(KernelCallerSrcLoc));
-
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
     addFieldMemberExpr(FD, Ty);
 
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
     createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
     CXXMethodDecl *FinalizeMethod =
         getMethodByName(RecordDecl, FinalizeMethodName);
@@ -3965,9 +3983,17 @@ class SyclKernelBodyCreator : public SyclKernelFieldHandler {
   }
 
   bool handleSpecialType(const CXXBaseSpecifier &BS, QualType Ty) {
-    const auto *RecordDecl = Ty->getAsCXXRecordDecl();
+    const auto *BaseRecordDecl = BS.getType()->getAsCXXRecordDecl();
+    AccessSpecifier DefaultConstructorAccess;
+    auto DefaultConstructor =
+        std::find_if(BaseRecordDecl->ctor_begin(), BaseRecordDecl->ctor_end(),
+                     [](auto it) { return it->isDefaultConstructor(); });
+    DefaultConstructorAccess = DefaultConstructor->getAccess();
+    DefaultConstructor->setAccess(AS_public);
+
     addBaseInit(BS, Ty, InitializationKind::CreateDefault(KernelCallerSrcLoc));
-    createSpecialMethodCall(RecordDecl, getInitMethodName(), BodyStmts);
+    DefaultConstructor->setAccess(DefaultConstructorAccess);
+    createSpecialMethodCall(BaseRecordDecl, getInitMethodName(), BodyStmts);
     return true;
   }
 
@@ -4664,16 +4690,21 @@ public:
   bool handleSyclSpecialType(const CXXRecordDecl *RD,
                              const CXXBaseSpecifier &BC,
                              QualType FieldTy) final {
-    const auto *AccTy =
-        cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
-    assert(AccTy->getTemplateArgs().size() >= 2 &&
-           "Incorrect template args for Accessor Type");
-    int Dims = static_cast<int>(
-        AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
-    int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
-    Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
-                        CurOffset +
-                            offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    if (isSyclAccessorType(FieldTy)) {
+      const auto *AccTy =
+          cast<ClassTemplateSpecializationDecl>(FieldTy->getAsRecordDecl());
+      assert(AccTy->getTemplateArgs().size() >= 2 &&
+             "Incorrect template args for Accessor Type");
+      int Dims = static_cast<int>(
+          AccTy->getTemplateArgs()[1].getAsIntegral().getExtValue());
+      int Info = getAccessTarget(FieldTy, AccTy) | (Dims << 11);
+      Header.addParamDesc(SYCLIntegrationHeader::kind_accessor, Info,
+                          CurOffset +
+                              offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    } else if (SemaSYCL::isSyclType(FieldTy, SYCLTypeAttr::work_group_memory)) {
+      addParam(FieldTy, SYCLIntegrationHeader::kind_work_group_memory,
+               offsetOf(RD, BC.getType()->getAsCXXRecordDecl()));
+    }
     return true;
   }
 
@@ -6453,6 +6484,13 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
   O << "} // namespace _V1\n";
   O << "} // namespace sycl\n";
 
+  // The rest of this function only applies to free-function kernels. However,
+  // in RTC mode, we do not need integration header information for
+  // free-function kernels, so we can return early here.
+  if (S.getLangOpts().SYCLRTCMode) {
+    return;
+  }
+
   unsigned ShimCounter = 1;
   int FreeFunctionCount = 0;
   for (const KernelDesc &K : KernelDescs) {
@@ -6471,16 +6509,46 @@ void SYCLIntegrationHeader::emit(raw_ostream &O) {
       O << "extern \"C\" ";
     std::string ParmList;
     bool FirstParam = true;
+    Policy.SuppressDefaultTemplateArgs = false;
     for (ParmVarDecl *Param : K.SyclKernel->parameters()) {
       if (FirstParam)
         FirstParam = false;
       else
         ParmList += ", ";
-      ParmList += Param->getType().getCanonicalType().getAsString();
+      ParmList += Param->getType().getCanonicalType().getAsString(Policy);
     }
     FunctionTemplateDecl *FTD = K.SyclKernel->getPrimaryTemplate();
     Policy.SuppressDefinition = true;
     Policy.PolishForDeclaration = true;
+    Policy.FullyQualifiedName = true;
+    Policy.EnforceScopeForElaboratedTypes = true;
+
+    // Now we need to print the declaration of the kernel itself.
+    // Example:
+    // template <typename T, typename = int> struct Arg {
+    //   T val;
+    // };
+    // For the following free function kernel:
+    // template <typename = T>
+    // SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(
+    //     (ext::oneapi::experimental::nd_range_kernel<1>))
+    // void foo(Arg<int> arg) {}
+    // Integration header must contain the following declaration:
+    // template <typename>
+    // void foo(Arg<int, int> arg);
+    // SuppressDefaultTemplateArguments is a downstream addition that suppresses
+    // default template arguments in the function declaration. It should be set
+    // to true to emit function declaration that won't cause any compilation
+    // errors when present in the integration header.
+    // To print Arg<int, int> in the function declaration and shim functions we
+    // need to disable default arguments printing suppression via community flag
+    // SuppressDefaultTemplateArgs, otherwise they will be suppressed even for
+    // canonical types or if even written in the original source code.
+    Policy.SuppressDefaultTemplateArguments = true;
+    // EnforceDefaultTemplateArgs is a downstream addition that forces printing
+    // template arguments that match default template arguments while printing
+    // template-ids, even if the source code doesn't reference them.
+    Policy.EnforceDefaultTemplateArgs = true;
     if (FTD) {
       FTD->print(O, Policy);
     } else {

@@ -1,7 +1,12 @@
 // RUN: %clang_cc1 %s -triple spir -cl-std=CL1.2 -emit-llvm-bc -fdeclare-opencl-builtins -o %t.bc
 // RUN: llvm-spirv %t.bc -o %t.spv
 // RUN: spirv-val %t.spv
-// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTRS
+// RUN: llvm-spirv %t.spv -r --spirv-target-env=CL1.2 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
+
+// RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+// RUN: spirv-val %t.spv
+// RUN: llvm-spirv %t.spv -to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTRS
 // RUN: llvm-spirv %t.spv -r --spirv-target-env=CL1.2 -o - | llvm-dis -o - | FileCheck %s --check-prefix=CHECK-LLVM
 
 // This test checks that the translator is capable to correctly translate
@@ -15,7 +20,8 @@ __kernel void test_legacy_atomics(__global int *p, int val) {
 
 // CHECK-SPIRV: EntryPoint [[#]] [[TEST:[0-9]+]] "test_legacy_atomics"
 // CHECK-SPIRV-DAG: TypeInt [[UINT:[0-9]+]] 32 0
-// CHECK-SPIRV-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
+// CHECK-SPIRV-TYPED-PTRS-DAG: TypePointer [[UINT_PTR:[0-9]+]] 5 [[UINT]]
+// CHECK-SPIRV-UNTYPED-PTRS-DAG: TypeUntypedPointerKHR [[UINT_PTR:[0-9]+]] 5
 //
 // In SPIR-V, atomic_add is represented as OpAtomicIAdd [2], which also includes
 // memory scope and memory semantic arguments. The translator applies a default
