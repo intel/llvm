@@ -353,8 +353,8 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
-  finally(const finally&) = default;
-  finally& operator=(const finally&) = default;
+  finally(const finally &) = default;
+  finally &operator=(const finally &) = default;
   ~finally() {
     if (xptiTraceEnabled())
       MFunc();
@@ -667,8 +667,8 @@ public:
 
   // Copy and copy assignment are deleted since we dont want to stash the same
   // key-value pair multiple times
-  stash_tuple(const stash_tuple&) = delete;
-  stash_tuple& operator=(const stash_tuple&) = delete;
+  stash_tuple(const stash_tuple &) = delete;
+  stash_tuple &operator=(const stash_tuple &) = delete;
 
   /// @brief Destroys the stash_tuple object and unstashes the key-value pair if
   /// it was stashed successfully earlier.
@@ -1624,7 +1624,7 @@ public:
   }
 
   tracepoint_t(const tracepoint_t &) = delete;
-  tracepoint_t& operator=(const tracepoint_t &) = delete;
+  tracepoint_t &operator=(const tracepoint_t &) = delete;
 
   ~tracepoint_t() {
     // If tracing is not enabled, don't do anything
