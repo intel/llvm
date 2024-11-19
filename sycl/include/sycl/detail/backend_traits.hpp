@@ -31,15 +31,5 @@ template <backend Backend> struct InteropFeatureSupportMap {
   static constexpr bool MakeImage = false;
 };
 } // namespace detail
-
-template <backend Backend> class backend_traits {
-public:
-  template <class T>
-  using input_type = typename detail::BackendInput<Backend, T>::type;
-
-  template <class T>
-  using return_type = typename detail::BackendReturn<Backend, T>::type;
-};
-
 } // namespace _V1
 } // namespace sycl
