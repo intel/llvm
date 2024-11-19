@@ -19,16 +19,16 @@ TEST_P(urUSMFreeTest, SuccessDeviceAlloc) {
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMDeviceAlloc(context, device, nullptr, nullptr,
                                     allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
 
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                     allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
-    ASSERT_SUCCESS(urEventWait(1, &event));
+    EXPECT_SUCCESS(urEventWait(1, &event));
 
-    ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
     ASSERT_SUCCESS(urEventRelease(event));
 }
@@ -43,15 +43,15 @@ TEST_P(urUSMFreeTest, SuccessHostAlloc) {
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(
         urUSMHostAlloc(context, nullptr, nullptr, allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                     allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
-    ASSERT_SUCCESS(urEventWait(1, &event));
+    EXPECT_SUCCESS(urEventWait(1, &event));
 
-    ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
     ASSERT_SUCCESS(urEventRelease(event));
 }
@@ -73,15 +73,15 @@ TEST_P(urUSMFreeTest, SuccessSharedAlloc) {
     size_t allocation_size = sizeof(int);
     ASSERT_SUCCESS(urUSMSharedAlloc(context, device, nullptr, nullptr,
                                     allocation_size, &ptr));
+    ASSERT_NE(ptr, nullptr);
 
     ur_event_handle_t event = nullptr;
     uint8_t pattern = 0;
-    ASSERT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
+    EXPECT_SUCCESS(urEnqueueUSMFill(queue, ptr, sizeof(pattern), &pattern,
                                     allocation_size, 0, nullptr, &event));
     EXPECT_SUCCESS(urQueueFlush(queue));
-    ASSERT_SUCCESS(urEventWait(1, &event));
+    EXPECT_SUCCESS(urEventWait(1, &event));
 
-    ASSERT_NE(ptr, nullptr);
     ASSERT_SUCCESS(urUSMFree(context, ptr));
     ASSERT_SUCCESS(urEventRelease(event));
 }
