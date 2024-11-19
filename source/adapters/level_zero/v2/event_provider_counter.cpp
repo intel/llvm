@@ -22,8 +22,7 @@ namespace v2 {
 
 provider_counter::provider_counter(ur_platform_handle_t platform,
                                    ur_context_handle_t context,
-                                   ur_device_handle_t device)
-    : urDevice(device) {
+                                   ur_device_handle_t device) {
   ZE2UR_CALL_THROWS(zeDriverGetExtensionFunctionAddress,
                     (platform->ZeDriver, "zexCounterBasedEventCreate",
                      (void **)&this->eventCreateFunc));
@@ -57,8 +56,6 @@ raii::cache_borrowed_event provider_counter::allocate() {
       event.release().first,
       [this](ze_event_handle_t handle) { freelist.push_back(handle); });
 }
-
-ur_device_handle_t provider_counter::device() { return urDevice; }
 
 event_flags_t provider_counter::eventFlags() const {
   return EVENT_FLAGS_COUNTER;

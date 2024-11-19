@@ -38,6 +38,10 @@ struct ur_context_handle_t_ : _ur_object {
   v2::command_list_cache_t commandListCache;
   v2::event_pool_cache eventPoolCache;
 
+  // pool used for urEventCreateWithNativeHandle when native handle is NULL
+  // (uses non-counter based events to allow for signaling from host)
+  v2::event_pool nativeEventsPool;
+
 private:
   const v2::raii::ze_context_handle_t hContext;
   const std::vector<ur_device_handle_t> hDevices;
