@@ -61,13 +61,13 @@ public:
   explicit RTCResult(const char *ErrorMessage)
       : Failed{true}, BundleInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit RTCResult(RTCBundleInfo &&BundleInfo)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)}, ErrorMessage{} {}
+  explicit RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
+      : Failed{false}, BundleInfo{std::move(BundleInfo)}, ErrorMessage{
+                                                              BuildLog} {}
 
   bool failed() const { return Failed; }
 
   const char *getErrorMessage() const {
-    assert(failed() && "No error message present");
     return ErrorMessage.c_str();
   }
 
