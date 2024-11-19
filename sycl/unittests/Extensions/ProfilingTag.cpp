@@ -92,6 +92,8 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
       "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
   mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
                                           &after_urEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
   sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
@@ -101,8 +103,11 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
 
   ASSERT_TRUE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
+  // As an optimization, the implementation will use a single barrier when
+  // submitting a profiling tag on an out-of-order queue with profiling enabled.
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrier);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
