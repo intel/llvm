@@ -1623,31 +1623,8 @@ public:
     }
   }
 
-  tracepoint_t(const tracepoint_t& other) :
-    m_top(false),
-    m_default_stream(other.m_default_stream),
-    m_default_trace_type(other.m_default_trace_type),
-    m_default_name(other.m_default_name),
-    m_default_event_type(other.m_default_event_type),
-    m_default_activity_type(other.m_default_activity_type),
-    m_trace_event(other.m_trace_event),
-    m_parent_event(other.m_parent_event),
-    m_instID(other.m_instID) {}
-
-  tracepoint_t& operator=(const tracepoint_t& other) {
-    if (this != &other) {
-      m_top = false;
-      m_default_stream = other.m_default_stream;
-      m_default_trace_type = other.m_default_trace_type;
-      m_default_name = other.m_default_name;
-      m_default_event_type = other.m_default_event_type;
-      m_default_activity_type = other.m_default_activity_type;
-      m_trace_event = other.m_trace_event;
-      m_parent_event = other.m_parent_event;
-      m_instID = other.m_instID;
-    }
-    return *this;
-  }
+  tracepoint_t(const tracepoint_t &) = delete;
+  tracepoint_t& operator=(const tracepoint_t &) = delete;
 
   ~tracepoint_t() {
     // If tracing is not enabled, don't do anything
