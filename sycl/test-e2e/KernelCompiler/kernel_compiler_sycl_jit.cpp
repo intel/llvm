@@ -179,6 +179,8 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+  CheckUnsupported({"-fsycl-device-code-split=kernel"});
+  CheckUnsupported({"-fsycl-device-code-split-esimd"});
 
   return 0;
 }

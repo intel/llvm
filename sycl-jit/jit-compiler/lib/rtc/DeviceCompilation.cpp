@@ -435,8 +435,9 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
   for (auto &&[KV, FrozenPropSet] : zip(PropertySets, BundleInfo.Properties)) {
     const auto &PropertySetName = KV.first;
     const auto &PropertySet = KV.second;
-    FrozenPropertySet FPS{PropertySetName.str(), PropertySet.size()};
-    for (auto &&[KV2, FrozenProp] : zip(PropertySet, FPS.Values)) {
+    FrozenPropSet =
+        FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
+    for (auto &&[KV2, FrozenProp] : zip(PropertySet, FrozenPropSet.Values)) {
       const auto &PropertyName = KV2.first;
       const auto &PropertyValue = KV2.second;
       FrozenProp = PropertyValue.getType() == PropertyValue::Type::UINT32
@@ -446,7 +447,6 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
                              PropertyName.str(), PropertyValue.asRawByteArray(),
                              PropertyValue.getRawByteArraySize()};
     }
-    FrozenPropSet = std::move(FPS);
   };
 
   // Regain ownership of the module.

@@ -12,7 +12,7 @@
 #include <sycl/detail/export.hpp> // __SYCL_EXPORT
 #include <sycl/device.hpp>
 
-#include <detail/device_binary_image.hpp>
+#include <detail/compiler.hpp> // sycl_device_binaries
 
 #include <numeric> // std::accumulate
 #include <string>
