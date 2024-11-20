@@ -176,17 +176,6 @@ ur_result_t ur_program_handle_t_::getGlobalVariablePointer(
   return UR_RESULT_SUCCESS;
 }
 
-/// Finds kernel names by searching for entry points in the PTX source, as the
-/// CUDA driver API doesn't expose an operation for this.
-/// Note: This is currently only being used by the SYCL program class for the
-///       has_kernel method, so an alternative would be to move the has_kernel
-///       query to UR and use cuModuleGetFunction to check for a kernel.
-/// Note: Another alternative is to add kernel names as metadata, like with
-///       reqd_work_group_size.
-ur_result_t getKernelNames(ur_program_handle_t) {
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
-}
-
 /// Loads images from a list of PTX or CUBIN binaries.
 /// Note: No calls to CUDA driver API in this function, only store binaries
 /// for later.
@@ -421,8 +410,9 @@ urProgramGetInfo(ur_program_handle_t hProgram, ur_program_info_t propName,
   case UR_PROGRAM_INFO_BINARIES:
     return ReturnValue(&hProgram->Binary, 1);
   case UR_PROGRAM_INFO_KERNEL_NAMES:
-    /* TODO: Add implementation for getKernelNames */
-    UR_ASSERT(getKernelNames(hProgram), UR_RESULT_ERROR_UNSUPPORTED_FEATURE);
+    // CUDA has no way to query a list of kernels from a binary.
+    // In SYCL this is only used in kernel bundle when building from source
+    // which isn't currently supported for CUDA.
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   case UR_PROGRAM_INFO_NUM_KERNELS:
   case UR_PROGRAM_INFO_IL:
