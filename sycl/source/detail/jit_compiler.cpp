@@ -1119,7 +1119,7 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   return JITDeviceBinaries.back().getPIDeviceStruct();
 }
 
-const RTDeviceBinaryImage &jit_compiler::createDeviceBinaryImage(
+sycl_device_binaries jit_compiler::createDeviceBinaryImage(
     const ::jit_compiler::RTCBundleInfo &BundleInfo) {
   DeviceBinaryContainer Binary;
   for (const auto &Symbol : BundleInfo.SymbolTable) {
@@ -1153,13 +1153,7 @@ const RTDeviceBinaryImage &jit_compiler::createDeviceBinaryImage(
                                  : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
                              SYCL_DEVICE_BINARY_TYPE_SPIRV);
   JITDeviceBinaries.push_back(std::move(Collection));
-  // TODO: If we want to handle multiple device binary images, we should instead
-  //       return `sycl_device_binaries`, to be passed to
-  //       `program_manager::addImages`. The program manager then creates and
-  //       owns the `RTDeviceBinaryImage` instances.
-  RTCDeviceBinaryImages.emplace_back(
-      &JITDeviceBinaries.back().getPIDeviceStruct()->DeviceBinaries[0]);
-  return RTCDeviceBinaryImages.back();
+  return JITDeviceBinaries.back().getPIDeviceStruct();
 }
 
 std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
@@ -1210,7 +1204,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   return Encoded;
 }
 
-const RTDeviceBinaryImage &jit_compiler::compileSYCL(
+sycl_device_binaries jit_compiler::compileSYCL(
     const std::string &Id, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
