@@ -14,9 +14,9 @@
 // include/sycl/version.hpp error: missing binary operator before token "("
 //   14 | #define __SYCL_COMPILER_VERSION _Pragma("GCC warning \"..\"") 20241120
 
-#cmakedefine __SYCL_COMPILER_VERSION _Pragma(                                  \
-    "GCC warning \"__SYCL_COMPILER_VERSION is deprecated, "                    \
-    "use __LIBSYCL_TIMESTAMP instead\"") ${__SYCL_COMPILER_VERSION}
+#cmakedefine __SYCL_COMPILER_VERSION _Pragma(                                                 \
+    "GCC warning \"__SYCL_COMPILER_VERSION is deprecated, use __LIBSYCL_TIMESTAMP instead\"") \
+    ${__SYCL_COMPILER_VERSION}
 #elif defined(_MSC_VER)
 #cmakedefine __SYCL_COMPILER_VERSION ${__SYCL_COMPILER_VERSION}
 // It seems like MSVC ignores that pragma if its embedded into a macro
