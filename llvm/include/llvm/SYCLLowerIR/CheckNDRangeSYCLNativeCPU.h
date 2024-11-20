@@ -6,10 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 //
-// A transformation pass that:
-// * Handles the kernel calling convention and attributes.
-// * Materializes the spirv builtins so that they can be handled by the host
-//   runtime.
+// Checks if the kernel uses features from nd_item such as:
+// * local id
+// * local range
+// * local memory
+// * work group barrier
 //===----------------------------------------------------------------------===//
 
 #pragma once
