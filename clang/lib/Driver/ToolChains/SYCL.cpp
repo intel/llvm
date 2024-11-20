@@ -663,10 +663,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1) {
-      if (SanitizeVal == "address")
-        SanitizeVal = A->getValue();
-    }
+        A->getValues().size() == 1)
+      SanitizeVal = A->getValue();
   } else {
     // User can pass -fsanitize=address to device compiler via
     // -Xsycl-target-frontend, sanitize device library must be
