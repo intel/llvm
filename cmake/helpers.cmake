@@ -63,6 +63,16 @@ if(CMAKE_SYSTEM_NAME STREQUAL Linux)
     check_cxx_compiler_flag("-fstack-clash-protection" CXX_HAS_FSTACK_CLASH_PROTECTION)
 endif()
 
+if (UR_USE_CFI)
+    set(SAVED_CMAKE_REQUIRED_FLAGS ${CMAKE_REQUIRED_FLAGS})
+    set(CMAKE_REQUIRED_FLAGS "-flto -fvisibility=hidden")
+    check_cxx_compiler_flag("-fsanitize=cfi" CXX_HAS_CFI_SANITIZE)
+    set(CMAKE_REQUIRED_FLAGS ${SAVED_CMAKE_REQUIRED_FLAGS})
+else()
+    # If CFI checking is disabled, pretend we don't support it
+    set(CXX_HAS_CFI_SANITIZE OFF)
+endif()
+
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
         target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
@@ -78,11 +88,10 @@ function(add_ur_target_compile_options name)
             # Hardening options
             -fPIC
             -fstack-protector-strong
-            -fvisibility=hidden # Required for -fsanitize=cfi
-            # -fsanitize=cfi requires -flto, which breaks a lot of things
-            # See: https://github.com/oneapi-src/unified-runtime/issues/2120
-            # -flto
-            # $<$<CXX_COMPILER_ID:Clang,AppleClang>:-fsanitize=cfi>
+            -fvisibility=hidden
+            # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
+            # guarantee. -fsanitize=cfi depends on -flto
+            $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -119,7 +128,10 @@ endfunction()
 function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
-            target_link_options(${name} PRIVATE "LINKER:-z,relro,-z,now,-z,noexecstack")
+            target_link_options(${name} PRIVATE
+                $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+                "LINKER:-z,relro,-z,now,-z,noexecstack"
+            )
             if (UR_DEVELOPER_MODE)
                 target_link_options(${name} PRIVATE -Werror -Wextra)
             endif()
