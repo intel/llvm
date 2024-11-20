@@ -351,7 +351,9 @@ else()
     add_devicelibs(libsycl-asan
       SRC sanitizer/asan_rtl.cpp
       DEPENDENCIES ${asan_obj_deps}
-      EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+      EXTRA_OPTS -fno-sycl-instrument-device-code 
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
 
     # asan aot
     set(asan_filetypes obj obj-new-offload bc)
@@ -360,10 +362,10 @@ else()
     foreach(asan_ft IN LISTS asan_filetypes)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
-        SRC sanitizer/asan_rtl.cpp
-        FILETYPE ${asan_ft}
-        DEPENDENCIES ${asan_obj_deps}
-        OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
+                        SRC sanitizer/asan_rtl.cpp
+                        FILETYPE ${asan_ft}
+                        DEPENDENCIES ${asan_obj_deps}
+                        OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
       endforeach()
     endforeach()
   endif()
