@@ -52,7 +52,7 @@ CheckNDRangeSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
   SmallPtrSet<Function *, 5> Visited;
   SmallPriorityWorklist<Function *, 5> WorkList;
 
-  // Add builtins to the set of functions that use NDRange features
+  // Add builtins to the set of functions that may use NDRange features
   for (auto &FName : NdBuiltins) {
     auto F = M.getFunction(FName);
     if (F == nullptr)
@@ -61,7 +61,7 @@ CheckNDRangeSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
     NdFuncs.insert(F);
   }
 
-  // Add users of local AS global var to the set of functions that use
+  // Add users of local AS global var to the set of functions that may use
   // NDRange features
   for (auto &GV : M.globals()) {
     if (GV.getAddressSpace() != sycl::utils::SyclNativeCpuLocalAS)
@@ -70,14 +70,17 @@ CheckNDRangeSYCLNativeCPUPass::run(Module &M, ModuleAnalysisManager &MAM) {
     for (auto U : GV.users()) {
       if (auto I = dyn_cast<Instruction>(U)) {
         auto F = I->getFunction();
-        if (F != nullptr && NdFuncs.insert(F).second)
+        if (F != nullptr && NdFuncs.insert(F).second) {
           WorkList.insert(F);
+          NdFuncs.insert(F);
+        }
       }
     }
   }
 
-  // Traverse the use chain to find Functions that use NDRange features
-  // (or, recursively, Functions that call Functions that use NDRange features)
+  // Traverse the use chain to find Functions that may use NDRange features
+  // (or, recursively, Functions that call Functions that may use NDRange
+  // features)
   while (!WorkList.empty()) {
     auto F = WorkList.pop_back_val();
 
