@@ -2,7 +2,7 @@
 
 ## Rationale behind caching
 
-During SYCL program execution SYCL runtime will create internal objects
+During SYCL program execution, SYCL runtime will create internal objects
 representing kernels and programs, it may also invoke JIT compiler to bring
 kernels in a program to executable state. Those runtime operations are quite
 expensive, and in some cases caching approach can be employed to eliminate
@@ -65,7 +65,7 @@ examples below illustrate scenarios where such optimization is possible.
   });
 ```
 
-In both cases SYCL runtime will need to build the program and kernels multiple
+In both cases, SYCL runtime will need to build the program and kernels multiple
 times, which may involve JIT compilation and take quite a lot of time.
 
 In order to eliminate this waste of run-time we introduce a kernel and program
@@ -97,42 +97,27 @@ The cache is split into two levels:
 
 ### In-memory cache
 
-The cache stores underlying PI objects behind `sycl::program` and `sycl::kernel`
-user-level objects in a per-context data storage. The storage consists of two
-maps: one is for programs and the other is for kernels.
+The cache stores the underlying UR objects behind `sycl::program` and `sycl::kernel`
+user-level objects in a per-context data storage. The storage consists of three 
+maps: one is for programs and the other two are for kernels.
 
 The programs map's key consists of four components:
 
-- kernel set id<sup>[1](#what-is-ksid)</sup>,
+- ID of the device image containing the program,
 - specialization constants values,
-- the device this program is built for,
-- build options id <sup>[2](#what-is-bopts)</sup>.
+- the set of devices this program is built for.
 
 The kernels map's key consists of two components:
 
 - the program the kernel belongs to,
 - kernel name<sup>[3](#what-is-kname)</sup>.
 
-(what-is-ksid)=
-<a name="what-is-ksid">1</a>: Kernel set id is an ordinal number of the device
-binary image the kernel is contained in.
+The third map, called Fast Kernel Cache, is used as an optimization to reduce the
+number of lookups in the kernels map. It's key consists of the following components:
 
-(what-is-bopts)=
-<a name="what-is-bopts">2</a>: The concatenation of build options (both compile
-and link options) set in application or environment variables. There are three
-sources of build options that the cache is aware of:
-
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
-- environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
-  SYCL_PROGRAM_LINK_OPTIONS);
-- options passed through SYCL API.
-
-Note: Backend runtimes used by SYCL can have extra environment or configurations
-values (e.g. IGC has
-[igc_flags.def](https://github.com/intel/intel-graphics-compiler/blob/7f91dd6b9f2ca9c1a8ffddd04fa86461311c4271/IGC/common/igc_flags.def)
-which affect JIT process). Changing such configuration will invalidate cache and
-manual cache cleanup should be done.
+- specialization constants values,
+- the UR handle of the device this kernel is built for,
+- kernel name<sup>[3](#what-is-kname)</sup>.
 
 (what-is-kname)=
 <a name="what-is-kname">3</a>: Kernel name is a kernel ID mangled class' name
@@ -408,10 +393,12 @@ LRU (least recently used) strategy both for in-memory and persistent cache.
 
 #### In-memory cache eviction
 
-It is initiated on program/kernel maps access/add item operation. When cache
-size exceeds storage threshold the items which are least recently used are
-deleted.
-TODO: add detailed description of in-memory cache eviction mechanism.
+Eviction in in-memory cache is disabled by default but can be controlled by SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
+environment variable. The threshold is set in bytes and when the cache size exceeds the threshold the eviction process is initiated. The eviction process is based on LRU strategy. The cache is walked through and the least recently used items are deleted until the cache size is below the threshold.
+To implement eviction for in-memory cache efficiently, we store the programs in a linked-list, called eviction list. When the program is first added to the cache, it is also added to the back of the eviction list. When a program is fetched from cache, we move the program to the end of the eviction list. This way, we ensure that the programs at the beginning of the eviction list are always the least recently used.
+When adding a new program to cache, we check if the size of the program cache exceeds the threshold, if so, we iterate through the eviction list starting from the front and delete the programs until the cache size is below the threshold. When a program is deleted from the cache, we also evict its corresponding kernels from the kernel and fast kernel cache.
+
+***When the application run out-of-memory,*** either due to cache eviction being disabled or the cache eviction threshold being too high, we will evict all the items from program and kernel caches. This is done to prevent the application from crashing due to running out of memory.
 
 #### Persistent cache eviction
 
