@@ -229,16 +229,17 @@ set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp im
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
-  set(sanitizer_obj_deps
+  set(asan_obj_deps
     device.h atomic.hpp spirv_vars.h
-    ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
-    include/sanitizer_utils.hpp
+    ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
+    include/asan_rtl.hpp
     include/spir_global_var.hpp
     sycl-compiler)
 
   set(sanitizer_generic_compile_opts ${compile_opts}
                             -fno-sycl-instrument-device-code
-                            -I${UR_SANITIZER_INCLUDE_DIR})
+                            -I${UR_SANITIZER_INCLUDE_DIR}
+                            -I${CMAKE_CURRENT_SOURCE_DIR})
 
   set(asan_pvc_compile_opts_obj -fsycl -c
                                 ${sanitizer_generic_compile_opts}
@@ -346,18 +347,22 @@ if(MSVC)
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
+    # asan jit
     add_devicelibs(libsycl-asan
-      SRC sanitizer_utils.cpp
-      DEPENDENCIES ${sanitizer_obj_deps}
+      SRC sanitizer/asan_rtl.cpp
+      DEPENDENCIES ${asan_obj_deps}
       EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+
+    # asan aot
     set(asan_filetypes obj obj-new-offload bc)
     set(asan_devicetypes pvc cpu dg2)
+
     foreach(asan_ft IN LISTS asan_filetypes)
       foreach(asan_device IN LISTS asan_devicetypes)
         compile_lib_ext(libsycl-asan-${asan_device}
-        SRC sanitizer_utils.cpp
+        SRC sanitizer/asan_rtl.cpp
         FILETYPE ${asan_ft}
-        DEPENDENCIES ${sanitizer_obj_deps}
+        DEPENDENCIES ${asan_obj_deps}
         OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
       endforeach()
     endforeach()

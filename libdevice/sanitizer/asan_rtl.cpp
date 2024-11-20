@@ -1,4 +1,4 @@
-//==--- sanitizer_utils.cpp - device sanitizer util inserted by compiler ---==//
+//==--- asan_rtl.cpp - device address sanitizer runtime library ------------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,18 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "asan_libdevice.hpp"
+#include "include/asan_rtl.hpp"
+#include "asan/asan_libdevice.hpp"
 #include "atomic.hpp"
 #include "device.h"
 #include "spirv_vars.h"
-
-#include "include/sanitizer_utils.hpp"
-
-using uptr = uintptr_t;
-using s8 = char;
-using u8 = unsigned char;
-using s16 = short;
-using u16 = unsigned short;
 
 // Save the pointer to LaunchInfo
 __SYCL_GLOBAL__ uptr *__SYCL_LOCAL__ __AsanLaunchInfo;
@@ -375,7 +368,7 @@ bool MemIsZero(__SYCL_GLOBAL__ const char *beg, uptr size) {
 static __SYCL_CONSTANT__ const char __mem_sanitizer_report[] =
     "[kernel] SanitizerReport (ErrorType=%d, IsRecover=%d)\n";
 
-void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
+void __asan_internal_report_save(ErrorType error_type) {
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
 
@@ -387,21 +380,21 @@ void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
       __spirv_BuiltInWorkgroupId.z;
 
   auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
-                              ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
+                              ->Report[WG_LID % ASAN_MAX_NUM_REPORTS];
 
   if (atomicCompareAndSet(
           &(((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)->ReportFlag), 1,
           0) == 0 &&
       atomicCompareAndSet(&SanitizerReport.Flag, Desired, Expected) ==
           Expected) {
-    SanitizerReport.ErrorType = error_type;
+    SanitizerReport.ErrorTy = error_type;
     SanitizerReport.IsRecover = false;
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
 
     ASAN_DEBUG(__spirv_ocl_printf(__mem_sanitizer_report,
-                                  SanitizerReport.ErrorType,
+                                  SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
   __devicelib_exit();
@@ -410,8 +403,7 @@ void __asan_internal_report_save(DeviceSanitizerErrorType error_type) {
 void __asan_internal_report_save(
     uptr ptr, uint32_t as, const char __SYCL_CONSTANT__ *file, uint32_t line,
     const char __SYCL_CONSTANT__ *func, bool is_write, uint32_t access_size,
-    DeviceSanitizerMemoryType memory_type, DeviceSanitizerErrorType error_type,
-    bool is_recover = false) {
+    MemoryType memory_type, ErrorType error_type, bool is_recover = false) {
 
   const int Expected = ASAN_REPORT_NONE;
   int Desired = ASAN_REPORT_START;
@@ -424,7 +416,7 @@ void __asan_internal_report_save(
       __spirv_BuiltInWorkgroupId.z;
 
   auto &SanitizerReport = ((__SYCL_GLOBAL__ LaunchInfo *)__AsanLaunchInfo)
-                              ->SanitizerReport[WG_LID % ASAN_MAX_NUM_REPORTS];
+                              ->Report[WG_LID % ASAN_MAX_NUM_REPORTS];
 
   if ((is_recover ||
        atomicCompareAndSet(
@@ -470,15 +462,15 @@ void __asan_internal_report_save(
     SanitizerReport.Address = ptr;
     SanitizerReport.IsWrite = is_write;
     SanitizerReport.AccessSize = access_size;
-    SanitizerReport.ErrorType = error_type;
-    SanitizerReport.MemoryType = memory_type;
+    SanitizerReport.ErrorTy = error_type;
+    SanitizerReport.MemoryTy = memory_type;
     SanitizerReport.IsRecover = is_recover;
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, ASAN_REPORT_FINISH);
 
     ASAN_DEBUG(__spirv_ocl_printf(__mem_sanitizer_report,
-                                  SanitizerReport.ErrorType,
+                                  SanitizerReport.ErrorTy,
                                   SanitizerReport.IsRecover));
   }
   __devicelib_exit();
@@ -488,29 +480,29 @@ void __asan_internal_report_save(
 /// ASAN Error Reporters
 ///
 
-DeviceSanitizerMemoryType GetMemoryTypeByShadowValue(int shadow_value) {
+MemoryType GetMemoryTypeByShadowValue(int shadow_value) {
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
   case kUsmDeviceDeallocatedMagic:
-    return DeviceSanitizerMemoryType::USM_DEVICE;
+    return MemoryType::USM_DEVICE;
   case kUsmHostRedzoneMagic:
   case kUsmHostDeallocatedMagic:
-    return DeviceSanitizerMemoryType::USM_HOST;
+    return MemoryType::USM_HOST;
   case kUsmSharedRedzoneMagic:
   case kUsmSharedDeallocatedMagic:
-    return DeviceSanitizerMemoryType::USM_SHARED;
+    return MemoryType::USM_SHARED;
   case kPrivateLeftRedzoneMagic:
   case kPrivateMidRedzoneMagic:
   case kPrivateRightRedzoneMagic:
-    return DeviceSanitizerMemoryType::PRIVATE;
+    return MemoryType::PRIVATE;
   case kMemBufferRedzoneMagic:
-    return DeviceSanitizerMemoryType::MEM_BUFFER;
+    return MemoryType::MEM_BUFFER;
   case kSharedLocalRedzoneMagic:
-    return DeviceSanitizerMemoryType::LOCAL;
+    return MemoryType::LOCAL;
   case kDeviceGlobalRedzoneMagic:
-    return DeviceSanitizerMemoryType::DEVICE_GLOBAL;
+    return MemoryType::DEVICE_GLOBAL;
   default:
-    return DeviceSanitizerMemoryType::UNKNOWN;
+    return MemoryType::UNKNOWN;
   }
 }
 
@@ -528,9 +520,8 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   }
   // FIXME: check if shadow_address out-of-bound
 
-  DeviceSanitizerMemoryType memory_type =
-      GetMemoryTypeByShadowValue(shadow_value);
-  DeviceSanitizerErrorType error_type;
+  MemoryType memory_type = GetMemoryTypeByShadowValue(shadow_value);
+  ErrorType error_type;
 
   switch (shadow_value) {
   case kUsmDeviceRedzoneMagic:
@@ -542,18 +533,18 @@ void __asan_report_access_error(uptr addr, uint32_t as, size_t size,
   case kMemBufferRedzoneMagic:
   case kSharedLocalRedzoneMagic:
   case kDeviceGlobalRedzoneMagic:
-    error_type = DeviceSanitizerErrorType::OUT_OF_BOUNDS;
+    error_type = ErrorType::OUT_OF_BOUNDS;
     break;
   case kUsmDeviceDeallocatedMagic:
   case kUsmHostDeallocatedMagic:
   case kUsmSharedDeallocatedMagic:
-    error_type = DeviceSanitizerErrorType::USE_AFTER_FREE;
+    error_type = ErrorType::USE_AFTER_FREE;
     break;
   case kNullPointerRedzoneMagic:
-    error_type = DeviceSanitizerErrorType::NULL_POINTER;
+    error_type = ErrorType::NULL_POINTER;
     break;
   default:
-    error_type = DeviceSanitizerErrorType::UNKNOWN;
+    error_type = ErrorType::UNKNOWN;
   }
 
   __asan_internal_report_save(addr, as, file, line, func, is_write, size,
@@ -573,16 +564,15 @@ void __asan_report_misalign_error(uptr addr, uint32_t as, size_t size,
   }
   int shadow_value = *shadow;
 
-  DeviceSanitizerErrorType error_type = DeviceSanitizerErrorType::MISALIGNED;
-  DeviceSanitizerMemoryType memory_type =
-      GetMemoryTypeByShadowValue(shadow_value);
+  ErrorType error_type = ErrorType::MISALIGNED;
+  MemoryType memory_type = GetMemoryTypeByShadowValue(shadow_value);
 
   __asan_internal_report_save(addr, as, file, line, func, is_write, size,
                               memory_type, error_type, is_recover);
 }
 
 void __asan_report_unknown_device() {
-  __asan_internal_report_save(DeviceSanitizerErrorType::UNKNOWN_DEVICE);
+  __asan_internal_report_save(ErrorType::UNKNOWN_DEVICE);
 }
 
 ///

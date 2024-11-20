@@ -1,4 +1,4 @@
-//==-- sanitizer_device_utils.hpp - Declaration for sanitizer global var ---==//
+//==-- asan_rtl.hpp - Declaration for sanitizer global var ---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "sanitizer_defs.hpp"
 #include "spir_global_var.hpp"
 #include <cstdint>
 
