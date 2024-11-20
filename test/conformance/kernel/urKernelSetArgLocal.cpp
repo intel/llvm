@@ -72,14 +72,14 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
         // Hip has extra args for local mem at index 1-3
         if (backend == UR_PLATFORM_BACKEND_HIP) {
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
         }
 
         // Index 1 is local_mem_b arg
@@ -87,14 +87,14 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
                                            local_mem_b_size, nullptr));
         if (backend == UR_PLATFORM_BACKEND_HIP) {
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
             ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                               sizeof(local_size), nullptr,
-                                               &local_size));
+                                               sizeof(hip_local_offset),
+                                               nullptr, &hip_local_offset));
         }
 
         // Index 2 is output
@@ -140,6 +140,7 @@ struct urKernelSetArgLocalMultiTest : uur::urKernelExecutionTest {
                                          nullptr};
 
     uint32_t hip_arg_offset = 0;
+    static constexpr uint64_t hip_local_offset = 0;
     ur_platform_backend_t backend{};
 };
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urKernelSetArgLocalMultiTest);
@@ -200,14 +201,14 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
     // Hip has extra args for local mem at index 1-3
     if (backend == UR_PLATFORM_BACKEND_HIP) {
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
     }
 
     // Index 1 is local_mem_b arg
@@ -215,14 +216,14 @@ TEST_P(urKernelSetArgLocalMultiTest, Overwrite) {
                                        new_local_mem_b_size, nullptr));
     if (backend == UR_PLATFORM_BACKEND_HIP) {
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
         ASSERT_SUCCESS(urKernelSetArgValue(kernel, current_index++,
-                                           sizeof(new_local_size), nullptr,
-                                           &new_local_size));
+                                           sizeof(hip_local_offset), nullptr,
+                                           &hip_local_offset));
     }
 
     ASSERT_SUCCESS(urEnqueueKernelLaunch(queue, kernel, n_dimensions,

@@ -153,8 +153,7 @@ struct ur_kernel_handle_t_ {
 
     void addLocalArg(size_t Index, size_t Size) {
       // Get the aligned argument size and offset into local data
-      size_t AlignedLocalSize, AlignedLocalOffset;
-      std::tie(AlignedLocalSize, AlignedLocalOffset) =
+      auto [AlignedLocalSize, AlignedLocalOffset] =
           calcAlignedLocalArgument(Index, Size);
 
       // Store argument details
@@ -173,8 +172,7 @@ struct ur_kernel_handle_t_ {
         }
 
         // Recalculate alignment
-        size_t SuccAlignedLocalSize, SuccAlignedLocalOffset;
-        std::tie(SuccAlignedLocalSize, SuccAlignedLocalOffset) =
+        auto [SuccAlignedLocalSize, SuccAlignedLocalOffset] =
             calcAlignedLocalArgument(SuccIndex, OriginalLocalSize);
 
         // Store new local memory size
