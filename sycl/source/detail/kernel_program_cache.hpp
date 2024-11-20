@@ -502,7 +502,7 @@ public:
             for (const auto &FastCacheKey : FastCacheKeyItr->second) {
               std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
               MKernelFastCache.erase(FastCacheKey);
-              traceKernel("Kernel evicted.", std::get<3>(FastCacheKey), true);
+              traceKernel("Kernel evicted.", std::get<2>(FastCacheKey), true);
             }
             MProgramToKernelFastCacheKeyMap.erase(FastCacheKeyItr);
           }
