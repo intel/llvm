@@ -12,6 +12,7 @@
 #include "adapter.hpp"
 #include "context.hpp"
 #include "event.hpp"
+#include "logger/ur_logger.hpp"
 
 #include <sstream>
 
@@ -223,7 +224,19 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
     return ReturnValue(uint64_t{MaxAlloc});
   }
   case UR_DEVICE_INFO_IMAGE_SUPPORTED: {
-    return ReturnValue(ur_bool_t{true});
+    bool Enabled = false;
+
+    if (std::getenv("UR_HIP_ENABLE_IMAGE_SUPPORT") != nullptr) {
+      Enabled = true;
+    } else {
+      logger::always(
+          "Images are not fully supported by the HIP BE, their support is "
+          "disabled by default. Their partial support can be activated by "
+          "setting UR_HIP_ENABLE_IMAGE_SUPPORT environment variable at "
+          "runtime.");
+    }
+
+    return ReturnValue(Enabled);
   }
   case UR_DEVICE_INFO_MAX_READ_IMAGE_ARGS: {
     // This call doesn't match to HIP as it doesn't have images, but instead
