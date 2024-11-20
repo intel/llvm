@@ -1,4 +1,4 @@
-//==------ version.hpp --- SYCL compiler version macro ---------*- C++ -*---==//
+//==------- version.hpp --- SYCL library version macro ---------*- C++ -*---==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -6,7 +6,31 @@
 //
 //===----------------------------------------------------------------------===//
 
+// __SYCL_COMPILER_VERSION is a legacy macro which does not represent a compiler
+// version, but instead only conveys a date when sycl library was built.
+
+#if /* defined(__GNUC__) || */ defined(__clang__)
+// clang supports GCC-style pragma messages, but GCC does not!
+// include/sycl/version.hpp error: missing binary operator before token "("
+//   14 | #define __SYCL_COMPILER_VERSION _Pragma("GCC warning \"..\"") 20241120
+
+#cmakedefine __SYCL_COMPILER_VERSION _Pragma(                                  \
+    "GCC warning \"__SYCL_COMPILER_VERSION is deprecated, "                    \
+    "use __LIBSYCL_TIMESTAMP instead\"") ${__SYCL_COMPILER_VERSION}
+#elif defined(_MSC_VER)
 #cmakedefine __SYCL_COMPILER_VERSION ${__SYCL_COMPILER_VERSION}
+// It seems like MSVC ignores that pragma if its embedded into a macro
+// definition, so we have it on a standalone line
+_Pragma("deprecated(\"__SYCL_COMPILER_VERSION\")")
+#else
+// As a fallback, we still define the macro, but without a deprecation warning.
+// This path is only expected to be taken when 3rd-party host compiler is used
+// and that is not clang/msvc
+#cmakedefine __SYCL_COMPILER_VERSION ${__SYCL_COMPILER_VERSION}
+#endif
+
+#cmakedefine __LIBSYCL_TIMESTAMP ${__LIBSYCL_TIMESTAMP}
+
 #define __LIBSYCL_MAJOR_VERSION ${SYCL_MAJOR_VERSION}
 #define __LIBSYCL_MINOR_VERSION ${SYCL_MINOR_VERSION}
 #define __LIBSYCL_PATCH_VERSION ${SYCL_PATCH_VERSION}
