@@ -15,6 +15,7 @@
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
+#include <sycl/detail/os_util.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -30,7 +31,12 @@ static inline void printPerformanceWarning(const std::string &Message) {
 
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
+#ifdef _WIN32
+    static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
+    static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
+#else
     static const std::string JITLibraryName = "libsycl-jit.so";
+#endif
 
     void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
@@ -69,6 +75,14 @@ jit_compiler::jit_compiler() {
             sycl::detail::ur::getOsLibraryFuncAddress(
                 LibraryPtr, "materializeSpecConstants"));
     if (!this->MaterializeSpecConstHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "compileSYCL"));
+    if (!this->CompileSYCLHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
@@ -617,6 +631,7 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
     QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
     const std::string &KernelName,
     const std::vector<unsigned char> &SpecConstBlob) {
+#ifndef _WIN32
   if (!BinImage) {
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "No suitable IR available for materializing");
@@ -708,6 +723,13 @@ ur_kernel_handle_t jit_compiler::materializeSpecConstants(
   }
 
   return NewKernel;
+#else  // _WIN32
+  (void)Queue;
+  (void)BinImage;
+  (void)KernelName;
+  (void)SpecConstBlob;
+  return nullptr;
+#endif // _WIN32
 }
 
 std::unique_ptr<detail::CG>
@@ -1143,6 +1165,52 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
     Ptr += sizeof(uint32_t);
   }
   return Encoded;
+}
+
+std::vector<uint8_t> jit_compiler::compileSYCL(
+    const std::string &Id, const std::string &SYCLSource,
+    const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    const std::vector<std::string> &RegisteredKernelNames) {
+
+  // TODO: Handle template instantiation.
+  if (!RegisteredKernelNames.empty()) {
+    throw sycl::exception(
+        sycl::errc::build,
+        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
+        "is not yet supported for the `sycl_jit` source language");
+  }
+
+  std::string SYCLFileName = Id + ".cpp";
+  ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
+                                          SYCLSource.c_str()};
+
+  std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
+  IncludeFilesView.reserve(IncludePairs.size());
+  std::transform(IncludePairs.begin(), IncludePairs.end(),
+                 std::back_inserter(IncludeFilesView), [](const auto &Pair) {
+                   return ::jit_compiler::InMemoryFile{Pair.first.c_str(),
+                                                       Pair.second.c_str()};
+                 });
+  std::vector<const char *> UserArgsView;
+  UserArgsView.reserve(UserArgs.size());
+  std::transform(UserArgs.begin(), UserArgs.end(),
+                 std::back_inserter(UserArgsView),
+                 [](const auto &Arg) { return Arg.c_str(); });
+
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  }
+
+  // TODO: We currently don't have a meaningful build log.
+  (void)LogPtr;
+
+  const auto &BI = Result.getKernelInfo().BinaryInfo;
+  assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
+  std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
+  return SPV;
 }
 
 } // namespace detail

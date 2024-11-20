@@ -16,6 +16,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp>
+#include <sycl/sub_group.hpp>
 
 #include <iostream>
 using namespace sycl;
@@ -35,7 +36,7 @@ int main() {
         auto resacc = resbuf.get_access<access::mode::read_write>(cgh);
 
         cgh.parallel_for<class sub_group_mask_test>(
-            NdRange, [=](nd_item<1> NdItem) [[intel::reqd_sub_group_size(32)]] {
+            NdRange, [=](nd_item<1> NdItem) [[sycl::reqd_sub_group_size(32)]] {
               size_t GID = NdItem.get_global_linear_id();
               auto SG = NdItem.get_sub_group();
               // AAAAAAAA
