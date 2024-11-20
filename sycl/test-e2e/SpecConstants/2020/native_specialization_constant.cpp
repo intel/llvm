@@ -2,8 +2,8 @@
 // on opencl & level-zero backends
 // (because only SPIR-V supports specialization constants natively)
 
-// FIXME: This set is never satisfied all at once in our infrastructure.
-// REQUIRES: opencl, level-zero, cpu, gpu, opencl-aot, ocloc
+// REQUIRES: any-device-is-opencl, any-device-is-level_zero, opencl-aot, ocloc
+// UNSUPPORTED: accelerator
 
 // RUN: %clangxx -fsycl -DJIT %s -o %t.out
 // RUN: %{run} %t.out

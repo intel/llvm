@@ -11,7 +11,7 @@
 // Checks that no device is selected when no device of desired type is
 // available.
 //
-// REQUIRES: cpu,gpu,accelerator
+// REQUIRES: any-device-is-cpu, any-device-is-gpu, any-device-is-accelerator
 
 #include <iostream>
 
