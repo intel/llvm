@@ -23,6 +23,7 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
