@@ -1,7 +1,7 @@
-# commit cd92e72bbc4ebddef63c63c0f7e66a410f4b9552
-# Merge: 9a209aa5 b1222f08
+# commit 1675f053176f0860388aa67fd009750a7e03b2c2
+# Merge: 0ea47d7c 22ca5ee2
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 13 09:57:16 2024 +0000
-#     Merge pull request #2254 from PietroGhg/pietro/events_rr
-#     [NATIVECPU] Implement events on Native CPU
-set(UNIFIED_RUNTIME_TAG cd92e72bbc4ebddef63c63c0f7e66a410f4b9552)
+# Date:   Tue Nov 19 14:41:15 2024 +0000
+#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
+#     Fix the CL_CORE_FUNCTION macro on windows.
+set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)

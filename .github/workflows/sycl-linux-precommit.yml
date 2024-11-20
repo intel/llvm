@@ -162,7 +162,6 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
-            extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
           - name: CUDA system
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest

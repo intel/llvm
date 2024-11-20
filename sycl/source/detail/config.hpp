@@ -9,7 +9,6 @@
 #pragma once
 
 #include <detail/global_handler.hpp>
-#include <sycl/backend_types.hpp>
 #include <sycl/detail/defines.hpp>
 #include <sycl/detail/device_filter.hpp>
 #include <sycl/detail/ur.hpp>
@@ -25,6 +24,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 #ifdef DISABLE_CONFIG_FROM_ENV
