@@ -232,3 +232,158 @@ TEST(ConfigTests, CheckConfigProcessing) {
             sycl::detail::SYCLConfig<
                 sycl::detail::SYCL_PRINT_EXECUTION_GRAPH>::get());
 }
+
+// SYCL_CACHE_TRACE accepts a bit-mask to control the tracing of
+// different SYCL caches. The input value is parsed as an integer and
+// the following bit-masks is used to determine the tracing behavior:
+// 0x01 - trace disk cache
+// 0x02 - trace in-memory cache
+// 0x04 - trace kernel_compiler cache
+// Any valid combination of the above bit-masks can be used to enable/disable
+// tracing of the corresponding caches. If the input value is not null and
+// not a valid number, the disk cache tracing will be enabled (depreciated
+// behavior). The default value is 0 and no tracing is enabled.
+using namespace sycl::detail;
+TEST(ConfigTests, CheckSyclCacheTraceTest) {
+
+  // Lambda to test parsing of SYCL_CACHE_TRACE
+  auto TestConfig = [](int expectedValue, int expectedDiskCache,
+                       int expectedInMemCache, int expectedKernelCompiler) {
+    EXPECT_EQ(static_cast<unsigned int>(expectedValue),
+              SYCLConfig<SYCL_CACHE_TRACE>::get());
+
+    EXPECT_EQ(
+        expectedDiskCache,
+        static_cast<int>(
+            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceDiskCache()));
+    EXPECT_EQ(
+        expectedInMemCache,
+        static_cast<int>(
+            sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache()));
+    EXPECT_EQ(expectedKernelCompiler,
+              static_cast<int>(sycl::detail::SYCLConfig<
+                               SYCL_CACHE_TRACE>::isTraceKernelCompiler()));
+  };
+
+  // Lambda to set SYCL_CACHE_TRACE
+  auto SetSyclCacheTraceEnv = [](const char *value) {
+#ifdef _WIN32
+    _putenv_s("SYCL_CACHE_TRACE", value);
+#else
+    setenv("SYCL_CACHE_TRACE", value, 1);
+#endif
+  };
+
+  SetSyclCacheTraceEnv("0");
+  sycl::detail::readConfig(true);
+  TestConfig(0, 0, 0, 0);
+
+  SetSyclCacheTraceEnv("1");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  SetSyclCacheTraceEnv("2");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(2, 0, 1, 0);
+
+  SetSyclCacheTraceEnv("3");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(3, 1, 1, 0);
+
+  SetSyclCacheTraceEnv("4");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(4, 0, 0, 1);
+
+  SetSyclCacheTraceEnv("5");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(5, 1, 0, 1);
+
+  SetSyclCacheTraceEnv("6");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(6, 0, 1, 1);
+
+  SetSyclCacheTraceEnv("7");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(7, 1, 1, 1);
+
+  SetSyclCacheTraceEnv("8");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  // Set random non-null value. It should default to 1.
+  SetSyclCacheTraceEnv("random");
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(1, 1, 0, 0);
+
+  // When SYCL_CACHE_TRACE is not set, it should default to 0.
+#ifdef _WIN32
+  _putenv_s("SYCL_CACHE_TRACE", "");
+#else
+  unsetenv("SYCL_CACHE_TRACE");
+#endif
+  sycl::detail::SYCLConfig<SYCL_CACHE_TRACE>::reset();
+  TestConfig(0, 0, 0, 0);
+}
+
+// SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD accepts an integer that specifies
+// the maximum size of the in-memory Program cache.
+// Cache eviction is performed when the cache size exceeds the threshold.
+// The thresholds are specified in bytes.
+// The default value is "0" which means that eviction is disabled.
+TEST(ConfigTests, CheckSyclCacheEvictionThresholdTest) {
+
+  using InMemEvicType =
+      sycl::detail::SYCLConfig<SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD>;
+
+  // Lambda to test parsing of SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD.
+  auto TestConfig = [](int expectedProgramCacheSize) {
+    EXPECT_EQ(expectedProgramCacheSize, InMemEvicType::getProgramCacheSize());
+    EXPECT_EQ(expectedProgramCacheSize > 0,
+              InMemEvicType::isProgramCacheEvictionEnabled());
+  };
+
+  // Lambda to set SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD.
+  auto SetSyclInMemCacheEvictionThresholdEnv = [](const char *value) {
+#ifdef _WIN32
+    _putenv_s("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD", value);
+#else
+    setenv("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD", value, 1);
+#endif
+  };
+
+  // Lambda to test invalid inputs. An exception should be thrown
+  // when parsing invalid values.
+  auto TestInvalidValues = [&](const char *value, const char *errMsg) {
+    SetSyclInMemCacheEvictionThresholdEnv(value);
+    try {
+      InMemEvicType::reset();
+      TestConfig(0);
+      FAIL() << errMsg;
+    } catch (...) {
+    }
+  };
+
+  // Test eviction threshold with zero.
+  SetSyclInMemCacheEvictionThresholdEnv("0");
+  sycl::detail::readConfig(true);
+  TestConfig(0);
+
+  // Test invalid values.
+  TestInvalidValues("-1", "Should throw exception for negative value");
+  TestInvalidValues("a", "Should throw exception for non-integer value");
+
+  // Test valid values.
+  SetSyclInMemCacheEvictionThresholdEnv("1024");
+  InMemEvicType::reset();
+  TestConfig(1024);
+
+  // When SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD is not set, it should default to
+  // 0:0:0.
+#ifdef _WIN32
+  _putenv_s("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD", "");
+#else
+  unsetenv("SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD");
+#endif
+  InMemEvicType::reset();
+  TestConfig(0);
+}

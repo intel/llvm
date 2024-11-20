@@ -11,12 +11,6 @@
 using namespace sycl;
 using namespace sycl::ext::oneapi::experimental;
 
-// FIXME: should be removed when https://github.com/intel/llvm/pull/15389 is merged in.
-template <typename ElementType>
-using decorated_generic_ptr =
-    multi_ptr<ElementType, access::address_space::generic_space,
-              access::decorated::yes>;
-
 namespace static_as_cast {
 // CHECK-LABEL: define dso_local spir_func void @_ZN14static_as_cast19to_global_decoratedEN4sycl3_V19multi_ptrIiLNS1_6access13address_spaceE6ELNS3_9decoratedE1EEE(
 // CHECK-SAME: ptr addrspace(4) dead_on_unwind noalias nocapture writable writeonly sret(%"class.sycl::_V1::multi_ptr") align 8 [[AGG_RESULT:%.*]], ptr nocapture noundef readonly byval(%"class.sycl::_V1::multi_ptr.0") align 8 [[P:%.*]]) local_unnamed_addr #[[ATTR0:[0-9]+]] !srcloc [[META6:![0-9]+]] !sycl_fixed_targets [[META7:![0-9]+]] {

@@ -12,6 +12,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "llvm/SYCLLowerIR/ConvertToMuxBuiltinsSYCLNativeCPU.h"
+#include "llvm/SYCLLowerIR/FAtomicsNativeCPU.h"
 #include "llvm/SYCLLowerIR/FixABIMuxBuiltinsSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/PrepareSYCLNativeCPU.h"
 #include "llvm/SYCLLowerIR/RenameKernelSYCLNativeCPU.h"
@@ -70,6 +71,7 @@ void llvm::sycl::utils::addSYCLNativeCPUBackendPasses(
     OptimizationLevel OptLevel) {
   MPM.addPass(SpecConstantsPass(SpecConstantsPass::HandlingMode::emulation));
   MPM.addPass(ConvertToMuxBuiltinsSYCLNativeCPUPass());
+  MPM.addPass(FAtomicsNativeCPU());
 #ifdef NATIVECPU_USE_OCK
   MPM.addPass(compiler::utils::PrepareBarriersPass());
   MPM.addPass(compiler::utils::TransferKernelMetadataPass());

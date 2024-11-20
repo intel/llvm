@@ -94,7 +94,6 @@
 
 #define DEBUG_TYPE "spirv"
 
-using namespace std;
 using namespace llvm;
 using namespace SPIRV;
 using namespace OCLUtil;
@@ -1258,8 +1257,8 @@ Value *SPIRVToLLVM::oclTransConstantSampler(SPIRV::SPIRVConstantSampler *BCS,
 Value *SPIRVToLLVM::oclTransConstantPipeStorage(
     SPIRV::SPIRVConstantPipeStorage *BCPS) {
 
-  string CPSName = string(kSPIRVTypeName::PrefixAndDelim) +
-                   kSPIRVTypeName::ConstantPipeStorage;
+  std::string CPSName = std::string(kSPIRVTypeName::PrefixAndDelim) +
+                        kSPIRVTypeName::ConstantPipeStorage;
 
   auto *Int32Ty = IntegerType::getInt32Ty(*Context);
   auto *CPSTy = StructType::getTypeByName(*Context, CPSName);
@@ -1817,9 +1816,28 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     return mapValue(BV, LI);
   }
 
+  case OpCopyMemory: {
+    auto *BC = static_cast<SPIRVCopyMemory *>(BV);
+    llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
+    MaybeAlign Align(BC->getAlignment());
+    MaybeAlign SrcAlign =
+        BC->getSrcAlignment() ? MaybeAlign(BC->getSrcAlignment()) : Align;
+    Type *EltTy =
+        transType(BC->getSource()->getType()->getPointerElementType());
+    uint64_t Size = M->getDataLayout().getTypeStoreSize(EltTy).getFixedValue();
+    bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
+    IRBuilder<> Builder(BB);
+
+    llvm::Value *Src = transValue(BC->getSource(), F, BB);
+    CallInst *CI =
+        Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
+    if (isFuncNoUnwind())
+      CI->getFunction()->addFnAttr(Attribute::NoUnwind);
+    return mapValue(BV, CI);
+  }
+
   case OpCopyMemorySized: {
     SPIRVCopyMemorySized *BC = static_cast<SPIRVCopyMemorySized *>(BV);
-    CallInst *CI = nullptr;
     llvm::Value *Dst = transValue(BC->getTarget(), F, BB);
     MaybeAlign Align(BC->getAlignment());
     MaybeAlign SrcAlign =
@@ -1828,10 +1846,9 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     bool IsVolatile = BC->SPIRVMemoryAccess::isVolatile();
     IRBuilder<> Builder(BB);
 
-    if (!CI) {
-      llvm::Value *Src = transValue(BC->getSource(), F, BB);
-      CI = Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
-    }
+    llvm::Value *Src = transValue(BC->getSource(), F, BB);
+    CallInst *CI =
+        Builder.CreateMemCpy(Dst, Align, Src, SrcAlign, Size, IsVolatile);
     if (isFuncNoUnwind())
       CI->getFunction()->addFnAttr(Attribute::NoUnwind);
     return mapValue(BV, CI);
@@ -2424,7 +2441,7 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
     auto *BR = static_cast<SPIRVUnary *>(BV);
     auto *Ty = transType(BV->getType());
     Function *intr =
-        Intrinsic::getDeclaration(M, llvm::Intrinsic::bitreverse, Ty);
+        Intrinsic::getOrInsertDeclaration(M, llvm::Intrinsic::bitreverse, Ty);
     auto *Call = CallInst::Create(intr, transValue(BR->getOperand(0), F, BB),
                                   BR->getName(), BB);
     return mapValue(BV, Call);
@@ -2478,11 +2495,44 @@ Value *SPIRVToLLVM::transValueWithoutDecoration(SPIRVValue *BV, Function *F,
         BV, Builder.CreateIntrinsic(Intrinsic::expect, RetTy, {Val, ExpVal}));
   }
 
+  case OpUntypedPrefetchKHR: {
+    // Do the same as transOCLBuiltinFromExtInst() but for OpUntypedPrefetchKHR.
+    auto *BC = static_cast<SPIRVUntypedPrefetchKHR *>(BV);
+
+    std::vector<Type *> ArgTypes =
+        transTypeVector(BC->getValueTypes(BC->getArguments()), true);
+    Type *RetTy = Type::getVoidTy(*Context);
+
+    std::string MangledName =
+        getSPIRVFriendlyIRFunctionName(OpenCLLIB::Prefetch, ArgTypes, RetTy);
+    opaquifyTypedPointers(ArgTypes);
+
+    FunctionType *FT = FunctionType::get(RetTy, ArgTypes, false);
+    Function *F = M->getFunction(MangledName);
+    if (!F) {
+      F = Function::Create(FT, GlobalValue::ExternalLinkage, MangledName, M);
+      F->setCallingConv(CallingConv::SPIR_FUNC);
+      if (isFuncNoUnwind())
+        F->addFnAttr(Attribute::NoUnwind);
+      if (isFuncReadNone(OCLExtOpMap::map(OpenCLLIB::Prefetch)))
+        F->setDoesNotAccessMemory();
+    }
+
+    auto Args = transValue(BC->getValues(BC->getArguments()), F, BB);
+    CallInst *CI = CallInst::Create(F, Args, BC->getName(), BB);
+    setCallingConv(CI);
+    addFnAttr(CI, Attribute::NoUnwind);
+
+    return mapValue(BV, CI);
+  }
   case OpExtInst: {
     auto *ExtInst = static_cast<SPIRVExtInst *>(BV);
     switch (ExtInst->getExtSetKind()) {
-    case SPIRVEIS_OpenCL:
-      return mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
+    case SPIRVEIS_OpenCL: {
+      auto *V = mapValue(BV, transOCLBuiltinFromExtInst(ExtInst, BB));
+      applyFPFastMathModeDecorations(BV, static_cast<Instruction *>(V));
+      return V;
+    }
     case SPIRVEIS_Debug:
     case SPIRVEIS_OpenCL_DebugInfo_100:
     case SPIRVEIS_NonSemantic_Shader_DebugInfo_100:
@@ -3037,7 +3087,8 @@ void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
     auto *BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
-    AttributeMask IllegalAttrs = AttributeFuncs::typeIncompatible(I->getType());
+    AttributeMask IllegalAttrs =
+        AttributeFuncs::typeIncompatible(I->getType(), I->getAttributes());
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       // Skip this function parameter attribute as it will translated among
       // OpenCL metadata
@@ -3135,8 +3186,8 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
     // We can't guarantee that the name is correctly mangled due to opaque
     // pointers. Derive the correct name from the function type.
     FuncName =
-        Intrinsic::getDeclaration(M, Intrinsic::memset,
-                                  {FT->getParamType(0), FT->getParamType(2)})
+        Intrinsic::getOrInsertDeclaration(
+            M, Intrinsic::memset, {FT->getParamType(0), FT->getParamType(2)})
             ->getName();
   }
   if (FuncNameRef.consume_front("spirv.")) {
@@ -3177,7 +3228,8 @@ Function *SPIRVToLLVM::transFunction(SPIRVFunction *BF, unsigned AS) {
     auto BA = BF->getArgument(I->getArgNo());
     mapValue(BA, &(*I));
     setName(&(*I), BA);
-    AttributeMask IllegalAttrs = AttributeFuncs::typeIncompatible(I->getType());
+    AttributeMask IllegalAttrs =
+        AttributeFuncs::typeIncompatible(I->getType(), I->getAttributes());
     BA->foreachAttr([&](SPIRVFuncParamAttrKind Kind) {
       // Skip this function parameter attribute as it will translated among
       // OpenCL metadata
@@ -3368,6 +3420,21 @@ Instruction *SPIRVToLLVM::transBuiltinFromInst(const std::string &FuncName,
   transOCLBuiltinFromInstPreproc(BI, RetTy, Ops);
   std::vector<Type *> ArgTys =
       transTypeVector(SPIRVInstruction::getOperandTypes(Ops), true);
+
+  // Special handling for "truly" untyped pointers to preserve correct
+  // builtin mangling of atomic operations.
+  auto Ptr = findFirstPtrType(ArgTys);
+  if (Ptr < ArgTys.size() &&
+      BI->getValueType(Ops[Ptr]->getId())->isTypeUntypedPointerKHR()) {
+    if (isAtomicOpCodeUntypedPtrSupported(BI->getOpCode())) {
+      auto *AI = static_cast<SPIRVAtomicInstBase *>(BI);
+      ArgTys[Ptr] = TypedPointerType::get(
+          transType(AI->getSemanticType()),
+          SPIRSPIRVAddrSpaceMap::rmap(
+              BI->getValueType(Ops[Ptr]->getId())->getPointerStorageClass()));
+    }
+  }
+
   for (auto &I : ArgTys) {
     if (isa<FunctionType>(I)) {
       I = TypedPointerType::get(I, SPIRAS_Private);
@@ -3437,7 +3504,7 @@ SPIRVToLLVM::SPIRVToLLVM(Module *LLVMModule, SPIRVModule *TheSPIRVModule)
 }
 
 std::string getSPIRVFuncSuffix(SPIRVInstruction *BI) {
-  string Suffix = "";
+  std::string Suffix = "";
   if (BI->getOpCode() == OpCreatePipeFromPipeStorage) {
     auto *CPFPS = static_cast<SPIRVCreatePipeFromPipeStorage *>(BI);
     assert(CPFPS->getType()->isTypePipe() &&
@@ -3493,7 +3560,7 @@ std::string getSPIRVFuncSuffix(SPIRVInstruction *BI) {
     int Dim = EleTy->isTypeArray() ? EleTy->getArrayLength() : 1;
     assert((EleTy->isTypeInt() && Dim == 1) ||
            (EleTy->isTypeArray() && Dim >= 2 && Dim <= 3));
-    ostringstream OS;
+    std::ostringstream OS;
     OS << Dim;
     Suffix += OS.str() + "D";
   }
@@ -3888,7 +3955,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
             IntTy = PtrAnnFirstArg->getType();
           }
 
-          auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+          auto *AnnotationFn = llvm::Intrinsic::getOrInsertDeclaration(
               M, Intrinsic::ptr_annotation, {IntTy, Int8PtrTyPrivate});
 
           llvm::Value *Args[] = {
@@ -3933,7 +4000,7 @@ void SPIRVToLLVM::transIntelFPGADecorations(SPIRVValue *BV, Value *V) {
         Inst = dyn_cast<Instruction>(Inst->getOperand(0));
         isStaticMemoryAttribute = (Inst && isa<AllocaInst>(Inst));
       }
-      auto *AnnotationFn = llvm::Intrinsic::getDeclaration(
+      auto *AnnotationFn = llvm::Intrinsic::getOrInsertDeclaration(
           M,
           isStaticMemoryAttribute ? Intrinsic::var_annotation
                                   : Intrinsic::ptr_annotation,
