@@ -160,28 +160,6 @@ struct SizeListToStr : SizeListToStrHelper<SizeList<Sizes...>, CharList<>> {};
 template <typename PropKey, typename Properties>
 struct ConflictingProperties : std::false_type {};
 
-template <typename Properties, typename T>
-struct NoConflictingPropertiesHelper {};
-
-template <typename Properties, typename... Ts>
-struct NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>>
-    : std::true_type {};
-
-template <typename Properties, typename T, typename... Ts>
-struct NoConflictingPropertiesHelper<Properties, std::tuple<T, Ts...>>
-    : NoConflictingPropertiesHelper<Properties, std::tuple<Ts...>> {};
-
-template <typename Properties, typename... Rest, typename PropT,
-          typename... PropValuesTs>
-struct NoConflictingPropertiesHelper<
-    Properties, std::tuple<property_value<PropT, PropValuesTs...>, Rest...>>
-    : std::conditional_t<
-          ConflictingProperties<PropT, Properties>::value, std::false_type,
-          NoConflictingPropertiesHelper<Properties, std::tuple<Rest...>>> {};
-template <typename PropertiesT>
-struct NoConflictingProperties
-    : NoConflictingPropertiesHelper<PropertiesT, PropertiesT> {};
-
 //******************************************************************************
 // Conditional property meta-info
 //******************************************************************************
