@@ -162,6 +162,7 @@ values for `info::platform::name`, `info::device::name`,
 differentiate different HW and SW installed on the same host as well as SW/HW
 upgrades.
 
+(what-is-bopts)=
 <a name="what-is-bopts">3</a>: Hash for the concatenation of build options (both
 compile and link options) set in application or environment variables. There are
 three sources of build options:
