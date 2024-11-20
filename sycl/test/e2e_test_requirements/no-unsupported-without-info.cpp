@@ -348,7 +348,6 @@
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
-
 // CHECK-NEXT: Printf/char.cpp
 // CHECK-NEXT: Printf/double.cpp
 // CHECK-NEXT: Printf/float.cpp
