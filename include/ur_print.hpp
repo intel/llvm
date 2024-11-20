@@ -987,6 +987,7 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         break;
     case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
         os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
+        break;
     case UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP:
         os << "UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP";
         break;
