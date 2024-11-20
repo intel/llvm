@@ -61,7 +61,8 @@ ur_result_t cl_adapter::checkDeviceExtensions(
       // doesn't report them.
       if (isIntelFPGAEmuDevice(Dev) &&
           (Ext == "cl_intel_device_attribute_query" ||
-           Ext == "cl_intel_required_subgroup_size")) {
+           Ext == "cl_intel_required_subgroup_size" ||
+           Ext == "cl_khr_subgroups")) {
         Supported = true;
         continue;
       }
