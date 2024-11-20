@@ -1048,6 +1048,10 @@ ur_result_t urDeviceGetInfo(
       UpdateCapabilities |=
           UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET;
     }
+    if (supportsFlags(ZE_MUTABLE_COMMAND_EXP_FLAG_KERNEL_INSTRUCTION)) {
+      UpdateCapabilities |=
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    }
     return ReturnValue(UpdateCapabilities);
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
