@@ -40,6 +40,8 @@ inline bool isSYCLNativeCPU(const Module &M) {
   return M.getModuleFlag("is-native-cpu") != nullptr;
 }
 
+constexpr unsigned SyclNativeCpuLocalAS = 3;
+
 } // namespace utils
 } // namespace sycl
 } // namespace llvm
