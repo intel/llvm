@@ -24,7 +24,7 @@ ur_adapter_handle_t_::ur_adapter_handle_t_() {
   auto handle = LoadLibraryA("OpenCL.dll");
 
 #define CL_CORE_FUNCTION(FUNC)                                                 \
-  FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, "FUNC"));
+  FUNC = reinterpret_cast<decltype(::FUNC) *>(GetProcAddress(handle, #FUNC));
 #include "core_functions.def"
 #undef CL_CORE_FUNCTION
 
