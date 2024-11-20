@@ -105,7 +105,10 @@ struct property_value<work_group_size_key, std::integral_constant<size_t, Dim0>,
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
 
+private:
   constexpr size_t size() const { return sizeof...(Dims) + 1; }
+
+  template <typename, typename> friend struct detail::ConflictingProperties;
 };
 
 template <size_t Dim0, size_t... Dims>
@@ -193,7 +196,10 @@ struct property_value<max_work_group_size_key,
     return std::array<size_t, sizeof...(Dims) + 1>{Dim0, Dims...}[Dim];
   }
 
+private:
   constexpr size_t size() const { return sizeof...(Dims) + 1; }
+
+  template <typename, typename> friend struct detail::ConflictingProperties;
 };
 
 template <>
