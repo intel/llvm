@@ -444,7 +444,8 @@ public:
   /// Constructor.
   /// @param SyclQueue Queue to use for the graph device and context.
   /// @param PropList Optional list of properties to pass.
-  command_graph(const queue &SyclQueue, const property_list &PropList = {})
+  explicit command_graph(const queue &SyclQueue,
+                         const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
 private:
