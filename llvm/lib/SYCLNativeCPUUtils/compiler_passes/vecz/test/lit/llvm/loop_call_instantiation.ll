@@ -39,7 +39,7 @@ declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 
 ; CHECK: [[LOOPHEADER1:instloop.header.*]]:
 ; CHECK: %[[INSTANCE1:instance.*]] = phi i32 [ 0, {{.+}} ], [ %[[V7:[0-9]+]], %[[LOOPBODY1:instloop.body.*]] ]
-; CHECK: %[[V3:[0-9]+]] = icmp ult i32 %[[INSTANCE1]], 4
+; CHECK: %[[V3:[0-9]+]] = icmp {{(samesign )?}}ult i32 %[[INSTANCE1]], 4
 ; CHECK: br i1 %[[V3]], label %[[LOOPBODY1]], label {{.+}}
 
 ; CHECK: [[LOOPBODY1]]:
@@ -51,7 +51,7 @@ declare extern_weak spir_func i32 @printf(i8 addrspace(2)*, ...)
 
 ; CHECK: [[LOOPHEADER2:instloop.header.*]]:
 ; CHECK: %[[INSTANCE3:.+]] = phi i32 [ %[[V11:[0-9]+]], %[[LOOPBODY2:instloop.body.*]] ], [ 0, {{.+}} ]
-; CHECK: %[[V8:[0-9]+]] = icmp ult i32 %[[INSTANCE3]], 4
+; CHECK: %[[V8:[0-9]+]] = icmp {{(samesign )?}}ult i32 %[[INSTANCE3]], 4
 ; CHECK: br i1 %[[V8]], label %[[LOOPBODY2]], label {{.+}}
 
 ; CHECK: [[LOOPBODY2]]:
