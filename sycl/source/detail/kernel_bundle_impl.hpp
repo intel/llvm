@@ -494,13 +494,7 @@ public:
           return Result;
         }
         if (Language == syclex::source_language::sycl) {
-          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, IncludePairs,
-                                               BuildOptions, LogPtr,
-                                               RegisteredKernelNames);
-        }
-        if (Language == syclex::source_language::sycl_jit) {
-          const auto &SourceStr = std::get<std::string>(this->Source);
-          return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
+          return syclex::detail::SYCL_JIT_to_SPIRV(*SourceStrPtr, IncludePairs,
                                                    BuildOptions, LogPtr,
                                                    RegisteredKernelNames);
         }
@@ -571,8 +565,7 @@ public:
   std::string adjust_kernel_name(const std::string &Name,
                                  syclex::source_language Lang) {
     // Once name demangling support is in, we won't need this.
-    if (Lang != syclex::source_language::sycl &&
-        Lang != syclex::source_language::sycl_jit)
+    if (Lang != syclex::source_language::sycl)
       return Name;
 
     bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
@@ -595,6 +588,7 @@ public:
                             "kernel_bundle<bundle_state:ext_oneapi_source>.");
 
     std::string AdjustedName = adjust_kernel_name(Name, Language);
+
     if (!ext_oneapi_has_kernel(Name))
       throw sycl::exception(make_error_code(errc::invalid),
                             "kernel '" + AdjustedName +
