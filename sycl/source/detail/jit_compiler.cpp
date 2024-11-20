@@ -1173,17 +1173,20 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
     const std::vector<std::string> &RegisteredKernelNames) {
 
-  // TODO: Handle template instantiation.
-  if (!RegisteredKernelNames.empty()) {
-    throw sycl::exception(
-        sycl::errc::build,
-        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
-        "is not yet supported for the `sycl_jit` source language");
+  // RegisteredKernelNames may contain template specializations, so we just put
+  // them in main() which ensures they are instantiated.
+  std::ostringstream ss;
+  ss << "int main() {\n";
+  for (const std::string &KernelName : RegisteredKernelNames) {
+    ss << "  (void)" << KernelName << ";\n";
   }
+  ss << "  return 0;\n}\n" << std::endl;
+
+  std::string FinalSource = SYCLSource + ss.str();
 
   std::string SYCLFileName = Id + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
-                                          SYCLSource.c_str()};
+                                          FinalSource.c_str()};
 
   std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
   IncludeFilesView.reserve(IncludePairs.size());
