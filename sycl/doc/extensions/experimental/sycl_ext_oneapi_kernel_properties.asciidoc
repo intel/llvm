@@ -181,11 +181,6 @@ inline constexpr sub_group_size_key::value_t<Size> sub_group_size;
 template <sycl::aspect... Aspects>
 inline constexpr device_has_key::value_t<Aspects...> device_has;
 
-template <> struct is_property_key<work_group_size_key> : std::true_type {};
-template <> struct is_property_key<work_group_size_hint_key> : std::true_type {};
-template <> struct is_property_key<sub_group_size_key> : std::true_type {};
-template <> struct is_property_key<device_has_key> : std::true_type {};
-
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -260,9 +255,6 @@ inline constexpr max_work_group_size_key::value_t<Dims...> max_work_group_size;
 
 template <size_t Size>
 inline constexpr max_linear_work_group_size_key::value_t<Size> max_linear_work_group_size;
-
-template <> struct is_property_key<max_work_group_size_key> : std::true_type {};
-template <> struct is_property_key<max_linear_work_group_size_key> : std::true_type {};
 
 } // namespace experimental
 } // namespace oneapi

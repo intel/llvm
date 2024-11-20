@@ -327,10 +327,6 @@ template <forward_progress_guarantee Guarantee,
 inline constexpr work_item_progress_key::value_t<Guarantee, CoordinationScope>
     work_item_progress;
 
-template <> struct is_property_key<work_group_progress_key> : std::true_type {};
-template <> struct is_property_key<sub_group_progress_key> : std::true_type {};
-template <> struct is_property_key<work_item_progress_key> : std::true_type {};
-
 namespace detail {
 
 template <size_t... Dims>

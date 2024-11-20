@@ -39,18 +39,6 @@ template <typename T> void checkIsPropertyOf() {
 }
 
 int main() {
-  // Are all keys usable
-  static_assert(oneapi::is_property_key<intel::resource_key>::value);
-  static_assert(oneapi::is_property_key<intel::num_banks_key>::value);
-  static_assert(oneapi::is_property_key<intel::stride_size_key>::value);
-  static_assert(oneapi::is_property_key<intel::word_size_key>::value);
-  static_assert(
-      oneapi::is_property_key<intel::bi_directional_ports_key>::value);
-  static_assert(oneapi::is_property_key<intel::clock_2x_key>::value);
-  static_assert(oneapi::is_property_key<intel::ram_stitching_key>::value);
-  static_assert(oneapi::is_property_key<intel::max_private_copies_key>::value);
-  static_assert(oneapi::is_property_key<intel::num_replicates_key>::value);
-
   // Are all common values usable
   static_assert(
       oneapi::is_property_value<decltype(intel::resource_mlab)>::value);

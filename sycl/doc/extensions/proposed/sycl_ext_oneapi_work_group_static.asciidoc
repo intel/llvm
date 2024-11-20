@@ -225,8 +225,6 @@ struct work_group_static_size {
 
 using work_group_static_size_key = work_group_static_size;
 
-template <>struct is_property_key<work_group_static_size_key> : std::true_type {};
-
 } // namespace sycl::ext::oneapi::experimental
 ----
 

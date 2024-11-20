@@ -133,40 +133,6 @@ using rt_prop31_key = rt_prop31;
 using rt_prop32_key = rt_prop32;
 using rt_prop33_key = rt_prop33;
 
-template <> struct is_property_key<rt_prop1_key> : std::true_type {};
-template <> struct is_property_key<rt_prop2_key> : std::true_type {};
-template <> struct is_property_key<rt_prop3_key> : std::true_type {};
-template <> struct is_property_key<rt_prop4_key> : std::true_type {};
-template <> struct is_property_key<rt_prop5_key> : std::true_type {};
-template <> struct is_property_key<rt_prop6_key> : std::true_type {};
-template <> struct is_property_key<rt_prop7_key> : std::true_type {};
-template <> struct is_property_key<rt_prop8_key> : std::true_type {};
-template <> struct is_property_key<rt_prop9_key> : std::true_type {};
-template <> struct is_property_key<rt_prop10_key> : std::true_type {};
-template <> struct is_property_key<rt_prop11_key> : std::true_type {};
-template <> struct is_property_key<rt_prop12_key> : std::true_type {};
-template <> struct is_property_key<rt_prop13_key> : std::true_type {};
-template <> struct is_property_key<rt_prop14_key> : std::true_type {};
-template <> struct is_property_key<rt_prop15_key> : std::true_type {};
-template <> struct is_property_key<rt_prop16_key> : std::true_type {};
-template <> struct is_property_key<rt_prop17_key> : std::true_type {};
-template <> struct is_property_key<rt_prop18_key> : std::true_type {};
-template <> struct is_property_key<rt_prop19_key> : std::true_type {};
-template <> struct is_property_key<rt_prop20_key> : std::true_type {};
-template <> struct is_property_key<rt_prop21_key> : std::true_type {};
-template <> struct is_property_key<rt_prop22_key> : std::true_type {};
-template <> struct is_property_key<rt_prop23_key> : std::true_type {};
-template <> struct is_property_key<rt_prop24_key> : std::true_type {};
-template <> struct is_property_key<rt_prop25_key> : std::true_type {};
-template <> struct is_property_key<rt_prop26_key> : std::true_type {};
-template <> struct is_property_key<rt_prop27_key> : std::true_type {};
-template <> struct is_property_key<rt_prop28_key> : std::true_type {};
-template <> struct is_property_key<rt_prop29_key> : std::true_type {};
-template <> struct is_property_key<rt_prop30_key> : std::true_type {};
-template <> struct is_property_key<rt_prop31_key> : std::true_type {};
-template <> struct is_property_key<rt_prop32_key> : std::true_type {};
-template <> struct is_property_key<rt_prop33_key> : std::true_type {};
-
 template <typename objectT>
 struct is_property_key_of<foo_key, objectT> : std::true_type {};
 template <typename objectT>
