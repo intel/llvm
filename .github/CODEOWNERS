@@ -165,6 +165,7 @@ sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/NewOffloadDriver/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/LLVMIntrinsicLowering/ @intel/dpcpp-spirv-reviewers
 
 # Sanitizer
 clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review

@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
+# commit 1675f053176f0860388aa67fd009750a7e03b2c2
+# Merge: 0ea47d7c 22ca5ee2
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Tue Nov 19 14:41:15 2024 +0000
+#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
+#     Fix the CL_CORE_FUNCTION macro on windows.
+set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)

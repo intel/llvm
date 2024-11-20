@@ -6,8 +6,15 @@
 ; RUN: llvm-spirv -r %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -spirv-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s --check-prefix=CHECK-LLVM
+
 ; CHECK-SPIRV: Decorate [[#Var:]] LinkageAttributes "v" Export
-; CHECK-SPIRV: Variable [[#]] [[#Var]] [[#]] {{$}}
+; CHECK-SPIRV: {{(Variable|UntypedVariableKHR)}} [[#]] [[#Var]] [[#]]
 ; CHECK-SPIRV-NOT: OpUndef
 
 ; CHECK-LLVM: @v = common addrspace(1) global i32 0, align 4
