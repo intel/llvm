@@ -39,11 +39,12 @@ class VelocityBench(Suite):
         ]
 
 class VelocityBase(Benchmark):
-    def __init__(self, name: str, bin_name: str, vb: VelocityBench):
+    def __init__(self, name: str, bin_name: str, vb: VelocityBench, unit: str):
         super().__init__(vb.directory)
         self.vb = vb
         self.bench_name = name
         self.bin_name = bin_name
+        self.unit = unit
         self.code_path = os.path.join(self.vb.repo_path, self.bench_name, 'SYCL')
 
     def download_deps(self):
@@ -83,20 +84,17 @@ class VelocityBase(Benchmark):
 
         result = self.run_bench(command, env_vars)
 
-        return [ Result(label=self.name(), value=self.parse_output(result), command=command, env=env_vars, stdout=result) ]
+        return [ Result(label=self.name(), value=self.parse_output(result), command=command, env=env_vars, stdout=result, unit=self.unit) ]
 
     def teardown(self):
         return
 
 class Hashtable(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("hashtable", "hashtable_sycl", vb)
+        super().__init__("hashtable", "hashtable_sycl", vb, "M keys/sec")
 
     def name(self):
         return "Velocity-Bench Hashtable"
-
-    def unit(self):
-        return "M keys/sec"
 
     def bin_args(self) -> list[str]:
         return ["--no-verify"]
@@ -114,14 +112,11 @@ class Hashtable(VelocityBase):
 
 class Bitcracker(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("bitcracker", "bitcracker", vb)
+        super().__init__("bitcracker", "bitcracker", vb, "s")
         self.data_path = os.path.join(vb.repo_path, "bitcracker", "hash_pass")
 
     def name(self):
         return "Velocity-Bench Bitcracker"
-
-    def unit(self):
-        return "s"
 
     def bin_args(self) -> list[str]:
         return ["-f", f"{self.data_path}/img_win8_user_hash.txt",
@@ -137,7 +132,7 @@ class Bitcracker(VelocityBase):
 
 class SobelFilter(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("sobel_filter", "sobel_filter", vb)
+        super().__init__("sobel_filter", "sobel_filter", vb, "ms")
 
     def download_deps(self):
         self.download("sobel_filter", "https://github.com/oneapi-src/Velocity-Bench/raw/main/sobel_filter/res/sobel_filter_data.tgz?download=", "sobel_filter_data.tgz", untar=True)
@@ -145,9 +140,6 @@ class SobelFilter(VelocityBase):
 
     def name(self):
         return "Velocity-Bench Sobel Filter"
-
-    def unit(self):
-        return "ms"
 
     def bin_args(self) -> list[str]:
         return ["-i", f"{self.data_path}/sobel_filter_data/silverfalls_32Kx32K.png",
@@ -166,7 +158,7 @@ class SobelFilter(VelocityBase):
 
 class QuickSilver(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("QuickSilver", "qs", vb)
+        super().__init__("QuickSilver", "qs", vb, "MMS/CTT")
         self.data_path = os.path.join(vb.repo_path, "QuickSilver", "Examples", "AllScattering")
 
     def run(self, env_vars) -> list[Result]:
@@ -178,9 +170,6 @@ class QuickSilver(VelocityBase):
 
     def name(self):
         return "Velocity-Bench QuickSilver"
-
-    def unit(self):
-        return "MMS/CTT"
 
     def lower_is_better(self):
         return False
@@ -200,16 +189,13 @@ class QuickSilver(VelocityBase):
 
 class Easywave(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("easywave", "easyWave_sycl", vb)
+        super().__init__("easywave", "easyWave_sycl", vb, "ms")
 
     def download_deps(self):
         self.download("easywave", "https://git.gfz-potsdam.de/id2/geoperil/easyWave/-/raw/master/data/examples.tar.gz", "examples.tar.gz", untar=True)
 
     def name(self):
         return "Velocity-Bench Easywave"
-
-    def unit(self):
-        return "ms"
 
     def bin_args(self) -> list[str]:
         return ["-grid", f"{self.data_path}/examples/e2Asean.grd",
@@ -245,7 +231,7 @@ class Easywave(VelocityBase):
 
 class CudaSift(VelocityBase):
     def __init__(self, vb: VelocityBench):
-        super().__init__("cudaSift", "cudaSift", vb)
+        super().__init__("cudaSift", "cudaSift", vb, "ms")
 
     def download_deps(self):
         images = os.path.join(self.vb.repo_path, self.bench_name, 'inputData')
@@ -255,9 +241,6 @@ class CudaSift(VelocityBase):
 
     def name(self):
         return "Velocity-Bench CudaSift"
-
-    def unit(self):
-        return "ms"
 
     def parse_output(self, stdout: str) -> float:
         match = re.search(r'Avg workload time = (\d+\.\d+) ms', stdout)

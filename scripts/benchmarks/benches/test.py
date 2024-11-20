@@ -49,9 +49,6 @@ class TestBench(Benchmark):
     def name(self):
         return self.bname
 
-    def unit(self):
-        return "ms"
-
     def lower_is_better(self):
         return True
 
@@ -61,7 +58,7 @@ class TestBench(Benchmark):
     def run(self, env_vars) -> list[Result]:
         random_value = self.value + random.uniform(-1 * (self.diff), self.diff)
         return [
-            Result(label=self.name(), value=random_value, command="", env={"A": "B"}, stdout="no output")
+            Result(label=self.name(), value=random_value, command="", env={"A": "B"}, stdout="no output", unit="ms")
         ]
 
     def teardown(self):
