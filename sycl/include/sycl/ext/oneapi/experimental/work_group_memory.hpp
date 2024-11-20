@@ -1,5 +1,4 @@
 //===-------------------- work_group_memory.hpp ---------------------------===//
-//
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
@@ -103,6 +102,9 @@ public:
   }
 
 private:
+  friend class sycl::handler; // needed in order for handler class to be aware
+                              // of the private inheritance with
+                              // work_group_memory_impl as base class
   decoratedPtr ptr = nullptr;
 };
 } // namespace ext::oneapi::experimental

@@ -1,7 +1,8 @@
-# commit 7d5a8de7cfbc894d8107c6b8d4d98c70fbcd9449
-# Merge: 27b45d50 e6e300a3
-# Author: Li, Ian <ian.li@intel.com>
-# Date:   Wed Nov 13 13:26:08 2024 -0800
-# 
-#     Merge branch 'main' of https://github.com/oneapi-src/unified-runtime into ianayl/2way-prefetch
-set(UNIFIED_RUNTIME_TAG fb02dacf979036236cd047f115ef4e0058b09db6)
+# commit 9937d029c7fdcbf101e89f8515f640c145e059c5
+# Merge: 9ac6d5d9 10b0e101
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 20 14:49:17 2024 +0000
+#     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
+#     Use extension version of clGetKernelSubGroupInfo when necessary.
+set(UNIFIED_RUNTIME_TAG 8cd3d7c13e0065e5c03fd4018e1433a947a1e56d)
+
