@@ -20,6 +20,7 @@ from templates import helper as th
  */
 
 #include "queue_api.hpp"
+#include "ur_util.hpp"
 
 ur_queue_handle_t_::~ur_queue_handle_t_() {}
 
@@ -32,8 +33,10 @@ ${th.make_func_name(n, tags, obj)}(
     ${line}
     %endfor
     )
-{
+try {
     return ${obj['params'][0]['name']}->${th.transform_queue_related_function_name(n, tags, obj, format=["name"])};
+} catch(...) {
+    return exceptionToResult(std::current_exception());
 }
 %endfor
 }
