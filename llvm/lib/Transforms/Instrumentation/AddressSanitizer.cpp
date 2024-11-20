@@ -64,7 +64,6 @@
 #include "llvm/IR/Use.h"
 #include "llvm/IR/Value.h"
 #include "llvm/MC/MCSectionMachO.h"
-#include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -1566,7 +1565,11 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   // Non image scope device globals are implemented by device USM, and the
   // out-of-bounds check for them will be done by sanitizer USM part. So we
   // exclude them here.
-  return (!isDeviceGlobalVariable(*G) || !hasDeviceImageScopeProperty(*G));
+  if (!G->hasAttribute("sycl-device-image-scope"))
+    return true;
+
+  Attribute Attr = G->getAttribute("sycl-device-image-scope");
+  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
 
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
