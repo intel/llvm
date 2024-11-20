@@ -5537,6 +5537,120 @@ static void handlePatchableFunctionEntryAttr(Sema &S, Decl *D,
                  PatchableFunctionEntryAttr(S.Context, AL, Count, Offset));
 }
 
+extern void ConstructFreeFunctionKernel(SemaSYCL &SemaSYCLRef, FunctionDecl *FD);
+
+static void handleSYCLRegisteredKernels(Sema &S, Decl *D, const ParsedAttr &A) {
+  unsigned NumArgs = A.getNumArgs();
+  if (NumArgs == 0) {
+    S.Diag(A.getLoc(), diag::err_registered_kernels_num_of_args);
+    return;
+  }
+
+  for (unsigned I = 0; I < NumArgs; I++) {
+    assert(A.isArgExpr(I) && "Expected expression argument");
+    Expr *ArgExpr = A.getArgAsExpr(I);
+    if (!isa<InitListExpr>(ArgExpr)) {
+      S.Diag(ArgExpr->getExprLoc(), diag::err_registered_kernels_init_list);
+      return;
+    }
+   
+    const auto *ArgListE = cast<InitListExpr>(ArgExpr);
+    unsigned NumInits = ArgListE->getNumInits();
+    if (NumInits != 2) {
+      S.Diag(ArgExpr->getExprLoc(),
+             diag::err_registered_kernels_init_list_pair_values);
+      return;
+    }
+
+    const Expr *FirstE = ArgListE->getInit(0);
+    QualType Ty = FirstE->getType();
+    StringRef CurStr;
+    SourceLocation Loc = FirstE->getExprLoc();
+    if (!S.checkStringLiteralArgumentAttr(A, FirstE, CurStr, &Loc))
+      return;
+    else
+      printf("Found %s\n", CurStr.str().c_str());
+
+    auto *SecondE = const_cast<Expr *>(ArgListE->getInit(1));
+printf("Dumping\n");
+SecondE->dump();
+    if (auto *ULE = dyn_cast<UnresolvedLookupExpr>(SecondE)) {
+      FunctionDecl *FD = S.ResolveSingleFunctionTemplateSpecialization(
+                             ULE, true);
+      if (FD) {
+      if (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate) 
+printf("Case 1 TKNT\n");
+      if (FD->getTemplatedKind() == FunctionDecl::TK_FunctionTemplateSpecialization)
+printf("Case 2 FTS\n");
+     } else {
+        printf("Null FD\n");
+        ULE->dump();
+     }
+     S.InstantiateFunctionDefinition(A.getLoc(), FD);
+   } else {
+     FunctionDecl *FD = nullptr;
+     DeclRefExpr *DRE = nullptr;
+   if (isa<CastExpr>(SecondE)) {
+//      SecondE->dump();
+     Expr *E = cast<CastExpr>(SecondE)->getSubExprAsWritten();
+     if (E->getType()->isFunctionType()) {
+       printf("FT\n");
+       DRE = dyn_cast<DeclRefExpr>(E);
+     }
+   } else {
+      DRE = dyn_cast<DeclRefExpr>(SecondE);
+   }
+   if (DRE && isa<FunctionDecl>(DRE->getDecl())) {
+     printf("FD\n");
+     FD = cast<FunctionDecl>(DRE->getDecl());
+   }
+   if (FD) {
+     FD->dump();
+     //ConstructFreeFunctionKernel(S.SYCL(), FD);
+     
+     if (FD->getTemplatedKind() == FunctionDecl::TK_NonTemplate) 
+       printf("Case TKNT\n");
+   } else {
+     SecondE->dump();
+     printf("failed\n");
+   }
+   }
+      
+#if 0
+    for (Expr *FilterElemE : cast<InitListExpr>(ArgExpr)->inits()) {
+      printf("Processing elem %u\n", I);
+      auto *ULE = dyn_cast<UnresolvedLookupExpr>(FilterElemE);
+      if (ULE) {
+        FunctionDecl *FD = S.ResolveSingleFunctionTemplateSpecialization(ULE, true);
+        S.InstantiateFunctionDefinition(A.getLoc(), FD);
+//        FD->dump();
+      } else if (isa<CastExpr>(FilterElemE)) {
+        Expr *E = dyn_cast<CastExpr>(FilterElemE)->getSubExprAsWritten();
+        //FilterElemE->dump();
+        FunctionDecl *FD = nullptr;
+        DeclRefExpr *DRE = nullptr;
+        if (E->getType()->isFunctionType()) {
+          printf("FT\n");
+          DRE = dyn_cast<DeclRefExpr>(E);
+        }
+        if (DRE && isa<FunctionDecl>(DRE->getDecl())) {
+          printf("FD\n");
+          FD = dyn_cast<FunctionDecl>(DRE->getDecl());
+        }
+        if (FD)
+          FD->dump();
+        else {
+          FilterElemE->dump();
+          printf("failed\n");
+        }
+      }
+ 
+//      FilterElemE->dump();
+    }
+#endif
+  }
+}
+
 static bool SYCLAliasValid(ASTContext &Context, unsigned BuiltinID) {
   constexpr llvm::StringLiteral Prefix = "__builtin_intel_sycl";
   return Context.BuiltinInfo.getName(BuiltinID).starts_with(Prefix);
@@ -7423,6 +7537,9 @@ ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D, const ParsedAttr &AL,
     break;
   case ParsedAttr::AT_SYCLAddIRAnnotationsMember:
     S.SYCL().handleSYCLAddIRAnnotationsMemberAttr(D, AL);
+    break;
+  case ParsedAttr::AT_SYCLRegisteredKernels:
+    handleSYCLRegisteredKernels(S, D, AL);
     break;
 
   // Swift attributes.

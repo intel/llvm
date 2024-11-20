@@ -12514,6 +12514,14 @@ def err_sycl_special_type_num_init_method : Error<
 def warn_launch_bounds_is_cuda_specific : Warning<
   "%0 attribute ignored, only applicable when targeting Nvidia devices">,
   InGroup<IgnoredAttributes>;
+def err_registered_kernels_num_of_args : Error<
+  "'__registered_kernels__' atribute must have at least one argument">;
+def err_registered_kernels_init_list : Error<
+  "argument to the '__registered_kernels__' atribute must be an "
+  "initializer list expression">;
+def err_registered_kernels_init_list_pair_values : Error<
+  "each initializer list argument to the '__registered_kernels__' atribute "
+  "must contain a pair of values">;
 
 def warn_cuda_maxclusterrank_sm_90 : Warning<
   "'maxclusterrank' requires sm_90 or higher, CUDA arch provided: %0, ignoring "

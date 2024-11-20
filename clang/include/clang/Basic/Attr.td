@@ -2141,6 +2141,15 @@ def SYCLAddIRAnnotationsMember : InheritableAttr {
   let Documentation = [SYCLAddIRAnnotationsMemberDocs];
 }
 
+def SYCLRegisteredKernels : InheritableAttr {
+  let Spellings = [CXX11<"__sycl_detail__", "__registered_kernels__">];
+  let Args = [VariadicExprArgument<"Args">];
+  let LangOpts = [SYCLIsDevice, SilentlyIgnoreSYCLIsHost];
+  let Subjects = SubjectList<[Empty], ErrorDiag, "Translation Unit Scope">;
+  let AdditionalMembers = SYCLAddIRAttrCommonMembers.MemberCode;
+  let Documentation = [SYCLAddIRAnnotationsMemberDocs];
+}
+
 def C11NoReturn : InheritableAttr {
   let Spellings = [CustomKeyword<"_Noreturn">];
   let Subjects = SubjectList<[Function], ErrorDiag>;
