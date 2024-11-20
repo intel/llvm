@@ -10674,12 +10674,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
-  const bool IsWindowsMSVC =
-      Triple.isWindowsMSVCEnvironment() ||
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  const bool EnableNonSemanticDebug =
-      IsCPU || (!IsWindowsMSVC && !C.getDriver().IsFPGAHWMode());
+  // Enable NonSemanticShaderDebugInfo.200 for non-FPGA targets.
+  const bool EnableNonSemanticDebug = !C.getDriver().IsFPGAHWMode();
   if (EnableNonSemanticDebug) {
     TranslatorArgs.push_back(
         "-spirv-debug-info-version=nonsemantic-shader-200");
