@@ -2,8 +2,8 @@
 // RUN: %{run} %t.out
 
 // Disabled on PVC without igc-dev due to timeout.
-// https://github.com/intel/llvm/issues/14826
 // UNSUPPORTED: arch-intel_gpu_pvc && !igc-dev
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14826
 
 #include "support.h"
 
