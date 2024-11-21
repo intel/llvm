@@ -8,6 +8,10 @@
  *
  */
 #include <dlfcn.h>
+#if __has_include(<link.h>)
+#include <link.h>
+#define ADD_FULL_PATH_LOG
+#endif
 
 #include "logger/ur_logger.hpp"
 #include "ur_lib_loader.hpp"
@@ -50,7 +54,14 @@ LibLoader::loadAdapterLibrary(const char *name) {
         logger::info("failed to load adapter '{}' with error: {}", name,
                      err ? err : "unknown error");
     } else {
-        logger::info("loaded adapter 0x{} ({})", handle, name);
+#if defined(ADD_FULL_PATH_LOG)
+        struct link_map *dlinfo_map;
+        if (dlinfo(handle, RTLD_DI_LINKMAP, &dlinfo_map) == 0) {
+            logger::info("loaded adapter 0x{} ({}) from {}", handle, name,
+                         dlinfo_map->l_name);
+        } else
+#endif
+            logger::info("loaded adapter 0x{} ({})", handle, name);
     }
     return std::unique_ptr<HMODULE, LibLoader::lib_dtor>(handle);
 }
