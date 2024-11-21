@@ -904,8 +904,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   case UR_DEVICE_INFO_BFLOAT16:
   case UR_DEVICE_INFO_IL_VERSION:
   case UR_DEVICE_INFO_ASYNC_BARRIER:
-  case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
     return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
+  case UR_DEVICE_INFO_2D_BLOCK_ARRAY_CAPABILITIES_EXP:
+    return ReturnValue(
+        static_cast<ur_exp_device_2d_block_array_capability_flags_t>(0));
   case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     int DriverVersion = 0;
     UR_CHECK_ERROR(hipDriverGetVersion(&DriverVersion));
