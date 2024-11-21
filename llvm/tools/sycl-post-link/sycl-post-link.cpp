@@ -41,7 +41,6 @@
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
@@ -794,8 +793,6 @@ processInputModule(std::unique_ptr<Module> M) {
 
   // AddressSanitizer specific passes
   if (isModuleUsingAsan(*M)) {
-    // Instrument each image scope device globals
-    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
     // Fix attributes and metadata of the global variable
     // "__AsanKernelMetadata"
     Modified |= runModulePass<AsanKernelMetadataPass>(*M);

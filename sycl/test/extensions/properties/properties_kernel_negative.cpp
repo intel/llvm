@@ -83,7 +83,6 @@ void check_work_group_size() {
   sycl::queue Q;
 
   // expected-error-re@sycl/ext/oneapi/properties/property_utils.hpp:* {{static assertion failed due to requirement {{.+}}: Failed to merge property lists due to conflicting properties.}}
-  // expected-error-re@sycl/handler.hpp:* {{static assertion failed due to requirement {{.+}}: Template type is not a property list.}}
   // expected-note-re@+1 {{in instantiation of function template specialization {{.+}}}}
   Q.single_task(
       sycl::ext::oneapi::experimental::properties{

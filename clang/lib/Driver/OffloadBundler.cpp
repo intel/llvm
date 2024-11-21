@@ -690,8 +690,9 @@ class ObjectFileHandler final : public FileHandler {
         // If we are dealing with a bitcode file do not add special globals to
         // the list of defined symbols.
         if (SF->isIR() &&
-            (Name == "llvm.used" || Name == "llvm.compiler.used" ||
-             Name == "__AsanKernelMetadata"))
+                (Name == "llvm.used" || Name == "llvm.compiler.used" ||
+                 Name == "__AsanDeviceGlobalMetadata") ||
+            Name == "__AsanKernelMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
