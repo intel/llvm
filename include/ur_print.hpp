@@ -15107,16 +15107,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
