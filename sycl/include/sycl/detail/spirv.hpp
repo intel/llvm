@@ -26,7 +26,7 @@ namespace oneapi {
 struct sub_group;
 namespace experimental {
 template <typename ParentGroup> class ballot_group;
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
 template <int Dimensions> class root_group;
 template <typename ParentGroup> class tangle_group;
 class opportunistic_group;
@@ -78,9 +78,9 @@ struct is_ballot_group<
 
 template <typename Group> struct is_fixed_size_group : std::false_type {};
 
-template <size_t PartitionSize, typename ParentGroup>
-struct is_fixed_size_group<sycl::ext::oneapi::experimental::fixed_size_group<
-    PartitionSize, ParentGroup>> : std::true_type {};
+template <size_t ChunkSize, typename ParentGroup>
+struct is_chunk<sycl::ext::oneapi::experimental::chunk<
+    ChunkSize, ParentGroup>> : std::true_type {};
 
 template <typename Group> struct group_scope {};
 
@@ -105,9 +105,9 @@ struct group_scope<sycl::ext::oneapi::experimental::ballot_group<ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
-template <size_t PartitionSize, typename ParentGroup>
-struct group_scope<sycl::ext::oneapi::experimental::fixed_size_group<
-    PartitionSize, ParentGroup>> {
+template <size_t ChunkSize, typename ParentGroup>
+struct group_scope<sycl::ext::oneapi::experimental::chunk<
+    ChunkSize, ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
@@ -174,15 +174,15 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
   }
 }
-template <size_t PartitionSize, typename ParentGroup>
+template <size_t ChunkSize, typename ParentGroup>
 bool GroupAll(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
-      static_cast<uint32_t>(pred), PartitionSize);
+      static_cast<uint32_t>(pred), ChunkSize);
 }
 template <typename ParentGroup>
 bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
@@ -210,15 +210,15 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
     return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
   }
 }
-template <size_t PartitionSize, typename ParentGroup>
+template <size_t ChunkSize, typename ParentGroup>
 bool GroupAny(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>,
+    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
     bool pred) {
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseOr(
       group_scope<ParentGroup>::value,
       static_cast<uint32_t>(__spv::GroupOperation::ClusteredReduce),
-      static_cast<uint32_t>(pred), PartitionSize);
+      static_cast<uint32_t>(pred), ChunkSize);
 }
 template <typename ParentGroup>
 bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
@@ -327,12 +327,12 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
                                             WideOCLX, OCLId);
   }
 }
-template <size_t PartitionSize, typename ParentGroup, typename T, typename IdT>
+template <size_t ChunkSize, typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup> g,
+    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g,
     T x, IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup
-  auto LocalId = g.get_group_linear_id() * PartitionSize + local_id;
+  auto LocalId = g.get_group_linear_id() * ChunkSize + local_id;
 
   // TODO: Refactor to avoid duplication after design settles.
   auto GroupLocalId = static_cast<typename GroupId<ParentGroup>::type>(LocalId);
@@ -341,9 +341,9 @@ EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
   auto OCLId = detail::convertToOpenCLType(GroupLocalId);
 
   // NonUniformBroadcast requires Id to be dynamically uniform, which does not
-  // hold here; each partition is broadcasting a separate index. We could
+  // hold here; each chunk is broadcasting a separate index. We could
   // fallback to either NonUniformShuffle or a NonUniformBroadcast per
-  // partition, and it's unclear which will be faster in practice.
+  // chunk, and it's unclear which will be faster in practice.
   return __spirv_GroupNonUniformShuffle(group_scope<ParentGroup>::value,
                                         WideOCLX, OCLId);
 }
@@ -1298,12 +1298,10 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     }                                                                          \
   }                                                                            \
                                                                                \
-  template <__spv::GroupOperation Op, size_t PartitionSize,                    \
+  template <__spv::GroupOperation Op, size_t ChunkSize,                        \
             typename ParentGroup, typename T>                                  \
   inline T Group##Instruction(                                                 \
-      ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>  \
-          g,                                                                   \
-      T x) {                                                                   \
+      ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x)         \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \
@@ -1321,7 +1319,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
       constexpr auto OpInt =                                                   \
           static_cast<unsigned int>(__spv::GroupOperation::ClusteredReduce);   \
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg,           \
-                                                  PartitionSize);              \
+                                                  ChunkSize);              \
     } else {                                                                   \
       T tmp;                                                                   \
       for (size_t Cluster = 0; Cluster < g.get_group_linear_range();           \

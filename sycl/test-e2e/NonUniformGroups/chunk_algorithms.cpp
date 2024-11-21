@@ -15,9 +15,14 @@
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
-template <size_t PartitionSize> class TestKernel;
 
-template <size_t PartitionSize> void test() {
+
+
+
+
+template <size_t ChunkSize> class TestKernel;
+
+template <size_t ChunkSize> void test() {
   sycl::queue Q;
 
   constexpr uint32_t SGSize = 32;
@@ -57,25 +62,25 @@ template <size_t PartitionSize> void test() {
           auto SG = item.get_sub_group();
 
           // Split into partitions of fixed size
-          auto Partition = syclex::get_fixed_size_group<PartitionSize>(SG);
+          auto Partition = syclex::chunked_partition<ChunkSize>(SG);
 
           // Check all other members' writes are visible after a barrier.
           TmpAcc[WI] = 1;
           sycl::group_barrier(Partition);
           size_t Visible = 0;
           for (size_t Other = 0; Other < SGSize; ++Other) {
-            if ((WI / PartitionSize) == (Other / PartitionSize)) {
+            if ((WI / ChunkSize) == (Other / ChunkSize)) {
               Visible += TmpAcc[Other];
             }
           }
-          BarrierAcc[WI] = (Visible == PartitionSize);
+          BarrierAcc[WI] = (Visible == ChunkSize);
 
           // Simple check of group algorithms.
           uint32_t OriginalLID = SG.get_local_linear_id();
           uint32_t LID = Partition.get_local_linear_id();
 
           uint32_t PartitionLeader =
-              (OriginalLID / PartitionSize) * PartitionSize;
+              (OriginalLID / ChunkSize) * ChunkSize;
           uint32_t BroadcastResult =
               sycl::group_broadcast(Partition, OriginalLID, 0);
           BroadcastAcc[WI] = (BroadcastResult == PartitionLeader);
@@ -83,7 +88,7 @@ template <size_t PartitionSize> void test() {
           bool AnyResult = sycl::any_of_group(Partition, (LID == 0));
           AnyAcc[WI] = (AnyResult == true);
 
-          bool Predicate = ((OriginalLID / PartitionSize) % 2 == 0);
+          bool Predicate = ((OriginalLID / ChunkSize) % 2 == 0);
           bool AllResult = sycl::all_of_group(Partition, Predicate);
           if (Predicate) {
             AllAcc[WI] = (AllResult == true);
@@ -100,7 +105,7 @@ template <size_t PartitionSize> void test() {
 
           uint32_t ReduceResult =
               sycl::reduce_over_group(Partition, 1, sycl::plus<>());
-          ReduceAcc[WI] = (ReduceResult == PartitionSize);
+          ReduceAcc[WI] = (ReduceResult == ChunkSize);
 
           uint32_t ExScanResult =
               sycl::exclusive_scan_over_group(Partition, 1, sycl::plus<>());
@@ -112,7 +117,7 @@ template <size_t PartitionSize> void test() {
 
           uint32_t ShiftLeftResult = sycl::shift_group_left(Partition, LID, 2);
           ShiftLeftAcc[WI] =
-              (LID + 2 >= PartitionSize || ShiftLeftResult == LID + 2);
+              (LID + 2 >= ChunkSize || ShiftLeftResult == LID + 2);
 
           uint32_t ShiftRightResult =
               sycl::shift_group_right(Partition, LID, 2);
@@ -120,16 +125,16 @@ template <size_t PartitionSize> void test() {
 
           uint32_t SelectResult = sycl::select_from_group(
               Partition, OriginalLID,
-              (Partition.get_local_id() + 2) % PartitionSize);
+              (Partition.get_local_id() + 2) % ChunkSize);
           SelectAcc[WI] =
-              SelectResult == OriginalLID - LID + ((LID + 2) % PartitionSize);
+              SelectResult == OriginalLID - LID + ((LID + 2) % ChunkSize);
 
-          uint32_t Mask = PartitionSize <= 2 ? 0 : 2;
+          uint32_t Mask = ChunkSize <= 2 ? 0 : 2;
           uint32_t PermuteXorResult =
               sycl::permute_group_by_xor(Partition, LID, Mask);
           PermuteXorAcc[WI] = (PermuteXorResult == (LID ^ Mask));
         };
-    CGH.parallel_for<TestKernel<PartitionSize>>(NDR, KernelFunc);
+    CGH.parallel_for<TestKernel<ChunkSize>>(NDR, KernelFunc);
   });
 
   sycl::host_accessor BarrierAcc{BarrierBuf, sycl::read_only};

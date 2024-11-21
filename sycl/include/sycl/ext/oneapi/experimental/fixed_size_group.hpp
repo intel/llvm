@@ -26,18 +26,18 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group;
+template <size_t ChunkSize, typename ParentGroup> class chunk;
 
-template <size_t PartitionSize, typename Group>
+template <size_t ChunkSize, typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
 [[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_fixed_size_group)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        fixed_size_group<PartitionSize, Group>>
-get_fixed_size_group(Group group);
+                        chunk<ChunkSize, Group>>
+chunked_partition(Group group);
 
-template <size_t PartitionSize, typename ParentGroup> class fixed_size_group {
+template <size_t ChunkSize, typename ParentGroup> class chunk {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
@@ -47,7 +47,7 @@ public:
 
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() / PartitionSize;
+    return __spirv_SubgroupLocalInvocationId() / ChunkSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -56,7 +56,7 @@ public:
 
   id_type get_local_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupLocalInvocationId() % PartitionSize;
+    return __spirv_SubgroupLocalInvocationId() % ChunkSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -65,7 +65,7 @@ public:
 
   range_type get_group_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return __spirv_SubgroupSize() / PartitionSize;
+    return __spirv_SubgroupSize() / ChunkSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -74,7 +74,7 @@ public:
 
   range_type get_local_range() const {
 #ifdef __SYCL_DEVICE_ONLY__
-    return PartitionSize;
+    return ChunkSize;
 #else
     throw exception(make_error_code(errc::runtime),
                     "Non-uniform groups are not supported on host.");
@@ -137,34 +137,34 @@ protected:
   fixed_size_group() {}
 #endif
 
-  friend fixed_size_group<PartitionSize, ParentGroup>
-  get_fixed_size_group<PartitionSize, ParentGroup>(ParentGroup g);
+  friend chunk<ChunkSize, ParentGroup>
+  chunked_partition<ChunkSize, ParentGroup>(ParentGroup g);
 
   friend sub_group_mask
-  sycl::detail::GetMask<fixed_size_group<PartitionSize, ParentGroup>>(
-      fixed_size_group<PartitionSize, ParentGroup> Group);
+  sycl::detail::GetMask<chunk<ChunkSize, ParentGroup>>(
+      chunk<ChunkSize, ParentGroup> Group);
 };
 
-template <size_t PartitionSize, typename Group>
+template <size_t ChunkSize, typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        fixed_size_group<PartitionSize, Group>>
-get_fixed_size_group(Group group) {
+                        chunk<ChunkSize, Group>>
+chunked_partition(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__NVPTX__)
   uint32_t loc_id = group.get_local_linear_id();
   uint32_t loc_size = group.get_local_linear_range();
-  uint32_t bits = PartitionSize == 32
+  uint32_t bits = ChunkSize == 32
                       ? 0xffffffff
-                      : ((1 << PartitionSize) - 1)
-                            << ((loc_id / PartitionSize) * PartitionSize);
+                      : ((1 << ChunkSize) - 1)
+                            << ((loc_id / ChunkSize) * ChunkSize);
 
-  return fixed_size_group<PartitionSize, sycl::sub_group>(
+  return chunk<ChunkSize, sycl::sub_group>(
       sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
           bits, loc_size));
 #else
-  return fixed_size_group<PartitionSize, sycl::sub_group>();
+  return chunk<ChunkSize, sycl::sub_group>();
 #endif
 #else
   throw exception(make_error_code(errc::runtime),
@@ -172,22 +172,22 @@ get_fixed_size_group(Group group) {
 #endif
 }
 
-template <size_t PartitionSize, typename ParentGroup>
-struct is_user_constructed_group<fixed_size_group<PartitionSize, ParentGroup>>
+template <size_t ChunkSize, typename ParentGroup>
+struct is_user_constructed_group<chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 
 namespace detail {
-template <size_t PartitionSize, typename ParentGroup>
-struct is_fixed_size_group<
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
+template <size_t ChunkSize, typename ParentGroup>
+struct is_chunk<
+    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
 } // namespace detail
 
-template <size_t PartitionSize, typename ParentGroup>
+template <size_t ChunkSize, typename ParentGroup>
 struct is_group<
-    ext::oneapi::experimental::fixed_size_group<PartitionSize, ParentGroup>>
+    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace _V1
