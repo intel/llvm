@@ -1596,6 +1596,25 @@ getDeviceLibPrograms(const ContextImplPtr Context,
                      std::vector<ur_device_handle_t> &Devices,
                      const std::vector<const RTDeviceBinaryImage *> &Images) {
   std::vector<ur_program_handle_t> Programs;
+  for (auto Img : Images) {
+    if (!Img)
+      continue;
+    const RTDeviceBinaryImage::PropertyRange &NewRange =
+        Img->getDeviceLibReqBins();
+    if (!NewRange.isAvailable())
+      continue;
+
+    for (const auto &DeviceLibBinProp : NewRange) {
+      auto DeviceLibByteArray =
+          DeviceBinaryProperty(DeviceLibBinProp).asByteArray();
+      DeviceLibByteArray.dropBytes(8);
+      uint32_t DeviceLibExtReq =
+          (static_cast<uint32_t>(DeviceLibByteArray[3]) << 24) |
+          (static_cast<uint32_t>(DeviceLibByteArray[2]) << 16) |
+          (static_cast<uint32_t>(DeviceLibByteArray[1]) << 8) |
+          DeviceLibByteArray[0];
+    }
+  }
   return Programs;
 }
 
@@ -1604,6 +1623,8 @@ checkDeviceLibsLinkMode(const std::vector<const RTDeviceBinaryImage *> &Images,
                         bool &LinkDeviceLib, bool &LegacyLinkMode) {
   bool ReqMaskAvailable = false, ReqBinsAvailable = false;
   for (auto Img : Images) {
+    if (!Img)
+      continue;
     const RTDeviceBinaryImage::PropertyRange &LegacyRange =
         Img->getDeviceLibReqMask();
     if (LegacyRange.isAvailable()) {
@@ -1634,10 +1655,13 @@ static uint32_t getDeviceLibReqMaskFromImages(
     const std::vector<const RTDeviceBinaryImage *> &Images) {
   uint32_t DeviceLibReqMask = 0;
   for (auto Img : Images) {
+    if (!Img)
+      continue;
     const RTDeviceBinaryImage::PropertyRange &ReqMaskRange =
         Img->getDeviceLibReqMask();
     if (ReqMaskRange.isAvailable())
-      DeviceLibReqMask |= DeviceBinaryProperty(*(ReqMaskRange.begin())).asUint32();
+      DeviceLibReqMask |=
+          DeviceBinaryProperty(*(ReqMaskRange.begin())).asUint32();
   }
   return DeviceLibReqMask;
 }
@@ -2929,9 +2953,7 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   // An empty images vector will skip linking fallback device libraries.
   auto BuildProgram =
       build(std::move(ProgramManaged), detail::getSyclObjImpl(Context),
-            CompileOpts, LinkOpts, Devs,
-            ImagesVec,
-            ExtraProgramsToLink);
+            CompileOpts, LinkOpts, Devs, ImagesVec, ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
   Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram.get(), KernelName.c_str(), &UrKernel);

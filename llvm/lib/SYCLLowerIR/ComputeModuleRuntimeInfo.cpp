@@ -186,7 +186,8 @@ PropSetRegTy computeModuleProperties(const Module &M,
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
           std::aligned_alloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
       *(reinterpret_cast<uint32_t *>(SPVBuffer)) = static_cast<uint32_t>(Ext);
-      std::memcpy(SPVBuffer + 1, (*SPVMB)->getBufferStart(), SPVSize);
+      std::memcpy(SPVBuffer + sizeof(uint32_t), (*SPVMB)->getBufferStart(),
+                  SPVSize);
       llvm::SYCLDeviceLibSPVBinary SPVBinaryObj(SPVBuffer,
                                                 SPVSize + sizeof(uint32_t));
       PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, SPVFileName,
