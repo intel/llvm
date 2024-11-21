@@ -108,7 +108,7 @@ template <typename T>
 inline std::string printImageCopyTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, ur_mem_type_t>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     const auto image_type = std::get<1>(info.param);
@@ -118,10 +118,11 @@ inline std::string printImageCopyTestString(
     return platform_device_name + "__" + test_name;
 }
 
-UUR_TEST_SUITE_P(urEnqueueMemImageCopyTest,
-                 testing::ValuesIn({UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE2D,
-                                    UR_MEM_TYPE_IMAGE3D}),
-                 printImageCopyTestString<urEnqueueMemImageCopyTest>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemImageCopyTest,
+                        testing::ValuesIn({UR_MEM_TYPE_IMAGE1D,
+                                           UR_MEM_TYPE_IMAGE2D,
+                                           UR_MEM_TYPE_IMAGE3D}),
+                        printImageCopyTestString<urEnqueueMemImageCopyTest>);
 
 TEST_P(urEnqueueMemImageCopyTest, Success) {
     ASSERT_SUCCESS(urEnqueueMemImageCopy(queue, srcImage, dstImage, {0, 0, 0},
@@ -265,8 +266,9 @@ TEST_P(urEnqueueMemImageCopyTest, InvalidSize) {
 
 using urEnqueueMemImageCopyMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageCopyMultiDeviceTest);
 
-TEST_F(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
+TEST_P(urEnqueueMemImageCopyMultiDeviceTest, CopyReadDifferentQueues) {
     ur_mem_handle_t dstImage1D = nullptr;
     ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE, &format,
                                     &desc1D, nullptr, &dstImage1D));

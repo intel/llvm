@@ -48,7 +48,7 @@ struct urKernelSetArgSamplerTestWithParam
     ur_sampler_handle_t sampler = nullptr;
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urKernelSetArgSamplerTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),

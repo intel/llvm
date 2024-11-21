@@ -8,11 +8,11 @@
 
 using urMemBufferPartitionWithFlagsTest =
     uur::urContextTestWithParam<ur_mem_flag_t>;
-UUR_TEST_SUITE_P(urMemBufferPartitionWithFlagsTest,
-                 ::testing::Values(UR_MEM_FLAG_READ_WRITE,
-                                   UR_MEM_FLAG_WRITE_ONLY,
-                                   UR_MEM_FLAG_READ_ONLY),
-                 uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(urMemBufferPartitionWithFlagsTest,
+                        ::testing::Values(UR_MEM_FLAG_READ_WRITE,
+                                          UR_MEM_FLAG_WRITE_ONLY,
+                                          UR_MEM_FLAG_READ_ONLY),
+                        uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
 TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
     uur::raii::Mem buffer = nullptr;

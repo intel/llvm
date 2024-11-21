@@ -210,15 +210,22 @@ inline std::string GetDeviceName(ur_device_handle_t device) {
     size_t device_id = 0;
     if (uur::DevicesEnvironment::instance) {
         auto &devices = uur::DevicesEnvironment::instance->devices;
+        auto TupleContainsDevice = [device](DeviceTuple &tuple) -> bool {
+            return device == tuple.device;
+        };
         device_id =
-            std::find(devices.begin(), devices.end(), device) - devices.begin();
+            std::find_if(devices.begin(), devices.end(), TupleContainsDevice) -
+            devices.begin();
     }
     return GTestSanitizeString(device_name + "_ID" + std::to_string(device_id) +
                                "ID_" + device_uuid);
 }
 
 inline std::string GetPlatformAndDeviceName(ur_device_handle_t device) {
-    return GetPlatformName(GetPlatform()) + "__" + GetDeviceName(device);
+    ur_platform_handle_t platform = nullptr;
+    urDeviceGetInfo(device, UR_DEVICE_INFO_PLATFORM,
+                    sizeof(ur_platform_handle_t), &platform, nullptr);
+    return GetPlatformName(platform) + "__" + GetDeviceName(device);
 }
 
 ur_result_t GetDeviceType(ur_device_handle_t device,

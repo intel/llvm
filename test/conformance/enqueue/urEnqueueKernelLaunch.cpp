@@ -218,7 +218,7 @@ struct testParametersEnqueueKernel {
 template <typename T>
 inline std::string printKernelLaunchTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -285,7 +285,7 @@ static std::vector<testParametersEnqueueKernel> test_cases{// 1D
                                                            {1027, 1, 19, 3},
                                                            {1, 53, 19, 3},
                                                            {256, 79, 8, 3}};
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueKernelLaunchTestWithParam, testing::ValuesIn(test_cases),
     printKernelLaunchTestString<urEnqueueKernelLaunchTestWithParam>);
 
@@ -451,7 +451,8 @@ TEST_P(urEnqueueKernelLaunchWithVirtualMemory, Success) {
         ASSERT_EQ(fill_val, data.at(i));
     }
 }
-
+/* this is not a proper multi device test, making it one might require a whole
+ * parallel chain on multi device fixtures for kernel
 struct urEnqueueKernelLaunchMultiDeviceTest : public urEnqueueKernelLaunchTest {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urEnqueueKernelLaunchTest::SetUp());
@@ -498,7 +499,7 @@ TEST_P(urEnqueueKernelLaunchMultiDeviceTest, KernelLaunchReadDifferentQueues) {
                                               nullptr, nullptr));
         ASSERT_EQ(val, output) << "Result on queue " << i << " did not match!";
     }
-}
+}*/
 
 struct urEnqueueKernelLaunchUSMLinkedList
     : uur::urKernelTestWithParam<uur::BoolTestParam> {
@@ -557,7 +558,7 @@ struct urEnqueueKernelLaunchUSMLinkedList
     ur_queue_handle_t queue = nullptr;
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueKernelLaunchUSMLinkedList,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UsePool")),
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);

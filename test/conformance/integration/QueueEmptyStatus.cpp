@@ -98,10 +98,11 @@ struct QueueEmptyStatusTestWithParam : uur::IntegrationQueueTestWithParam {
     void *SharedMem = nullptr;
 };
 
-UUR_TEST_SUITE_P(QueueEmptyStatusTestWithParam,
-                 testing::Values(0, /* In-Order */
-                                 UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-                 uur::IntegrationQueueTestWithParam::paramPrinter);
+UUR_DEVICE_TEST_SUITE_P(
+    QueueEmptyStatusTestWithParam,
+    testing::Values(0, /* In-Order */
+                    UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
+    uur::IntegrationQueueTestWithParam::paramPrinter);
 
 /* Submits kernels that have a dependency on each other and checks that the
  * queue submits all the work in the correct order to the device.

@@ -19,7 +19,7 @@ struct urVirtualMemGranularityGetInfoTest
     }
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urVirtualMemGranularityGetInfoTest,
     ::testing::Values(UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM,
                       UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED),

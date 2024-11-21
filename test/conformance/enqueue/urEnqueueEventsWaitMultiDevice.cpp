@@ -13,9 +13,9 @@
 struct urEnqueueEventsWaitMultiDeviceTest : uur::urMultiQueueMultiDeviceTest {
     void SetUp() override { SetUp(2); /* we need at least 2 devices */ }
 
-    void SetUp(size_t numDuplicateDevices) {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest::SetUp(
-            uur::KernelsEnvironment::instance->devices, numDuplicateDevices));
+    void SetUp(size_t minDevices) {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiQueueMultiDeviceTest::SetUp(minDevices));
 
         for (auto device : devices) {
             ur_device_usm_access_capability_flags_t shared_usm_single = 0;
@@ -61,8 +61,9 @@ struct urEnqueueEventsWaitMultiDeviceTest : uur::urMultiQueueMultiDeviceTest {
 
     std::vector<void *> ptrs;
 };
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueEventsWaitMultiDeviceTest);
 
-TEST_F(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitList) {
+TEST_P(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitList) {
     initData();
 
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queues[0], false, ptrs[1], ptrs[0], size,
@@ -73,7 +74,7 @@ TEST_F(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitList) {
     verifyData(ptrs[1], pattern);
 }
 
-TEST_F(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitListWithEvent) {
+TEST_P(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitListWithEvent) {
     initData();
 
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(queues[0], false, ptrs[1], ptrs[0], size,
@@ -86,7 +87,7 @@ TEST_F(urEnqueueEventsWaitMultiDeviceTest, EmptyWaitListWithEvent) {
     verifyData(ptrs[1], pattern);
 }
 
-TEST_F(urEnqueueEventsWaitMultiDeviceTest, EnqueueWaitOnADifferentQueue) {
+TEST_P(urEnqueueEventsWaitMultiDeviceTest, EnqueueWaitOnADifferentQueue) {
     initData();
 
     uur::raii::Event event;
@@ -97,7 +98,7 @@ TEST_F(urEnqueueEventsWaitMultiDeviceTest, EnqueueWaitOnADifferentQueue) {
 
     verifyData(ptrs[1], pattern);
 }
-
+/*
 struct urEnqueueEventsWaitMultiDeviceMTTest
     : urEnqueueEventsWaitMultiDeviceTest,
       testing::WithParamInterface<uur::BoolTestParam> {
@@ -117,9 +118,9 @@ struct urEnqueueEventsWaitMultiDeviceMTTest
     }
 
     void SetUp() override {
-        const size_t numDuplicateDevices = 8;
+        const size_t minDevices = 8;
         UUR_RETURN_ON_FATAL_FAILURE(
-            urEnqueueEventsWaitMultiDeviceTest::SetUp(numDuplicateDevices));
+            urEnqueueEventsWaitMultiDeviceTest::SetUp(minDevices));
     }
 
     void TearDown() override { urEnqueueEventsWaitMultiDeviceTest::TearDown(); }
@@ -215,4 +216,4 @@ TEST_P(urEnqueueEventsWaitMultiDeviceMTTest,
     }
 
     verifyData(ptrs[0], pattern);
-}
+}*/

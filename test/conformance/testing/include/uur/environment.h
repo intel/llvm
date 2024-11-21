@@ -50,6 +50,12 @@ struct PlatformEnvironment : AdapterEnvironment {
     static PlatformEnvironment *instance;
 };
 
+struct DeviceTuple {
+    ur_device_handle_t device;
+    ur_platform_handle_t platform;
+    ur_adapter_handle_t adapter;
+};
+
 struct DevicesEnvironment : PlatformEnvironment {
 
     struct DeviceOptions {
@@ -65,12 +71,12 @@ struct DevicesEnvironment : PlatformEnvironment {
 
     DeviceOptions parseDeviceOptions(int argc, char **argv);
 
-    inline const std::vector<ur_device_handle_t> &GetDevices() const {
+    inline const std::vector<DeviceTuple> &GetDevices() const {
         return devices;
     }
 
     DeviceOptions device_options;
-    std::vector<ur_device_handle_t> devices;
+    std::vector<DeviceTuple> devices;
     ur_device_handle_t device = nullptr;
     static DevicesEnvironment *instance;
 };

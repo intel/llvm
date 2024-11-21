@@ -88,7 +88,7 @@ static std::vector<testParametersFill> test_cases{
 template <typename T>
 static std::string
 printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -98,8 +98,9 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     return test_name.str();
 }
 
-UUR_TEST_SUITE_P(urCommandBufferFillCommandsTest, testing::ValuesIn(test_cases),
-                 printFillTestString<urCommandBufferFillCommandsTest>);
+UUR_DEVICE_TEST_SUITE_P(urCommandBufferFillCommandsTest,
+                        testing::ValuesIn(test_cases),
+                        printFillTestString<urCommandBufferFillCommandsTest>);
 
 TEST_P(urCommandBufferFillCommandsTest, Buffer) {
     ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(

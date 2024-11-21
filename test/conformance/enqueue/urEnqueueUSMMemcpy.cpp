@@ -244,8 +244,9 @@ struct urEnqueueUSMMemcpyMultiDeviceTest : uur::urAllDevicesTest {
     size_t alloc_size = 64;
     uint8_t fill_pattern = 42;
 };
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueUSMMemcpyMultiDeviceTest);
 
-TEST_F(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyBlocking) {
+TEST_P(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyBlocking) {
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(src_queue, true, dst_alloc, src_alloc,
                                       alloc_size, 0, nullptr, nullptr));
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(dst_queue, true, host_alloc, dst_alloc,
@@ -253,7 +254,7 @@ TEST_F(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyBlocking) {
     verifyData();
 }
 
-TEST_F(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyNonBlocking) {
+TEST_P(urEnqueueUSMMemcpyMultiDeviceTest, DeviceToDeviceCopyNonBlocking) {
     ur_event_handle_t device_copy_event = nullptr;
     ASSERT_SUCCESS(urEnqueueUSMMemcpy(src_queue, false, dst_alloc, src_alloc,
                                       alloc_size, 0, nullptr,

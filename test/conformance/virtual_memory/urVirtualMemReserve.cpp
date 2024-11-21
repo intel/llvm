@@ -6,10 +6,10 @@
 
 using urVirtualMemReserveTestWithParam =
     uur::urVirtualMemGranularityTestWithParam<size_t>;
-UUR_TEST_SUITE_P(urVirtualMemReserveTestWithParam,
-                 ::testing::Values(2, 4, 8, 16, 32, 64, 128, 256, 512, 1024,
-                                   2048, 5000, 100000),
-                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_P(urVirtualMemReserveTestWithParam,
+                        ::testing::Values(2, 4, 8, 16, 32, 64, 128, 256, 512,
+                                          1024, 2048, 5000, 100000),
+                        uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urVirtualMemReserveTestWithParam, SuccessNoStartPointer) {
     // round up to nearest granularity

@@ -7,9 +7,9 @@
 
 using urEnqueueUSMAdviseWithParamTest =
     uur::urUSMDeviceAllocTestWithParam<ur_usm_advice_flag_t>;
-UUR_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
-                 ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
-                 uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMAdviseWithParamTest,
+                        ::testing::Values(UR_USM_ADVICE_FLAG_DEFAULT),
+                        uur::deviceTestWithParamPrinter<ur_usm_advice_flag_t>);
 
 TEST_P(urEnqueueUSMAdviseWithParamTest, Success) {
     ur_event_handle_t advise_event = nullptr;

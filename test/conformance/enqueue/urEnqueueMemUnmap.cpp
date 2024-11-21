@@ -24,9 +24,10 @@ struct urEnqueueMemUnmapTestWithParam
     uint32_t *map = nullptr;
 };
 
-UUR_TEST_SUITE_P(urEnqueueMemUnmapTestWithParam,
-                 ::testing::ValuesIn(uur::mem_buffer_test_parameters),
-                 uur::printMemBufferTestString<urEnqueueMemUnmapTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(
+    urEnqueueMemUnmapTestWithParam,
+    ::testing::ValuesIn(uur::mem_buffer_test_parameters),
+    uur::printMemBufferTestString<urEnqueueMemUnmapTestWithParam>);
 
 TEST_P(urEnqueueMemUnmapTestWithParam, Success) {
     ASSERT_SUCCESS(urEnqueueMemUnmap(queue, buffer, map, 0, nullptr, nullptr));

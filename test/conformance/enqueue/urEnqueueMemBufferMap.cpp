@@ -8,7 +8,7 @@
 using urEnqueueMemBufferMapTestWithParam =
     uur::urMemBufferQueueTestWithParam<uur::mem_buffer_test_parameters_t>;
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueMemBufferMapTestWithParam,
     ::testing::ValuesIn(uur::mem_buffer_test_parameters),
     uur::printMemBufferTestString<urEnqueueMemBufferMapTestWithParam>);
@@ -37,10 +37,10 @@ using urEnqueueMemBufferMapTestWithWriteFlagParam =
     uur::urMemBufferQueueTestWithParam<
         uur::mem_buffer_map_write_test_parameters_t>;
 
-UUR_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
-                 ::testing::ValuesIn(map_write_test_parameters),
-                 uur::printMemBufferMapWriteTestString<
-                     urEnqueueMemBufferMapTestWithWriteFlagParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferMapTestWithWriteFlagParam,
+                        ::testing::ValuesIn(map_write_test_parameters),
+                        uur::printMemBufferMapWriteTestString<
+                            urEnqueueMemBufferMapTestWithWriteFlagParam>);
 
 TEST_P(urEnqueueMemBufferMapTestWithWriteFlagParam, SuccessWrite) {
     const std::vector<uint32_t> input(count, 0);
@@ -278,8 +278,9 @@ TEST_P(urEnqueueMemBufferMapTestWithParam, InvalidSize) {
 
 using urEnqueueMemBufferMapMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferMapMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
+TEST_P(urEnqueueMemBufferMapMultiDeviceTest, WriteMapDifferentQueues) {
     // First queue does a blocking write of 42 into the buffer.
     std::vector<uint32_t> input(count, 42);
     ASSERT_SUCCESS(urEnqueueMemBufferWrite(queues[0], buffer, true, 0, size,

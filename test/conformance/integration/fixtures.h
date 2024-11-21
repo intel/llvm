@@ -54,10 +54,10 @@ struct IntegrationQueueTestWithParam
     static constexpr size_t ArraySize = 100;
     static constexpr uint32_t InitialValue = 100;
 
-    static std::string
-    paramPrinter(const ::testing::TestParamInfo<
-                 std::tuple<ur_device_handle_t, ur_queue_flag_t>> &info) {
-        auto device = std::get<0>(info.param);
+    static std::string paramPrinter(
+        const ::testing::TestParamInfo<std::tuple<DeviceTuple, ur_queue_flag_t>>
+            &info) {
+        auto device = std::get<0>(info.param).device;
         auto param = std::get<1>(info.param);
 
         std::stringstream ss;

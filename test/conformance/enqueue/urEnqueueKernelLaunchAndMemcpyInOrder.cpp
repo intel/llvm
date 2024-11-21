@@ -28,10 +28,9 @@ struct urMultiQueueLaunchMemcpyTest : uur::urMultiQueueMultiDeviceTest,
 
     void SetUp() override { throw std::runtime_error("Not implemented"); }
 
-    void SetUp(std::vector<ur_device_handle_t> srcDevices,
-               size_t duplicateDevices) {
-        UUR_RETURN_ON_FATAL_FAILURE(uur::urMultiQueueMultiDeviceTest::SetUp(
-            srcDevices, duplicateDevices));
+    void SetUp(size_t duplicateDevices) {
+        UUR_RETURN_ON_FATAL_FAILURE(
+            uur::urMultiQueueMultiDeviceTest::SetUp(duplicateDevices));
 
         for (auto &device : devices) {
             SKIP_IF_DRIVER_TOO_OLD("Level-Zero", minL0DriverVersion, platform,
@@ -132,8 +131,8 @@ struct urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam
     using urMultiQueueLaunchMemcpyTest<Param>::SharedMem;
 
     void SetUp() override {
-        UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueLaunchMemcpyTest<Param>::SetUp(
-            uur::KernelsEnvironment::instance->devices, duplicateDevices));
+        UUR_RETURN_ON_FATAL_FAILURE(
+            urMultiQueueLaunchMemcpyTest<Param>::SetUp(duplicateDevices));
     }
 
     void TearDown() override {
@@ -143,11 +142,10 @@ struct urEnqueueKernelLaunchIncrementMultiDeviceTestWithParam
 };
 
 struct urEnqueueKernelLaunchIncrementTest
-    : urMultiQueueLaunchMemcpyTest<
-          std::tuple<ur_device_handle_t, uur::BoolTestParam>> {
+    : urMultiQueueLaunchMemcpyTest<uur::BoolTestParam> {
     static constexpr size_t numOps = 50;
 
-    using Param = std::tuple<ur_device_handle_t, uur::BoolTestParam>;
+    using Param = uur::BoolTestParam;
     using urMultiQueueLaunchMemcpyTest<Param>::context;
     using urMultiQueueLaunchMemcpyTest<Param>::queues;
     using urMultiQueueLaunchMemcpyTest<Param>::devices;
@@ -156,7 +154,6 @@ struct urEnqueueKernelLaunchIncrementTest
 
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(urMultiQueueLaunchMemcpyTest<Param>::SetUp(
-            std::vector<ur_device_handle_t>{std::get<0>(GetParam())},
             numOps)); // Use single device, duplicated numOps times
     }
 
@@ -166,7 +163,7 @@ struct urEnqueueKernelLaunchIncrementTest
     }
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urEnqueueKernelLaunchIncrementTest,
     testing::ValuesIn(uur::BoolTestParam::makeBoolParam("UseEvents")),
     uur::deviceTestWithParamPrinter<uur::BoolTestParam>);

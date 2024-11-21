@@ -51,9 +51,10 @@ struct urMultiDeviceProgramCreateWithBinaryTest
     std::vector<size_t> binary_sizes;
     ur_program_handle_t binary_program = nullptr;
 };
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceProgramCreateWithBinaryTest);
 
 // Create the kernel using the program created with multiple binaries and run it on all devices.
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
        CreateAndRunKernelOnAllDevices) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
@@ -77,7 +78,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
     }
 }
 
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
     // TODO: Current behaviour is that we allow to compile only IL programs for Level Zero and link only programs in Object state.
     // OpenCL allows to compile and link programs created from native binaries, so probably we should align those two.
     ur_platform_backend_t backend;
@@ -100,7 +101,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest, CheckCompileAndLink) {
     }
 }
 
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
        InvalidProgramBinaryForOneOfTheDevices) {
     std::vector<const uint8_t *> pointers_with_invalid_binary;
     for (size_t i = 1; i < devices.size(); i++) {
@@ -115,7 +116,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
 }
 
 // Test the case when program is built multiple times for different devices from context.
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
     // Run test only for level zero backend which supports urProgramBuildExp.
     ur_platform_backend_t backend;
     ASSERT_SUCCESS(urPlatformGetInfo(platform, UR_PLATFORM_INFO_BACKEND,
@@ -145,7 +146,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest, MultipleBuildCalls) {
 }
 
 // Test the case we get native binaries from program created with multiple binaries which wasn't built (i.e. in Native state).
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest,
        GetBinariesAndSizesFromProgramInNativeState) {
     size_t exp_binary_sizes_len = 0;
     std::vector<size_t> exp_binary_sizes;
@@ -176,7 +177,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest,
     ASSERT_EQ(exp_binary_sizes, binary_sizes);
 }
 
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest, GetIL) {
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest, GetIL) {
     size_t il_length = 0;
     ASSERT_SUCCESS(urProgramGetInfo(binary_program, UR_PROGRAM_INFO_IL, 0,
                                     nullptr, &il_length));
@@ -187,7 +188,7 @@ TEST_F(urMultiDeviceProgramCreateWithBinaryTest, GetIL) {
               UR_RESULT_ERROR_INVALID_NULL_POINTER);
 }
 
-TEST_F(urMultiDeviceProgramCreateWithBinaryTest, CheckProgramGetInfo) {
+TEST_P(urMultiDeviceProgramCreateWithBinaryTest, CheckProgramGetInfo) {
     std::vector<char> property_value;
     size_t property_size = 0;
 

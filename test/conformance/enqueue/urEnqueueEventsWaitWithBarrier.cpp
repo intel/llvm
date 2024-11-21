@@ -71,10 +71,10 @@ struct urEnqueueEventsWaitWithBarrierTest
     std::vector<uint32_t> input;
 };
 
-UUR_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest,
-                 ::testing::Values(BarrierType::Normal,
-                                   BarrierType::ExtLowPower),
-                 uur::deviceTestWithParamPrinter<BarrierType>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueEventsWaitWithBarrierTest,
+                        ::testing::Values(BarrierType::Normal,
+                                          BarrierType::ExtLowPower),
+                        uur::deviceTestWithParamPrinter<BarrierType>);
 
 struct urEnqueueEventsWaitWithBarrierOrderingTest : uur::urProgramTest {
     void SetUp() override {

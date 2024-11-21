@@ -18,7 +18,7 @@ TEST_P(urContextGetInfoTest, SuccessNumDevices) {
     ASSERT_SUCCESS(
         urContextGetInfo(context, info_type, size, &nDevices, nullptr));
 
-    ASSERT_GE(uur::DevicesEnvironment::instance->devices.size(), nDevices);
+    ASSERT_EQ(nDevices, 1);
 }
 
 TEST_P(urContextGetInfoTest, SuccessDevices) {
@@ -28,12 +28,13 @@ TEST_P(urContextGetInfoTest, SuccessDevices) {
     ASSERT_SUCCESS(urContextGetInfo(context, info_type, 0, nullptr, &size));
     ASSERT_NE(size, 0);
 
-    ur_device_handle_t devices = 0;
+    ur_device_handle_t queried_device = nullptr;
     ASSERT_SUCCESS(
-        urContextGetInfo(context, info_type, size, &devices, nullptr));
+        urContextGetInfo(context, info_type, size, &queried_device, nullptr));
 
     size_t devices_count = size / sizeof(ur_device_handle_t);
-    ASSERT_GT(devices_count, 0);
+    ASSERT_EQ(devices_count, 1);
+    ASSERT_EQ(queried_device, device);
 
     for (uint32_t i = 0; i < devices_count; i++) {
         auto &devices = uur::DevicesEnvironment::instance->devices;

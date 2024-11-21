@@ -135,8 +135,9 @@ TEST_P(urEnqueueMemImageReadTest, InvalidRegion3D) {
 
 using urEnqueueMemImageReadMultiDeviceTest =
     uur::urMultiDeviceMemImageWriteTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemImageReadMultiDeviceTest);
 
-TEST_F(urEnqueueMemImageReadMultiDeviceTest, WriteReadDifferentQueues) {
+TEST_P(urEnqueueMemImageReadMultiDeviceTest, WriteReadDifferentQueues) {
     // The remaining queues do blocking reads from the image1D/2D/3D. Since the
     // queues target different devices this checks that any devices memory has
     // been synchronized.

@@ -28,7 +28,7 @@ template <typename T>
 inline std::string
 printRectTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, test_parameters_t>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
     const auto &test_name = std::get<1>(info.param).name;
     return platform_device_name + "__" + test_name;
@@ -69,7 +69,7 @@ struct TestParameters2D {
 template <typename T>
 inline std::string
 print2DTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -117,7 +117,7 @@ template <typename T>
 inline std::string printMemBufferTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, mem_buffer_test_parameters_t>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
 
     std::stringstream ss;
@@ -132,7 +132,7 @@ template <typename T>
 inline std::string printMemBufferMapWriteTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
     // ParamType will be std::tuple<ur_device_handle_t, mem_buffer_map_write_test_parameters_t>
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name = GetPlatformAndDeviceName(device_handle);
 
     std::stringstream ss;
@@ -144,7 +144,7 @@ inline std::string printMemBufferMapWriteTestString(
 template <typename T>
 inline std::string
 printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -155,9 +155,10 @@ printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
 }
 
 struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
-    void initQueues(std::vector<ur_device_handle_t> srcDevices,
-                    size_t numDuplicate) {
-        for (size_t i = 0; i < numDuplicate; i++) {
+    void initQueues(size_t minDevices) {
+        // Duplicate our devices until we hit the minimum size specified.
+        auto srcDevices = devices;
+        while (devices.size() < minDevices) {
             devices.insert(devices.end(), srcDevices.begin(), srcDevices.end());
         }
 
@@ -172,15 +173,14 @@ struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
     void SetUp() override {
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urMultiDeviceContextTestTemplate<1>::SetUp());
-        initQueues(uur::KernelsEnvironment::instance->devices, 1);
+        initQueues(1);
     }
 
     // Specialized implementation that duplicates all devices and queues
-    void SetUp(std::vector<ur_device_handle_t> srcDevices,
-               size_t numDuplicate) {
+    void SetUp(size_t numDuplicate) {
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::urMultiDeviceContextTestTemplate<1>::SetUp());
-        initQueues(srcDevices, numDuplicate);
+        initQueues(numDuplicate);
     }
 
     void TearDown() override {
@@ -194,7 +194,6 @@ struct urMultiQueueMultiDeviceTest : uur::urMultiDeviceContextTestTemplate<1> {
                              std::vector<ur_queue_handle_t>>(void)>
         makeQueues;
 
-    std::vector<ur_device_handle_t> devices;
     std::vector<ur_queue_handle_t> queues;
 };
 

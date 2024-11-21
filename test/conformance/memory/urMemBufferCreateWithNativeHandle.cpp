@@ -101,7 +101,9 @@ TEST_P(urMemBufferCreateWithNativeHandleTest, InvalidNullPointer) {
 }
 
 using urMemBufferMultiQueueMemBufferTest = uur::urMultiDeviceMemBufferQueueTest;
-TEST_F(urMemBufferMultiQueueMemBufferTest, WriteBack) {
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMemBufferMultiQueueMemBufferTest);
+
+TEST_P(urMemBufferMultiQueueMemBufferTest, WriteBack) {
     void *ptr;
     ASSERT_SUCCESS(urUSMHostAlloc(context, nullptr, nullptr, size, &ptr));
     ur_mem_handle_t mem = nullptr;

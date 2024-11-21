@@ -16,7 +16,7 @@ struct testParametersFill2D {
 template <typename T>
 inline std::string printFill2DTestString(
     const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -127,8 +127,9 @@ static std::vector<testParametersFill2D> test_cases{
     /* Height != power_of_2 && width == power_of_2 && pattern_size == 128 */
     {1024, 256, 35, 128}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam, testing::ValuesIn(test_cases),
-                 printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFill2DTestWithParam,
+                        testing::ValuesIn(test_cases),
+                        printFill2DTestString<urEnqueueUSMFill2DTestWithParam>);
 
 TEST_P(urEnqueueUSMFill2DTestWithParam, Success) {
 
