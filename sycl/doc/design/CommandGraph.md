@@ -358,7 +358,7 @@ API. This API can wait on a list of event dependencies using the `phWaitEvents`
 parameter and can signal a return event when finished using the `hSignalEvent`
 parameter. This allows for a cleaner and more efficient implementation than
 what can be achieved when using the wait-event path
-(see [this section](#wait-event-path-implementation-details-) for
+(see [this section](#wait-event-path-implementation-details) for
 more details about the wait-event path).
 
 This path relies on 3 different command-lists in order to execute the
