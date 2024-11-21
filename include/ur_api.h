@@ -1087,6 +1087,8 @@ typedef enum ur_platform_info_t {
                                       ///< info needs to be dynamically queried.
     UR_PLATFORM_INFO_BACKEND = 6,     ///< [::ur_platform_backend_t] The backend of the platform. Identifies the
                                       ///< native backend adapter implementing this platform.
+    UR_PLATFORM_INFO_ADAPTER = 7,     ///< [::ur_adapter_handle_t] The adapter handle associated with the
+                                      ///< platform.
     /// @cond
     UR_PLATFORM_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -1112,7 +1114,7 @@ typedef enum ur_platform_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hPlatform`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_PLATFORM_INFO_BACKEND < propName`
+///         + `::UR_PLATFORM_INFO_ADAPTER < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE

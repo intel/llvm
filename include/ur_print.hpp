@@ -2024,6 +2024,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_platform_info_t value)
     case UR_PLATFORM_INFO_BACKEND:
         os << "UR_PLATFORM_INFO_BACKEND";
         break;
+    case UR_PLATFORM_INFO_ADAPTER:
+        os << "UR_PLATFORM_INFO_ADAPTER";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -2074,6 +2077,19 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_platform_in
         os << (const void *)(tptr) << " (";
 
         os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_PLATFORM_INFO_ADAPTER: {
+        const ur_adapter_handle_t *tptr = (const ur_adapter_handle_t *)ptr;
+        if (sizeof(ur_adapter_handle_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_adapter_handle_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        ur::details::printPtr(os,
+                              *tptr);
 
         os << ")";
     } break;
