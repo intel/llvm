@@ -139,7 +139,7 @@ bool test() {
   free(Ar, q);
   free(Cref, q);
   free(Aref, q);
-  
+
   return res;
 }
 
