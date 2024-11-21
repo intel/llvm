@@ -1,4 +1,6 @@
 // REQUIRES: ocloc, linux, arch-intel_gpu_dg2_g10
+// UNSUPPORTED: cuda, hip
+// UNSUPPORTED-REASON: FP64 emulation is an Intel specific feature.
 
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -fsycl-fp64-conv-emu -O0 %s -o %t.out
 // RUN: %{run} %t.out
