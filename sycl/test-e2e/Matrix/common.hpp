@@ -36,6 +36,12 @@ public:
   big_matrix(T *data) : mat(data) {}
 };
 
+enum class Activation {
+  ReLU,
+  Sigmoid,
+  None,
+};
+
 float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
   y = y << 16;
@@ -156,7 +162,8 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
-template <typename T1, typename T2, bool exact = false>
+template <Activation act = Activation::None, typename T1, typename T2,
+          bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
@@ -164,7 +171,17 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                                std::is_same_v<T1, bfloat16> ||
                                (std::is_same_v<T1, double> &&
                                 std::is_same_v<T2, double>))) {
-        float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
+        float diff = 0;
+        if constexpr (act == Activation::None)
+          diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
+        else if constexpr (act == Activation::ReLU)
+          diff =
+              std::fabs(src[i * cols + j] -
+                        (T1)(sycl::max(static_cast<T2>(0), ref[i * cols + j])));
+        else if constexpr (act == Activation::Sigmoid)
+          diff = std::fabs(src[i * cols + j] -
+                           (T1)(1.0f / (1.0f + sycl::exp(-ref[i * cols + j]))));
+
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cout << "Incorrect result in matrix. "
                     << "i: " << i << ", j: " << j
