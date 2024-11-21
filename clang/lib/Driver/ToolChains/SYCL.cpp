@@ -671,6 +671,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     // linked with user's device image if so.
     std::vector<std::string> EnabledDeviceSanitizers;
 
+    // NOTE: "-fsanitize=" applies to all device targets
     auto SyclFEArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend);
     auto SyclFEEQArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
     auto ArchDeviceVals = Args.getAllArgValues(options::OPT_Xarch_device);
