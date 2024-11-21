@@ -301,6 +301,7 @@ static AccessResult IsDerivedFromInclusive(const CXXRecordDecl *Derived,
                                            const CXXRecordDecl *Target) {
   assert(Derived->getCanonicalDecl() == Derived);
   assert(Target->getCanonicalDecl() == Target);
+  assert(Derived->getDefinition() && "Expecting a complete type");
 
   if (Derived == Target) return AR_accessible;
 
@@ -776,6 +777,8 @@ static AccessResult HasAccess(Sema &S,
     // [B3] and [M3]
     } else {
       assert(Access == AS_protected);
+      if (!ECRecord->getDefinition())
+        continue;
       switch (IsDerivedFromInclusive(ECRecord, NamingClass)) {
       case AR_accessible: break;
       case AR_inaccessible: continue;

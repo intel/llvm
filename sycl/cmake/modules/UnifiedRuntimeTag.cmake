@@ -1,7 +1,7 @@
-# commit dbd168cbed2d2590b47904728cd5762f1c2f4c6b (HEAD, origin/main, origin/HEAD)
-# Merge: 694c1b9a 27ad3f7d
-# Author: Piotr Balcer <piotr.balcer@intel.com>
-# Date:   Mon Oct 28 16:29:45 2024 +0100
-#   Merge pull request #2242 from nrspruit/sysman_env_disable
-#   [L0] Enable Sysman Thru Env by default and have zesInit be optional
+# commit 9937d029c7fdcbf101e89f8515f640c145e059c5
+# Merge: 9ac6d5d9 10b0e101
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 20 14:49:17 2024 +0000
+#     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
+#     Use extension version of clGetKernelSubGroupInfo when necessary.
 set(UNIFIED_RUNTIME_TAG f99adf104ef5ce94d66b6ed4f9dccc450f1f638c)

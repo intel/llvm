@@ -21,9 +21,6 @@ on:
         type: string
         required: True
       extra_cmake_args:
-        description: |
-          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
-          if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
       tests_selector:
@@ -282,12 +279,6 @@ jobs:
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        else
-          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-          else
-            echo 'opts=' >> $GITHUB_OUTPUT
-          fi
         fi
     - name: Configure E2E tests
       if: inputs.tests_selector == 'e2e'
