@@ -54,8 +54,9 @@ TEST_P(urKernelCreateTest, InvalidKernelName) {
 }
 
 using urMultiDeviceKernelCreateTest = uur::urMultiDeviceQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urMultiDeviceKernelCreateTest);
 
-TEST_F(urMultiDeviceKernelCreateTest, WithProgramBuild) {
+TEST_P(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
     constexpr size_t global_size = 100;
@@ -67,7 +68,6 @@ TEST_F(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     std::shared_ptr<std::vector<char>> il_binary;
     uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
 
-    auto &devices = uur::KernelsEnvironment::instance->devices;
     for (size_t i = 0; i < devices.size(); i++) {
         uur::raii::Program program;
         uur::raii::Kernel kernel;
@@ -90,7 +90,7 @@ TEST_F(urMultiDeviceKernelCreateTest, WithProgramBuild) {
     }
 }
 
-TEST_F(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
+TEST_P(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     constexpr size_t global_offset = 0;
     constexpr size_t n_dimensions = 1;
     constexpr size_t global_size = 100;
@@ -102,7 +102,6 @@ TEST_F(urMultiDeviceKernelCreateTest, WithProgramCompileAndLink) {
     std::shared_ptr<std::vector<char>> il_binary;
     uur::KernelsEnvironment::instance->LoadSource("foo", il_binary);
 
-    auto &devices = uur::KernelsEnvironment::instance->devices;
     for (size_t i = 0; i < devices.size(); i++) {
         uur::raii::Program program;
         uur::raii::Kernel kernel;

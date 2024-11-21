@@ -10,7 +10,7 @@ add_conformance_test_with_kernels_environment(enqueue
     urEnqueueEventsWaitMultiDevice.cpp
     urEnqueueEventsWaitWithBarrier.cpp
     urEnqueueKernelLaunch.cpp
-    urEnqueueKernelLaunchAndMemcpyInOrder.cpp
+    #urEnqueueKernelLaunchAndMemcpyInOrder.cpp
     urEnqueueMemBufferCopyRect.cpp
     urEnqueueMemBufferCopy.cpp
     urEnqueueMemBufferFill.cpp

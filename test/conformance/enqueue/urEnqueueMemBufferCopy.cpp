@@ -38,9 +38,9 @@ struct urEnqueueMemBufferCopyTestWithParam : uur::urQueueTestWithParam<size_t> {
 
 static std::vector<size_t> test_parameters{1024, 2500, 4096, 6000};
 
-UUR_TEST_SUITE_P(urEnqueueMemBufferCopyTestWithParam,
-                 ::testing::ValuesIn(test_parameters),
-                 uur::deviceTestWithParamPrinter<size_t>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueMemBufferCopyTestWithParam,
+                        ::testing::ValuesIn(test_parameters),
+                        uur::deviceTestWithParamPrinter<size_t>);
 
 TEST_P(urEnqueueMemBufferCopyTestWithParam, Success) {
     ASSERT_SUCCESS(urEnqueueMemBufferCopy(queue, src_buffer, dst_buffer, 0, 0,
@@ -100,8 +100,9 @@ TEST_P(urEnqueueMemBufferCopyTestWithParam, InvalidSize) {
 
 using urEnqueueMemBufferCopyMultiDeviceTest =
     uur::urMultiDeviceMemBufferQueueTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urEnqueueMemBufferCopyMultiDeviceTest);
 
-TEST_F(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
+TEST_P(urEnqueueMemBufferCopyMultiDeviceTest, CopyReadDifferentQueues) {
     // First queue does a fill.
     const uint32_t input = 42;
     ASSERT_SUCCESS(urEnqueueMemBufferFill(queues[0], buffer, &input,

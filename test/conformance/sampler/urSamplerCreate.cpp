@@ -34,7 +34,7 @@ struct urSamplerCreateTestWithParam
     }
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urSamplerCreateTestWithParam,
     ::testing::Combine(
         ::testing::Values(true, false),

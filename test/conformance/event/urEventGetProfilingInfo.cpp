@@ -27,13 +27,13 @@ TEST_P(urEventGetProfilingInfoTest, Success) {
     }
 }
 
-UUR_TEST_SUITE_P(urEventGetProfilingInfoTest,
-                 ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
-                                   UR_PROFILING_INFO_COMMAND_SUBMIT,
-                                   UR_PROFILING_INFO_COMMAND_START,
-                                   UR_PROFILING_INFO_COMMAND_END,
-                                   UR_PROFILING_INFO_COMMAND_COMPLETE),
-                 uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
+UUR_DEVICE_TEST_SUITE_P(urEventGetProfilingInfoTest,
+                        ::testing::Values(UR_PROFILING_INFO_COMMAND_QUEUED,
+                                          UR_PROFILING_INFO_COMMAND_SUBMIT,
+                                          UR_PROFILING_INFO_COMMAND_START,
+                                          UR_PROFILING_INFO_COMMAND_END,
+                                          UR_PROFILING_INFO_COMMAND_COMPLETE),
+                        uur::deviceTestWithParamPrinter<ur_profiling_info_t>);
 
 using urEventGetProfilingInfoWithTimingComparisonTest = uur::event::urEventTest;
 

@@ -14,12 +14,12 @@ struct urProgramGetBuildInfoTest
     }
 };
 
-UUR_TEST_SUITE_P(urProgramGetBuildInfoTest,
-                 ::testing::Values(UR_PROGRAM_BUILD_INFO_STATUS,
-                                   UR_PROGRAM_BUILD_INFO_OPTIONS,
-                                   UR_PROGRAM_BUILD_INFO_LOG,
-                                   UR_PROGRAM_BUILD_INFO_BINARY_TYPE),
-                 uur::deviceTestWithParamPrinter<ur_program_build_info_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urProgramGetBuildInfoTest,
+    ::testing::Values(UR_PROGRAM_BUILD_INFO_STATUS,
+                      UR_PROGRAM_BUILD_INFO_OPTIONS, UR_PROGRAM_BUILD_INFO_LOG,
+                      UR_PROGRAM_BUILD_INFO_BINARY_TYPE),
+    uur::deviceTestWithParamPrinter<ur_program_build_info_t>);
 
 struct urProgramGetBuildInfoSingleTest : uur::urProgramTest {
     void SetUp() override {

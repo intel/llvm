@@ -14,7 +14,7 @@ struct urProgramGetInfoTest : uur::urProgramTestWithParam<ur_program_info_t> {
     }
 };
 
-UUR_TEST_SUITE_P(
+UUR_DEVICE_TEST_SUITE_P(
     urProgramGetInfoTest,
     ::testing::Values(UR_PROGRAM_INFO_REFERENCE_COUNT, UR_PROGRAM_INFO_CONTEXT,
                       UR_PROGRAM_INFO_NUM_DEVICES, UR_PROGRAM_INFO_DEVICES,
@@ -89,13 +89,8 @@ TEST_P(urProgramGetInfoTest, Success) {
         auto returned_devices =
             reinterpret_cast<ur_device_handle_t *>(property_value.data());
         size_t devices_count = property_size / sizeof(ur_device_handle_t);
-        ASSERT_GT(devices_count, 0);
-        for (uint32_t i = 0; i < devices_count; i++) {
-            auto &devices = uur::DevicesEnvironment::instance->devices;
-            auto queried_device =
-                std::find(devices.begin(), devices.end(), returned_devices[i]);
-            EXPECT_TRUE(queried_device != devices.end());
-        }
+        ASSERT_EQ(devices_count, 1);
+        ASSERT_EQ(returned_devices[0], device);
         break;
     }
     case UR_PROGRAM_INFO_NUM_KERNELS: {

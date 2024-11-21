@@ -3,7 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-add_conformance_test_with_platform_environment(device
+add_conformance_test_with_devices_environment(device
     urDeviceCreateWithNativeHandle.cpp
     urDeviceGet.cpp
     urDeviceGetGlobalTimestamps.cpp

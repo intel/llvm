@@ -31,10 +31,11 @@ struct QueueBufferTestWithParam : uur::IntegrationQueueTestWithParam {
     ur_mem_handle_t Buffer2 = nullptr;
 };
 
-UUR_TEST_SUITE_P(QueueBufferTestWithParam,
-                 testing::Values(0, /* In-Order */
-                                 UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
-                 uur::IntegrationQueueTestWithParam::paramPrinter);
+UUR_DEVICE_TEST_SUITE_P(
+    QueueBufferTestWithParam,
+    testing::Values(0, /* In-Order */
+                    UR_QUEUE_FLAG_OUT_OF_ORDER_EXEC_MODE_ENABLE),
+    uur::IntegrationQueueTestWithParam::paramPrinter);
 
 /* Submits multiple kernels that interact with each other by accessing and
  * writing to the same buffers.

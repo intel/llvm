@@ -13,7 +13,7 @@ struct testParametersFill {
 template <typename T>
 inline std::string
 printFillTestString(const testing::TestParamInfo<typename T::ParamType> &info) {
-    const auto device_handle = std::get<0>(info.param);
+    const auto device_handle = std::get<0>(info.param).device;
     const auto platform_device_name =
         uur::GetPlatformAndDeviceName(device_handle);
     std::stringstream test_name;
@@ -90,8 +90,9 @@ static std::vector<testParametersFill> test_cases{
     {256, 16},
     {256, 32}};
 
-UUR_TEST_SUITE_P(urEnqueueUSMFillTestWithParam, testing::ValuesIn(test_cases),
-                 printFillTestString<urEnqueueUSMFillTestWithParam>);
+UUR_DEVICE_TEST_SUITE_P(urEnqueueUSMFillTestWithParam,
+                        testing::ValuesIn(test_cases),
+                        printFillTestString<urEnqueueUSMFillTestWithParam>);
 
 TEST_P(urEnqueueUSMFillTestWithParam, Success) {
 

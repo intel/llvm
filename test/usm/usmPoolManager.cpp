@@ -7,9 +7,9 @@
 
 #include <uur/fixtures.h>
 
-struct urUsmPoolDescriptorTest
-    : public uur::urMultiDeviceContextTest,
-      ::testing::WithParamInterface<ur_usm_pool_handle_t> {};
+using urUsmPoolDescriptorTest = uur::urMultiDeviceContextTest;
+
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urUsmPoolDescriptorTest);
 
 auto createMockPoolHandle() {
     static uintptr_t uniqueAddress = 0x1;
@@ -20,10 +20,9 @@ auto createMockPoolHandle() {
 
 TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
     auto &devices = uur::DevicesEnvironment::instance->devices;
-    auto poolHandle = this->GetParam();
 
     auto [ret, pool_descriptors] =
-        usm::pool_descriptor::create(poolHandle, this->context);
+        usm::pool_descriptor::create(nullptr, this->context);
     ASSERT_EQ(ret, UR_RESULT_SUCCESS);
 
     size_t hostPools = 0;
@@ -31,7 +30,7 @@ TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
     size_t sharedPools = 0;
 
     for (auto &desc : pool_descriptors) {
-        ASSERT_EQ(desc.poolHandle, poolHandle);
+        ASSERT_EQ(desc.poolHandle, nullptr);
         ASSERT_EQ(desc.hContext, this->context);
 
         if (desc.type == UR_USM_TYPE_DEVICE) {
@@ -51,9 +50,6 @@ TEST_P(urUsmPoolDescriptorTest, poolIsPerContextTypeAndDevice) {
     ASSERT_EQ(devicePools, devices.size());
     ASSERT_EQ(sharedPools, devices.size() * 2);
 }
-
-INSTANTIATE_TEST_SUITE_P(urUsmPoolDescriptorTest, urUsmPoolDescriptorTest,
-                         ::testing::Values(nullptr));
 
 // TODO: add test with sub-devices
 

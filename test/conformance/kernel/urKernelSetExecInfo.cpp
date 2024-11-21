@@ -109,11 +109,12 @@ TEST_P(urKernelSetExecInfoUSMPointersTest, SuccessShared) {
 using urKernelSetExecInfoCacheConfigTest =
     uur::urKernelTestWithParam<ur_kernel_cache_config_t>;
 
-UUR_TEST_SUITE_P(urKernelSetExecInfoCacheConfigTest,
-                 ::testing::Values(UR_KERNEL_CACHE_CONFIG_DEFAULT,
-                                   UR_KERNEL_CACHE_CONFIG_LARGE_SLM,
-                                   UR_KERNEL_CACHE_CONFIG_LARGE_DATA),
-                 uur::deviceTestWithParamPrinter<ur_kernel_cache_config_t>);
+UUR_DEVICE_TEST_SUITE_P(
+    urKernelSetExecInfoCacheConfigTest,
+    ::testing::Values(UR_KERNEL_CACHE_CONFIG_DEFAULT,
+                      UR_KERNEL_CACHE_CONFIG_LARGE_SLM,
+                      UR_KERNEL_CACHE_CONFIG_LARGE_DATA),
+    uur::deviceTestWithParamPrinter<ur_kernel_cache_config_t>);
 
 TEST_P(urKernelSetExecInfoCacheConfigTest, Success) {
     auto property_value = getParam();
