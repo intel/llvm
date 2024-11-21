@@ -197,7 +197,7 @@ function(add_devicelibs filename)
   cmake_parse_arguments(ARG
     ""
     ""
-    "SRC;EXTRA_OPTS;DEPENDENCIES"
+    "SRC;EXTRA_OPTS;DEPENDENCIES;SKIP_ARCHS"
     ${ARGN})
 
   foreach(filetype IN LISTS filetypes)
@@ -209,6 +209,9 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
+    if(arch IN_LIST ARG_SKIP_ARCHS)
+      continue()
+    endif()
     compile_lib(${filename}-${arch}
       FILETYPE bc
       SRC ${ARG_SRC}
@@ -351,7 +354,9 @@ else()
     add_devicelibs(libsycl-asan
       SRC sanitizer/asan_rtl.cpp
       DEPENDENCIES ${asan_obj_deps}
-      EXTRA_OPTS -fno-sycl-instrument-device-code 
+      SKIP_ARCHS nvptx64-nvidia-cuda
+                 amdgcn-amd-amdhsa
+      EXTRA_OPTS -fno-sycl-instrument-device-code
                  -I${UR_SANITIZER_INCLUDE_DIR}
                  -I${CMAKE_CURRENT_SOURCE_DIR})
 
