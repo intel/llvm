@@ -43,8 +43,8 @@ namespace experimental {
 class pipe_base {
 
 protected:
-  pipe_base();
-  ~pipe_base();
+  pipe_base() = default;
+  ~pipe_base() = default;
 
   __SYCL_EXPORT static std::string get_pipe_name(const void *HostPipePtr);
   __SYCL_EXPORT static bool wait_non_blocking(const event &E);
@@ -376,21 +376,29 @@ private:
   static constexpr int32_t m_Capacity = _min_capacity;
 
   static constexpr int32_t m_ready_latency =
-      oneapi::experimental::detail::ValueOrDefault<
-          _propertiesT, ready_latency_key>::template get<int32_t>(0);
+      oneapi::experimental::detail::get_property_or<ready_latency_key,
+                                                    _propertiesT>(
+          ready_latency<0>)
+          .value;
+
   static constexpr int32_t m_bits_per_symbol =
-      oneapi::experimental::detail::ValueOrDefault<
-          _propertiesT, bits_per_symbol_key>::template get<int32_t>(8);
+      oneapi::experimental::detail::get_property_or<bits_per_symbol_key,
+                                                    _propertiesT>(
+          bits_per_symbol<8>)
+          .value;
   static constexpr bool m_uses_valid =
-      oneapi::experimental::detail::ValueOrDefault<
-          _propertiesT, uses_valid_key>::template get<bool>(true);
+      oneapi::experimental::detail::get_property_or<uses_valid_key,
+                                                    _propertiesT>(uses_valid_on)
+          .value;
   static constexpr bool m_first_symbol_in_high_order_bits =
-      oneapi::experimental::detail::ValueOrDefault<
-          _propertiesT,
-          first_symbol_in_high_order_bits_key>::template get<int32_t>(0);
-  static constexpr protocol_name m_protocol = oneapi::experimental::detail::
-      ValueOrDefault<_propertiesT, protocol_key>::template get<protocol_name>(
-          protocol_name::avalon_streaming_uses_ready);
+      oneapi::experimental::detail::get_property_or<
+          first_symbol_in_high_order_bits_key, _propertiesT>(
+          first_symbol_in_high_order_bits_off)
+          .value;
+  static constexpr protocol_name m_protocol =
+      oneapi::experimental::detail::get_property_or<protocol_key, _propertiesT>(
+          protocol_avalon_streaming_uses_ready)
+          .value;
 
 public:
   static constexpr struct ConstantPipeStorageExp m_Storage = {
