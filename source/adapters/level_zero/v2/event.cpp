@@ -32,9 +32,9 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
 }
 
 void ur_event_handle_t_::reset() {
-  // consider make an abstraction for regular/counter based
+  // consider making an abstraction for regular/counter based
   // events if there's more of this type of conditions
-  if (pool->getFlags() & v2::EVENT_FLAGS_COUNTER) {
+  if (!(pool->getFlags() & v2::EVENT_FLAGS_COUNTER)) {
     zeEventHostReset(zeEvent.get());
   }
 }
