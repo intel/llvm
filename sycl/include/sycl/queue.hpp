@@ -2089,11 +2089,14 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL2020_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2131,11 +2134,15 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL2020_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      event DepEvent, PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(event DepEvent, PropertiesT Properties,
+                         _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2177,12 +2184,15 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
+  __SYCL2020_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::single_task (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
-      ext::oneapi::experimental::is_property_list<PropertiesT>::value, event>
-  single_task(
-      const std::vector<event> &DepEvents, PropertiesT Properties,
-      _KERNELFUNCPARAM(KernelFunc),
-      const detail::code_location &CodeLoc = detail::code_location::current()) {
+      ext::oneapi::experimental::is_property_list<PropertiesT>::value,
+      event> single_task(const std::vector<event> &DepEvents,
+                         PropertiesT Properties, _KERNELFUNCPARAM(KernelFunc),
+                         const detail::code_location &CodeLoc =
+                             detail::code_location::current()) {
     static_assert(
         (detail::check_fn_signature<std::remove_reference_t<KernelType>,
                                     void()>::value ||
@@ -2428,11 +2438,14 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
+  __SYCL2020_DEPRECATED(
+      "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
+      "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
       detail::AreAllButLastReductions<RestT...>::value &&
           ext::oneapi::experimental::is_property_list<PropertiesT>::value,
-      event>
-  parallel_for(nd_range<Dims> Range, PropertiesT Properties, RestT &&...Rest) {
+      event> parallel_for(nd_range<Dims> Range, PropertiesT Properties,
+                          RestT &&...Rest) {
     constexpr detail::code_location CodeLoc = getCodeLocation<KernelName>();
     detail::tls_code_loc_t TlsCodeLocCapture(CodeLoc);
     return submit(
