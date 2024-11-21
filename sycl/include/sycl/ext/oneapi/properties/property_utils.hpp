@@ -21,7 +21,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
-template <typename... property_tys> struct properties_type_list;
 
 //******************************************************************************
 // Misc
@@ -177,88 +176,6 @@ template <typename PropT, bool Condition>
 struct ConditionalPropertyMetaInfo
     : std::conditional_t<Condition, PropertyMetaInfo<PropT>,
                          IgnoredPropertyMetaInfo> {};
-
-template <template <typename> typename predicate, typename... property_tys>
-struct filter_properties_impl {
-  static constexpr auto idx_info = []() constexpr {
-    constexpr int N = sizeof...(property_tys);
-    std::array<int, N> indexes{};
-    int num_matched = 0;
-    int idx = 0;
-    (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
-      ...));
-
-    return std::pair{indexes, num_matched};
-  }();
-
-  // Helper to convert constexpr indices values to an std::index_sequence type.
-  // Values -> type is the key here.
-  template <int... Idx>
-  static constexpr auto idx_seq(std::integer_sequence<int, Idx...>) {
-    return std::integer_sequence<int, idx_info.first[Idx]...>{};
-  }
-
-  using selected_idx_seq =
-      decltype(idx_seq(std::make_integer_sequence<int, idx_info.second>{}));
-
-  // Using prop_list_ty so that we don't need to explicitly spell out
-  //  `properties` template parameters' implementation-details.
-  template <typename prop_list_ty, int... Idxs>
-  static constexpr auto apply_impl(const prop_list_ty &props,
-                                   std::integer_sequence<int, Idxs...>) {
-    return properties{props.template get_property<
-        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
-  }
-
-  template <typename prop_list_ty>
-  static constexpr auto apply(const prop_list_ty &props) {
-    return apply_impl(props, selected_idx_seq{});
-  }
-};
-
-template <template <typename> typename predicate, typename... property_tys>
-constexpr auto filter_properties(
-    const properties<properties_type_list<property_tys...>> &props) {
-  return filter_properties_impl<predicate, property_tys...>::apply(props);
-}
-
-template <typename... lhs_property_tys> struct merge_filter {
-  template <typename rhs_property_ty>
-  struct predicate
-      : std::bool_constant<!((std::is_same_v<typename lhs_property_tys::key_t,
-                                             typename rhs_property_ty::key_t> ||
-                              ...))> {};
-};
-
-template <typename... lhs_property_tys, typename... rhs_property_tys>
-constexpr auto merge_properties(
-    const properties<properties_type_list<lhs_property_tys...>> &lhs,
-    const properties<properties_type_list<rhs_property_tys...>> &rhs) {
-  auto rhs_unique_props =
-      filter_properties<merge_filter<lhs_property_tys...>::template predicate>(
-          rhs);
-  if constexpr (std::is_same_v<std::decay_t<decltype(rhs)>,
-                               std::decay_t<decltype(rhs_unique_props)>>) {
-    // None of RHS properties share keys with LHS, no conflicts possible.
-    return properties{
-        lhs.template get_property<typename lhs_property_tys::key_t>()...,
-        rhs.template get_property<typename rhs_property_tys::key_t>()...};
-  } else {
-    // Ensure no conflicts, then merge.
-    constexpr auto has_conflict = [](auto *lhs_prop) constexpr {
-      using lhs_property_ty = std::remove_pointer_t<decltype(lhs_prop)>;
-      return (((std::is_same_v<typename lhs_property_ty::key_t,
-                               typename rhs_property_tys::key_t> &&
-                (!std::is_same_v<lhs_property_ty, rhs_property_tys> ||
-                 !std::is_empty_v<lhs_property_ty>)) ||
-               ...));
-    };
-    static_assert(
-        !((has_conflict(static_cast<lhs_property_tys *>(nullptr)) || ...)),
-        "Failed to merge property lists due to conflicting properties.");
-    return merge_properties(lhs, rhs_unique_props);
-  }
-}
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
