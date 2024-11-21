@@ -451,7 +451,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
   // Regain ownership of the module.
   MDesc.releaseModulePtr().release();
 
-  return BundleInfo;
+  return std::move(BundleInfo);
 }
 
 Expected<InputArgList>
@@ -520,5 +520,5 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
         "Runtime compilation of ESIMD kernels is not yet supported");
   }
 
-  return Expected<InputArgList>{std::move(AL)};
+  return std::move(AL);
 }
