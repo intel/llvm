@@ -34,6 +34,8 @@ inline namespace _V1 {
 template<bundle_state State>
 class kernel_bundle;
 class queue;
+template <typename T, int Dimensions, typename AllocatorT, typename Enable>
+class buffer;
 
 namespace detail {
 
@@ -56,13 +58,15 @@ template <> struct interop<backend::opencl, platform> {
   using type = cl_platform_id;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendInput<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendInput<backend::opencl,
+                    buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = cl_mem;
 };
 
-template <typename DataT, int Dimensions, typename AllocatorT>
-struct BackendReturn<backend::opencl, buffer<DataT, Dimensions, AllocatorT>> {
+template <typename DataT, int Dimensions, typename AllocatorT, typename Enable>
+struct BackendReturn<backend::opencl,
+                     buffer<DataT, Dimensions, AllocatorT, Enable>> {
   using type = std::vector<cl_mem>;
 };
 
