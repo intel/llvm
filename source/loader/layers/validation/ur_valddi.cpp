@@ -71,11 +71,11 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRelease(
         }
     }
 
-    ur_result_t result = pfnAdapterRelease(hAdapter);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hAdapter, true);
     }
+
+    ur_result_t result = pfnAdapterRelease(hAdapter);
 
     return result;
 }
@@ -99,7 +99,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterRetain(
 
     ur_result_t result = pfnAdapterRetain(hAdapter);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hAdapter, true);
     }
 
@@ -558,7 +558,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRetain(
 
     ur_result_t result = pfnRetain(hDevice);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hDevice, false);
     }
 
@@ -583,11 +583,11 @@ __urdlllocal ur_result_t UR_APICALL urDeviceRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hDevice);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hDevice, false);
     }
+
+    ur_result_t result = pfnRelease(hDevice);
 
     return result;
 }
@@ -861,7 +861,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
     ur_result_t result = pfnRetain(hContext);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hContext, false);
     }
 
@@ -886,11 +886,11 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hContext);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hContext, false);
     }
+
+    ur_result_t result = pfnRelease(hContext);
 
     return result;
 }
@@ -1248,7 +1248,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 
     ur_result_t result = pfnRetain(hMem);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hMem, false);
     }
 
@@ -1273,11 +1273,11 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hMem);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hMem, false);
     }
+
+    ur_result_t result = pfnRelease(hMem);
 
     return result;
 }
@@ -1657,7 +1657,7 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRetain(
 
     ur_result_t result = pfnRetain(hSampler);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hSampler, false);
     }
 
@@ -1682,11 +1682,11 @@ __urdlllocal ur_result_t UR_APICALL urSamplerRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hSampler);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hSampler, false);
     }
+
+    ur_result_t result = pfnRelease(hSampler);
 
     return result;
 }
@@ -2154,7 +2154,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRetain(
 
     ur_result_t result = pfnPoolRetain(pPool);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(pPool, false);
     }
 
@@ -2178,11 +2178,11 @@ __urdlllocal ur_result_t UR_APICALL urUSMPoolRelease(
         }
     }
 
-    ur_result_t result = pfnPoolRelease(pPool);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(pPool, false);
     }
+
+    ur_result_t result = pfnPoolRelease(pPool);
 
     return result;
 }
@@ -2631,7 +2631,7 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRetain(
 
     ur_result_t result = pfnRetain(hPhysicalMem);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hPhysicalMem, false);
     }
 
@@ -2656,11 +2656,11 @@ __urdlllocal ur_result_t UR_APICALL urPhysicalMemRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hPhysicalMem);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hPhysicalMem, false);
     }
+
+    ur_result_t result = pfnRelease(hPhysicalMem);
 
     return result;
 }
@@ -2952,7 +2952,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 
     ur_result_t result = pfnRetain(hProgram);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hProgram, false);
     }
 
@@ -2977,11 +2977,11 @@ __urdlllocal ur_result_t UR_APICALL urProgramRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hProgram);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hProgram, false);
     }
+
+    ur_result_t result = pfnRelease(hProgram);
 
     return result;
 }
@@ -3618,7 +3618,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     ur_result_t result = pfnRetain(hKernel);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hKernel, false);
     }
 
@@ -3643,11 +3643,11 @@ __urdlllocal ur_result_t UR_APICALL urKernelRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hKernel);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hKernel, false);
     }
+
+    ur_result_t result = pfnRelease(hKernel);
 
     return result;
 }
@@ -4138,7 +4138,7 @@ __urdlllocal ur_result_t UR_APICALL urQueueRetain(
 
     ur_result_t result = pfnRetain(hQueue);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hQueue, false);
     }
 
@@ -4163,11 +4163,11 @@ __urdlllocal ur_result_t UR_APICALL urQueueRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hQueue);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hQueue, false);
     }
+
+    ur_result_t result = pfnRelease(hQueue);
 
     return result;
 }
@@ -4454,7 +4454,7 @@ __urdlllocal ur_result_t UR_APICALL urEventRetain(
 
     ur_result_t result = pfnRetain(hEvent);
 
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->incrementRefCount(hEvent, false);
     }
 
@@ -4478,11 +4478,11 @@ __urdlllocal ur_result_t UR_APICALL urEventRelease(
         }
     }
 
-    ur_result_t result = pfnRelease(hEvent);
-
-    if (getContext()->enableLeakChecking && result == UR_RESULT_SUCCESS) {
+    if (getContext()->enableLeakChecking) {
         getContext()->refCountContext->decrementRefCount(hEvent, false);
     }
+
+    ur_result_t result = pfnRelease(hEvent);
 
     return result;
 }
