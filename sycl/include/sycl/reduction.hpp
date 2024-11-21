@@ -1014,7 +1014,7 @@ public:
             }
           });
         } else {
-          accessor OutAcc{Out, CGH};
+          accessor OutAcc{Out, CopyHandler};
           CopyHandler.copy(Mem, OutAcc);
         }
       });
