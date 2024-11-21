@@ -1,7 +1,7 @@
-# commit 0ea47d7c70b9a21a3d90612a0a0e7525034e62f7
-# Merge: e3247c23 e36941cb
+# commit 28ef4c811df90f4fa592e4a03f2382462c22b60f
+# Merge: c3bcabfd 257225f9
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 10:24:08 2024 +0000
-#     Merge pull request #1584 from zhaomaosu/simplify-device-global
-#     [DeviceSanitizer] Remove device global "__AsanDeviceGlobalCount"
-set(UNIFIED_RUNTIME_TAG c67652b5318fe6e2e2f31467f899c4d7b22fe952)
+# Date:   Thu Nov 21 15:26:06 2024 +0000
+#     Merge pull request #2343 from nrspruit/coverity_fixes_l0
+#     [L0] fix Coverity issues in memory and timestamps
+set(UNIFIED_RUNTIME_TAG 28ef4c811df90f4fa592e4a03f2382462c22b60f)
