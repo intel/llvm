@@ -1896,7 +1896,9 @@ ur_result_t createEventAndAssociateQueue(
     UR_CALL(EventCreate(
         Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
         Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
-        HostVisible.has_value() ? true : Queue->interruptBasedEventsEnabled()));
+        InterruptBasedEvents.has_value()
+            ? InterruptBasedEvents.value()
+            : Queue->interruptBasedEventsEnabled()));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;
