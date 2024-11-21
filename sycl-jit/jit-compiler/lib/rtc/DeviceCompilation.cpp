@@ -415,8 +415,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
   MDesc.saveSplitInformationAsMetadata();
 
   RTCBundleInfo BundleInfo;
-  BundleInfo.SymbolTable =
-      decltype(BundleInfo.SymbolTable){MDesc.entries().size()};
+  BundleInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
   transform(MDesc.entries(), BundleInfo.SymbolTable.begin(),
             [](Function *F) { return F->getName(); });
 
@@ -431,7 +430,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
   //       `saveModuleProperties`?
   const auto &PropertySets = Properties.getPropSets();
 
-  BundleInfo.Properties = decltype(BundleInfo.Properties){PropertySets.size()};
+  BundleInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
   for (auto &&[KV, FrozenPropSet] : zip(PropertySets, BundleInfo.Properties)) {
     const auto &PropertySetName = KV.first;
     const auto &PropertySet = KV.second;
