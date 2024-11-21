@@ -646,6 +646,7 @@ config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
+    env["ZES_ENABLE_SYSMAN"] = "1"
     if sycl_device.startswith("cuda:"):
         env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
     # When using the ONEAPI_DEVICE_SELECTOR environment variable, sycl-ls
