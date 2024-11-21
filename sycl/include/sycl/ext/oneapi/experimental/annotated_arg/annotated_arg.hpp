@@ -66,8 +66,7 @@ annotated_arg(T, Args...)
     -> annotated_arg<T, typename detail::DeducedProperties<Args...>::type>;
 
 template <typename T, typename old, typename... ArgT>
-annotated_arg(annotated_arg<T, old>,
-              properties<detail::properties_type_list<ArgT...>>)
+annotated_arg(annotated_arg<T, old>, detail::properties_t<ArgT...>)
     -> annotated_arg<
         T, detail::merged_properties_t<old, detail::properties_t<ArgT...>>>;
 
@@ -214,13 +213,13 @@ public:
                 "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
   static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<Props...>::value;
+      detail::checkValidFPGAPropertySet<property_list_t>::value;
   static_assert(hasValidFPGAProperties,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
                 "can only be set with BufferLocation together.");
   // check if conduit and register_map properties are specified together
   static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<Props...>::value;
+      detail::checkHasConduitAndRegisterMap<property_list_t>::value;
   static_assert(hasConduitAndRegisterMapProperties,
                 "The properties conduit and register_map cannot be "
                 "specified at the same time.");
@@ -447,13 +446,13 @@ public:
                 "The property list contains invalid property.");
   // check the set if FPGA specificed properties are used
   static constexpr bool hasValidFPGAProperties =
-      detail::checkValidFPGAPropertySet<Props...>::value;
+      detail::checkValidFPGAPropertySet<property_list_t>::value;
   static_assert(hasValidFPGAProperties,
                 "FPGA Interface properties (i.e. awidth, dwidth, etc.) "
                 "can only be set with BufferLocation together.");
   // check if conduit and register_map properties are specified together
   static constexpr bool hasConduitAndRegisterMapProperties =
-      detail::checkHasConduitAndRegisterMap<Props...>::value;
+      detail::checkHasConduitAndRegisterMap<property_list_t>::value;
   static_assert(hasConduitAndRegisterMapProperties,
                 "The properties conduit and register_map cannot be "
                 "specified at the same time.");

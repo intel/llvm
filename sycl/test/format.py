@@ -18,6 +18,8 @@ class SYCLHeadersTest(lit.formats.TestFormat):
 
             # None is a special value we use to distinguish those two cases
             filepath = None
+            # The actual file has .cpp extension as every other test
+            path_in_suite = path_in_suite[:-1] + (path_in_suite[-1] + ".cpp",)
         else:
             # We don't have a dedicated special test for a header, therefore we
             # fallback to a generalized version of it
@@ -79,11 +81,12 @@ class SYCLHeadersTest(lit.formats.TestFormat):
             # It means that we have a special test case for a header and we need
             # to execute it as a regular lit sh test
             return lit.TestRunner.executeShTest(
-                    test, litConfig,
-                    False, # execute_external
-                    [], # extra_substitutions
-                    [], # preamble_commands
-                )
+                test,
+                litConfig,
+                False,  # execute_external
+                [],  # extra_substitutions
+                [],  # preamble_commands
+            )
 
         # Otherwise we generate the test on the fly
         command = [

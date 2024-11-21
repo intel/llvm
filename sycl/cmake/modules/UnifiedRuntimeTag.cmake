@@ -1,7 +1,7 @@
-# commit 30391c65d2d2ccc7ee3688a14815804bfb7fdf05
-# Merge: 5e6d79b3 58dabfe8
+# commit 9937d029c7fdcbf101e89f8515f640c145e059c5
+# Merge: 9ac6d5d9 10b0e101
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 15 15:13:20 2024 +0000
-#     Merge pull request #2222 from RossBrunton/ross/cfi
-#     Enable -flto and -fsanitize=cfi in clang
-set(UNIFIED_RUNTIME_TAG 30391c65d2d2ccc7ee3688a14815804bfb7fdf05)
+# Date:   Wed Nov 20 14:49:17 2024 +0000
+#     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
+#     Use extension version of clGetKernelSubGroupInfo when necessary.
+set(UNIFIED_RUNTIME_TAG 9937d029c7fdcbf101e89f8515f640c145e059c5)
