@@ -8,6 +8,7 @@ class Compare(Enum):
 
 @dataclass
 class Options:
+    workdir: str = None
     sycl: str = None
     ur: str = None
     ur_adapter: str = None
