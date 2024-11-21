@@ -4,4 +4,4 @@
 # Date:   Mon Oct 28 16:29:45 2024 +0100
 #   Merge pull request #2242 from nrspruit/sysman_env_disable
 #   [L0] Enable Sysman Thru Env by default and have zesInit be optional
-set(UNIFIED_RUNTIME_TAG dbd168cbed2d2590b47904728cd5762f1c2f4c6b)
+set(UNIFIED_RUNTIME_TAG f99adf104ef5ce94d66b6ed4f9dccc450f1f638c)
