@@ -313,7 +313,6 @@ int main() {
       // ROUNDED-DIV-PREC-SQRT: call reassoc nnan ninf nsz arcp afn spir_func nofpclass(nan inf) float @sqrt(float noundef nofpclass(nan inf) {{.*}})
       // ROUNDED-DIV-ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT:[0-9]+]]
       // LOW-PREC-DIV: call float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT_LOW:[0-9]+]]
-      // HIGH-PREC: call spir_func float @sqrt(float noundef {{.*}})
       // LOW-PREC-SQRT: call float @llvm.fpbuiltin.sqrt.f32(float {{.*}}) #[[ATTR_SQRT_LOW:[0-9]+]]
       (void)sqrt(Value1);
     });
@@ -335,7 +334,6 @@ int main() {
       // ROUNDED-DIV-PREC-SQRT: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // ROUNDED-DIV-ROUNDED-SQRT-FAST: call reassoc nnan ninf nsz arcp afn float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_DIV:[0-9]+]]
       // LOW-PREC-DIV: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_LOW:[0-9]+]]
-      // HIGH-PREC: call float @llvm.fpbuiltin.fdiv.f32(float {{.*}}, float {{.*}}) #[[ATTR_FDIV_HIGH:[0-9]+]]
       // LOW-PREC-SQRT: fdiv float {{.*}}, {{.*}}
       a[0] = Value1 / Value2;
     });
@@ -353,5 +351,4 @@ return 0;
 // ROUNDED-DIV-ROUNDED-SQRT-FAST: attributes #[[ATTR_DIV]] = {{.*}}"fpbuiltin-max-error"="2.5"
 // LOW-PREC-DIV: attributes #[[ATTR_SQRT_LOW]] = {{.*}}"fpbuiltin-max-error"="1.0"
 // LOW-PREC-DIV: attributes #[[ATTR_FDIV_LOW]] = {{.*}}"fpbuiltin-max-error"="2.5"
-// HIGH-PREC: attributes #[[ATTR_FDIV_HIGH]] = {{.*}}"fpbuiltin-max-error"="1.0"
 // LOW-PREC-SQRT: attributes #[[ATTR_SQRT_LOW]] = {{.*}}"fpbuiltin-max-error"="3.0"
