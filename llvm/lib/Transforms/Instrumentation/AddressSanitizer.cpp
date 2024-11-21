@@ -1641,6 +1641,10 @@ static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
   if (!G->hasAttribute("sycl-device-image-scope"))
     return true;
 
+  // Skip instrumenting on "__AsanKernelMetadata" etc.
+  if (G.getName().starts_with("__Asan"))
+    return true;
+
   Attribute Attr = G->getAttribute("sycl-device-image-scope");
   return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
 }
