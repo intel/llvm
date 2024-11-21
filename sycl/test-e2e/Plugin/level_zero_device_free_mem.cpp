@@ -15,7 +15,7 @@
 using namespace sycl;
 
 int main() {
-  
+
   queue Queue;
   auto dev = Queue.get_device();
   std::cout << "Device: " << dev.get_info<info::device::name>() << std::endl;
