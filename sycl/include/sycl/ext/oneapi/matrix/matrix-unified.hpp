@@ -127,7 +127,7 @@ joint_matrix_apply(Group sg, joint_matrix<Group, T0, Use, M, N, Layout> &jm0,
 #if defined(__SYCL_DEVICE_ONLY__)
 #if defined(__NVPTX__) || defined(__HIP_PLATFORM_AMD_MFMA__)
   std::ignore = sg;
-  for (int i = 0; i < jmsrc.matrix_impl.wi_marray.size(); i++) {
+  for (int i = 0; i < jm0.matrix_impl.wi_marray.size(); i++) {
     lambda(jm0.matrix_impl.wi_marray[i], jm1.matrix_impl.wi_marray[i]);
   }
 #else // NVPTX

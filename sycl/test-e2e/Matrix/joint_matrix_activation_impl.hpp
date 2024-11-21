@@ -104,17 +104,17 @@ int main() {
   bool res0 = matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
   bool res = matrix_compare<Activation::None>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
                                               (float *)C);
-  std::cout << (res ? "Copy passed" : "failed") << std::endl;
+  std::cout << (res ? "Copy passed" : "Copy failed") << std::endl;
 
   matrix_activation_copy<Activation::ReLU>(MC, MA);
   res &= matrix_compare<Activation::ReLU>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
                                           (float *)C);
-  std::cout << (res ? "ReLU passed" : "failed") << std::endl;
+  std::cout << (res ? "ReLU passed" : "ReLU failed") << std::endl;
 
   matrix_activation_copy<Activation::Sigmoid>(MC, MA);
   res &= matrix_compare<Activation::Sigmoid>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
                                              (float *)C);
-  std::cout << (res ? "Sigmoid passed" : "failed") << std::endl;
+  std::cout << (res ? "Sigmoid passed" : "Sigmoid failed") << std::endl;
 
   return !res;
 }

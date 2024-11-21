@@ -13,6 +13,7 @@
 
 // Currently, the outlining into an apply function triggers a bug in IGC
 // XFAIL: gpu
+// XFAIL-TRACKER: GSD-10373
 
 #include "common.hpp"
 #include "joint_matrix_activation_impl.hpp"
