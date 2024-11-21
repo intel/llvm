@@ -2056,6 +2056,7 @@ void handler::SetHostTask(std::function<void(interop_handle)> &&Func) {
 }
 
 void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
+#if 0
   // Constructor of accessors add them to MRequirements and MAccStorage
   // of the associated handler, so do not add duplicates if use same
   // handler as during construction.
@@ -2068,6 +2069,7 @@ void handler::addAccessorReq(detail::AccessorImplPtr Accessor) {
   impl->CGData.MRequirements.push_back(Accessor.get());
   // Store copy of the accessor.
   impl->CGData.MAccStorage.push_back(std::move(Accessor));
+#endif
 }
 
 void handler::addLifetimeSharedPtrStorage(std::shared_ptr<const void> SPtr) {
