@@ -1291,7 +1291,8 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   return URProgram;
 }
 
-ProgramManager::ProgramManager() : m_AsanFoundInImage(false) {
+ProgramManager::ProgramManager()
+    : m_SanitizerFoundInImage(SanitizerType::None) {
   const char *SpvFile = std::getenv(UseSpvEnv);
   // If a SPIR-V file is specified with an environment variable,
   // register the corresponding image
@@ -1828,11 +1829,21 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 
     cacheKernelUsesAssertInfo(*Img);
 
-    // check if kernel uses asan
+    // check if kernel uses sanitizer
     {
-      sycl_device_binary_property Prop = Img->getProperty("asanUsed");
-      m_AsanFoundInImage |=
-          Prop && (detail::DeviceBinaryProperty(Prop).asUint32() != 0);
+      sycl_device_binary_property SanProp = Img->getProperty("sanUsed");
+      if (SanProp) {
+        std::string SanValue =
+            detail::DeviceBinaryProperty(SanProp).asCString();
+
+        if (SanValue == "asan") {
+          m_SanitizerFoundInImage = SanitizerType::AddressSanitizer;
+        } else if (SanValue == "msan") {
+          m_SanitizerFoundInImage = SanitizerType::MemorySanitizer;
+        } else if (SanValue == "tsan") {
+          m_SanitizerFoundInImage = SanitizerType::ThreadSanitizer;
+        }
+      }
     }
 
     // Sort kernel ids for faster search

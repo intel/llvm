@@ -1197,6 +1197,11 @@ void SanitizerArgs::addArgs(const ToolChain &TC, const llvm::opt::ArgList &Args,
 
       CmdArgs.push_back("-mllvm");
       CmdArgs.push_back("-asan-mapping-scale=4");
+    } else if (Sanitizers.has(SanitizerKind::Memory)) {
+      CmdArgs.push_back("-fsanitize=memory");
+
+      CmdArgs.push_back("-mllvm");
+      CmdArgs.push_back("-msan-instrumentation-with-call-threshold=0");
     }
     return;
   }

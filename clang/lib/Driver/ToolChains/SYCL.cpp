@@ -545,6 +545,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       {"libsycl-asan-cpu", "internal"},
       {"libsycl-asan-dg2", "internal"},
       {"libsycl-asan-pvc", "internal"}};
+  const SYCLDeviceLibsList SYCLDeviceMsanLibs = {{"libsycl-msan", "internal"}};
 #endif
 
   const SYCLDeviceLibsList SYCLNativeCpuDeviceLibs = {
@@ -695,6 +696,8 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
 
   if (SanitizeVal == "address")
     addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
+  else if (SanitizeVal == "memory")
+    addLibraries(SYCLDeviceMsanLibs);
 
 #endif
 
@@ -1634,7 +1637,7 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
           A->getValues().size() == 1) {
         std::string SanitizeVal = A->getValue();
-        if (SanitizeVal == "address")
+        if (SanitizeVal == "address" || SanitizeVal == "memory")
           continue;
       }
       D.Diag(clang::diag::warn_drv_unsupported_option_for_target)
@@ -1672,7 +1675,7 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
-          if (SanitizeVal == "address") {
+          if (SanitizeVal == "address" || SanitizeVal == "memory") {
             if (IsNewDAL)
               DAL->append(A);
             continue;
@@ -2081,5 +2084,5 @@ void SYCLToolChain::AddClangCXXStdlibIncludeArgs(const ArgList &Args,
 }
 
 SanitizerMask SYCLToolChain::getSupportedSanitizers() const {
-  return SanitizerKind::Address;
+  return SanitizerKind::Address | SanitizerKind::Memory;
 }

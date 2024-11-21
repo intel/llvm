@@ -87,6 +87,13 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
+enum class SanitizerType {
+  None,
+  AddressSanitizer,
+  MemorySanitizer,
+  ThreadSanitizer
+};
+
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
 class ProgramManager {
@@ -292,7 +299,7 @@ public:
 
   bool kernelUsesAssert(const std::string &KernelName) const;
 
-  bool kernelUsesAsan() const { return m_AsanFoundInImage; }
+  SanitizerType kernelUsesSanitizer() const { return m_SanitizerFoundInImage; }
 
   std::set<RTDeviceBinaryImage *>
   getRawDeviceImages(const std::vector<kernel_id> &KernelIDs);
@@ -419,8 +426,8 @@ private:
 
   std::set<std::string> m_KernelUsesAssert;
 
-  // True iff there is a device image compiled with AddressSanitizer
-  bool m_AsanFoundInImage;
+  // Sanitizer type used in device image
+  SanitizerType m_SanitizerFoundInImage;
 
   // Maps between device_global identifiers and associated information.
   std::unordered_map<std::string, std::unique_ptr<DeviceGlobalMapEntry>>
