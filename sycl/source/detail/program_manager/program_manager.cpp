@@ -926,7 +926,13 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
   if (!SYCLConfig<SYCL_CACHE_IN_MEM>::get())
     return BuildF();
 
-  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
+  auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
+                                       bool isBuilt) {
+    return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
+  };
+
+  auto BuildResult =
+      Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -940,10 +946,12 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     // update it here and re-use that lambda.
     CacheKey.first.second = BImg->getImageID();
     bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
-    if (DidInsert) {
+
+    // Add to the eviction list.
+    Cache.registerProgramFetch(CacheKey, ResProgram, DidInsert);
+    if (DidInsert)
       // For every cached copy of the program, we need to increment its refcount
       Adapter->call<UrApiKind::urProgramRetain>(ResProgram);
-    }
   }
 
   // If caching is enabled, one copy of the program handle will be
@@ -2778,7 +2786,13 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
+  auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
+                                       bool isBuilt) {
+    return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
+  };
+
+  auto BuildResult =
+      Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -2807,7 +2821,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
       }
       // Change device in the cache key to reduce copying of spec const data.
       CacheKey.second = Subset;
-      Cache.getOrBuild<errc::build>(GetCachedBuildF, CacheSubsets);
+      Cache.getOrBuild<errc::build>(GetCachedBuildF, CacheSubsets, EvictFunc);
       // getOrBuild is not supposed to return nullptr
       assert(BuildResult != nullptr && "Invalid build result");
     }
