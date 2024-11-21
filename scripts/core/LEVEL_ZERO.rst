@@ -139,8 +139,15 @@ Environment Variables
 | UR_L0_DISABLE_USM_ALLOCATOR                 | Controls the use of the USM allocator.                       | "0": USM allocator is enabled.                               | "0"              |
 |                                             |                                                              | Any other value: USM allocator is disabled.                  |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
-
+| UR_L0_CMD_BUFFER_USE_IMMEDIATE_APPEND_PATH  | Controls which command-buffer implementation path is used.   | "1": the immediate append path will always be enabled as     | Unset            |
+|                                             | The paths rely on different APIs to enqueue command-buffers. | long as the pre-requisites are met.                          |                  |
+|                                             | The immediate append path relies on                          | "0": the immediate append path will always be disabled.      |                  |
+|                                             | zeCommandListImmediateAppendCommandListsExp().               | "unset": The default behaviour will be used which enables    |                  |
+|                                             | The wait-event path relies on                                | the immediate append path only for some devices when the     |                  |
+|                                             | zeCommandQueueExecuteCommandLists()                          | pre-requisites are met.                                      |                  |
++---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
 Contributors
 ------------
 
 * Neil Spruit `neil.r.spruit@intel.com <neil.r.spruit@intel.com>`_
+* Fábio Mestre `fabio.mestre@codeplay.com <fabio.mestre@codeplay.com>`_

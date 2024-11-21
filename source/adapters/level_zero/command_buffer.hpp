@@ -31,9 +31,12 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
       ze_command_list_handle_t CommandList,
       ze_command_list_handle_t CommandListTranslated,
       ze_command_list_handle_t CommandListResetEvents,
-      ze_command_list_handle_t CopyCommandList, ur_event_handle_t SignalEvent,
-      ur_event_handle_t WaitEvent, ur_event_handle_t AllResetEvent,
-      const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList);
+      ze_command_list_handle_t CopyCommandList,
+      ur_event_handle_t ExecutionFinishedEvent, ur_event_handle_t WaitEvent,
+      ur_event_handle_t AllResetEvent, ur_event_handle_t CopyFinishedEvent,
+      ur_event_handle_t ComputeFinishedEvent,
+      const ur_exp_command_buffer_desc_t *Desc, const bool IsInOrderCmdList,
+      const bool UseImmediateAppendPath);
 
   void registerSyncPoint(ur_exp_command_buffer_sync_point_t SyncPoint,
                          ur_event_handle_t Event);
@@ -72,33 +75,48 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   ur_context_handle_t Context;
   // Device associated with this command buffer
   ur_device_handle_t Device;
-  // Level Zero command list handle
+  // Level Zero command list handle that has the compute engine commands for
+  // this command-buffer.
   ze_command_list_handle_t ZeComputeCommandList;
   // Given a multi driver scenario, the driver handle must be translated to the
   // internal driver handle to allow calls to driver experimental apis.
   ze_command_list_handle_t ZeComputeCommandListTranslated;
-  // Level Zero command list handle
+  // Level Zero command list handle that is responsible for resetting
+  // the events after the compute and copy command-lists execute.
   ze_command_list_handle_t ZeCommandListResetEvents;
-  // Level Zero Copy command list handle
+  // Level Zero command list handle that has the copy engine commands for this
+  // command-buffer.
   ze_command_list_handle_t ZeCopyCommandList;
   // Event which will signals the most recent execution of the command-buffer
-  // has finished
-  ur_event_handle_t SignalEvent = nullptr;
-  // Event which a command-buffer waits on until the wait-list dependencies
-  // passed to a command-buffer enqueue have been satisfied.
+  // has finished.
+  ur_event_handle_t ExecutionFinishedEvent = nullptr;
+  // [WaitEvent Path Only] Event which a command-buffer waits on until the
+  // wait-list dependencies passed to a command-buffer enqueue have been
+  // satisfied.
   ur_event_handle_t WaitEvent = nullptr;
-  // Event which a command-buffer waits on until the main command-list event
+  // Event which a command-buffer waits on until the main command-list events
   // have been reset.
   ur_event_handle_t AllResetEvent = nullptr;
-  // This flag is must be set to false if at least one copy command has been
+  // [ImmediateAppend Path Only] Event that is signalled after the copy engine
+  // command-list finishes executing.
+  ur_event_handle_t CopyFinishedEvent = nullptr;
+  // [ImmediateAppend Path Only] Event that is signalled after the compute
+  // engine command-list finishes executing.
+  ur_event_handle_t ComputeFinishedEvent = nullptr;
+  // [ImmediateAppend Path Only] Event that is signaled after the current
+  // submission of this command-buffer finishes executing (i.e. after
+  // ZeComputeCommandList finishes executing).
+  ur_event_handle_t CurrentSubmissionEvent = nullptr;
+  // This flag must be set to false if at least one copy command has been
   // added to `ZeCopyCommandList`
   bool MCopyCommandListEmpty = true;
-  // Level Zero fences for each queue the command-buffer has been enqueued to.
-  // These should be destroyed when the command-buffer is released.
+  // [WaitEvent Path only] Level Zero fences for each queue the command-buffer
+  // has been enqueued to. These should be destroyed when the command-buffer is
+  // released.
   std::unordered_map<ze_command_queue_handle_t, ze_fence_handle_t> ZeFencesMap;
-  // The Level Zero fence from the most recent enqueue of the command-buffer.
-  // Must be an element in ZeFencesMap, so is not required to be destroyed
-  // itself.
+  // [WaitEvent Path only] The Level Zero fence from the most recent enqueue of
+  // the command-buffer. Must be an element in ZeFencesMap, so is not required
+  // to be destroyed itself.
   ze_fence_handle_t ZeActiveFence;
   // Map of sync_points to ur_events
   std::unordered_map<ur_exp_command_buffer_sync_point_t, ur_event_handle_t>
@@ -117,6 +135,9 @@ struct ur_exp_command_buffer_handle_t_ : public _ur_object {
   bool IsProfilingEnabled = false;
   // Command-buffer can be submitted to an in-order command-list.
   bool IsInOrderCmdList = false;
+  // Whether this command-buffer should use the code path that uses
+  // zeCommandListImmediateAppendCommandListsExp during enqueue.
+  bool UseImmediateAppendPath = false;
   // This list is needed to release all kernels retained by the
   // command_buffer.
   std::vector<ur_kernel_handle_t> KernelsList;
