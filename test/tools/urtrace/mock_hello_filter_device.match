@@ -1,7 +1,7 @@
 Platform initialized.
 API version: {{.*}}
-urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
+urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 Found a Mock Device gpu.

@@ -1,19 +1,19 @@
 Platform initialized.
-begin(1) - urAdapterGet(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (0));
-end(1) - urAdapterGet(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-begin(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr);
-end(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
-begin(3) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (0));
-end(3) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-begin(4) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {nullptr}, .pNumPlatforms = nullptr);
-end(4) - urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
+begin(1) - urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (0));
+end(1) - urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+begin(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr);
+end(2) - urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
+begin(3) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (0));
+end(3) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+begin(4) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}} {nullptr}, .pNumPlatforms = nullptr);
+end(4) - urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
 begin(5) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (0.0));
 end(5) - urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} (@PROJECT_VERSION_MAJOR@.@PROJECT_VERSION_MINOR@)) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
-begin(6) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (0));
-end(6) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-begin(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {nullptr}, .pNumDevices = nullptr);
-end(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
+begin(6) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (0));
+end(6) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+begin(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {nullptr}, .pNumDevices = nullptr);
+end(7) - urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
 begin(8) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}}, .pPropSizeRet = nullptr);
 end(8) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = 4, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 begin(9) - urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = 1023, .pPropValue = {{.*}}, .pPropSizeRet = nullptr);
