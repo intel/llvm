@@ -213,7 +213,10 @@ public:
   const PropertyRange &getSpecConstantsDefaultValues() const {
     return SpecConstDefaultValuesMap;
   }
+  // TODO: clear deprecated DeviceLibReqMask when developers upgrade to latest
+  // version compiler.
   const PropertyRange &getDeviceLibReqMask() const { return DeviceLibReqMask; }
+  const PropertyRange &getDeviceLibReqBins() const { return DeviceLibReqBins; }
   const PropertyRange &getKernelParamOptInfo() const {
     return KernelParamOptInfo;
   }
@@ -246,6 +249,7 @@ protected:
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
+  RTDeviceBinaryImage::PropertyRange DeviceLibReqBins;
   RTDeviceBinaryImage::PropertyRange KernelParamOptInfo;
   RTDeviceBinaryImage::PropertyRange AssertUsed;
   RTDeviceBinaryImage::PropertyRange ProgramMetadata;

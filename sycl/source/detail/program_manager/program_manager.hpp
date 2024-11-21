@@ -177,8 +177,6 @@ public:
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr Context);
 
-  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
-
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
   /// \param NativePrg the UR program associated with the kernel.
@@ -307,7 +305,7 @@ private:
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,
-                   uint32_t DeviceLibReqMask,
+                   const std::vector<const RTDeviceBinaryImage *> &Images,
                    const std::vector<ur_program_handle_t> &ProgramsToLink,
                    bool CreatedFromBinary = false);
 

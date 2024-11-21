@@ -755,7 +755,8 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void
+CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -844,18 +845,18 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
 
+    std::vector<const RTDeviceBinaryImage *> ImagesVec;
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
     // Pre-compiled programs (after AOT compilation or read from persitent
     // cache) are supposed to be already linked.
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
-    uint32_t DeviceLibReqMask = 0;
     bool UseDeviceLibs = !DeviceCodeWasInCache &&
                          Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
                          !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get();
     if (UseDeviceLibs)
-      DeviceLibReqMask = getDeviceLibReqMask(Img);
+      ImagesVec.push_back(&Img);
 
     std::vector<ur_program_handle_t> ProgramsToLink;
     // If we had a program in cache, then it should have been the fully linked
@@ -863,7 +864,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     if (!DeviceCodeWasInCache) {
       for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
         if (UseDeviceLibs)
-          DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
+          ImagesVec.push_back(BinImg);
         device_image_plain DevImagePlain =
             getDeviceImageFromBinaryImage(BinImg, Context, Device);
         const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
@@ -883,10 +884,10 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     }
     std::vector<ur_device_handle_t> Devs = {
         getSyclObjImpl(Device).get()->getHandleRef()};
-    ;
+
     ProgramPtr BuiltProgram = build(
         std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts, Devs,
-        DeviceLibReqMask, ProgramsToLink,
+        ImagesVec, ProgramsToLink,
         /*CreatedFromBinary*/ Img.getFormat() != SYCL_DEVICE_BINARY_TYPE_SPIRV);
     // Those extra programs won't be used anymore, just the final linked result
     for (ur_program_handle_t Prg : ProgramsToLink)
@@ -1505,9 +1506,9 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
 }
 
 static std::vector<ur_program_handle_t>
-getDeviceLibPrograms(const ContextImplPtr Context,
-                     std::vector<ur_device_handle_t> &Devices,
-                     uint32_t DeviceLibReqMask) {
+getDeviceLibProgramsLegacy(const ContextImplPtr Context,
+                           std::vector<ur_device_handle_t> &Devices,
+                           uint32_t DeviceLibReqMask) {
   std::vector<ur_program_handle_t> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -1590,6 +1591,57 @@ getDeviceLibPrograms(const ContextImplPtr Context,
   return Programs;
 }
 
+static std::vector<ur_program_handle_t>
+getDeviceLibPrograms(const ContextImplPtr Context,
+                     std::vector<ur_device_handle_t> &Devices,
+                     const std::vector<const RTDeviceBinaryImage *> &Images) {
+  std::vector<ur_program_handle_t> Programs;
+  return Programs;
+}
+
+static void
+checkDeviceLibsLinkMode(const std::vector<const RTDeviceBinaryImage *> &Images,
+                        bool &LinkDeviceLib, bool &LegacyLinkMode) {
+  bool ReqMaskAvailable = false, ReqBinsAvailable = false;
+  for (auto Img : Images) {
+    const RTDeviceBinaryImage::PropertyRange &LegacyRange =
+        Img->getDeviceLibReqMask();
+    if (LegacyRange.isAvailable()) {
+      ReqMaskAvailable = true;
+      continue;
+    }
+
+    const RTDeviceBinaryImage::PropertyRange &NewRange =
+        Img->getDeviceLibReqBins();
+    if (NewRange.isAvailable())
+      ReqBinsAvailable = true;
+  }
+
+  // If both ReqBins and ReqMask are available, it means user's device image
+  // and the images in cache are built with different version compiler, we
+  // don't support such scenario.
+  if ((!ReqMaskAvailable && !ReqBinsAvailable) ||
+      (ReqMaskAvailable && ReqBinsAvailable)) {
+    LinkDeviceLib = false;
+    return;
+  }
+
+  LinkDeviceLib = true;
+  LegacyLinkMode = ReqMaskAvailable;
+}
+
+static uint32_t getDeviceLibReqMaskFromImages(
+    const std::vector<const RTDeviceBinaryImage *> &Images) {
+  uint32_t DeviceLibReqMask = 0;
+  for (auto Img : Images) {
+    const RTDeviceBinaryImage::PropertyRange &ReqMaskRange =
+        Img->getDeviceLibReqMask();
+    if (ReqMaskRange.isAvailable())
+      DeviceLibReqMask |= DeviceBinaryProperty(*(ReqMaskRange.begin())).asUint32();
+  }
+  return DeviceLibReqMask;
+}
+
 // Check if device image is compressed.
 static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 
@@ -1600,19 +1652,25 @@ static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
-    std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
+    std::vector<ur_device_handle_t> &Devices,
+    const std::vector<const RTDeviceBinaryImage *> &Images,
     const std::vector<ur_program_handle_t> &ExtraProgramsToLink,
     bool CreatedFromBinary) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
               << CompileOptions << ", " << LinkOptions << ", "
-              << VecToString(Devices) << ", " << std::hex << DeviceLibReqMask
-              << std::dec << ", " << VecToString(ExtraProgramsToLink) << ", "
-              << CreatedFromBinary << ")\n";
+              << VecToString(Devices) << ", " << std::dec << ", "
+              << VecToString(ExtraProgramsToLink) << ", " << CreatedFromBinary
+              << ")\n";
   }
 
-  bool LinkDeviceLibs = (DeviceLibReqMask != 0);
+  bool LinkDeviceLibs = false;
+  bool LegacyDeviceLibLinkMode = false;
+  if (Images.size() == 0)
+    LinkDeviceLibs = false;
+  else
+    checkDeviceLibsLinkMode(Images, LinkDeviceLibs, LegacyDeviceLibLinkMode);
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
@@ -1623,7 +1681,13 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   std::vector<ur_program_handle_t> LinkPrograms;
   if (LinkDeviceLibs) {
-    LinkPrograms = getDeviceLibPrograms(Context, Devices, DeviceLibReqMask);
+    if (LegacyDeviceLibLinkMode) {
+      uint32_t DeviceLibReqMask = getDeviceLibReqMaskFromImages(Images);
+      LinkPrograms =
+          getDeviceLibProgramsLegacy(Context, Devices, DeviceLibReqMask);
+    } else {
+      LinkPrograms = getDeviceLibPrograms(Context, Devices, Images);
+    }
   }
 
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
@@ -1937,15 +2001,6 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
-}
-
-uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
-  const RTDeviceBinaryImage::PropertyRange &DLMRange =
-      Img.getDeviceLibReqMask();
-  if (DLMRange.isAvailable())
-    return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
-  else
-    return 0x0;
 }
 
 const KernelArgMask *
@@ -2640,10 +2695,10 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     // Pre-compiled programs are supposed to be already linked.
     // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
     // no fallback device library will be linked.
-    uint32_t DeviceLibReqMask = 0;
+    std::vector<const RTDeviceBinaryImage *> ImagesVec;
     if (Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
         !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get())
-      DeviceLibReqMask = getDeviceLibReqMask(Img);
+      ImagesVec.push_back(&Img);
 
     // TODO: Add support for dynamic linking with kernel bundles
     std::vector<ur_program_handle_t> ExtraProgramsToLink;
@@ -2653,7 +2708,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
     }
     ProgramPtr BuiltProgram =
         build(std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-              URDevices, DeviceLibReqMask, ExtraProgramsToLink);
+              URDevices, ImagesVec, ExtraProgramsToLink);
 
     emitBuiltProgramInfo(BuiltProgram.get(), ContextImpl);
 
@@ -2869,10 +2924,13 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   // No linking of extra programs reqruired.
   std::vector<ur_program_handle_t> ExtraProgramsToLink;
   std::vector<ur_device_handle_t> Devs = {DeviceImpl->getHandleRef()};
+  std::vector<const RTDeviceBinaryImage *> ImagesVec;
+  // For non-spirv target, we don't need to link any fallback device library.
+  // An empty images vector will skip linking fallback device libraries.
   auto BuildProgram =
       build(std::move(ProgramManaged), detail::getSyclObjImpl(Context),
             CompileOpts, LinkOpts, Devs,
-            /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
+            ImagesVec,
             ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
   Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
