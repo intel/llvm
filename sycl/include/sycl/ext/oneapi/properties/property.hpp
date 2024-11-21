@@ -289,29 +289,6 @@ template <typename PropertyT> struct PropertyID {
       static_cast<int>(PropertyToKind<PropertyT>::Kind);
 };
 
-// Trait for identifying runtime properties.
-template <typename PropertyT>
-struct IsRuntimeProperty
-    : std::bool_constant<
-          !is_property_list_v<PropertyT> &&
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          !std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
-
-// Trait for identifying compile-time properties.
-template <typename PropertyT>
-struct IsCompileTimeProperty
-    : std::bool_constant<
-          !is_property_list_v<PropertyT> &&
-          std::is_base_of_v<property_key_base_tag, PropertyT> &&
-          std::is_base_of_v<compile_time_property_key_base_tag, PropertyT>> {};
-
-// Checks if a type is either a runtime property or if it is a compile-time
-// property
-template <typename T> struct IsProperty {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
-};
-
 // Trait for property compile-time meta names and values.
 template <typename PropertyT> struct PropertyMetaInfo {
   // Some properties don't have meaningful compile-time values.
