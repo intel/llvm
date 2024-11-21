@@ -618,6 +618,9 @@ ur_result_t urProgramGetGlobalVariablePointer(
                                     ///< variable if it is found in the program.
 ) {
   std::scoped_lock<ur_shared_mutex> lock(Program->Mutex);
+  if (Program->getState(Device->ZeDevice) != ur_program_handle_t_::Exe) {
+    return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
+  }
 
   ze_module_handle_t ZeModuleEntry{};
   ZeModuleEntry = Program->getZeModuleHandle(Device->ZeDevice);
