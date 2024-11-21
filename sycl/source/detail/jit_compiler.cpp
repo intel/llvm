@@ -1176,13 +1176,14 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
   // RegisteredKernelNames may contain template specializations, so we just put
   // them in main() which ensures they are instantiated.
   std::ostringstream ss;
+  ss << SYCLSource << '\n';
   ss << "int main() {\n";
   for (const std::string &KernelName : RegisteredKernelNames) {
     ss << "  (void)" << KernelName << ";\n";
   }
   ss << "  return 0;\n}\n" << std::endl;
 
-  std::string FinalSource = SYCLSource + ss.str();
+  std::string FinalSource = ss.str();
 
   std::string SYCLFileName = Id + ".cpp";
   ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
