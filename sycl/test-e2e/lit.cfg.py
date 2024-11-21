@@ -75,6 +75,7 @@ llvm_config.with_system_environment(
     [
         "PATH",
         "OCL_ICD_FILENAMES",
+        "OCL_ICD_VENDORS",
         "CL_CONFIG_DEVICES",
         "SYCL_DEVICE_ALLOWLIST",
         "SYCL_CONFIG_FILE_NAME",
