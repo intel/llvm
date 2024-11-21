@@ -11,7 +11,7 @@ Platform initialized.
    <--- urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{0\.[0-9]+}})) -> UR_RESULT_SUCCESS;
 API version: {{0\.[0-9]+}}
    ---> urDeviceGet
-   <--- urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+   <--- urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
    ---> urDeviceGet
    <--- urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
    ---> urDeviceGetInfo

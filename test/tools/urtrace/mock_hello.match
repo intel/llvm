@@ -1,12 +1,12 @@
 Platform initialized.
-urAdapterGet(.NumEntries = 0, .phAdapters = {}, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-urAdapterGet(.NumEntries = 1, .phAdapters = {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
-urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {}, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-urPlatformGet(.phAdapters = {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
+urAdapterGet(.NumEntries = 0, .phAdapters = nullptr, .pNumAdapters = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urAdapterGet(.NumEntries = 1, .phAdapters = {{.*}} {{{.*}}}, .pNumAdapters = nullptr) -> UR_RESULT_SUCCESS;
+urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = nullptr, .pNumPlatforms = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urPlatformGet(.phAdapters = {{.*}} {{{.*}}}, .NumAdapters = 1, .NumEntries = 1, .phPlatforms = {{.*}} {{{.*}}}, .pNumPlatforms = nullptr) -> UR_RESULT_SUCCESS;
 urPlatformGetApiVersion(.hPlatform = {{.*}}, .pVersion = {{.*}} ({{.*}})) -> UR_RESULT_SUCCESS;
 API version: {{.*}}
-urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = {}, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
-urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
+urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 0, .phDevices = nullptr, .pNumDevices = {{.*}} (1)) -> UR_RESULT_SUCCESS;
+urDeviceGet(.hPlatform = {{.*}}, .DeviceType = UR_DEVICE_TYPE_GPU, .NumEntries = 1, .phDevices = {{.*}} {{{.*}}}, .pNumDevices = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_TYPE, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 urDeviceGetInfo(.hDevice = {{.*}}, .propName = UR_DEVICE_INFO_NAME, .propSize = {{.*}}, .pPropValue = {{.*}}, .pPropSizeRet = nullptr) -> UR_RESULT_SUCCESS;
 Found a Mock Device gpu.
