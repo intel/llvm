@@ -82,7 +82,6 @@ inline __SYCL_ALWAYS_INLINE __spv::MatrixLayout joint_matrix_layout_to_spv(
   }
 }
 
-#ifdef __SPIRV_USE_COOPERATIVE_MATRIX
 template<typename Ta, typename Tb, typename Tc>
 constexpr uint32_t CalculateMatrixOperand() {
   if constexpr (std::is_same<Ta, sycl::ext::oneapi::bfloat16>::value &&
@@ -104,7 +103,6 @@ constexpr uint32_t CalculateMatrixOperand() {
   }
   return 0;
 }
-#endif // __SPIRV_USE_COOPERATIVE_MATRIX
 
 } // namespace detail
 } // namespace _V1
