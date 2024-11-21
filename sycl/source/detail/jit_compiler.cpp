@@ -1123,7 +1123,7 @@ sycl_device_binaries jit_compiler::createDeviceBinaryImage(
     const ::jit_compiler::RTCBundleInfo &BundleInfo) {
   DeviceBinaryContainer Binary;
   for (const auto &Symbol : BundleInfo.SymbolTable) {
-    // Create an offload entry each kernel.
+    // Create an offload entry for each kernel.
     // It seems to be OK to set zero for most of the information here, at least
     // that is the case for compiled SPIR-V binaries.
     OffloadEntryContainer Entry{Symbol.c_str(), nullptr, 0, 0, 0};
