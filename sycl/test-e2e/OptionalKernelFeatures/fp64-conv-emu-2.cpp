@@ -6,21 +6,27 @@
 #include <sycl/detail/core.hpp>
 using namespace sycl;
 
-template <typename T> T op(T x) { return x + 1; }
+template <typename T> struct Increment {
+  T operator()(T x) const { return x + 1; }
+};
 
-template <typename T> int test(queue &q) {
+template <typename T> struct IntCastThenIncrement {
+  int operator()(T x) const { return static_cast<int>(x) + 1; }
+};
+
+template <typename Op> int test(queue &q) {
   double res[] = {1.};
   {
     buffer<double, 1> buf(res, 1);
     q.submit([&](handler &cgh) {
        accessor acc(buf, cgh);
-       cgh.single_task([=] { acc[0] = op<T>(acc[0]); });
+       cgh.single_task([=] { acc[0] = Op()(acc[0]); });
      }).wait();
   }
   double ref = 1.;
-  ref = op<T>(ref);
+  ref = Op()(ref);
   if (res[0] != ref) {
-    std::cout << typeid(T).name() << " fail: got " << res[0] << ", expected "
+    std::cout << typeid(Op).name() << " fail: got " << res[0] << ", expected "
               << ref << "\n";
     return 1;
   }
@@ -31,11 +37,14 @@ int main() {
   int nfail = 0;
   queue q;
 
-  nfail += test<int>(q);
-  nfail += test<long>(q);
-  nfail += test<float>(q);
+  nfail += test<Increment<int>>(q);
+  nfail += test<Increment<long>>(q);
+  nfail += test<Increment<float>>(q);
+
   if (q.get_device().has(aspect::fp64))
-    nfail += test<double>(q);
+    nfail += test<Increment<double>>(q);
+
+  nfail += test<IntCastThenIncrement<double>>(q);
 
   if (nfail == 0)
     std::cout << "success\n";
