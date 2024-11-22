@@ -1,17 +1,10 @@
 // This test checks edge cases handling for std::exp(std::complex<T>) used
 // in SYCL kernels.
-//
-// REQUIRES: aspect-fp64
-// UNSUPPORTED: hip || cuda
-//
-// RUN: %{build} -o %t.out
-// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 
 #include <cmath>
 #include <complex>
-#include <set>
 
 bool check(bool cond, const std::string &cond_str, int line,
            unsigned testcase) {
@@ -203,12 +196,14 @@ template <typename T> bool test() {
 
     constexpr unsigned N = sizeof(testcases) / sizeof(testcases[0]);
 
+    sycl::buffer<std::complex<T>> data(testcases, sycl::range{N});
     sycl::buffer<std::complex<T>> results(sycl::range{N});
 
     q.submit([&](sycl::handler &cgh) {
+       sycl::accessor acc_data(data, cgh, sycl::read_only);
        sycl::accessor acc(results, cgh, sycl::write_only);
        cgh.parallel_for(sycl::range{N}, [=](sycl::item<1> it) {
-         acc[it] = std::exp(testcases[it]);
+         acc[it] = std::exp(acc_data[it]);
        });
      }).wait_and_throw();
 
@@ -227,7 +222,8 @@ template <typename T> bool test() {
     for (unsigned i = 0; i < N; ++i) {
       std::complex<T> r = acc[i];
       // If z is (+/-0, +0), the result is (1, +0)
-      if (testcases[i].real() == 0 && testcases[i].imag() == 0) {
+      if (testcases[i].real() == 0 && testcases[i].imag() == 0 &&
+          !std::signbit(testcases[i].imag())) {
         CHECK(r.real() == 1.0, passed, i);
         CHECK(r.imag() == 0, passed, i);
         CHECK(std::signbit(testcases[i].imag()) == std::signbit(r.imag()),

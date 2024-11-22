@@ -112,13 +112,29 @@ function(compile_lib filename)
     "FILETYPE"
     "SRC;EXTRA_OPTS;DEPENDENCIES"
     ${ARGN})
+    set(compile_opt_list ${compile_opts}
+                         ${${ARG_FILETYPE}_device_compile_opts}
+                         ${ARG_EXTRA_OPTS})
+    compile_lib_ext(${filename}
+      FILETYPE ${ARG_FILETYPE}
+      SRC ${ARG_SRC}
+      DEPENDENCIES ${ARG_DEPENDENCIES}
+      OPTS ${compile_opt_list})
+endfunction()
+
+function(compile_lib_ext filename)
+  cmake_parse_arguments(ARG
+    ""
+    "FILETYPE"
+    "SRC;OPTS;DEPENDENCIES"
+    ${ARGN})
 
   set(devicelib-file
     ${${ARG_FILETYPE}_binary_dir}/${filename}.${${ARG_FILETYPE}-suffix})
 
   add_custom_command(
     OUTPUT ${devicelib-file}
-    COMMAND ${clang} ${compile_opts} ${ARG_EXTRA_OPTS}
+    COMMAND ${clang} ${ARG_OPTS}
             ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_SRC} -o ${devicelib-file}
     MAIN_DEPENDENCY ${ARG_SRC}
     DEPENDS ${ARG_DEPENDENCIES}
@@ -200,10 +216,10 @@ set(cmath_obj_deps device_math.h device.h sycl-compiler)
 set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp imf_impl_utils.hpp device.h sycl-compiler)
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
-if (NOT MSVC)
+if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
   set(sanitizer_obj_deps
     device.h atomic.hpp spirv_vars.h
-    include/asan_libdevice.hpp
+    ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
     include/sanitizer_utils.hpp
     include/spir_global_var.hpp
     sycl-compiler)
@@ -268,10 +284,12 @@ if(MSVC)
     SRC msvc_math.cpp
     DEPENDENCIES ${cmath_obj_deps})
 else()
-  add_devicelibs(libsycl-sanitizer
-    SRC sanitizer_utils.cpp
-    DEPENDENCIES ${sanitizer_obj_deps}
-    EXTRA_OPTS -fno-sycl-instrument-device-code)
+  if(UR_SANITIZER_INCLUDE_DIR)
+    add_devicelibs(libsycl-sanitizer
+      SRC sanitizer_utils.cpp
+      DEPENDENCIES ${sanitizer_obj_deps}
+      EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+  endif()
 endif()
 
 add_devicelibs(libsycl-fallback-cassert

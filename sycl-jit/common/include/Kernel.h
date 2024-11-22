@@ -58,6 +58,7 @@ enum class ParameterKind : uint32_t {
   Pointer = 3,
   SpecConstBuffer = 4,
   Stream = 5,
+  WorkGroupMemory = 6,
   Invalid = 0xF,
 };
 
@@ -347,6 +348,11 @@ struct SYCLKernelInfo {
 
   SYCLKernelInfo(const char *KernelName, size_t NumArgs)
       : Name{KernelName}, Args{NumArgs}, Attributes{}, NDR{}, BinaryInfo{} {}
+};
+
+struct InMemoryFile {
+  const char *Path;
+  const char *Contents;
 };
 
 } // namespace jit_compiler

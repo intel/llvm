@@ -200,6 +200,10 @@ public:
     static_assert(NumContainedProps == sizeof...(PropertyValueTs),
                   "One or more property argument is not a property in the "
                   "property list.");
+    // We're in process of refactoring properties infrastructure, make sure that
+    // any newly added properties use `detail::property_base`!
+    static_assert(
+        (std::is_base_of_v<detail::property_tag, PropertyValueTs> && ...));
   }
 
   template <typename PropertyT>

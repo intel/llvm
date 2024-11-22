@@ -3,8 +3,6 @@
 
 // REQUIRES: opencl-aot, accelerator
 
-// XFAIL: *
-
 // Remove any archives
 // RUN: rm -f %t_*.a
 

@@ -5,10 +5,9 @@
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_tgllp -o %t.tgllp.out %s
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_x86_64 -o %t.x86.out %s
 
-// ocloc on windows does not have support for PVC/CFL, so this command will
+// ocloc on windows does not have support for PVC, so this command will
 // result in an error when on windows. (In general, there is no support
-// for pvc/cfl on windows.)
-// RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_cfl -o %t.cfl.out %s %}
+// for pvc on windows.)
 // RUN: %if !windows %{ %clangxx -fsycl -fsycl-targets=intel_gpu_pvc -o %t.pvc.out %s %}
 
 #include <cstdio>
@@ -43,7 +42,7 @@ private:
           accessor acc{buf, cgh};
           cgh.parallel_for<kernel_name<size>>(
               nd_range<1>(1, 1),
-              [=](auto item) [[intel::reqd_sub_group_size(size)]] {
+              [=](auto item) [[sycl::reqd_sub_group_size(size)]] {
                 acc[0] = item.get_sub_group().get_max_local_range()[0];
               });
         });

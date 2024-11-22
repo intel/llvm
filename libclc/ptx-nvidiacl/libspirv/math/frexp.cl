@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <clc/utils.h>
 #include <spirv/spirv.h>
 
 #include "../../include/libdevice.h"
-#include <utils.h>
 
 _CLC_OVERLOAD _CLC_DEF float __clc_spirv_ocl_frexp(float x, private int *ep) {
   return __nv_frexpf(x, ep);

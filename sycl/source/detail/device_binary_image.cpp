@@ -9,6 +9,9 @@
 #include <detail/device_binary_image.hpp>
 #include <sycl/detail/ur.hpp>
 
+// For device image compression.
+#include <detail/compression.hpp>
+
 #include <algorithm>
 #include <cstring>
 #include <memory>
@@ -167,6 +170,8 @@ void RTDeviceBinaryImage::init(sycl_device_binary Bin) {
   // it when invoking the offload wrapper job
   Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
 
+  // For compressed images, we delay determining the format until the image is
+  // decompressed.
   if (Format == SYCL_DEVICE_BINARY_TYPE_NONE)
     // try to determine the format; may remain "NONE"
     Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
@@ -225,6 +230,48 @@ DynRTDeviceBinaryImage::~DynRTDeviceBinaryImage() {
   delete Bin;
   Bin = nullptr;
 }
+
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+CompressedRTDeviceBinaryImage::CompressedRTDeviceBinaryImage(
+    sycl_device_binary CompressedBin)
+    : RTDeviceBinaryImage() {
+
+  // 'CompressedBin' is part of the executable image loaded into memory
+  // which can't be modified easily. So, we need to make a copy of it.
+  Bin = new sycl_device_binary_struct(*CompressedBin);
+
+  // Get the decompressed size of the binary image.
+  m_ImageSize = ZSTDCompressor::GetDecompressedSize(
+      reinterpret_cast<const char *>(Bin->BinaryStart),
+      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart));
+
+  init(Bin);
+}
+
+void CompressedRTDeviceBinaryImage::Decompress() {
+
+  size_t CompressedDataSize =
+      static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
+
+  size_t DecompressedSize = 0;
+  m_DecompressedData = ZSTDCompressor::DecompressBlob(
+      reinterpret_cast<const char *>(Bin->BinaryStart), CompressedDataSize,
+      DecompressedSize);
+
+  Bin->BinaryStart =
+      reinterpret_cast<const unsigned char *>(m_DecompressedData.get());
+  Bin->BinaryEnd = Bin->BinaryStart + DecompressedSize;
+
+  Bin->Format = ur::getBinaryImageFormat(Bin->BinaryStart, getSize());
+  Format = static_cast<ur::DeviceBinaryType>(Bin->Format);
+}
+
+CompressedRTDeviceBinaryImage::~CompressedRTDeviceBinaryImage() {
+  // De-allocate device binary struct.
+  delete Bin;
+  Bin = nullptr;
+}
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
 
 } // namespace detail
 } // namespace _V1

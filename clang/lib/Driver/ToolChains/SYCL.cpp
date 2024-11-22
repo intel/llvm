@@ -27,6 +27,125 @@ using namespace clang::driver::tools;
 using namespace clang;
 using namespace llvm::opt;
 
+// Struct that relates an AOT target value with
+// Intel CPUs and Intel GPUs.
+struct StringToOffloadArchSYCLMap {
+  const char *ArchName;
+  SYCLSupportedIntelArchs IntelArch;
+};
+
+// Mapping of supported SYCL offloading architectures.
+static const StringToOffloadArchSYCLMap StringToArchNamesMap[] = {
+    // Intel CPU mapping.
+    {"skylake-avx512", SYCLSupportedIntelArchs::SKYLAKEAVX512},
+    {"core-avx2", SYCLSupportedIntelArchs::COREAVX2},
+    {"corei7-avx", SYCLSupportedIntelArchs::COREI7AVX},
+    {"corei7", SYCLSupportedIntelArchs::COREI7},
+    {"westmere", SYCLSupportedIntelArchs::WESTMERE},
+    {"sandybridge", SYCLSupportedIntelArchs::SANDYBRIDGE},
+    {"ivybridge", SYCLSupportedIntelArchs::IVYBRIDGE},
+    {"broadwell", SYCLSupportedIntelArchs::BROADWELL},
+    {"coffeelake", SYCLSupportedIntelArchs::COFFEELAKE},
+    {"alderlake", SYCLSupportedIntelArchs::ALDERLAKE},
+    {"skylake", SYCLSupportedIntelArchs::SKYLAKE},
+    {"skx", SYCLSupportedIntelArchs::SKX},
+    {"cascadelake", SYCLSupportedIntelArchs::CASCADELAKE},
+    {"icelake-client", SYCLSupportedIntelArchs::ICELAKECLIENT},
+    {"icelake-server", SYCLSupportedIntelArchs::ICELAKESERVER},
+    {"sapphirerapids", SYCLSupportedIntelArchs::SAPPHIRERAPIDS},
+    {"graniterapids", SYCLSupportedIntelArchs::GRANITERAPIDS},
+    // Intel GPU mapping.
+    {"bdw", SYCLSupportedIntelArchs::BDW},
+    {"skl", SYCLSupportedIntelArchs::SKL},
+    {"kbl", SYCLSupportedIntelArchs::KBL},
+    {"cfl", SYCLSupportedIntelArchs::CFL},
+    {"apl", SYCLSupportedIntelArchs::APL},
+    {"bxt", SYCLSupportedIntelArchs::BXT},
+    {"glk", SYCLSupportedIntelArchs::GLK},
+    {"whl", SYCLSupportedIntelArchs::WHL},
+    {"aml", SYCLSupportedIntelArchs::AML},
+    {"cml", SYCLSupportedIntelArchs::CML},
+    {"icllp", SYCLSupportedIntelArchs::ICLLP},
+    {"icl", SYCLSupportedIntelArchs::ICL},
+    {"ehl", SYCLSupportedIntelArchs::EHL},
+    {"jsl", SYCLSupportedIntelArchs::JSL},
+    {"tgllp", SYCLSupportedIntelArchs::TGLLP},
+    {"tgl", SYCLSupportedIntelArchs::TGL},
+    {"rkl", SYCLSupportedIntelArchs::RKL},
+    {"adl_s", SYCLSupportedIntelArchs::ADL_S},
+    {"rpl_s", SYCLSupportedIntelArchs::RPL_S},
+    {"adl_p", SYCLSupportedIntelArchs::ADL_P},
+    {"adl_n", SYCLSupportedIntelArchs::ADL_N},
+    {"dg1", SYCLSupportedIntelArchs::DG1},
+    {"acm_g10", SYCLSupportedIntelArchs::ACM_G10},
+    {"dg2_g10", SYCLSupportedIntelArchs::DG2_G10},
+    {"acm_g11", SYCLSupportedIntelArchs::ACM_G11},
+    {"dg2_g10", SYCLSupportedIntelArchs::DG2_G10},
+    {"dg2_g11", SYCLSupportedIntelArchs::DG2_G11},
+    {"acm_g12", SYCLSupportedIntelArchs::ACM_G12},
+    {"dg2_g12", SYCLSupportedIntelArchs::DG2_G12},
+    {"pvc", SYCLSupportedIntelArchs::PVC},
+    {"pvc_vg", SYCLSupportedIntelArchs::PVC_VG},
+    {"mtl_u", SYCLSupportedIntelArchs::MTL_U},
+    {"mtl_s", SYCLSupportedIntelArchs::MTL_S},
+    {"arl_u", SYCLSupportedIntelArchs::ARL_U},
+    {"arl_s", SYCLSupportedIntelArchs::ARL_S},
+    {"mtl_h", SYCLSupportedIntelArchs::MTL_H},
+    {"arl_h", SYCLSupportedIntelArchs::ARL_H},
+    {"bmg_g21", SYCLSupportedIntelArchs::BMG_G21},
+    {"lnl_m", SYCLSupportedIntelArchs::LNL_M}};
+
+// Check if the user provided value for --offload-arch is a valid
+// SYCL supported Intel AOT target.
+SYCLSupportedIntelArchs
+clang::driver::StringToOffloadArchSYCL(llvm::StringRef ArchNameAsString) {
+  auto result = std::find_if(
+      std::begin(StringToArchNamesMap), std::end(StringToArchNamesMap),
+      [ArchNameAsString](const StringToOffloadArchSYCLMap &map) {
+        return ArchNameAsString == map.ArchName;
+      });
+  if (result == std::end(StringToArchNamesMap))
+    return SYCLSupportedIntelArchs::UNKNOWN;
+  return result->IntelArch;
+}
+
+// This is a mapping between the user provided --offload-arch value for Intel
+// GPU targets and the spir64_gen device name accepted by OCLOC (the Intel GPU
+// AOT compiler).
+StringRef clang::driver::mapIntelGPUArchName(StringRef ArchName) {
+  StringRef Arch;
+  Arch = llvm::StringSwitch<StringRef>(ArchName)
+             .Case("bdw", "bdw")
+             .Case("skl", "skl")
+             .Case("kbl", "kbl")
+             .Case("cfl", "cfl")
+             .Cases("apl", "bxt", "apl")
+             .Case("glk", "glk")
+             .Case("whl", "whl")
+             .Case("aml", "aml")
+             .Case("cml", "cml")
+             .Cases("icllp", "icl", "icllp")
+             .Cases("ehl", "jsl", "ehl")
+             .Cases("tgllp", "tgl", "tgllp")
+             .Case("rkl", "rkl")
+             .Cases("adl_s", "rpl_s", "adl_s")
+             .Case("adl_p", "adl_p")
+             .Case("adl_n", "adl_n")
+             .Case("dg1", "dg1")
+             .Cases("acm_g10", "dg2_g10", "acm_g10")
+             .Cases("acm_g11", "dg2_g11", "acm_g11")
+             .Cases("acm_g12", "dg2_g12", "acm_g12")
+             .Case("pvc", "pvc")
+             .Case("pvc_vg", "pvc_vg")
+             .Cases("mtl_u", "mtl_s", "arl_u", "arl_s", "mtl_u")
+             .Case("mtl_h", "mtl_h")
+             .Case("arl_h", "arl_h")
+             .Case("bmg_g21", "bmg_g21")
+             .Case("lnl_m", "lnl_m")
+             .Default("");
+  return Arch;
+}
+
 SYCLInstallationDetector::SYCLInstallationDetector(const Driver &D)
     : D(D), InstallationCandidates() {
   InstallationCandidates.emplace_back(D.Dir + "/..");
@@ -389,7 +508,7 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
   }
 
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
+                   options::OPT_fno_sycl_instrument_device_code, false))
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)
@@ -1209,6 +1328,9 @@ StringRef SYCL::gen::resolveGenDevice(StringRef DeviceName) {
           .Case("amd_gpu_gfx700", "gfx700")
           .Case("amd_gpu_gfx701", "gfx701")
           .Case("amd_gpu_gfx702", "gfx702")
+          .Case("amd_gpu_gfx703", "gfx703")
+          .Case("amd_gpu_gfx704", "gfx704")
+          .Case("amd_gpu_gfx705", "gfx705")
           .Case("amd_gpu_gfx801", "gfx801")
           .Case("amd_gpu_gfx802", "gfx802")
           .Case("amd_gpu_gfx803", "gfx803")
@@ -1296,6 +1418,9 @@ SmallString<64> SYCL::gen::getGenDeviceMacro(StringRef DeviceName) {
                       .Case("gfx700", "AMD_GPU_GFX700")
                       .Case("gfx701", "AMD_GPU_GFX701")
                       .Case("gfx702", "AMD_GPU_GFX702")
+                      .Case("gfx703", "AMD_GPU_GFX703")
+                      .Case("gfx704", "AMD_GPU_GFX704")
+                      .Case("gfx705", "AMD_GPU_GFX705")
                       .Case("gfx801", "AMD_GPU_GFX801")
                       .Case("gfx802", "AMD_GPU_GFX802")
                       .Case("gfx803", "AMD_GPU_GFX803")
@@ -1504,18 +1629,13 @@ static void parseTargetOpts(StringRef ArgString, const llvm::opt::ArgList &Args,
 void SYCLToolChain::TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                                           llvm::opt::ArgStringList &CmdArgs,
                                           OptSpecifier Opt_EQ) const {
-  for (auto *A : Args) {
-    if (A->getOption().matches(Opt_EQ)) {
-      if (auto GpuDevice =
-              tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::AmdGPU>(
-                  A->getValue())) {
-        StringRef ArgString;
-        SmallString<64> OffloadArch("--offload-arch=");
-        OffloadArch += GpuDevice->data();
-        ArgString = OffloadArch;
-        parseTargetOpts(ArgString, Args, CmdArgs);
-        A->claim();
-      }
+  if (const Arg *TargetArg = Args.getLastArg(Opt_EQ)) {
+    StringRef Val = TargetArg->getValue();
+    if (auto GpuDevice =
+            tools::SYCL::gen::isGPUTarget<tools::SYCL::gen::AmdGPU>(Val)) {
+      SmallString<64> OffloadArch("--offload-arch=");
+      OffloadArch += GpuDevice->data();
+      parseTargetOpts(OffloadArch, Args, CmdArgs);
     }
   }
 }
@@ -1558,16 +1678,16 @@ void SYCLToolChain::TranslateTargetOpt(const llvm::Triple &Triple,
       if (IsGenTriple) {
         if (Device != GenDevice && !Device.empty())
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple &&
             GenDevice.empty())
           // Triples do not match, but only skip when we know we are not
           // comparing against intel_gpu_*
           continue;
-        if (getDriver().MakeSYCLDeviceTriple(A->getValue()) == Triple &&
+        if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple &&
             !Device.empty())
           // Triples match, but we are expecting a specific device to be set.
           continue;
-      } else if (getDriver().MakeSYCLDeviceTriple(A->getValue()) != Triple)
+      } else if (getDriver().getSYCLDeviceTriple(A->getValue()) != Triple)
         continue;
     } else if (!OptNoTriple)
       // Don't worry about any of the other args, we only want to pass what is
@@ -1666,6 +1786,16 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
     ArgStringList TargArgs;
     Args.AddAllArgValues(TargArgs, options::OPT_Xs, options::OPT_Xs_separate);
     Args.AddAllArgValues(TargArgs, options::OPT_Xsycl_backend);
+    // For -Xsycl-target-backend=<triple> the triple value is used to push
+    // specific options to the matching device compilation using that triple.
+    // Scrutinize this to make sure we are only checking the values needed
+    // for the current device compilation.
+    for (auto *A : Args) {
+      if (!A->getOption().matches(options::OPT_Xsycl_backend_EQ))
+        continue;
+      if (getDriver().getSYCLDeviceTriple(A->getValue()) == Triple)
+        TargArgs.push_back(A->getValue(1));
+    }
     // Check for any -device settings.
     std::string DevArg;
     if (IsJIT || Device == "pvc" || hasPVCDevice(TargArgs, DevArg)) {

@@ -37,10 +37,10 @@
 #endif
 
 /* Function Attributes */
-#include <func.h>
+#include <clc/clcfunc.h>
 
 /* Supported Data Types */
-#include <types.h>
+#include <clc/clctypes.h>
 #include <spirv/spirv_types.h>
 
 /* Supported builtins */

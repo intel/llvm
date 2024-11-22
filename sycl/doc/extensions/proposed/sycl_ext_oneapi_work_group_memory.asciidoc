@@ -106,12 +106,15 @@ This extension adds the following new class:
 ----
 namespace sycl::ext::oneapi::experimental {
 
+struct indeterminate_t {};
+inline constexpr indeterminate_t indeterminate;
+
 template<typename DataT, typename PropertyListT = empty_properties_t>
 class work_group_memory {
  public:
   using value_type = std::remove_all_extents_t<DataT>;
 
-  work_group_memory();
+  work_group_memory(const indeterminate_t&);
   work_group_memory(const work_group_memory& rhs);
   work_group_memory(handler& cgh);
   work_group_memory(size_t num, handler& cgh);
@@ -132,7 +135,7 @@ The `work_group_memory` class allocates device local memory and provides access
 to this memory from within a SYCL kernel function.
 The local memory that is allocated is shared between all work-items of a
 work-group.
-If multiple work-groups execute simultaneously, each of those work-group
+If multiple work-groups execute simultaneously, each of those work-groups
 receives its own independent copy of the allocated local memory.
 
 The `work_group_memory` type is a legal kernel parameter type as defined in
@@ -193,7 +196,7 @@ array extents removed.
 a@
 [source,c++]
 ----
-work_group_memory();
+work_group_memory(const indeterminate_t&);
 ----
 !====
 
@@ -205,6 +208,11 @@ Passing a dummy object as a kernel argument or calling any of its other
 member functions or operators produces undefined behavior.
 
 [_Note:_ This constructor may be called in either host code or device code.
+_{endnote}_]
+
+[_Note:_ The parameter of type `indeterminate_t` is present only to help make it
+apparent that this constructor creates a "dummy" `work_group_memory` object.
+Applications typically pass the value `indeterminate`.
 _{endnote}_]
 
 '''

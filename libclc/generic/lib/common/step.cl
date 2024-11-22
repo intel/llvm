@@ -21,9 +21,8 @@
  */
 
 #include <clc/clc.h>
+#include <clc/clcmacro.h>
 #include <spirv/spirv.h>
-
-#include <clcmacro.h>
 
 #define STEP_DEF(edge_type, x_type)                                            \
   _CLC_OVERLOAD _CLC_DEF x_type step(edge_type edge, x_type x) {               \
@@ -44,7 +43,7 @@ STEP_DEF(double, double);
 _CLC_BINARY_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, step, double, double);
 _CLC_V_S_V_VECTORIZE(_CLC_OVERLOAD _CLC_DEF, double, step, double, double);
 
-#if !defined(CLC_SPIRV) && !defined(CLC_SPIRV64)
+#if !defined(CLC_SPIRV)
 STEP_DEF(float, double);
 STEP_DEF(double, float);
 

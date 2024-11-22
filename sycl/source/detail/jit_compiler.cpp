@@ -74,6 +74,14 @@ jit_compiler::jit_compiler() {
       return false;
     }
 
+    this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "compileSYCL"));
+    if (!this->CompileSYCLHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
     return true;
   };
   Available = checkJITLibrary();
@@ -133,6 +141,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::SpecConstBuffer;
   case kind::kind_stream:
     return PK::Stream;
+  case kind::kind_work_group_memory:
+    return PK::WorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
@@ -1141,6 +1151,52 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
     Ptr += sizeof(uint32_t);
   }
   return Encoded;
+}
+
+std::vector<uint8_t> jit_compiler::compileSYCL(
+    const std::string &Id, const std::string &SYCLSource,
+    const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    const std::vector<std::string> &RegisteredKernelNames) {
+
+  // TODO: Handle template instantiation.
+  if (!RegisteredKernelNames.empty()) {
+    throw sycl::exception(
+        sycl::errc::build,
+        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
+        "is not yet supported for the `sycl_jit` source language");
+  }
+
+  std::string SYCLFileName = Id + ".cpp";
+  ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
+                                          SYCLSource.c_str()};
+
+  std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
+  IncludeFilesView.reserve(IncludePairs.size());
+  std::transform(IncludePairs.begin(), IncludePairs.end(),
+                 std::back_inserter(IncludeFilesView), [](const auto &Pair) {
+                   return ::jit_compiler::InMemoryFile{Pair.first.c_str(),
+                                                       Pair.second.c_str()};
+                 });
+  std::vector<const char *> UserArgsView;
+  UserArgsView.reserve(UserArgs.size());
+  std::transform(UserArgs.begin(), UserArgs.end(),
+                 std::back_inserter(UserArgsView),
+                 [](const auto &Arg) { return Arg.c_str(); });
+
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  }
+
+  // TODO: We currently don't have a meaningful build log.
+  (void)LogPtr;
+
+  const auto &BI = Result.getKernelInfo().BinaryInfo;
+  assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
+  std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
+  return SPV;
 }
 
 } // namespace detail

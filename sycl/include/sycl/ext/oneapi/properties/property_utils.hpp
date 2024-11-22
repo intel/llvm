@@ -12,7 +12,8 @@
 #include <sycl/detail/boost/mp11/detail/mp_list.hpp>   // for mp_list
 #include <sycl/detail/boost/mp11/detail/mp_rename.hpp> // for mp_rename
 #include <sycl/detail/boost/mp11/integral.hpp>         // for mp_bool
-#include <sycl/ext/oneapi/properties/property.hpp> // for PropertyID, IsRun...
+#include <sycl/ext/oneapi/properties/property.hpp>
+#include <sycl/ext/oneapi/properties/property_value.hpp>
 
 #include <array>       // for tuple_element
 #include <stddef.h>    // for size_t
@@ -48,33 +49,9 @@ struct PrependTuple<T, std::tuple<Ts...>> {
   using type = std::tuple<T, Ts...>;
 };
 
-// Checks if a type T has a static value member variable.
-template <typename T, typename U = int> struct HasValue : std::false_type {};
-template <typename T>
-struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
-
 //******************************************************************************
 // Property identification
 //******************************************************************************
-
-// Checks if a type is a compile-time property values.
-// Note: This is specialized for property_value elsewhere.
-template <typename PropertyT>
-struct IsCompileTimePropertyValue : std::false_type {};
-
-// Checks if a type is either a runtime property or if it is a compile-time
-// property
-template <typename T> struct IsProperty {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimeProperty<T>::value;
-};
-
-// Checks if a type is a valid property value, i.e either runtime property or
-// property_value with a valid compile-time property
-template <typename T> struct IsPropertyValue {
-  static constexpr bool value =
-      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
-};
 
 // Checks that all types in a tuple are valid properties.
 template <typename T> struct AllPropertyValues {};

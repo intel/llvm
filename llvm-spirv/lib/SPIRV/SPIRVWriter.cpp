@@ -1070,19 +1070,6 @@ void LLVMToSPIRVBase::transVectorComputeMetadata(Function *F) {
     if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCSingleElementVector))
       translateSEVDecoration(
           Attrs.getParamAttr(ArgNo, kVCMetadata::VCSingleElementVector), BA);
-    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentKind)) {
-      SPIRVWord Kind;
-      Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentKind)
-          .getValueAsString()
-          .getAsInteger(0, Kind);
-      BA->addDecorate(internal::DecorationFuncParamKindINTEL, Kind);
-    }
-    if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCArgumentDesc)) {
-      StringRef Desc =
-          Attrs.getParamAttr(ArgNo, kVCMetadata::VCArgumentDesc)
-              .getValueAsString();
-      BA->addDecorate(new SPIRVDecorateFuncParamDescAttr(BA, Desc.str()));
-    }
     if (Attrs.hasParamAttr(ArgNo, kVCMetadata::VCMediaBlockIO)) {
       assert(BA->getType()->isTypeImage() &&
              "VCMediaBlockIO attribute valid only on image parameters");

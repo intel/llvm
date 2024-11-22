@@ -37,8 +37,7 @@ def warn_drv_invalid_arch_name_with_suggestion : Warning<
   "ignoring invalid /arch: argument '%0'; for %select{64|32}1-bit expected one of %2">,
   InGroup<UnusedCommandLineArgument>;
 def warn_drv_avr_mcu_not_specified : Warning<
-  "no target microcontroller specified on command line, cannot "
-  "link standard libraries, please pass -mmcu=<mcu name>">,
+  "no target microcontroller specified, please pass -mmcu=<mcu name>">,
   InGroup<AVRRtlibLinkingQuirks>;
 def warn_drv_avr_libc_not_found: Warning<
   "no avr-libc installation can be found on the system, "
@@ -401,6 +400,10 @@ def err_drv_sycl_missing_amdgpu_arch : Error<
   "missing AMDGPU architecture for SYCL offloading; specify it with '-Xsycl-target-backend%select{|=%1}0 --offload-arch=<arch-name>'">;
 def err_drv_sycl_thinlto_split_off: Error<
   "'%0' is not supported when '%1' is set with '-fsycl'">;
+def err_drv_sycl_offload_arch_new_driver: Error<
+  "'--offload-arch' is supported when '-fsycl' is set with '--offload-new-driver'">;
+def err_drv_sycl_offload_arch_missing_value : Error<
+  "must pass in an explicit cpu or gpu architecture to '--offload-arch'">;
 def warn_drv_sycl_offload_target_duplicate : Warning<
   "SYCL offloading target '%0' is similar to target '%1' already specified; "
   "will be ignored">, InGroup<SyclTarget>;
@@ -575,6 +578,10 @@ def err_sls_hardening_arm_not_supported : Error<
 def warn_drv_large_data_threshold_invalid_code_model: Warning<
   "'%0' only applies to medium and large code models">,
   InGroup<UnusedCommandLineArgument>;
+def warn_drv_math_errno_enabled_after_veclib: Warning<
+  "math errno enabled by '%0' after it was implicitly disabled by '%1',"
+  " this may limit the utilization of the vector library">,
+  InGroup<MathErrnoEnabledWithVecLib>;
 
 def note_drv_command_failed_diag_msg : Note<
   "diagnostic msg: %0">;

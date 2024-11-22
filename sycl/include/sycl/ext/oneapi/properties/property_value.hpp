@@ -8,8 +8,7 @@
 
 #pragma once
 
-#include <sycl/ext/oneapi/properties/property.hpp>       // for IsCompileTi...
-#include <sycl/ext/oneapi/properties/property_utils.hpp> // for HasValue
+#include <sycl/ext/oneapi/properties/property.hpp>
 
 #include <type_traits> // for enable_if_t
 
@@ -17,6 +16,11 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 namespace detail {
+
+// Checks if a type T has a static value member variable.
+template <typename T, typename U = int> struct HasValue : std::false_type {};
+template <typename T>
+struct HasValue<T, decltype((void)T::value, 0)> : std::true_type {};
 
 // Base class for property values with a single non-type value
 template <typename T, typename = void> struct SingleNontypePropertyValueBase {};
@@ -37,9 +41,11 @@ struct PropertyValueBase<T> : public detail::SingleNontypePropertyValueBase<T> {
 } // namespace detail
 
 template <typename PropertyT, typename... Ts>
-struct property_value : public detail::PropertyValueBase<Ts...> {
-  using key_t = PropertyT;
-};
+struct property_value
+    : public detail::PropertyValueBase<Ts...>,
+      public detail::property_base<property_value<PropertyT, Ts...>,
+                                   detail::PropertyToKind<PropertyT>::Kind,
+                                   PropertyT> {};
 
 template <typename PropertyT, typename... A, typename... B>
 constexpr std::enable_if_t<detail::IsCompileTimeProperty<PropertyT>::value,
@@ -80,11 +86,19 @@ template <typename PropertyT, typename... PropertyValueTs>
 struct PropertyID<property_value<PropertyT, PropertyValueTs...>>
     : PropertyID<PropertyT> {};
 
-// Specialization of IsCompileTimePropertyValue for property values.
+// Checks if a type is a compile-time property values.
+template <typename PropertyT>
+struct IsCompileTimePropertyValue : std::false_type {};
 template <typename PropertyT, typename... PropertyValueTs>
 struct IsCompileTimePropertyValue<property_value<PropertyT, PropertyValueTs...>>
     : IsCompileTimeProperty<PropertyT> {};
 
+// Checks if a type is a valid property value, i.e either runtime property or
+// property_value with a valid compile-time property
+template <typename T> struct IsPropertyValue {
+  static constexpr bool value =
+      IsRuntimeProperty<T>::value || IsCompileTimePropertyValue<T>::value;
+};
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1

@@ -7,5 +7,5 @@ math_builtin_api
 hierarchical
 # fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
 accessor_legacy
-# CMPLRLLVM-62822
+# CMPLRLLVM-61839
 multi_ptr

@@ -4731,22 +4731,9 @@ bool SPIRVToLLVM::transVectorComputeMetadata(SPIRVFunction *BF) {
                                       std::to_string(Kind));
       F->addParamAttr(ArgNo, Attr);
     }
-    if (BA->hasDecorate(internal::DecorationFuncParamKindINTEL, 0, &Kind)) {
-      Attribute Attr = Attribute::get(*Context, kVCMetadata::VCArgumentKind,
-                                      std::to_string(Kind));
-      F->addParamAttr(ArgNo, Attr);
-    }
     SEVAttr = translateSEVMetadata(BA, F->getContext());
     if (SEVAttr)
       F->addParamAttr(ArgNo, SEVAttr.value());
-    if (BA->hasDecorate(internal::DecorationFuncParamDescINTEL)) {
-      auto Desc =
-          BA->getDecorationStringLiteral(internal::DecorationFuncParamDescINTEL)
-              .front();
-      Attribute Attr =
-          Attribute::get(*Context, kVCMetadata::VCArgumentDesc, Desc);
-      F->addParamAttr(ArgNo, Attr);
-    }
     if (BA->hasDecorate(DecorationMediaBlockIOINTEL)) {
       assert(BA->getType()->isTypeImage() &&
              "MediaBlockIOINTEL decoration is valid only on image parameters");

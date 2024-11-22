@@ -9,6 +9,7 @@
 #pragma once
 
 #include "sycl/exception.hpp"
+#include <detail/config.hpp>
 #include <detail/kernel_arg_mask.hpp>
 #include <detail/platform_impl.hpp>
 #include <sycl/detail/common.hpp>
@@ -19,7 +20,10 @@
 
 #include <atomic>
 #include <condition_variable>
+#include <iomanip>
 #include <mutex>
+#include <set>
+#include <thread>
 #include <type_traits>
 
 #include <boost/unordered/unordered_flat_map.hpp>
@@ -118,9 +122,10 @@ public:
    * when debugging environment variables are set and we can just ignore them
    * since all kernels will have their build options overridden with the same
    * string*/
-  using ProgramCacheKeyT =
-      std::pair<std::pair<SerializedObj, std::uintptr_t>, ur_device_handle_t>;
-  using CommonProgramKeyT = std::pair<std::uintptr_t, ur_device_handle_t>;
+  using ProgramCacheKeyT = std::pair<std::pair<SerializedObj, std::uintptr_t>,
+                                     std::set<ur_device_handle_t>>;
+  using CommonProgramKeyT =
+      std::pair<std::uintptr_t, std::set<ur_device_handle_t>>;
 
   struct ProgramCache {
     ::boost::unordered_map<ProgramCacheKeyT, ProgramBuildResultPtr> Cache;
@@ -174,6 +179,42 @@ public:
 
   void setContextPtr(const ContextPtr &AContext) { MParentContext = AContext; }
 
+  // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
+  // set.
+  static inline void traceProgram(const std::string &Msg,
+                                  const ProgramCacheKeyT &CacheKey) {
+    if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
+      return;
+
+    int ImageId = CacheKey.first.second;
+    std::stringstream DeviceList;
+    for (const auto &Device : CacheKey.second)
+      DeviceList << "0x" << std::setbase(16)
+                 << reinterpret_cast<uintptr_t>(Device) << ",";
+
+    std::string Identifier = "[Key:{imageId = " + std::to_string(ImageId) +
+                             ",urDevice = " + DeviceList.str() + "}]: ";
+
+    std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
+              << "][Program Cache]" << Identifier << Msg << std::endl;
+  }
+
+  // Sends message to std:cerr stream when SYCL_CACHE_TRACE environemnt is
+  // set.
+  static inline void traceKernel(const std::string &Msg,
+                                 const std::string &KernelName,
+                                 bool IsKernelFastCache = false) {
+    if (!SYCLConfig<SYCL_CACHE_TRACE>::isTraceInMemCache())
+      return;
+
+    std::string Identifier =
+        "[IsFastCache: " + std::to_string(IsKernelFastCache) +
+        "][Key:{Name = " + KernelName + "}]: ";
+
+    std::cerr << "[In-Memory Cache][Thread Id:" << std::this_thread::get_id()
+              << "][Kernel Cache]" << Identifier << Msg << std::endl;
+  }
+
   Locked<ProgramCache> acquireCachedPrograms() {
     return {MCachedPrograms, MProgramCacheMutex};
   }
@@ -193,7 +234,9 @@ public:
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
-    }
+      traceProgram("Program inserted.", CacheKey);
+    } else
+      traceProgram("Program fetched.", CacheKey);
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -215,7 +258,9 @@ public:
       CommonProgramKeyT CommonKey =
           std::make_pair(CacheKey.first.second, CacheKey.second);
       ProgCache.KeyMap.emplace(CommonKey, CacheKey);
-    }
+      traceProgram("Program inserted.", CacheKey);
+    } else
+      traceProgram("Program fetched.", CacheKey);
     return DidInsert;
   }
 
@@ -225,8 +270,11 @@ public:
     auto LockedCache = acquireKernelsPerProgramCache();
     auto &Cache = LockedCache.get()[Program];
     auto [It, DidInsert] = Cache.try_emplace(KernelName, nullptr);
-    if (DidInsert)
+    if (DidInsert) {
       It->second = std::make_shared<KernelBuildResult>(getAdapter());
+      traceKernel("Kernel inserted.", KernelName);
+    } else
+      traceKernel("Kernel fetched.", KernelName);
     return std::make_pair(It->second, DidInsert);
   }
 
@@ -235,6 +283,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     auto It = MKernelFastCache.find(CacheKey);
     if (It != MKernelFastCache.end()) {
+      traceKernel("Kernel fetched.", std::get<3>(CacheKey), true);
       return It->second;
     }
     return std::make_tuple(nullptr, nullptr, nullptr, nullptr);
@@ -245,6 +294,7 @@ public:
     std::unique_lock<std::mutex> Lock(MKernelFastCacheMutex);
     // if no insertion took place, thus some other thread has already inserted
     // smth in the cache
+    traceKernel("Kernel inserted.", std::get<3>(CacheKey), true);
     MKernelFastCache.emplace(CacheKey, CacheVal);
   }
 

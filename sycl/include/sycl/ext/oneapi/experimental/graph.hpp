@@ -13,8 +13,11 @@
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
-#include <sycl/device.hpp>                 // for device
-#include <sycl/nd_range.hpp>               // for range, nd_range
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+#include <sycl/detail/string_view.hpp>
+#endif
+#include <sycl/device.hpp>                     // for device
+#include <sycl/nd_range.hpp>                   // for range, nd_range
 #include <sycl/properties/property_traits.hpp> // for is_property, is_property_of
 #include <sycl/property_list.hpp>              // for property_list
 
@@ -314,7 +317,13 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(const std::string path, bool verbose = false) const {
+    print_graph(sycl::detail::string_view{path}, verbose);
+  }
+#else
   void print_graph(const std::string path, bool verbose = false) const;
+#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -350,7 +359,9 @@ protected:
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-
+#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
+  void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+#endif
   std::shared_ptr<detail::graph_impl> impl;
 };
 
