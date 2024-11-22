@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out %helper-includes
+// RUN: %{build} -o %t.out %helper-includes -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>

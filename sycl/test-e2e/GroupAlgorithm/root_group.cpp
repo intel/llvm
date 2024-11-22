@@ -1,6 +1,6 @@
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu && !accelerator)
-// RUN: %{build} -I . -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
+// RUN: %{build} -I . -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %} -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
