@@ -300,3 +300,60 @@ TEST_F(urDevicePartitionTest, SuccessSubSet) {
         }
     }
 }
+
+using urDevicePartitionByCountsTestWithParam =
+    urDevicePartitionTestWithParam<std::vector<size_t>>;
+TEST_P(urDevicePartitionByCountsTestWithParam, CountsOrdering) {
+    ur_device_handle_t device = devices[0];
+
+    if (!uur::hasDevicePartitionSupport(device,
+                                        UR_DEVICE_PARTITION_BY_COUNTS)) {
+        GTEST_SKIP() << "Device \'" << device
+                     << "\' does not support partitioning by counts\n";
+    }
+
+    auto requested_counts = GetParam();
+
+    std::vector<ur_device_partition_property_t> property_list;
+    for (size_t i = 0; i < requested_counts.size(); ++i) {
+        property_list.push_back(
+            uur::makePartitionByCountsDesc(requested_counts[i]));
+    }
+
+    ur_device_partition_properties_t properties{
+        UR_STRUCTURE_TYPE_DEVICE_PARTITION_PROPERTIES, nullptr,
+        property_list.data(), property_list.size()};
+
+    uint32_t num_sub_devices = 0;
+    urDevicePartition(device, &properties, 0, nullptr, &num_sub_devices);
+
+    std::vector<ur_device_handle_t> sub_devices(num_sub_devices);
+    urDevicePartition(device, &properties, num_sub_devices, sub_devices.data(),
+                      nullptr);
+
+    std::vector<size_t> actual_counts;
+    for (const auto &sub_device : sub_devices) {
+        uint32_t n_compute_units = 0;
+        getNumberComputeUnits(sub_device, n_compute_units);
+        actual_counts.push_back(n_compute_units);
+        urDeviceRelease(sub_device);
+    }
+
+    ASSERT_EQ(requested_counts, actual_counts);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    , urDevicePartitionByCountsTestWithParam,
+    ::testing::Values(std::vector<size_t>{2, 4}, std::vector<size_t>{1, 4},
+                      std::vector<size_t>{2, 3}, std::vector<size_t>{3, 2},
+                      std::vector<size_t>{3, 1}),
+    [](const ::testing::TestParamInfo<std::vector<size_t>> &info) {
+        std::stringstream ss;
+        for (size_t i = 0; i < info.param.size(); ++i) {
+            if (i > 0) {
+                ss << "_";
+            }
+            ss << info.param[i];
+        }
+        return ss.str();
+    });
