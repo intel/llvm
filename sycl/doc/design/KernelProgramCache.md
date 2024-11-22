@@ -126,7 +126,7 @@ which is provided to methods of `sycl::handler` (e.g. `parallel_for` or
 
 ### Persistent cache
 
-The cache works behind in-memory cache and stores the same underlying PI
+The cache works behind in-memory cache and stores the same underlying UR
 object behind `sycl::program` user-level objects in a per-context data storage.
 The storage is organized as a map for storing device code image. It uses
 different keys to address difference in SYCL objects ids between applications
@@ -167,16 +167,28 @@ upgrades.
 compile and link options) set in application or environment variables. There are
 three sources of build options:
 
-- from device image (pi_device_binary_struct::CompileOptions,
-  pi_device_binary_struct::LinkOptions);
+- from device image (sycl_device_binary_struct::CompileOptions,
+  sycl_device_binary_struct::LinkOptions);
 - environment variables (SYCL_PROGRAM_COMPILE_OPTIONS,
   SYCL_PROGRAM_LINK_OPTIONS);
 - options passed through SYCL API.
 
 ## Cache configuration
 
-The environment variables which affect cache behavior are described in
-[EnvironmentVariables.md](../EnvironmentVariables.md).
+The following environment variables affect the cache behavior:
+
+| Environment variable | Values | Description |
+| -------------------- | ------ | ----------- |
+| `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
+| `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
+| `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
+| `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` | Positive integer  | `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` accepts an integer that specifies the maximum size of the in-memory program cache in bytes. Eviction is performed when the cache size exceeds the threshold. The default value is 0 which means that eviction is disabled.  |
+| `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches persistent cache eviction off when the variable is set. |
+| `SYCL_CACHE_MAX_SIZE` | Positive integer | Persistent cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
+| `SYCL_CACHE_THRESHOLD` | Positive integer | Persistent cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
+| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Applicable only for persistent cache. Default value is 0 to cache all images. |
+| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Caching big kernels may overload the disk very fast. Applicable only for persistent cache. Default value is 1 GB. |
+
 
 ## Implementation details
 
@@ -234,7 +246,7 @@ queue). Possibility of enqueueing multiple cacheable kernels simultaneously
 from multiple threads requires us to provide thread-safety for the caching
 mechanisms.
 
-It is worth of noting that we don't cache the PI resource (kernel or program)
+It is worth of noting that we don't cache the UR resource (kernel or program)
 by itself. Instead we augment the resource with the status of build process.
 Hence, what is cached is a wrapper structure `BuildResult` which contains three
 information fields - pointer to built resource, build error (if applicable) and
@@ -282,7 +294,7 @@ class implements RAII to make code look cleaner a bit. Now, GetCache function
 will return the mapping to be employed that includes the 3 components: kernel
 name, device as well as any specialization constants values. These get added to
 `BuildResult` and are cached. The `BuildResult` structure is specialized with
-either `PiKernel` or `PiProgram`<sup>[1](#remove-pointer)</sup>.
+either `ur_kernel_handle_t` or `ur_program_handle_t`<sup>[1](#remove-pointer)</sup>.
 
 ### Hash function
 
@@ -337,7 +349,7 @@ The device code image are stored on file system using structure below:
 
 - `<cache_root>` - root directory storing cache files, that depends on
   environment variables (see SYCL_CACHE_DIR description in the
-  [EnvironmentVariables.md](../EnvironmentVariables.md));
+  [Cache configuration](#cache-configuration));
 - `<device_hash>` - hash out of device information used to identify target
   device;
 - `<device_image_hash>` - hash made out of device image used as input for the
