@@ -36,6 +36,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/half_type.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <syclcompat/math.hpp>
 
 #include "../common.hpp"

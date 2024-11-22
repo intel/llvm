@@ -7,6 +7,7 @@
 // Tests raw_kernel_arg in different combinations.
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 #include <sycl/usm.hpp>
 
 constexpr size_t NumArgs = 4;

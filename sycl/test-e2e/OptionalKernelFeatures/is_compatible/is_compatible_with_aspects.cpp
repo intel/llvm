@@ -5,6 +5,7 @@
 // RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 [[sycl::device_has(sycl::aspect::cpu)]] void foo(){};
 [[sycl::device_has(sycl::aspect::gpu)]] void bar(){};

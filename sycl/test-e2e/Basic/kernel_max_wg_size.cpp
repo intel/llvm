@@ -9,11 +9,11 @@
 // for Intel GPU devices and only when using the Level Zero backend or OpenCL
 // backend.
 
-// clang-format off
 #include <sycl/detail/core.hpp>
-#include <sycl/usm.hpp>
+
 #include <sycl/ext/intel/experimental/grf_size_properties.hpp>
-// clang-format on
+#include <sycl/kernel_bundle.hpp>
+#include <sycl/usm.hpp>
 
 using namespace sycl;
 

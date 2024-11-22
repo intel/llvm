@@ -36,6 +36,7 @@
 
 #include <sycl/atomic_ref.hpp>
 #include <sycl/group_barrier.hpp>
+#include <sycl/kernel_bundle.hpp>
 
 #include <syclcompat/math.hpp>
 #include <syclcompat/memory.hpp>
