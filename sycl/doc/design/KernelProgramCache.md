@@ -2,7 +2,7 @@
 
 ## Rationale behind caching
 
-During SYCL program execution, SYCL runtime will create internal objects
+During SYCL program execution, the SYCL runtime will create internal objects
 representing kernels and programs, it may also invoke JIT compiler to bring
 kernels in a program to executable state. Those runtime operations are quite
 expensive, and in some cases caching approach can be employed to eliminate
@@ -65,7 +65,7 @@ examples below illustrate scenarios where such optimization is possible.
   });
 ```
 
-In both cases, SYCL runtime will need to build the program and kernels multiple
+In both cases, the SYCL runtime will need to build the program and kernels multiple
 times, which may involve JIT compilation and take quite a lot of time.
 
 In order to eliminate this waste of run-time we introduce a kernel and program
@@ -113,7 +113,7 @@ The kernels map's key consists of two components:
 - kernel name<sup>[3](#what-is-kname)</sup>.
 
 The third map, called Fast Kernel Cache, is used as an optimization to reduce the
-number of lookups in the kernels map. It's key consists of the following components:
+number of lookups in the kernels map. Its key consists of the following components:
 
 - specialization constants values,
 - the UR handle of the device this kernel is built for,
@@ -408,10 +408,10 @@ LRU (least recently used) strategy both for in-memory and persistent cache.
 
 Eviction in in-memory cache is disabled by default but can be controlled by SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD
 environment variable. The threshold is set in bytes and when the cache size exceeds the threshold the eviction process is initiated. The eviction process is based on LRU strategy. The cache is walked through and the least recently used items are deleted until the cache size is below the threshold.
-To implement eviction for in-memory cache efficiently, we store the programs in a linked-list, called eviction list. When the program is first added to the cache, it is also added to the back of the eviction list. When a program is fetched from cache, we move the program to the end of the eviction list. This way, we ensure that the programs at the beginning of the eviction list are always the least recently used.
-When adding a new program to cache, we check if the size of the program cache exceeds the threshold, if so, we iterate through the eviction list starting from the front and delete the programs until the cache size is below the threshold. When a program is deleted from the cache, we also evict its corresponding kernels from the kernel and fast kernel cache.
+To implement eviction for in-memory cache efficiently, we store the programs in a linked-list, called the eviction list. When the program is first added to the cache, it is also added to the back of the eviction list. When a program is fetched from cache, we move the program to the end of the eviction list. This way, we ensure that the programs at the beginning of the eviction list are always the least recently used.
+When adding a new program to cache, we check if the size of the program cache exceeds the threshold, if so, we iterate through the eviction list starting from the front and delete the programs until the cache size is below the threshold. When a program is deleted from the cache, we also evict its corresponding kernels from both of the kernel caches.
 
-***When the application run out-of-memory,*** either due to cache eviction being disabled or the cache eviction threshold being too high, we will evict all the items from program and kernel caches. This is done to prevent the application from crashing due to running out of memory.
+***If the application runs out-of-memory,*** either due to cache eviction being disabled or the cache eviction threshold being too high, we will evict all the items from program and kernel caches.
 
 #### Persistent cache eviction
 
