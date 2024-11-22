@@ -120,21 +120,6 @@ ur_result_t urContextGetInfo(
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-
-    ur_memory_order_capability_flags_t Capabilities =
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELAXED |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQUIRE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_RELEASE |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_ACQ_REL |
-        UR_MEMORY_ORDER_CAPABILITY_FLAG_SEQ_CST;
-    return ReturnValue(Capabilities);
-  }
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
-  }
 
   default:
     // TODO: implement other parameters

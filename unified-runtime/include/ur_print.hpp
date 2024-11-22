@@ -5881,18 +5881,6 @@ inline std::ostream &operator<<(std::ostream &os,
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     os << "UR_CONTEXT_INFO_USM_FILL2D_SUPPORT";
     break;
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
-    os << "UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES";
-    break;
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
-    os << "UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES";
-    break;
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
-    os << "UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES";
-    break;
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES:
-    os << "UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES";
-    break;
   default:
     os << "unknown enumerator";
     break;
@@ -5973,66 +5961,6 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr,
     os << (const void *)(tptr) << " (";
 
     os << *tptr;
-
-    os << ")";
-  } break;
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES: {
-    const ur_memory_order_capability_flags_t *tptr =
-        (const ur_memory_order_capability_flags_t *)ptr;
-    if (sizeof(ur_memory_order_capability_flags_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    ur::details::printFlag<ur_memory_order_capability_flag_t>(os, *tptr);
-
-    os << ")";
-  } break;
-  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES: {
-    const ur_memory_scope_capability_flags_t *tptr =
-        (const ur_memory_scope_capability_flags_t *)ptr;
-    if (sizeof(ur_memory_scope_capability_flags_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    ur::details::printFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
-
-    os << ")";
-  } break;
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES: {
-    const ur_memory_order_capability_flags_t *tptr =
-        (const ur_memory_order_capability_flags_t *)ptr;
-    if (sizeof(ur_memory_order_capability_flags_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_memory_order_capability_flags_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    ur::details::printFlag<ur_memory_order_capability_flag_t>(os, *tptr);
-
-    os << ")";
-  } break;
-  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
-    const ur_memory_scope_capability_flags_t *tptr =
-        (const ur_memory_scope_capability_flags_t *)ptr;
-    if (sizeof(ur_memory_scope_capability_flags_t) > size) {
-      os << "invalid size (is: " << size
-         << ", expected: >=" << sizeof(ur_memory_scope_capability_flags_t)
-         << ")";
-      return UR_RESULT_ERROR_INVALID_SIZE;
-    }
-    os << (const void *)(tptr) << " (";
-
-    ur::details::printFlag<ur_memory_scope_capability_flag_t>(os, *tptr);
 
     os << ")";
   } break;
