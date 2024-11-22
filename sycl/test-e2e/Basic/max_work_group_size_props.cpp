@@ -1,4 +1,4 @@
-// RUN: %{build} -o %t.out
+// RUN: %{build} -o %t.out -Wno-deprecated-declarations
 // RUN: %{run} %t.out
 
 // This property is not yet supported by all UR adapters
