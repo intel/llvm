@@ -20,6 +20,35 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
+void printAspects(std::ostream &Out, ByteArray BA) {
+  BA.dropBytes(8);
+  Out << "[";
+  for (int i = 0; !BA.empty(); ++i) {
+    auto Aspect = BA.consume<sycl::aspect>();
+    switch (Aspect) {
+#define __SYCL_ASPECT(ASPECT, ID)                                              \
+  case sycl::aspect::ASPECT:                                                   \
+    Out << #ASPECT;                                                            \
+    break;
+#define __SYCL_ASPECT_DEPRECATED(ASPECT, ID, MESSAGE)                          \
+  case sycl::aspect::ASPECT:                                                   \
+    Out << #ASPECT;                                                            \
+    break;
+#include <sycl/info/aspects.def>
+#include <sycl/info/aspects_deprecated.def>
+#undef __SYCL_ASPECT
+#undef __SYCL_ASPECT_DEPRECATED
+    default:
+      Out << "unknown (" << static_cast<int>(Aspect) << ")";
+      break;
+    }
+    if (i != 0)
+      Out << ", ";
+  }
+  Out << "]";
+  return;
+}
+
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
   switch (P.Prop->Type) {
   case SYCL_PROPERTY_TYPE_UINT32:
@@ -42,6 +71,20 @@ std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P) {
     Out << P.asUint32();
     break;
   case SYCL_PROPERTY_TYPE_BYTE_ARRAY: {
+    // Special case for aspects, print out the aspect names
+    if (P.Prop->Name == std::string_view("aspects")) {
+      printAspects(Out, P.asByteArray());
+      break;
+    }
+
+    // Special case for these properties, print out the value as a string
+    if (P.Prop->Name == std::string_view("virtual-functions-set") ||
+        P.Prop->Name == std::string_view("uses-virtual-functions-set")) {
+      Out << P.asStringView();
+      break;
+    }
+
+    // Otherwise, print out the byte array as hex
     ByteArray BA = P.asByteArray();
     std::ios_base::fmtflags FlagsBackup = Out.flags();
     Out << std::hex;
@@ -84,7 +127,7 @@ std::string_view DeviceBinaryProperty::asStringView() const {
   assert(Prop->ValSize > 0 && "property size mismatch");
   // Byte array stores its size in first 8 bytes
   size_t Shift = Prop->Type == SYCL_PROPERTY_TYPE_BYTE_ARRAY ? 8 : 0;
-  return {ur::cast<const char *>(Prop->ValAddr) + Shift, Prop->ValSize};
+  return {ur::cast<const char *>(Prop->ValAddr) + Shift, Prop->ValSize - Shift};
 }
 
 void RTDeviceBinaryImage::PropertyRange::init(sycl_device_binary Bin,

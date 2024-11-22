@@ -732,8 +732,10 @@ ProgramManager::collectDependentDeviceImagesForVirtualFunctions(
       // when the dummy image does not support the device requirements, we
       // know the corresponding image providing virtual functions was not
       // linked and we must link the dummy image.
-      if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage == 1)
+      if (doesDevSupportDeviceRequirements(Dev, *BinImage) + isDummyImage ==
+          1) {
         DeviceImagesToLink.insert(BinImage);
+      }
     }
   }
 
@@ -1764,6 +1766,9 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
 #endif
     else
       Img = std::make_unique<RTDeviceBinaryImage>(RawImg);
+
+    if (std::getenv("SYCL_PRINT_IMAGES"))
+      Img->print();
 
     static uint32_t SequenceID = 0;
 
