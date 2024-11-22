@@ -1,7 +1,7 @@
-# commit 9937d029c7fdcbf101e89f8515f640c145e059c5
-# Merge: 9ac6d5d9 10b0e101
+# commit b0f9293d9b39ce0f8019a02198119a8b6fe0b05f
+# Merge: b5294ee0 1f687880
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 20 14:49:17 2024 +0000
-#     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
-#     Use extension version of clGetKernelSubGroupInfo when necessary.
-set(UNIFIED_RUNTIME_TAG 9937d029c7fdcbf101e89f8515f640c145e059c5)
+# Date:   Fri Nov 22 11:50:36 2024 +0000
+#     Merge pull request #2326 from martygrant/martin/fixDevicePartitionOpenCL
+#     Index into property array in urDevicePartition for OpenCL
+set(UNIFIED_RUNTIME_TAG b0f9293d9b39ce0f8019a02198119a8b6fe0b05f)
