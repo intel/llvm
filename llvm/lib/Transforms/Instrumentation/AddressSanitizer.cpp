@@ -183,6 +183,7 @@ const char kAsanMemToShadow[] = "__asan_mem_to_shadow";
 
 // Accesses sizes are powers of two: 1, 2, 4, 8, 16.
 static const size_t kNumberOfAccessSizes = 5;
+static const size_t kNumberOfAddressSpace = 5;
 
 static const uint64_t kAllocaRzSize = 32;
 
@@ -463,6 +464,10 @@ static cl::opt<bool>
     ClSpirOffloadGenerics("asan-spir-generics",
                           cl::desc("instrument generic pointer"), cl::Hidden,
                           cl::init(true));
+
+static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
+                                     cl::desc("instrument device globals"),
+                                     cl::Hidden, cl::init(true));
 
 // Debug flags.
 
@@ -897,10 +902,13 @@ private:
   // These arrays is indexed by AccessIsWrite, Experiment and log2(AccessSize).
   FunctionCallee AsanErrorCallback[2][2][kNumberOfAccessSizes];
   FunctionCallee AsanMemoryAccessCallback[2][2][kNumberOfAccessSizes];
+  FunctionCallee AsanMemoryAccessCallbackAS[2][2][kNumberOfAccessSizes]
+                                           [kNumberOfAddressSpace];
 
   // These arrays is indexed by AccessIsWrite and Experiment.
   FunctionCallee AsanErrorCallbackSized[2][2];
   FunctionCallee AsanMemoryAccessCallbackSized[2][2];
+  FunctionCallee AsanMemoryAccessCallbackSizedAS[2][2][kNumberOfAddressSpace];
 
   FunctionCallee AsanMemmove, AsanMemcpy, AsanMemset;
   Value *LocalDynamicShadow = nullptr;
@@ -966,6 +974,7 @@ public:
 private:
   void initializeCallbacks();
 
+  void instrumentDeviceGlobal(IRBuilder<> &IRB);
   void instrumentGlobals(IRBuilder<> &IRB, bool *CtorComdat);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB,
                              ArrayRef<GlobalVariable *> ExtendedGlobals,
@@ -1161,11 +1170,8 @@ struct FunctionStackPoisoner : public InstVisitor<FunctionStackPoisoner> {
     // alloca. We have a special @llvm.get.dynamic.area.offset intrinsic for
     // this purpose.
     if (!isa<ReturnInst>(InstBefore)) {
-      Function *DynamicAreaOffsetFunc = Intrinsic::getDeclaration(
-          InstBefore->getModule(), Intrinsic::get_dynamic_area_offset,
-          {IntptrTy});
-
-      Value *DynamicAreaOffset = IRB.CreateCall(DynamicAreaOffsetFunc, {});
+      Value *DynamicAreaOffset = IRB.CreateIntrinsic(
+          Intrinsic::get_dynamic_area_offset, {IntptrTy}, {});
 
       DynamicAreaPtr = IRB.CreateAdd(IRB.CreatePtrToInt(SavedStack, IntptrTy),
                                      DynamicAreaOffset);
@@ -1403,7 +1409,8 @@ static void ExtendSpirKernelArgs(Module &M, FunctionAnalysisManager &FAM) {
         auto *CurF = CI->getFunction();
         Args.push_back(CurF->getArg(CurF->arg_size() - 1));
 
-        CallInst *NewCI = CallInst::Create(NewF, Args, CI->getName(), CI);
+        CallInst *NewCI =
+            CallInst::Create(NewF, Args, CI->getName(), CI->getIterator());
         NewCI->setCallingConv(CI->getCallingConv());
         NewCI->setAttributes(CI->getAttributes());
         NewCI->setDebugLoc(CI->getDebugLoc());
@@ -1450,8 +1457,14 @@ PreservedAnalyses AddressSanitizerPass::run(Module &M,
   const StackSafetyGlobalInfo *const SSGI =
       ClUseStackSafety ? &MAM.getResult<StackSafetyGlobalAnalysis>(M) : nullptr;
 
-  if (Triple(M.getTargetTriple()).isSPIROrSPIRV())
+  if (Triple(M.getTargetTriple()).isSPIROrSPIRV()) {
     ExtendSpirKernelArgs(M, FAM);
+    // FIXME: W/A skip instrumentation if this module has ESIMD
+    for (auto &F : M) {
+      if (F.hasMetadata("sycl_explicit_simd"))
+        return PreservedAnalyses::all();
+    }
+  }
 
   for (Function &F : M) {
     AddressSanitizer FunctionSanitizer(
@@ -1541,17 +1554,32 @@ static bool isJointMatrixAccess(Value *V) {
     for (Value *Op : CI->args()) {
       if (auto *AI = dyn_cast<AllocaInst>(Op->stripInBoundsOffsets()))
         if (auto *TargetTy = getTargetExtType(AI->getAllocatedType()))
-          return TargetTy->getName().startswith("spirv.") &&
+          return TargetTy->getName().starts_with("spirv.") &&
                  TargetTy->getName().contains("Matrix");
     }
   }
   return false;
 }
 
+static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
+  if (!G->hasAttribute("sycl-device-image-scope"))
+    return true;
+
+  Attribute Attr = G->getAttribute("sycl-device-image-scope");
+  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+}
+
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
+  if (GV && isUnsupportedDeviceGlobal(GV))
     return true;
 
   // Ignore load/store for target ext type since we can't know exactly what size
@@ -1616,11 +1644,6 @@ void AddressSanitizer::AppendDebugInfoToArgs(Instruction *InsertBefore,
   // SPIR constant address space
   PointerType *ConstASPtrTy =
       Type::getInt8Ty(C)->getPointerTo(kSpirOffloadConstantAS);
-
-  // Address Space
-  Type *PtrTy = cast<PointerType>(Addr->getType()->getScalarType());
-  Args.push_back(
-      ConstantInt::get(Type::getInt32Ty(C), PtrTy->getPointerAddressSpace()));
 
   // File & Line
   if (Loc) {
@@ -2303,11 +2326,9 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
 
   if (UseCalls && ClOptimizeCallbacks) {
     const ASanAccessInfo AccessInfo(IsWrite, CompileKernel, AccessSizeIndex);
-    Module *M = IRB.GetInsertBlock()->getParent()->getParent();
-    IRB.CreateCall(
-        Intrinsic::getDeclaration(M, Intrinsic::asan_check_memaccess),
-        {IRB.CreatePointerCast(Addr, PtrTy),
-         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
+    IRB.CreateIntrinsic(Intrinsic::asan_check_memaccess, {},
+                        {IRB.CreatePointerCast(Addr, PtrTy),
+                         ConstantInt::get(Int32Ty, AccessInfo.Packed)});
     return;
   }
 
@@ -2316,10 +2337,13 @@ void AddressSanitizer::instrumentAddress(Instruction *OrigIns,
     if (Exp == 0) {
       if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 5> Args;
+        auto AS = cast<PointerType>(Addr->getType()->getScalarType())
+                      ->getPointerAddressSpace();
         Args.push_back(AddrLong);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
         RTCI.createRuntimeCall(
-            IRB, AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex], Args);
+            IRB, AsanMemoryAccessCallbackAS[IsWrite][0][AccessSizeIndex][AS],
+            Args);
       } else {
         RTCI.createRuntimeCall(
           IRB, AsanMemoryAccessCallback[IsWrite][0][AccessSizeIndex], AddrLong);
@@ -2398,11 +2422,13 @@ void AddressSanitizer::instrumentUnusualSizeOrAlignment(
     if (Exp == 0) {
       if (TargetTriple.isSPIROrSPIRV()) {
         SmallVector<Value *, 6> Args;
+        auto AS = cast<PointerType>(Addr->getType()->getScalarType())
+                      ->getPointerAddressSpace();
         Args.push_back(AddrLong);
         Args.push_back(Size);
         AppendDebugInfoToArgs(InsertBefore, Addr, Args);
-        RTCI.createRuntimeCall(IRB, AsanMemoryAccessCallbackSized[IsWrite][0],
-                               Args);
+        RTCI.createRuntimeCall(
+            IRB, AsanMemoryAccessCallbackSizedAS[IsWrite][0][AS], Args);
       } else {
         RTCI.createRuntimeCall(IRB, AsanMemoryAccessCallbackSized[IsWrite][0],
                                {AddrLong, Size});
@@ -2758,6 +2784,71 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor() {
   BasicBlock *AsanDtorBB = BasicBlock::Create(*C, "", AsanDtorFunction);
 
   return ReturnInst::Create(*C, AsanDtorBB);
+}
+
+void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+
+  // Device global meta data is described by a structure
+  //  size_t device_global_size
+  //  size_t device_global_size_with_red_zone
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isUnsupportedDeviceGlobal(&G))
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer = ConstantStruct::get(
+        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+
+    // Create a new global variable with enough space for a redzone.
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
+        ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
 }
 
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
@@ -3228,6 +3319,11 @@ bool ModuleAddressSanitizer::instrumentModule() {
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
     Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
     MD->addOperand(MDNode::get(Ctx, MDVals));
+
+    if (ClDeviceGlobals) {
+      IRBuilder<> IRB(*C);
+      instrumentDeviceGlobal(IRB);
+    }
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);
@@ -3280,7 +3376,6 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
 
       // __asan_loadX/__asan_storeX(
       //   ...
-      //   int32_t as, // Address Space
       //   char* file,
       //   unsigned int line,
       //   char* func
@@ -3289,15 +3384,39 @@ void AddressSanitizer::initializeCallbacks(const TargetLibraryInfo *TLI) {
         auto *Int8PtrTy =
             Type::getInt8Ty(*C)->getPointerTo(kSpirOffloadConstantAS);
 
-        Args1.push_back(Type::getInt32Ty(*C)); // address_space
         Args1.push_back(Int8PtrTy);            // file
         Args1.push_back(Type::getInt32Ty(*C)); // line
         Args1.push_back(Int8PtrTy);            // func
 
-        Args2.push_back(Type::getInt32Ty(*C)); // address_space
         Args2.push_back(Int8PtrTy);            // file
         Args2.push_back(Type::getInt32Ty(*C)); // line
         Args2.push_back(Int8PtrTy);            // func
+
+        for (size_t AddressSpaceIndex = 0;
+             AddressSpaceIndex < kNumberOfAddressSpace; AddressSpaceIndex++) {
+          AsanMemoryAccessCallbackSizedAS
+              [AccessIsWrite][Exp][AddressSpaceIndex] = M.getOrInsertFunction(
+                  ClMemoryAccessCallbackPrefix + ExpStr + TypeStr + "N" +
+                      "_as" + itostr(AddressSpaceIndex) + EndingStr,
+                  FunctionType::get(IRB.getVoidTy(), Args2, false), AL2);
+
+          for (size_t AccessSizeIndex = 0;
+               AccessSizeIndex < kNumberOfAccessSizes; AccessSizeIndex++) {
+            const std::string Suffix = TypeStr +
+                                       itostr(1ULL << AccessSizeIndex) + "_as" +
+                                       itostr(AddressSpaceIndex);
+            AsanMemoryAccessCallbackAS[AccessIsWrite][Exp][AccessSizeIndex]
+                                      [AddressSpaceIndex] =
+                                          M.getOrInsertFunction(
+                                              ClMemoryAccessCallbackPrefix +
+                                                  ExpStr + Suffix + EndingStr,
+                                              FunctionType::get(IRB.getVoidTy(),
+                                                                Args1, false),
+                                              AL1);
+          }
+        }
+
+        continue;
       }
       AsanErrorCallbackSized[AccessIsWrite][Exp] = M.getOrInsertFunction(
           kAsanReportErrorTemplate + ExpStr + TypeStr + "_n" + EndingStr,
@@ -3496,10 +3615,6 @@ bool AddressSanitizer::instrumentFunction(Function &F,
     // memory (SLM) __AsanLaunchInfo and access to SLM in referenced-indirectly
     // function isn't supported yet in intel-graphics-compiler.
     if (F.hasFnAttribute("referenced-indirectly"))
-      return false;
-    // FIXME: ESIMD kernel doesn't support noinline functions, so we can't
-    // support sanitizer for it
-    if (F.hasMetadata("sycl_explicit_simd"))
       return false;
   }
 
