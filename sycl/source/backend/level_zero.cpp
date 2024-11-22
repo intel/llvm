@@ -6,11 +6,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/backend.hpp>
-#include <sycl/sycl.hpp>
+#include <detail/ur.hpp>
+#include <sycl/backend_types.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -19,12 +19,12 @@ using namespace sycl::detail;
 
 __SYCL_EXPORT device make_device(const platform &Platform,
                                  ur_native_handle_t NativeHandle) {
-  const auto &Plugin = ur::getPlugin<backend::ext_oneapi_level_zero>();
+  const auto &Adapter = ur::getAdapter<backend::ext_oneapi_level_zero>();
   const auto &PlatformImpl = getSyclObjImpl(Platform);
   // Create UR device first.
   ur_device_handle_t UrDevice;
-  Plugin->call(urDeviceCreateWithNativeHandle, NativeHandle,
-               PlatformImpl->getHandleRef(), nullptr, &UrDevice);
+  Adapter->call<UrApiKind::urDeviceCreateWithNativeHandle>(
+      NativeHandle, Adapter->getUrAdapter(), nullptr, &UrDevice);
 
   return detail::createSyclObjFromImpl<device>(
       PlatformImpl->getOrMakeDeviceImpl(UrDevice, PlatformImpl));

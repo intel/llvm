@@ -6,16 +6,32 @@
 //
 //===----------------------------------------------------------------------===//
 
-// REQUIRES: (opencl || level_zero)
+// REQUIRES: ocloc && (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
+// -- Test the kernel_compiler with OpenCL source.
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// RUN: %{l0_leak_check} %{run} %t.out
 
-// the new spec for the kernel_compiler opens the door to supporting several
-// different source languages. But, initially, OpenCL Kernels are the only ones
-// supported. This test is limited to that (thus the cm-compiler requirement)
-// but in the future it may need to broken out into other tests.
+// -- Test again, with caching.
+// DEFINE: %{cache_vars} = env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
+// RUN: rm -rf %t/cache_dir
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// -- Add leak check.
+// RUN: rm -rf %t/cache_dir
+// RUN:  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN:  %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+
+// CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
+// CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
+// CHECK-WRITTEN-TO-CACHE: [kernel_compiler Persistent Cache]: binary has been cached
+
+// CHECK-READ-FROM-CACHE: [Persistent Cache]: enabled
+// CHECK-READ-FROM-CACHE-NOT: [kernel_compiler Persistent Cache]: binary has been cached
+// CHECK-READ-FROM-CACHE: [kernel_compiler Persistent Cache]: using cached binary
 
 #include <sycl/detail/core.hpp>
 

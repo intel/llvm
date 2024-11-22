@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/device_impl.hpp>
 #include <detail/persistent_device_code_cache.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 
 #include <cerrno>
@@ -110,10 +110,80 @@ getSortedImages(const std::vector<const RTDeviceBinaryImage *> &Imgs) {
   return SortedImgs;
 }
 
-/* Stores built program in persistent cache
+// Utility function to get a non-yet-existing unique filename.
+std::string getUniqueFilename(const std::string &base_name) {
+  size_t i = 0;
+  std::string filename = base_name + "/" + std::to_string(i++);
+  while (OSUtil::isPathPresent(filename + ".bin") ||
+         OSUtil::isPathPresent(filename + ".lock")) {
+    filename = base_name + "/" + std::to_string(i++);
+  }
+  return filename;
+}
+
+/* Returns binary data for the UR program. There is a one-to-one
+ * correspondence between the vector of programs returned from the function and
+ * the input vector of devices.
+ */
+std::vector<std::vector<char>>
+getProgramBinaryData(const ur_program_handle_t &NativePrg,
+                     const std::vector<device> &Devices) {
+  assert(!Devices.empty() && "At least one device is expected");
+  // We expect all devices to be from the same platform/adpater.
+  auto Adapter = detail::getSyclObjImpl(Devices[0])->getAdapter();
+  unsigned int DeviceNum = 0;
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_NUM_DEVICES, sizeof(DeviceNum), &DeviceNum,
+      nullptr);
+
+  std::vector<ur_device_handle_t> URDevices(DeviceNum);
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_DEVICES,
+      sizeof(ur_device_handle_t) * URDevices.size(), URDevices.data(), nullptr);
+
+  std::vector<size_t> BinarySizes(DeviceNum);
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
+      sizeof(size_t) * BinarySizes.size(), BinarySizes.data(), nullptr);
+
+  std::vector<std::vector<char>> Binaries;
+  std::vector<char *> Pointers;
+  for (size_t I = 0; I < BinarySizes.size(); ++I) {
+    Binaries.emplace_back(BinarySizes[I]);
+    Pointers.push_back(Binaries[I].data());
+  }
+
+  Adapter->call<UrApiKind::urProgramGetInfo>(
+      NativePrg, UR_PROGRAM_INFO_BINARIES, sizeof(char *) * Pointers.size(),
+      Pointers.data(), nullptr);
+
+  // Select only binaries for the input devices preserving one to one
+  // correpsondence.
+  std::vector<std::vector<char>> Result(Devices.size());
+  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+    auto DeviceIt = std::find_if(
+        URDevices.begin(), URDevices.end(),
+        [&Devices, &DeviceIndex](const ur_device_handle_t &URDevice) {
+          return URDevice ==
+                 detail::getSyclObjImpl(Devices[DeviceIndex])->getHandleRef();
+        });
+    assert(DeviceIt != URDevices.end() &&
+           "Device is not associated with the program");
+    auto URDeviceIndex = std::distance(URDevices.begin(), DeviceIt);
+    Result[DeviceIndex] = std::move(Binaries[URDeviceIndex]);
+  }
+
+  // Return binaries correpsonding to the input devices.
+
+  return Result;
+}
+
+/* Stores built program in persistent cache. We will put the binary for each
+ * device in the list to a separate file.
  */
 void PersistentDeviceCodeCache::putItemToDisc(
-    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const std::vector<device> &Devices,
+    const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString,
     const ur_program_handle_t &NativePrg) {
 
@@ -121,103 +191,170 @@ void PersistentDeviceCodeCache::putItemToDisc(
     return;
 
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
-  std::string DirName =
-      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
+  auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+    // If we don't have binary for the device, skip it.
+    if (BinaryData[DeviceIndex].empty())
+      continue;
+    std::string DirName = getCacheItemPath(Devices[DeviceIndex], SortedImgs,
+                                           SpecConsts, BuildOptionsString);
 
-  if (DirName.empty())
-    return;
+    if (DirName.empty())
+      return;
 
-  auto Plugin = detail::getSyclObjImpl(Device)->getPlugin();
-
-  unsigned int DeviceNum = 0;
-
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_NUM_DEVICES,
-               sizeof(DeviceNum), &DeviceNum, nullptr);
-
-  std::vector<size_t> BinarySizes(DeviceNum);
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_BINARY_SIZES,
-               sizeof(size_t) * BinarySizes.size(), BinarySizes.data(),
-               nullptr);
-
-  std::vector<std::vector<char>> Result;
-  std::vector<char *> Pointers;
-  for (size_t I = 0; I < BinarySizes.size(); ++I) {
-    Result.emplace_back(BinarySizes[I]);
-    Pointers.push_back(Result[I].data());
-  }
-
-  Plugin->call(urProgramGetInfo, NativePrg, UR_PROGRAM_INFO_BINARIES,
-               sizeof(char *) * Pointers.size(), Pointers.data(), nullptr);
-  size_t i = 0;
-  std::string FileName;
-  do {
-    FileName = DirName + "/" + std::to_string(i++);
-  } while (OSUtil::isPathPresent(FileName + ".bin") ||
-           OSUtil::isPathPresent(FileName + ".lock"));
-
-  try {
-    OSUtil::makeDir(DirName.c_str());
-    LockCacheItem Lock{FileName};
-    if (Lock.isOwned()) {
-      std::string FullFileName = FileName + ".bin";
-      writeBinaryDataToFile(FullFileName, Result);
-      trace("device binary has been cached: " + FullFileName);
-      writeSourceItem(FileName + ".src", Device, SortedImgs, SpecConsts,
-                      BuildOptionsString);
-    } else {
-      PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
+    try {
+      OSUtil::makeDir(DirName.c_str());
+      std::string FileName = getUniqueFilename(DirName);
+      LockCacheItem Lock{FileName};
+      if (Lock.isOwned()) {
+        std::string FullFileName = FileName + ".bin";
+        writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
+        trace("device binary has been cached: " + FullFileName);
+        writeSourceItem(FileName + ".src", Devices[DeviceIndex], SortedImgs,
+                        SpecConsts, BuildOptionsString);
+      } else {
+        PersistentDeviceCodeCache::trace("cache lock not owned " + FileName);
+      }
+    } catch (std::exception &e) {
+      PersistentDeviceCodeCache::trace(
+          std::string("exception encountered making persistent cache: ") +
+          e.what());
+    } catch (...) {
+      PersistentDeviceCodeCache::trace(
+          std::string("error outputting persistent cache: ") +
+          std::strerror(errno));
     }
-  } catch (std::exception &e) {
-    PersistentDeviceCodeCache::trace(
-        std::string("exception encountered making persistent cache: ") +
-        e.what());
-  } catch (...) {
-    PersistentDeviceCodeCache::trace(
-        std::string("error outputting persistent cache: ") +
-        std::strerror(errno));
+  }
+}
+
+void PersistentDeviceCodeCache::putCompiledKernelToDisc(
+    const std::vector<device> &Devices, const std::string &BuildOptionsString,
+    const std::string &SourceStr, const ur_program_handle_t &NativePrg) {
+  auto BinaryData = getProgramBinaryData(NativePrg, Devices);
+
+  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+    // If we don't have binary for the device, skip it.
+    if (BinaryData[DeviceIndex].empty())
+      continue;
+    std::string DirName = getCompiledKernelItemPath(
+        Devices[DeviceIndex], BuildOptionsString, SourceStr);
+
+    try {
+      OSUtil::makeDir(DirName.c_str());
+      std::string FileName = getUniqueFilename(DirName);
+      LockCacheItem Lock{FileName};
+      if (Lock.isOwned()) {
+        std::string FullFileName = FileName + ".bin";
+        writeBinaryDataToFile(FullFileName, BinaryData[DeviceIndex]);
+        PersistentDeviceCodeCache::trace_KernelCompiler(
+            "binary has been cached: " + FullFileName);
+      } else {
+        PersistentDeviceCodeCache::trace_KernelCompiler(
+            "cache lock not owned " + FileName);
+      }
+    } catch (std::exception &e) {
+      PersistentDeviceCodeCache::trace_KernelCompiler(
+          std::string("exception encountered making cache: ") + e.what());
+    } catch (...) {
+      PersistentDeviceCodeCache::trace_KernelCompiler(
+          std::string("error outputting cache: ") + std::strerror(errno));
+    }
   }
 }
 
 /* Program binaries built for one or more devices are read from persistent
  * cache and returned in form of vector of programs. Each binary program is
- * stored in vector of chars.
+ * stored in vector of chars. There is a one-to-one correspondence between
+ * the vector of programs returned from the function and the input vector of
+ * devices.
  */
 std::vector<std::vector<char>> PersistentDeviceCodeCache::getItemFromDisc(
-    const device &Device, const std::vector<const RTDeviceBinaryImage *> &Imgs,
+    const std::vector<device> &Devices,
+    const std::vector<const RTDeviceBinaryImage *> &Imgs,
     const SerializedObj &SpecConsts, const std::string &BuildOptionsString) {
-
+  assert(!Devices.empty());
   if (!areImagesCacheable(Imgs))
     return {};
 
   std::vector<const RTDeviceBinaryImage *> SortedImgs = getSortedImages(Imgs);
-  std::string Path =
-      getCacheItemPath(Device, SortedImgs, SpecConsts, BuildOptionsString);
+  std::vector<std::vector<char>> Binaries(Devices.size());
+  std::string FileNames;
+  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+    std::string Path = getCacheItemPath(Devices[DeviceIndex], SortedImgs,
+                                        SpecConsts, BuildOptionsString);
 
-  if (Path.empty() || !OSUtil::isPathPresent(Path))
-    return {};
+    if (Path.empty() || !OSUtil::isPathPresent(Path))
+      return {};
 
-  int i = 0;
+    int i = 0;
 
-  std::string FileName{Path + "/" + std::to_string(i)};
-  while (OSUtil::isPathPresent(FileName + ".bin") ||
-         OSUtil::isPathPresent(FileName + ".src")) {
+    std::string FileName{Path + "/" + std::to_string(i)};
+    while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".src")) {
 
-    if (!LockCacheItem::isLocked(FileName) &&
-        isCacheItemSrcEqual(FileName + ".src", Device, SortedImgs, SpecConsts,
-                            BuildOptionsString)) {
-      try {
-        std::string FullFileName = FileName + ".bin";
-        std::vector<std::vector<char>> res =
-            readBinaryDataFromFile(FullFileName);
-        trace("using cached device binary: " + FullFileName);
-        return res; // subject for NRVO
-      } catch (...) {
-        // If read was unsuccessfull try the next item
+      if (!LockCacheItem::isLocked(FileName) &&
+          isCacheItemSrcEqual(FileName + ".src", Devices[DeviceIndex],
+                              SortedImgs, SpecConsts, BuildOptionsString)) {
+        try {
+          std::string FullFileName = FileName + ".bin";
+          Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+          FileNames += FullFileName + ";";
+          break;
+        } catch (...) {
+          // If read was unsuccessfull try the next item
+        }
       }
+      FileName = Path + "/" + std::to_string(++i);
     }
-    FileName = Path + "/" + std::to_string(++i);
+    // If there is no binary for any device, return empty vector.
+    if (Binaries[DeviceIndex].empty())
+      return {};
   }
-  return {};
+  PersistentDeviceCodeCache::trace("using cached device binary: " + FileNames);
+  return Binaries;
+}
+
+/*  kernel_compiler extension uses slightly different format for path
+    and does not cache a .src separate from the binary.
+ */
+std::vector<std::vector<char>>
+PersistentDeviceCodeCache::getCompiledKernelFromDisc(
+    const std::vector<device> &Devices, const std::string &BuildOptionsString,
+    const std::string SourceStr) {
+  assert(!Devices.empty());
+  std::vector<std::vector<char>> Binaries(Devices.size());
+  std::string FileNames;
+  for (size_t DeviceIndex = 0; DeviceIndex < Devices.size(); DeviceIndex++) {
+    std::string DirName = getCompiledKernelItemPath(
+        Devices[DeviceIndex], BuildOptionsString, SourceStr);
+
+    if (DirName.empty() || !OSUtil::isPathPresent(DirName))
+      return {};
+
+    int i = 0;
+    std::string FileName{DirName + "/" + std::to_string(i)};
+    while (OSUtil::isPathPresent(FileName + ".bin") ||
+           OSUtil::isPathPresent(FileName + ".src")) {
+
+      if (!LockCacheItem::isLocked(FileName)) {
+        try {
+          std::string FullFileName = FileName + ".bin";
+          Binaries[DeviceIndex] = readBinaryDataFromFile(FullFileName);
+          FileNames += FullFileName + ";";
+          break;
+        } catch (...) {
+          // If read was unsuccessfull try the next item
+        }
+      }
+      FileName = DirName + "/" + std::to_string(++i);
+    }
+    // If there is no binary for any device, return empty vector.
+    if (Binaries[DeviceIndex].empty())
+      return {};
+  }
+  PersistentDeviceCodeCache::trace_KernelCompiler("using cached binary: " +
+                                                  FileNames);
+  return Binaries;
 }
 
 /* Returns string value which can be used to identify different device
@@ -230,44 +367,29 @@ std::string PersistentDeviceCodeCache::getDeviceIDString(const device &Device) {
 }
 
 /* Write built binary to persistent cache
- * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
- * Return on first unsuccessfull file operation
+ * Format: BinarySize, Binary
  */
 void PersistentDeviceCodeCache::writeBinaryDataToFile(
-    const std::string &FileName, const std::vector<std::vector<char>> &Data) {
+    const std::string &FileName, const std::vector<char> &Data) {
   std::ofstream FileStream{FileName, std::ios::binary};
-
-  size_t Size = Data.size();
+  auto Size = Data.size();
   FileStream.write((char *)&Size, sizeof(Size));
-
-  for (size_t i = 0; i < Data.size(); ++i) {
-    Size = Data[i].size();
-    FileStream.write((char *)&Size, sizeof(Size));
-    FileStream.write(Data[i].data(), Size);
-  }
-  FileStream.close();
+  FileStream.write(Data.data(), Size);
   if (FileStream.fail())
-    trace("Failed to write binary file " + FileName);
+    trace("Failed to write to binary file " + FileName);
 }
 
-/* Read built binary to persistent cache
- * Format: numImages, 1stImageSize, Image[, NthImageSize, NthImage...]
+/* Read built binary from persistent cache. Each persistent cache file contains
+ * binary for a single device. Format: BinarySize, Binary
  */
-std::vector<std::vector<char>>
+std::vector<char>
 PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
   std::ifstream FileStream{FileName, std::ios::binary};
-  size_t ImgNum = 0, ImgSize = 0;
-  FileStream.read((char *)&ImgNum, sizeof(ImgNum));
+  size_t BinarySize = 0;
+  FileStream.read((char *)&BinarySize, sizeof(BinarySize));
 
-  std::vector<std::vector<char>> Res(ImgNum);
-  for (size_t i = 0; i < ImgNum; ++i) {
-    FileStream.read((char *)&ImgSize, sizeof(ImgSize));
-
-    std::vector<char> ImgData(ImgSize);
-    FileStream.read(ImgData.data(), ImgSize);
-
-    Res[i] = std::move(ImgData);
-  }
+  std::vector<char> BinaryData(BinarySize);
+  FileStream.read(BinaryData.data(), BinarySize);
   FileStream.close();
 
   if (FileStream.fail()) {
@@ -275,7 +397,7 @@ PersistentDeviceCodeCache::readBinaryDataFromFile(const std::string &FileName) {
     return {};
   }
 
-  return Res;
+  return BinaryData;
 }
 
 /* Writing cache item key sources to be used for reliable identification
@@ -392,6 +514,25 @@ std::string PersistentDeviceCodeCache::getCacheItemPath(
          std::to_string(StringHasher(ImgsString)) + "/" +
          std::to_string(StringHasher(SpecConstsString)) + "/" +
          std::to_string(StringHasher(BuildOptionsString));
+}
+
+std::string PersistentDeviceCodeCache::getCompiledKernelItemPath(
+    const device &Device, const std::string &BuildOptionsString,
+    const std::string SourceString) {
+
+  std::string cache_root{getRootDir()};
+  if (cache_root.empty()) {
+    trace("Disable persistent cache due to unconfigured cache root.");
+    return {};
+  }
+
+  std::string DeviceString{getDeviceIDString(Device)};
+  std::hash<std::string> StringHasher{};
+
+  return cache_root + "/ext_kernel_compiler" + "/" +
+         std::to_string(StringHasher(DeviceString)) + "/" +
+         std::to_string(StringHasher(BuildOptionsString)) + "/" +
+         std::to_string(StringHasher(SourceString));
 }
 
 /* Returns true if persistent cache is enabled.

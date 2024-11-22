@@ -78,28 +78,6 @@ bool Scheduler::GraphProcessor::enqueueCommand(
   if (Cmd->isSuccessfullyEnqueued())
     return handleBlockingCmd(Cmd, EnqueueResult, RootCommand, Blocking);
 
-  if (KernelFusionCommand *FusionCmd = isPartOfActiveFusion(Cmd)) {
-    // The fusion is still in-flight, but some other event/command depending
-    // on one of the kernels in the fusion list has triggered it to be
-    // enqueued. To avoid circular dependencies and deadlocks, we will need to
-    // cancel fusion here and enqueue the kernels in the fusion list right
-    // away.
-    printFusionWarning("Aborting fusion because synchronization with one of "
-                       "the kernels in the fusion list was requested");
-    // We need to unlock the read lock, as cancelFusion in the scheduler will
-    // acquire a write lock to alter the graph.
-    GraphReadLock.unlock();
-    // Cancel fusion will take care of enqueueing all the kernels.
-    Scheduler::getInstance().cancelFusion(FusionCmd->getQueue());
-    // Lock the read lock again.
-    GraphReadLock.lock();
-    // The fusion (placeholder) command should have been enqueued by
-    // cancelFusion.
-    if (FusionCmd->isSuccessfullyEnqueued()) {
-      return true;
-    }
-  }
-
   // Exit early if the command is blocked and the enqueue type is non-blocking
   if (Cmd->isEnqueueBlocked() && !Blocking) {
     EnqueueResult = EnqueueResultT(EnqueueResultT::SyclEnqueueBlocked, Cmd);

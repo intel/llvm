@@ -17,6 +17,7 @@
 #include "clang/Driver/InputInfo.h"
 #include "clang/Driver/Options.h"
 #include "llvm/ADT/StringExtras.h"
+#include "llvm/Config/llvm-config.h" // for LLVM_HOST_TRIPLE
 #include "llvm/Option/ArgList.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/FormatAdapters.h"
@@ -86,6 +87,8 @@ CudaVersion getCudaVersion(uint32_t raw_version) {
     return CudaVersion::CUDA_124;
   if (raw_version < 12060)
     return CudaVersion::CUDA_125;
+  if (raw_version < 12070)
+    return CudaVersion::CUDA_126;
   return CudaVersion::NEW;
 }
 
@@ -465,13 +468,6 @@ void NVPTX::Assembler::ConstructJob(Compilation &C, const JobAction &JA,
   CmdArgs.push_back("--output-file");
   std::string OutputFileName = TC.getInputFilename(Output);
 
-  // If we are invoking `nvlink` internally we need to output a `.cubin` file.
-  // FIXME: This should hopefully be removed if NVIDIA updates their tooling.
-  if (!C.getInputArgs().getLastArg(options::OPT_c)) {
-    SmallString<256> Filename(Output.getFilename());
-    llvm::sys::path::replace_extension(Filename, "cubin");
-    OutputFileName = Filename.str();
-  }
   if (Output.isFilename() && OutputFileName != Output.getFilename())
     C.addTempFile(Args.MakeArgString(OutputFileName));
 
@@ -691,14 +687,24 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
     CmdArgs.push_back("-v");
 
   StringRef GPUArch = Args.getLastArgValue(options::OPT_march_EQ);
-  if (GPUArch.empty()) {
+  if (GPUArch.empty() && !C.getDriver().isUsingLTO()) {
     C.getDriver().Diag(diag::err_drv_offload_missing_gpu_arch)
         << getToolChain().getArchName() << getShortName();
     return;
   }
 
-  CmdArgs.push_back("-arch");
-  CmdArgs.push_back(Args.MakeArgString(GPUArch));
+  if (!GPUArch.empty()) {
+    CmdArgs.push_back("-arch");
+    CmdArgs.push_back(Args.MakeArgString(GPUArch));
+  }
+
+  if (Args.hasArg(options::OPT_ptxas_path_EQ))
+    CmdArgs.push_back(Args.MakeArgString(
+        "--pxtas-path=" + Args.getLastArgValue(options::OPT_ptxas_path_EQ)));
+
+  if (Args.hasArg(options::OPT_cuda_path_EQ))
+    CmdArgs.push_back(Args.MakeArgString(
+        "--cuda-path=" + Args.getLastArgValue(options::OPT_cuda_path_EQ)));
 
   // Add paths specified in LIBRARY_PATH environment variable as -L options.
   addDirectoryList(Args, CmdArgs, "-L", "LIBRARY_PATH");
@@ -706,6 +712,18 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   // Add standard library search paths passed on the command line.
   Args.AddAllArgs(CmdArgs, options::OPT_L);
   getToolChain().AddFilePathLibArgs(Args, CmdArgs);
+  AddLinkerInputs(getToolChain(), Inputs, Args, CmdArgs, JA);
+
+  if (C.getDriver().isUsingLTO())
+    addLTOOptions(getToolChain(), Args, CmdArgs, Output, Inputs[0],
+                  C.getDriver().getLTOMode() == LTOK_Thin);
+
+  // Forward the PTX features if the nvlink-wrapper needs it.
+  std::vector<StringRef> Features;
+  getNVPTXTargetFeatures(C.getDriver(), getToolChain().getTriple(), Args,
+                         Features);
+  for (StringRef Feature : Features)
+    CmdArgs.append({"--feature", Args.MakeArgString(Feature)});
 
   // Add paths for the default clang library path.
   SmallString<256> DefaultLibPath =
@@ -713,51 +731,12 @@ void NVPTX::Linker::ConstructJob(Compilation &C, const JobAction &JA,
   llvm::sys::path::append(DefaultLibPath, CLANG_INSTALL_LIBDIR_BASENAME);
   CmdArgs.push_back(Args.MakeArgString(Twine("-L") + DefaultLibPath));
 
-  for (const auto &II : Inputs) {
-    if (II.getType() == types::TY_LLVM_IR || II.getType() == types::TY_LTO_IR ||
-        II.getType() == types::TY_LTO_BC || II.getType() == types::TY_LLVM_BC) {
-      C.getDriver().Diag(diag::err_drv_no_linker_llvm_support)
-          << getToolChain().getTripleString();
-      continue;
-    }
-
-    // The 'nvlink' application performs RDC-mode linking when given a '.o'
-    // file and device linking when given a '.cubin' file. We always want to
-    // perform device linking, so just rename any '.o' files.
-    // FIXME: This should hopefully be removed if NVIDIA updates their tooling.
-    if (II.isFilename()) {
-      auto InputFile = getToolChain().getInputFilename(II);
-      if (llvm::sys::path::extension(InputFile) != ".cubin") {
-        // If there are no actions above this one then this is direct input and
-        // we can copy it. Otherwise the input is internal so a `.cubin` file
-        // should exist.
-        if (II.getAction() && II.getAction()->getInputs().size() == 0) {
-          const char *CubinF =
-              Args.MakeArgString(getToolChain().getDriver().GetTemporaryPath(
-                  llvm::sys::path::stem(InputFile), "cubin"));
-          if (llvm::sys::fs::copy_file(InputFile, C.addTempFile(CubinF)))
-            continue;
-
-          CmdArgs.push_back(CubinF);
-        } else {
-          SmallString<256> Filename(InputFile);
-          llvm::sys::path::replace_extension(Filename, "cubin");
-          CmdArgs.push_back(Args.MakeArgString(Filename));
-        }
-      } else {
-        CmdArgs.push_back(Args.MakeArgString(InputFile));
-      }
-    } else if (!II.isNothing()) {
-      II.getInputArg().renderAsInput(Args, CmdArgs);
-    }
-  }
-
   C.addCommand(std::make_unique<Command>(
       JA, *this,
       ResponseFileSupport{ResponseFileSupport::RF_Full, llvm::sys::WEM_UTF8,
                           "--options-file"},
-      Args.MakeArgString(getToolChain().GetProgramPath("nvlink")), CmdArgs,
-      Inputs, Output));
+      Args.MakeArgString(getToolChain().GetProgramPath("clang-nvlink-wrapper")),
+      CmdArgs, Inputs, Output));
 }
 
 void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
@@ -780,6 +759,7 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
   case CudaVersion::CUDA_##CUDA_VER:                                           \
     PtxFeature = "+ptx" #PTX_VER;                                              \
     break;
+    CASE_CUDA_VERSION(126, 85);
     CASE_CUDA_VERSION(125, 85);
     CASE_CUDA_VERSION(124, 84);
     CASE_CUDA_VERSION(123, 83);
@@ -802,6 +782,10 @@ void NVPTX::getNVPTXTargetFeatures(const Driver &D, const llvm::Triple &Triple,
     CASE_CUDA_VERSION(91, 61);
     CASE_CUDA_VERSION(90, 60);
 #undef CASE_CUDA_VERSION
+  // TODO: Use specific CUDA version once it's public.
+  case clang::CudaVersion::NEW:
+    PtxFeature = "+ptx86";
+    break;
   default:
     PtxFeature = "+ptx42";
   }
@@ -922,7 +906,7 @@ NVPTXToolChain::getSystemGPUArchs(const ArgList &Args) const {
   else
     Program = GetProgramPath("nvptx-arch");
 
-  auto StdoutOrErr = executeToolChainProgram(Program, /*SecondsToWait=*/10);
+  auto StdoutOrErr = executeToolChainProgram(Program);
   if (!StdoutOrErr)
     return StdoutOrErr.takeError();
 
@@ -946,7 +930,7 @@ CudaToolChain::CudaToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args,
                              const Action::OffloadKind OK)
     : NVPTXToolChain(D, Triple, HostTC.getTriple(), Args), HostTC(HostTC),
-      OK(OK) {}
+      SYCLInstallation(D), OK(OK) {}
 
 void CudaToolChain::addClangTargetOptions(
     const llvm::opt::ArgList &DriverArgs, llvm::opt::ArgStringList &CC1Args,
@@ -960,7 +944,23 @@ void CudaToolChain::addClangTargetOptions(
           DeviceOffloadingKind == Action::OFK_Cuda) &&
          "Only OpenMP, SYCL or CUDA offloading kinds are supported for NVIDIA GPUs.");
 
-  if (DeviceOffloadingKind == Action::OFK_Cuda) {
+  // If we are compiling SYCL kernels for Nvidia GPUs, we do not support Cuda
+  // device code compatability, hence we do not set Cuda mode in that instance.
+  if (DeviceOffloadingKind == Action::OFK_SYCL) {
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
+
+    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt))
+      CC1Args.push_back("-fcuda-prec-sqrt");
+
+    bool FastRelaxedMath = DriverArgs.hasFlag(
+        options::OPT_ffast_math, options::OPT_fno_fast_math, false);
+    bool UnsafeMathOpt =
+        DriverArgs.hasFlag(options::OPT_funsafe_math_optimizations,
+                           options::OPT_fno_unsafe_math_optimizations, false);
+    if (FastRelaxedMath || UnsafeMathOpt)
+      CC1Args.append({"-mllvm", "--nvptx-prec-divf32=0", "-mllvm",
+                      "--nvptx-prec-sqrtf32=0"});
+  } else {
     CC1Args.append(
         {"-fcuda-is-device", "-mllvm", "-enable-memcpyopt-without-libcalls"});
 
@@ -971,19 +971,10 @@ void CudaToolChain::addClangTargetOptions(
     if (CudaInstallation.version() >= CudaVersion::CUDA_90)
       CC1Args.push_back("-fcuda-allow-variadic-functions");
 
-    if (DriverArgs.hasArg(options::OPT_fsycl)) {
-      // Add these flags for .cu SYCL compilation.
+    // Add these flags for .cu SYCL compilation.
+    if (DeviceOffloadingKind == Action::OFK_Cuda &&
+        DriverArgs.hasArg(options::OPT_fsycl))
       CC1Args.append({"-std=c++17", "-fsycl-is-host"});
-    }
-  }
-
-  if (DeviceOffloadingKind == Action::OFK_SYCL) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
-
-    if (DriverArgs.hasArg(options::OPT_fsycl_fp32_prec_sqrt)) {
-      CC1Args.push_back("-fcuda-prec-sqrt");
-    }
   }
 
   auto NoLibSpirv = DriverArgs.hasArg(options::OPT_fno_sycl_libspirv) ||
@@ -1033,6 +1024,10 @@ void CudaToolChain::addClangTargetOptions(
     CC1Args.push_back(DriverArgs.MakeArgString(LibSpirvFile));
   }
 
+  if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
+                         options::OPT_fno_cuda_short_ptr, false))
+    CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
+
   if (DriverArgs.hasArg(options::OPT_nogpulib))
     return;
 
@@ -1049,11 +1044,14 @@ void CudaToolChain::addClangTargetOptions(
   CC1Args.push_back("-mlink-builtin-bitcode");
   CC1Args.push_back(DriverArgs.MakeArgString(LibDeviceFile));
 
-  clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
+  // For now, we don't use any Offload/OpenMP device runtime when we offload
+  // CUDA via LLVM/Offload. We should split the Offload/OpenMP device runtime
+  // and include the "generic" (or CUDA-specific) parts.
+  if (DriverArgs.hasFlag(options::OPT_foffload_via_llvm,
+                         options::OPT_fno_offload_via_llvm, false))
+    return;
 
-  if (DriverArgs.hasFlag(options::OPT_fcuda_short_ptr,
-                         options::OPT_fno_cuda_short_ptr, false))
-    CC1Args.append({"-mllvm", "--nvptx-short-ptr"});
+  clang::CudaVersion CudaInstallationVersion = CudaInstallation.version();
 
   if (CudaInstallationVersion >= CudaVersion::UNKNOWN)
     CC1Args.push_back(
@@ -1069,7 +1067,7 @@ void CudaToolChain::addClangTargetOptions(
     }
 
     // Link the bitcode library late if we're using device LTO.
-    if (getDriver().isUsingLTO(/* IsOffload */ true))
+    if (getDriver().isUsingOffloadLTO())
       return;
 
     addOpenMPDeviceRTL(getDriver(), DriverArgs, CC1Args, GpuArch.str(),
@@ -1112,11 +1110,7 @@ std::string CudaToolChain::getInputFilename(const InputInfo &Input) const {
   if (Input.getType() != types::TY_Object || getDriver().offloadDeviceOnly())
     return ToolChain::getInputFilename(Input);
 
-  // Replace extension for object files with cubin because nvlink relies on
-  // these particular file names.
-  SmallString<256> Filename(ToolChain::getInputFilename(Input));
-  llvm::sys::path::replace_extension(Filename, "cubin");
-  return std::string(Filename);
+  return ToolChain::getInputFilename(Input);
 }
 
 llvm::opt::DerivedArgList *
@@ -1216,8 +1210,7 @@ CudaToolChain::GetCXXStdlibType(const ArgList &Args) const {
 void CudaToolChain::AddClangSystemIncludeArgs(const ArgList &DriverArgs,
                                               ArgStringList &CC1Args) const {
   if (DriverArgs.hasArg(options::OPT_fsycl)) {
-    toolchains::SYCLToolChain::AddSYCLIncludeArgs(getDriver(), DriverArgs,
-                                                  CC1Args);
+    SYCLInstallation.AddSYCLIncludeArgs(DriverArgs, CC1Args);
   }
   HostTC.AddClangSystemIncludeArgs(DriverArgs, CC1Args);
 

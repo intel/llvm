@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -8,7 +8,7 @@
 
 // Test image-specific printers of the Plugin Interace
 //
-//CHECK: ---> urEnqueueMemBufferCopyRect(
+//CHECK: <--- urEnqueueMemBufferCopyRect(
 //CHECK-SAME: .srcOrigin = (struct ur_rect_offset_t){.x = 64, .y = 5, .z = 0}
 //CHECK-SAME: .dstOrigin = (struct ur_rect_offset_t){.x = 0, .y = 0, .z = 0}
 //CHECK-SAME: .region = (struct ur_rect_region_t){.width = 64, .height = 5, .depth = 1}
@@ -36,7 +36,7 @@ int main() {
     });
   }
 
-  // CHECK: ---> urMemBufferPartition(
+  // CHECK: <--- urMemBufferPartition(
   // CHECK-SAME: .origin = 128, .size = 32
 
   constexpr unsigned Size = 64;

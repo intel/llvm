@@ -32,6 +32,9 @@ def builtin_bitcode_EQ : Joined<["--"], "builtin-bitcode=">,
 def device_linker_args_EQ : Joined<["--"], "device-linker=">,
   Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value>">,
   HelpText<"Arguments to pass to the device linker invocation">;
+def device_compiler_args_EQ : Joined<["--"], "device-compiler=">,
+  Flags<[WrapperOnlyOption]>, MetaVarName<"<value> or <triple>=<value>">,
+  HelpText<"Arguments to pass to the device compiler invocation">;
 def clang_backend : Flag<["--"], "clang-backend">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Run the backend using clang rather than the LTO backend">;
@@ -91,6 +94,9 @@ def whole_program : Flag<["--"], "whole-program">,
 def linker_arg_EQ : Joined<["--"], "linker-arg=">,
   Flags<[DeviceOnlyOption, HelpHidden]>,
   HelpText<"An extra argument to be passed to the linker">;
+def compiler_arg_EQ : Joined<["--"], "compiler-arg=">,
+  Flags<[DeviceOnlyOption, HelpHidden]>,
+  HelpText<"An extra argument to be passed to the compiler">;
 
 // Arguments for the LLVM backend.
 def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
@@ -98,7 +104,7 @@ def mllvm : Separate<["-"], "mllvm">, Flags<[WrapperOnlyOption]>,
   HelpText<"Arguments passed to LLVM, including Clang invocations, for which "
            "the '-mllvm' prefix is preserved. Use '-mllvm --help' for a list "
            "of options.">;
-def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=-">, Flags<[HelpHidden, WrapperOnlyOption]>,
+def offload_opt_eq_minus : Joined<["--", "-"], "offload-opt=">, Flags<[HelpHidden, WrapperOnlyOption]>,
   HelpText<"Options passed to LLVM, not including the Clang invocation. Use "
            "'--offload-opt=--help' for a list of options.">;
 
@@ -178,6 +184,15 @@ def sycl_module_split_mode_EQ :
   Flags<[WrapperOnlyOption]>,
   HelpText<"Option that turns on split library with the given split mode">;
 
+// TODO: Options will be removed when the sycl-post-link tool becomes removed.
+def use_sycl_post_link_tool : Flag<["--", "-"], "use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use the sycl-post-link tool. On by default">;
+
+def no_use_sycl_post_link_tool : Flag<["--", "-"], "no-use-sycl-post-link-tool">,
+  Flags<[WrapperOnlyOption]>,
+  HelpText<"Use a SYCL library instead of sycl-post-link tool. (experimental)">;
+
 // Special option to pass in llvm-spirv options
 def llvm_spirv_options_EQ : Joined<["--", "-"], "llvm-spirv-options=">,
   Flags<[WrapperOnlyOption]>,
@@ -228,3 +243,8 @@ Flags<[WrapperOnlyOption]>,  HelpText<"Embed LLVM IR for runtime kernel fusion">
 def sycl_dump_device_code_EQ : Joined<["--", "-"], "sycl-dump-device-code=">,
   Flags<[WrapperOnlyOption]>,
   HelpText<"Path to the folder where the tool dumps SPIR-V device code. Other formats aren't dumped.">;
+
+// Options to enable/disable device dynamic linking.
+def sycl_allow_device_image_dependencies : Flag<["--", "-"], "sycl-allow-device-image-dependencies">,
+  Flags<[WrapperOnlyOption, HelpHidden]>,
+  HelpText<"Allow dependencies between device code images">;

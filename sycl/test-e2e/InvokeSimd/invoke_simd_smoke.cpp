@@ -55,20 +55,6 @@ ESIMD_CALLEE(float *A, esimd::simd<float, VL> b, int i) SYCL_ESIMD_FUNCTION {
 
 float SPMD_CALLEE(float *A, float b, int i) { return A[i] + b; }
 
-int ESIMD_selector_v(const device &device) {
-  if (const char *dev_filter = getenv("ONEAPI_DEVICE_SELECTOR")) {
-    std::string filter_string(dev_filter);
-    if (filter_string.find("gpu") != std::string::npos)
-      return device.is_gpu() ? 1000 : -1;
-    std::cerr << "Supported 'ONEAPI_DEVICE_SELECTOR' env var values is "
-                 "'*:gpu' and  '"
-              << filter_string << "' does not contain such substrings.\n";
-    return -1;
-  }
-  // If "ONEAPI_DEVICE_SELECTOR" not defined, only allow gpu device
-  return device.is_gpu() ? 1000 : -1;
-}
-
 inline auto createExceptionHandler() {
   return [](exception_list l) {
     for (auto ep : l) {
@@ -94,7 +80,7 @@ template <bool use_func_directly> bool test() {
   constexpr unsigned Size = 1024;
   constexpr unsigned GroupSize = 4 * VL;
 
-  queue q(ESIMD_selector_v, createExceptionHandler());
+  queue q(default_selector_v, createExceptionHandler());
 
   auto dev = q.get_device();
   std::cout << "Running with use_func_directly = " << use_func_directly
@@ -116,7 +102,7 @@ template <bool use_func_directly> bool test() {
 
   try {
     auto e = q.submit([&](handler &cgh) {
-      cgh.parallel_for(Range, [=](nd_item<1> ndi) [[intel::reqd_sub_group_size(
+      cgh.parallel_for(Range, [=](nd_item<1> ndi) [[sycl::reqd_sub_group_size(
                                   VL)]] {
         sub_group sg = ndi.get_sub_group();
         group<1> g = ndi.get_group();

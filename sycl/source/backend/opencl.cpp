@@ -6,11 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/adapter.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/queue_impl.hpp>
-#include <sycl/sycl.hpp>
 
 #include <memory>
 #include <string_view>
@@ -32,21 +31,23 @@ __SYCL_EXPORT bool has_extension(const sycl::platform &SyclPlatform,
 
   std::shared_ptr<sycl::detail::platform_impl> PlatformImpl =
       getSyclObjImpl(SyclPlatform);
-  ur_platform_handle_t PluginPlatform = PlatformImpl->getHandleRef();
-  const PluginPtr &Plugin = PlatformImpl->getPlugin();
+  ur_platform_handle_t AdapterPlatform = PlatformImpl->getHandleRef();
+  const AdapterPtr &Adapter = PlatformImpl->getAdapter();
 
-  // Manual invocation of plugin API to avoid using deprecated
+  // Manual invocation of UR API to avoid using deprecated
   // info::platform::extensions call.
   size_t ResultSize = 0;
-  Plugin->call(urPlatformGetInfo, PluginPlatform, UR_PLATFORM_INFO_EXTENSIONS,
-               /*propSize=*/0,
-               /*pPropValue=*/nullptr, &ResultSize);
+  Adapter->call<UrApiKind::urPlatformGetInfo>(
+      AdapterPlatform, UR_PLATFORM_INFO_EXTENSIONS,
+      /*propSize=*/0,
+      /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return false;
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call(urPlatformGetInfo, PluginPlatform, UR_PLATFORM_INFO_EXTENSIONS,
-               ResultSize, Result.get(), nullptr);
+  Adapter->call<UrApiKind::urPlatformGetInfo>(
+      AdapterPlatform, UR_PLATFORM_INFO_EXTENSIONS, ResultSize, Result.get(),
+      nullptr);
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;
@@ -62,21 +63,23 @@ __SYCL_EXPORT bool has_extension(const sycl::device &SyclDevice,
 
   std::shared_ptr<sycl::detail::device_impl> DeviceImpl =
       getSyclObjImpl(SyclDevice);
-  ur_device_handle_t PluginDevice = DeviceImpl->getHandleRef();
-  const PluginPtr &Plugin = DeviceImpl->getPlugin();
+  ur_device_handle_t AdapterDevice = DeviceImpl->getHandleRef();
+  const AdapterPtr &Adapter = DeviceImpl->getAdapter();
 
-  // Manual invocation of plugin API to avoid using deprecated
+  // Manual invocation of UR API to avoid using deprecated
   // info::device::extensions call.
   size_t ResultSize = 0;
-  Plugin->call(urDeviceGetInfo, PluginDevice, UR_DEVICE_INFO_EXTENSIONS,
-               /*propSize=*/0,
-               /*pPropValue=*/nullptr, &ResultSize);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(
+      AdapterDevice, UR_DEVICE_INFO_EXTENSIONS,
+      /*propSize=*/0,
+      /*pPropValue=*/nullptr, &ResultSize);
   if (ResultSize == 0)
     return false;
 
   std::unique_ptr<char[]> Result(new char[ResultSize]);
-  Plugin->call(urDeviceGetInfo, PluginDevice, UR_DEVICE_INFO_EXTENSIONS,
-               ResultSize, Result.get(), nullptr);
+  Adapter->call<UrApiKind::urDeviceGetInfo>(AdapterDevice,
+                                            UR_DEVICE_INFO_EXTENSIONS,
+                                            ResultSize, Result.get(), nullptr);
 
   std::string_view ExtensionsString(Result.get());
   return ExtensionsString.find(Extension) != std::string::npos;

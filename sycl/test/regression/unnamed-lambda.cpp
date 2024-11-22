@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsyntax-only %s
 
-#include "sycl.hpp"
+#include <sycl/sycl.hpp>
 
 // This validates that the unnamed lambda logic in the library correctly works
 // with a new implementation of __builtin_unique_stable_name, where

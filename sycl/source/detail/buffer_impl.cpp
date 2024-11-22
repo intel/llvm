@@ -13,6 +13,7 @@
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/ur.hpp>
+#include <sycl/properties/buffer_properties.hpp>
 
 namespace sycl {
 inline namespace _V1 {
@@ -24,7 +25,7 @@ void *buffer_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                                void *HostPtr,
                                ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
   assert(!(nullptr == HostPtr && BaseT::useHostPtr() && !Context) &&
          "Internal error. Allocating memory on the host "
          "while having use_host_ptr property");
@@ -51,11 +52,12 @@ void buffer_impl::addInteropObject(
     if (std::find(Handles.begin(), Handles.end(),
                   ur::cast<ur_native_handle_t>(MInteropMemObject)) ==
         Handles.end()) {
-      const PluginPtr &Plugin = getPlugin();
-      Plugin->call(urMemRetain, ur::cast<ur_mem_handle_t>(MInteropMemObject));
+      const AdapterPtr &Adapter = getAdapter();
+      Adapter->call<UrApiKind::urMemRetain>(
+          ur::cast<ur_mem_handle_t>(MInteropMemObject));
       ur_native_handle_t NativeHandle = 0;
-      Plugin->call(urMemGetNativeHandle, MInteropMemObject, nullptr,
-                   &NativeHandle);
+      Adapter->call<UrApiKind::urMemGetNativeHandle>(MInteropMemObject, nullptr,
+                                                     &NativeHandle);
       Handles.push_back(NativeHandle);
     }
   }
@@ -82,23 +84,52 @@ buffer_impl::getNativeVector(backend BackendName) const {
     if (Platform->getBackend() != BackendName)
       continue;
 
-    auto Plugin = Platform->getPlugin();
+    auto Adapter = Platform->getAdapter();
 
     if (Platform->getBackend() == backend::opencl) {
-      Plugin->call(urMemRetain, NativeMem);
+      Adapter->call<UrApiKind::urMemRetain>(NativeMem);
     }
 
     ur_native_handle_t Handle = 0;
     // When doing buffer interop we don't know what device the memory should be
     // resident on, so pass nullptr for Device param. Buffer interop may not be
     // supported by all backends.
-    Plugin->call(urMemGetNativeHandle, NativeMem, /*Dev*/ nullptr, &Handle);
+    Adapter->call<UrApiKind::urMemGetNativeHandle>(NativeMem, /*Dev*/ nullptr,
+                                                   &Handle);
     Handles.push_back(Handle);
   }
 
   addInteropObject(Handles);
   return Handles;
 }
+
+void buffer_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/buffer_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/buffer_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

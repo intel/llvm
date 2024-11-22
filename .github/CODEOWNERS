@@ -36,6 +36,7 @@ sycl/doc/extensions/ @intel/dpcpp-specification-reviewers
 
 # Unified Runtime
 sycl/cmake/modules/FetchUnifiedRuntime.cmake @intel/unified-runtime-reviewers
+sycl/cmake/modules/UnifiedRuntimeTag.cmake @intel/unified-runtime-reviewers
 sycl/include/sycl/detail/ur.hpp @intel/unified-runtime-reviewers
 sycl/source/detail/posix_ur.cpp @intel/unified-runtime-reviewers
 sycl/source/detail/ur.cpp @intel/unified-runtime-reviewers
@@ -102,6 +103,9 @@ sycl/test-e2e/InvokeSimd/ @intel/dpcpp-esimd-reviewers
 buildbot/ @intel/dpcpp-devops-reviewers
 devops/ @intel/dpcpp-devops-reviewers
 
+# dev-igc driver update
+devops/dependencies-igc-dev.json @intel/sycl-matrix-reviewers @intel/dpcpp-esimd-reviewers @intel/dpcpp-devops-reviewers
+
 # Kernel fusion JIT compiler
 sycl-jit/ @intel/dpcpp-kernel-fusion-reviewers
 sycl/doc/design/KernelFusionJIT.md @intel/dpcpp-kernel-fusion-reviewers
@@ -129,15 +133,17 @@ clang/test/Driver/sycl-native-cpu*.cpp @intel/dpcpp-nativecpu-pi-reviewers
 sycl/**/native_cpu/ @intel/dpcpp-nativecpu-pi-reviewers
 sycl/doc/design/SYCLNativeCPU.md @intel/dpcpp-nativecpu-pi-reviewers
 sycl/include/sycl/detail/native_cpu.hpp @intel/dpcpp-nativecpu-pi-reviewers
+libdevice/nativecpu* @intel/dpcpp-nativecpu-pi-reviewers
 
 # SYCL-Graphs extensions
 sycl/include/sycl/ext/oneapi/experimental/graph.hpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.cpp @intel/sycl-graphs-reviewers
 sycl/source/detail/graph_impl.hpp @intel/sycl-graphs-reviewers
 sycl/unittests/Extensions/CommandGraph/ @intel/sycl-graphs-reviewers
-sycl/doc/design/CommandGraph.md @intel/sycl-graphs-reviewers
 sycl/test-e2e/Graph @intel/sycl-graphs-reviewers
+sycl/doc/design/CommandGraph.md @intel/sycl-graphs-reviewers
 sycl/doc/extensions/**/sycl_ext_oneapi_graph.asciidoc @intel/sycl-graphs-reviewers
+sycl/doc/syclgraph/ @intel/sycl-graphs-reviewers
 
 # syclcompat library
 sycl/**/syclcompat/ @intel/syclcompat-lib-reviewers
@@ -159,15 +165,16 @@ sycl/test-e2e/SeparateCompile/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/Printf/ @intel/dpcpp-tools-reviewers @intel/llvm-reviewers-runtime
 sycl/test-e2e/SpecConstants/ @intel/dpcpp-tools-reviewers
 sycl/test-e2e/NewOffloadDriver/ @intel/dpcpp-tools-reviewers
+sycl/test-e2e/LLVMIntrinsicLowering/ @intel/dpcpp-spirv-reviewers
 
 # Sanitizer
 clang/lib/Driver/SanitizerArgs.cpp @intel/dpcpp-sanitizers-review
-libdevice/sanitizer_utils.cpp @intel/dpcpp-sanitizers-review
-libdevice/include/asan_libdevice.hpp @intel/dpcpp-sanitizers-review
-libdevice/include/sanitizer_utils.hpp @intel/dpcpp-sanitizers-review
-llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
-sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review
-llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
-llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
-llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
+libdevice/include/asan_rtl.hpp @intel/dpcpp-sanitizers-review
+libdevice/include/sanitizer_defs.hpp @intel/dpcpp-sanitizers-review
+libdevice/sanitizer/ @intel/dpcpp-sanitizers-review
 llvm/include/llvm/Transforms/Instrumentation/AddressSanitizer.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerCommon.h @intel/dpcpp-sanitizers-review
+llvm/include/llvm/Transforms/Instrumentation/AddressSanitizerOptions.h @intel/dpcpp-sanitizers-review
+llvm/lib/Transforms/Instrumentation/AddressSanitizer.cpp @intel/dpcpp-sanitizers-review
+llvm/test/Instrumentation/AddressSanitizer/ @intel/dpcpp-sanitizers-review
+sycl/test-e2e/AddressSanitizer/ @intel/dpcpp-sanitizers-review

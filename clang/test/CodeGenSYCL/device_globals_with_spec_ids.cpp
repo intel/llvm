@@ -249,7 +249,7 @@ struct Wrapper {
 // CHECK: #include <sycl/detail/spec_const_integration.hpp>
 // CHECK-NEXT: #include <sycl/detail/device_global_map.hpp>
 // CHECK-NEXT: namespace sycl::detail {
-// CHECK-NEXT: namespace {
+// CHECK: namespace {
 // CHECK-NEXT: __sycl_device_global_registration::__sycl_device_global_registration() noexcept {
 // CHECK-NEXT: device_global_map::add((void *)&::b, "_Z1b");
 // CHECK-NEXT: device_global_map::add((void *)&::Wrapper::b, "_ZN7Wrapper1bE");
@@ -260,4 +260,4 @@ struct Wrapper {
 // CHECK-NEXT: device_global_map::add((void *)&::outer::__sycl_detail::__shim_[[SHIM11]](), "____ZN5outer12_GLOBAL__N_15inner12_GLOBAL__N_17Wrapper1cE");
 // CHECK-NEXT: }
 // CHECK-NEXT: } // namespace (unnamed)
-// CHECK-NEXT: } // namespace sycl::detail
+// CHECK: } // namespace sycl::detail

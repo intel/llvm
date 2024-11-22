@@ -1,9 +1,8 @@
-// REQUIRES: ocloc, gpu, linux
+// REQUIRES: ocloc, gpu, linux, aspect-fp64
 // UNSUPPORTED: cuda, hip
 
 // RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
-// TODO: Enable when GPU driver is updated.
-// RUNx: %{run} %t_opt.out
+// RUN: %{run} %t_opt.out
 
 // Tests that aspect::fp64 is not emitted correctly when -fsycl-fp64-conv-emu
 // flag is used.

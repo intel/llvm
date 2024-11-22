@@ -1,8 +1,7 @@
 // RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-dead-args-optimization -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s %if !windows %{--check-prefix=CHECK-RELEASE%}
 //
-// TODO: Reenable on Windows, see https://github.com/intel/llvm/issues/14768
-// XFAIL: hip_nvidia, windows
+// XFAIL: hip_nvidia
 
 //==------------------- ReleaseResourcesTests.cpp --------------------------==//
 //
@@ -46,11 +45,18 @@ int main() {
   return Failed;
 }
 
-// CHECK:---> urContextCreate
-// CHECK:---> urQueueCreate
-// CHECK:---> urProgramCreate
-// CHECK:---> urKernelCreate
-// CHECK:---> urQueueRelease
-// CHECK:---> urContextRelease
-// CHECK:---> urKernelRelease
-// CHECK:---> urProgramRelease
+// CHECK: <--- urContextCreate
+// CHECK: <--- urQueueCreate
+// CHECK: <--- urProgramCreate
+// CHECK: <--- urKernelCreate
+
+// On Windows, dlls unloading is inconsistent and if we try to release these UR
+// objects manually, inconsistent hangs happen due to a race between unloading
+// the UR adapters dlls (in addition to their dependency dlls) and the releasing
+// of these UR objects. So, we currently shutdown without releasing them and
+// windows should handle the memory cleanup.
+
+// CHECK-RELEASE: <--- urQueueRelease
+// CHECK-RELEASE: <--- urContextRelease
+// CHECK-RELEASE: <--- urKernelRelease
+// CHECK-RELEASE: <--- urProgramRelease

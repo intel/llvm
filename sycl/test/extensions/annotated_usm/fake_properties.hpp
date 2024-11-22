@@ -49,51 +49,53 @@ struct is_property_key_of<boo_key, objectT> : std::true_type {};
 
 // Runtime properties
 enum foo_enum : unsigned { a, b, c };
-struct foo : detail::run_time_property_key<fakePropKind(3)> {
+struct foo : detail::run_time_property_key<foo, fakePropKind(3)> {
   constexpr foo(foo_enum v) : value(v) {}
   foo_enum value;
 };
 
-struct foz  : detail::run_time_property_key<fakePropKind(4)> {
+struct foz : detail::run_time_property_key<foz, fakePropKind(4)> {
   float value1;
   bool value2;
 
   foz(float value1, bool value2) : value1(value1), value2(value2) {}
 };
 
-struct rt_prop1 : detail::run_time_property_key<fakePropKind(5)> {};
-struct rt_prop2 : detail::run_time_property_key<fakePropKind(6)> {};
-struct rt_prop3 : detail::run_time_property_key<fakePropKind(7)> {};
-struct rt_prop4 : detail::run_time_property_key<fakePropKind(8)> {};
-struct rt_prop5 : detail::run_time_property_key<fakePropKind(9)> {};
-struct rt_prop6 : detail::run_time_property_key<fakePropKind(10)> {};
-struct rt_prop7 : detail::run_time_property_key<fakePropKind(11)> {};
-struct rt_prop8 : detail::run_time_property_key<fakePropKind(12)> {};
-struct rt_prop9 : detail::run_time_property_key<fakePropKind(13)> {};
-struct rt_prop10 : detail::run_time_property_key<fakePropKind(14)> {};
-struct rt_prop11 : detail::run_time_property_key<fakePropKind(15)> {};
-struct rt_prop12 : detail::run_time_property_key<fakePropKind(16)> {};
-struct rt_prop13 : detail::run_time_property_key<fakePropKind(17)> {};
-struct rt_prop14 : detail::run_time_property_key<fakePropKind(18)> {};
-struct rt_prop15 : detail::run_time_property_key<fakePropKind(19)> {};
-struct rt_prop16 : detail::run_time_property_key<fakePropKind(20)> {};
-struct rt_prop17 : detail::run_time_property_key<fakePropKind(21)> {};
-struct rt_prop18 : detail::run_time_property_key<fakePropKind(22)> {};
-struct rt_prop19 : detail::run_time_property_key<fakePropKind(23)> {};
-struct rt_prop20 : detail::run_time_property_key<fakePropKind(24)> {};
-struct rt_prop21 : detail::run_time_property_key<fakePropKind(25)> {};
-struct rt_prop22 : detail::run_time_property_key<fakePropKind(26)> {};
-struct rt_prop23 : detail::run_time_property_key<fakePropKind(27)> {};
-struct rt_prop24 : detail::run_time_property_key<fakePropKind(28)> {};
-struct rt_prop25 : detail::run_time_property_key<fakePropKind(29)> {};
-struct rt_prop26 : detail::run_time_property_key<fakePropKind(30)> {};
-struct rt_prop27 : detail::run_time_property_key<fakePropKind(31)> {};
-struct rt_prop28 : detail::run_time_property_key<fakePropKind(32)> {};
-struct rt_prop29 : detail::run_time_property_key<fakePropKind(33)> {};
-struct rt_prop30 : detail::run_time_property_key<fakePropKind(34)> {};
-struct rt_prop31 : detail::run_time_property_key<fakePropKind(35)> {};
-struct rt_prop32 : detail::run_time_property_key<fakePropKind(36)> {};
-struct rt_prop33 : detail::run_time_property_key<fakePropKind(37)> {};
+// clang-format off
+struct rt_prop1  : detail::run_time_property_key<rt_prop1,  fakePropKind(5)>  { int x; };
+struct rt_prop2  : detail::run_time_property_key<rt_prop2,  fakePropKind(6)>  { int x; };
+struct rt_prop3  : detail::run_time_property_key<rt_prop3,  fakePropKind(7)>  { int x; };
+struct rt_prop4  : detail::run_time_property_key<rt_prop4,  fakePropKind(8)>  { int x; };
+struct rt_prop5  : detail::run_time_property_key<rt_prop5,  fakePropKind(9)>  { int x; };
+struct rt_prop6  : detail::run_time_property_key<rt_prop6,  fakePropKind(10)> { int x; };
+struct rt_prop7  : detail::run_time_property_key<rt_prop7,  fakePropKind(11)> { int x; };
+struct rt_prop8  : detail::run_time_property_key<rt_prop8,  fakePropKind(12)> { int x; };
+struct rt_prop9  : detail::run_time_property_key<rt_prop9,  fakePropKind(13)> { int x; };
+struct rt_prop10 : detail::run_time_property_key<rt_prop10, fakePropKind(14)> { int x; };
+struct rt_prop11 : detail::run_time_property_key<rt_prop11, fakePropKind(15)> { int x; };
+struct rt_prop12 : detail::run_time_property_key<rt_prop12, fakePropKind(16)> { int x; };
+struct rt_prop13 : detail::run_time_property_key<rt_prop13, fakePropKind(17)> { int x; };
+struct rt_prop14 : detail::run_time_property_key<rt_prop14, fakePropKind(18)> { int x; };
+struct rt_prop15 : detail::run_time_property_key<rt_prop15, fakePropKind(19)> { int x; };
+struct rt_prop16 : detail::run_time_property_key<rt_prop16, fakePropKind(20)> { int x; };
+struct rt_prop17 : detail::run_time_property_key<rt_prop17, fakePropKind(21)> { int x; };
+struct rt_prop18 : detail::run_time_property_key<rt_prop18, fakePropKind(22)> { int x; };
+struct rt_prop19 : detail::run_time_property_key<rt_prop19, fakePropKind(23)> { int x; };
+struct rt_prop20 : detail::run_time_property_key<rt_prop20, fakePropKind(24)> { int x; };
+struct rt_prop21 : detail::run_time_property_key<rt_prop21, fakePropKind(25)> { int x; };
+struct rt_prop22 : detail::run_time_property_key<rt_prop22, fakePropKind(26)> { int x; };
+struct rt_prop23 : detail::run_time_property_key<rt_prop23, fakePropKind(27)> { int x; };
+struct rt_prop24 : detail::run_time_property_key<rt_prop24, fakePropKind(28)> { int x; };
+struct rt_prop25 : detail::run_time_property_key<rt_prop25, fakePropKind(29)> { int x; };
+struct rt_prop26 : detail::run_time_property_key<rt_prop26, fakePropKind(30)> { int x; };
+struct rt_prop27 : detail::run_time_property_key<rt_prop27, fakePropKind(31)> { int x; };
+struct rt_prop28 : detail::run_time_property_key<rt_prop28, fakePropKind(32)> { int x; };
+struct rt_prop29 : detail::run_time_property_key<rt_prop29, fakePropKind(33)> { int x; };
+struct rt_prop30 : detail::run_time_property_key<rt_prop30, fakePropKind(34)> { int x; };
+struct rt_prop31 : detail::run_time_property_key<rt_prop31, fakePropKind(35)> { int x; };
+struct rt_prop32 : detail::run_time_property_key<rt_prop32, fakePropKind(36)> { int x; };
+struct rt_prop33 : detail::run_time_property_key<rt_prop33, fakePropKind(37)> { int x; };
+// clang-format on
 
 using foo_key = foo;
 using foz_key = foz;

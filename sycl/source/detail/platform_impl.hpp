@@ -8,9 +8,10 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/platform_info.hpp>
-#include <detail/plugin.hpp>
-#include <sycl/backend.hpp>
+#include <detail/ur.hpp>
+#include <detail/ur_info_code.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
@@ -36,15 +37,15 @@ public:
   /// handle.
   ///
   /// \param APlatform is a raw plug-in platform handle.
-  /// \param APlugin is a plug-in handle.
+  /// \param AAdapter is a plug-in handle.
   explicit platform_impl(ur_platform_handle_t APlatform,
-                         const std::shared_ptr<plugin> &APlugin)
-      : MPlatform(APlatform), MPlugin(APlugin) {
+                         const std::shared_ptr<Adapter> &AAdapter)
+      : MPlatform(APlatform), MAdapter(AAdapter) {
     // Find out backend of the platform
     ur_platform_backend_t UrBackend = UR_PLATFORM_BACKEND_UNKNOWN;
-    APlugin->call_nocheck(urPlatformGetInfo, APlatform,
-                          UR_PLATFORM_INFO_BACKEND,
-                          sizeof(ur_platform_backend_t), &UrBackend, nullptr);
+    AAdapter->call_nocheck<UrApiKind::urPlatformGetInfo>(
+        APlatform, UR_PLATFORM_INFO_BACKEND, sizeof(ur_platform_backend_t),
+        &UrBackend, nullptr);
     MBackend = convertUrBackend(UrBackend);
   }
 
@@ -91,16 +92,18 @@ public:
   /// Get backend option.
   void getBackendOption(const char *frontend_option,
                         const char **backend_option) const {
-    const auto &Plugin = getPlugin();
-    ur_result_t Err = Plugin->call_nocheck(
-        urPlatformGetBackendOption, MPlatform, frontend_option, backend_option);
-    Plugin->checkUrResult(Err);
+    const auto &Adapter = getAdapter();
+    ur_result_t Err =
+        Adapter->call_nocheck<UrApiKind::urPlatformGetBackendOption>(
+            MPlatform, frontend_option, backend_option);
+    Adapter->checkUrResult(Err);
   }
 
   /// \return an instance of OpenCL cl_platform_id.
   cl_platform_id get() const {
     ur_native_handle_t nativeHandle = 0;
-    getPlugin()->call(urPlatformGetNativeHandle, MPlatform, &nativeHandle);
+    getAdapter()->call<UrApiKind::urPlatformGetNativeHandle>(MPlatform,
+                                                             &nativeHandle);
     return ur::cast<cl_platform_id>(nativeHandle);
   }
 
@@ -122,15 +125,15 @@ public:
   /// \return a vector of all available SYCL platforms.
   static std::vector<platform> get_platforms();
 
-  // \return the Plugin associated with this platform.
-  const PluginPtr &getPlugin() const { return MPlugin; }
+  // \return the Adapter associated with this platform.
+  const AdapterPtr &getAdapter() const { return MAdapter; }
 
-  /// Sets the platform implementation to use another plugin.
+  /// Sets the platform implementation to use another adapter.
   ///
-  /// \param PluginPtr is a pointer to a plugin instance
+  /// \param AdapterPtr is a pointer to a adapter instance
   /// \param Backend is the backend that we want this platform to use
-  void setPlugin(PluginPtr &PluginPtr, backend Backend) {
-    MPlugin = PluginPtr;
+  void setAdapter(AdapterPtr &AdapterPtr, backend Backend) {
+    MAdapter = AdapterPtr;
     MBackend = Backend;
   }
 
@@ -175,11 +178,11 @@ public:
   /// one and cache it.
   ///
   /// \param UrPlatform is the UR Platform handle representing the platform
-  /// \param Plugin is the UR plugin providing the backend for the platform
+  /// \param Adapter is the UR adapter providing the backend for the platform
   /// \return the platform_impl representing the UR platform
   static std::shared_ptr<platform_impl>
   getOrMakePlatformImpl(ur_platform_handle_t UrPlatform,
-                        const PluginPtr &Plugin);
+                        const AdapterPtr &Adapter);
 
   /// Queries the cache for the specified platform based on an input device.
   /// If found, returns the the cached platform_impl, otherwise creates a new
@@ -187,11 +190,12 @@ public:
   ///
   /// \param UrDevice is the UR device handle for the device whose platform is
   /// desired
-  /// \param Plugin is the UR plugin providing the backend for the device and
+  /// \param Adapter is the UR adapter providing the backend for the device and
   /// platform
   /// \return the platform_impl that contains the input device
   static std::shared_ptr<platform_impl>
-  getPlatformFromUrDevice(ur_device_handle_t UrDevice, const PluginPtr &Plugin);
+  getPlatformFromUrDevice(ur_device_handle_t UrDevice,
+                          const AdapterPtr &Adapter);
 
   // when getting sub-devices for ONEAPI_DEVICE_SELECTOR we may temporarily
   // ensure every device is a root one.
@@ -199,6 +203,10 @@ public:
 
 private:
   std::shared_ptr<device_impl> getDeviceImplHelper(ur_device_handle_t UrDevice);
+
+  // Helper to get the vector of platforms supported by a given UR adapter
+  static std::vector<platform> getAdapterPlatforms(AdapterPtr &Adapter,
+                                                   bool Supported = true);
 
   // Helper to filter reportable devices in the platform
   template <typename ListT, typename FilterT>
@@ -209,7 +217,7 @@ private:
   ur_platform_handle_t MPlatform = 0;
   backend MBackend;
 
-  PluginPtr MPlugin;
+  AdapterPtr MAdapter;
 
   std::vector<std::weak_ptr<device_impl>> MDeviceCache;
   std::mutex MDeviceMapMutex;

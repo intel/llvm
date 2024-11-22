@@ -60,8 +60,8 @@ if (MSVC)
   target_link_libraries(ur_win_proxy_loader PRIVATE shlwapi)
   # 0x2000: LOAD_LIBRARY_SAFE_CURRENT_DIRS flag. Using this flag means that loading dependency DLLs
   # from the current directory is only allowed if it is under a directory in the Safe load list.
-  target_link_options(ur_win_proxy_loaderd PRIVATE /DEPENDENTLOADFLAG:0x2000)
-  target_link_options(ur_win_proxy_loader PRIVATE /DEPENDENTLOADFLAG:0x2000)
+  target_link_options(ur_win_proxy_loaderd PRIVATE LINKER:/DEPENDENTLOADFLAG:0x2000)
+  target_link_options(ur_win_proxy_loader PRIVATE LINKER:/DEPENDENTLOADFLAG:0x2000)
   install(TARGETS ur_win_proxy_loaderd
     RUNTIME DESTINATION "bin" COMPONENT ur_win_proxy_loader)
 endif()

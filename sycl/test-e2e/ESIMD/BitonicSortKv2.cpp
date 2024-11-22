@@ -7,7 +7,5 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
-// TODO: Re-enable after internal tracker fixed
-// UNSUPPORTED: gpu-intel-dg2
 
 #include "BitonicSortKv2.hpp"

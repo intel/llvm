@@ -15,15 +15,15 @@
 
 // REQUIRES: arch-intel_gpu_pvc
 //             invokes 'urProgramBuild'/'urKernelCreate'
-// RUN: %{build} -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_NEW_API=1 -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
-// RUN: %{build} -DUSE_AUTO -o %t.out
-// RUN: env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
-// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=1 %{run} %t.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
+// RUN: %{build} -o %t1.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t1.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_NEW_API=1 -o %t2.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t2.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-WITH-VAR
+// RUN: %{build} -DUSE_AUTO -o %t3.out
+// RUN: env SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-NO-VAR
+// RUN: env SYCL_PROGRAM_COMPILE_OPTIONS="-g" SYCL_UR_TRACE=2 %{run} %t3.out 2>&1 | FileCheck %s --check-prefixes=CHECK,CHECK-AUTO-WITH-VAR
 #include "esimd_test_utils.hpp"
 
 #if defined(USE_NEW_API) || defined(USE_AUTO)
@@ -154,16 +154,16 @@ int main(void) {
 
 // Regular SYCL kernel is compiled without -vc-codegen option
 
-// CHECK-NOT: ---> urProgramBuild{{.*}}-vc-codegen
-// CHECK-WITH-VAR: ---> urProgramBuild{{.*}}-g
-// CHECK: ---> urKernelCreate({{.*}}{{.*}}SyclKernel
+// CHECK-NOT: <--- urProgramBuild{{.*}}-vc-codegen
+// CHECK-WITH-VAR: <--- urProgramBuild{{.*}}-g
+// CHECK: <--- urKernelCreate({{.*}}{{.*}}SyclKernel
 
 // For ESIMD kernels, -vc-codegen option is always preserved,
 // regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
 
 // CHECK-NO-VAR-LABEL: -vc-codegen -disable-finalizer-msg
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg
-// CHECK-LABEL: ---> urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
+// CHECK-LABEL: <--- urKernelCreate({{.*}}EsimdKernel{{.*}}-> UR_RESULT_SUCCESS
 
 // Kernels requesting GRF are grouped into separate module and compiled
 // with the respective option regardless of SYCL_PROGRAM_COMPILE_OPTIONS value.
@@ -172,6 +172,6 @@ int main(void) {
 // CHECK-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -doubleGRF
 // CHECK-AUTO-NO-VAR: -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
 // CHECK-AUTO-WITH-VAR: -g -vc-codegen -disable-finalizer-msg -ze-intel-enable-auto-large-GRF-mode
-// CHECK-LABEL: ---> urKernelCreate(
+// CHECK-LABEL: <--- urKernelCreate(
 // CHECK-SAME: EsimdKernelSpecifiedGRF
 // CHECK-SAME: -> UR_RESULT_SUCCESS

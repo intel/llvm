@@ -9,8 +9,8 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 #include "ur_mock_helpers.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <cassert>
@@ -102,34 +102,28 @@ struct KernelInfo<StreamAUXCmdsWait_TestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
   addESIMDFlag(PropSet);
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  UrArray<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({"StreamAUXCmdsWait_TestKernel"});
 
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::UrImage Img = generateDefaultImage();
-sycl::unittest::UrImageArray<1> ImgArray{&Img};
+sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 class EventImplProxyT : public sycl::detail::event_impl {
 public:
   using sycl::detail::event_impl::MPostCompleteEvents;
   using sycl::detail::event_impl::MState;
+  using sycl::detail::event_impl::MWeakPostCompleteEvents;
 };
 
 class QueueImplProxyT : public sycl::detail::queue_impl {
@@ -165,7 +159,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
 
     auto EventImplProxy = std::static_pointer_cast<EventImplProxyT>(EventImpl);
 
-    ASSERT_EQ(EventImplProxy->MPostCompleteEvents.size(), 1u)
+    ASSERT_EQ(EventImplProxy->MWeakPostCompleteEvents.size(), 1u)
         << "Expected 1 post complete event";
 
     Q.wait();
@@ -189,7 +183,7 @@ TEST_F(SchedulerTest, StreamAUXCmdsWait) {
     ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
     auto EventImpl = std::make_shared<sycl::detail::event_impl>(QueueImpl);
-    EventImpl->getHandleRef() = UREvent;
+    EventImpl->setHandle(UREvent);
 
     QueueImplProxy->registerStreamServiceEvent(EventImpl);
 

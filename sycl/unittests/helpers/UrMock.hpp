@@ -8,11 +8,12 @@
 //
 // This mini-library provides facilities to test the DPC++ Runtime behavior upon
 // specific results of the underlying low-level API calls. By exploiting the
-// Plugin Interface API, the stored addresses of the actual plugin-specific
+// Adapter Interface API, the stored addresses of the actual adapter-specific
 // implementations can be overwritten to point at user-defined mock functions.
 //
-// To make testing independent of existing plugins and devices, all plugins are
-// forcefully unloaded and the mock plugin is registered as the only plugin.
+// To make testing independent of existing adapters and devices, all adapters
+// are forcefully unloaded and the mock adapter is registered as the only
+// adapter.
 //
 // While this could be done manually for each unit-testing scenario, the library
 // aims to rule out the boilerplate, providing helper APIs which can be re-used
@@ -30,9 +31,10 @@
 
 #pragma once
 
+#include <detail/adapter.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
+#include <detail/ur.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
@@ -199,12 +201,25 @@ inline ur_result_t mock_urDeviceGetInfo(void *pParams) {
   case UR_DEVICE_INFO_AVAILABLE:
   case UR_DEVICE_INFO_LINKER_AVAILABLE:
   case UR_DEVICE_INFO_COMPILER_AVAILABLE:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP:
-  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_SUPPORT_EXP: {
+  case UR_DEVICE_INFO_COMMAND_BUFFER_SUPPORT_EXP: {
     if (*params->ppPropValue)
       *static_cast<ur_bool_t *>(*params->ppPropValue) = true;
     if (*params->ppPropSizeRet)
       **params->ppPropSizeRet = sizeof(true);
+    return UR_RESULT_SUCCESS;
+  }
+  case UR_DEVICE_INFO_COMMAND_BUFFER_UPDATE_CAPABILITIES_EXP: {
+    if (*params->ppPropValue)
+      *static_cast<ur_device_command_buffer_update_capability_flags_t *>(
+          *params->ppPropValue) =
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_ARGUMENTS |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_LOCAL_WORK_SIZE |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_GLOBAL_WORK_OFFSET |
+          UR_DEVICE_COMMAND_BUFFER_UPDATE_CAPABILITY_FLAG_KERNEL_HANDLE;
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet =
+          sizeof(ur_device_command_buffer_update_capability_flags_t);
     return UR_RESULT_SUCCESS;
   }
   // This mock GPU device has no sub-devices
@@ -424,6 +439,67 @@ inline ur_result_t mock_urVirtualMemReserve(void *pParams) {
   return UR_RESULT_SUCCESS;
 }
 
+// Create dummy command buffer handle and store the provided descriptor as the
+// data
+inline ur_result_t mock_urCommandBufferCreateExp(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_command_buffer_create_exp_params_t *>(pParams);
+  const ur_exp_command_buffer_desc_t *descPtr = *(params->ppCommandBufferDesc);
+  ur_exp_command_buffer_handle_t *retCmdBuffer = *params->pphCommandBuffer;
+  *retCmdBuffer = mock::createDummyHandle<ur_exp_command_buffer_handle_t>(
+      static_cast<size_t>(sizeof(ur_exp_command_buffer_desc_t)));
+  if (descPtr) {
+    reinterpret_cast<mock::dummy_handle_t>(*retCmdBuffer)
+        ->setDataAs<ur_exp_command_buffer_desc_t>(*descPtr);
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
+inline ur_result_t mock_urCommandBufferGetInfoExp(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_command_buffer_get_info_exp_params_t *>(pParams);
+
+  auto cmdBufferDummyHandle =
+      reinterpret_cast<mock::dummy_handle_t>(*params->phCommandBuffer);
+  switch (*params->ppropName) {
+  case UR_EXP_COMMAND_BUFFER_INFO_DESCRIPTOR: {
+    if (*params->ppPropValue) {
+      ur_exp_command_buffer_desc_t *propValue =
+          reinterpret_cast<ur_exp_command_buffer_desc_t *>(
+              *params->ppPropValue);
+      *propValue =
+          cmdBufferDummyHandle->getDataAs<ur_exp_command_buffer_desc_t>();
+    }
+    if (*params->ppPropSizeRet)
+      **params->ppPropSizeRet = sizeof(ur_exp_command_buffer_desc_t);
+  }
+    return UR_RESULT_SUCCESS;
+  default:
+    return UR_RESULT_SUCCESS;
+  }
+  return UR_RESULT_SUCCESS;
+}
+
+// Checking command handle behaviour only
+inline ur_result_t mock_urCommandBufferAppendKernelLaunchExp(void *pParams) {
+  auto params =
+      reinterpret_cast<ur_command_buffer_append_kernel_launch_exp_params_t *>(
+          pParams);
+
+  auto cmdBufferDummyHandle =
+      reinterpret_cast<mock::dummy_handle_t>(*params->phCommandBuffer);
+  // Requesting a command handle when the command buffer is not updatable is an
+  // error
+  if (*(params->pphCommand) &&
+      cmdBufferDummyHandle->getDataAs<ur_exp_command_buffer_desc_t>()
+              .isUpdatable == false) {
+    return UR_RESULT_ERROR_INVALID_OPERATION;
+  }
+
+  return UR_RESULT_SUCCESS;
+}
+
 } // namespace MockAdapter
 
 /// The UrMock<> class sets up UR for adapter mocking with the set of default
@@ -469,6 +545,12 @@ public:
     ADD_DEFAULT_OVERRIDE(urUsmP2PPeerAccessGetInfoExp,
                          mock_urUsmP2PPeerAccessGetInfoExp)
     ADD_DEFAULT_OVERRIDE(urVirtualMemReserve, mock_urVirtualMemReserve)
+    ADD_DEFAULT_OVERRIDE(urCommandBufferCreateExp,
+                         mock_urCommandBufferCreateExp);
+    ADD_DEFAULT_OVERRIDE(urCommandBufferAppendKernelLaunchExp,
+                         mock_urCommandBufferAppendKernelLaunchExp);
+    ADD_DEFAULT_OVERRIDE(urCommandBufferGetInfoExp,
+                         mock_urCommandBufferGetInfoExp);
 #undef ADD_DEFAULT_OVERRIDE
 
     ur_loader_config_handle_t UrLoaderConfig = nullptr;

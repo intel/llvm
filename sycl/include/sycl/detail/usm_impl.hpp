@@ -22,10 +22,6 @@ __SYCL_EXPORT void *alignedAlloc(size_t Alignment, size_t Bytes,
                                  sycl::usm::alloc Kind,
                                  const code_location &CL);
 
-__SYCL_EXPORT void *alignedAllocHost(size_t Alignment, size_t Bytes,
-                                     const context &Ctxt, sycl::usm::alloc Kind,
-                                     const code_location &CL);
-
 __SYCL_EXPORT void free(void *Ptr, const context &Ctxt,
                         const code_location &CL);
 

@@ -1,5 +1,2 @@
-# These two take too much time
-kernel_bundle
-marray
-# Fix: https://github.com/intel/llvm/pull/14622
-optional_kernel_features
+# CMPLRLLVM-61839
+multi_ptr

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/ur.hpp>
 
@@ -28,7 +28,7 @@ bool deviceIsAllowed(const DeviceDescT &DeviceDesc,
                      const AllowListParsedT &AllowListParsed);
 
 void applyAllowList(std::vector<ur_device_handle_t> &UrDevices,
-                    ur_platform_handle_t UrPlatform, const PluginPtr &Plugin);
+                    ur_platform_handle_t UrPlatform, const AdapterPtr &Adapter);
 
 } // namespace detail
 } // namespace _V1

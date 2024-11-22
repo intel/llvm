@@ -6,9 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-// TODO currently the feature isn't supported on FPGA.
 // TODO enable opaque pointers support on CPU.
-// UNSUPPORTED: cpu || accelerator
+// UNSUPPORTED: cpu
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
@@ -16,6 +15,7 @@
 // RUN: %if preview-breaking-changes-supported %{ %{run} %t2.out  %}
 
 #include <sycl/detail/core.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/stream.hpp>
 
 #include <sycl/ext/oneapi/bfloat16.hpp>

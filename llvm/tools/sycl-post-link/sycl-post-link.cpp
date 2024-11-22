@@ -38,8 +38,8 @@
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
@@ -306,9 +306,8 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
-  auto PropSet = computeModuleProperties(MD.getModule(), MD.entries(),
-                                         GlobProps, MD.Props.SpecConstsMet,
-                                         MD.isSpecConstantDefault());
+  auto PropSet =
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
@@ -419,6 +418,7 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
                 module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
+  MD.saveSplitInformationAsMetadata();
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
     BaseTriple.Ir = IRFilename.str();
@@ -784,16 +784,15 @@ processInputModule(std::unique_ptr<Module> M) {
   Modified |= removeSYCLKernelsConstRefArray(*M.get());
 
   // There may be device_global variables kept alive in "llvm.compiler.used"
-  // to keep the optimizer from wrongfully removing them. Since it has served
-  // its purpose, these device_global variables can be removed. If they are not
-  // used inside the device code after they have been removed from
-  // "llvm.compiler.used" they can be erased safely.
-  Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
+  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
+  // symbols are usually removed at backend lowering, but this is handled here
+  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
+  if (M->getTargetTriple().find("spir") != std::string::npos)
+    Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // Instrument each image scope device globals if the module has been
-  // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M))
-    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
+  Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)

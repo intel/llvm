@@ -49,6 +49,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -61,7 +62,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -171,10 +172,11 @@ template <class T, bool return_SIMD, class QueueTY> bool test(QueueTY q) {
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
 
-            T va = sg.load(
-                acca.template get_multi_ptr<access::decorated::yes>().get() +
-                offset);
-            T vc;
+            T va, vc;
+            group_load(sg,
+                       acca.template get_multi_ptr<access::decorated::yes>() +
+                           offset,
+                       va);
 
             if constexpr (return_SIMD)
               vc = invoke_simd(sg, SIMD_CALLEE_return_uniform_SIMD<T>, va,
@@ -183,10 +185,9 @@ template <class T, bool return_SIMD, class QueueTY> bool test(QueueTY q) {
               vc = invoke_simd(sg, SIMD_CALLEE_return_uniform_scalar<T>, va,
                                uniform{n});
 
-            sg.store(
-                accc.template get_multi_ptr<access::decorated::yes>().get() +
-                    offset,
-                vc);
+            group_store(sg, vc,
+                        accc.template get_multi_ptr<access::decorated::yes>() +
+                            offset);
           });
     });
     e.wait();

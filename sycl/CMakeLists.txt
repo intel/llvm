@@ -16,20 +16,20 @@ if (NOT SYCL_COVERAGE_PATH)
   set(SYCL_COVERAGE_PATH "${CMAKE_CURRENT_BINARY_DIR}/profiles")
 endif()
 
-# If SYCL_ENABLE_PLUGINS is undefined, we default to enabling OpenCL and Level
-# Zero plugins.
-if (NOT DEFINED SYCL_ENABLE_PLUGINS)
-  set(SYCL_ENABLE_PLUGINS "opencl;level_zero")
+if (SYCL_ENABLE_PLUGINS)
+  message(WARNING "SYCL_ENABLE_PLUGINS has been renamed, please use SYCL_ENABLE_BACKENDS instead")
+  set(SYCL_ENABLE_BACKENDS "${SYCL_ENABLE_PLUGINS}" CACHE STRING "Backends enabled for SYCL" FORCE)
+endif()
+
+# If SYCL_ENABLE_BACKENDS is undefined, we default to enabling OpenCL and Level
+# Zero backends.
+if (NOT DEFINED SYCL_ENABLE_BACKENDS)
+  set(SYCL_ENABLE_BACKENDS "opencl;level_zero")
 endif()
 
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
-if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
-  message(WARNING "Extension to JIT kernels not yet supported on Windows")
-  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
-      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
-endif()
 
 if (NOT XPTI_INCLUDES)
   set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)
@@ -52,8 +52,8 @@ if(MSVC)
 
   # Add PDB debug information
   list(APPEND CMAKE_MODULE_PATH "${LLVM_CMAKE_DIR}")
-  include(LLVMCheckLinkerFlag)
-  llvm_check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
+  include(CheckLinkerFlag)
+  check_linker_flag(CXX "/DEBUG" LINKER_SUPPORTS_DEBUG)
   if(LINKER_SUPPORTS_DEBUG)
     # sccache is not compatible with /Zi flag
     if (CMAKE_CXX_COMPILER_LAUNCHER STREQUAL "sccache")
@@ -75,7 +75,7 @@ if(MSVC)
     add_link_options("/DEBUG")
 
     # Enable unreferenced removal and ICF in Release mode.
-    llvm_check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
+    check_linker_flag(CXX "/OPT:REF /OPT:ICF" LINKER_SUPPORTS_OPTS)
     if (LINKER_SUPPORTS_OPTS AND uppercase_CMAKE_BUILD_TYPE STREQUAL "RELEASE")
       add_link_options("/OPT:REF" "/OPT:ICF")
     endif()
@@ -155,48 +155,62 @@ endif()
 # Copy OpenCL Headers into sycl headers build directory
 # Compiler does automatic lookup bin/../include based on clang binary location,
 # e.g. when run LIT tests
-file(COPY ${OpenCL_INCLUDE_DIR}/CL
-     DESTINATION ${SYCL_INCLUDE_BUILD_DIR}/sycl)
+file(COPY ${OpenCL_INCLUDE_DIR}/CL DESTINATION ${SYCL_INCLUDE_BUILD_DIR})
 
 # Include OpenCL Headers into final bundle.
 install(DIRECTORY ${OpenCL_INCLUDE_DIR}/CL
-        DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+        DESTINATION ${SYCL_INCLUDE_DIR}
         COMPONENT OpenCL-Headers)
 
 # Option for enabling building the SYCL major release preview library.
 option(SYCL_ENABLE_MAJOR_RELEASE_PREVIEW_LIB "Enable build of the SYCL major release preview library" ON)
 
 # Needed for feature_test.hpp
-if ("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_CUDA ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_CUDA ON)
 endif()
-if ("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_HIP ON)
-  set(SYCL_EXT_ONEAPI_BACKEND_HIP ON)
 endif()
-if ("opencl" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("opencl" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_OPENCL ON)
 endif()
-if ("level_zero" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("level_zero" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKENDLEVEL_ZERO ON)
 endif()
-if ("native_cpu" IN_LIST SYCL_ENABLE_PLUGINS)
+if ("native_cpu" IN_LIST SYCL_ENABLE_BACKENDS)
   set(SYCL_BUILD_BACKEND_NATIVE_CPU ON)
 endif()
+
+# Set backend macros based on whether we can compile kernels for the target
+# rather than if we're building the runtime adapter.
+set(SYCL_EXT_ONEAPI_BACKEND_CUDA ${LLVM_HAS_NVPTX_TARGET})
+set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 
 # Configure SYCL version macro
 set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
 set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
-set(sycl_plugin_dir ${CMAKE_CURRENT_SOURCE_DIR}/plugins)
 string(TIMESTAMP __SYCL_COMPILER_VERSION "%Y%m%d")
 configure_file("source/version.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp")
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
+
+# Generate device_aspect_macros.hpp
+find_package(Python3 REQUIRED)
+add_custom_command(
+  COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/source/device_aspect_macros_generator.py ${CMAKE_CURRENT_SOURCE_DIR}/include/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  OUTPUT  ${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp
+  COMMENT "Generating device_aspect_macros.hpp"
+)
+
+add_custom_target(sycl-device-aspect-macros-header
+  DEPENDS "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
+)
 
 # Install generated headers.
 install(FILES
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp"
   "${SYCL_INCLUDE_BUILD_DIR}/sycl/version.hpp"
+  "${SYCL_INCLUDE_BUILD_DIR}/sycl/device_aspect_macros.hpp"
   DESTINATION "${SYCL_INCLUDE_DIR}/sycl"
   COMPONENT sycl-headers)
 
@@ -213,7 +227,7 @@ file(GLOB_RECURSE HEADERS_IN_SYCLCOMPAT_DIR CONFIGURE_DEPENDS "${sycl_inc_dir}/s
 
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_SYCL_DIR "${HEADERS_IN_SYCL_DIR}")
-string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/sycl/CL"
+string(REPLACE "${sycl_inc_dir}/CL" "${SYCL_INCLUDE_BUILD_DIR}/CL"
   OUT_HEADERS_IN_CL_DIR "${HEADERS_IN_CL_DIR}")
 string(REPLACE "${sycl_inc_dir}" "${SYCL_INCLUDE_BUILD_DIR}"
   OUT_HEADERS_IN_STD_DIR "${HEADERS_IN_STD_DIR}")
@@ -226,6 +240,7 @@ add_custom_target(sycl-headers
           ${OUT_HEADERS_IN_CL_DIR}
           ${OUT_HEADERS_IN_STD_DIR}
           ${OUT_HEADERS_IN_SYCLCOMPAT_DIR}
+          sycl-device-aspect-macros-header
           boost_mp11-headers)
 
 add_custom_command(
@@ -238,24 +253,27 @@ add_custom_command(
           ${HEADERS_IN_STD_DIR}
           ${HEADERS_IN_SYCLCOMPAT_DIR}
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/sycl ${SYCL_INCLUDE_BUILD_DIR}/sycl
-  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/sycl/CL
+  COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/CL ${SYCL_INCLUDE_BUILD_DIR}/CL
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/std ${SYCL_INCLUDE_BUILD_DIR}/std
   COMMAND ${CMAKE_COMMAND} -E copy_directory ${sycl_inc_dir}/syclcompat ${SYCL_INCLUDE_BUILD_DIR}/syclcompat
   COMMAND ${CMAKE_COMMAND} -E copy ${sycl_inc_dir}/syclcompat.hpp ${SYCL_INCLUDE_BUILD_DIR}/syclcompat.hpp
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}/sycl
-  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}/sycl
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def ${SYCL_INCLUDE_BUILD_DIR}
+  COMMAND ${CMAKE_COMMAND} -E copy ${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp ${SYCL_INCLUDE_BUILD_DIR}
   COMMENT "Copying SYCL headers ...")
 
 # Copy SYCL headers from source to install directory
 install(DIRECTORY "${sycl_inc_dir}/sycl" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/sycl COMPONENT sycl-headers)
+install(DIRECTORY "${sycl_inc_dir}/CL" DESTINATION ${SYCL_INCLUDE_DIR}/ COMPONENT sycl-headers)
 install(DIRECTORY "${sycl_inc_dir}/std" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(DIRECTORY ${BOOST_MP11_DESTINATION_DIR} DESTINATION ${SYCL_INCLUDE_DIR}/sycl/detail COMPONENT boost_mp11-headers)
 install(DIRECTORY "${sycl_inc_dir}/syclcompat" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
 install(FILES "${sycl_inc_dir}/syclcompat.hpp" DESTINATION ${SYCL_INCLUDE_DIR} COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api.h" DESTINATION ${SYCL_INCLUDE_DIR}
   COMPONENT sycl-headers)
-install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}/sycl
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_api_funcs.def" DESTINATION ${SYCL_INCLUDE_DIR}
+  COMPONENT sycl-headers)
+install(FILES "${UNIFIED_RUNTIME_INCLUDE_DIR}/ur_print.hpp" DESTINATION ${SYCL_INCLUDE_DIR}
   COMPONENT sycl-headers)
 
 if (WIN32)
@@ -278,7 +296,7 @@ else()
 endif()
 
 # This function allows building multiple libraries with the same options.
-# Currently used by sycl and plugins library.
+# Currently used by add_sycl_library and add_sycl_rt_library.
 # Currently handles linking with libcxx support and gcc workaround
 function( add_common_options LIB_NAME)
   if (SYCL_USE_LIBCXX)
@@ -446,7 +464,8 @@ set( SYCL_TOOLCHAIN_DEPLOY_COMPONENTS
      sycl-headers-extras
      sycl
      libsycldevice
-     level-zero-sycl-dev
+     unified-memory-framework
+     unified-runtime-loader
      ${XPTIFW_LIBS}
      ${SYCL_TOOLCHAIN_DEPS}
 )
@@ -480,7 +499,7 @@ if("libclc" IN_LIST LLVM_ENABLE_PROJECTS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS libspirv-builtins)
 endif()
 
-if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
+if("cuda" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )
@@ -492,7 +511,7 @@ if("cuda" IN_LIST SYCL_ENABLE_PLUGINS)
   list(APPEND SYCL_TOOLCHAIN_DEPLOY_COMPONENTS ur_adapter_cuda)
 endif()
 
-if("hip" IN_LIST SYCL_ENABLE_PLUGINS)
+if("hip" IN_LIST SYCL_ENABLE_BACKENDS)
   # Ensure that libclc is enabled.
   list(FIND LLVM_ENABLE_PROJECTS libclc LIBCLC_FOUND)
   if( LIBCLC_FOUND EQUAL -1 )

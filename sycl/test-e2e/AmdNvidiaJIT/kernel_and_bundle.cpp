@@ -1,10 +1,17 @@
+// UNSUPPORTED: windows
 // REQUIRES: cuda || hip
 
-// https://github.com/intel/llvm/issues/14989
-// UNSUPPORTED: hip_amd
+// This test relies on debug output from a pass, make sure that the compiler
+// can generate it.
+// REQUIRES: has_ndebug
 
 // RUN: %{build} -fsycl-embed-ir -o %t.out
 // RUN: env SYCL_JIT_AMDGCN_PTX_KERNELS=1 env SYCL_JIT_COMPILER_DEBUG="sycl-spec-const-materializer" %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+
+// Test the JIT compilation in an e2e fashion, the only way to make sure that
+// the JIT pipeline has been executed and that the original binary has been
+// replaced with the JIT-ed one is to inspect the output of one of its passes,
+// that otherwise does not get run.
 
 #include <sycl/detail/core.hpp>
 #include <sycl/specialization_id.hpp>

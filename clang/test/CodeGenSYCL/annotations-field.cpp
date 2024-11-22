@@ -19,15 +19,15 @@ struct foo {
 int __attribute__((sycl_device)) foo() {
     struct foo f;
     f.v = 1;
-// CHECK: getelementptr inbounds %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 0
+// CHECK: getelementptr inbounds nuw %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 0
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 14, ptr addrspace(1) null)
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 14, ptr addrspace(1) null)
     f.w = 42;
-// CHECK: getelementptr inbounds %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 1
+// CHECK: getelementptr inbounds nuw %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 1
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 15, ptr addrspace(1) null)
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 15, ptr addrspace(1) null)
     f.f = 0;
-// CHECK: getelementptr inbounds %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 2
+// CHECK: getelementptr inbounds nuw %struct.foo, ptr addrspace(4) %{{.*}}, i32 0, i32 2
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 16, ptr addrspace(1) null)
 // CHECK-NEXT: call ptr addrspace(4) @llvm.ptr.annotation.p4.p1({{.*}}str{{.*}}str{{.*}}i32 16, ptr addrspace(1) null)
     return 0;

@@ -12,10 +12,11 @@
 ///
 /// \ingroup sycl_ur
 
-#include "context_impl.hpp"
+#include "ur.hpp"
+#include <detail/adapter.hpp>
 #include <detail/config.hpp>
+#include <detail/context_impl.hpp>
 #include <detail/global_handler.hpp>
-#include <detail/plugin.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
@@ -23,6 +24,7 @@
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/version.hpp>
+#include <ur_api.h>
 
 #include <bitset>
 #include <cstdarg>
@@ -48,10 +50,10 @@ void contextSetExtendedDeleter(const sycl::context &context,
                                pi_context_extended_deleter func,
                                void *user_data) {
   auto impl = getSyclObjImpl(context);
-  const auto &Plugin = impl->getPlugin();
-  Plugin->call(urContextSetExtendedDeleter, impl->getHandleRef(),
-               reinterpret_cast<ur_context_extended_deleter_t>(func),
-               user_data);
+  const auto &Adapter = impl->getAdapter();
+  Adapter->call<UrApiKind::urContextSetExtendedDeleter>(
+      impl->getHandleRef(),
+      reinterpret_cast<ur_context_extended_deleter_t>(func), user_data);
 }
 } // namespace pi
 
@@ -63,100 +65,139 @@ xpti_td *GSYCLGraphEvent = nullptr;
 #endif // XPTI_ENABLE_INSTRUMENTATION
 
 template <sycl::backend BE>
-void *getPluginOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
-  // This was formerly a call to piextPluginGetOpaqueData, a deprecated PI entry
-  // point introduced for the now deleted ESIMD plugin. All calls to this entry
-  // point returned a similar error code to INVALID_OPERATION and would have
-  // resulted in a similar throw to this one
+void *getAdapterOpaqueData([[maybe_unused]] void *OpaqueDataParam) {
+  // This was formerly a call to piextAdapterGetOpaqueData, a deprecated PI
+  // entry point introduced for the now deleted ESIMD adapter. All calls to this
+  // entry point returned a similar error code to INVALID_OPERATION and would
+  // have resulted in a similar throw to this one
   throw exception(
       make_error_code(errc::feature_not_supported),
       "This operation is not supported by any existing backends.");
   return nullptr;
 }
 
-namespace ur {
-bool trace() { return SYCLConfig<SYCL_UR_TRACE>::get(); }
+ur_code_location_t codeLocationCallback(void *);
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins,
-                              ur_loader_config_handle_t LoaderConfig);
+namespace ur {
+bool trace(TraceLevel Level) {
+  auto TraceLevelMask = SYCLConfig<SYCL_UR_TRACE>::get();
+  return (TraceLevelMask & Level) == Level;
+}
+
+static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+                               ur_loader_config_handle_t LoaderConfig);
 
 bool XPTIInitDone = false;
 
-// Initializes all available Plugins.
-std::vector<PluginPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
-  static std::once_flag PluginsInitDone;
-  // std::call_once is blocking all other threads if a thread is already
-  // creating a vector of plugins. So, no additional lock is needed.
-  std::call_once(PluginsInitDone, [&]() {
-    initializePlugins(GlobalHandler::instance().getPlugins(), LoaderConfig);
-  });
-  return GlobalHandler::instance().getPlugins();
+// Initializes all available Adapters.
+std::vector<AdapterPtr> &initializeUr(ur_loader_config_handle_t LoaderConfig) {
+  // This uses static variable initialization to work around a gcc bug with
+  // std::call_once and exceptions.
+  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=66146
+  auto initializeHelper = [=]() {
+    // TODO: Remove this SYCL_PI_TRACE notification in the first patch release
+    // after the next ABI breaking window.
+    if (std::getenv("SYCL_PI_TRACE")) {
+      std::cerr << "SYCL_PI_TRACE has been removed use SYCL_UR_TRACE instead\n";
+      std::exit(1);
+    }
+
+    initializeAdapters(GlobalHandler::instance().getAdapters(), LoaderConfig);
+    return true;
+  };
+  static bool Initialized = initializeHelper();
+  std::ignore = Initialized;
+
+  return GlobalHandler::instance().getAdapters();
 }
 
-static void initializePlugins(std::vector<PluginPtr> &Plugins,
-                              ur_loader_config_handle_t LoaderConfig) {
-#define CHECK_UR_SUCCESS(Call)                                                 \
-  __SYCL_CHECK_OCL_CODE_NO_EXC(Call)
+static void initializeAdapters(std::vector<AdapterPtr> &Adapters,
+                               ur_loader_config_handle_t LoaderConfig) {
+#define CHECK_UR_SUCCESS(Call) __SYCL_CHECK_UR_CODE_NO_EXC(Call)
+
+  UrFuncInfo<UrApiKind::urLoaderConfigCreate> loaderConfigCreateInfo;
+  auto loaderConfigCreate =
+      loaderConfigCreateInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigEnableLayer> loaderConfigEnableLayerInfo;
+  auto loaderConfigEnableLayer =
+      loaderConfigEnableLayerInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigRelease> loaderConfigReleaseInfo;
+  auto loaderConfigRelease =
+      loaderConfigReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderConfigSetCodeLocationCallback>
+      loaderConfigSetCodeLocationCallbackInfo;
+  auto loaderConfigSetCodeLocationCallback =
+      loaderConfigSetCodeLocationCallbackInfo.getFuncPtrFromModule(
+          ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urLoaderInit> loaderInitInfo;
+  auto loaderInit =
+      loaderInitInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGet> adapterGet_Info;
+  auto adapterGet =
+      adapterGet_Info.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  UrFuncInfo<UrApiKind::urAdapterGetInfo> adapterGetInfoInfo;
+  auto adapterGetInfo =
+      adapterGetInfoInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
 
   bool OwnLoaderConfig = false;
-  // If we weren't provided with a custom config handle create our own and
-  // enable full validation by default.
+  // If we weren't provided with a custom config handle create our own.
   if(!LoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigCreate(&LoaderConfig))
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig,
-                                               "UR_LAYER_PARAMETER_VALIDATION"))
+    CHECK_UR_SUCCESS(loaderConfigCreate(&LoaderConfig))
     OwnLoaderConfig = true;
   }
 
-  auto SyclURTrace = SYCLConfig<SYCL_UR_TRACE>::get();
-  if (SyclURTrace && (std::atoi(SyclURTrace) != 0)) {
-    const char *LogOptions = "level:info;output:stdout;flush:info";
+  const char *LogOptions = "level:info;output:stdout;flush:info";
+  if (trace(TraceLevel::TRACE_CALLS)) {
 #ifdef _WIN32
     _putenv_s("UR_LOG_TRACING", LogOptions);
-    _putenv_s("UR_LOG_LOADER", LogOptions);
 #else
     setenv("UR_LOG_TRACING", LogOptions, 1);
+#endif
+    CHECK_UR_SUCCESS(loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
+  }
+
+  if (trace(TraceLevel::TRACE_BASIC)) {
+#ifdef _WIN32
+    _putenv_s("UR_LOG_LOADER", LogOptions);
+#else
     setenv("UR_LOG_LOADER", LogOptions, 1);
 #endif
   }
 
-  if (std::getenv("UR_LOG_TRACING")) {
-    CHECK_UR_SUCCESS(urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_TRACING"));
-  }
-
-  CHECK_UR_SUCCESS(urLoaderConfigSetCodeLocationCallback(
+  CHECK_UR_SUCCESS(loaderConfigSetCodeLocationCallback(
       LoaderConfig, codeLocationCallback, nullptr));
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
-  urLoaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
-                                        nullptr);
+  loaderConfigSetCodeLocationCallback(LoaderConfig, codeLocationCallback,
+                                      nullptr);
 
   if (ProgramManager::getInstance().kernelUsesAsan()) {
-    if (urLoaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
-      urLoaderConfigRelease(LoaderConfig);
+    if (loaderConfigEnableLayer(LoaderConfig, "UR_LAYER_ASAN")) {
+      loaderConfigRelease(LoaderConfig);
       std::cerr << "Failed to enable ASAN layer\n";
       return;
     }
   }
 
   ur_device_init_flags_t device_flags = 0;
-  CHECK_UR_SUCCESS(urLoaderInit(device_flags, LoaderConfig));
+  CHECK_UR_SUCCESS(loaderInit(device_flags, LoaderConfig));
 
   if (OwnLoaderConfig) {
-    CHECK_UR_SUCCESS(urLoaderConfigRelease(LoaderConfig));
+    CHECK_UR_SUCCESS(loaderConfigRelease(LoaderConfig));
   }
 
   uint32_t adapterCount = 0;
-  CHECK_UR_SUCCESS(urAdapterGet(0, nullptr, &adapterCount));
+  CHECK_UR_SUCCESS(adapterGet(0, nullptr, &adapterCount));
   std::vector<ur_adapter_handle_t> adapters(adapterCount);
-  CHECK_UR_SUCCESS(urAdapterGet(adapterCount, adapters.data(), nullptr));
+  CHECK_UR_SUCCESS(adapterGet(adapterCount, adapters.data(), nullptr));
 
   auto UrToSyclBackend = [](ur_adapter_backend_t backend) -> sycl::backend {
     switch (backend) {
@@ -177,13 +218,13 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
     }
   };
 
-  for (const auto &adapter : adapters) {
+  for (const auto &UrAdapter : adapters) {
     ur_adapter_backend_t adapterBackend = UR_ADAPTER_BACKEND_UNKNOWN;
-    CHECK_UR_SUCCESS(urAdapterGetInfo(adapter, UR_ADAPTER_INFO_BACKEND,
-                                      sizeof(adapterBackend), &adapterBackend,
-                                      nullptr));
+    CHECK_UR_SUCCESS(adapterGetInfo(UrAdapter, UR_ADAPTER_INFO_BACKEND,
+                                    sizeof(adapterBackend), &adapterBackend,
+                                    nullptr));
     auto syclBackend = UrToSyclBackend(adapterBackend);
-    Plugins.emplace_back(std::make_shared<plugin>(adapter, syclBackend));
+    Adapters.emplace_back(std::make_shared<Adapter>(UrAdapter, syclBackend));
   }
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
@@ -198,12 +239,12 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
   // Initialize the global events just once, in the case ur::initialize() is
   // called multiple times
   XPTIInitDone = true;
-  // Registers a new stream for 'sycl' and any plugin that wants to listen to
-  // this stream will register itself using this string or stream ID for this
-  // string.
+  // Registers a new stream for 'sycl' and any application that wants to listen
+  // to this stream will register itself using this string or stream ID for
+  // this string.
   uint8_t StreamID = xptiRegisterStream(SYCL_STREAM_NAME);
-  //  Let all tool plugins know that a stream by the name of 'sycl' has been
-  //  initialized and will be generating the trace stream.
+  // Let all tool applications know that a stream by the name of 'sycl' has
+  // been initialized and will be generating the trace stream.
   GlobalHandler::instance().getXPTIRegistry().initializeStream(
       SYCL_STREAM_NAME, GMajVer, GMinVer, GVerStr);
   // Create a tracepoint to indicate the graph creation
@@ -222,26 +263,26 @@ static void initializePlugins(std::vector<PluginPtr> &Plugins,
 #undef CHECK_UR_SUCCESS
 }
 
-// Get the plugin serving given backend.
-template <backend BE> const PluginPtr &getPlugin() {
-  static PluginPtr *Plugin = nullptr;
-  if (Plugin)
-    return *Plugin;
+// Get the adapter serving given backend.
+template <backend BE> const AdapterPtr &getAdapter() {
+  static AdapterPtr *Adapter = nullptr;
+  if (Adapter)
+    return *Adapter;
 
-  std::vector<PluginPtr> &Plugins = ur::initializeUr();
-  for (auto &P : Plugins)
+  std::vector<AdapterPtr> &Adapters = ur::initializeUr();
+  for (auto &P : Adapters)
     if (P->hasBackend(BE)) {
-      Plugin = &P;
-      return *Plugin;
+      Adapter = &P;
+      return *Adapter;
     }
 
-  throw exception(errc::runtime, "ur::getPlugin couldn't find plugin");
+  throw exception(errc::runtime, "ur::getAdapter couldn't find adapter");
 }
 
-template const PluginPtr &getPlugin<backend::opencl>();
-template const PluginPtr &getPlugin<backend::ext_oneapi_level_zero>();
-template const PluginPtr &getPlugin<backend::ext_oneapi_cuda>();
-template const PluginPtr &getPlugin<backend::ext_oneapi_hip>();
+template const AdapterPtr &getAdapter<backend::opencl>();
+template const AdapterPtr &getAdapter<backend::ext_oneapi_level_zero>();
+template const AdapterPtr &getAdapter<backend::ext_oneapi_cuda>();
+template const AdapterPtr &getAdapter<backend::ext_oneapi_hip>();
 
 // Reads an integer value from ELF data.
 template <typename ResT>
@@ -290,7 +331,8 @@ static bool checkELFSectionPresent(const std::string &ExpectedSectionName,
 
   // End early if we do not have the expected number of section headers or
   // if the read section string header index is out-of-range.
-  if (ImgSize < SectionHeaderOffset + SectionHeaderNum * SectionHeaderSize ||
+  if (ImgSize < SectionHeaderOffset + static_cast<uint64_t>(SectionHeaderNum) *
+                                          SectionHeaderSize ||
       SectionStringsHeaderIndex >= SectionHeaderNum)
     return false;
 

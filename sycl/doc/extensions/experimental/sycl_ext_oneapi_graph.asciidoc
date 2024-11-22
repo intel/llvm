@@ -501,7 +501,7 @@ compile time using a template parameter. This underlying type can be an
 accessor, a pointer to a USM allocation, scalar passed by value, or a raw byte
 representation of the argument. The raw byte representation is intended to
 enable updating arguments set using
-link:../proposed/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
+link:../experimental/sycl_ext_oneapi_raw_kernel_arg.asciidoc[sycl_ext_oneapi_raw_kernel_arg].
 
 Dynamic parameters are registered with nodes in a modifiable graph, with each
 registration associating one or more node arguments to the dynamic parameter
@@ -1284,7 +1284,7 @@ begin_recording(queue& recordingQueue,
 ----
 
 |Synchronously changes the state of `recordingQueue` to the
-`queue_state::recording` state. This operation is a no-op if `recordingQueue`
+`queue_state::recording` state. This operation is an error if `recordingQueue`
 is already in the `queue_state::recording` state.
 
 Parameters:
@@ -1299,7 +1299,7 @@ Parameters:
 Exceptions:
 
 * Throws synchronously with error code `invalid` if `recordingQueue` is
-  already recording to a different graph.
+  already recording to a graph.
 
 * Throws synchronously with error code `invalid` if `recordingQueue` is
   associated with a device or context that is different from the device
@@ -1314,7 +1314,7 @@ begin_recording(const std::vector<queue>& recordingQueues,
 ----
 
 |Synchronously changes the state of each queue in `recordingQueues` to the
-`queue_state::recording` state. This operation is a no-op for any queue in
+`queue_state::recording` state. This operation is an error for any queue in
 `recordingQueues` that is already in the `queue_state::recording` state.
 
 Parameters:
@@ -1328,8 +1328,8 @@ Parameters:
 
 Exceptions:
 
-* Throws synchronously with error code `invalid` if the any queue in
-  `recordingQueues` is already recording to a different graph.
+* Throws synchronously with error code `invalid` if any queue in
+  `recordingQueues` is already recording to a graph.
 
 * Throws synchronously with error code `invalid` if any of `recordingQueues`
   is associated with a device or context that is different from the device
@@ -1921,25 +1921,6 @@ is ignored during queue recording.
 Using this information is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
 
-==== sycl_ext_codeplay_kernel_fusion
-
-As the
-link:../experimental/sycl_ext_codeplay_kernel_fusion.asciidoc[sycl_ext_codeplay_kernel_fusion]
-extension also introduces state to a `sycl::queue`, there are restrictions on
-its usage when combined with `sycl_ext_oneapi_graph`. Exceptions with error code
-`invalid` are thrown in the following cases:
-
-* `fusion_wrapper::start_fusion()` is called when its associated queue
-  is in the recording state.
-* `command_graph::begin_recording()` is called passing a queue in fusion mode.
-
-The `sycl::ext::codeplay::experimental::property::queue::enable_fusion` property
-defined by the extension is ignored by queue recording.
-
-To enable kernel fusion in a `command_graph` see the
-link:../proposed/sycl_ext_oneapi_graph_fusion.asciidoc[sycl_ext_oneapi_graph_fusion extension proposal]
-which is layered ontop of `sycl_ext_oneapi_graph`.
-
 ==== sycl_ext_oneapi_kernel_properties
 
 The new handler methods, and queue shortcuts, defined by
@@ -1989,6 +1970,14 @@ code `invalid` if a user tries to add them to a graph.
 
 Removing this restriction is something we may look at for future revisions of
 `sycl_ext_oneapi_graph`.
+
+==== sycl_ext_oneapi_enqueue_functions
+
+The command submission functions defined in
+link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
+can be used adding nodes to a graph when creating a graph from queue recording.
+New methods are also defined that enable submitting an executable graph, 
+e.g. directly to a queue without returning an event.
 
 == Examples and Usage Guide
 

@@ -6,7 +6,6 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/backend.hpp>
 #include <sycl/detail/defines.hpp>
 
 #include <cassert>
@@ -20,6 +19,11 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
+
+void *GetWinProcAddress(void *module, const char *funcName) {
+  return (void *)GetProcAddress((HMODULE)module, funcName);
+}
+
 namespace ur {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
@@ -69,6 +73,8 @@ static std::filesystem::path getCurrentDSODirPath() {
 
   return std::filesystem::path(Path);
 }
+
+void *getURLoaderLibrary() { return getPreloadedURLib(); }
 
 } // namespace ur
 } // namespace detail

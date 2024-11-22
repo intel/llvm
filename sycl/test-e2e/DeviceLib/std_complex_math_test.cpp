@@ -1,10 +1,10 @@
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
-// UNSUPPORTED: gpu
-// RUN: %{build} %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// UNSUPPORTED: hip || cuda
+// RUN: %{build} %{mathflags} -o %t1.out
+// RUN: %{run} %t1.out
 
-// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} -fsycl-device-lib-jit-link %{mathflags} -o %t2.out
+// RUN: %{run} %t2.out
 
 #include <array>
 #include <cassert>

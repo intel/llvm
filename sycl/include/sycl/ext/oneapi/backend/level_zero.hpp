@@ -8,29 +8,28 @@
 
 #pragma once
 
-#include <sycl/async_handler.hpp>                    // for async_han...
-#include <sycl/backend.hpp>                          // for backend_i...
-#include <sycl/backend_types.hpp>                    // for backend
-#include <sycl/buffer.hpp>                           // for buffer_al...
-#include <sycl/context.hpp>                          // for context
-#include <sycl/detail/backend_traits.hpp>            // for interop
-#include <sycl/detail/backend_traits_level_zero.hpp> // for ze_comman...
-#include <sycl/detail/defines_elementary.hpp>        // for __SYCL_DE...
-#include <sycl/detail/export.hpp>                    // for __SYCL_EX...
-#include <sycl/detail/impl_utils.hpp>                // for createSyc...
-#include <sycl/detail/ur.hpp>                        // for cast
-#include <sycl/device.hpp>                           // for device
-#include <sycl/event.hpp>                            // for event
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp> // for buffer
-#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp>     // for ownership
-#include <sycl/image.hpp>                                       // for image
-#include <sycl/kernel.hpp>                                      // for kernel
-#include <sycl/kernel_bundle.hpp>               // for kernel_bu...
-#include <sycl/kernel_bundle_enums.hpp>         // for bundle_state
-#include <sycl/platform.hpp>                    // for platform
-#include <sycl/properties/image_properties.hpp> // for image
-#include <sycl/property_list.hpp>               // for property_...
-#include <sycl/queue.hpp>                       // for queue
+#include <sycl/async_handler.hpp>                           // for async_han...
+#include <sycl/backend.hpp>                                 // for backend
+#include <sycl/buffer.hpp>                                  // for buffer_al...
+#include <sycl/buffer.hpp>                                  // for buffer
+#include <sycl/context.hpp>                                 // for context
+#include <sycl/detail/backend_traits.hpp>                   // for interop
+#include <sycl/detail/backend_traits_level_zero.hpp>        // for ze_comman...
+#include <sycl/detail/defines_elementary.hpp>               // for __SYCL_DE...
+#include <sycl/detail/export.hpp>                           // for __SYCL_EX...
+#include <sycl/detail/impl_utils.hpp>                       // for createSyc...
+#include <sycl/detail/ur.hpp>                               // for cast
+#include <sycl/device.hpp>                                  // for device
+#include <sycl/event.hpp>                                   // for event
+#include <sycl/ext/oneapi/backend/level_zero_ownership.hpp> // for ownership
+#include <sycl/image.hpp>                                   // for image
+#include <sycl/kernel.hpp>                                  // for kernel
+#include <sycl/kernel_bundle.hpp>                           // for kernel_bu...
+#include <sycl/kernel_bundle_enums.hpp>                     // for bundle_state
+#include <sycl/platform.hpp>                                // for platform
+#include <sycl/properties/image_properties.hpp>             // for image
+#include <sycl/property_list.hpp>                           // for property_...
+#include <sycl/queue.hpp>                                   // for queue
 
 #include <memory>      // for shared_ptr
 #include <stdint.h>    // for int32_t
@@ -83,8 +82,6 @@ inline std::optional<sycl::device> find_matching_descendent_device(
           return maybe_device;
       }
     }
-
-    assert(false && "Unexpected partitioning scheme for a Level-Zero device!");
   }
 
   return {};

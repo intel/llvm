@@ -14,9 +14,12 @@ add_sycl_unittest(ExtensionsTests OBJECT
   DiscardEvent.cpp
   ProfilingTag.cpp
   KernelProperties.cpp
+  NoDeviceIPVersion.cpp
+  WorkGroupMemoryBackendArgument.cpp
+  GetLastEvent.cpp
+  BFloat16.cpp
 )
 
 add_subdirectory(CommandGraph)
-
-# Disabled pending UR fix adding setDataAs to mock dummy handle.
-#add_subdirectory(VirtualFunctions)
+add_subdirectory(VirtualFunctions)
+add_subdirectory(VirtualMemory)

@@ -25,6 +25,67 @@
 
 namespace test {
 namespace utils {
+
+constexpr uint16_t signal = (uint16_t)xpti::trace_point_type_t::signal;
+constexpr uint16_t graph_create =
+    (uint16_t)xpti::trace_point_type_t::graph_create;
+constexpr uint16_t node_create =
+    (uint16_t)xpti::trace_point_type_t::node_create;
+constexpr uint16_t edge_create =
+    (uint16_t)xpti::trace_point_type_t::edge_create;
+
+class ScopedNotify {
+public:
+  ScopedNotify(const char *stream, uint16_t trace_type,
+               xpti::trace_event_data_t *parent,
+               xpti::trace_event_data_t *object, uint64_t instance,
+               const void *user_data = nullptr)
+      : MObject(object), MParent(parent), MStreamId(0), MTraceType(trace_type),
+        MUserData(user_data), MInstance(instance) {
+    if (xptiTraceEnabled()) {
+      uint16_t open = MTraceType & 0xfffe;
+      MStreamId = xptiRegisterStream(stream);
+      xptiNotifySubscribers(MStreamId, open, parent, object, instance,
+                            MUserData);
+    }
+  }
+  ScopedNotify(uint8_t stream_id, uint16_t trace_type,
+               xpti::trace_event_data_t *parent,
+               xpti::trace_event_data_t *object, uint64_t instance,
+               const void *user_data = nullptr)
+      : MObject(object), MParent(parent), MStreamId(stream_id),
+        MTraceType(trace_type), MUserData(user_data), MInstance(instance) {
+    if (!xptiTraceEnabled())
+      return;
+    uint16_t open = MTraceType & 0xfffe;
+    xptiNotifySubscribers(MStreamId, open, parent, object, instance, MUserData);
+  }
+
+  ~ScopedNotify() {
+    if (xptiTraceEnabled())
+      return;
+    switch (MTraceType) {
+    case signal:
+    case graph_create:
+    case node_create:
+    case edge_create:
+      break;
+    default: {
+      uint16_t close = MTraceType | 1;
+      xptiNotifySubscribers(MStreamId, close, MParent, MObject, MInstance,
+                            MUserData);
+    } break;
+    }
+  }
+
+private:
+  xpti::trace_event_data_t *MObject, *MParent;
+  uint8_t MStreamId;
+  uint16_t MTraceType;
+  const void *MUserData;
+  uint64_t MInstance;
+};
+
 enum class OptionType { Boolean, Integer, Float, String, Range };
 
 class ScopedTimer {
@@ -544,9 +605,13 @@ private:
   void runDataStructureTests();
   void runDataStructureTestsThreads(int RunNo, int NThreads,
                                     xpti::utils::TableModel &Table);
+  void runNewDataStructureTestsThreads(int RunNo, int NThreads,
+                                       xpti::utils::TableModel &Table);
   void runInstrumentationTests();
   void runInstrumentationTestsThreads(int RunNo, int NThreads,
                                       xpti::utils::TableModel &Table);
+  void runNewInstrumentationTestsThreads(int RunNo, int NThreads,
+                                         xpti::utils::TableModel &Table);
 
   test::utils::CommandLineParser &MParser;
   xpti::utils::TableModel MTable;

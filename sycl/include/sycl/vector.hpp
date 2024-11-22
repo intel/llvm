@@ -30,14 +30,10 @@
 #include <sycl/aliases.hpp>                    // for half, cl_char, cl_int
 #include <sycl/detail/common.hpp>              // for ArrayCreator, RepeatV...
 #include <sycl/detail/defines_elementary.hpp>  // for __SYCL2020_DEPRECATED
-#include <sycl/detail/generic_type_lists.hpp>  // for vector_basic_list
 #include <sycl/detail/generic_type_traits.hpp> // for is_sigeninteger, is_s...
 #include <sycl/detail/memcpy.hpp>              // for memcpy
-#include <sycl/detail/type_list.hpp>           // for is_contained
 #include <sycl/detail/type_traits.hpp>         // for is_floating_point
 #include <sycl/detail/vector_arith.hpp>
-#include <sycl/detail/vector_convert.hpp>      // for convertImpl
-#include <sycl/detail/vector_traits.hpp>       // for vector_alignment
 #include <sycl/half_type.hpp>                  // for StorageT, half, Vec16...
 
 #include <sycl/ext/oneapi/bfloat16.hpp> // bfloat16
@@ -54,6 +50,11 @@
 #include <utility>     // for index_sequence, make_...
 
 namespace sycl {
+
+// TODO: It should be within _V1 namespace, fix in the next ABI breaking
+// windows.
+enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
+
 inline namespace _V1 {
 
 struct elem {
@@ -119,6 +120,11 @@ struct ScalarConversionOperatorMixIn<Vec, T, N, std::enable_if_t<N == 1>> {
   operator T() const { return (*static_cast<const Vec *>(this))[0]; }
 };
 
+template <typename T>
+inline constexpr bool is_fundamental_or_half_or_bfloat16 =
+    std::is_fundamental_v<T> || std::is_same_v<std::remove_const_t<T>, half> ||
+    std::is_same_v<std::remove_const_t<T>, ext::oneapi::bfloat16>;
+
 } // namespace detail
 
 ///////////////////////// class sycl::vec /////////////////////////
@@ -129,9 +135,10 @@ class __SYCL_EBO vec
     : public detail::vec_arith<DataT, NumElements>,
       public detail::ScalarConversionOperatorMixIn<vec<DataT, NumElements>,
                                                    DataT, NumElements> {
+  static_assert(std::is_same_v<DataT, std::remove_cv_t<DataT>>,
+                "DataT must be cv-unqualified");
 
-  static_assert(NumElements == 1 || NumElements == 2 || NumElements == 3 ||
-                    NumElements == 4 || NumElements == 8 || NumElements == 16,
+  static_assert(detail::is_allowed_vec_size_v<NumElements>,
                 "Invalid number of elements for sycl::vec: only 1, 2, 3, 4, 8 "
                 "or 16 are supported");
   static_assert(sizeof(bool) == sizeof(uint8_t), "bool size is not 1 byte");
@@ -184,51 +191,26 @@ private:
                            std::false_type> {};
 
   // Utility trait for creating an std::array from an vector argument.
-  template <typename DataT_, typename T, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const vec<T, sizeof...(Is)> &V, std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V[Is])...};
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::SwizzleOp<vec<T, N>, T2, T3, T4, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5, std::size_t... Is>
-  static constexpr std::array<DataT_, sizeof...(Is)>
-  VecToArray(const detail::SwizzleOp<const vec<T, N>, T2, T3, T4, T5...> &V,
-             std::index_sequence<Is...>) {
-    return {static_cast<DataT_>(V.getValue(Is))...};
-  }
-  template <typename DataT_, typename T, int N>
-  static constexpr std::array<DataT_, N>
-  FlattenVecArgHelper(const vec<T, N> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<N>());
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5>
-  static constexpr std::array<DataT_, sizeof...(T5)> FlattenVecArgHelper(
-      const detail::SwizzleOp<vec<T, N>, T2, T3, T4, T5...> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<sizeof...(T5)>());
-  }
-  template <typename DataT_, typename T, int N, typename T2, typename T3,
-            template <typename> class T4, int... T5>
-  static constexpr std::array<DataT_, sizeof...(T5)> FlattenVecArgHelper(
-      const detail::SwizzleOp<const vec<T, N>, T2, T3, T4, T5...> &A) {
-    return VecToArray<DataT_>(A, std::make_index_sequence<sizeof...(T5)>());
-  }
-  template <typename DataT_, typename T>
-  static constexpr auto FlattenVecArgHelper(const T &A) {
-    // static_cast required to avoid narrowing conversion warning
-    // when T = unsigned long int and DataT_ = int.
-    return std::array<DataT_, 1>{static_cast<DataT_>(A)};
-  }
-  template <typename DataT_, typename T> struct FlattenVecArg {
+  template <typename DataT_, typename T> class FlattenVecArg {
+    template <std::size_t... Is>
+    static constexpr auto helper(const T &V, std::index_sequence<Is...>) {
+      // FIXME: Swizzle's `operator[]` for expression trees seems to be broken
+      // and returns values of the underlying vector of some of the operands. On
+      // the other hand, `getValue()` gives correct results. This can be changed
+      // to using `operator[]` once the bug is fixed.
+      if constexpr (detail::is_swizzle_v<T>)
+        return std::array{static_cast<DataT_>(V.getValue(Is))...};
+      else
+        return std::array{static_cast<DataT_>(V[Is])...};
+    }
+
+  public:
     constexpr auto operator()(const T &A) const {
-      return FlattenVecArgHelper<DataT_>(A);
+      if constexpr (detail::is_vec_or_swizzle_v<T>) {
+        return helper(A, std::make_index_sequence<T ::size()>());
+      } else {
+        return std::array{static_cast<DataT_>(A)};
+      }
     }
   };
 
@@ -236,69 +218,6 @@ private:
   template <typename DataT_, typename... ArgTN>
   using VecArgArrayCreator =
       detail::ArrayCreator<DataT_, FlattenVecArg, ArgTN...>;
-
-#define __SYCL_ALLOW_VECTOR_SIZES(num_elements)                                \
-  template <int Counter, int MaxValue, typename DataT_, class... tail>         \
-  struct SizeChecker<Counter, MaxValue, vec<DataT_, num_elements>, tail...>    \
-      : std::conditional_t<                                                    \
-            Counter + (num_elements) <= MaxValue,                              \
-            SizeChecker<Counter + (num_elements), MaxValue, tail...>,          \
-            std::false_type> {};                                               \
-  template <int Counter, int MaxValue, typename DataT_, typename T2,           \
-            typename T3, template <typename> class T4, int... T5,              \
-            class... tail>                                                     \
-  struct SizeChecker<                                                          \
-      Counter, MaxValue,                                                       \
-      detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>,         \
-      tail...>                                                                 \
-      : std::conditional_t<                                                    \
-            Counter + sizeof...(T5) <= MaxValue,                               \
-            SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
-            std::false_type> {};                                               \
-  template <int Counter, int MaxValue, typename DataT_, typename T2,           \
-            typename T3, template <typename> class T4, int... T5,              \
-            class... tail>                                                     \
-  struct SizeChecker<                                                          \
-      Counter, MaxValue,                                                       \
-      detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
-      tail...>                                                                 \
-      : std::conditional_t<                                                    \
-            Counter + sizeof...(T5) <= MaxValue,                               \
-            SizeChecker<Counter + sizeof...(T5), MaxValue, tail...>,           \
-            std::false_type> {};
-
-  __SYCL_ALLOW_VECTOR_SIZES(1)
-  __SYCL_ALLOW_VECTOR_SIZES(2)
-  __SYCL_ALLOW_VECTOR_SIZES(3)
-  __SYCL_ALLOW_VECTOR_SIZES(4)
-  __SYCL_ALLOW_VECTOR_SIZES(8)
-  __SYCL_ALLOW_VECTOR_SIZES(16)
-#undef __SYCL_ALLOW_VECTOR_SIZES
-
-  // TypeChecker is needed for vec(const argTN &... args) ctor to validate args.
-  template <typename T, typename DataT_>
-  struct TypeChecker : std::is_convertible<T, DataT_> {};
-#define __SYCL_ALLOW_VECTOR_TYPES(num_elements)                                \
-  template <typename DataT_>                                                   \
-  struct TypeChecker<vec<DataT_, num_elements>, DataT_> : std::true_type {};   \
-  template <typename DataT_, typename T2, typename T3,                         \
-            template <typename> class T4, int... T5>                           \
-  struct TypeChecker<                                                          \
-      detail::SwizzleOp<vec<DataT_, num_elements>, T2, T3, T4, T5...>, DataT_> \
-      : std::true_type {};                                                     \
-  template <typename DataT_, typename T2, typename T3,                         \
-            template <typename> class T4, int... T5>                           \
-  struct TypeChecker<                                                          \
-      detail::SwizzleOp<const vec<DataT_, num_elements>, T2, T3, T4, T5...>,   \
-      DataT_> : std::true_type {};
-
-  __SYCL_ALLOW_VECTOR_TYPES(1)
-  __SYCL_ALLOW_VECTOR_TYPES(2)
-  __SYCL_ALLOW_VECTOR_TYPES(3)
-  __SYCL_ALLOW_VECTOR_TYPES(4)
-  __SYCL_ALLOW_VECTOR_TYPES(8)
-  __SYCL_ALLOW_VECTOR_TYPES(16)
-#undef __SYCL_ALLOW_VECTOR_TYPES
 
   template <int... Indexes>
   using Swizzle =
@@ -311,16 +230,28 @@ private:
                         detail::GetOp, Indexes...>;
 
   // Shortcuts for args validation in vec(const argTN &... args) ctor.
-  template <typename... argTN>
-  using EnableIfSuitableTypes = typename std::enable_if_t<
-      std::conjunction_v<TypeChecker<argTN, DataT>...>>;
+  template <typename CtorArgTy>
+  static constexpr bool AllowArgTypeInVariadicCtor = []() constexpr {
+    // FIXME: This logic implements the behavior of the previous implementation.
+    if constexpr (detail::is_vec_or_swizzle_v<CtorArgTy>) {
+      if constexpr (CtorArgTy::size() == 1)
+        return std::is_convertible_v<typename CtorArgTy::element_type, DataT>;
+      else
+        return std::is_same_v<typename CtorArgTy::element_type, DataT>;
+    } else {
+      return std::is_convertible_v<CtorArgTy, DataT>;
+    }
+  }();
 
-  template <typename... argTN>
-  using EnableIfSuitableNumElements =
-      typename std::enable_if_t<SizeChecker<0, NumElements, argTN...>::value>;
+  template <typename T> static constexpr int num_elements() {
+    if constexpr (detail::is_vec_or_swizzle_v<T>)
+      return T::size();
+    else
+      return 1;
+  }
 
   // Element type for relational operator return value.
-  using rel_t = detail::select_cl_scalar_integral_signed_t<DataT>;
+  using rel_t = detail::fixed_width_signed<sizeof(DataT)>;
 
 public:
   // Aliases required by SYCL 2020 to make sycl::vec consistent
@@ -347,8 +278,10 @@ public:
 
   // Constructor from values of base type or vec of base type. Checks that
   // base types are match and that the NumElements == sum of lengths of args.
-  template <typename... argTN, typename = EnableIfSuitableTypes<argTN...>,
-            typename = EnableIfSuitableNumElements<argTN...>>
+  template <typename... argTN,
+            typename = std::enable_if_t<
+                ((AllowArgTypeInVariadicCtor<argTN> && ...)) &&
+                ((num_elements<argTN>() + ...)) == NumElements>>
   constexpr vec(const argTN &...args)
       : vec{VecArgArrayCreator<DataT, argTN...>::Create(args...),
             std::make_index_sequence<NumElements>()} {}
@@ -360,10 +293,8 @@ public:
   // when NumElements == 1. The template prevents implicit conversion from
   // vec<_, 1> to DataT.
   template <typename Ty = DataT>
-  typename std::enable_if_t<
-      std::is_fundamental_v<Ty> ||
-          detail::is_half_or_bf16_v<typename std::remove_const_t<Ty>>,
-      vec &>
+  typename std::enable_if_t<detail::is_fundamental_or_half_or_bfloat16<Ty>,
+                            vec &>
   operator=(const DataT &Rhs) {
     *this = vec{Rhs};
     return *this;
@@ -407,18 +338,6 @@ public:
   static constexpr size_t byte_size() noexcept { return sizeof(m_Data); }
 
 private:
-  // We interpret bool as int8_t, std::byte as uint8_t for conversion to other
-  // types.
-  template <typename T>
-  using ConvertBoolAndByteT =
-      typename detail::map_type<T,
-#if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-                                std::byte, /*->*/ std::uint8_t, //
-#endif
-                                bool, /*->*/ std::uint8_t, //
-                                T, /*->*/ T                //
-                                >::type;
-
   // getValue should be able to operate on different underlying
   // types: enum cl_float#N , builtin vector float#N, builtin type float.
   constexpr auto getValue(int Index) const {
@@ -440,88 +359,10 @@ private:
   }
 
 public:
+  // Out-of-class definition is in `sycl/detail/vector_convert.hpp`
   template <typename convertT,
             rounding_mode roundingMode = rounding_mode::automatic>
-  vec<convertT, NumElements> convert() const {
-
-    using T = ConvertBoolAndByteT<DataT>;
-    using R = ConvertBoolAndByteT<convertT>;
-    using bfloat16 = sycl::ext::oneapi::bfloat16;
-    static_assert(std::is_integral_v<R> ||
-                      detail::is_floating_point<R>::value ||
-                      std::is_same_v<R, bfloat16>,
-                  "Unsupported convertT");
-
-    using OpenCLT = detail::ConvertToOpenCLType_t<T>;
-    using OpenCLR = detail::ConvertToOpenCLType_t<R>;
-    vec<convertT, NumElements> Result;
-
-    // convertImpl can't be called with the same From and To types and therefore
-    // we need some special processing in a few cases.
-    if constexpr (std::is_same_v<DataT, convertT>) {
-      return *this;
-    } else if constexpr (std::is_same_v<OpenCLT, OpenCLR> ||
-                         std::is_same_v<T, R>) {
-      for (size_t I = 0; I < NumElements; ++I)
-        Result[I] = static_cast<convertT>(getValue(I));
-      return Result;
-    } else {
-
-#ifdef __SYCL_DEVICE_ONLY__
-      using OpenCLVecT = OpenCLT __attribute__((ext_vector_type(NumElements)));
-      using OpenCLVecR = OpenCLR __attribute__((ext_vector_type(NumElements)));
-
-      auto NativeVector = sycl::bit_cast<vector_t>(*this);
-      using ConvertTVecType = typename vec<convertT, NumElements>::vector_t;
-
-      // Whole vector conversion can only be done, if:
-      constexpr bool canUseNativeVectorConvert =
-#ifdef __NVPTX__
-          //  TODO: Likely unnecessary as
-          //  https://github.com/intel/llvm/issues/11840 has been closed
-          //  already.
-          false &&
-#endif
-          NumElements > 1 &&
-          // - vec storage has an equivalent OpenCL native vector it is
-          //   implicitly convertible to. There are some corner cases where it
-          //   is not the case with char, long and long long types.
-          std::is_convertible_v<vector_t, OpenCLVecT> &&
-          std::is_convertible_v<ConvertTVecType, OpenCLVecR> &&
-          // - it is not a signed to unsigned (or vice versa) conversion
-          //   see comments within 'convertImpl' for more details;
-          !detail::is_sint_to_from_uint<T, R>::value &&
-          // - destination type is not bool. bool is stored as integer under the
-          //   hood and therefore conversion to bool looks like conversion
-          //   between two integer types. Since bit pattern for true and false
-          //   is not defined, there is no guarantee that integer conversion
-          //   yields right results here;
-          !std::is_same_v<convertT, bool>;
-
-      if constexpr (canUseNativeVectorConvert) {
-        auto val = detail::convertImpl<T, R, roundingMode, NumElements, OpenCLVecT,
-                                OpenCLVecR>(NativeVector);
-        Result.m_Data = sycl::bit_cast<decltype(Result.m_Data)>(val);
-      } else
-#endif // __SYCL_DEVICE_ONLY__
-      {
-        // Otherwise, we fallback to per-element conversion:
-        for (size_t I = 0; I < NumElements; ++I) {
-          auto val =
-              detail::convertImpl<T, R, roundingMode, 1, OpenCLT, OpenCLR>(
-                  getValue(I));
-#ifdef __SYCL_DEVICE_ONLY__
-          // On device, we interpret BF16 as uint16.
-          if constexpr (std::is_same_v<convertT, bfloat16>)
-            Result[I] = sycl::bit_cast<convertT>(val);
-          else
-#endif
-            Result[I] = static_cast<convertT>(val);
-        }
-      }
-    }
-    return Result;
-  }
+  vec<convertT, NumElements> convert() const;
 
   template <typename asT> asT as() const { return sycl::bit_cast<asT>(*this); }
 
@@ -652,8 +493,7 @@ public:
 private:
   DataT m_Data;
 };
-template <typename T>
-using rel_t = detail::select_cl_scalar_integral_signed_t<T>;
+template <typename T> using rel_t = detail::fixed_width_signed<sizeof(T)>;
 
 template <typename T> struct EqualTo {
   constexpr rel_t<T> operator()(const T &Lhs, const T &Rhs) const {
@@ -789,16 +629,14 @@ class SwizzleOp {
       1 != IdxNum && SwizzleOp::getNumElements() == IdxNum, T>;
 
   template <typename T>
-  using EnableIfScalarType = typename std::enable_if_t<
-      std::is_convertible_v<DataT, T> &&
-      (std::is_fundamental_v<T> ||
-       detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
+  using EnableIfScalarType =
+      typename std::enable_if_t<std::is_convertible_v<DataT, T> &&
+                                detail::is_fundamental_or_half_or_bfloat16<T>>;
 
   template <typename T>
-  using EnableIfNoScalarType = typename std::enable_if_t<
-      !std::is_convertible_v<DataT, T> ||
-      !(std::is_fundamental_v<T> ||
-        detail::is_half_or_bf16_v<typename std::remove_const_t<T>>)>;
+  using EnableIfNoScalarType =
+      typename std::enable_if_t<!std::is_convertible_v<DataT, T> ||
+                                !detail::is_fundamental_or_half_or_bfloat16<T>>;
 
   template <int... Indices>
   using Swizzle =
@@ -1403,11 +1241,9 @@ public:
     static_assert((sizeof(Tmp) == sizeof(asT)),
                   "The new SYCL vec type must have the same storage size in "
                   "bytes as this SYCL swizzled vec");
-    static_assert(
-        detail::is_contained<asT, detail::gtl::vector_basic_list>::value ||
-            detail::is_contained<asT, detail::gtl::vector_bool_list>::value,
-        "asT must be SYCL vec of a different element type and "
-        "number of elements specified by asT");
+    static_assert(detail::is_vec_v<asT>,
+                  "asT must be SYCL vec of a different element type and "
+                  "number of elements specified by asT");
     return Tmp.template as<asT>();
   }
 

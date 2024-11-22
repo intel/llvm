@@ -188,7 +188,8 @@ public:
     std::vector<detail::EventImplPtr> MEvents;
   };
 
-  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {})
+  CG(CGType Type, StorageInitHelper D, detail::code_location loc = {},
+     bool IsTopCodeLoc = true)
       : MType(Type), MData(std::move(D)) {
     // Capture the user code-location from Q.submit(), Q.parallel_for()
     // etc for later use; if code location information is not available,
@@ -199,6 +200,7 @@ public:
       MFileName = loc.fileName();
     MLine = loc.lineNumber();
     MColumn = loc.columnNumber();
+    MIsTopCodeLoc = IsTopCodeLoc;
   }
 
   CG(CG &&CommandGroup) = default;
@@ -240,6 +242,7 @@ public:
   std::string MFunctionName, MFileName;
   // Storage for line and column of code location
   int32_t MLine, MColumn;
+  bool MIsTopCodeLoc;
 };
 
 /// "Execute kernel" command group class.
@@ -254,6 +257,9 @@ public:
   std::string MKernelName;
   std::vector<std::shared_ptr<detail::stream_impl>> MStreams;
   std::vector<std::shared_ptr<const void>> MAuxiliaryResources;
+  /// Used to implement ext_oneapi_graph dynamic_command_group. Stores the list
+  /// of command-groups that a kernel command can be updated to.
+  std::vector<std::weak_ptr<CGExecKernel>> MAlternativeKernels;
   ur_kernel_cache_config_t MKernelCacheConfig;
   bool MKernelIsCooperative = false;
   bool MKernelUsesClusterLaunch = false;
@@ -274,7 +280,7 @@ public:
         MKernelBundle(std::move(KernelBundle)), MArgs(std::move(Args)),
         MKernelName(std::move(KernelName)), MStreams(std::move(Streams)),
         MAuxiliaryResources(std::move(AuxiliaryResources)),
-        MKernelCacheConfig(std::move(KernelCacheConfig)),
+        MAlternativeKernels{}, MKernelCacheConfig(std::move(KernelCacheConfig)),
         MKernelIsCooperative(KernelIsCooperative),
         MKernelUsesClusterLaunch(MKernelUsesClusterLaunch) {
     assert(getType() == CGType::Kernel && "Wrong type of exec kernel CG.");
@@ -624,6 +630,8 @@ public:
         MExternalSemaphore(ExternalSemaphore), MWaitValue(WaitValue) {}
 
   ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    assert(MExternalSemaphore != nullptr &&
+           "MExternalSemaphore has not been defined yet.");
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getWaitValue() const { return MWaitValue; }
@@ -643,6 +651,10 @@ public:
         MExternalSemaphore(ExternalSemaphore), MSignalValue(SignalValue) {}
 
   ur_exp_external_semaphore_handle_t getExternalSemaphore() const {
+    if (MExternalSemaphore == nullptr)
+      throw exception(make_error_code(errc::runtime),
+                      "getExternalSemaphore(): MExternalSemaphore has not been "
+                      "defined yet.");
     return MExternalSemaphore;
   }
   std::optional<uint64_t> getSignalValue() const { return MSignalValue; }

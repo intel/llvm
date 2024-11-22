@@ -1,13 +1,13 @@
 // REQUIRES: linux
 
-// https://github.com/intel/llvm/issues/7634
 // UNSUPPORTED: hip
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/7634
 //
-// https://github.com/intel/llvm/issues/8832
 // UNSUPPORTED: cuda
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/8832
 //
-// FIXME: Remove XFAIL one intel/llvm#11364 is resolved
 // XFAIL: (opencl && gpu)
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/11364
 
 // RUN: %clangxx -DSYCL_FALLBACK_ASSERT=1 -fsycl -fsycl-targets=%{sycl_triple} -DDEFINE_NDEBUG_INFILE2 -I %S/Inputs %S/assert_in_multiple_tus.cpp %S/Inputs/kernels_in_file2.cpp -o %t.out
 // Shouldn't fail on ACC as fallback assert isn't enqueued there

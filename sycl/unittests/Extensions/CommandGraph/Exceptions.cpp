@@ -272,52 +272,6 @@ TEST_F(CommandGraphTest, ExplicitBarrierDependencyException) {
   Graph2.end_recording();
 }
 
-TEST_F(CommandGraphTest, FusionExtensionExceptionCheck) {
-  device D;
-  if (!D.get_info<
-          ext::codeplay::experimental::info::device::supports_fusion>()) {
-    // Skip this test if the device does not support fusion. Otherwise, the
-    // queue construction in the next step would fail.
-    GTEST_SKIP();
-  }
-
-  queue Q{D, ext::codeplay::experimental::property::queue::enable_fusion{}};
-
-  experimental::command_graph<experimental::graph_state::modifiable> Graph{
-      Q.get_context(), Q.get_device()};
-
-  ext::codeplay::experimental::fusion_wrapper fw{Q};
-
-  // Test: Start fusion on a queue that is in recording mode
-  Graph.begin_recording(Q);
-
-  std::error_code ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    fw.start_fusion();
-  } catch (exception &Exception) {
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-
-  Graph.end_recording(Q);
-
-  // Test: begin recording a queue in fusion mode
-
-  fw.start_fusion();
-
-  ExceptionCode = make_error_code(sycl::errc::success);
-  try {
-    Graph.begin_recording(Q);
-  } catch (exception &Exception) {
-    // Ensure fusion wrapper references are released now, otherwise we can end
-    // up trying to release backend objects after the mock backend has been
-    // unloaded.
-    fw.cancel_fusion();
-    ExceptionCode = Exception.code();
-  }
-  ASSERT_EQ(ExceptionCode, sycl::errc::invalid);
-}
-
 TEST_F(CommandGraphTest, Memcpy2DExceptionCheck) {
   constexpr size_t RECT_WIDTH = 30;
   constexpr size_t RECT_HEIGHT = 21;
@@ -359,6 +313,26 @@ TEST_F(CommandGraphTest, Reductions) {
             CGH.parallel_for<class CustomTestKernel>(
                 range<1>{1}, reduction(&ReduVar, int{0}, sycl::plus<>()),
                 [=](item<1> idx, auto &Sum) {});
+          });
+        } catch (const sycl::exception &e) {
+          ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
+          throw;
+        }
+      },
+      sycl::exception);
+}
+
+// Test that using sycl streams in a graph node will throw
+TEST_F(CommandGraphTest, Streams) {
+  ASSERT_THROW(
+      {
+        size_t WorkItems = 16;
+        try {
+          Graph.add([&](handler &CGH) {
+            sycl::stream Out(WorkItems * 16, 16, CGH);
+            CGH.parallel_for<class CustomTestKernel>(
+                range<1>(WorkItems),
+                [=](item<1> id) { Out << id.get_linear_id() << sycl::endl; });
           });
         } catch (const sycl::exception &e) {
           ASSERT_EQ(e.code(), make_error_code(sycl::errc::invalid));
@@ -725,4 +699,167 @@ TEST_F(CommandGraphTest, RecordingWrongGraphDep) {
     CGH.single_task<class Kernel2>([=] {});
   }),
                sycl::exception);
+}
+
+// Error when a dynamic command-group is used with a graph belonging to a
+// different graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupWrongGraph) {
+  experimental::command_graph Graph1{Queue.get_context(), Queue.get_device()};
+  experimental::command_graph Graph2{Queue.get_context(), Queue.get_device()};
+  auto CGF = [&](sycl::handler &CGH) {
+    CGH.single_task<TestKernel<>>([]() {});
+  };
+
+  experimental::dynamic_command_group DynCG(Graph2, {CGF});
+  ASSERT_THROW(Graph1.add(DynCG), sycl::exception);
+}
+
+// Error when a non-kernel command-group is included in a dynamic command-group
+TEST_F(CommandGraphTest, DynamicCommandGroupNotKernel) {
+  int *Ptr = malloc_device<int>(1, Queue);
+  auto CGF = [&](sycl::handler &CGH) { CGH.memset(Ptr, 1, 0); };
+
+  experimental::command_graph Graph{Queue};
+  ASSERT_THROW(experimental::dynamic_command_group DynCG(Graph, {CGF}),
+               sycl::exception);
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using graph limited events to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchEventEdges) {
+  size_t N = 32;
+  int *PtrA = malloc_device<int>(N, Queue);
+  int *PtrB = malloc_device<int>(N, Queue);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  Graph.begin_recording(Queue);
+
+  auto EventA = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] = 1; });
+  });
+
+  auto EventB = Queue.submit([&](handler &CGH) {
+    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    CGH.depends_on(EventA);
+    CGH.parallel_for(N, [=](item<1> Item) { PtrA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    CGH.depends_on(EventB);
+    CGH.parallel_for(N, [=](item<1> Item) { PtrB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+
+  sycl::free(PtrA, Queue);
+  sycl::free(PtrB, Queue);
+}
+
+// Test that an exception is thrown when a graph isn't created with buffer
+// property, but buffers are used.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  experimental::command_graph Graph{Queue.get_context(), Queue.get_device()};
+
+  auto CGFA = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto Acc = Buf.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
+}
+
+// Test and exception is thrown when using a host-accessor to a buffer
+// used in a non active CGF node in the graph.
+TEST_F(CommandGraphTest, DynamicCommandGroupBufferHostAccThrows) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer Buf{HostData};
+  Buf.set_write_back(false);
+
+  int *Ptr = malloc_device<int>(N, Queue);
+
+  {
+    ext::oneapi::experimental::command_graph Graph{
+        Queue.get_context(),
+        Queue.get_device(),
+        {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+    auto CGFA = [&](handler &CGH) {
+      CGH.parallel_for(N, [=](item<1> Item) { Ptr[Item.get_id()] = 2; });
+    };
+
+    auto CGFB = [&](handler &CGH) {
+      auto Acc = Buf.get_access<access::mode::write>(CGH);
+      CGH.parallel_for(N, [=](item<1> Item) { Acc[Item.get_id()] = 0xA; });
+    };
+
+    experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+    ASSERT_NO_THROW(Graph.add(DynCG));
+
+    ASSERT_THROW({ host_accessor HostAcc{Buf}; }, sycl::exception);
+  }
+
+  sycl::free(Ptr, Queue);
+}
+
+// Error if edges are not the same for all command-groups in dynamic command
+// group, test using accessors to create edges
+TEST_F(CommandGraphTest, DynamicCommandGroupMismatchAccessorEdges) {
+  size_t N = 32;
+  std::vector<int> HostData(N, 0);
+  buffer BufA{HostData};
+  buffer BufB{HostData};
+  BufA.set_write_back(false);
+  BufB.set_write_back(false);
+
+  experimental::command_graph Graph{
+      Queue.get_context(),
+      Queue.get_device(),
+      {experimental::property::graph::assume_buffer_outlives_graph{}}};
+
+  Graph.begin_recording(Queue);
+
+  Queue.submit([&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] = 1; });
+  });
+
+  Queue.submit([&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] = 4; });
+  });
+
+  Graph.end_recording();
+
+  auto CGFA = [&](handler &CGH) {
+    auto AccA = BufA.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccA[Item.get_id()] += 2; });
+  };
+
+  auto CGFB = [&](handler &CGH) {
+    auto AccB = BufB.get_access<access::mode::read_write>(CGH);
+    CGH.parallel_for(N, [=](item<1> Item) { AccB[Item.get_id()] += 0xA; });
+  };
+
+  experimental::dynamic_command_group DynCG(Graph, {CGFA, CGFB});
+  ASSERT_THROW(Graph.add(DynCG), sycl::exception);
 }

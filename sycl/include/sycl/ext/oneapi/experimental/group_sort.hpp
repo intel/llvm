@@ -42,9 +42,8 @@ struct is_sorter_impl {
                                      std::declval<G>(), std::declval<Val>()))>;
 
   template <typename G = Group>
-  static decltype(std::integral_constant<bool,
-                                         is_expected_return_type<G>::value &&
-                                             sycl::is_group_v<G>>{})
+  static decltype(std::bool_constant<is_expected_return_type<G>::value &&
+                                     sycl::is_group_v<G>>{})
   test(int);
 
   template <typename = Group> static std::false_type test(...);

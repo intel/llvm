@@ -21,9 +21,6 @@ on:
         type: string
         required: True
       extra_cmake_args:
-        description: |
-          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
-          if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
       tests_selector:
@@ -65,15 +62,20 @@ on:
       reset_intel_gpu:
         type: string
         required: False
-      install_drivers:
+      install_igc_driver:
         type: string
         required: False
-      use_dev_igc:
+      install_dev_igc_driver:
         type: string
         required: False
       env:
         type: string
         default: '{}'
+        required: False
+
+      skip_run:
+        type: string
+        default: 'false'
         required: False
 
   workflow_dispatch:
@@ -129,13 +131,13 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      install_drivers:
+      install_igc_driver:
         type: choice
         options:
           - false
           - true
 
-      use_dev_igc:
+      install_dev_igc_driver:
         type: choice
         options:
           - false
@@ -146,6 +148,7 @@ permissions:
 
 jobs:
   run:
+    if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
@@ -179,23 +182,23 @@ jobs:
       with:
         path: khronos_sycl_cts
         repository: 'KhronosGroup/SYCL-CTS'
-        ref: 'SYCL-2020'
-        default_branch: 'SYCL-2020'
+        ref: 'main'
+        default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'
       run: |
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
-      if: inputs.install_drivers == 'true'
+      if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+        if [ "${{ inputs.install_dev_igc_driver }}" = "true" ]; then
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -276,12 +279,6 @@ jobs:
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        else
-          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-          else
-            echo 'opts=' >> $GITHUB_OUTPUT
-          fi
         fi
     - name: Configure E2E tests
       if: inputs.tests_selector == 'e2e'

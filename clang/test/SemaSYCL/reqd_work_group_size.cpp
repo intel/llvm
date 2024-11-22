@@ -22,6 +22,7 @@ public:
 
 // Tests for 'reqd_work_group_size' attribute duplication.
 // No diagnostic is emitted because the arguments match. Duplicate attribute is silently ignored.
+// expected-warning@+1 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_work_group_size(6, 6, 6)]] [[sycl::reqd_work_group_size(6, 6, 6)]] void f2() {}
 
 // No diagnostic is emitted because the arguments match.
@@ -29,21 +30,23 @@ public:
 [[sycl::reqd_work_group_size(32, 32, 32)]] void f3(); // OK
 
 // Produce a conflicting attribute warning when the args are different.
-[[sycl::reqd_work_group_size(6, 6, 6)]]         // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(6, 6, 6)]]         // expected-note {{previous attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_work_group_size(16, 16, 16)]] void // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 f4() {}
 
 // Catch the easy case where the attributes are all specified at once with
 // different arguments.
 struct TRIFuncObjGood1 {
-  // expected-note@+2 {{previous attribute is here}}
-  // expected-error@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-note@+3 {{previous attribute is here}}
+  // expected-error@+2 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-warning@+1 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}} 
   [[sycl::reqd_work_group_size(64)]] [[sycl::reqd_work_group_size(128)]] void operator()() const {}
 };
 
 struct TRIFuncObjGood2 {
-  // expected-note@+2 {{previous attribute is here}}
-  // expected-error@+1 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-note@+3 {{previous attribute is here}}
+  // expected-error@+2 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+  // expected-warning@+1 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
   [[sycl::reqd_work_group_size(64, 64)]] [[sycl::reqd_work_group_size(128, 128)]] void operator()() const {}
 };
 
@@ -52,7 +55,8 @@ struct TRIFuncObjGood3 {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(4, 4)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(4, 4)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
+// expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 void
 TRIFuncObjGood3::operator()() const {}
 
@@ -73,7 +77,7 @@ public:
 
 class Functor32 {
 public:
-  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}}
+  [[sycl::reqd_work_group_size(32, 1, 1)]]      // expected-note {{previous attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
   [[sycl::reqd_work_group_size(1, 1, 32)]] void // expected-error{{attribute 'reqd_work_group_size' is already applied with different arguments}}
   operator()() const {}
 };
@@ -105,16 +109,18 @@ void instantiate() {
   f7<1, 1, 1>(); // OK, args are the same on the redecl.
   // expected-error@#f7 {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   // expected-note@#f7prev {{previous attribute is here}}
+  // expected-warning@#f7prev {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+  // expected-warning@#f7prev {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
   f7<2, 2, 2>(); // expected-note {{in instantiation}}
 }
 
 // Tests for 'reqd_work_group_size' attribute duplication.
 
-[[sycl::reqd_work_group_size(8)]]            // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(8)]]            // expected-note {{previous attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_work_group_size(1, 1, 8)]] void // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 f8(){};
 
-[[sycl::reqd_work_group_size(32, 32, 1)]]            // expected-note {{previous attribute is here}}
+[[sycl::reqd_work_group_size(32, 32, 1)]]            // expected-note {{previous attribute is here}} // expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 [[sycl::reqd_work_group_size(32, 32)]] void f9() {}  // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
 
 // Test that template redeclarations also get diagnosed properly.
@@ -127,6 +133,8 @@ void test() {
   f10<64, 1, 1>(); // OK, args are the same on the redecl.
   // expected-error@#f10err {{attribute 'reqd_work_group_size' is already applied with different arguments}}
   // expected-note@#f10prev {{previous attribute is here}}
+  // expected-warning@#f10prev {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
+  // expected-warning@#f10prev {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
   f10<1, 1, 64>(); // expected-note {{in instantiation}}
 }
 
@@ -135,7 +143,8 @@ struct TRIFuncObjBad {
   operator()() const;
 };
 
-[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}}
+[[sycl::reqd_work_group_size(1, 1, 32)]] // expected-error {{attribute 'reqd_work_group_size' is already applied with different arguments}} \
+// expected-warning {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 void
 TRIFuncObjBad::operator()() const {}
 
@@ -174,6 +183,7 @@ int main() {
   KernelFunctor<16, 1, 1>();
 }
 // Test that checks template parameter support on function.
+// expected-warning@+2 {{'reqd_work_group_size' attribute can only be applied to a SYCL kernel function}}
 template <int N, int N1, int N2>
 [[sycl::reqd_work_group_size(N, N1, N2)]] void func3() {}
 

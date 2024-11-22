@@ -28,28 +28,13 @@ permissions: read-all
 
 jobs:
   build-lin:
-    name: Linux (Self build + shared libraries + no-assertions)
+    name: Linux (Self build + no-assertions)
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/llvm"
-      build_cache_suffix: sprod_shared
-      build_artifact_suffix: sprod_shared
-      build_configure_extra_args: --shared-libs --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
-      # Docker image has last nightly pre-installed and added to the PATH
-      build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
-      cc: clang
-      cxx: clang++
-      merge_ref: ''
-
-  build-lin-static:
-    name: Linux (Self build + static libraries + no-assertions)
-    if: github.repository == 'intel/llvm'
-    uses: ./.github/workflows/sycl-linux-build.yml
-    with:
-      build_cache_root: "/__w/llvm"
-      build_cache_suffix: sprod_static
-      build_artifact_suffix: sprod_static
+      build_cache_suffix: default
+      build_artifact_suffix: default
       build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
@@ -58,7 +43,7 @@ jobs:
       merge_ref: ''
 
   e2e-lin:
-    needs: [build-lin, build-lin-static]
+    needs: [build-lin]
     if: ${{ always() && !cancelled() && needs.build-lin.outputs.build_conclusion == 'success' }}
     strategy:
       fail-fast: false
@@ -75,14 +60,10 @@ jobs:
             reset_intel_gpu: true
           - name: AMD/HIP
             runner: '["Linux", "amdgpu"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
             target_devices: ext_oneapi_hip:gpu
             reset_intel_gpu: false
-            # Use static build because of shared lld packaging issue
-            sycl_toolchain_artifact: sycl_linux_sprod_static
-            sycl_toolchain_archive: ${{ needs.build-lin-static.outputs.artifact_archive_name }}
-            sycl_toolchain_decompress_command: ${{ needs.build-lin-static.outputs.artifact_decompress_command }}
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
@@ -106,7 +87,7 @@ jobs:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
       image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest' }}
-      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN' }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
       target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
@@ -116,9 +97,9 @@ jobs:
       ref: ${{ github.sha }}
       merge_ref: ''
 
-      sycl_toolchain_artifact: ${{ matrix.sycl_toolchain_artifact || 'sycl_linux_sprod_shared' }}
-      sycl_toolchain_archive: ${{ matrix.sycl_toolchain_archive || needs.build-lin.outputs.artifact_archive_name }}
-      sycl_toolchain_decompress_command: ${{ matrix.sycl_toolchain_decompress_command || needs.build-lin.outputs.artifact_decompress_command }}
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
 
   build-win:
     if: |

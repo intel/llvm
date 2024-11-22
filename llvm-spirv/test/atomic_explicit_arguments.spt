@@ -44,6 +44,7 @@
 
 ; CHECK: define private spir_func i32 @__translate_spirv_memory_scope(i32 %key) {
 ; CHECK: entry:
+; CHECK:   %result = alloca i32, align 4
 ; CHECK:   switch i32 %key, label %default [
 ; CHECK:     i32 4, label %case.4
 ; CHECK:     i32 2, label %case.2
@@ -54,19 +55,28 @@
 ; CHECK: default:
 ; CHECK:   unreachable
 ; CHECK: case.4:
-; CHECK:   ret i32 0
+; CHECK:   store i32 0, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.2:
-; CHECK:   ret i32 1
+; CHECK:   store i32 1, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.1:
-; CHECK:   ret i32 2
+; CHECK:   store i32 2, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.0:
-; CHECK:   ret i32 3
+; CHECK:   store i32 3, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.3:
-; CHECK:   ret i32 4
+; CHECK:   store i32 4, ptr %result, align 4
+; CHECK:   br label %exit
+; CHECK: exit:
+; CHECK:   %retVal = load i32, ptr %result, align 4
+; CHECK:   ret i32 %retVal
 ; CHECK: }
 
 ; CHECK: define private spir_func i32 @__translate_spirv_memory_order(i32 %key) {
 ; CHECK: entry:
+; CHECK:   %result = alloca i32, align 4
 ; CHECK:   %key.masked = and i32 30, %key
 ; CHECK:   switch i32 %key.masked, label %default [
 ; CHECK:     i32 0, label %case.0
@@ -78,13 +88,21 @@
 ; CHECK: default:
 ; CHECK:   unreachable
 ; CHECK: case.0:
-; CHECK:   ret i32 0
+; CHECK:   store i32 0, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.2:
-; CHECK:   ret i32 2
+; CHECK:   store i32 2, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.4:
-; CHECK:   ret i32 3
+; CHECK:   store i32 3, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.8:
-; CHECK:   ret i32 4
+; CHECK:   store i32 4, ptr %result, align 4
+; CHECK:   br label %exit
 ; CHECK: case.16:
-; CHECK:   ret i32 5
+; CHECK:   store i32 5, ptr %result, align 4
+; CHECK:   br label %exit
+; CHECK: exit:
+; CHECK:   %retVal = load i32, ptr %result, align 4
+; CHECK:   ret i32 %retVal
 ; CHECK: }

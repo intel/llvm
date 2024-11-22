@@ -46,7 +46,6 @@ jobs:
       build_artifact_suffix: "default"
       build_cache_suffix: "default"
       changes: ${{ needs.detect_changes.outputs.filters }}
-      build_image: "ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab"
 
   determine_arc_tests:
     name: Decide which Arc tests to run
@@ -84,32 +83,27 @@ jobs:
           - name: Intel
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu;opencl:cpu
             reset_intel_gpu: true
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param gpu-intel-gen12=True
           - name: E2E tests on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
-            install_drivers: ${{ contains(needs.detect_changes.outputs.filters, 'drivers') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
           - name: E2E tests with dev igc on Intel Arc A-Series Graphics
             runner: '["Linux", "arc"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:${{ contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') && 'latest' || 'devigc' }}
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:devigc
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu;opencl:gpu
             reset_intel_gpu: true
-            install_drivers: >-
-              ${{ contains(needs.detect_changes.outputs.filters, 'drivers') ||
-              contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
-            use_dev_igc: ${{ contains(needs.detect_changes.outputs.filters, 'devigccfg') }}
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
             env: '{"LIT_FILTER":${{ needs.determine_arc_tests.outputs.arc_tests }} }'
+            use_igc_dev: true
 
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
@@ -119,10 +113,21 @@ jobs:
       image_options: ${{ matrix.image_options }}
       target_devices: ${{ matrix.target_devices }}
       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-      install_drivers: ${{ matrix.install_drivers }}
-      use_dev_igc: ${{ matrix.use_dev_igc }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
+
+      # Do not install drivers on AMD and CUDA runners.
+      install_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
+        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        contains(needs.detect_changes.outputs.filters, 'drivers') }}
+      install_dev_igc_driver: >-
+        ${{ !contains(matrix.target_devices, 'ext_oneapi_cuda') &&
+        !contains(matrix.target_devices, 'ext_oneapi_hip') &&
+        matrix.use_igc_dev && contains(needs.detect_changes.outputs.filters, 'devigccfg') ||
+        'false' }}
+      # Run only if the PR does not have the 'ci-no-devigc' label.
+      skip_run: ${{matrix.use_igc_dev && contains(github.event.pull_request.labels.*.name, 'ci-no-devigc') || 'false'}}
 
       ref: ${{ github.sha }}
       merge_ref: ''
@@ -157,7 +162,6 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
-            extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
           - name: CUDA system
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest

@@ -3,7 +3,9 @@
 
 // DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
 
-// RUN: %{build} %{mathflags} -o %t.out
+// RUN: %{build} %{mathflags} -c -DSOURCE1 -o %t1.o
+// RUN: %{build} %{mathflags} -c -DSOURCE2 -o %t2.o
+// RUN: %clangxx -Wno-error=unused-command-line-argument -fsycl  %t1.o %t2.o  -o %t.out
 // RUN: %{run} %t.out
 
 // UNSUPPORTED: cuda, hip
@@ -17,7 +19,8 @@
 
 namespace sycl_imf = sycl::ext::intel::math;
 
-int main(int, char **) {
+#ifdef SOURCE1
+void run_imf_fp16_test() {
   sycl::queue device_queue(sycl::default_selector_v);
   std::cout << "Running on "
             << device_queue.get_device().get_info<sycl::info::device::name>()
@@ -415,5 +418,13 @@ int main(int, char **) {
     std::cout << "hcmadd passes." << std::endl;
   }
 
+}
+#endif
+
+#ifdef SOURCE2
+void run_imf_fp16_test();
+int main(int argc, char **argv) {
+  run_imf_fp16_test();
   return 0;
 }
+#endif

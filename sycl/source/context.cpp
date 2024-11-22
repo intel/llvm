@@ -8,9 +8,9 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
@@ -72,17 +72,16 @@ context::context(const std::vector<device> &DeviceList,
                                                   PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = sycl::detail::ur::getPlugin<backend::opencl>();
+  const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
 
   ur_context_handle_t hContext = nullptr;
   ur_native_handle_t nativeHandle =
       reinterpret_cast<ur_native_handle_t>(ClContext);
-  Plugin->call(urContextCreateWithNativeHandle, nativeHandle, Plugin->getUrAdapter(),
-               0, nullptr, nullptr,
-               &hContext);
-  
-  impl = std::make_shared<detail::context_impl>(
-      hContext, AsyncHandler, Plugin);
+  Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+
+  impl =
+      std::make_shared<detail::context_impl>(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>

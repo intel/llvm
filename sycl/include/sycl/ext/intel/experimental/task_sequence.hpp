@@ -8,8 +8,8 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/ext/intel/experimental/fpga_kernel_properties.hpp>
@@ -109,23 +109,28 @@ private:
   __spv::__spirv_TaskSequenceINTEL *taskSequence;
 #endif
   static constexpr int32_t pipelined =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, pipelined_key>::template get<int32_t>(-1);
-  static constexpr int32_t fpga_cluster =
-      has_property<fpga_cluster_key>()
-          ? static_cast<
-                typename std::underlying_type<fpga_cluster_options_enum>::type>(
-                oneapi::experimental::detail::ValueOrDefault<property_list_t,
-                                                             fpga_cluster_key>::
-                    template get<fpga_cluster_options_enum>(
-                        fpga_cluster_options_enum::stall_free))
-          : -1;
+      oneapi::experimental::detail::get_property_or<pipelined_key,
+                                                    property_list_t>(
+          intel::experimental::pipelined<-1>)
+          .value;
+  static constexpr int32_t fpga_cluster = []() constexpr {
+    if constexpr (has_property<fpga_cluster_key>())
+      return static_cast<
+          typename std::underlying_type<fpga_cluster_options_enum>::type>(
+          get_property<fpga_cluster_key>().value);
+    else
+      return -1;
+  }();
   static constexpr uint32_t response_capacity =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, response_capacity_key>::template get<uint32_t>(0);
+      oneapi::experimental::detail::get_property_or<response_capacity_key,
+                                                    property_list_t>(
+          intel::experimental::response_capacity<0>)
+          .value;
   static constexpr uint32_t invocation_capacity =
-      oneapi::experimental::detail::ValueOrDefault<
-          property_list_t, invocation_capacity_key>::template get<uint32_t>(0);
+      oneapi::experimental::detail::get_property_or<invocation_capacity_key,
+                                                    property_list_t>(
+          intel::experimental::invocation_capacity<0>)
+          .value;
 };
 
 } // namespace ext::intel::experimental

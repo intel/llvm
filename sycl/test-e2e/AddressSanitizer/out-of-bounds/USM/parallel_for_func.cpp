@@ -1,14 +1,14 @@
 // REQUIRES: linux
-// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O2 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O2 -g -o %t
-// RUN: %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
-// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O2 -g -o %t
-// RUN: %{run} not %t &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O0 -g -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O1 -g -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_DEVICE -O2 -g -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O2 -g -o %t4.out
+// RUN: %{run} not %t4.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
+// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O2 -g -o %t5.out
+// RUN: %{run} not %t5.out &> %t.txt ; FileCheck --check-prefixes CHECK,CHECK-SHARED --input-file %t.txt %s
 
 #include <sycl/detail/core.hpp>
 

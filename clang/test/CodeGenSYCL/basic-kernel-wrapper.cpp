@@ -44,7 +44,7 @@ int main() {
 // CHECK: call spir_func {{.*}}accessor
 
 // Check accessor GEP
-// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds %class.anon, ptr addrspace(4) [[ANON]], i32 0, i32 0
+// CHECK: [[ACCESSOR:%[a-zA-Z0-9_]+]] = getelementptr inbounds nuw %class.anon, ptr addrspace(4) [[ANON]], i32 0, i32 0
 
 // Check load from kernel pointer argument alloca
 // CHECK: [[MEM_LOAD:%[a-zA-Z0-9_]+]] = load ptr addrspace(1), ptr addrspace(4) [[MEM_ARG]].addr.ascast

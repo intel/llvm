@@ -46,5 +46,6 @@ int main() {
   // CHECK: {{READ of size 4 at kernel <.*Kernel4> LID\(0, 0, 0\) GID\(4, 0, 0\)}}
   // CHECK: {{  #0 .* .*multiple_kernels.cpp:}}[[@LINE-4]]
 
+  sycl::free(array, Q);
   return 0;
 }

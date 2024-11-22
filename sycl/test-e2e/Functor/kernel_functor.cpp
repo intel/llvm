@@ -174,11 +174,12 @@ template <typename T> T bar(T X) {
   return res;
 }
 
+#define MULTI_X (10)
 int multi(int X) {
-  int A[] = {10};
+  int A[MULTI_X] = {10};
   {
     sycl::queue Q;
-    sycl::buffer<int, 1> Buf(A, 1);
+    sycl::buffer<int, 1> Buf(A, MULTI_X);
 
     Q.submit([&](sycl::handler &cgh) {
       auto Acc = Buf.get_access<sycl_read_write, sycl_device>(cgh);
@@ -203,7 +204,7 @@ int main() {
   // TODO: Remove this conditional check after the RT issues in CPU and
   // Accelerator are fixed.
   if (deviceQueue.get_device().is_gpu()) {
-    const int Res3 = multi(10);
+    const int Res3 = multi(MULTI_X);
     const int Gold3 = 20;
     assert(Res3 == Gold3);
   }

@@ -150,6 +150,11 @@ struct atomic_fence_scope_capabilities;
 
 #define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
   struct __SYCL2020_DEPRECATED(Message) Desc;
+#include <sycl/info/device_traits_2020_deprecated.def>
+#undef __SYCL_PARAM_TRAITS_DEPRECATED
+
+#define __SYCL_PARAM_TRAITS_DEPRECATED(Desc, Message)                          \
+  struct __SYCL_DEPRECATED(Message) Desc;
 #include <sycl/info/device_traits_deprecated.def>
 #undef __SYCL_PARAM_TRAITS_DEPRECATED
 
@@ -247,6 +252,8 @@ struct work_item_progress_capabilities;
 #include <sycl/info/ext_codeplay_device_traits.def>
 #include <sycl/info/ext_intel_device_traits.def>
 #include <sycl/info/ext_oneapi_device_traits.def>
+#include <sycl/info/ext_oneapi_kernel_queue_specific_traits.def>
+
 #undef __SYCL_PARAM_TRAITS_SPEC
 #undef __SYCL_PARAM_TRAITS_TEMPLATE_SPEC
 } // namespace _V1

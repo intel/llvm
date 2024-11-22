@@ -12,8 +12,6 @@
 // RUN:  %if preview-breaking-changes-supported %{  %clangxx -fsycl -fpreview-breaking-changes -fsycl-targets=%{sycl_triple} %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_80 %} %s -o %t2.out %{mathflags} %}
 // RUN:  %if preview-breaking-changes-supported %{  %{run} %t2.out  %}
 
-// Currently the feature isn't supported on FPGA.
-// UNSUPPORTED: accelerator
 #include "bfloat16_builtins.hpp"
 
 int main() {

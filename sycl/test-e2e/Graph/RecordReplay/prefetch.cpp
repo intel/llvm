@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: %if linux && (level_zero || cuda) %{ env SYCL_UR_TRACE=1 %{run} %t.out 2>&1 FileCheck %s %} %else %{ %{run} %t.out %}
+// RUN: %if linux && (level_zero || cuda) %{ env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 FileCheck %s %} %else %{ %{run} %t.out %}
 
 // REQUIRES: aspect-usm_shared_allocations
 
@@ -10,13 +10,13 @@
 // impact results but only performances, we verify
 // that a node is correctly added by checking UR function calls
 
-// CHECK: urCommandBufferAppendUSMPrefetchExp(
+// CHECK: <--- urCommandBufferAppendUSMPrefetchExp(
 // CHECK-SAME: .hCommandBuffer = 0x[[#%x,COMMAND_BUFFER:]]
 // CHECK-SAME: .pMemory = 0x[[#%x,PTR:]]
 // CHECK-SAME: .size = 400
 // CHECK-SAME: .pSyncPoint = {{.*}} (0x[[#%x,PREFETCH_SYNC_POINT:]])
 
-// CHECK: urCommandBufferAppendKernelLaunchExp(
+// CHECK: <--- urCommandBufferAppendKernelLaunchExp(
 // CHECK-SAME: .hCommandBuffer = 0x[[#%x,COMMAND_BUFFER]]
 // CHECK-SAME: .hKernel = 0x[[#%x,KERNEL:]]
 // CHECK-SAME: .workDim = 1

@@ -10,7 +10,7 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void foo() const {}
 
   virtual void bar() const {}
@@ -18,7 +18,7 @@ public:
 
 class Derived : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void foo() const override {}
 
   void bar() const override {}

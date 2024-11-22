@@ -10,6 +10,6 @@
 // RUN: %clang -### -fsycl %s 2>&1 | \
 // RUN: FileCheck --check-prefix=CHECK-HEADER %s
 // CHECK-HEADER: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]"
-// CHECK-HEADER: {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-NOT: clang{{.*}} "-include" "[[HEADER]]"
-// CHECK-HEADER: clang{{.*}} "-include" "{{.*}}_dirname{{.+}}.h"
+// CHECK-HEADER: {{.*}} "-internal-isystem" "{{.*}}bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-NOT: clang{{.*}} "-include-internal-header" "[[HEADER]]"
+// CHECK-HEADER: clang{{.*}} "-include-internal-header" "{{.*}}_dirname{{.+}}.h"

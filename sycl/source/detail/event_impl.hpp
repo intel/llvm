@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <detail/plugin.hpp>
+#include <detail/adapter.hpp>
 #include <sycl/detail/cl.h>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/host_profiling_info.hpp>
@@ -27,7 +27,7 @@ class graph_impl;
 }
 class context;
 namespace detail {
-class plugin;
+class Adapter;
 class context_impl;
 using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
 class queue_impl;
@@ -126,25 +126,20 @@ public:
   /// Marks this event as completed.
   void setComplete();
 
-  /// Returns raw interoperability event handle. Returned reference will be
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a reference to an instance of plug-in event handle.
-  ur_event_handle_t &getHandleRef();
-  /// Returns raw interoperability event handle. Returned reference will be
-  /// invalid if event_impl was destroyed.
-  ///
-  /// \return a const reference to an instance of plug-in event handle.
-  const ur_event_handle_t &getHandleRef() const;
+  /// Returns raw interoperability event handle.
+  ur_event_handle_t getHandle() const;
+
+  /// Set event handle for this event object.
+  void setHandle(const ur_event_handle_t &UREvent);
 
   /// Returns context that is associated with this event.
   ///
   /// \return a shared pointer to a valid context_impl.
   const ContextImplPtr &getContextImpl();
 
-  /// \return the Plugin associated with the context of this event.
+  /// \return the Adapter associated with the context of this event.
   /// Should be called when this is not a Host Event.
-  const PluginPtr &getPlugin();
+  const AdapterPtr &getAdapter();
 
   /// Associate event with the context.
   ///
@@ -240,7 +235,7 @@ public:
   /// have native handle.
   ///
   /// @return true if no associated command and no event handle.
-  bool isNOP() { return !MCommand && !getHandleRef(); }
+  bool isNOP() { return !MCommand && !getHandle(); }
 
   /// Calling this function queries the current device timestamp and sets it as
   /// submission time for the command associated with this event.
@@ -268,6 +263,11 @@ public:
   void attachEventToComplete(const EventImplPtr &Event) {
     std::lock_guard<std::mutex> Lock(MMutex);
     MPostCompleteEvents.push_back(Event);
+  }
+
+  void attachEventToCompleteWeak(const std::weak_ptr<event_impl> &Event) {
+    std::lock_guard<std::mutex> Lock(MMutex);
+    MWeakPostCompleteEvents.push_back(Event);
   }
 
   bool isDefaultConstructed() const noexcept { return MIsDefaultConstructed; }
@@ -329,6 +329,13 @@ public:
 
   bool isProfilingTagEvent() const noexcept { return MProfilingTagEvent; }
 
+  // Check if this event is an interoperability event.
+  bool isInterop() const noexcept {
+    // As an indication of interoperability event, we use the absence of the
+    // queue and command, as well as the fact that it is not in enqueued state.
+    return MEvent && MQueue.expired() && !MIsEnqueued && !MCommand;
+  }
+
 protected:
   // When instrumentation is enabled emits trace event for event wait begin and
   // returns the telemetry event generated for the wait
@@ -339,7 +346,7 @@ protected:
                              int32_t StreamID, uint64_t IId) const;
   void checkProfilingPreconditions() const;
 
-  ur_event_handle_t MEvent = nullptr;
+  std::atomic<ur_event_handle_t> MEvent = nullptr;
   // Stores submission time of command associated with event
   uint64_t MSubmitTime = 0;
   uint64_t MHostBaseTime = 0;
@@ -358,6 +365,16 @@ protected:
   std::vector<EventImplPtr> MPreparedHostDepsEvents;
 
   std::vector<EventImplPtr> MPostCompleteEvents;
+  // short term WA for stream:
+  // MPostCompleteEvents is split into two storages now. Original storage is
+  // used by graph extension and represents backward links.
+  // MWeakPostCompleteEvents represents weak forward references (used in stream
+  // only). Used only for host tasks now since they do not support post enqueue
+  // cleanup and event == nullptr could happen only when host task is completed
+  // (and Command that holding reference to its event is deleted). TO DO: to
+  // eliminate forward references from stream implementation and remove this
+  // storage.
+  std::vector<std::weak_ptr<event_impl>> MWeakPostCompleteEvents;
 
   /// Indicates that the task associated with this event has been submitted by
   /// the queue to the device.
@@ -380,7 +397,7 @@ protected:
   // If this event represents a submission to a
   // ur_exp_command_buffer_sync_point_t the sync point for that submission is
   // stored here.
-  ur_exp_command_buffer_sync_point_t MSyncPoint;
+  ur_exp_command_buffer_sync_point_t MSyncPoint = 0;
 
   // If this event represents a submission to a
   // ur_exp_command_buffer_command_handle_t the command-buffer command

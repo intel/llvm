@@ -77,13 +77,18 @@ public:
   }
 
   // Implicit conversion constructor from sycl::ext::oneapi::experimental::simd
-  template <
-      int N1 = N, class Ty1 = Ty,
-      class SFINAE = std::enable_if_t<
-          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
-                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  template <int N1 = N, class Ty1 = Ty,
+            class SFINAE = std::enable_if_t<
+                (N1 == N) &&
+                (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>) &&
+                !detail::is_wrapper_elem_type_v<Ty1>>>
   simd(const sycl::ext::oneapi::experimental::simd<Ty, N1> &v)
       : simd(static_cast<raw_vector_type>(v)) {}
+
+  // Implicit conversion constructor from 1D simd_view
+  template <typename BaseTy, int Stride>
+  simd(simd_view<BaseTy, region_base<false, Ty, 1, 1, N, Stride>> &v)
+      : simd(v.read()) {}
 
   /// Broadcast constructor with conversion. Converts given value to
   /// #element_type and replicates it in all elements.
@@ -113,11 +118,11 @@ public:
   /// object. Available when the number of elements does not exceed maximum
   /// fixed size of the oneapi's simd_abi and (TODO, temporary limitation) the
   /// element type is a primitive type (e.g. can't be sycl::half).
-  template <
-      int N1, class Ty1 = Ty,
-      class SFINAE = std::enable_if_t<
-          (N1 == N) && (N1 <= std::experimental::simd_abi::max_fixed_size<
-                                  Ty>)&&!detail::is_wrapper_elem_type_v<Ty1>>>
+  template <int N1, class Ty1 = Ty,
+            class SFINAE = std::enable_if_t<
+                (N1 == N) &&
+                (N1 <= std::experimental::simd_abi::max_fixed_size<Ty>) &&
+                !detail::is_wrapper_elem_type_v<Ty1>>>
   operator sycl::ext::oneapi::experimental::simd<Ty, N1>() {
     return sycl::ext::oneapi::experimental::simd<Ty, N1>(base_type::data());
   }
@@ -210,7 +215,8 @@ template <int N> using simd_mask = detail::simd_mask_type<N>;
 template <typename Ty, int N>
 std::ostream &operator<<(std::ostream &OS, const __ESIMD_NS::simd<Ty, N> &V)
 #ifdef __SYCL_DEVICE_ONLY__
-    {}
+{
+}
 #else
 {
   __ESIMD_UNSUPPORTED_ON_HOST;

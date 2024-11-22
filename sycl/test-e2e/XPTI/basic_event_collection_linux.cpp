@@ -5,7 +5,7 @@
 
 #include "basic_event_collection.inc"
 //
-// CHECK: xptiTraceInit: Stream Name = ur
+// CHECK: xptiTraceInit: Stream Name = ur.call
 // CHECK: xptiTraceInit: Stream Name = sycl.experimental.mem_alloc
 // CHECK: xptiTraceInit: Stream Name = sycl
 // CHECK-NEXT: Graph create

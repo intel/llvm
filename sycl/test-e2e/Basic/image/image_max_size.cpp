@@ -2,9 +2,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// UNSUPPORTED: cuda || hip || (windows && opencl && gpu)
+// UNSUPPORTED: cuda || hip
 // CUDA does not support info::device::image3d_max_width query.
-// TODO: Irregular runtime fails on Windows/opencl:gpu require analysis.
 
 // The test checks that 'image' with max allowed sizes is handled correctly.
 

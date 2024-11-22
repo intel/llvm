@@ -6,17 +6,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "detail/sycl_mem_obj_i.hpp"
+#include <detail/scheduler/scheduler.hpp>
+
 #include <detail/global_handler.hpp>
 #include <detail/graph_impl.hpp>
-#include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
-#include <detail/jit_compiler.hpp>
-#endif
 #include <detail/queue_impl.hpp>
-#include <detail/scheduler/scheduler.hpp>
 #include <detail/stream_impl.hpp>
+#include <detail/sycl_mem_obj_i.hpp>
 #include <sycl/device_selector.hpp>
+#include <sycl/feature_test.hpp>
 
 #include <chrono>
 #include <cstdio>
@@ -107,7 +105,6 @@ EventImplPtr Scheduler::addCG(
   AuxiliaryResources = CommandGroup->getAuxiliaryResources();
   CommandGroup->clearAuxiliaryResources();
 
-  bool ShouldEnqueue = true;
   {
     WriteLockT Lock = acquireWriteLock();
 
@@ -116,31 +113,22 @@ EventImplPtr Scheduler::addCG(
     case CGType::UpdateHost:
       NewCmd =
           MGraphBuilder.addCGUpdateHost(std::move(CommandGroup), AuxiliaryCmds);
-      NewEvent = NewCmd->getEvent();
       break;
     case CGType::CodeplayHostTask: {
-      auto Result = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
-                                        AuxiliaryCmds, EventNeeded);
-      NewCmd = Result.NewCmd;
-      NewEvent = Result.NewEvent;
-      ShouldEnqueue = Result.ShouldEnqueue;
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), nullptr,
+                                   AuxiliaryCmds, EventNeeded);
       break;
     }
     default:
-      auto Result = MGraphBuilder.addCG(
-          std::move(CommandGroup), std::move(Queue), AuxiliaryCmds, EventNeeded,
-          CommandBuffer, std::move(Dependencies));
-
-      NewCmd = Result.NewCmd;
-      NewEvent = Result.NewEvent;
-      ShouldEnqueue = Result.ShouldEnqueue;
+      NewCmd = MGraphBuilder.addCG(std::move(CommandGroup), std::move(Queue),
+                                   AuxiliaryCmds, EventNeeded, CommandBuffer,
+                                   std::move(Dependencies));
     }
+    NewEvent = NewCmd->getEvent();
     NewEvent->setSubmissionTime();
   }
 
-  if (ShouldEnqueue) {
-    enqueueCommandForCG(NewEvent, AuxiliaryCmds);
-  }
+  enqueueCommandForCG(NewEvent, AuxiliaryCmds);
 
   if (!AuxiliaryResources.empty())
     registerAuxiliaryResources(NewEvent, std::move(AuxiliaryResources));
@@ -218,27 +206,40 @@ EventImplPtr Scheduler::addCopyBack(Requirement *Req) {
   }
 
   std::vector<Command *> ToCleanUp;
+  // EnqueueCommand will try to enqueue dependencies (previous operations on the
+  // buffer). If any dep kernel failed it would be reported as sync exception or
+  // async exception on host task completion and enqueue attempt.
+  // No need to report those failures again in copy back submission. So report
+  // only copy back auxiliary and main command failures.
+  bool CopyBackCmdsFailed = false;
   try {
     ReadLockT Lock = acquireReadLock();
     EnqueueResultT Res;
-    bool Enqueued;
+    bool Enqueued = false;
 
     for (Command *Cmd : AuxiliaryCmds) {
       Enqueued = GraphProcessor::enqueueCommand(Cmd, Lock, Res, ToCleanUp, Cmd);
-      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+      if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+        CopyBackCmdsFailed |= Res.MCmd == Cmd;
         throw exception(make_error_code(errc::runtime),
                         "Enqueue process failed.");
+      }
     }
 
     Enqueued =
         GraphProcessor::enqueueCommand(NewCmd, Lock, Res, ToCleanUp, NewCmd);
-    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult)
+    if (!Enqueued && EnqueueResultT::SyclEnqueueFailed == Res.MResult) {
+      CopyBackCmdsFailed |= Res.MCmd == NewCmd;
       throw exception(make_error_code(errc::runtime),
                       "Enqueue process failed.");
+    }
   } catch (...) {
-    auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
-    assert(WorkerQueue && "WorkerQueue for CopyBack command must be not null");
-    WorkerQueue->reportAsyncException(std::current_exception());
+    if (CopyBackCmdsFailed) {
+      auto WorkerQueue = NewCmd->getEvent()->getWorkerQueue();
+      assert(WorkerQueue &&
+             "WorkerQueue for CopyBack command must be not null");
+      WorkerQueue->reportAsyncException(std::current_exception());
+    }
   }
   EventImplPtr NewEvent = NewCmd->getEvent();
   cleanupCommands(ToCleanUp);
@@ -432,15 +433,8 @@ void Scheduler::cleanupCommands(const std::vector<Command *> &Cmds) {
 
   } else {
     std::lock_guard<std::mutex> Lock{MDeferredCleanupMutex};
-    // Full cleanup for fusion placeholder commands is handled by the entry
-    // points for fusion (start_fusion, ...). To avoid double free or access to
-    // objects after their lifetime, fusion commands should therefore never be
-    // added to the deferred command list.
-    std::copy_if(Cmds.begin(), Cmds.end(),
-                 std::back_inserter(MDeferredCleanupCommands),
-                 [](const Command *Cmd) {
-                   return Cmd->getType() != Command::CommandType::FUSION;
-                 });
+    MDeferredCleanupCommands.insert(MDeferredCleanupCommands.end(),
+                                    Cmds.begin(), Cmds.end());
   }
 }
 
@@ -584,85 +578,21 @@ void Scheduler::cleanupAuxiliaryResources(BlockingT Blocking) {
   }
 }
 
-void Scheduler::startFusion(QueueImplPtr Queue) {
-  WriteLockT Lock = acquireWriteLock();
-  WriteLockT FusionMapLock = acquireFusionWriteLock();
-  MGraphBuilder.startFusion(Queue);
-}
-
-void Scheduler::cleanUpCmdFusion(sycl::detail::queue_impl *Queue) {
-  // No graph lock, we might be called because the graph builder is releasing
-  // resources.
-  WriteLockT FusionMapLock = acquireFusionWriteLock();
-  MGraphBuilder.cleanUpCmdFusion(Queue);
-}
-
-void Scheduler::cancelFusion(QueueImplPtr Queue) {
-  std::vector<Command *> ToEnqueue;
-  {
-    WriteLockT Lock = acquireWriteLock();
-    WriteLockT FusionMapLock = acquireFusionWriteLock();
-    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
-  }
-  enqueueCommandForCG(nullptr, ToEnqueue);
-}
-
 ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] QueueImplPtr Queue,
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] const std::string &KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE && !_WIN32
   return detail::jit_compiler::get_instance().materializeSpecConstants(
       Queue, BinImage, KernelName, SpecConstBlob);
-#else  // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-  printFusionWarning(
-      "Materialization of spec constants not supported by this build");
-  return nullptr;
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
-}
-
-EventImplPtr Scheduler::completeFusion(QueueImplPtr Queue,
-                                       const property_list &PropList) {
-  std::vector<Command *> ToEnqueue;
-  EventImplPtr FusedEvent;
-  {
-    WriteLockT Lock = acquireWriteLock();
-    WriteLockT FusionMapLock = acquireFusionWriteLock();
-    FusedEvent = MGraphBuilder.completeFusion(Queue, ToEnqueue, PropList);
-  }
-  enqueueCommandForCG(nullptr, ToEnqueue);
-
-  return FusedEvent;
-}
-
-bool Scheduler::isInFusionMode(QueueIdT queue) {
-  ReadLockT Lock = acquireFusionReadLock();
-  return MGraphBuilder.isInFusionMode(queue);
-}
-
-void Scheduler::printFusionWarning(const std::string &Message) {
+#else  // SYCL_EXT_JIT_ENABLE && !_WIN32
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
-    std::cerr << "WARNING: " << Message << "\n";
+    std::cerr << "WARNING: Materialization of spec constants not supported by "
+                 "this build\n";
   }
-}
-
-KernelFusionCommand *Scheduler::isPartOfActiveFusion(Command *Cmd) {
-  auto CmdType = Cmd->getType();
-  switch (CmdType) {
-  case Command::FUSION: {
-    auto *FusionCmd = static_cast<KernelFusionCommand *>(Cmd);
-    return (FusionCmd->isActive()) ? FusionCmd : nullptr;
-  }
-  case Command::RUN_CG: {
-    auto *CGCmd = static_cast<ExecCGCommand *>(Cmd);
-    return (CGCmd->MFusionCmd && CGCmd->MFusionCmd->isActive())
-               ? CGCmd->MFusionCmd
-               : nullptr;
-  }
-  default:
-    return nullptr;
-  }
+  return nullptr;
+#endif // SYCL_EXT_JIT_ENABLE && !_WIN32
 }
 
 EventImplPtr Scheduler::addCommandGraphUpdate(
@@ -728,7 +658,7 @@ bool CheckEventReadiness(const ContextImplPtr &Context,
 
   // A nullptr here means that the commmand does not produce a UR event or it
   // hasn't been enqueued yet.
-  return SyclEventImplPtr->getHandleRef() != nullptr;
+  return SyclEventImplPtr->getHandle() != nullptr;
 }
 
 bool Scheduler::areEventsSafeForSchedulerBypass(

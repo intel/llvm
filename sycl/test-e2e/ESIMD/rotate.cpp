@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t.out
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t.out
 // RUN: %{run} %t.out
-// RUN: %{build} -fsycl-device-code-split=per_kernel -std=c++20 -o %t1.out -DEXP
+// RUN: %{build} -fsycl-device-code-split=per_kernel %cxx_std_optionc++20 -o %t1.out -DEXP
 // RUN: %{run} %t1.out
 
 // This is a basic test to validate the ror/rol functions.

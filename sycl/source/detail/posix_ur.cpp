@@ -19,9 +19,9 @@ namespace detail::ur {
 
 void *loadOsLibrary(const std::string &LibraryPath) {
   // TODO: Check if the option RTLD_NOW is correct. Explore using
-  // RTLD_DEEPBIND option when there are multiple plugins.
+  // RTLD_DEEPBIND option when there are multiple adapters.
   void *so = dlopen(LibraryPath.c_str(), RTLD_NOW);
-  if (!so && detail::ur::trace()) {
+  if (!so && trace(TraceLevel::TRACE_ALL)) {
     char *Error = dlerror();
     std::cerr << "SYCL_UR_TRACE: dlopen(" << LibraryPath << ") failed with <"
               << (Error ? Error : "unknown error") << ">" << std::endl;
@@ -34,6 +34,8 @@ int unloadOsLibrary(void *Library) { return dlclose(Library); }
 void *getOsLibraryFuncAddress(void *Library, const std::string &FunctionName) {
   return dlsym(Library, FunctionName.c_str());
 }
+
+void *getURLoaderLibrary() { return nullptr; }
 
 } // namespace detail::ur
 } // namespace _V1

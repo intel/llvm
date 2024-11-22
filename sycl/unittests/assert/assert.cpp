@@ -28,8 +28,8 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -73,58 +73,42 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
   setKernelUsesAssert({KernelName}, PropSet);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({KernelName});
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateCopierKernelImage() {
+static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  UrPropertySet PropSet;
+  MockPropertySet PropSet;
 
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  UrArray<UrOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
-
-  UrImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
-              __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                  // Compile options
-              "",                                  // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::UrImage Imgs[] = {generateDefaultImage(),
-                                  generateCopierKernelImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
+                                          generateCopierKernelImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
   int Flag = 0;
@@ -335,6 +319,18 @@ static ur_result_t redefinedProgramGetInfo(void *pParams) {
     return UR_RESULT_SUCCESS;
   }
 
+  // Required if program cache eviction is enabled.
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName) {
+    size_t BinarySize = 1;
+
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &BinarySize, sizeof(size_t));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(size_t);
+
+    return UR_RESULT_SUCCESS;
+  }
+
   return UR_RESULT_ERROR_UNKNOWN;
 }
 
@@ -470,9 +466,9 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 #endif // _WIN32
 
 TEST(Assert, TestPositive) {
-  // Ensure that the mock plugin is initialized before spawning work. Since the
+  // Ensure that the mock adapter is initialized before spawning work. Since the
   // test needs no redefinitions we do not need to create a UrMock<> instance,
-  // but the mock plugin is still needed to have a valid platform available.
+  // but the mock adapter is still needed to have a valid platform available.
   // sycl::unittest::UrMock::InitUr();
 
 #ifndef _WIN32
@@ -526,8 +522,9 @@ TEST(Assert, TestInteropKernelNegative) {
 
   auto URKernel = mock::createDummyHandle<ur_kernel_handle_t>();
 
-  // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
-  // from context instead of free getPlugin to alllow for mocking of its methods
+  // TODO use make_kernel. This requires a fix in backend.cpp to get adapter
+  // from context instead of free getAdapter to allow for mocking of its
+  // methods
   sycl::kernel KInterop((cl_kernel)URKernel, Ctx);
 
   Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
