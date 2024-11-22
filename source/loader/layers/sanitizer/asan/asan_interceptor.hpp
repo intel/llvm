@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -18,7 +18,7 @@
 #include "asan_options.hpp"
 #include "asan_shadow.hpp"
 #include "asan_statistics.hpp"
-#include "common.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <memory>
@@ -29,6 +29,7 @@
 #include <vector>
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 class Quarantine;
 
@@ -186,11 +187,11 @@ struct DeviceGlobalInfo {
     uptr Addr;
 };
 
-class SanitizerInterceptor {
+class AsanInterceptor {
   public:
-    explicit SanitizerInterceptor();
+    explicit AsanInterceptor();
 
-    ~SanitizerInterceptor();
+    ~AsanInterceptor();
 
     ur_result_t allocateMemory(ur_context_handle_t Context,
                                ur_device_handle_t Device,
@@ -330,5 +331,9 @@ class SanitizerInterceptor {
 
     bool m_NormalExit = true;
 };
+
+} // namespace asan
+
+asan::AsanInterceptor *getAsanInterceptor();
 
 } // namespace ur_sanitizer_layer

@@ -1,35 +1,37 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_sanddi.cpp
+ * @file asan_ddi.cpp
  *
  */
 
+#include "asan_ddi.hpp"
 #include "asan_interceptor.hpp"
 #include "asan_options.hpp"
-#include "stacktrace.hpp"
+#include "sanitizer_common/sanitizer_stacktrace.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
-#include "ur_sanitizer_utils.hpp"
 
 #include <memory>
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 namespace {
 
 ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
                          const ur_device_handle_t *phDevices) {
     std::shared_ptr<ContextInfo> CI;
-    UR_CALL(getContext()->interceptor->insertContext(Context, CI));
+    UR_CALL(getAsanInterceptor()->insertContext(Context, CI));
     for (uint32_t i = 0; i < numDevices; ++i) {
         auto hDevice = phDevices[i];
         std::shared_ptr<DeviceInfo> DI;
-        UR_CALL(getContext()->interceptor->insertDevice(hDevice, DI));
+        UR_CALL(getAsanInterceptor()->insertDevice(hDevice, DI));
         DI->Type = GetDeviceType(Context, hDevice);
         if (DI->Type == DeviceType::UNKNOWN) {
             getContext()->logger.error("Unsupport device");
@@ -77,7 +79,7 @@ __urdlllocal ur_result_t UR_APICALL urAdapterGet(
     if (result == UR_RESULT_SUCCESS && phAdapters) {
         const uint32_t NumAdapters = pNumAdapters ? *pNumAdapters : NumEntries;
         for (uint32_t i = 0; i < NumAdapters; ++i) {
-            UR_CALL(getContext()->interceptor->holdAdapter(phAdapters[i]));
+            UR_CALL(getAsanInterceptor()->holdAdapter(phAdapters[i]));
         }
     }
 
@@ -104,7 +106,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMHostAlloc(
 
     getContext()->logger.debug("==== urUSMHostAlloc");
 
-    return getContext()->interceptor->allocateMemory(
+    return getAsanInterceptor()->allocateMemory(
         hContext, nullptr, pUSMDesc, pool, size, AllocType::HOST_USM, ppMem);
 }
 
@@ -129,7 +131,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMDeviceAlloc(
 
     getContext()->logger.debug("==== urUSMDeviceAlloc");
 
-    return getContext()->interceptor->allocateMemory(
+    return getAsanInterceptor()->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, AllocType::DEVICE_USM, ppMem);
 }
 
@@ -154,7 +156,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMSharedAlloc(
 
     getContext()->logger.debug("==== urUSMSharedAlloc");
 
-    return getContext()->interceptor->allocateMemory(
+    return getAsanInterceptor()->allocateMemory(
         hContext, hDevice, pUSMDesc, pool, size, AllocType::SHARED_USM, ppMem);
 }
 
@@ -172,7 +174,7 @@ __urdlllocal ur_result_t UR_APICALL urUSMFree(
 
     getContext()->logger.debug("==== urUSMFree");
 
-    return getContext()->interceptor->releaseMemory(hContext, pMem);
+    return getAsanInterceptor()->releaseMemory(hContext, pMem);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -197,7 +199,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithIL(
 
     UR_CALL(
         pfnProgramCreateWithIL(hContext, pIL, length, pProperties, phProgram));
-    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -233,7 +235,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithBinary(
     UR_CALL(pfnProgramCreateWithBinary(hContext, numDevices, phDevices,
                                        pLengths, ppBinaries, pProperties,
                                        phProgram));
-    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -260,7 +262,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramCreateWithNativeHandle(
 
     UR_CALL(pfnProgramCreateWithNativeHandle(hNativeProgram, hContext,
                                              pProperties, phProgram));
-    UR_CALL(getContext()->interceptor->insertProgram(*phProgram));
+    UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -281,7 +283,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
 
     UR_CALL(pfnRetain(hProgram));
 
-    auto ProgramInfo = getContext()->interceptor->getProgramInfo(hProgram);
+    auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
     UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     ProgramInfo->RefCount++;
 
@@ -305,7 +307,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuild(
 
     UR_CALL(pfnProgramBuild(hContext, hProgram, pOptions));
 
-    UR_CALL(getContext()->interceptor->registerProgram(hContext, hProgram));
+    UR_CALL(getAsanInterceptor()->registerProgram(hContext, hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -329,8 +331,8 @@ __urdlllocal ur_result_t UR_APICALL urProgramBuildExp(
     getContext()->logger.debug("==== urProgramBuildExp");
 
     UR_CALL(pfnBuildExp(hProgram, numDevices, phDevices, pOptions));
-    UR_CALL(getContext()->interceptor->registerProgram(GetContext(hProgram),
-                                                       hProgram));
+    UR_CALL(
+        getAsanInterceptor()->registerProgram(GetContext(hProgram), hProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -357,7 +359,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
 
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
-    UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
+    UR_CALL(getAsanInterceptor()->registerProgram(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -388,7 +390,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
     UR_CALL(pfnProgramLinkExp(hContext, numDevices, phDevices, count,
                               phPrograms, pOptions, phProgram));
 
-    UR_CALL(getContext()->interceptor->registerProgram(hContext, *phProgram));
+    UR_CALL(getAsanInterceptor()->registerProgram(hContext, *phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -409,11 +411,11 @@ ur_result_t UR_APICALL urProgramRelease(
 
     UR_CALL(pfnProgramRelease(hProgram));
 
-    auto ProgramInfo = getContext()->interceptor->getProgramInfo(hProgram);
+    auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
     UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     if (--ProgramInfo->RefCount == 0) {
-        UR_CALL(getContext()->interceptor->unregisterProgram(hProgram));
-        UR_CALL(getContext()->interceptor->eraseProgram(hProgram));
+        UR_CALL(getAsanInterceptor()->unregisterProgram(hProgram));
+        UR_CALL(getAsanInterceptor()->eraseProgram(hProgram));
     }
 
     return UR_RESULT_SUCCESS;
@@ -463,8 +465,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                              workDim);
     UR_CALL(LaunchInfo.initialize());
 
-    UR_CALL(getContext()->interceptor->preLaunchKernel(hKernel, hQueue,
-                                                       LaunchInfo));
+    UR_CALL(getAsanInterceptor()->preLaunchKernel(hKernel, hQueue, LaunchInfo));
 
     ur_event_handle_t hEvent{};
     ur_result_t result =
@@ -473,8 +474,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunch(
                         numEventsInWaitList, phEventWaitList, &hEvent);
 
     if (result == UR_RESULT_SUCCESS) {
-        UR_CALL(getContext()->interceptor->postLaunchKernel(hKernel, hQueue,
-                                                            LaunchInfo));
+        UR_CALL(getAsanInterceptor()->postLaunchKernel(hKernel, hQueue,
+                                                       LaunchInfo));
     }
 
     if (phEvent) {
@@ -563,7 +564,7 @@ __urdlllocal ur_result_t UR_APICALL urContextRetain(
 
     UR_CALL(pfnRetain(hContext));
 
-    auto ContextInfo = getContext()->interceptor->getContextInfo(hContext);
+    auto ContextInfo = getAsanInterceptor()->getContextInfo(hContext);
     UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     ContextInfo->RefCount++;
 
@@ -585,10 +586,10 @@ __urdlllocal ur_result_t UR_APICALL urContextRelease(
 
     UR_CALL(pfnRelease(hContext));
 
-    auto ContextInfo = getContext()->interceptor->getContextInfo(hContext);
+    auto ContextInfo = getAsanInterceptor()->getContextInfo(hContext);
     UR_ASSERT(ContextInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     if (--ContextInfo->RefCount == 0) {
-        UR_CALL(getContext()->interceptor->eraseContext(hContext));
+        UR_CALL(getAsanInterceptor()->eraseContext(hContext));
     }
 
     return UR_RESULT_SUCCESS;
@@ -631,7 +632,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
 
     if (Host && (flags & UR_MEM_FLAG_ALLOC_COPY_HOST_POINTER)) {
         std::shared_ptr<ContextInfo> CtxInfo =
-            getContext()->interceptor->getContextInfo(hContext);
+            getAsanInterceptor()->getContextInfo(hContext);
         for (const auto &hDevice : CtxInfo->DeviceList) {
             ManagedQueue InternalQueue(hContext, hDevice);
             char *Handle = nullptr;
@@ -641,7 +642,7 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferCreate(
         }
     }
 
-    ur_result_t result = getContext()->interceptor->insertMemBuffer(pMemBuffer);
+    ur_result_t result = getAsanInterceptor()->insertMemBuffer(pMemBuffer);
     *phBuffer = ur_cast<ur_mem_handle_t>(pMemBuffer.get());
 
     return result;
@@ -672,7 +673,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetInfo(
 
     getContext()->logger.debug("==== urMemGetInfo");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMemory)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMemory)) {
         UrReturnHelper ReturnValue(propSize, pPropValue, pPropSizeRet);
         switch (propName) {
         case UR_MEM_INFO_CONTEXT: {
@@ -706,7 +707,7 @@ __urdlllocal ur_result_t UR_APICALL urMemRetain(
 
     getContext()->logger.debug("==== urMemRetain");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
         MemBuffer->RefCount++;
     } else {
         UR_CALL(pfnRetain(hMem));
@@ -728,12 +729,12 @@ __urdlllocal ur_result_t UR_APICALL urMemRelease(
 
     getContext()->logger.debug("==== urMemRelease");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
         if (--MemBuffer->RefCount != 0) {
             return UR_RESULT_SUCCESS;
         }
         UR_CALL(MemBuffer->free());
-        UR_CALL(getContext()->interceptor->eraseMemBuffer(hMem));
+        UR_CALL(getAsanInterceptor()->eraseMemBuffer(hMem));
     } else {
         UR_CALL(pfnRelease(hMem));
     }
@@ -761,13 +762,13 @@ __urdlllocal ur_result_t UR_APICALL urMemBufferPartition(
 
     getContext()->logger.debug("==== urMemBufferPartition");
 
-    if (auto ParentBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto ParentBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         if (ParentBuffer->Size < (pRegion->origin + pRegion->size)) {
             return UR_RESULT_ERROR_INVALID_BUFFER_SIZE;
         }
         std::shared_ptr<MemBuffer> SubBuffer = std::make_shared<MemBuffer>(
             ParentBuffer, pRegion->origin, pRegion->size);
-        UR_CALL(getContext()->interceptor->insertMemBuffer(SubBuffer));
+        UR_CALL(getAsanInterceptor()->insertMemBuffer(SubBuffer));
         *phMem = reinterpret_cast<ur_mem_handle_t>(SubBuffer.get());
     } else {
         UR_CALL(pfnBufferPartition(hBuffer, flags, bufferCreateType, pRegion,
@@ -793,7 +794,7 @@ __urdlllocal ur_result_t UR_APICALL urMemGetNativeHandle(
 
     getContext()->logger.debug("==== urMemGetNativeHandle");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
         char *Handle = nullptr;
         UR_CALL(MemBuffer->getHandle(hDevice, Handle));
         *phNativeMem = ur_cast<ur_native_handle_t>(Handle);
@@ -832,7 +833,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferRead(
 
     getContext()->logger.debug("==== urEnqueueMemBufferRead");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         ur_device_handle_t Device = GetDevice(hQueue);
         char *pSrc = nullptr;
         UR_CALL(MemBuffer->getHandle(Device, pSrc));
@@ -878,7 +879,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWrite(
 
     getContext()->logger.debug("==== urEnqueueMemBufferWrite");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         ur_device_handle_t Device = GetDevice(hQueue);
         char *pDst = nullptr;
         UR_CALL(MemBuffer->getHandle(Device, pDst));
@@ -935,7 +936,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferReadRect(
 
     getContext()->logger.debug("==== urEnqueueMemBufferReadRect");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         char *SrcHandle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, SrcHandle));
@@ -999,7 +1000,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferWriteRect(
 
     getContext()->logger.debug("==== urEnqueueMemBufferWriteRect");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         char *DstHandle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, DstHandle));
@@ -1048,8 +1049,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopy(
 
     getContext()->logger.debug("==== urEnqueueMemBufferCopy");
 
-    auto SrcBuffer = getContext()->interceptor->getMemBuffer(hBufferSrc);
-    auto DstBuffer = getContext()->interceptor->getMemBuffer(hBufferDst);
+    auto SrcBuffer = getAsanInterceptor()->getMemBuffer(hBufferSrc);
+    auto DstBuffer = getAsanInterceptor()->getMemBuffer(hBufferDst);
 
     UR_ASSERT((SrcBuffer && DstBuffer) || (!SrcBuffer && !DstBuffer),
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1113,8 +1114,8 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 
     getContext()->logger.debug("==== urEnqueueMemBufferCopyRect");
 
-    auto SrcBuffer = getContext()->interceptor->getMemBuffer(hBufferSrc);
-    auto DstBuffer = getContext()->interceptor->getMemBuffer(hBufferDst);
+    auto SrcBuffer = getAsanInterceptor()->getMemBuffer(hBufferSrc);
+    auto DstBuffer = getAsanInterceptor()->getMemBuffer(hBufferDst);
 
     UR_ASSERT((SrcBuffer && DstBuffer) || (!SrcBuffer && !DstBuffer),
               UR_RESULT_ERROR_INVALID_MEM_OBJECT);
@@ -1169,7 +1170,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferFill(
 
     getContext()->logger.debug("==== urEnqueueMemBufferFill");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
         char *Handle = nullptr;
         ur_device_handle_t Device = GetDevice(hQueue);
         UR_CALL(MemBuffer->getHandle(Device, Handle));
@@ -1215,7 +1216,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
 
     getContext()->logger.debug("==== urEnqueueMemBufferMap");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hBuffer)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hBuffer)) {
 
         // Translate the host access mode info.
         MemBuffer::AccessMode AccessMode = MemBuffer::UNKNOWN;
@@ -1245,7 +1246,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemBufferMap(
             ur_usm_desc_t USMDesc{};
             USMDesc.align = MemBuffer->getAlignment();
             ur_usm_pool_handle_t Pool{};
-            UR_CALL(getContext()->interceptor->allocateMemory(
+            UR_CALL(getAsanInterceptor()->allocateMemory(
                 Context, nullptr, &USMDesc, Pool, size, AllocType::HOST_USM,
                 ppRetMap));
         }
@@ -1300,7 +1301,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
 
     getContext()->logger.debug("==== urEnqueueMemUnmap");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hMem)) {
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hMem)) {
         MemBuffer::Mapping Mapping{};
         {
             std::scoped_lock<ur_shared_mutex> Guard(MemBuffer->Mutex);
@@ -1323,8 +1324,7 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueMemUnmap(
             numEventsInWaitList, phEventWaitList, phEvent));
 
         if (!MemBuffer->HostPtr) {
-            UR_CALL(
-                getContext()->interceptor->releaseMemory(Context, pMappedPtr));
+            UR_CALL(getAsanInterceptor()->releaseMemory(Context, pMappedPtr));
         }
     } else {
         UR_CALL(pfnMemUnmap(hQueue, hMem, pMappedPtr, numEventsInWaitList,
@@ -1351,7 +1351,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelCreate(
     getContext()->logger.debug("==== urKernelCreate");
 
     UR_CALL(pfnCreate(hProgram, pKernelName, phKernel));
-    UR_CALL(getContext()->interceptor->insertKernel(*phKernel));
+    UR_CALL(getAsanInterceptor()->insertKernel(*phKernel));
 
     return UR_RESULT_SUCCESS;
 }
@@ -1371,7 +1371,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelRetain(
 
     UR_CALL(pfnRetain(hKernel));
 
-    auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+    auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
     UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     KernelInfo->RefCount++;
 
@@ -1392,10 +1392,10 @@ __urdlllocal ur_result_t urKernelRelease(
     getContext()->logger.debug("==== urKernelRelease");
     UR_CALL(pfnRelease(hKernel));
 
-    auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+    auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
     UR_ASSERT(KernelInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
     if (--KernelInfo->RefCount == 0) {
-        UR_CALL(getContext()->interceptor->eraseKernel(hKernel));
+        UR_CALL(getAsanInterceptor()->eraseKernel(hKernel));
     }
 
     return UR_RESULT_SUCCESS;
@@ -1422,9 +1422,9 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgValue(
 
     std::shared_ptr<MemBuffer> MemBuffer;
     if (argSize == sizeof(ur_mem_handle_t) &&
-        (MemBuffer = getContext()->interceptor->getMemBuffer(
+        (MemBuffer = getAsanInterceptor()->getMemBuffer(
              *ur_cast<const ur_mem_handle_t *>(pArgValue)))) {
-        auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1452,8 +1452,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgMemObj(
 
     getContext()->logger.debug("==== urKernelSetArgMemObj");
 
-    if (auto MemBuffer = getContext()->interceptor->getMemBuffer(hArgValue)) {
-        auto KernelInfo = getContext()->interceptor->getKernelInfo(hKernel);
+    if (auto MemBuffer = getAsanInterceptor()->getMemBuffer(hArgValue)) {
+        auto KernelInfo = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KernelInfo->Mutex);
         KernelInfo->BufferArgs[argIndex] = std::move(MemBuffer);
     } else {
@@ -1484,7 +1484,7 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgLocal(
         argSize);
 
     {
-        auto KI = getContext()->interceptor->getKernelInfo(hKernel);
+        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         // TODO: get local variable alignment
         auto argSizeWithRZ = GetSizeAndRedzoneSizeForLocal(
@@ -1520,8 +1520,8 @@ __urdlllocal ur_result_t UR_APICALL urKernelSetArgPointer(
         "==== urKernelSetArgPointer (argIndex={}, pArgValue={})", argIndex,
         pArgValue);
 
-    if (getContext()->interceptor->getOptions().DetectKernelArguments) {
-        auto KI = getContext()->interceptor->getKernelInfo(hKernel);
+    if (getAsanInterceptor()->getOptions().DetectKernelArguments) {
+        auto KI = getAsanInterceptor()->getKernelInfo(hKernel);
         std::scoped_lock<ur_shared_mutex> Guard(KI->Mutex);
         KI->PointerArgs[argIndex] = {pArgValue, GetCurrentBacktrace()};
     }
@@ -1558,7 +1558,7 @@ __urdlllocal ur_result_t UR_APICALL urGetGlobalProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnAdapterGet = ur_sanitizer_layer::urAdapterGet;
+    pDdiTable->pfnAdapterGet = ur_sanitizer_layer::asan::urAdapterGet;
 
     return result;
 }
@@ -1588,12 +1588,12 @@ __urdlllocal ur_result_t UR_APICALL urGetContextProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_sanitizer_layer::urContextCreate;
-    pDdiTable->pfnRetain = ur_sanitizer_layer::urContextRetain;
-    pDdiTable->pfnRelease = ur_sanitizer_layer::urContextRelease;
+    pDdiTable->pfnCreate = ur_sanitizer_layer::asan::urContextCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urContextRetain;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urContextRelease;
 
     pDdiTable->pfnCreateWithNativeHandle =
-        ur_sanitizer_layer::urContextCreateWithNativeHandle;
+        ur_sanitizer_layer::asan::urContextCreateWithNativeHandle;
 
     return result;
 }
@@ -1621,15 +1621,16 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramProcAddrTable(
         return UR_RESULT_ERROR_UNSUPPORTED_VERSION;
     }
 
-    pDdiTable->pfnCreateWithIL = ur_sanitizer_layer::urProgramCreateWithIL;
+    pDdiTable->pfnCreateWithIL =
+        ur_sanitizer_layer::asan::urProgramCreateWithIL;
     pDdiTable->pfnCreateWithBinary =
-        ur_sanitizer_layer::urProgramCreateWithBinary;
+        ur_sanitizer_layer::asan::urProgramCreateWithBinary;
     pDdiTable->pfnCreateWithNativeHandle =
-        ur_sanitizer_layer::urProgramCreateWithNativeHandle;
-    pDdiTable->pfnBuild = ur_sanitizer_layer::urProgramBuild;
-    pDdiTable->pfnLink = ur_sanitizer_layer::urProgramLink;
-    pDdiTable->pfnRetain = ur_sanitizer_layer::urProgramRetain;
-    pDdiTable->pfnRelease = ur_sanitizer_layer::urProgramRelease;
+        ur_sanitizer_layer::asan::urProgramCreateWithNativeHandle;
+    pDdiTable->pfnBuild = ur_sanitizer_layer::asan::urProgramBuild;
+    pDdiTable->pfnLink = ur_sanitizer_layer::asan::urProgramLink;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urProgramRetain;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urProgramRelease;
 
     return UR_RESULT_SUCCESS;
 }
@@ -1660,13 +1661,14 @@ __urdlllocal ur_result_t UR_APICALL urGetKernelProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnCreate = ur_sanitizer_layer::urKernelCreate;
-    pDdiTable->pfnRetain = ur_sanitizer_layer::urKernelRetain;
-    pDdiTable->pfnRelease = ur_sanitizer_layer::urKernelRelease;
-    pDdiTable->pfnSetArgValue = ur_sanitizer_layer::urKernelSetArgValue;
-    pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::urKernelSetArgMemObj;
-    pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::urKernelSetArgLocal;
-    pDdiTable->pfnSetArgPointer = ur_sanitizer_layer::urKernelSetArgPointer;
+    pDdiTable->pfnCreate = ur_sanitizer_layer::asan::urKernelCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urKernelRetain;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urKernelRelease;
+    pDdiTable->pfnSetArgValue = ur_sanitizer_layer::asan::urKernelSetArgValue;
+    pDdiTable->pfnSetArgMemObj = ur_sanitizer_layer::asan::urKernelSetArgMemObj;
+    pDdiTable->pfnSetArgLocal = ur_sanitizer_layer::asan::urKernelSetArgLocal;
+    pDdiTable->pfnSetArgPointer =
+        ur_sanitizer_layer::asan::urKernelSetArgPointer;
 
     return result;
 }
@@ -1696,12 +1698,14 @@ __urdlllocal ur_result_t UR_APICALL urGetMemProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnBufferCreate = ur_sanitizer_layer::urMemBufferCreate;
-    pDdiTable->pfnRetain = ur_sanitizer_layer::urMemRetain;
-    pDdiTable->pfnRelease = ur_sanitizer_layer::urMemRelease;
-    pDdiTable->pfnBufferPartition = ur_sanitizer_layer::urMemBufferPartition;
-    pDdiTable->pfnGetNativeHandle = ur_sanitizer_layer::urMemGetNativeHandle;
-    pDdiTable->pfnGetInfo = ur_sanitizer_layer::urMemGetInfo;
+    pDdiTable->pfnBufferCreate = ur_sanitizer_layer::asan::urMemBufferCreate;
+    pDdiTable->pfnRetain = ur_sanitizer_layer::asan::urMemRetain;
+    pDdiTable->pfnRelease = ur_sanitizer_layer::asan::urMemRelease;
+    pDdiTable->pfnBufferPartition =
+        ur_sanitizer_layer::asan::urMemBufferPartition;
+    pDdiTable->pfnGetNativeHandle =
+        ur_sanitizer_layer::asan::urMemGetNativeHandle;
+    pDdiTable->pfnGetInfo = ur_sanitizer_layer::asan::urMemGetInfo;
 
     return result;
 }
@@ -1730,8 +1734,8 @@ __urdlllocal ur_result_t UR_APICALL urGetProgramExpProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnBuildExp = ur_sanitizer_layer::urProgramBuildExp;
-    pDdiTable->pfnLinkExp = ur_sanitizer_layer::urProgramLinkExp;
+    pDdiTable->pfnBuildExp = ur_sanitizer_layer::asan::urProgramBuildExp;
+    pDdiTable->pfnLinkExp = ur_sanitizer_layer::asan::urProgramLinkExp;
 
     return result;
 }
@@ -1761,19 +1765,25 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnMemBufferRead = ur_sanitizer_layer::urEnqueueMemBufferRead;
-    pDdiTable->pfnMemBufferWrite = ur_sanitizer_layer::urEnqueueMemBufferWrite;
+    pDdiTable->pfnMemBufferRead =
+        ur_sanitizer_layer::asan::urEnqueueMemBufferRead;
+    pDdiTable->pfnMemBufferWrite =
+        ur_sanitizer_layer::asan::urEnqueueMemBufferWrite;
     pDdiTable->pfnMemBufferReadRect =
-        ur_sanitizer_layer::urEnqueueMemBufferReadRect;
+        ur_sanitizer_layer::asan::urEnqueueMemBufferReadRect;
     pDdiTable->pfnMemBufferWriteRect =
-        ur_sanitizer_layer::urEnqueueMemBufferWriteRect;
-    pDdiTable->pfnMemBufferCopy = ur_sanitizer_layer::urEnqueueMemBufferCopy;
+        ur_sanitizer_layer::asan::urEnqueueMemBufferWriteRect;
+    pDdiTable->pfnMemBufferCopy =
+        ur_sanitizer_layer::asan::urEnqueueMemBufferCopy;
     pDdiTable->pfnMemBufferCopyRect =
-        ur_sanitizer_layer::urEnqueueMemBufferCopyRect;
-    pDdiTable->pfnMemBufferFill = ur_sanitizer_layer::urEnqueueMemBufferFill;
-    pDdiTable->pfnMemBufferMap = ur_sanitizer_layer::urEnqueueMemBufferMap;
-    pDdiTable->pfnMemUnmap = ur_sanitizer_layer::urEnqueueMemUnmap;
-    pDdiTable->pfnKernelLaunch = ur_sanitizer_layer::urEnqueueKernelLaunch;
+        ur_sanitizer_layer::asan::urEnqueueMemBufferCopyRect;
+    pDdiTable->pfnMemBufferFill =
+        ur_sanitizer_layer::asan::urEnqueueMemBufferFill;
+    pDdiTable->pfnMemBufferMap =
+        ur_sanitizer_layer::asan::urEnqueueMemBufferMap;
+    pDdiTable->pfnMemUnmap = ur_sanitizer_layer::asan::urEnqueueMemUnmap;
+    pDdiTable->pfnKernelLaunch =
+        ur_sanitizer_layer::asan::urEnqueueKernelLaunch;
 
     return result;
 }
@@ -1803,13 +1813,15 @@ __urdlllocal ur_result_t UR_APICALL urGetUSMProcAddrTable(
 
     ur_result_t result = UR_RESULT_SUCCESS;
 
-    pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::urUSMDeviceAlloc;
-    pDdiTable->pfnHostAlloc = ur_sanitizer_layer::urUSMHostAlloc;
-    pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::urUSMSharedAlloc;
-    pDdiTable->pfnFree = ur_sanitizer_layer::urUSMFree;
+    pDdiTable->pfnDeviceAlloc = ur_sanitizer_layer::asan::urUSMDeviceAlloc;
+    pDdiTable->pfnHostAlloc = ur_sanitizer_layer::asan::urUSMHostAlloc;
+    pDdiTable->pfnSharedAlloc = ur_sanitizer_layer::asan::urUSMSharedAlloc;
+    pDdiTable->pfnFree = ur_sanitizer_layer::asan::urUSMFree;
 
     return result;
 }
+
+} // namespace asan
 
 ur_result_t context_t::init(ur_dditable_t *dditable,
                             const std::set<std::string> &enabledLayerNames,
@@ -1818,7 +1830,7 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
 
     if (enabledLayerNames.count("UR_LAYER_ASAN")) {
         enabledType = SanitizerType::AddressSanitizer;
-        interceptor = std::make_unique<SanitizerInterceptor>();
+        initAsanInterceptor();
     } else if (enabledLayerNames.count("UR_LAYER_MSAN")) {
         enabledType = SanitizerType::MemorySanitizer;
     } else if (enabledLayerNames.count("UR_LAYER_TSAN")) {
@@ -1830,61 +1842,50 @@ ur_result_t context_t::init(ur_dditable_t *dditable,
         return result;
     }
 
-    if (enabledType == SanitizerType::AddressSanitizer) {
-        if (!(dditable->VirtualMem.pfnReserve && dditable->VirtualMem.pfnMap &&
-              dditable->VirtualMem.pfnGranularityGetInfo)) {
-            die("Some VirtualMem APIs are needed to enable UR_LAYER_ASAN");
-        }
-
-        if (!dditable->PhysicalMem.pfnCreate) {
-            die("Some PhysicalMem APIs are needed to enable UR_LAYER_ASAN");
-        }
-    }
-
     urDdiTable = *dditable;
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetGlobalProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetGlobalProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Global);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetContextProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetContextProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Context);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetKernelProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetKernelProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetProgramProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetProgramProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Program);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetKernelProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetKernelProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Kernel);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetMemProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetMemProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Mem);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetProgramExpProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetProgramExpProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->ProgramExp);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetEnqueueProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetEnqueueProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->Enqueue);
     }
 
     if (UR_RESULT_SUCCESS == result) {
-        result = ur_sanitizer_layer::urGetUSMProcAddrTable(
+        result = ur_sanitizer_layer::asan::urGetUSMProcAddrTable(
             UR_API_VERSION_CURRENT, &dditable->USM);
     }
 

@@ -12,15 +12,18 @@
 
 #pragma once
 
-#include "common.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
 
 #include <memory>
 
 namespace ur_sanitizer_layer {
 
-struct DeviceSanitizerReport;
-struct AllocInfo;
+struct AsanErrorReport;
 struct StackTrace;
+
+namespace asan {
+
+struct AllocInfo;
 struct ValidateUSMResult;
 
 void ReportBadFree(uptr Addr, const StackTrace &stack,
@@ -36,16 +39,17 @@ void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI);
 
 // This type of error is usually unexpected mistake and doesn't have enough
 // debug information
-void ReportFatalError(const DeviceSanitizerReport &Report);
+void ReportFatalError(const AsanErrorReport &Report);
 
-void ReportGenericError(const DeviceSanitizerReport &Report,
+void ReportGenericError(const AsanErrorReport &Report,
                         ur_kernel_handle_t Kernel);
 
-void ReportUseAfterFree(const DeviceSanitizerReport &Report,
+void ReportUseAfterFree(const AsanErrorReport &Report,
                         ur_kernel_handle_t Kernel, ur_context_handle_t Context);
 
 void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
                                  uptr Addr, const ValidateUSMResult &VR,
                                  StackTrace Stack);
 
+} // namespace asan
 } // namespace ur_sanitizer_layer

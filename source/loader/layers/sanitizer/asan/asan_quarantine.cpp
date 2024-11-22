@@ -13,6 +13,7 @@
 #include "asan_quarantine.hpp"
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 std::vector<AllocationIterator> Quarantine::put(ur_device_handle_t Device,
                                                 AllocationIterator &It) {
@@ -33,4 +34,5 @@ std::vector<AllocationIterator> Quarantine::put(ur_device_handle_t Device,
     return DequeueList;
 }
 
+} // namespace asan
 } // namespace ur_sanitizer_layer

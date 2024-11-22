@@ -6,13 +6,13 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file stacktrace.hpp
+ * @file sanitizer_stacktrace.hpp
  *
  */
 
 #pragma once
 
-#include "common.hpp"
+#include "sanitizer_common.hpp"
 
 #include <vector>
 

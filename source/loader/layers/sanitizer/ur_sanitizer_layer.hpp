@@ -1,6 +1,6 @@
 /*
  *
- * Copyright (C) 2023 Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
@@ -13,14 +13,11 @@
 #pragma once
 
 #include "logger/ur_logger.hpp"
-#include "ur/ur.hpp"
 #include "ur_proxy_layer.hpp"
 
 #define SANITIZER_COMP_NAME "sanitizer layer"
 
 namespace ur_sanitizer_layer {
-
-class SanitizerInterceptor;
 
 enum class SanitizerType {
     None,
@@ -35,7 +32,6 @@ class __urdlllocal context_t : public proxy_layer_context_t,
   public:
     ur_dditable_t urDdiTable = {};
     logger::Logger logger;
-    std::unique_ptr<SanitizerInterceptor> interceptor;
     SanitizerType enabledType = SanitizerType::None;
 
     context_t();
@@ -52,4 +48,5 @@ class __urdlllocal context_t : public proxy_layer_context_t,
 };
 
 context_t *getContext();
+
 } // namespace ur_sanitizer_layer

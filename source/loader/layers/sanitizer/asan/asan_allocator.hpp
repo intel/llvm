@@ -12,22 +12,12 @@
 
 #pragma once
 
-#include "common.hpp"
-#include "stacktrace.hpp"
-
-#include <map>
-#include <memory>
+#include "sanitizer_common/sanitizer_allocator.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
+#include "sanitizer_common/sanitizer_stacktrace.hpp"
 
 namespace ur_sanitizer_layer {
-
-enum class AllocType : uint32_t {
-    UNKNOWN,
-    DEVICE_USM,
-    SHARED_USM,
-    HOST_USM,
-    MEM_BUFFER,
-    DEVICE_GLOBAL
-};
+namespace asan {
 
 struct AllocInfo {
     uptr AllocBegin = 0;
@@ -51,21 +41,5 @@ struct AllocInfo {
 using AllocationMap = std::map<uptr, std::shared_ptr<AllocInfo>>;
 using AllocationIterator = AllocationMap::iterator;
 
-inline const char *ToString(AllocType Type) {
-    switch (Type) {
-    case AllocType::DEVICE_USM:
-        return "Device USM";
-    case AllocType::HOST_USM:
-        return "Host USM";
-    case AllocType::SHARED_USM:
-        return "Shared USM";
-    case AllocType::MEM_BUFFER:
-        return "Memory Buffer";
-    case AllocType::DEVICE_GLOBAL:
-        return "Device Global";
-    default:
-        return "Unknown Type";
-    }
-}
-
+} // namespace asan
 } // namespace ur_sanitizer_layer

@@ -17,6 +17,7 @@
 #include <atomic>
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 struct AsanStats {
     void UpdateUSMMalloced(uptr MallocedSize, uptr RedzoneSize);
@@ -66,7 +67,7 @@ void AsanStats::UpdateUSMFreed(uptr FreedSize) {
 void AsanStats::UpdateUSMRealFreed(uptr FreedSize, uptr RedzoneSize) {
     UsmMalloced -= FreedSize;
     UsmMallocedRedzones -= RedzoneSize;
-    if (getContext()->interceptor->getOptions().MaxQuarantineSizeMB) {
+    if (getAsanInterceptor()->getOptions().MaxQuarantineSizeMB) {
         UsmFreed -= FreedSize;
     }
     getContext()->logger.debug(
@@ -136,11 +137,12 @@ void AsanStatsWrapper::Print(ur_context_handle_t Context) {
 }
 
 AsanStatsWrapper::AsanStatsWrapper() : Stat(nullptr) {
-    if (getContext()->interceptor->getOptions().PrintStats) {
+    if (getAsanInterceptor()->getOptions().PrintStats) {
         Stat = new AsanStats;
     }
 }
 
 AsanStatsWrapper::~AsanStatsWrapper() { delete Stat; }
 
+} // namespace asan
 } // namespace ur_sanitizer_layer

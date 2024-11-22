@@ -14,6 +14,7 @@
 #include "asan_allocator.hpp"
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 struct ValidateUSMResult {
     enum ErrorType {
@@ -47,4 +48,5 @@ struct ValidateUSMResult {
 ValidateUSMResult ValidateUSMPointer(ur_context_handle_t Context,
                                      ur_device_handle_t Device, uptr Ptr);
 
+} // namespace asan
 } // namespace ur_sanitizer_layer
