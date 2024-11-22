@@ -279,6 +279,12 @@ template <> ze_result_t zeHostSynchronize(ze_command_queue_handle_t Handle);
 ur_result_t CleanupCompletedEvent(ur_event_handle_t Event, bool QueueLocked,
                                   bool SetEventCompleted);
 
+ur_result_t EnqueueEventsWaitWithBarrier(ur_queue_handle_t Queue,
+                                         uint32_t NumEventsInWaitList,
+                                         const ur_event_handle_t *EventList,
+                                         ur_event_handle_t *OutEvent,
+                                         bool InterruptBasedEventsEnabled);
+
 // Get value of device scope events env var setting or default setting
 static const EventsScope DeviceEventsSetting = [] {
   char *UrRet = std::getenv("UR_L0_DEVICE_SCOPE_EVENTS");
