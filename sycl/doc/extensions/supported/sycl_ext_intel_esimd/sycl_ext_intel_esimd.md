@@ -1022,7 +1022,7 @@ The new aspect has the following behavior when queried via `device::has()`:
 ## Device Information Descriptors
 | Device Descriptors | Return Type | Description |
 | ------------------ | ----------- | ----------- |
-| `ext::intel::esimd::info::device::has_2d_block_io_support` | bool | Returns the boolean indicating whether 2D load/store/prefetch instructions are supported by the device. |
+| `ext::intel::esimd::info::device::has_2d_block_io_support` | bool | Returns a boolean indicating whether 2D load/store/prefetch instructions are supported by the device. |
 
 ## Examples
 ### Vector addition (USM)
