@@ -1,4 +1,7 @@
-#include <sycl/sycl.hpp>
+// RUN: %{build} -o %t.out
+// RUN: %{run} %t.out
+#include <sycl/detail/core.hpp>
+#include <sycl/usm.hpp>
 
 namespace syclext = sycl::ext::oneapi::experimental;
 
