@@ -1,4 +1,4 @@
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations -Xclang -verify %s
 //
 // This test is intended to check that we can successfully compile code that
 // uses new properties from the virtual functions extension.

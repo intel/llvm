@@ -1,5 +1,5 @@
-// RUN: %clangxx -fsycl-device-only -S -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
-// RUN: %clangxx -fsycl -fsyntax-only -Xclang -verify %s
+// RUN: %clangxx -fsycl-device-only -S -Wno-deprecated-declarations -Xclang -emit-llvm -Xclang -disable-llvm-passes %s -o - | FileCheck %s --check-prefix CHECK-IR
+// RUN: %clangxx -fsycl -fsyntax-only -Wno-deprecated-declarations -Xclang -verify %s
 // expected-no-diagnostics
 
 #include <sycl/sycl.hpp>
