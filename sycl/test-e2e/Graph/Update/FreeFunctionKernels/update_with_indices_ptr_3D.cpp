@@ -5,8 +5,8 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
 
 // Tests updating a 3D ND-Range graph kernel node using index-based explicit
 // update
@@ -79,6 +79,8 @@ int main() {
     assert(HostDataA[i] == Ref);
     assert(HostDataB[i] == Ref);
   }
+  sycl::free(PtrA, Queue);
+  sycl::free(PtrB, Queue);
 #endif
   return 0;
 }

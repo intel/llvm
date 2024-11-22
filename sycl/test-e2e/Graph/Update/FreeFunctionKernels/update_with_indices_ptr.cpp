@@ -5,8 +5,8 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 //
-// The name mangling for free function kernels currently does not work with PTX.
-// UNSUPPORTED: cuda
+// XFAIL: cuda
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/16004
 
 // Tests updating a graph node using index-based explicit update
 
@@ -17,18 +17,16 @@ int main() {
   queue Queue{};
   context ctxt{Queue.get_context()};
 
-  const size_t N = 1024;
-
   exp_ext::command_graph Graph{ctxt, Queue.get_device()};
 
-  int *PtrA = malloc_device<int>(N, Queue);
-  int *PtrB = malloc_device<int>(N, Queue);
+  int *PtrA = malloc_device<int>(Size, Queue);
+  int *PtrB = malloc_device<int>(Size, Queue);
 
-  std::vector<int> HostDataA(N);
-  std::vector<int> HostDataB(N);
+  std::vector<int> HostDataA(Size);
+  std::vector<int> HostDataB(Size);
 
-  Queue.memset(PtrA, 0, N * sizeof(int)).wait();
-  Queue.memset(PtrB, 0, N * sizeof(int)).wait();
+  Queue.memset(PtrA, 0, Size * sizeof(int)).wait();
+  Queue.memset(PtrB, 0, Size * sizeof(int)).wait();
 
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
@@ -38,7 +36,6 @@ int main() {
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   auto KernelNode = Graph.add([&](handler &cgh) {
     cgh.set_arg(0, InputParam);
-    cgh.set_arg(0, N);
     cgh.single_task(Kernel);
   });
 
@@ -47,9 +44,9 @@ int main() {
   // PtrA should be filled with values
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N).wait();
-  Queue.copy(PtrB, HostDataB.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(PtrA, HostDataA.data(), Size).wait();
+  Queue.copy(PtrB, HostDataB.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == 0);
   }
@@ -59,12 +56,14 @@ int main() {
   ExecGraph.update(KernelNode);
   Queue.ext_oneapi_graph(ExecGraph).wait();
 
-  Queue.copy(PtrA, HostDataA.data(), N).wait();
-  Queue.copy(PtrB, HostDataB.data(), N).wait();
-  for (size_t i = 0; i < N; i++) {
+  Queue.copy(PtrA, HostDataA.data(), Size).wait();
+  Queue.copy(PtrB, HostDataB.data(), Size).wait();
+  for (size_t i = 0; i < Size; i++) {
     assert(HostDataA[i] == i);
     assert(HostDataB[i] == i);
   }
+  sycl::free(PtrA, Queue);
+  sycl::free(PtrB, Queue);
 #endif
   return 0;
 }
