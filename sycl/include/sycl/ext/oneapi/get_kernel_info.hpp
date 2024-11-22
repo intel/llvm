@@ -19,8 +19,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-template<bundle_state State>
-class kernel_bundle;
+template <bundle_state State> class kernel_bundle;
 
 template <typename KernelName, bundle_state State>
 kernel_bundle<State> get_kernel_bundle(const context &,

@@ -31,8 +31,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-template<bundle_state State>
-class kernel_bundle;
+template <bundle_state State> class kernel_bundle;
 class queue;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;

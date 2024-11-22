@@ -55,8 +55,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-template<bundle_state State>
-class kernel_bundle;
+template <bundle_state State> class kernel_bundle;
 class property_list;
 
 namespace detail {

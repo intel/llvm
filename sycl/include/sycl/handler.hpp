@@ -151,8 +151,7 @@ inline namespace _V1 {
 
 // Forward declaration
 
-template<bundle_state State>
-class kernel_bundle;
+template <bundle_state State> class kernel_bundle;
 class handler;
 template <typename T, int Dimensions, typename AllocatorT, typename Enable>
 class buffer;
