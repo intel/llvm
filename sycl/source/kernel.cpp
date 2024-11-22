@@ -135,12 +135,6 @@ kernel::ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
                                           DynamicLocalMemorySize);
 }
 
-template __SYCL_EXPORT typename ext::oneapi::experimental::info::
-    kernel_queue_specific::max_num_work_group_sync::return_type
-    kernel::ext_oneapi_get_info<
-        ext::oneapi::experimental::info::kernel_queue_specific::
-            max_num_work_group_sync>(queue Queue) const;
-
 #define __SYCL_PARAM_TRAITS_SPEC(Namespace, DescType, Desc, ReturnT)           \
   template __SYCL_EXPORT ReturnT                                               \
   kernel::ext_oneapi_get_info<Namespace::info::DescType::Desc>(                \

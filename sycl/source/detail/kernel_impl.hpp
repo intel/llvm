@@ -376,21 +376,6 @@ inline typename syclex::info::kernel_queue_specific::max_num_work_groups::
   return queryMaxNumWorkGroups(Queue, WorkGroupSize, DynamicLocalMemorySize);
 }
 
-template <>
-inline typename syclex::info::kernel_queue_specific::max_num_work_group_sync::
-    return_type
-    kernel_impl::ext_oneapi_get_info<
-        syclex::info::kernel_queue_specific::max_num_work_group_sync>(
-        queue Queue) const {
-  auto Device = Queue.get_device();
-  const auto MaxWorkGroupSize =
-      get_info<info::kernel_device_specific::work_group_size>(Device);
-  const sycl::range<3> WorkGroupSize{MaxWorkGroupSize, 1, 1};
-  return ext_oneapi_get_info<
-      syclex::info::kernel_queue_specific::max_num_work_groups>(
-      Queue, WorkGroupSize, /* DynamicLocalMemorySize */ 0);
-}
-
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

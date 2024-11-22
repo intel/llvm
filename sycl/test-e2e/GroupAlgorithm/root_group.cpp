@@ -27,13 +27,14 @@ void testQueriesAndProperties() {
   const auto bundle =
       sycl::get_kernel_bundle<sycl::bundle_state::executable>(q.get_context());
   const auto kernel = bundle.get_kernel<class QueryKernel>();
+  const auto local_range = sycl::range<1>(1);
   const auto maxWGs = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-          max_num_work_group_sync>(q);
-  const auto wgRange = sycl::range{WorkGroupSize, 1, 1};
+          max_num_work_groups>(q, local_range, 0);
+  const auto wgRange = sycl::range<3>{WorkGroupSize, 1, 1};
   const auto maxWGsWithLimits = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-          max_num_work_group_sync>(q, wgRange, wgRange.size() * sizeof(int));
+          max_num_work_groups>(q, wgRange, wgRange.size() * sizeof(int));
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   q.single_task<class QueryKernel>(props, []() {});
@@ -54,7 +55,7 @@ void testRootGroup() {
   const auto kernel = bundle.get_kernel<class RootGroupKernel>();
   const auto maxWGs = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-          max_num_work_group_sync>(q);
+          max_num_work_groups>(q, WorkGroupSize, 0);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   sycl::buffer<int> dataBuf{sycl::range{maxWGs * WorkGroupSize}};
@@ -96,7 +97,7 @@ void testRootGroupFunctions() {
   const auto kernel = bundle.get_kernel<class RootGroupFunctionsKernel>();
   const auto maxWGs = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
-          max_num_work_group_sync>(q);
+          max_num_work_groups>(q, WorkGroupSize, 0);
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
 
