@@ -1146,17 +1146,17 @@ UR_APIEXPORT ur_result_t UR_APICALL urDevicePartition(
     switch (pProperties->pProperties->type) {
     case UR_DEVICE_PARTITION_EQUALLY: {
       CLProperty = static_cast<cl_device_partition_property>(
-          pProperties->pProperties->value.equally);
+          pProperties->pProperties[i].value.equally);
       break;
     }
     case UR_DEVICE_PARTITION_BY_COUNTS: {
       CLProperty = static_cast<cl_device_partition_property>(
-          pProperties->pProperties->value.count);
+          pProperties->pProperties[i].value.count);
       break;
     }
     case UR_DEVICE_PARTITION_BY_AFFINITY_DOMAIN: {
       CLProperty = static_cast<cl_device_partition_property>(
-          pProperties->pProperties->value.affinity_domain);
+          pProperties->pProperties[i].value.affinity_domain);
       break;
     }
     default: {
