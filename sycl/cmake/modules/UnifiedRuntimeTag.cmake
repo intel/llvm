@@ -1,7 +1,7 @@
-# commit b0f9293d9b39ce0f8019a02198119a8b6fe0b05f
-# Merge: b5294ee0 1f687880
+# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
+# Merge: b0f9293d b693389e
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 22 11:50:36 2024 +0000
-#     Merge pull request #2326 from martygrant/martin/fixDevicePartitionOpenCL
-#     Index into property array in urDevicePartition for OpenCL
-set(UNIFIED_RUNTIME_TAG b0f9293d9b39ce0f8019a02198119a8b6fe0b05f)
+# Date:   Fri Nov 22 15:27:05 2024 +0000
+#     Merge pull request #2370 from againull/multi_device_sanitizer
+#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
+set(UNIFIED_RUNTIME_TAG 2f479e01f62ed96a9466d19d9df1aabeda77b335)
