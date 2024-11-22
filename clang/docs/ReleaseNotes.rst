@@ -148,6 +148,17 @@ C++ Specific Potentially Breaking Changes
     // Now diagnoses with an error.
     void f(int& i [[clang::lifetimebound]]);
 
+- Clang now rejects all field accesses on null pointers in constant expressions. The following code
+  used to work but will now be rejected:
+
+  .. code-block:: c++
+
+    struct S { int a; int b; };
+    constexpr const int *p = &((S*)nullptr)->b;
+
+  Previously, this code was erroneously accepted.
+
+
 ABI Changes in This Version
 ---------------------------
 
@@ -566,6 +577,11 @@ Improvements to Clang's diagnostics
   as unreachable (#GH63009).
 
 - Clang now omits shadowing warnings for parameter names in explicit object member functions (#GH95707).
+
+- Improved error recovery for function call arguments with trailing commas (#GH100921).
+
+- For an rvalue reference bound to a temporary struct with an integer member, Clang will detect constant integer overflow
+  in the initializer for the integer member (#GH46755).
 
 Improvements to Clang's time-trace
 ----------------------------------
