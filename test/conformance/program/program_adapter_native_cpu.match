@@ -41,6 +41,7 @@
 {{OPT}}urProgramGetGlobalVariablePointerTest.InvalidVariableName/*
 {{OPT}}urProgramGetGlobalVariablePointerTest.InvalidNullPointerVariableName/*
 {{OPT}}urProgramGetGlobalVariablePointerTest.InvalidNullPointerVariablePointer/*
+{{OPT}}urProgramGetGlobalVariablePointerTest.InvalidProgramExecutable/*
 {{OPT}}urProgramGetInfoTest.Success/*
 {{OPT}}urProgramGetInfoTest.InvalidNullHandleProgram/*
 {{OPT}}urProgramGetInfoTest.InvalidEnumeration/*
