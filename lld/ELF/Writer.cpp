@@ -202,8 +202,8 @@ void elf::addReservedSymbols(Ctx &ctx) {
 
   if (Symbol *s = ctx.symtab->find(gotSymName)) {
     if (s->isDefined()) {
-      error(toString(s->file) + " cannot redefine linker defined symbol '" +
-            gotSymName + "'");
+      ErrAlways(ctx) << s->file << " cannot redefine linker defined symbol '"
+                     << gotSymName << "'";
       return;
     }
 
@@ -374,8 +374,8 @@ template <class ELFT> void Writer<ELFT>::run() {
       return;
 
     if (auto e = buffer->commit())
-      fatal("failed to write output '" + buffer->getPath() +
-            "': " + toString(std::move(e)));
+      Err(ctx) << "failed to write output '" << buffer->getPath()
+               << "': " << std::move(e);
 
     if (!ctx.arg.cmseOutputLib.empty())
       writeARMCmseImportLib<ELFT>(ctx);
@@ -1121,7 +1121,8 @@ static DenseMap<const InputSectionBase *, int> buildSectionOrder(Ctx &ctx) {
   if (ctx.arg.warnSymbolOrdering)
     for (auto orderEntry : symbolOrder)
       if (!orderEntry.second.present)
-        warn("symbol ordering file: no such symbol: " + orderEntry.first.val());
+        Warn(ctx) << "symbol ordering file: no such symbol: "
+                  << orderEntry.first.val();
 
   return sectionOrder;
 }
@@ -1413,8 +1414,8 @@ template <class ELFT> void Writer<ELFT>::resolveShfLinkOrder() {
         if (isec->flags & SHF_LINK_ORDER) {
           InputSection *link = isec->getLinkOrderDep();
           if (link && !link->getParent())
-            error(toString(isec) + ": sh_link points to discarded section " +
-                  toString(link));
+            ErrAlways(ctx) << isec << ": sh_link points to discarded section "
+                           << link;
           hasLinkOrder = true;
         }
         scriptSections.push_back(&isec);
@@ -1475,8 +1476,8 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     // With Thunk Size much smaller than branch range we expect to
     // converge quickly; if we get to 30 something has gone wrong.
     if (changed && pass >= 30) {
-      error(ctx.target->needsThunks ? "thunk creation not converged"
-                                    : "relaxation not converged");
+      Err(ctx) << (ctx.target->needsThunks ? "thunk creation not converged"
+                                           : "relaxation not converged");
       break;
     }
 
@@ -1563,9 +1564,10 @@ template <class ELFT> void Writer<ELFT>::finalizeAddressDependentContent() {
     if (auto *osd = dyn_cast<OutputDesc>(cmd)) {
       OutputSection *osec = &osd->osec;
       if (osec->addr % osec->addralign != 0)
-        warn("address (0x" + Twine::utohexstr(osec->addr) + ") of section " +
-             osec->name + " is not a multiple of alignment (" +
-             Twine(osec->addralign) + ")");
+        Warn(ctx) << "address (0x" << Twine::utohexstr(osec->addr)
+                  << ") of section " << osec->name
+                  << " is not a multiple of alignment ("
+                  << Twine(osec->addralign) << ")";
     }
 
   // Sizes are no longer allowed to grow, so all allowable spills have been
@@ -2104,9 +2106,9 @@ template <class ELFT> void Writer<ELFT>::checkExecuteOnly() {
     if (osec->flags & SHF_EXECINSTR)
       for (InputSection *isec : getInputSections(*osec, storage))
         if (!(isec->flags & SHF_EXECINSTR))
-          error("cannot place " + toString(isec) + " into " +
-                toString(osec->name) +
-                ": --execute-only does not support intermingling data and code");
+          ErrAlways(ctx) << "cannot place " << isec << " into " << osec->name
+                         << ": --execute-only does not support intermingling "
+                            "data and code";
 }
 
 // The linker is expected to define SECNAME_start and SECNAME_end
@@ -2236,8 +2238,8 @@ SmallVector<PhdrEntry *, 0> Writer<ELFT>::createPhdrs(Partition &part) {
       if (!relroEnd)
         relRo->add(sec);
       else
-        error("section: " + sec->name + " is not contiguous with other relro" +
-              " sections");
+        ErrAlways(ctx) << "section: " << sec->name
+                       << " is not contiguous with other relro" << " sections";
     } else if (inRelroPhdr) {
       inRelroPhdr = false;
       relroEnd = sec;
@@ -2562,9 +2564,10 @@ template <class ELFT> void Writer<ELFT>::assignFileOffsets() {
     if (sec->type == SHT_NOBITS)
       continue;
     if ((sec->offset > fileSize) || (sec->offset + sec->size > fileSize))
-      error("unable to place section " + sec->name + " at file offset " +
-            rangeToString(sec->offset, sec->size) +
-            "; check your linker script for overflows");
+      ErrAlways(ctx) << "unable to place section " << sec->name
+                     << " at file offset "
+                     << rangeToString(sec->offset, sec->size)
+                     << "; check your linker script for overflows";
   }
 }
 
@@ -2721,8 +2724,8 @@ static uint64_t getEntryAddr(Ctx &ctx) {
 
   // Case 5
   if (ctx.arg.warnMissingEntry)
-    warn("cannot find entry symbol " + ctx.arg.entry +
-         "; not setting start address");
+    Warn(ctx) << "cannot find entry symbol " << ctx.arg.entry
+              << "; not setting start address";
   return 0;
 }
 
@@ -2785,7 +2788,7 @@ template <class ELFT> void Writer<ELFT>::openFile() {
       << "section sizes:\n";
     for (OutputSection *os : ctx.outputSections)
       s << os->name << ' ' << os->size << "\n";
-    error(msg);
+    ErrAlways(ctx) << msg;
     return;
   }
 
@@ -2799,8 +2802,8 @@ template <class ELFT> void Writer<ELFT>::openFile() {
       FileOutputBuffer::create(ctx.arg.outputFile, fileSize, flags);
 
   if (!bufferOrErr) {
-    error("failed to open " + ctx.arg.outputFile + ": " +
-          llvm::toString(bufferOrErr.takeError()));
+    ErrAlways(ctx) << "failed to open " << ctx.arg.outputFile << ": "
+                   << llvm::toString(bufferOrErr.takeError());
     return;
   }
   buffer = std::move(*bufferOrErr);
@@ -2940,7 +2943,7 @@ template <class ELFT> void Writer<ELFT>::writeBuildId() {
     break;
   case BuildIdKind::Uuid:
     if (auto ec = llvm::getRandomBytes(buildId.get(), hashSize))
-      error("entropy source failure: " + ec.message());
+      ErrAlways(ctx) << "entropy source failure: " << ec.message();
     break;
   default:
     llvm_unreachable("unknown BuildIdKind");

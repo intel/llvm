@@ -125,15 +125,17 @@ MipsAbiFlagsSection<ELFT>::create(Ctx &ctx) {
     // .MIPS.abiflags instead of merging. To allow for this case (or potential
     // zero padding) we ignore everything after the first Elf_Mips_ABIFlags
     if (size < sizeof(Elf_Mips_ABIFlags)) {
-      error(filename + ": invalid size of .MIPS.abiflags section: got " +
-            Twine(size) + " instead of " + Twine(sizeof(Elf_Mips_ABIFlags)));
+      ErrAlways(ctx) << filename
+                     << ": invalid size of .MIPS.abiflags section: got "
+                     << Twine(size) << " instead of "
+                     << Twine(sizeof(Elf_Mips_ABIFlags));
       return nullptr;
     }
     auto *s =
         reinterpret_cast<const Elf_Mips_ABIFlags *>(sec->content().data());
     if (s->version != 0) {
-      error(filename + ": unexpected .MIPS.abiflags version " +
-            Twine(s->version));
+      ErrAlways(ctx) << filename << ": unexpected .MIPS.abiflags version "
+                     << Twine(s->version);
       return nullptr;
     }
 
@@ -198,7 +200,7 @@ MipsOptionsSection<ELFT>::create(Ctx &ctx) {
 
     while (!d.empty()) {
       if (d.size() < sizeof(Elf_Mips_Options)) {
-        error(filename + ": invalid size of .MIPS.options section");
+        ErrAlways(ctx) << filename << ": invalid size of .MIPS.options section";
         break;
       }
 
@@ -210,7 +212,7 @@ MipsOptionsSection<ELFT>::create(Ctx &ctx) {
       }
 
       if (!opt->size)
-        fatal(filename + ": zero option descriptor size");
+        Fatal(ctx) << filename << ": zero option descriptor size";
       d = d.slice(opt->size);
     }
   };
@@ -252,7 +254,7 @@ MipsReginfoSection<ELFT>::create(Ctx &ctx) {
     sec->markDead();
 
     if (sec->content().size() != sizeof(Elf_Mips_RegInfo)) {
-      error(toString(sec->file) + ": invalid size of .reginfo section");
+      ErrAlways(ctx) << sec->file << ": invalid size of .reginfo section";
       return nullptr;
     }
 
@@ -449,7 +451,7 @@ void EhFrameSection::addRecords(EhInputSection *sec, ArrayRef<RelTy> rels) {
     uint32_t id = endian::read32<ELFT::Endianness>(fde.data().data() + 4);
     CieRecord *rec = offsetToCie[fde.inputOff + 4 - id];
     if (!rec)
-      fatal(toString(sec) + ": invalid CIE reference");
+      Fatal(ctx) << sec << ": invalid CIE reference";
 
     if (!isFdeLive<ELFT>(fde, rels))
       continue;
@@ -609,7 +611,8 @@ static uint64_t readFdeAddr(Ctx &ctx, uint8_t *buf, int size) {
   case DW_EH_PE_absptr:
     return readUint(ctx, buf);
   }
-  fatal("unknown FDE size encoding");
+  Err(ctx) << "unknown FDE size encoding";
+  return 0;
 }
 
 // Returns the VA to which a given FDE (on a mmap'ed buffer) is applied to.
@@ -625,7 +628,8 @@ uint64_t EhFrameSection::getFdePc(uint8_t *buf, size_t fdeOff,
     return ctx.arg.is64 ? addr : uint32_t(addr);
   if ((enc & 0x70) == DW_EH_PE_pcrel)
     return addr + getParent()->addr + off + outSecOff;
-  fatal("unknown FDE size relative encoding");
+  Err(ctx) << "unknown FDE size relative encoding";
+  return 0;
 }
 
 void EhFrameSection::writeTo(uint8_t *buf) {
@@ -2960,8 +2964,8 @@ void DebugNamesBaseSection::computeHdrAndAbbrevTable(
       // TODO: We don't handle type units yet, so LocalTypeUnitCount &
       // ForeignTypeUnitCount are left as 0.
       if (nd.hdr.LocalTypeUnitCount || nd.hdr.ForeignTypeUnitCount)
-        warn(toString(inputChunk.section.sec) +
-             Twine(": type units are not implemented"));
+        Warn(ctx) << inputChunk.section.sec
+                  << Twine(": type units are not implemented");
       // If augmentation strings are not identical, use an empty string.
       if (i == 0) {
         hdr.AugmentationStringSize = nd.hdr.AugmentationStringSize;
@@ -3379,12 +3383,12 @@ readAddressAreas(DWARFContext &dwarf, InputSection *sec) {
   uint32_t cuIdx = 0;
   for (std::unique_ptr<DWARFUnit> &cu : dwarf.compile_units()) {
     if (Error e = cu->tryExtractDIEsIfNeeded(false)) {
-      warn(toString(sec) + ": " + toString(std::move(e)));
+      Warn(ctx) << sec << ": " << std::move(e);
       return {};
     }
     Expected<DWARFAddressRangesVector> ranges = cu->collectAddressRanges();
     if (!ranges) {
-      warn(toString(sec) + ": " + toString(ranges.takeError()));
+      Warn(ctx) << sec << ": " << ranges.takeError();
       return {};
     }
 
@@ -3417,7 +3421,7 @@ readPubNamesAndTypes(const LLDDwarfObj<ELFT> &obj,
                             ELFT::Is64Bits ? 8 : 4);
     DWARFDebugPubTable table;
     table.extract(data, /*GnuStyle=*/true, [&](Error e) {
-      warn(toString(pub->sec) + ": " + toString(std::move(e)));
+      Warn(ctx) << pub->sec << ": " << std::move(e);
     });
     for (const DWARFDebugPubTable::Set &set : table.getData()) {
       // The value written into the constant pool is kind << 24 | cuIndex. As we
@@ -4390,7 +4394,7 @@ static uint8_t getAbiVersion(Ctx &ctx) {
     uint8_t ver = ctx.objectFiles[0]->abiVersion;
     for (InputFile *file : ArrayRef(ctx.objectFiles).slice(1))
       if (file->abiVersion != ver)
-        error("incompatible ABI version: " + toString(file));
+        ErrAlways(ctx) << "incompatible ABI version: " << file;
     return ver;
   }
 
