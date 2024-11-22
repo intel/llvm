@@ -353,8 +353,8 @@ private:
 struct finally {
   std::function<void()> MFunc;
 
-  finally(const finally &) = default;
-  finally &operator=(const finally &) = default;
+  finally(const finally &) = delete;
+  finally &operator=(const finally &) = delete;
   ~finally() {
     if (xptiTraceEnabled())
       MFunc();
