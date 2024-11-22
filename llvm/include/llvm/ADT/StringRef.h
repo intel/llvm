@@ -266,11 +266,6 @@ namespace llvm {
       return size() >= Prefix.size() &&
              compareMemory(data(), Prefix.data(), Prefix.size()) == 0;
     }
-    [[nodiscard]] LLVM_DEPRECATED(
-        "Use starts_with instead",
-        "starts_with") bool startswith(StringRef Prefix) const {
-      return starts_with(Prefix);
-    }
     [[nodiscard]] bool starts_with(char Prefix) const {
       return !empty() && front() == Prefix;
     }
@@ -283,11 +278,6 @@ namespace llvm {
       return size() >= Suffix.size() &&
              compareMemory(end() - Suffix.size(), Suffix.data(),
                            Suffix.size()) == 0;
-    }
-    [[nodiscard]] LLVM_DEPRECATED(
-        "Use ends_with instead",
-        "ends_with") bool endswith(StringRef Suffix) const {
-      return ends_with(Suffix);
     }
     [[nodiscard]] bool ends_with(char Suffix) const {
       return !empty() && back() == Suffix;
