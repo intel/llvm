@@ -157,10 +157,11 @@ ur_result_t initPlatforms(PlatformVec &platforms,
       }
     }
   } else {
-    ZeDriverCount = ZeDriverGetCount;
-    ZeDrivers.resize(ZeDriverCount);
+    ZeDrivers.resize(ZeDriverGetCount);
     ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
   }
+  ZeDriverCount = ZeDrivers.size();
+  logger::debug("\n{} L0 Drivers found.\n", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
