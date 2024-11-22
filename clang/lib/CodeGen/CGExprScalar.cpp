@@ -3789,7 +3789,7 @@ Value *ScalarExprEmitter::EmitDiv(const BinOpInfo &Ops) {
         llvm::Function *Func =
             CGF.CGM.getIntrinsic(FPAccuracyIntrinsicID, Ops.LHS->getType());
         llvm::Value *Val = CGF.CreateBuiltinCallWithAttr(
-            "div", Func, {Ops.LHS, Ops.RHS}, FPAccuracyIntrinsicID);
+            "fdiv", Func, {Ops.LHS, Ops.RHS}, FPAccuracyIntrinsicID);
         return Val;
       }
     }
