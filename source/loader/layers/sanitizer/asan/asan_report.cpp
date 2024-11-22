@@ -16,10 +16,11 @@
 #include "asan_libdevice.hpp"
 #include "asan_options.hpp"
 #include "asan_validator.hpp"
+#include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
-#include "ur_sanitizer_utils.hpp"
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 namespace {
 
@@ -89,12 +90,12 @@ void ReportMemoryLeak(const std::shared_ptr<AllocInfo> &AI) {
     AI->AllocStack.print();
 }
 
-void ReportFatalError(const DeviceSanitizerReport &Report) {
+void ReportFatalError(const AsanErrorReport &Report) {
     getContext()->logger.always("\n====ERROR: DeviceSanitizer: {}",
-                                ToString(Report.ErrorType));
+                                ToString(Report.ErrorTy));
 }
 
-void ReportGenericError(const DeviceSanitizerReport &Report,
+void ReportGenericError(const AsanErrorReport &Report,
                         ur_kernel_handle_t Kernel) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
     const char *Func = Report.Func[0] ? Report.Func : "<unknown func>";
@@ -103,10 +104,9 @@ void ReportGenericError(const DeviceSanitizerReport &Report,
     // Try to demangle the kernel name
     KernelName = DemangleName(KernelName);
 
-    getContext()->logger.always("\n====ERROR: DeviceSanitizer: {} on {} ({})",
-                                ToString(Report.ErrorType),
-                                ToString(Report.MemoryType),
-                                (void *)Report.Address);
+    getContext()->logger.always(
+        "\n====ERROR: DeviceSanitizer: {} on {} ({})", ToString(Report.ErrorTy),
+        ToString(Report.MemoryTy), (void *)Report.Address);
     getContext()->logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
         "{}, {})",
@@ -116,7 +116,7 @@ void ReportGenericError(const DeviceSanitizerReport &Report,
     getContext()->logger.always("  #0 {} {}:{}", Func, File, Report.Line);
 }
 
-void ReportUseAfterFree(const DeviceSanitizerReport &Report,
+void ReportUseAfterFree(const AsanErrorReport &Report,
                         ur_kernel_handle_t Kernel,
                         ur_context_handle_t Context) {
     const char *File = Report.File[0] ? Report.File : "<unknown file>";
@@ -128,7 +128,7 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
 
     getContext()->logger.always(
         "\n====ERROR: DeviceSanitizer: {} on address {}",
-        ToString(Report.ErrorType), (void *)Report.Address);
+        ToString(Report.ErrorTy), (void *)Report.Address);
     getContext()->logger.always(
         "{} of size {} at kernel <{}> LID({}, {}, {}) GID({}, "
         "{}, {})",
@@ -138,9 +138,9 @@ void ReportUseAfterFree(const DeviceSanitizerReport &Report,
     getContext()->logger.always("  #0 {} {}:{}", Func, File, Report.Line);
     getContext()->logger.always("");
 
-    if (getContext()->interceptor->getOptions().MaxQuarantineSizeMB > 0) {
+    if (getAsanInterceptor()->getOptions().MaxQuarantineSizeMB > 0) {
         auto AllocInfoItOp =
-            getContext()->interceptor->findAllocInfoByAddress(Report.Address);
+            getAsanInterceptor()->findAllocInfoByAddress(Report.Address);
 
         if (!AllocInfoItOp) {
             getContext()->logger.always(
@@ -210,4 +210,5 @@ void ReportInvalidKernelArgument(ur_kernel_handle_t Kernel, uint32_t ArgIndex,
     }
 }
 
+} // namespace asan
 } // namespace ur_sanitizer_layer

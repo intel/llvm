@@ -6,11 +6,12 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file ur_sanitizer_utils.cpp
+ * @file sanitizer_utils.cpp
  *
  */
 
-#include "ur_sanitizer_utils.hpp"
+#include "sanitizer_utils.hpp"
+#include "sanitizer_common/sanitizer_common.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 namespace ur_sanitizer_layer {

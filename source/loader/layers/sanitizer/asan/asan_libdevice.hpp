@@ -1,47 +1,24 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file device_sanitizer_report.hpp
+ * @file asan_libdevice.hpp
  *
  */
 
 #pragma once
 
-#include <cinttypes>
+#include "sanitizer_common/sanitizer_libdevice.hpp"
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 namespace ur_sanitizer_layer {
 #endif // !__SPIR__ && !__SPIRV__
 
-enum class DeviceType : uint32_t { UNKNOWN = 0, CPU, GPU_PVC, GPU_DG2 };
-
-enum class DeviceSanitizerErrorType : int32_t {
-    UNKNOWN,
-    OUT_OF_BOUNDS,
-    MISALIGNED,
-    USE_AFTER_FREE,
-    OUT_OF_SHADOW_BOUNDS,
-    UNKNOWN_DEVICE,
-    NULL_POINTER,
-};
-
-enum class DeviceSanitizerMemoryType : int32_t {
-    UNKNOWN,
-    USM_DEVICE,
-    USM_HOST,
-    USM_SHARED,
-    LOCAL,
-    PRIVATE,
-    MEM_BUFFER,
-    DEVICE_GLOBAL,
-};
-
-struct DeviceSanitizerReport {
+struct AsanErrorReport {
     int Flag = 0;
 
     char File[256 + 1] = {};
@@ -60,8 +37,8 @@ struct DeviceSanitizerReport {
     uintptr_t Address = 0;
     bool IsWrite = false;
     uint32_t AccessSize = 0;
-    DeviceSanitizerMemoryType MemoryType = DeviceSanitizerMemoryType::UNKNOWN;
-    DeviceSanitizerErrorType ErrorType = DeviceSanitizerErrorType::UNKNOWN;
+    MemoryType MemoryTy = MemoryType::UNKNOWN;
+    ErrorType ErrorTy = ErrorType::UNKNOWN;
 
     bool IsRecover = false;
 };
@@ -90,7 +67,7 @@ struct LaunchInfo {
     uint32_t Debug = 0;
 
     int ReportFlag = 0;
-    DeviceSanitizerReport SanitizerReport[ASAN_MAX_NUM_REPORTS];
+    AsanErrorReport Report[ASAN_MAX_NUM_REPORTS];
 };
 
 constexpr unsigned ASAN_SHADOW_SCALE = 4;
@@ -122,46 +99,6 @@ const int kPrivateMidRedzoneMagic = (char)0xf2;
 const int kPrivateRightRedzoneMagic = (char)0xf3;
 
 constexpr auto kSPIR_AsanDeviceGlobalMetadata = "__AsanDeviceGlobalMetadata";
-
-inline const char *ToString(DeviceSanitizerMemoryType MemoryType) {
-    switch (MemoryType) {
-    case DeviceSanitizerMemoryType::USM_DEVICE:
-        return "Device USM";
-    case DeviceSanitizerMemoryType::USM_HOST:
-        return "Host USM";
-    case DeviceSanitizerMemoryType::USM_SHARED:
-        return "Shared USM";
-    case DeviceSanitizerMemoryType::LOCAL:
-        return "Local Memory";
-    case DeviceSanitizerMemoryType::PRIVATE:
-        return "Private Memory";
-    case DeviceSanitizerMemoryType::MEM_BUFFER:
-        return "Memory Buffer";
-    case DeviceSanitizerMemoryType::DEVICE_GLOBAL:
-        return "Device Global";
-    default:
-        return "Unknown Memory";
-    }
-}
-
-inline const char *ToString(DeviceSanitizerErrorType ErrorType) {
-    switch (ErrorType) {
-    case DeviceSanitizerErrorType::OUT_OF_BOUNDS:
-        return "out-of-bounds-access";
-    case DeviceSanitizerErrorType::MISALIGNED:
-        return "misaligned-access";
-    case DeviceSanitizerErrorType::USE_AFTER_FREE:
-        return "use-after-free";
-    case DeviceSanitizerErrorType::OUT_OF_SHADOW_BOUNDS:
-        return "out-of-shadow-bounds-access";
-    case DeviceSanitizerErrorType::UNKNOWN_DEVICE:
-        return "unknown-device";
-    case DeviceSanitizerErrorType::NULL_POINTER:
-        return "null-pointer-access";
-    default:
-        return "unknown-error";
-    }
-}
 
 #if !defined(__SPIR__) && !defined(__SPIRV__)
 } // namespace ur_sanitizer_layer

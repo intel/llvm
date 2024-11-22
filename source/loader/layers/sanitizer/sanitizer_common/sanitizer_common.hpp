@@ -1,18 +1,17 @@
 /*
  *
- * Copyright (C) 2023 Intel Corporation
+ * Copyright (C) 2024 Intel Corporation
  *
  * Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
- * @file common.hpp
+ * @file sanitizer_common.hpp
  *
  */
 
 #pragma once
 
-#include "asan_libdevice.hpp"
 #include "ur/ur.hpp"
 #include "ur_ddi.h"
 
@@ -137,21 +136,6 @@ struct SourceInfo {
     int line = 0;
     int column = 0;
 };
-
-inline const char *ToString(DeviceType Type) {
-    switch (Type) {
-    case DeviceType::UNKNOWN:
-        return "UNKNOWN";
-    case DeviceType::CPU:
-        return "CPU";
-    case DeviceType::GPU_PVC:
-        return "PVC";
-    case DeviceType::GPU_DG2:
-        return "DG2";
-    default:
-        return "UNKNOWN";
-    }
-}
 
 bool IsInASanContext();
 

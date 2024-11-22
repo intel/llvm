@@ -6,6 +6,8 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
+ * @file symbolizer.cpp
+ *
  */
 #include "llvm/DebugInfo/Symbolize/DIPrinter.h"
 #include "llvm/DebugInfo/Symbolize/Symbolize.h"

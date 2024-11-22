@@ -6,8 +6,10 @@
  * See LICENSE.TXT
  * SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
  *
+ * @file backtrace.cpp
+ *
  */
-#include "stacktrace.hpp"
+#include "sanitizer_common/sanitizer_stacktrace.hpp"
 
 #include <execinfo.h>
 #include <string>

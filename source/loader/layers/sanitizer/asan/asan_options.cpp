@@ -11,6 +11,8 @@
  */
 
 #include "asan_options.hpp"
+
+#include "ur/ur.hpp"
 #include "ur_sanitizer_layer.hpp"
 
 #include <algorithm>
@@ -18,6 +20,7 @@
 #include <stdexcept>
 
 namespace ur_sanitizer_layer {
+namespace asan {
 
 AsanOptions::AsanOptions() {
     std::optional<EnvVarMap> OptionsEnvMap;
@@ -139,4 +142,5 @@ AsanOptions::AsanOptions() {
     }
 }
 
+} // namespace asan
 } // namespace ur_sanitizer_layer
