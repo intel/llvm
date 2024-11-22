@@ -149,7 +149,7 @@ template <typename T> bool tests(queue Q) {
 
 int main() {
   queue Q;
-  std::cout << "Running on " << Q.get_device().get_info<info::device::name>()
+  std::cout << "Running on " << Q.get_device().get_info<sycl::info::device::name>()
             << "\n";
 
   bool Passed = true;
