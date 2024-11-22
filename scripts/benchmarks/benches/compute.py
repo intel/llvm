@@ -263,6 +263,7 @@ class StreamMemory(ComputeBenchmark):
             f"--memoryPlacement={self.placement}",
             "--useEvents=0",
             "--contents=Zeros",
+            "--multiplier=1",
         ]
 
 class VectorSum(ComputeBenchmark):
