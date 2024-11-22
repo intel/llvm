@@ -1,5 +1,7 @@
-# commit b5294ee0762e9eb4919102e5663e724c152487bc
-# Author: Yang Zhao <yang2.zhao@intel.com>
-# Date:   Fri Nov 22 15:59:23 2024 +0800
-#    [DeviceASAN][NFC] Code Restructure (#2232)
-set(UNIFIED_RUNTIME_TAG b5294ee0762e9eb4919102e5663e724c152487bc)
+# commit b0f9293d9b39ce0f8019a02198119a8b6fe0b05f
+# Merge: b5294ee0 1f687880
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Fri Nov 22 11:50:36 2024 +0000
+#     Merge pull request #2326 from martygrant/martin/fixDevicePartitionOpenCL
+#     Index into property array in urDevicePartition for OpenCL
+set(UNIFIED_RUNTIME_TAG b0f9293d9b39ce0f8019a02198119a8b6fe0b05f)
