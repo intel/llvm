@@ -1,6 +1,5 @@
-# commit 3db3a5e2d935630f2ffddd93a72ae0aa9af89acb
-# Author: Artur Gainullin <artur.gainullin@intel.com>
-# Date:   Tue Oct 22 03:30:08 2024 -0700
-#
-#     Support UR program creation from multiple device binaries (#2147)
-set(UNIFIED_RUNTIME_TAG review/yang/restructure_asan)
+# commit b5294ee0762e9eb4919102e5663e724c152487bc
+# Author: Yang Zhao <yang2.zhao@intel.com>
+# Date:   Fri Nov 22 15:59:23 2024 +0800
+#    [DeviceASAN][NFC] Code Restructure (#2232)
+set(UNIFIED_RUNTIME_TAG b5294ee0762e9eb4919102e5663e724c152487bc)
