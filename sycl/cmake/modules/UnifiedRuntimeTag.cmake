@@ -1,7 +1,7 @@
-# commit 30391c65d2d2ccc7ee3688a14815804bfb7fdf05
-# Merge: 5e6d79b3 58dabfe8
+# commit b0f9293d9b39ce0f8019a02198119a8b6fe0b05f
+# Merge: b5294ee0 1f687880
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 15 15:13:20 2024 +0000
-#     Merge pull request #2222 from RossBrunton/ross/cfi
-#     Enable -flto and -fsanitize=cfi in clang
-set(UNIFIED_RUNTIME_TAG 30391c65d2d2ccc7ee3688a14815804bfb7fdf05)
+# Date:   Fri Nov 22 11:50:36 2024 +0000
+#     Merge pull request #2326 from martygrant/martin/fixDevicePartitionOpenCL
+#     Index into property array in urDevicePartition for OpenCL
+set(UNIFIED_RUNTIME_TAG b0f9293d9b39ce0f8019a02198119a8b6fe0b05f)
