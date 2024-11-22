@@ -29,9 +29,9 @@ entry:
 ; Test that this cmpxchg is packetized by generating a call to an all-true masked version.
 ; CHECK: [[A0:%.*]] = call { <vscale x 4 x i32>, <vscale x 4 x i1> } @__vecz_b_nxv4_masked_cmpxchg_align4_acquire_monotonic_1_u9nxv4u3ptru5nxv4ju5nxv4ju5nxv4b(
 ; CHECK-SAME: <vscale x 4 x ptr> [[SPLAT_PTR]],
-; CHECK-SAME: <vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 1, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
-; CHECK-SAME: <vscale x 4 x i32> shufflevector (<vscale x 4 x i32> insertelement (<vscale x 4 x i32> poison, i32 2, i64 0), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer)
-; CHECK-SAME: <vscale x 4 x i1> shufflevector (<vscale x 4 x i1> insertelement (<vscale x 4 x i1> poison, i1 true, i64 0), <vscale x 4 x i1> poison, <vscale x 4 x i32> zeroinitializer)
+; CHECK-SAME: <vscale x 4 x i32> {{shufflevector \(<vscale x 4 x i32> insertelement \(<vscale x 4 x i32> poison, i32 1, i64 0\), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer\)|splat \(i32 1\)}}
+; CHECK-SAME: <vscale x 4 x i32> {{shufflevector \(<vscale x 4 x i32> insertelement \(<vscale x 4 x i32> poison, i32 2, i64 0\), <vscale x 4 x i32> poison, <vscale x 4 x i32> zeroinitializer\)|splat \(i32 2\)}}
+; CHECK-SAME: <vscale x 4 x i1> {{shufflevector \(<vscale x 4 x i1> insertelement \(<vscale x 4 x i1> poison, i1 true, i64 0\), <vscale x 4 x i1> poison, <vscale x 4 x i32> zeroinitializer\)|splat \(i1 true\)}}
   %old0 = cmpxchg ptr %p, i32 1, i32 2 acquire monotonic
 ; CHECK: [[EXT0:%.*]] = extractvalue { <vscale x 4 x i32>, <vscale x 4 x i1> } [[A0]], 0
   %val0 = extractvalue { i32, i1 } %old0, 0
