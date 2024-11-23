@@ -10,8 +10,7 @@
 
 #include <sycl/detail/type_traits/vec_marray_traits.hpp>
 
-#include <sycl/access/access.hpp>             // for decorated, address_space
-#include <sycl/detail/type_list.hpp>          // for is_contained, find_twi...
+#include <sycl/access/access.hpp> // for decorated, address_space
 
 #include <array>       // for array
 #include <cstddef>     // for size_t

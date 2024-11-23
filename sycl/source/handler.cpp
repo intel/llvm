@@ -555,11 +555,12 @@ event handler::finalize() {
       // Find the last node added to the graph from this queue, so our new
       // node can set it as a predecessor.
       auto DependentNode = GraphImpl->getLastInorderNode(MQueue);
-
-      NodeImpl = DependentNode
-                     ? GraphImpl->add(NodeType, std::move(CommandGroup),
-                                      {DependentNode})
-                     : GraphImpl->add(NodeType, std::move(CommandGroup));
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps;
+      if (DependentNode) {
+        Deps.push_back(DependentNode);
+      }
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       // If we are recording an in-order queue remember the new node, so it
       // can be used as a dependency for any more nodes recorded from this
@@ -567,12 +568,13 @@ event handler::finalize() {
       GraphImpl->setLastInorderNode(MQueue, NodeImpl);
     } else {
       auto LastBarrierRecordedFromQueue = GraphImpl->getBarrierDep(MQueue);
+      std::vector<std::shared_ptr<ext::oneapi::experimental::detail::node_impl>>
+          Deps;
+
       if (LastBarrierRecordedFromQueue) {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup),
-                                  {LastBarrierRecordedFromQueue});
-      } else {
-        NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup));
+        Deps.push_back(LastBarrierRecordedFromQueue);
       }
+      NodeImpl = GraphImpl->add(NodeType, std::move(CommandGroup), Deps);
 
       if (NodeImpl->MCGType == sycl::detail::CGType::Barrier) {
         GraphImpl->setBarrierDep(MQueue, NodeImpl);
@@ -581,8 +583,6 @@ event handler::finalize() {
 
     // Associate an event with this new node and return the event.
     GraphImpl->addEventForNode(EventImpl, NodeImpl);
-
-    NodeImpl->MNDRangeUsed = impl->MNDRangeUsed;
 
     return detail::createSyclObjFromImpl<event>(EventImpl);
   }
@@ -2008,7 +2008,9 @@ std::tuple<std::array<size_t, 3>, bool> handler::getMaxWorkGroups_v2() {
   return {std::array<size_t, 3>{0, 0, 0}, false};
 }
 
-void handler::setNDRangeUsed(bool Value) { impl->MNDRangeUsed = Value; }
+#ifndef __INTEL_PREVIEW_BREAKING_CHANGES
+void handler::setNDRangeUsed(bool Value) { (void)Value; }
+#endif
 
 void handler::registerDynamicParameter(
     ext::oneapi::experimental::detail::dynamic_parameter_base &DynamicParamBase,

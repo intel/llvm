@@ -1058,12 +1058,9 @@ build_from_source(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 /////////////////////////
 // syclex::create_kernel_bundle_from_source
 /////////////////////////
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::create_bundle_from_source_props, PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::string &Source, PropertyListT props = {}) {
@@ -1077,12 +1074,9 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 }
 
 #if (!defined(_HAS_STD_BYTE) || _HAS_STD_BYTE != 0)
-template <
-    typename PropertyListT = empty_properties_t,
-    typename = std::enable_if_t<
-        is_property_list_v<PropertyListT> &&
-        detail::all_props_are_keys_of<detail::create_bundle_from_source_props,
-                                      PropertyListT>::value>>
+template <typename PropertyListT = empty_properties_t,
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::create_bundle_from_source_props, PropertyListT>>>
 kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
     const context &SyclContext, source_language Language,
     const std::vector<std::byte> &Bytes, PropertyListT props = {}) {
@@ -1101,10 +1095,8 @@ kernel_bundle<bundle_state::ext_oneapi_source> create_kernel_bundle_from_source(
 /////////////////////////
 
 template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
 
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
@@ -1127,10 +1119,8 @@ build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
 }
 
 template <typename PropertyListT = empty_properties_t,
-          typename = std::enable_if_t<
-              is_property_list_v<PropertyListT> &&
-              detail::all_props_are_keys_of<detail::build_source_bundle_props,
-                                            PropertyListT>::value>>
+          typename = std::enable_if_t<detail::all_are_properties_of_v<
+              detail::build_source_bundle_props, PropertyListT>>>
 kernel_bundle<bundle_state::executable>
 build(kernel_bundle<bundle_state::ext_oneapi_source> &SourceKB,
       PropertyListT props = {}) {

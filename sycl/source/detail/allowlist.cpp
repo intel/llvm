@@ -10,7 +10,7 @@
 #include <detail/device_impl.hpp>
 #include <detail/device_info.hpp>
 #include <detail/platform_info.hpp>
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>
 
 #include <algorithm>
 #include <regex>

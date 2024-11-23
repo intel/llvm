@@ -10724,12 +10724,8 @@ static void getTripleBasedSPIRVTransOpts(Compilation &C,
                                          ArgStringList &TranslatorArgs) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
-  const bool IsWindowsMSVC =
-      Triple.isWindowsMSVCEnvironment() ||
-      C.getDefaultToolChain().getTriple().isWindowsMSVCEnvironment();
-  const bool EnableNonSemanticDebug =
-      IsCPU || (!IsWindowsMSVC && !C.getDriver().IsFPGAHWMode());
+  // Enable NonSemanticShaderDebugInfo.200 for non-FPGA targets.
+  const bool EnableNonSemanticDebug = !C.getDriver().IsFPGAHWMode();
   if (EnableNonSemanticDebug) {
     TranslatorArgs.push_back(
         "-spirv-debug-info-version=nonsemantic-shader-200");
@@ -11520,6 +11516,12 @@ void LinkerWrapper::ConstructJob(Compilation &C, const JobAction &JA,
 
     if (Args.hasArg(options::OPT_fsycl_embed_ir))
       CmdArgs.push_back(Args.MakeArgString("-sycl-embed-ir"));
+
+    if (Args.hasFlag(options::OPT_fsycl_allow_device_image_dependencies,
+                     options::OPT_fno_sycl_allow_device_image_dependencies,
+                     false))
+      CmdArgs.push_back(
+          Args.MakeArgString("-sycl-allow-device-image-dependencies"));
 
     // Formulate and add any offload-wrapper and AOT specific options. These
     // are additional options passed in via -Xsycl-target-linker and

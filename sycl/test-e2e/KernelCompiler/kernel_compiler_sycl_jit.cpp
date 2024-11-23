@@ -9,10 +9,6 @@
 // REQUIRES: (opencl || level_zero)
 // UNSUPPORTED: accelerator
 
-// UNSUPPORTED: windows
-// UNSUPPORTED-TRACKER: CMPLRLLVM-63166
-// in CMakeLists).
-
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 // RUN: %{l0_leak_check} %{run} %t.out
@@ -20,14 +16,14 @@
 // -- Test again, with caching.
 
 // DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: rm -rf %t/cache_dir
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // -- Add leak check.
-// RUN: rm -rf %t/cache_dir
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
@@ -95,7 +91,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   sycl::free(usmPtr, Queue);
 }
 
-void test_build_and_run() {
+int test_build_and_run() {
   namespace syclex = sycl::ext::oneapi::experimental;
   using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
   using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
@@ -110,7 +106,7 @@ void test_build_and_run() {
                  "kernel bundle extension: "
               << q.get_device().get_info<sycl::info::device::name>()
               << std::endl;
-    return;
+    return -1;
   }
 
   // Create from source.
@@ -131,7 +127,8 @@ void test_build_and_run() {
 
   // // Compilation with props and devices
   std::string log;
-  std::vector<std::string> flags{"-g", "-fno-fast-math"};
+  std::vector<std::string> flags{"-g", "-fno-fast-math",
+                                 "-fsycl-instrument-device-code"};
   std::vector<sycl::device> devs = kbSrc.get_devices();
   exe_kb kbExe2 = syclex::build(
       kbSrc, devs, syclex::properties{syclex::build_options{flags}});
@@ -141,12 +138,55 @@ void test_build_and_run() {
 
   // Test the kernels.
   test_1(q, k, 37 + 5); // ff_cp seeds 37. AddEm will add 5 more.
+
+  return 0;
+}
+
+int test_unsupported_options() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
+    return -1;
+  }
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, "");
+  std::vector<sycl::device> devs = kbSrc.get_devices();
+
+  auto CheckUnsupported = [&](const std::vector<std::string> &flags) {
+    try {
+      syclex::build(kbSrc, devs,
+                    syclex::properties{syclex::build_options{flags}});
+      assert(false && "unsupported option not detected");
+    } catch (sycl::exception &e) {
+      assert(e.code() == sycl::errc::build);
+      assert(std::string(e.what()).find("Parsing of user arguments failed") !=
+             std::string::npos);
+    }
+  };
+
+  CheckUnsupported({"-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
+  CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
+  CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+
+  return 0;
 }
 
 int main() {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  test_build_and_run();
+  return test_build_and_run() || test_unsupported_options();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif

@@ -1,7 +1,7 @@
-# commit 09ae26af4e4e4301177db704b3b109ecd388c846
-# Merge: d2f69680 dd920712
+# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
+# Merge: b0f9293d b693389e
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Thu Nov 7 11:43:19 2024 +0000
-#     Merge pull request #2233 from martygrant/martin/memory-cts-spec-gap-2
-#     Improvements to align CTS and Spec for Memory
-set(UNIFIED_RUNTIME_TAG 09ae26af4e4e4301177db704b3b109ecd388c846)
+# Date:   Fri Nov 22 15:27:05 2024 +0000
+#     Merge pull request #2370 from againull/multi_device_sanitizer
+#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
+set(UNIFIED_RUNTIME_TAG 2f479e01f62ed96a9466d19d9df1aabeda77b335)

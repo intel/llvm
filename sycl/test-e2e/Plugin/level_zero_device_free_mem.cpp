@@ -8,7 +8,8 @@
 // REQUIRES: gpu-intel-dg2
 // REQUIRES: level_zero, level_zero_dev_kit
 // UNSUPPORTED: gpu-intel-gen12
-// The query of free memory is not supported on integrated devices
+// UNSUPPORTED-INTENDED: The query of free memory is not supported on integrated
+// devices
 //
 // RUN: %{build} %level_zero_options -o %t.out
 // RUN: env ZES_ENABLE_SYSMAN=1 %{run} %t.out 2>&1 | FileCheck %s
