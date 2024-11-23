@@ -1,6 +1,6 @@
 // REQUIRES:  arch-intel_gpu_pvc, level_zero
 
-// XFAIL: arch-intel_gpu_pvc
+// XFAIL: arch-intel_gpu_pvc && run-mode
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15602
 
 // RUN: %{build} %level_zero_options -o %t.out
