@@ -21,7 +21,29 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
+template <typename properties_type_list_ty> class __SYCL_EBO properties;
+
 namespace detail {
+
+// NOTE: Meta-function to implement CTAD rules isn't allowed to return
+// `properties<something>` and it's impossible to return a pack as well. As
+// such, we're forced to have an extra level of `detail::properties_type_list`
+// for the purpose of providing CTAD rules.
+template <typename... property_tys> struct properties_type_list;
+
+// This is used in a separate `properties` specialization to report friendlier
+// errors.
+template <typename... property_tys> struct invalid_properties_type_list {};
+
+// Helper for reconstructing a properties type. This assumes that
+// PropertyValueTs is sorted and contains only valid properties.
+//
+// It also allows us to hide details of `properties` implementation from the
+// code that uses/defines them (with the exception of ESIMD which is extremely
+// hacky in its own esimd::properties piggybacking on these ones).
+template <typename... PropertyValueTs>
+using properties_t =
+    properties<detail::properties_type_list<PropertyValueTs...>>;
 
 template <typename... property_tys>
 inline constexpr bool properties_are_unique = []() constexpr {
@@ -65,9 +87,6 @@ constexpr bool properties_are_valid_for_ctad = []() constexpr {
     return true;
   }
 }();
-
-template <typename... property_tys> struct properties_type_list;
-template <typename... property_tys> struct invalid_properties_type_list {};
 
 template <typename... property_tys> struct properties_sorter {
   // Not using "auto" due to MSVC bug in v19.36 and older. v19.37 and later is
@@ -117,8 +136,6 @@ template <> struct properties_sorter<> {
 };
 
 } // namespace detail
-
-template <typename properties_type_list_ty> class __SYCL_EBO properties;
 
 // Empty property list.
 template <> class __SYCL_EBO properties<detail::properties_type_list<>> {
@@ -183,10 +200,6 @@ public:
   }
 };
 
-// NOTE: Meta-function to implement CTAD rules isn't allowed to return
-// `properties<something>` and it's impossible to return a pack as well. As
-// such, we're forced to have an extra level of `detail::properties_type_list`
-// for the purpose of providing CTAD rules.
 template <typename... property_tys>
 class __SYCL_EBO properties<detail::properties_type_list<property_tys...>>
     : private property_tys... {
@@ -287,11 +300,85 @@ using empty_properties_t = decltype(properties{});
 
 namespace detail {
 
-// Helper for reconstructing a properties type. This assumes that
-// PropertyValueTs is sorted and contains only valid properties.
-template <typename... PropertyValueTs>
-using properties_t =
-    properties<detail::properties_type_list<PropertyValueTs...>>;
+template <template <typename> typename predicate, typename... property_tys>
+struct filter_properties_impl {
+  static constexpr auto idx_info = []() constexpr {
+    constexpr int N = sizeof...(property_tys);
+    std::array<int, N> indexes{};
+    int num_matched = 0;
+    int idx = 0;
+    (((predicate<property_tys>::value ? indexes[num_matched++] = idx++ : idx++),
+      ...));
+
+    return std::pair{indexes, num_matched};
+  }();
+
+  // Helper to convert constexpr indices values to an std::index_sequence type.
+  // Values -> type is the key here.
+  template <int... Idx>
+  static constexpr auto idx_seq(std::integer_sequence<int, Idx...>) {
+    return std::integer_sequence<int, idx_info.first[Idx]...>{};
+  }
+
+  using selected_idx_seq =
+      decltype(idx_seq(std::make_integer_sequence<int, idx_info.second>{}));
+
+  // Using prop_list_ty so that we don't need to explicitly spell out
+  //  `properties` template parameters' implementation-details.
+  template <typename prop_list_ty, int... Idxs>
+  static constexpr auto apply_impl(const prop_list_ty &props,
+                                   std::integer_sequence<int, Idxs...>) {
+    return properties{props.template get_property<
+        typename nth_type_t<Idxs, property_tys...>::key_t>()...};
+  }
+
+  template <typename prop_list_ty>
+  static constexpr auto apply(const prop_list_ty &props) {
+    return apply_impl(props, selected_idx_seq{});
+  }
+};
+
+template <template <typename> typename predicate, typename... property_tys>
+constexpr auto filter_properties(const properties_t<property_tys...> &props) {
+  return filter_properties_impl<predicate, property_tys...>::apply(props);
+}
+
+template <typename... lhs_property_tys> struct merge_filter {
+  template <typename rhs_property_ty>
+  struct predicate
+      : std::bool_constant<!((std::is_same_v<typename lhs_property_tys::key_t,
+                                             typename rhs_property_ty::key_t> ||
+                              ...))> {};
+};
+
+template <typename... lhs_property_tys, typename... rhs_property_tys>
+constexpr auto merge_properties(const properties_t<lhs_property_tys...> &lhs,
+                                const properties_t<rhs_property_tys...> &rhs) {
+  auto rhs_unique_props =
+      filter_properties<merge_filter<lhs_property_tys...>::template predicate>(
+          rhs);
+  if constexpr (std::is_same_v<std::decay_t<decltype(rhs)>,
+                               std::decay_t<decltype(rhs_unique_props)>>) {
+    // None of RHS properties share keys with LHS, no conflicts possible.
+    return properties{
+        lhs.template get_property<typename lhs_property_tys::key_t>()...,
+        rhs.template get_property<typename rhs_property_tys::key_t>()...};
+  } else {
+    // Ensure no conflicts, then merge.
+    constexpr auto has_conflict = [](auto *lhs_prop) constexpr {
+      using lhs_property_ty = std::remove_pointer_t<decltype(lhs_prop)>;
+      return (((std::is_same_v<typename lhs_property_ty::key_t,
+                               typename rhs_property_tys::key_t> &&
+                (!std::is_same_v<lhs_property_ty, rhs_property_tys> ||
+                 !std::is_empty_v<lhs_property_ty>)) ||
+               ...));
+    };
+    static_assert(
+        !((has_conflict(static_cast<lhs_property_tys *>(nullptr)) || ...)),
+        "Failed to merge property lists due to conflicting properties.");
+    return merge_properties(lhs, rhs_unique_props);
+  }
+}
 
 template <typename LHSPropertiesT, typename RHSPropertiesT>
 using merged_properties_t = decltype(merge_properties(
@@ -312,38 +399,15 @@ constexpr auto get_property_or(default_t value) {
     return value;
 }
 
-// helper: check_all_props_are_keys_of
-template <typename SyclT> constexpr bool check_all_props_are_keys_of() {
-  return true;
-}
-
-template <typename SyclT, typename FirstProp, typename... RestProps>
-constexpr bool check_all_props_are_keys_of() {
-  return ext::oneapi::experimental::is_property_key_of<FirstProp,
-                                                       SyclT>::value &&
-         check_all_props_are_keys_of<SyclT, RestProps...>();
-}
-
-// all_props_are_keys_of
-template <typename SyclT, typename PropertiesT>
-struct all_props_are_keys_of : std::false_type {};
-
-template <typename SyclT>
-struct all_props_are_keys_of<SyclT,
-                             ext::oneapi::experimental::empty_properties_t>
-    : std::true_type {};
-
-template <typename SyclT, typename PropT>
-struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::detail::properties_t<PropT>>
-    : std::bool_constant<
-          ext::oneapi::experimental::is_property_key_of<PropT, SyclT>::value> {
-};
-
+template <typename SyclT, typename PropListT>
+struct all_are_properties_of : std::false_type /* not a properties list */ {};
 template <typename SyclT, typename... Props>
-struct all_props_are_keys_of<
-    SyclT, ext::oneapi::experimental::detail::properties_t<Props...>>
-    : std::bool_constant<check_all_props_are_keys_of<SyclT, Props...>()> {};
+struct all_are_properties_of<SyclT, properties_t<Props...>>
+    : std::bool_constant<((is_property_value_of<Props, SyclT>::value && ...))> {
+};
+template <typename SyclT, typename PropListT>
+inline constexpr bool all_are_properties_of_v =
+    all_are_properties_of<SyclT, PropListT>::value;
 
 } // namespace detail
 } // namespace ext::oneapi::experimental
