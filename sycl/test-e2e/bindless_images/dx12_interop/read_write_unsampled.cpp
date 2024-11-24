@@ -1,5 +1,6 @@
 // REQUIRES: aspect-ext_oneapi_bindless_images
 // REQUIRES: windows
+// REQUIRES: build-and-run-mode
 
 // DEFINE: %{link-flags}=%if cl_options %{ /clang:-ld3d12 /clang:-ldxgi /clang:-ldxguid %} %else %{ -ld3d12 -ldxgi -ldxguid %}
 // RUN: %{build} %{link-flags} -o %t.out

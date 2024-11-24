@@ -45,6 +45,8 @@ template <typename T> struct TempAssignGuard {
   TempAssignGuard(T &fld, T tempVal) : field(fld), restoreValue(fld) {
     field = tempVal;
   }
+  TempAssignGuard(const TempAssignGuard<T> &) = delete;
+  TempAssignGuard operator=(const TempAssignGuard<T> &) = delete;
   ~TempAssignGuard() { field = restoreValue; }
 };
 
