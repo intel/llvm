@@ -34,8 +34,7 @@ template <size_t ChunkSize, typename Group>
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        chunk<ChunkSize, Group>>
-chunked_partition(Group group);
+                        chunk<ChunkSize, Group>> chunked_partition(Group group);
 
 template <size_t ChunkSize, typename ParentGroup> class chunk {
 public:
@@ -44,8 +43,10 @@ public:
   using linear_id_type = typename ParentGroup::linear_id_type;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-  /* ToDo:wd
-    we don't have fragment (operator fragment<ParentGroup>() const;) implementation yet.
+  /* ToDo:
+
+    fragment implementation to be done:
+      operator fragment<ParentGroup>() const;
   */
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
@@ -142,8 +143,7 @@ protected:
   friend chunk<ChunkSize, ParentGroup>
   chunked_partition<ChunkSize, ParentGroup>(ParentGroup g);
 
-  friend sub_group_mask
-  sycl::detail::GetMask<chunk<ChunkSize, ParentGroup>>(
+  friend sub_group_mask sycl::detail::GetMask<chunk<ChunkSize, ParentGroup>>(
       chunk<ChunkSize, ParentGroup> Group);
 };
 
@@ -157,10 +157,9 @@ chunked_partition(Group group) {
 #if defined(__NVPTX__)
   uint32_t loc_id = group.get_local_linear_id();
   uint32_t loc_size = group.get_local_linear_range();
-  uint32_t bits = ChunkSize == 32
-                      ? 0xffffffff
-                      : ((1 << ChunkSize) - 1)
-                            << ((loc_id / ChunkSize) * ChunkSize);
+  uint32_t bits = ChunkSize == 32 ? 0xffffffff
+                                  : ((1 << ChunkSize) - 1)
+                                        << ((loc_id / ChunkSize) * ChunkSize);
 
   return chunk<ChunkSize, sycl::sub_group>(
       sycl::detail::Builder::createSubGroupMask<ext::oneapi::sub_group_mask>(
@@ -182,14 +181,12 @@ struct is_user_constructed_group<chunk<ChunkSize, ParentGroup>>
 
 namespace detail {
 template <size_t ChunkSize, typename ParentGroup>
-struct is_chunk<
-    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+struct is_chunk<ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
 } // namespace detail
 
 template <size_t ChunkSize, typename ParentGroup>
-struct is_group<
-    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+struct is_group<ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
     : std::true_type {};
 
 } // namespace _V1
