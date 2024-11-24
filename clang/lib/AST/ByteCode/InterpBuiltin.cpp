@@ -46,7 +46,7 @@ static APSInt getAPSIntParam(const InterpFrame *Frame, unsigned Index) {
   return R;
 }
 
-PrimType getIntPrimType(const InterpState &S) {
+static PrimType getIntPrimType(const InterpState &S) {
   const TargetInfo &TI = S.getASTContext().getTargetInfo();
   unsigned IntWidth = TI.getIntWidth();
 
@@ -57,7 +57,7 @@ PrimType getIntPrimType(const InterpState &S) {
   llvm_unreachable("Int isn't 16 or 32 bit?");
 }
 
-PrimType getLongPrimType(const InterpState &S) {
+static PrimType getLongPrimType(const InterpState &S) {
   const TargetInfo &TI = S.getASTContext().getTargetInfo();
   unsigned LongWidth = TI.getLongWidth();
 

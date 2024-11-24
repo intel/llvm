@@ -170,7 +170,7 @@ static Value *handleHlslSplitdouble(const CallExpr *E, CodeGenFunction *CGF) {
   return LastInst;
 }
 
-Value *handleAsDoubleBuiltin(CodeGenFunction &CGF, const CallExpr *E) {
+static Value *handleAsDoubleBuiltin(CodeGenFunction &CGF, const CallExpr *E) {
   assert((E->getArg(0)->getType()->hasUnsignedIntegerRepresentation() &&
           E->getArg(1)->getType()->hasUnsignedIntegerRepresentation()) &&
          "asdouble operands types mismatch");
@@ -18920,7 +18920,7 @@ static Intrinsic::ID getDotProductIntrinsic(CGHLSLRuntime &RT, QualType QT) {
   return RT.getUDotIntrinsic();
 }
 
-Intrinsic::ID getFirstBitHighIntrinsic(CGHLSLRuntime &RT, QualType QT) {
+static Intrinsic::ID getFirstBitHighIntrinsic(CGHLSLRuntime &RT, QualType QT) {
   if (QT->hasSignedIntegerRepresentation()) {
     return RT.getFirstBitSHighIntrinsic();
   }
