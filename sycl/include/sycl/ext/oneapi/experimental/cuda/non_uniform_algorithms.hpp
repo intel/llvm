@@ -57,8 +57,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsPlus<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsPlus<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -66,8 +66,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitAND<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitAND<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -75,8 +75,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {
@@ -84,8 +84,8 @@ masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
 }
 
 template <typename Group, typename T, class BinaryOperation>
-std::enable_if_t<(is_sugeninteger_v<T> ||
-                  is_sigeninteger_v<T>)&&IsBitXOR<T, BinaryOperation>::value,
+std::enable_if_t<(is_sugeninteger_v<T> || is_sigeninteger_v<T>) &&
+                     IsBitXOR<T, BinaryOperation>::value,
                  T>
 masked_reduction_cuda_sm80(Group g, T x, BinaryOperation binary_op,
                            const uint32_t MemberMask) {

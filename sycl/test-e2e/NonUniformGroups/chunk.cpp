@@ -11,7 +11,7 @@
 
 #include <vector>
 
-//#ifdef __SYCL_DEVICE_ONLY__
+// #ifdef __SYCL_DEVICE_ONLY__
 //[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_chunk)]]
 
 #include <sycl/detail/core.hpp>
@@ -78,4 +78,4 @@ int main() {
   return 0;
 }
 
-//# endif
+// #endif

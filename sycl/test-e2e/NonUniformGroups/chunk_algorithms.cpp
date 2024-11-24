@@ -14,7 +14,6 @@
 #include <sycl/group_barrier.hpp>
 #include <vector>
 
-
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template <size_t ChunkSize> class TestKernel;
@@ -76,8 +75,7 @@ template <size_t ChunkSize> void test() {
           uint32_t OriginalLID = SG.get_local_linear_id();
           uint32_t LID = Partition.get_local_linear_id();
 
-          uint32_t PartitionLeader =
-              (OriginalLID / ChunkSize) * ChunkSize;
+          uint32_t PartitionLeader = (OriginalLID / ChunkSize) * ChunkSize;
           uint32_t BroadcastResult =
               sycl::group_broadcast(Partition, OriginalLID, 0);
           BroadcastAcc[WI] = (BroadcastResult == PartitionLeader);

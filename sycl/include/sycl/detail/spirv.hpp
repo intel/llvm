@@ -79,8 +79,8 @@ struct is_ballot_group<
 template <typename Group> struct is_chunk : std::false_type {};
 
 template <size_t ChunkSize, typename ParentGroup>
-struct is_chunk<sycl::ext::oneapi::experimental::chunk<
-    ChunkSize, ParentGroup>> : std::true_type {};
+struct is_chunk<sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>>
+    : std::true_type {};
 
 template <typename Group> struct group_scope {};
 
@@ -106,8 +106,8 @@ struct group_scope<sycl::ext::oneapi::experimental::ballot_group<ParentGroup>> {
 };
 
 template <size_t ChunkSize, typename ParentGroup>
-struct group_scope<sycl::ext::oneapi::experimental::chunk<
-    ChunkSize, ParentGroup>> {
+struct group_scope<
+    sycl::ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
@@ -175,9 +175,8 @@ bool GroupAll(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   }
 }
 template <size_t ChunkSize, typename ParentGroup>
-bool GroupAll(
-    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
-    bool pred) {
+bool GroupAll(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
+              bool pred) {
   // GroupNonUniformAll doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseAnd(
       group_scope<ParentGroup>::value,
@@ -211,9 +210,8 @@ bool GroupAny(ext::oneapi::experimental::ballot_group<ParentGroup> g,
   }
 }
 template <size_t ChunkSize, typename ParentGroup>
-bool GroupAny(
-    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
-    bool pred) {
+bool GroupAny(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
+              bool pred) {
   // GroupNonUniformAny doesn't support cluster size, so use a reduction
   return __spirv_GroupNonUniformBitwiseOr(
       group_scope<ParentGroup>::value,
@@ -328,9 +326,9 @@ GroupBroadcast(sycl::ext::oneapi::experimental::ballot_group<ParentGroup> g,
   }
 }
 template <size_t ChunkSize, typename ParentGroup, typename T, typename IdT>
-EnableIfNativeBroadcast<T, IdT> GroupBroadcast(
-    ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g,
-    T x, IdT local_id) {
+EnableIfNativeBroadcast<T, IdT>
+GroupBroadcast(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x,
+               IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup
   auto LocalId = g.get_group_linear_id() * ChunkSize + local_id;
 
@@ -1298,8 +1296,8 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
     }                                                                          \
   }                                                                            \
                                                                                \
-  template <__spv::GroupOperation Op, size_t ChunkSize,                        \
-            typename ParentGroup, typename T>                                  \
+  template <__spv::GroupOperation Op, size_t ChunkSize, typename ParentGroup,  \
+            typename T>                                                        \
   inline T Group##Instruction(                                                 \
       ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x) {       \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
@@ -1319,7 +1317,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
       constexpr auto OpInt =                                                   \
           static_cast<unsigned int>(__spv::GroupOperation::ClusteredReduce);   \
       return __spirv_GroupNonUniform##Instruction(Scope, OpInt, Arg,           \
-                                                  ChunkSize);              \
+                                                  ChunkSize);                  \
     } else {                                                                   \
       T tmp;                                                                   \
       for (size_t Cluster = 0; Cluster < g.get_group_linear_range();           \

@@ -22,8 +22,7 @@ inline namespace _V1 {
 namespace detail {
 template <class T> struct is_chunk : std::false_type {};
 
-template <class T>
-inline constexpr bool is_chunk_v = is_chunk<T>::value;
+template <class T> inline constexpr bool is_chunk_v = is_chunk<T>::value;
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
@@ -157,7 +156,7 @@ template <typename T, int N> struct get_elem_type_unqual<vec<T, N>> {
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>
 struct get_elem_type_unqual<SwizzleOp<VecT, OperationLeftT, OperationRightT,
-                               OperationCurrentT, Indexes...>> {
+                                      OperationCurrentT, Indexes...>> {
   using type = typename get_elem_type_unqual<std::remove_cv_t<VecT>>::type;
 };
 

@@ -89,11 +89,11 @@
 #include <sycl/ext/oneapi/experimental/ballot_group.hpp>
 #include <sycl/ext/oneapi/experimental/bfloat16_math.hpp>
 #include <sycl/ext/oneapi/experimental/builtins.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/ext/oneapi/experimental/cluster_group_prop.hpp>
 #include <sycl/ext/oneapi/experimental/composite_device.hpp>
 #include <sycl/ext/oneapi/experimental/cuda/barrier.hpp>
 #include <sycl/ext/oneapi/experimental/enqueue_functions.hpp>
-#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/group_sort.hpp>
