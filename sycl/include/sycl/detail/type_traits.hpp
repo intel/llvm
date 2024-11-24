@@ -20,10 +20,10 @@
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-template <class T> struct is_fixed_size_group : std::false_type {};
+template <class T> struct is_chunk : std::false_type {};
 
 template <class T>
-inline constexpr bool is_fixed_size_group_v = is_fixed_size_group<T>::value;
+inline constexpr bool is_chunk_v = is_chunk<T>::value;
 
 template <typename VecT, typename OperationLeftT, typename OperationRightT,
           template <typename> class OperationCurrentT, int... Indexes>

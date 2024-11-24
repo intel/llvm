@@ -76,7 +76,7 @@ struct is_ballot_group<
     sycl::ext::oneapi::experimental::ballot_group<ParentGroup>>
     : std::true_type {};
 
-template <typename Group> struct is_fixed_size_group : std::false_type {};
+template <typename Group> struct is_chunk : std::false_type {};
 
 template <size_t ChunkSize, typename ParentGroup>
 struct is_chunk<sycl::ext::oneapi::experimental::chunk<
@@ -888,7 +888,7 @@ inline uint32_t MapShuffleID(GroupT g, id<1> local_id) {
   if constexpr (is_tangle_or_opportunistic_group<GroupT>::value ||
                 is_ballot_group<GroupT>::value)
     return detail::IdToMaskPosition(g, local_id);
-  else if constexpr (is_fixed_size_group<GroupT>::value)
+  else if constexpr (is_chunk<GroupT>::value)
     return g.get_group_linear_id() * g.get_local_range().size() + local_id;
   else
     return local_id.get(0);
@@ -983,7 +983,7 @@ EnableIfNativeShuffle<T> ShuffleXor(GroupT g, T x, id<1> mask) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk_v<GroupT>) {
       return cuda_shfl_sync_bfly_i32(MemberMask, x,
                                      static_cast<uint32_t>(mask.get(0)), 0x1f);
 
@@ -1031,7 +1031,7 @@ EnableIfNativeShuffle<T> ShuffleDown(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk_v<GroupT>) {
       return cuda_shfl_sync_down_i32(MemberMask, x, delta, 31);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1075,7 +1075,7 @@ EnableIfNativeShuffle<T> ShuffleUp(GroupT g, T x, uint32_t delta) {
   if constexpr (ext::oneapi::experimental::is_user_constructed_group_v<
                     GroupT>) {
     auto MemberMask = detail::ExtractMask(detail::GetMask(g))[0];
-    if constexpr (is_fixed_size_group_v<GroupT>) {
+    if constexpr (is_chunk_v<GroupT>) {
       return cuda_shfl_sync_up_i32(MemberMask, x, delta, 0);
     } else {
       unsigned localSetBit = g.get_local_id()[0] + 1;
@@ -1301,7 +1301,7 @@ ControlBarrier(Group g, memory_scope FenceScope, memory_order Order) {
   template <__spv::GroupOperation Op, size_t ChunkSize,                        \
             typename ParentGroup, typename T>                                  \
   inline T Group##Instruction(                                                 \
-      ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x)         \
+      ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x) {       \
     using ConvertedT = detail::ConvertToOpenCLType_t<T>;                       \
                                                                                \
     using OCLT = std::conditional_t<                                           \

@@ -1,4 +1,4 @@
-//==--- fixed_size_group.hpp --- SYCL extension for non-uniform groups -----==//
+//==--- chunk.hpp --- SYCL extension for non-uniform groups -----==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -10,7 +10,7 @@
 
 #include <sycl/aspects.hpp>
 #include <sycl/detail/spirv.hpp>
-#include <sycl/detail/type_traits.hpp> // for is_fixed_size_group, is_group
+#include <sycl/detail/type_traits.hpp> // for is_chunk, is_group
 #include <sycl/exception.hpp>
 #include <sycl/ext/oneapi/experimental/non_uniform_groups.hpp>
 #include <sycl/ext/oneapi/sub_group_mask.hpp> // for sub_group_mask
@@ -30,7 +30,7 @@ template <size_t ChunkSize, typename ParentGroup> class chunk;
 
 template <size_t ChunkSize, typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_fixed_size_group)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_chunk)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
@@ -44,7 +44,9 @@ public:
   using linear_id_type = typename ParentGroup::linear_id_type;
   static constexpr int dimensions = 1;
   static constexpr sycl::memory_scope fence_scope = ParentGroup::fence_scope;
-
+  /* ToDo:wd
+    we don't have fragment (operator fragment<ParentGroup>() const;) implementation yet.
+  */
   id_type get_group_id() const {
 #ifdef __SYCL_DEVICE_ONLY__
     return __spirv_SubgroupLocalInvocationId() / ChunkSize;
@@ -132,9 +134,9 @@ protected:
 #endif
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__NVPTX__)
-  fixed_size_group(ext::oneapi::sub_group_mask mask) : Mask(mask) {}
+  chunk(ext::oneapi::sub_group_mask mask) : Mask(mask) {}
 #else
-  fixed_size_group() {}
+  chunk() {}
 #endif
 
   friend chunk<ChunkSize, ParentGroup>

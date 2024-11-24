@@ -7,10 +7,16 @@
 // REQUIRES: cpu || gpu
 // UNSUPPORTED: hip
 // REQUIRES: sg-32
+// REQUIRES: aspect-ext_oneapi_chunk
+
+#include <vector>
+
+//#ifdef __SYCL_DEVICE_ONLY__
+//[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_chunk)]]
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
-#include <vector>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
+
 namespace syclex = sycl::ext::oneapi::experimental;
 
 template <size_t ChunkSize> class TestKernel;
@@ -71,3 +77,5 @@ int main() {
   test<32>();
   return 0;
 }
+
+//# endif

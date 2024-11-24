@@ -6,19 +6,16 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_fixed_size_group
+// REQUIRES: aspect-ext_oneapi_chunk
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
+#include <sycl/ext/oneapi/experimental/chunk.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
+
+
 namespace syclex = sycl::ext::oneapi::experimental;
-
-
-
-
-
 
 template <size_t ChunkSize> class TestKernel;
 
