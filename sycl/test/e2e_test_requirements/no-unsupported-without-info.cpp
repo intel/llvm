@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 382
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 381
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -282,7 +282,6 @@
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
-// CHECK-NEXT: OptionalKernelFeatures/fp64-conv-emu.cpp
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
