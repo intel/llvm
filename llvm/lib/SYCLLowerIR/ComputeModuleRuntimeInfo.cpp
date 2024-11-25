@@ -183,8 +183,14 @@ PropSetRegTy computeModuleProperties(const Module &M,
         continue;
 
       size_t SPVSize = (*SPVMB)->getBufferSize();
+      // std::aligned_alloc is not available in some pre-ci Windows machine.
+#if defined(_WIN32) || defined(_WIN64)
+      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
+          _aligned_malloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
+#else
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
           std::aligned_alloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
+#endif
       *(reinterpret_cast<uint32_t *>(SPVBuffer)) = static_cast<uint32_t>(Ext);
       std::memcpy(SPVBuffer + sizeof(uint32_t), (*SPVMB)->getBufferStart(),
                   SPVSize);
@@ -192,7 +198,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                                 SPVSize + sizeof(uint32_t));
       PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, SPVFileName,
                   SPVBinaryObj);
+#if defined(_WIN32) || defined(_WIN64)
+      _aligned_free(SPVBUffer);
+#else
       std::free(SPVBuffer);
+#endif
     }
   }
 
