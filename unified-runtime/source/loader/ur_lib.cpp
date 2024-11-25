@@ -374,34 +374,34 @@ ur_result_t urDeviceGetSelected(ur_platform_handle_t hPlatform,
       ")$",
       std::regex_constants::icase);
 
-  ur_platform_backend_t platformBackend;
+  ur_backend_t platformBackend;
   if (UR_RESULT_SUCCESS !=
       urPlatformGetInfo(hPlatform, UR_PLATFORM_INFO_BACKEND,
-                        sizeof(ur_platform_backend_t), &platformBackend, 0)) {
+                        sizeof(ur_backend_t), &platformBackend, 0)) {
     return UR_RESULT_ERROR_INVALID_PLATFORM;
   }
   const std::string platformBackendName = // hPlatform->get_backend_name();
       [&platformBackend]() constexpr {
         switch (platformBackend) {
-        case UR_PLATFORM_BACKEND_UNKNOWN:
+        case UR_BACKEND_UNKNOWN:
           return "*"; // the only ODS string that matches
           break;
-        case UR_PLATFORM_BACKEND_LEVEL_ZERO:
+        case UR_BACKEND_LEVEL_ZERO:
           return "level_zero";
           break;
-        case UR_PLATFORM_BACKEND_OPENCL:
+        case UR_BACKEND_OPENCL:
           return "opencl";
           break;
-        case UR_PLATFORM_BACKEND_CUDA:
+        case UR_BACKEND_CUDA:
           return "cuda";
           break;
-        case UR_PLATFORM_BACKEND_HIP:
+        case UR_BACKEND_HIP:
           return "hip";
           break;
-        case UR_PLATFORM_BACKEND_NATIVE_CPU:
+        case UR_BACKEND_NATIVE_CPU:
           return "*"; // the only ODS string that matches
           break;
-        case UR_PLATFORM_BACKEND_FORCE_UINT32:
+        case UR_BACKEND_FORCE_UINT32:
           return ""; // no ODS string matches this
           break;
         default:
