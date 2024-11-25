@@ -8,7 +8,7 @@ import shutil
 from pathlib import Path
 from .result import Result
 from .options import options
-from utils.utils import run
+from utils.utils import download, run
 import urllib.request
 import tarfile
 
@@ -26,7 +26,7 @@ class Benchmark:
         assert False, \
             f"could not find adapter file {adapter_path} (and in similar lib paths)"
 
-    def run_bench(self, command, env_vars):
+    def run_bench(self, command, env_vars, ld_library=[]):
         env_vars_with_forced_adapter = env_vars.copy()
         if options.ur is not None:
             env_vars_with_forced_adapter.update(
@@ -36,7 +36,8 @@ class Benchmark:
             command=command,
             env_vars=env_vars_with_forced_adapter,
             add_sycl=True,
-            cwd=options.benchmark_cwd
+            cwd=options.benchmark_cwd,
+            ld_library=ld_library
         ).stdout.decode()
 
     def create_data_path(self, name):
@@ -49,17 +50,9 @@ class Benchmark:
 
         return data_path
 
-    def download_untar(self, name, url, file):
+    def download(self, name, url, file, untar = False):
         self.data_path = self.create_data_path(name)
-        data_file = os.path.join(self.data_path, file)
-        if not Path(data_file).exists():
-            print(f"{data_file} does not exist, downloading")
-            urllib.request.urlretrieve(url, data_file)
-            file = tarfile.open(data_file)
-            file.extractall(self.data_path)
-            file.close()
-        else:
-            print(f"{data_file} exists, skipping...")
+        return download(self.data_path, url, file, True)
 
     def name(self):
         raise NotImplementedError()
@@ -78,6 +71,9 @@ class Benchmark:
 
     def teardown(self):
         raise NotImplementedError()
+
+    def ignore_iterations(self):
+        return False
 
 class Suite:
     def benchmarks(self) -> list[Benchmark]:

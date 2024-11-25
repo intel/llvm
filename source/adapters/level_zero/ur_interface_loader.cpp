@@ -200,6 +200,8 @@ UR_APIEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
       ur::level_zero::urEnqueueDeviceGlobalVariableRead;
   pDdiTable->pfnReadHostPipe = ur::level_zero::urEnqueueReadHostPipe;
   pDdiTable->pfnWriteHostPipe = ur::level_zero::urEnqueueWriteHostPipe;
+  pDdiTable->pfnEventsWaitWithBarrierExt =
+      ur::level_zero::urEnqueueEventsWaitWithBarrierExt;
 
   return result;
 }

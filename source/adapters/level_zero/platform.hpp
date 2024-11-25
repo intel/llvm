@@ -59,6 +59,7 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool ZeDriverGlobalOffsetExtensionFound{false};
   bool ZeDriverModuleProgramExtensionFound{false};
   bool ZeDriverEventPoolCountingEventsExtensionFound{false};
+  bool zeDriverImmediateCommandListAppendFound{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;

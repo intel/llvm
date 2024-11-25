@@ -1,8 +1,4 @@
-{{NONDETERMINISTIC}}
-{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolEnabled
-{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolDisabled
-{{OPT}}urUSMHostAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolEnabled
-{{OPT}}urUSMHostAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolDisabled
-{{OPT}}urUSMPoolCreateTest.SuccessWithFlag/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urUSMSharedAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolEnabled
-{{OPT}}urUSMSharedAllocTest.InvalidUSMSize/NVIDIA_CUDA_BACKEND___{{.*}}___UsePoolDisabled
+{{OPT}}urUSMDeviceAllocTest.InvalidUSMSize/*
+{{OPT}}urUSMHostAllocTest.InvalidUSMSize/*
+{{OPT}}urUSMPoolCreateTest.SuccessWithFlag/*
+{{OPT}}urUSMSharedAllocTest.InvalidUSMSize/*

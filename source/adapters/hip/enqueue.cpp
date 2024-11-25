@@ -436,6 +436,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 }
 
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 /// General 3D memory copy operation.
 /// This function requires the corresponding HIP context to be at the top of
 /// the context stack
@@ -704,25 +712,22 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 
 static inline void memsetRemainPattern(hipStream_t Stream, uint32_t PatternSize,
                                        size_t Size, const void *pPattern,
-                                       hipDeviceptr_t Ptr) {
+                                       hipDeviceptr_t Ptr,
+                                       uint32_t StartOffset) {
+  // Calculate the number of times the pattern needs to be applied
+  auto Height = Size / PatternSize;
 
-  // Calculate the number of patterns, stride and the number of times the
-  // pattern needs to be applied.
-  auto NumberOfSteps = PatternSize / sizeof(uint8_t);
-  auto Pitch = NumberOfSteps * sizeof(uint8_t);
-  auto Height = Size / NumberOfSteps;
-
-  for (auto step = 4u; step < NumberOfSteps; ++step) {
+  for (auto step = StartOffset; step < PatternSize; ++step) {
     // take 1 byte of the pattern
     auto Value = *(static_cast<const uint8_t *>(pPattern) + step);
 
     // offset the pointer to the part of the buffer we want to write to
-    auto OffsetPtr = reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(Ptr) +
-                                              (step * sizeof(uint8_t)));
+    auto OffsetPtr =
+        reinterpret_cast<void *>(reinterpret_cast<uint8_t *>(Ptr) + step);
 
     // set all of the pattern chunks
-    UR_CHECK_ERROR(hipMemset2DAsync(OffsetPtr, Pitch, Value, sizeof(uint8_t),
-                                    Height, Stream));
+    UR_CHECK_ERROR(
+        hipMemset2DAsync(OffsetPtr, PatternSize, Value, 1u, Height, Stream));
   }
 }
 
@@ -735,11 +740,55 @@ static inline void memsetRemainPattern(hipStream_t Stream, uint32_t PatternSize,
 ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
                                      size_t Size, const void *pPattern,
                                      hipDeviceptr_t Ptr) {
+  // Find the largest supported word size into which the pattern can be divided
+  auto BackendWordSize = PatternSize % 4u == 0u   ? 4u
+                         : PatternSize % 2u == 0u ? 2u
+                                                  : 1u;
 
-  // Get 4-byte chunk of the pattern and call hipMemsetD32Async
-  auto Count32 = Size / sizeof(uint32_t);
-  auto Value = *(static_cast<const uint32_t *>(pPattern));
-  UR_CHECK_ERROR(hipMemsetD32Async(Ptr, Value, Count32, Stream));
+  // Calculate the number of patterns
+  auto NumberOfSteps = PatternSize / BackendWordSize;
+
+  // If the pattern is 1 word or the first word is repeated throughout, a fast
+  // continuous fill can be used without the need for slower strided fills
+  bool UseOnlyFirstValue{true};
+  auto checkIfFirstWordRepeats = [&UseOnlyFirstValue,
+                                  NumberOfSteps](const auto *pPatternWords) {
+    for (auto Step{1u}; (Step < NumberOfSteps) && UseOnlyFirstValue; ++Step) {
+      if (*(pPatternWords + Step) != *pPatternWords) {
+        UseOnlyFirstValue = false;
+      }
+    }
+  };
+
+  // Use a continuous fill for the first word in the pattern because it's faster
+  // than a strided fill. Then, overwrite the other values in subsequent steps.
+  switch (BackendWordSize) {
+  case 4u: {
+    auto *pPatternWords = static_cast<const uint32_t *>(pPattern);
+    checkIfFirstWordRepeats(pPatternWords);
+    UR_CHECK_ERROR(
+        hipMemsetD32Async(Ptr, *pPatternWords, Size / BackendWordSize, Stream));
+    break;
+  }
+  case 2u: {
+    auto *pPatternWords = static_cast<const uint16_t *>(pPattern);
+    checkIfFirstWordRepeats(pPatternWords);
+    UR_CHECK_ERROR(
+        hipMemsetD16Async(Ptr, *pPatternWords, Size / BackendWordSize, Stream));
+    break;
+  }
+  default: {
+    auto *pPatternWords = static_cast<const uint8_t *>(pPattern);
+    checkIfFirstWordRepeats(pPatternWords);
+    UR_CHECK_ERROR(
+        hipMemsetD8Async(Ptr, *pPatternWords, Size / BackendWordSize, Stream));
+    break;
+  }
+  }
+
+  if (UseOnlyFirstValue) {
+    return UR_RESULT_SUCCESS;
+  }
 
   // There is a bug in ROCm prior to 6.0.0 version which causes hipMemset2D
   // to behave incorrectly when acting on host pinned memory.
@@ -753,7 +802,7 @@ ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
   // we need to check that isManaged attribute is false.
   if (ptrAttribs.hostPointer && !ptrAttribs.isManaged) {
     const auto NumOfCopySteps = Size / PatternSize;
-    const auto Offset = sizeof(uint32_t);
+    const auto Offset = BackendWordSize;
     const auto LeftPatternSize = PatternSize - Offset;
     const auto OffsetPatternPtr = reinterpret_cast<const void *>(
         reinterpret_cast<const uint8_t *>(pPattern) + Offset);
@@ -768,10 +817,12 @@ ur_result_t commonMemSetLargePattern(hipStream_t Stream, uint32_t PatternSize,
                                     Stream));
     }
   } else {
-    memsetRemainPattern(Stream, PatternSize, Size, pPattern, Ptr);
+    memsetRemainPattern(Stream, PatternSize, Size, pPattern, Ptr,
+                        BackendWordSize);
   }
 #else
-  memsetRemainPattern(Stream, PatternSize, Size, pPattern, Ptr);
+  memsetRemainPattern(Stream, PatternSize, Size, pPattern, Ptr,
+                      BackendWordSize);
 #endif
   return UR_RESULT_SUCCESS;
 }
