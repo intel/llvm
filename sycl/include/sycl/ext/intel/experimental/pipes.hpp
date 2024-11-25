@@ -43,8 +43,8 @@ namespace experimental {
 class pipe_base {
 
 protected:
-  pipe_base();
-  ~pipe_base();
+  pipe_base() = default;
+  ~pipe_base() = default;
 
   __SYCL_EXPORT static std::string get_pipe_name(const void *HostPipePtr);
   __SYCL_EXPORT static bool wait_non_blocking(const event &E);

@@ -383,7 +383,7 @@ each command-list when the command-buffer is enqueued:
 
 Additionally,
 [zeCommandListImmediateAppendCommandListsExp](https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/api.html#zecommandlistimmediateappendcommandlistsexp)
-requires an extra command-list which is used to submit the other 
+requires an extra command-list which is used to submit the other
 command-lists. This command-list has a specific engine type
 associated to it (i.e. compute or copy engine). Hence, for our implementation,
 we need 2 of these helper command-lists:
