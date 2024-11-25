@@ -1,6 +1,9 @@
 // RUN: %clang_cc1 -fsycl-is-device -internal-isystem %S/Inputs -triple spir64-unknown-unknown -fsycl-int-footer=%t.footer.h -emit-llvm %s -o -
 // RUN: FileCheck -input-file=%t.footer.h %s --check-prefix=CHECK-FOOTER
 
+// This test checks that integration footer is emitted correctly when a
+// device_global has an explicit template specialization in template arguments.
+
 #include "sycl.hpp"
 
 namespace sycl {
