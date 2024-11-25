@@ -51,13 +51,6 @@ bool jit_compiler::post_link::removeSYCLKernelsConstRefArray(Module &M) {
   return true;
 }
 
-// Removes all device_global variables from the llvm.compiler.used global
-// variable. A device_global with internal linkage will be in llvm.compiler.used
-// to avoid the compiler wrongfully removing it during optimizations. However,
-// as an effect the device_global variables will also be distributed across
-// binaries, even if llvm.compiler.used has served its purpose. To avoid
-// polluting other binaries with unused device_global variables, we remove them
-// from llvm.compiler.used and erase them if they have no further uses.
 bool jit_compiler::post_link::removeDeviceGlobalFromCompilerUsed(Module &M) {
   GlobalVariable *GV = M.getGlobalVariable("llvm.compiler.used");
   if (!GV)
