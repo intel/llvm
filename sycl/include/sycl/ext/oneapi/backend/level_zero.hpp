@@ -39,8 +39,7 @@
 namespace sycl {
 inline namespace _V1 {
 
-template <bundle_state State>
-class kernel_bundle;
+template <bundle_state State> class kernel_bundle;
 
 namespace ext::oneapi::level_zero::detail {
 __SYCL_EXPORT device make_device(const platform &Platform,
