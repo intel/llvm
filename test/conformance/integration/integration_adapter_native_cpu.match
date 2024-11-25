@@ -1,7 +1,3 @@
-{{NONDETERMINISTIC}}
-QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__IN_ORDER_QUEUE
-QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__OUT_OF_ORDER_QUEUE
-QueueUSMTestWithParam.QueueUSMTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__IN_ORDER_QUEUE
-QueueUSMTestWithParam.QueueUSMTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__OUT_OF_ORDER_QUEUE
-QueueBufferTestWithParam.QueueBufferTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__IN_ORDER_QUEUE
-QueueBufferTestWithParam.QueueBufferTest/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}__OUT_OF_ORDER_QUEUE
+QueueEmptyStatusTestWithParam.QueueEmptyStatusTest/*
+QueueUSMTestWithParam.QueueUSMTest/*
+QueueBufferTestWithParam.QueueBufferTest/*

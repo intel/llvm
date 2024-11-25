@@ -9,10 +9,9 @@ using urDeviceCreateWithNativeHandleTest = uur::urAllDevicesTest;
 TEST_F(urDeviceCreateWithNativeHandleTest, Success) {
     for (auto device : devices) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urDeviceGetNativeHandle(device, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urDeviceGetNativeHandle(device, &native_handle));
 
         // We cannot assume anything about a native_handle, not even if it's
         // `nullptr` since this could be a valid representation within a backend.
@@ -32,10 +31,9 @@ TEST_F(urDeviceCreateWithNativeHandleTest, Success) {
 TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
     for (auto device : devices) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urDeviceGetNativeHandle(device, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urDeviceGetNativeHandle(device, &native_handle));
 
         ur_device_handle_t dev = nullptr;
         ur_device_native_properties_t props{
@@ -49,10 +47,9 @@ TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 TEST_F(urDeviceCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
     for (auto device : devices) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urDeviceGetNativeHandle(device, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urDeviceGetNativeHandle(device, &native_handle));
 
         ur_device_handle_t dev = nullptr;
         ur_device_native_properties_t props{

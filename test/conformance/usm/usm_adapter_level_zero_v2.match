@@ -1,8 +1,1 @@
-{{NONDETERMINISTIC}}
-urUSMDeviceAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolEnabled
-urUSMDeviceAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolDisabled
-urUSMGetMemAllocInfoTest.Success/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UR_USM_ALLOC_INFO_POOL
-urUSMHostAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolEnabled
-urUSMHostAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolDisabled
-urUSMSharedAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolEnabled
-urUSMSharedAllocTest.InvalidUSMSize/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}____UsePoolDisabled
+urUSMGetMemAllocInfoTest.Success/*___UR_USM_ALLOC_INFO_POOL

@@ -16,19 +16,6 @@ include(CheckCXXSourceCompiles)
 include(CMakePackageConfigHelpers)
 include(CTest)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
-include(helpers)
-
-if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
-    set(Python3_FIND_FRAMEWORK NEVER)
-    set(Python3_FIND_STRATEGY LOCATION)
-endif()
-
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED YES)
-
 # Build Options
 option(UR_BUILD_EXAMPLES "Build example applications." ON)
 option(UR_BUILD_TESTS "Build unit tests." ON)
@@ -40,6 +27,7 @@ option(UR_USE_ASAN "enable AddressSanitizer" OFF)
 option(UR_USE_UBSAN "enable UndefinedBehaviorSanitizer" OFF)
 option(UR_USE_MSAN "enable MemorySanitizer" OFF)
 option(UR_USE_TSAN "enable ThreadSanitizer" OFF)
+option(UR_USE_CFI "enable Control Flow Integrity checks (requires clang and implies -flto)" ON)
 option(UR_ENABLE_TRACING "enable api tracing through xpti" OFF)
 option(UR_ENABLE_SANITIZER "enable device sanitizer" ON)
 option(UR_ENABLE_SYMBOLIZER "enable symoblizer for sanitizer" OFF)
@@ -79,6 +67,19 @@ set(UR_ADAPTER_HIP_SOURCE_DIR "" CACHE PATH
     "Path to external 'hip' adapter source dir")
 set(UR_ADAPTER_NATIVE_CPU_SOURCE_DIR "" CACHE PATH
     "Path to external 'native_cpu' adapter source dir")
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(helpers)
+
+if(CMAKE_SYSTEM_NAME STREQUAL Darwin)
+    set(Python3_FIND_FRAMEWORK NEVER)
+    set(Python3_FIND_STRATEGY LOCATION)
+endif()
+
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
 
 # There's little reason not to generate the compile_commands.json
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

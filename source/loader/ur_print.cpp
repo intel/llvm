@@ -1069,6 +1069,22 @@ ur_result_t urPrintExpPeerInfo(enum ur_exp_peer_info_t value, char *buffer,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpEnqueueExtFlags(enum ur_exp_enqueue_ext_flag_t value,
+                                      char *buffer, const size_t buff_size,
+                                      size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintExpEnqueueExtProperties(
+    const struct ur_exp_enqueue_ext_properties_t params, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpEnqueueNativeCommandFlags(
     enum ur_exp_enqueue_native_command_flag_t value, char *buffer,
     const size_t buff_size, size_t *out_size) {
@@ -1740,6 +1756,14 @@ ur_result_t urPrintEnqueueWriteHostPipeParams(
 
 ur_result_t urPrintEnqueueKernelLaunchCustomExpParams(
     const struct ur_enqueue_kernel_launch_custom_exp_params_t *params,
+    char *buffer, const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << params;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
+ur_result_t urPrintEnqueueEventsWaitWithBarrierExtParams(
+    const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params,
     char *buffer, const size_t buff_size, size_t *out_size) {
     std::stringstream ss;
     ss << params;

@@ -419,6 +419,25 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t Queue, ///< [in] handle of the queue object
+    const ur_exp_enqueue_ext_properties_t
+        *, ///< [in][optional] pointer to the extended enqueue properties
+    uint32_t NumEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t
+        *EventWaitList, ///< [in][optional][range(0, numEventsInWaitList)]
+                        ///< pointer to a list of events that must be complete
+                        ///< before this command can be executed. If nullptr,
+                        ///< the numEventsInWaitList must be 0, indicating that
+                        ///< all previously enqueued commands must be complete.
+    ur_event_handle_t
+        *OutEvent ///< [in,out][optional] return an event object that identifies
+                  ///< this particular command instance.
+) {
+  return ur::level_zero::urEnqueueEventsWaitWithBarrier(
+      Queue, NumEventsInWaitList, EventWaitList, OutEvent);
+}
+
 ur_result_t urEventGetInfo(
     ur_event_handle_t Event,  ///< [in] handle of the event object
     ur_event_info_t PropName, ///< [in] the name of the event property to query
@@ -530,7 +549,8 @@ ur_result_t urEventGetProfilingInfo(
 
   // For timestamped events we have the timestamps ready directly on the event
   // handle, so we short-circuit the return.
-  if (isTimestampedEvent) {
+  // We don't support user events with timestamps due to requiring the UrQueue.
+  if (isTimestampedEvent && Event->UrQueue) {
     uint64_t ContextStartTime = Event->RecordEventStartTimestamp;
     switch (PropName) {
     case UR_PROFILING_INFO_COMMAND_QUEUED:

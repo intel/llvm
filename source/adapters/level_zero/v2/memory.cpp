@@ -402,7 +402,7 @@ namespace ur::level_zero {
 ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
                               ur_mem_flags_t flags, size_t size,
                               const ur_buffer_properties_t *pProperties,
-                              ur_mem_handle_t *phBuffer) {
+                              ur_mem_handle_t *phBuffer) try {
   if (flags & UR_MEM_FLAG_ALLOC_HOST_POINTER) {
     // TODO:
     // Having PI_MEM_FLAGS_HOST_PTR_ALLOC for buffer requires allocation of
@@ -430,12 +430,14 @@ ur_result_t urMemBufferCreate(ur_context_handle_t hContext,
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemBufferPartition(ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
                                  ur_buffer_create_type_t bufferCreateType,
                                  const ur_buffer_region_t *pRegion,
-                                 ur_mem_handle_t *phMem) {
+                                 ur_mem_handle_t *phMem) try {
   UR_ASSERT(bufferCreateType == UR_BUFFER_CREATE_TYPE_REGION,
             UR_RESULT_ERROR_INVALID_ENUMERATION);
   UR_ASSERT((pRegion->origin < hBuffer->getSize() &&
@@ -451,12 +453,13 @@ ur_result_t urMemBufferPartition(ur_mem_handle_t hBuffer, ur_mem_flags_t flags,
                                    accessMode);
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemBufferCreateWithNativeHandle(
     ur_native_handle_t hNativeMem, ur_context_handle_t hContext,
-    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) {
-
+    const ur_mem_native_properties_t *pProperties, ur_mem_handle_t *phMem) try {
   auto ptr = reinterpret_cast<void *>(hNativeMem);
   bool ownNativeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
 
@@ -505,11 +508,13 @@ ur_result_t urMemBufferCreateWithNativeHandle(
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
                          size_t propSize, void *pPropValue,
-                         size_t *pPropSizeRet) {
+                         size_t *pPropSizeRet) try {
   // No locking needed here, we only read const members
 
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
@@ -531,23 +536,29 @@ ur_result_t urMemGetInfo(ur_mem_handle_t hMemory, ur_mem_info_t propName,
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemRetain(ur_mem_handle_t hMem) {
+ur_result_t urMemRetain(ur_mem_handle_t hMem) try {
   hMem->getRefCount().increment();
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urMemRelease(ur_mem_handle_t hMem) {
+ur_result_t urMemRelease(ur_mem_handle_t hMem) try {
   if (hMem->getRefCount().decrementAndTest()) {
     delete hMem;
   }
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
                                  ur_device_handle_t hDevice,
-                                 ur_native_handle_t *phNativeMem) {
+                                 ur_native_handle_t *phNativeMem) try {
   std::ignore = hDevice;
 
   std::scoped_lock<ur_shared_mutex> lock(hMem->getMutex());
@@ -557,5 +568,7 @@ ur_result_t urMemGetNativeHandle(ur_mem_handle_t hMem,
       hMem->getSize(), nullptr);
   *phNativeMem = reinterpret_cast<ur_native_handle_t>(ptr);
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero

@@ -935,6 +935,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urDeviceGetInfo(ur_device_handle_t hDevice,
   }
   case UR_DEVICE_INFO_COMMAND_BUFFER_EVENT_SUPPORT_EXP:
     return ReturnValue(false);
+  case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
+    return ReturnValue(false);
+  }
   default:
     break;
   }
