@@ -302,11 +302,6 @@ template <typename> struct HasCompileTimeEffect : std::false_type {};
 
 } // namespace detail
 
-template <typename T>
-struct is_property_key
-    : std::bool_constant<!is_property_list_v<T> &&
-                         std::is_base_of_v<detail::property_key_base_tag, T>> {
-};
 template <typename, typename> struct is_property_key_of : std::false_type {};
 
 } // namespace experimental
