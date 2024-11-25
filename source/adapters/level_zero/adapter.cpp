@@ -76,19 +76,92 @@ ur_result_t getZesDeviceHandle(zes_uuid_t coreDeviceUuid,
   return UR_RESULT_ERROR_INVALID_ARGUMENT;
 }
 
+/**
+ * @brief Initializes the platforms by querying Level Zero drivers and devices.
+ *
+ * This function initializes the platforms by querying the available Level Zero
+ * drivers and devices. It handles different behaviors based on the presence of
+ * drivers obtained through `zeDriverGet` and initialized drivers through
+ * `zeInitDrivers`.
+ *
+ * @param platforms A vector to store the initialized platform handles.
+ * @param ZesResult The result of a previous ZES (Level Zero System) operation.
+ * @return ur_result_t The result of the initialization process.
+ *
+ * The function performs the following steps:
+ * 1. Queries the number of Level Zero drivers using `zeDriverGet`.
+ * 2. If drivers are found, it retrieves their handles.
+ * 3. If no drivers are found in either `zeInitDrivers` or `zeDriverGet`,
+ *    it logs a message and returns success.
+ * 4. If `zeInitDrivers` is supported by the global adapter, it retrieves
+ *    their handles and properties.
+ * 5. It compares the drivers obtained from `zeDriverGet` and `zeInitDrivers`,
+ *    adding unique drivers to the list.
+ * 6. If `zeInitDrivers` is not supported, it uses the drivers obtained
+ *    from `zeDriverGet`.
+ * 7. For each driver, it queries the devices and checks if they are GPU
+ * devices.
+ * 8. If a GPU device is found, it initializes a platform for the driver and
+ *    adds it to the platforms vector.
+ * 9. If ZES operations are successful, it populates the ZES/ZE device mapping
+ *    for the devices into the platform.
+ * 10. The function handles exceptions and returns the appropriate result.
+ */
 ur_result_t initPlatforms(PlatformVec &platforms,
                           ze_result_t ZesResult) noexcept try {
+  std::vector<ze_driver_handle_t> ZeDrivers;
+  std::vector<ze_driver_handle_t> ZeDriverGetHandles;
+  std::vector<ze_driver_handle_t> ZeInitDriversHandles;
+  std::vector<ze_device_handle_t> ZeDevices;
   uint32_t ZeDriverCount = 0;
-  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, nullptr));
-  if (ZeDriverCount == 0) {
+  uint32_t ZeDriverGetCount = 0;
+
+  auto ZeDriverGetResult =
+      ZE_CALL_NOCHECK(zeDriverGet, (&ZeDriverGetCount, nullptr));
+  if (ZeDriverGetCount > 0 && ZeDriverGetResult == ZE_RESULT_SUCCESS) {
+    ZeDriverGetHandles.resize(ZeDriverGetCount);
+    ZE2UR_CALL(zeDriverGet, (&ZeDriverGetCount, ZeDriverGetHandles.data()));
+  }
+  if (ZeDriverGetCount == 0 && GlobalAdapter->ZeInitDriversCount == 0) {
+    logger::debug("\nNo Valid L0 Drivers found.\n");
     return UR_RESULT_SUCCESS;
   }
 
-  std::vector<ze_driver_handle_t> ZeDrivers;
-  std::vector<ze_device_handle_t> ZeDevices;
-  ZeDrivers.resize(ZeDriverCount);
-
-  ZE2UR_CALL(zeDriverGet, (&ZeDriverCount, ZeDrivers.data()));
+  if (GlobalAdapter->InitDriversSupported) {
+    ZeInitDriversHandles.resize(GlobalAdapter->ZeInitDriversCount);
+    ZeDrivers.resize(GlobalAdapter->ZeInitDriversCount);
+    ZE2UR_CALL(GlobalAdapter->initDriversFunctionPtr,
+               (&GlobalAdapter->ZeInitDriversCount, ZeInitDriversHandles.data(),
+                &GlobalAdapter->InitDriversDesc));
+    ZeDrivers.assign(ZeInitDriversHandles.begin(), ZeInitDriversHandles.end());
+    if (ZeDriverGetCount > 0 && GlobalAdapter->ZeInitDriversCount > 0) {
+      for (uint32_t X = 0; X < GlobalAdapter->ZeInitDriversCount; ++X) {
+        for (uint32_t Y = 0; Y < ZeDriverGetCount; ++Y) {
+          ZeStruct<ze_driver_properties_t> ZeDriverGetProperties;
+          ZeStruct<ze_driver_properties_t> ZeInitDriverProperties;
+          ZE2UR_CALL(zeDriverGetProperties,
+                     (ZeDriverGetHandles[Y], &ZeDriverGetProperties));
+          ZE2UR_CALL(zeDriverGetProperties,
+                     (ZeInitDriversHandles[X], &ZeInitDriverProperties));
+          // If zeDriverGet driver is different from zeInitDriver driver, add it
+          // to the list. This allows for older drivers to be used alongside
+          // newer drivers.
+          if (ZeDriverGetProperties.driverVersion !=
+              ZeInitDriverProperties.driverVersion) {
+            logger::debug("\nzeDriverHandle {} added to the zeInitDrivers list "
+                          "of possible handles.\n",
+                          ZeDriverGetHandles[Y]);
+            ZeDrivers.push_back(ZeDriverGetHandles[Y]);
+          }
+        }
+      }
+    }
+  } else {
+    ZeDrivers.resize(ZeDriverGetCount);
+    ZeDrivers.assign(ZeDriverGetHandles.begin(), ZeDriverGetHandles.end());
+  }
+  ZeDriverCount = ZeDrivers.size();
+  logger::debug("\n{} L0 Drivers found.\n", ZeDriverCount);
   for (uint32_t I = 0; I < ZeDriverCount; ++I) {
     // Keep track of the first platform init for this Driver
     bool DriverPlatformInit = false;
@@ -214,6 +287,15 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       return std::atoi(UrRet);
     }();
 
+    // Dynamically load the new L0 apis separately.
+    // This must be done to avoid attempting to use symbols that do
+    // not exist in older loader runtimes.
+#ifdef _WIN32
+    HMODULE processHandle = GetModuleHandle(NULL);
+#else
+    HMODULE processHandle = nullptr;
+#endif
+
     // initialize level zero only once.
     if (GlobalAdapter->ZeResult == std::nullopt) {
       // Setting these environment variables before running zeInit will enable
@@ -235,20 +317,80 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       // called multiple times.  Declaring the return value as "static" ensures
       // it's only called once.
 
+      // Set ZES_ENABLE_SYSMAN by default if the user has not set it.
+      if (UrSysManEnvInitEnabled) {
+        setEnvVar("ZES_ENABLE_SYSMAN", "1");
+      }
+
       // Init with all flags set to enable for all driver types to be init in
       // the application.
       ze_init_flags_t L0InitFlags = ZE_INIT_FLAG_GPU_ONLY;
       if (UrL0InitAllDrivers) {
         L0InitFlags |= ZE_INIT_FLAG_VPU_ONLY;
       }
-
-      // Set ZES_ENABLE_SYSMAN by default if the user has not set it.
-      if (UrSysManEnvInitEnabled) {
-        setEnvVar("ZES_ENABLE_SYSMAN", "1");
-      }
       logger::debug("\nzeInit with flags value of {}\n",
                     static_cast<int>(L0InitFlags));
-      GlobalAdapter->ZeResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
+      GlobalAdapter->ZeInitResult = ZE_CALL_NOCHECK(zeInit, (L0InitFlags));
+      if (*GlobalAdapter->ZeInitResult != ZE_RESULT_SUCCESS) {
+        logger::debug("\nzeInit failed with {}\n",
+                      *GlobalAdapter->ZeInitResult);
+      }
+
+      bool useInitDrivers = false;
+      zel_version_t loader_version = {};
+      size_t num_components;
+      auto result = zelLoaderGetVersions(&num_components, nullptr);
+      if (result == ZE_RESULT_SUCCESS) {
+        zel_component_version_t *versions =
+            new zel_component_version_t[num_components];
+        result = zelLoaderGetVersions(&num_components, versions);
+        if (result == ZE_RESULT_SUCCESS) {
+          for (size_t i = 0; i < num_components; ++i) {
+            if (strncmp(versions[i].component_name, "loader",
+                        strlen("loader")) == 0) {
+              loader_version = versions[i].component_lib_version;
+              logger::debug("\nLevel Zero Loader Version: {}.{}.{}\n",
+                            loader_version.major, loader_version.minor,
+                            loader_version.patch);
+              break;
+            }
+          }
+        }
+        delete[] versions;
+        if (loader_version.major > 1 ||
+            (loader_version.major == 1 && loader_version.minor > 19) ||
+            (loader_version.major == 1 && loader_version.minor == 19 &&
+             loader_version.patch >= 2)) {
+          useInitDrivers = true;
+        }
+      }
+
+      if (useInitDrivers) {
+        GlobalAdapter->initDriversFunctionPtr =
+            (ze_pfnInitDrivers_t)ur_loader::LibLoader::getFunctionPtr(
+                processHandle, "zeInitDrivers");
+        if (GlobalAdapter->initDriversFunctionPtr) {
+          logger::debug("\nzeInitDrivers with flags value of {}\n",
+                        static_cast<int>(GlobalAdapter->InitDriversDesc.flags));
+          GlobalAdapter->ZeInitDriversResult =
+              ZE_CALL_NOCHECK(GlobalAdapter->initDriversFunctionPtr,
+                              (&GlobalAdapter->ZeInitDriversCount, nullptr,
+                               &GlobalAdapter->InitDriversDesc));
+          if (*GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
+            GlobalAdapter->InitDriversSupported = true;
+          } else {
+            logger::debug("\nzeInitDrivers failed with {}\n",
+                          *GlobalAdapter->ZeInitDriversResult);
+          }
+        }
+      }
+
+      if (*GlobalAdapter->ZeInitResult == ZE_RESULT_SUCCESS ||
+          *GlobalAdapter->ZeInitDriversResult == ZE_RESULT_SUCCESS) {
+        GlobalAdapter->ZeResult = ZE_RESULT_SUCCESS;
+      } else {
+        GlobalAdapter->ZeResult = ZE_RESULT_ERROR_UNINITIALIZED;
+      }
     }
     assert(GlobalAdapter->ZeResult !=
            std::nullopt); // verify that level-zero is initialized
@@ -260,19 +402,11 @@ ur_adapter_handle_t_::ur_adapter_handle_t_()
       return;
     }
     if (*GlobalAdapter->ZeResult != ZE_RESULT_SUCCESS) {
-      logger::error("zeInit: Level Zero initialization failure\n");
+      logger::error("Level Zero initialization failure\n");
       result = ze2urResult(*GlobalAdapter->ZeResult);
 
       return;
     }
-    // Dynamically load the new L0 SysMan separate init and new EXP apis
-    // separately. This must be done to avoid attempting to use symbols that do
-    // not exist in older loader runtimes.
-#ifdef _WIN32
-    HMODULE processHandle = GetModuleHandle(NULL);
-#else
-    HMODULE processHandle = nullptr;
-#endif
 
     // Check if the user has enabled the default L0 SysMan initialization.
     const int UrSysmanZesinitEnable = [] {
