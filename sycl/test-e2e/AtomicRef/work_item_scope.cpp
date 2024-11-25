@@ -50,6 +50,8 @@ int main() {
     });
     q.wait_and_throw();
 
+    sycl::free(data, q);
+
   } catch (sycl::exception e) {
     std::cerr << "SYCL exception caught! : " << e.what() << "\n";
     return 1;
