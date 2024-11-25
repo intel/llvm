@@ -199,7 +199,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, SPVFileName,
                   SPVBinaryObj);
 #if defined(_WIN32) || defined(_WIN64)
-      _aligned_free(SPVBUffer);
+      _aligned_free(SPVBuffer);
 #else
       std::free(SPVBuffer);
 #endif
