@@ -1,18 +1,18 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
-// RUN: %{run} %t 2>&1 | FileCheck %s
-// RUN: env UR_LAYER_ASAN_OPTIONS=print_stats:1 %{run} %t 2>&1 | FileCheck --check-prefixes CHECK-STATS %s
+// RUN: env UR_LAYER_ASAN_OPTIONS=debug:0 %{run} %t 2>&1 | FileCheck %s
+
 #include <sycl/usm.hpp>
 
-/// This test is used to check enabling/disabling memory overhead statistics
-/// We always use "Stats" prefix in statistics message like asan
+/// This test is used to check enabling/disabling kernel debug message
+/// We always use "[kernel]" prefix in kernel debug message
 
 constexpr std::size_t N = 4;
 constexpr std::size_t group_size = 1;
 
 int main() {
   sycl::queue Q;
-  int *array = sycl::malloc_device<int>(1024 * 1024, Q);
+  int *array = sycl::malloc_device<int>(N, Q);
 
   Q.submit([&](sycl::handler &cgh) {
     auto acc = sycl::local_accessor<int>(group_size, cgh);
@@ -22,8 +22,7 @@ int main() {
         });
   });
   Q.wait();
-  // CHECK-STATS: Stats
-  // CHECK-NOT: Stats
+  // CHECK-NOT: [kernel]
 
   sycl::free(array, Q);
   std::cout << "PASS" << std::endl;

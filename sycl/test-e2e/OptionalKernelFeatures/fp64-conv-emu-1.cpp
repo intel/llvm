@@ -1,7 +1,8 @@
-// REQUIRES: ocloc, gpu, linux, aspect-fp64
+// REQUIRES: ocloc, gpu, linux, arch-intel_gpu_dg2_g10
 // UNSUPPORTED: cuda, hip
+// UNSUPPORTED-REASON: FP64 emulation is an Intel specific feature.
 
-// RUN: %clangxx -fsycl -fsycl-targets=spir64_gen  -Xsycl-target-backend "-device pvc" -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
+// RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_dg2_g10 -fsycl-fp64-conv-emu -O0 %s -o %t_opt.out
 // RUN: %{run} %t_opt.out
 
 // Tests that aspect::fp64 is not emitted correctly when -fsycl-fp64-conv-emu
