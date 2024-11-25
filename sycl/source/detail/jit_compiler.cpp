@@ -1126,7 +1126,8 @@ sycl_device_binaries jit_compiler::createDeviceBinaryImage(
     // Create an offload entry for each kernel.
     // It seems to be OK to set zero for most of the information here, at least
     // that is the case for compiled SPIR-V binaries.
-    OffloadEntryContainer Entry{Symbol.c_str(), nullptr, 0, 0, 0};
+    OffloadEntryContainer Entry{Symbol.c_str(), /*Addr=*/nullptr, /*Size=*/0,
+                                /*Flags=*/0, /*Reserved=*/0};
     Binary.addOffloadEntry(std::move(Entry));
   }
 
