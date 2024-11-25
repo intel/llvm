@@ -190,6 +190,15 @@ inline std::string GetPlatformName(ur_platform_handle_t hPlatform) {
         std::string(platform_name.data(), platform_name.size()));
 }
 
+inline std::string GetPlatformNameWithID(ur_platform_handle_t hPlatform) {
+    auto platform_name = GetPlatformName(hPlatform);
+    auto &platforms = uur::PlatformEnvironment::instance->all_platforms;
+    size_t platform_id =
+        std::find(platforms.begin(), platforms.end(), hPlatform) -
+        platforms.begin();
+    return platform_name + "_ID" + std::to_string(platform_id);
+}
+
 inline std::string GetDeviceName(ur_device_handle_t device) {
     std::string device_name, device_uuid;
     GetDeviceInfo<std::string>(device, UR_DEVICE_INFO_NAME, device_name);

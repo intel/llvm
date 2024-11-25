@@ -42,6 +42,9 @@ struct PlatformEnvironment : AdapterEnvironment {
     PlatformOptions parsePlatformOptions(int argc, char **argv);
 
     PlatformOptions platform_options;
+    // List of all discovered platforms
+    std::vector<ur_platform_handle_t> all_platforms;
+    // Adapter and platform selected for testing via platform_options
     ur_adapter_handle_t adapter = nullptr;
     ur_platform_handle_t platform = nullptr;
     static PlatformEnvironment *instance;

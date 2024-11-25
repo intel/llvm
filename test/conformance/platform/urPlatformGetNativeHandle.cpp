@@ -3,28 +3,25 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include <uur/fixtures.h>
 
-using urPlatformGetNativeHandleTest = uur::platform::urPlatformsTest;
+using urPlatformGetNativeHandleTest = uur::urPlatformTest;
+UUR_INSTANTIATE_PLATFORM_TEST_SUITE_P(urPlatformGetNativeHandleTest);
 
-TEST_F(urPlatformGetNativeHandleTest, Success) {
-    for (auto platform : platforms) {
-        ur_native_handle_t native_handle = 0;
-        if (auto error = urPlatformGetNativeHandle(platform, &native_handle)) {
-            ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
-        }
+TEST_P(urPlatformGetNativeHandleTest, Success) {
+    ur_native_handle_t native_handle = 0;
+    if (auto error = urPlatformGetNativeHandle(platform, &native_handle)) {
+        ASSERT_EQ(UR_RESULT_ERROR_UNSUPPORTED_FEATURE, error);
     }
 }
 
-TEST_F(urPlatformGetNativeHandleTest, InvalidNullHandlePlatform) {
+TEST_P(urPlatformGetNativeHandleTest, InvalidNullHandlePlatform) {
     ur_native_handle_t native_handle = 0;
     ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_HANDLE,
                      urPlatformGetNativeHandle(nullptr, &native_handle));
 }
 
-TEST_F(urPlatformGetNativeHandleTest, InvalidNullPointerNativePlatform) {
-    for (auto platform : platforms) {
-        ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
-                         urPlatformGetNativeHandle(platform, nullptr));
-    }
+TEST_P(urPlatformGetNativeHandleTest, InvalidNullPointerNativePlatform) {
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_NULL_POINTER,
+                     urPlatformGetNativeHandle(platform, nullptr));
 }
