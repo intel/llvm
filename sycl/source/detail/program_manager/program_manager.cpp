@@ -932,7 +932,14 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     return Cache.getOrInsertProgram(CacheKey);
   };
 
-  auto BuildResult = Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF);
+  auto EvictFunc = [&Cache, &CacheKey](ur_program_handle_t Program,
+                                       bool isBuilt) {
+    return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
+  };
+
+    auto BuildResult =
+      Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
+
   // getOrBuild is not supposed to return nullptr
   assert(BuildResult != nullptr && "Invalid build result");
 
@@ -950,6 +957,8 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
       // update it here and re-use that lambda.
       CacheKey.first.second = BImg->getImageID();
       bool DidInsert = Cache.insertBuiltProgram(CacheKey, ResProgram);
+      // Add to the eviction list.
+      Cache.registerProgramFetch(CacheKey, ResProgram, DidInsert);
       if (DidInsert) {
         // For every cached copy of the program, we need to increment its
         // refcount
@@ -1009,17 +1018,11 @@ ProgramManager::getOrCreateKernel(const ContextImplPtr &ContextImpl,
   using KernelArgMaskPairT = KernelProgramCache::KernelArgMaskPairT;
 
   KernelProgramCache &Cache = ContextImpl->getKernelProgramCache();
-
-  std::string CompileOpts, LinkOpts;
   SerializedObj SpecConsts;
-  applyOptionsFromEnvironment(CompileOpts, LinkOpts);
-  // Should always come last!
-  appendCompileEnvironmentVariablesThatAppend(CompileOpts);
-  appendLinkEnvironmentVariablesThatAppend(LinkOpts);
+
   ur_device_handle_t UrDevice = DeviceImpl->getHandleRef();
 
-  auto key = std::make_tuple(std::move(SpecConsts), UrDevice,
-                             CompileOpts + LinkOpts, KernelName);
+  auto key = std::make_tuple(std::move(SpecConsts), UrDevice, KernelName);
   if (SYCLConfig<SYCL_CACHE_IN_MEM>::get()) {
     auto ret_tuple = Cache.tryToGetKernelFast(key);
     constexpr size_t Kernel = 0;  // see KernelFastCacheValT tuple
@@ -2652,6 +2655,7 @@ device_image_plain ProgramManager::build(const device_image_plain &DeviceImage,
   ur_program_handle_t ResProgram =
       getBuiltURProgram(Img, Context, Devs, /*DeviceImagesToLink*/ {}, {&Img},
                         InputImpl, SpecConsts);
+
   DeviceImageImplPtr ExecImpl = std::make_shared<detail::device_image_impl>(
       InputImpl->get_bin_image_ref(), Context, Devs, bundle_state::executable,
       InputImpl->get_kernel_ids_ptr(), ResProgram,

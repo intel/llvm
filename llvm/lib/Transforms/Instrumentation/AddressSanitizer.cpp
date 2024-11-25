@@ -465,6 +465,10 @@ static cl::opt<bool>
                           cl::desc("instrument generic pointer"), cl::Hidden,
                           cl::init(true));
 
+static cl::opt<bool> ClDeviceGlobals("asan-device-globals",
+                                     cl::desc("instrument device globals"),
+                                     cl::Hidden, cl::init(true));
+
 // Debug flags.
 
 static cl::opt<int> ClDebug("asan-debug", cl::desc("debug"), cl::Hidden,
@@ -970,6 +974,7 @@ public:
 private:
   void initializeCallbacks();
 
+  void instrumentDeviceGlobal(IRBuilder<> &IRB);
   void instrumentGlobals(IRBuilder<> &IRB, bool *CtorComdat);
   void InstrumentGlobalsCOFF(IRBuilder<> &IRB,
                              ArrayRef<GlobalVariable *> ExtendedGlobals,
@@ -1556,10 +1561,25 @@ static bool isJointMatrixAccess(Value *V) {
   return false;
 }
 
+static bool isUnsupportedDeviceGlobal(GlobalVariable *G) {
+  // Non image scope device globals are implemented by device USM, and the
+  // out-of-bounds check for them will be done by sanitizer USM part. So we
+  // exclude them here.
+  if (!G->hasAttribute("sycl-device-image-scope"))
+    return true;
+
+  Attribute Attr = G->getAttribute("sycl-device-image-scope");
+  return (!Attr.isStringAttribute() || Attr.getValueAsString() == "false");
+}
+
 static bool isUnsupportedSPIRAccess(Value *Addr, Instruction *Inst) {
   // Skip SPIR-V built-in varibles
   auto *OrigValue = Addr->stripInBoundsOffsets();
   if (OrigValue->getName().starts_with("__spirv_BuiltIn"))
+    return true;
+
+  GlobalVariable *GV = dyn_cast<GlobalVariable>(OrigValue);
+  if (GV && isUnsupportedDeviceGlobal(GV))
     return true;
 
   // Ignore load/store for target ext type since we can't know exactly what size
@@ -2766,6 +2786,71 @@ Instruction *ModuleAddressSanitizer::CreateAsanModuleDtor() {
   return ReturnInst::Create(*C, AsanDtorBB);
 }
 
+void ModuleAddressSanitizer::instrumentDeviceGlobal(IRBuilder<> &IRB) {
+  auto &DL = M.getDataLayout();
+  SmallVector<GlobalVariable *, 8> GlobalsToRemove;
+  SmallVector<Constant *, 8> DeviceGlobalMetadata;
+
+  Type *IntptrTy = M.getDataLayout().getIntPtrType(*C, kSpirOffloadGlobalAS);
+
+  // Device global meta data is described by a structure
+  //  size_t device_global_size
+  //  size_t device_global_size_with_red_zone
+  //  size_t beginning address of the device global
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy, IntptrTy);
+
+  for (auto &G : M.globals()) {
+    if (isUnsupportedDeviceGlobal(&G))
+      continue;
+
+    Type *Ty = G.getValueType();
+    const uint64_t SizeInBytes = DL.getTypeAllocSize(Ty);
+    const uint64_t RightRedzoneSize = getRedzoneSizeForGlobal(SizeInBytes);
+    Type *RightRedZoneTy = ArrayType::get(IRB.getInt8Ty(), RightRedzoneSize);
+    StructType *NewTy = StructType::get(Ty, RightRedZoneTy);
+    Constant *NewInitializer = ConstantStruct::get(
+        NewTy, G.getInitializer(), Constant::getNullValue(RightRedZoneTy));
+
+    // Create a new global variable with enough space for a redzone.
+    GlobalVariable *NewGlobal = new GlobalVariable(
+        M, NewTy, G.isConstant(), G.getLinkage(), NewInitializer, "", &G,
+        G.getThreadLocalMode(), G.getAddressSpace());
+    NewGlobal->copyAttributesFrom(&G);
+    NewGlobal->setComdat(G.getComdat());
+    NewGlobal->setAlignment(Align(getMinRedzoneSizeForGlobal()));
+    NewGlobal->copyMetadata(&G, 0);
+
+    Value *Indices2[2];
+    Indices2[0] = IRB.getInt32(0);
+    Indices2[1] = IRB.getInt32(0);
+
+    G.replaceAllUsesWith(
+        ConstantExpr::getGetElementPtr(NewTy, NewGlobal, Indices2, true));
+    NewGlobal->takeName(&G);
+    GlobalsToRemove.push_back(&G);
+    DeviceGlobalMetadata.push_back(ConstantStruct::get(
+        StructTy, ConstantInt::get(IntptrTy, SizeInBytes),
+        ConstantInt::get(IntptrTy, SizeInBytes + RightRedzoneSize),
+        ConstantExpr::getPointerCast(NewGlobal, IntptrTy)));
+  }
+
+  if (GlobalsToRemove.empty())
+    return;
+
+  // Create meta data global to record device globals' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, DeviceGlobalMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, DeviceGlobalMetadata);
+  GlobalVariable *AsanDeviceGlobalMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__AsanDeviceGlobalMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  AsanDeviceGlobalMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+
+  for (auto *G : GlobalsToRemove)
+    G->eraseFromParent();
+}
+
 void ModuleAddressSanitizer::InstrumentGlobalsCOFF(
     IRBuilder<> &IRB, ArrayRef<GlobalVariable *> ExtendedGlobals,
     ArrayRef<Constant *> MetadataInitializers) {
@@ -3234,6 +3319,11 @@ bool ModuleAddressSanitizer::instrumentModule() {
     auto *MD = M.getOrInsertNamedMetadata("device.sanitizer");
     Metadata *MDVals[] = {MDString::get(Ctx, "asan")};
     MD->addOperand(MDNode::get(Ctx, MDVals));
+
+    if (ClDeviceGlobals) {
+      IRBuilder<> IRB(*C);
+      instrumentDeviceGlobal(IRB);
+    }
   }
 
   const uint64_t Priority = GetCtorAndDtorPriority(TargetTriple);

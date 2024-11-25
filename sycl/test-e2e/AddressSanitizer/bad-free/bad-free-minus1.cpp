@@ -1,4 +1,4 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
 // RUN: %force_device_asan_rt %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
 // RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t2.out

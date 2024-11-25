@@ -688,8 +688,11 @@ class ObjectFileHandler final : public FileHandler {
           return std::move(Err);
 
         // If we are dealing with a bitcode file do not add special globals
-        // llvm.used and llvm.compiler.used to the list of defined symbols.
-        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+        // llvm.used and llvm.compiler.used and __AsanDeviceGlobalMetadata to
+        // the list of defined symbols.
+        if (SF->isIR() &&
+            (Name == "llvm.used" || Name == "llvm.compiler.used" ||
+             Name == "__AsanDeviceGlobalMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
