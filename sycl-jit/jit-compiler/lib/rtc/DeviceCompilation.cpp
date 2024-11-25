@@ -402,8 +402,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
       ModuleDesc{std::unique_ptr<llvm::Module>{&Module}}, SPLIT_NONE,
       /*IROutputOnly=*/false,
       /*EmitOnlyKernelsAsEntryPoints=*/true);
-  [[maybe_unused]] bool SplitOccurred = Splitter->remainingSplits() > 1;
-  assert(!SplitOccurred);
+  assert(Splitter->remainingSplits() == 1);
 
   // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
   //       be processed.
