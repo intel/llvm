@@ -1,4 +1,4 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -DTEST1 -O0 -g -o %t1.out
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK1 %s
 // RUN: %{build} %device_asan_flags -DTEST2 -O0 -g -o %t2.out

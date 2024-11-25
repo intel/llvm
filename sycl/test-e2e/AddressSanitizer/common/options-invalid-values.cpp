@@ -1,7 +1,8 @@
-// REQUIRES: linux
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O0 -g -o %t
 // RUN: %{run} %t
 
+// clang-format off
 // Invalid ur option format
 // RUN: env UR_LAYER_ASAN_OPTIONS=a:1,b:1 %{run} not %t 2>&1 | FileCheck %s  --check-prefixes INVALID-FORMAT
 // INVALID-FORMAT: <SANITIZER>[ERROR]: Wrong format of the UR_LAYER_ASAN_OPTIONS environment variable value
@@ -20,8 +21,7 @@
 // INVALID-REDZONE: <SANITIZER>[ERROR]: "redzone" should be an integer in range[0, 16].
 // RUN: env UR_LAYER_ASAN_OPTIONS=max_redzone:abc %{run} not %t 2>&1 | FileCheck %s  --check-prefixes INVALID-MAXREDZONE
 // INVALID-MAXREDZONE: <SANITIZER>[ERROR]: "max_redzone" should be an integer in range[0, 2048].
-
-
+// clang-format on
 
 #include <sycl/usm.hpp>
 
