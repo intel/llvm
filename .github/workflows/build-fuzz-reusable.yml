@@ -41,7 +41,7 @@ jobs:
 
     - name: Build level zero with gcc
       run: |
-        git clone -b v1.17.6 --depth=1 https://github.com/oneapi-src/level-zero.git ${{github.workspace}}/level-zero
+        git clone -b v1.18.5 --depth=1 https://github.com/oneapi-src/level-zero.git ${{github.workspace}}/level-zero
         cd ${{github.workspace}}/level-zero
         cmake -B build -DCMAKE_BUILD_TYPE=${{matrix.build_type}} -DCMAKE_C_COMPILER=gcc -DCMAKE_CXX_COMPILER=g++
         cmake --build build -j $(nproc)
