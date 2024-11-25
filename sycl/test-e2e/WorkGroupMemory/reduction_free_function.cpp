@@ -5,9 +5,6 @@
 // UNSUPPORTED: cuda
 // UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/16004
 
-// XFAIL: *
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15927
-
 #include "common_free_function.hpp"
 
 // Basic usage reduction test using free function kernels.

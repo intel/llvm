@@ -81,6 +81,10 @@ InstallTBB () {
   if [ "$TBB_INSTALLED" = false ]; then
     mkdir -p $INSTALL_LOCATION
     cd $INSTALL_LOCATION
+    if [ -d "$INSTALL_LOCATION/oneapi-tbb" ]; then
+      echo "$INSTALL_LOCATION/oneapi-tbb exists and will be removed!"
+      rm -Rf $INSTALL_LOCATION/oneapi-tbb;
+    fi
     echo "Installing TBB..."
     echo "TBB version $TBB_TAG"
     get_release oneapi-src/onetbb $TBB_TAG \

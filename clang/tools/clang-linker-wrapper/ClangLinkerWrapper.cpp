@@ -830,19 +830,7 @@ getTripleBasedSPIRVTransOpts(const ArgList &Args,
                              const llvm::Triple Triple) {
   bool IsCPU = Triple.isSPIR() &&
                Triple.getSubArch() == llvm::Triple::SPIRSubArch_x86_64;
-  // Enable NonSemanticShaderDebugInfo.200 for CPU AOT and for non-Windows
-  const bool IsWindowsMSVC = Triple.isWindowsMSVCEnvironment() ||
-                             Args.hasArg(OPT_sycl_is_windows_msvc_env);
-  const bool EnableNonSemanticDebug = IsCPU || !IsWindowsMSVC;
-  if (EnableNonSemanticDebug) {
-    TranslatorArgs.push_back(
-        "-spirv-debug-info-version=nonsemantic-shader-200");
-  } else {
-    TranslatorArgs.push_back("-spirv-debug-info-version=ocl-100");
-    // Prevent crash in the translator if input IR contains DIExpression
-    // operations which don't have mapping to OpenCL.DebugInfo.100 spec.
-    TranslatorArgs.push_back("-spirv-allow-extra-diexpressions");
-  }
+  TranslatorArgs.push_back("-spirv-debug-info-version=nonsemantic-shader-200");
   std::string UnknownIntrinsics("-spirv-allow-unknown-intrinsics=llvm.genx.");
   if (IsCPU)
     UnknownIntrinsics += ",llvm.fpbuiltin";

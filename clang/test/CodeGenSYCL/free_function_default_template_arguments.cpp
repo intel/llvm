@@ -60,6 +60,24 @@ templated3(Arg<T, notatuple, a, ns1::hasDefaultArg<>, int, int>, T end) {
 
 template void templated3(Arg<int, notatuple, 3, ns1::hasDefaultArg<>, int, int>, int);
 
+
+namespace sycl {
+template <typename T> struct X {};
+template <> struct X<int> {};
+namespace detail {
+struct Y {};
+} // namespace detail
+template <> struct X<detail::Y> {};
+} // namespace sycl
+using namespace sycl;
+template <typename T, typename = X<detail::Y>> struct Arg1 { T val; };
+
+[[__sycl_detail__::add_ir_attributes_function("sycl-single-task-kernel",
+                                              2)]] void
+foo(Arg1<int> arg) {
+  arg.val = 42;
+}
+
 // CHECK: Forward declarations of kernel and its argument types:
 // CHECK-NEXT: namespace ns { 
 // CHECK-NEXT: struct notatuple;
@@ -97,4 +115,18 @@ template void templated3(Arg<int, notatuple, 3, ns1::hasDefaultArg<>, int, int>,
 // CHECK: template <typename T, int a> void templated3(ns::Arg<T, ns::notatuple, a, ns::ns1::hasDefaultArg<ns::notatuple>, int, int>, T end);
 // CHECK-NEXT: static constexpr auto __sycl_shim5() {
 // CHECK-NEXT:   return (void (*)(struct ns::Arg<int, struct ns::notatuple, 3, class ns::ns1::hasDefaultArg<struct ns::notatuple>, int, int>, int))templated3<int, 3>;
+// CHECK-NEXT: }
+
+// CHECK Forward declarations of kernel and its argument types:
+// CHECK: namespace sycl { namespace detail {
+// CHECK-NEXT: struct Y;
+// CHECK-NEXT: }}
+// CHECK-NEXT: namespace sycl {
+// CHECK-NEXT: template <typename T> struct X;
+// CHECK-NEXT: }
+// CHECK-NEXT: template <typename T, typename> struct Arg1;
+
+// CHECK: void foo(Arg1<int, sycl::X<sycl::detail::Y> > arg);
+// CHECK-NEXT: static constexpr auto __sycl_shim6() {
+// CHECK-NEXT:   return (void (*)(struct Arg1<int, struct sycl::X<struct sycl::detail::Y> >))foo;
 // CHECK-NEXT: }

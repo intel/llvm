@@ -1,7 +1,8 @@
-# commit 0ea47d7c70b9a21a3d90612a0a0e7525034e62f7
-# Merge: e3247c23 e36941cb
+# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
+# Merge: b0f9293d b693389e
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 10:24:08 2024 +0000
-#     Merge pull request #1584 from zhaomaosu/simplify-device-global
-#     [DeviceSanitizer] Remove device global "__AsanDeviceGlobalCount"
-set(UNIFIED_RUNTIME_TAG bc9eef955058db60a26fe1f30cd83939122c7c01)
+# Date:   Fri Nov 22 15:27:05 2024 +0000
+#     Merge pull request #2370 from againull/multi_device_sanitizer
+#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
+set(UNIFIED_RUNTIME_TAG 7222f79b160681434250bac74f3aae0e4abc46f0)
+
