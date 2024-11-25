@@ -1,3 +1,5 @@
+/// ###########################################################################
+
 // RUN: %clangxx -fsycl -fsanitize=address -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN %s
 // SYCL-ASAN: clang{{.*}} "-fsycl-is-device"
@@ -13,9 +15,9 @@
 // SYCL-ASAN-SAME: "-mllvm" "-asan-mapping-scale=4"
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=address -c %s -### 2>&1 \
-// RUN:   | FileCheck --check-prefix=SYCL-XARCH-DEVICE %s
-// SYCL-XARCH-DEVICE: clang{{.*}} "-fsycl-is-device"
-// SYCL-XARCH-DEVICE-SAME: -fsanitize=address
+// RUN:   | FileCheck --check-prefix=SYCL-ASAN-XARCH-DEVICE %s
+// SYCL-ASAN-XARCH-DEVICE: clang{{.*}} "-fsycl-is-device"
+// SYCL-ASAN-XARCH-DEVICE-SAME: -fsanitize=address
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=address -Xarch_device -fsanitize-recover=address -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-ASAN-RECOVER %s
@@ -30,3 +32,16 @@
 // SYCL-ASAN-FILTER: clang{{.*}} "-fsycl-is-device"
 // SYCL-ASAN-FILTER-SAME: -fsanitize=address
 // SYCL-ASAN-FILTER-SAME: "-mllvm" "-asan-stack=0"
+
+/// ###########################################################################
+
+// RUN: %clangxx -fsycl -fsanitize=memory -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-MSAN %s
+// SYCL-MSAN: clang{{.*}} "-fsycl-is-device"
+// SYCL-MSAN-SAME: -fsanitize=memory
+// SYCL-MSAN-SAME: "-mllvm" "-msan-instrumentation-with-call-threshold=0"
+
+// RUN: %clangxx -fsycl -Xarch_device -fsanitize=memory -c %s -### 2>&1 \
+// RUN:   | FileCheck --check-prefix=SYCL-MSAN-XARCH-DEVICE %s
+// SYCL-MSAN-XARCH-DEVICE: clang{{.*}} "-fsycl-is-device"
+// SYCL-MSAN-XARCH-DEVICE-SAME: -fsanitize=memory

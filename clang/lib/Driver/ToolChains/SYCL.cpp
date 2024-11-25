@@ -822,6 +822,7 @@ static llvm::SmallVector<StringRef, 16> SYCLDeviceLibList{
     "asan-pvc",
     "asan-cpu",
     "asan-dg2",
+    "msan",
 #endif
     "imf",
     "imf-fp64",
