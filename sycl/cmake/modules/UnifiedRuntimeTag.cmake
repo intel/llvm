@@ -1,7 +1,7 @@
-# commit 9937d029c7fdcbf101e89f8515f640c145e059c5
-# Merge: 9ac6d5d9 10b0e101
+# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
+# Merge: b0f9293d b693389e
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 20 14:49:17 2024 +0000
-#     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
-#     Use extension version of clGetKernelSubGroupInfo when necessary.
-set(UNIFIED_RUNTIME_TAG b24eb57d99e5180ce851dc726984c7dc117e36b9)
+# Date:   Fri Nov 22 15:27:05 2024 +0000
+#     Merge pull request #2370 from againull/multi_device_sanitizer
+#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
+set(UNIFIED_RUNTIME_TAG 3a9480649ff21f07ee9bad167863832a0941acfe)

@@ -66,7 +66,7 @@ int main() {
   // CHECK: <--- urCommandBufferAppendKernelLaunchExp
   // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1]]
   // CHECK-SAME: .numKernelAlternatives = 3
-  // CHECK-SAME: .phKernelAlternatives = {[[KERNEL_HANDLE2:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE3:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE4:[0-9a-fA-Fx]+]]}
+  // CHECK-SAME: .phKernelAlternatives = {{[0-9a-fA-Fx]* ?}}{[[KERNEL_HANDLE2:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE3:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE4:[0-9a-fA-Fx]+]]}
   auto DynamicCG =
       exp_ext::dynamic_command_group(Graph, {CGFA, CGFB, CGFC, CGFD});
   auto DynamicCGNode = Graph.add(DynamicCG);
