@@ -647,8 +647,8 @@ for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
     env["ZES_ENABLE_SYSMAN"] = "1"
-    # The reason for setting ZES_ENABLE_SYSMAN=1 is to ensure 
-    # that the "ext_intel_free_memory" aspect is displayed by sycl-ls --verbose
+    # The reason for setting ZES_ENABLE_SYSMAN=1 is to ensure
+    # that the "ext_intel_free_memory" aspect is displayed by sycl-ls --verbose.
     # Without this aspect, tests requiring it are skipped.
     if sycl_device.startswith("cuda:"):
         env["SYCL_PI_CUDA_ENABLE_IMAGE_SUPPORT"] = "1"
