@@ -1,4 +1,5 @@
 // REQUIRES: windows
+// REQUIRES: build-and-run-mode
 
 // RUN: %clangxx --driver-mode=cl /std:c++17 /EHsc /imsvc %sycl_include -I%opencl_include_dir %s -o %t.out /link /defaultlib:%sycl_static_libs_dir/sycl.lib
 // RUN: %{run} %t.out
