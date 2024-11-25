@@ -1,10 +1,10 @@
-; This test checks that the post-link tool properly generates "asanUsed=1"
+; This test checks that the post-link tool properly generates "sanUsed=asan"
 ; in [SYCL/misc properties]
 
 ; RUN: sycl-post-link -properties -split=kernel -symbols -S < %s -o %t.table
 ; RUN: FileCheck %s -input-file=%t_0.prop
 ; CHECK: [SYCL/misc properties]
-; CHECK: asanUsed=1
+; CHECK: sanUsed=2|gAAAAAAAAAQYzFmb
 
 ; ModuleID = 'parallel_for_int.cpp'
 source_filename = "parallel_for_int.cpp"
