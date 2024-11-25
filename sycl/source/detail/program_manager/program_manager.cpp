@@ -937,7 +937,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     return Cache.registerProgramFetch(CacheKey, Program, isBuilt);
   };
 
-    auto BuildResult =
+  auto BuildResult =
       Cache.getOrBuild<errc::build>(GetCachedBuildF, BuildF, EvictFunc);
 
   // getOrBuild is not supposed to return nullptr
