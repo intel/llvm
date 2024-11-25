@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 423
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 381
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -290,47 +290,6 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_us_int8.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_SLM.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_init.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_unroll_init.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_out_bounds.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_transposeC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_out_bounds.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_unaligned_k.cpp
 // CHECK-NEXT: Matrix/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_OOB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bf16_fill_k_cache_prefetch.cpp
@@ -344,7 +303,6 @@
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
-// CHECK-NEXT: OptionalKernelFeatures/fp64-conv-emu.cpp
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
