@@ -35,7 +35,7 @@ template <const char PlatformName[]> struct RedefTemplatedWrapper {
       return UR_RESULT_SUCCESS;
     }
     case UR_PLATFORM_INFO_BACKEND: {
-      constexpr auto MockPlatformBackend = UR_PLATFORM_BACKEND_UNKNOWN;
+      constexpr auto MockPlatformBackend = UR_BACKEND_UNKNOWN;
       if (*params.ppPropValue) {
         std::memcpy(*params.ppPropValue, &MockPlatformBackend,
                     sizeof(MockPlatformBackend));
