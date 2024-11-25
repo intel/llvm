@@ -87,11 +87,8 @@ void test_accessor_dep() {
       a[0] = 42;
     });
   });
-  auto empty_cg_event = q.submit([&](handler &cgh) {
-    sycl::accessor a{b};
-    // TODO: Clarify with spec people that it should create a dependency indeed.
-    cgh.require(a);
-  });
+  auto empty_cg_event =
+      q.submit([&](handler &cgh) { sycl::accessor a{b, cgh}; });
 
   // FIXME: This should deadlock, but the dependency is ignored currently.
   empty_cg_event.wait();
