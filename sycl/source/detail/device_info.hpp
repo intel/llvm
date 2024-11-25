@@ -1412,6 +1412,30 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
 }
 
 template <>
+inline typename info::device::preferred_interop_user_sync::return_type
+get_device_info<info::device::preferred_interop_user_sync>(const DeviceImplPtr &Dev){
+  if (Dev->getBackend() != backend::opencl){
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::preferred_interop_user_sync info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::preferred_interop_user_sync;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline typename info::device::profile::return_type
+get_device_info<info::device::profile>(const DeviceImplPtr &Dev){
+  if (Dev->getBackend() != backend::opencl){
+    throw sycl::exception(errc::backend_mismatch,
+                          "the info::device::profile info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::profile;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
 inline ext::intel::info::device::device_id::return_type
 get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
   if (!Dev->has(aspect::ext_intel_device_id))
