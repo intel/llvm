@@ -12,10 +12,9 @@ UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urSamplerCreateWithNativeHandleTest);
 
 TEST_P(urSamplerCreateWithNativeHandleTest, Success) {
     ur_native_handle_t native_sampler = 0;
-    {
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urSamplerGetNativeHandle(sampler, &native_sampler));
-    }
+
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urSamplerGetNativeHandle(sampler, &native_sampler));
 
     // We cannot assume anything about a native_handle, not even if it's
     // `nullptr` since this could be a valid representation within a backend.
@@ -36,10 +35,9 @@ TEST_P(urSamplerCreateWithNativeHandleTest, Success) {
 
 TEST_P(urSamplerCreateWithNativeHandleTest, InvalidNullHandle) {
     ur_native_handle_t native_sampler = 0;
-    {
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urSamplerGetNativeHandle(sampler, &native_sampler));
-    }
+
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urSamplerGetNativeHandle(sampler, &native_sampler));
 
     ur_sampler_handle_t hSampler = nullptr;
     ur_sampler_native_properties_t props{};
@@ -50,10 +48,9 @@ TEST_P(urSamplerCreateWithNativeHandleTest, InvalidNullHandle) {
 
 TEST_P(urSamplerCreateWithNativeHandleTest, InvalidNullPointer) {
     ur_native_handle_t native_sampler = 0;
-    {
-        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-            urSamplerGetNativeHandle(sampler, &native_sampler));
-    }
+
+    UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+        urSamplerGetNativeHandle(sampler, &native_sampler));
 
     ur_sampler_native_properties_t props{};
     ASSERT_EQ(urSamplerCreateWithNativeHandle(native_sampler, context, &props,

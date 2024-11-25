@@ -1,19 +1,18 @@
-{{NONDETERMINISTIC}}
-urProgramBuildTest.BuildFailure/AMD_HIP_BACKEND___{{.*}}_
+urProgramBuildTest.BuildFailure/*
 # HIP hasn't implemented urProgramCreateWithNativeHandleTest
-{{OPT}}urProgramCreateWithNativeHandleTest.Success/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urProgramCreateWithNativeHandleTest.Success/*
 # HIP doesn't expose kernel numbers or names
-urProgramGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_NUM_KERNELS
-urProgramGetInfoTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_PROGRAM_INFO_KERNEL_NAMES
+urProgramGetInfoTest.Success/*__UR_PROGRAM_INFO_NUM_KERNELS
+urProgramGetInfoTest.Success/*__UR_PROGRAM_INFO_KERNEL_NAMES
 
 # HIP hasn't implemented urProgramLink
-{{OPT}}urProgramLinkTest.Success/AMD_HIP_BACKEND___{{.*}}_
+{{OPT}}urProgramLinkTest.Success/*
 
 # Hip doesn't support specialization constants
-urProgramSetSpecializationConstantsTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.UseDefaultValue/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.InvalidValueSize/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.InvalidValueId/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.InvalidValuePtr/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/AMD_HIP_BACKEND___{{.*}}_
-urProgramSetMultipleSpecializationConstantsTest.SingleCall/AMD_HIP_BACKEND___{{.*}}_
+urProgramSetSpecializationConstantsTest.Success/*
+urProgramSetSpecializationConstantsTest.UseDefaultValue/*
+urProgramSetSpecializationConstantsTest.InvalidValueSize/*
+urProgramSetSpecializationConstantsTest.InvalidValueId/*
+urProgramSetSpecializationConstantsTest.InvalidValuePtr/*
+urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/*
+urProgramSetMultipleSpecializationConstantsTest.SingleCall/*

@@ -5,17 +5,24 @@
 
 import os
 import shutil
-import subprocess # nosec B404
+import subprocess
+
+import tarfile
+import urllib # nosec B404
 from benches.options import options
 from pathlib import Path
 
-def run(command, env_vars={}, cwd=None, add_sycl=False):
+def run(command, env_vars={}, cwd=None, add_sycl=False, ld_library=[]):
     try:
         if isinstance(command, str):
             command = command.split()
 
         env = os.environ.copy()
 
+        for ldlib in ld_library:
+            env['LD_LIBRARY_PATH'] = ldlib + os.pathsep + env.get('LD_LIBRARY_PATH', '')
+
+        # order is important, we want provided sycl rt libraries to be first
         if add_sycl:
             sycl_bin_path = os.path.join(options.sycl, 'bin')
             env['PATH'] = sycl_bin_path + os.pathsep + env.get('PATH', '')
@@ -23,6 +30,7 @@ def run(command, env_vars={}, cwd=None, add_sycl=False):
             env['LD_LIBRARY_PATH'] = sycl_lib_path + os.pathsep + env.get('LD_LIBRARY_PATH', '')
 
         env.update(env_vars)
+
         result = subprocess.run(command, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, timeout=options.timeout) # nosec B603
 
         if options.verbose:
@@ -88,3 +96,16 @@ def create_build_path(directory, name):
     Path(build_path).mkdir(parents=True, exist_ok=True)
 
     return build_path
+
+def download(dir, url, file, untar = False):
+    data_file = os.path.join(dir, file)
+    if not Path(data_file).exists():
+        print(f"{data_file} does not exist, downloading")
+        urllib.request.urlretrieve(url, data_file)
+        if untar:
+            file = tarfile.open(data_file)
+            file.extractall(dir)
+            file.close()
+    else:
+        print(f"{data_file} exists, skipping...")
+    return data_file

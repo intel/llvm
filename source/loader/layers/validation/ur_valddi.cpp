@@ -518,7 +518,7 @@ __urdlllocal ur_result_t UR_APICALL urDeviceGetInfo(
             return UR_RESULT_ERROR_INVALID_NULL_POINTER;
         }
 
-        if (UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP < propName) {
+        if (UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP < propName) {
             return UR_RESULT_ERROR_INVALID_ENUMERATION;
         }
 
@@ -10153,6 +10153,69 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
+__urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    const ur_exp_enqueue_ext_properties_t *
+        pProperties, ///< [in][optional] pointer to the extended enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
+) {
+    auto pfnEventsWaitWithBarrierExt =
+        getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;
+
+    if (nullptr == pfnEventsWaitWithBarrierExt) {
+        return UR_RESULT_ERROR_UNINITIALIZED;
+    }
+
+    if (getContext()->enableParameterValidation) {
+        if (NULL == hQueue) {
+            return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+        }
+
+        if (NULL != pProperties &&
+            UR_EXP_ENQUEUE_EXT_FLAGS_MASK & pProperties->flags) {
+            return UR_RESULT_ERROR_INVALID_ENUMERATION;
+        }
+
+        if (phEventWaitList == NULL && numEventsInWaitList > 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList == 0) {
+            return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+        }
+
+        if (phEventWaitList != NULL && numEventsInWaitList > 0) {
+            for (uint32_t i = 0; i < numEventsInWaitList; ++i) {
+                if (phEventWaitList[i] == NULL) {
+                    return UR_RESULT_ERROR_INVALID_EVENT_WAIT_LIST;
+                }
+            }
+        }
+    }
+
+    if (getContext()->enableLifetimeValidation &&
+        !getContext()->refCountContext->isReferenceValid(hQueue)) {
+        getContext()->refCountContext->logInvalidReference(hQueue);
+    }
+
+    ur_result_t result = pfnEventsWaitWithBarrierExt(
+        hQueue, pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueNativeCommandExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
@@ -10669,6 +10732,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     dditable.pfnWriteHostPipe = pDdiTable->pfnWriteHostPipe;
     pDdiTable->pfnWriteHostPipe = ur_validation_layer::urEnqueueWriteHostPipe;
+
+    dditable.pfnEventsWaitWithBarrierExt =
+        pDdiTable->pfnEventsWaitWithBarrierExt;
+    pDdiTable->pfnEventsWaitWithBarrierExt =
+        ur_validation_layer::urEnqueueEventsWaitWithBarrierExt;
 
     return result;
 }

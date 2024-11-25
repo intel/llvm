@@ -290,6 +290,13 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
   return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
+    const ur_exp_enqueue_ext_properties_t *, uint32_t numEventsInWaitList,
+    const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
+  return enqueueEventsWaitWithBarrier(numEventsInWaitList, phEventWaitList,
+                                      phEvent);
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueGenericCopyUnlocked(
     ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
     size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
@@ -971,15 +978,57 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp(
     const size_t *pGlobalWorkOffset, const size_t *pGlobalWorkSize,
     const size_t *pLocalWorkSize, uint32_t numEventsInWaitList,
     const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent) {
-  std::ignore = hKernel;
-  std::ignore = workDim;
-  std::ignore = pGlobalWorkOffset;
-  std::ignore = pGlobalWorkSize;
-  std::ignore = pLocalWorkSize;
-  std::ignore = numEventsInWaitList;
-  std::ignore = phEventWaitList;
-  std::ignore = phEvent;
-  return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueCooperativeKernelLaunchExp");
+
+  UR_ASSERT(hKernel, UR_RESULT_ERROR_INVALID_NULL_HANDLE);
+  UR_ASSERT(hKernel->getProgramHandle(), UR_RESULT_ERROR_INVALID_NULL_POINTER);
+
+  UR_ASSERT(workDim > 0, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+  UR_ASSERT(workDim < 4, UR_RESULT_ERROR_INVALID_WORK_DIMENSION);
+
+  ze_kernel_handle_t hZeKernel = hKernel->getZeHandle(hDevice);
+
+  std::scoped_lock<ur_shared_mutex, ur_shared_mutex> Lock(this->Mutex,
+                                                          hKernel->Mutex);
+
+  ze_group_count_t zeThreadGroupDimensions{1, 1, 1};
+  uint32_t WG[3]{};
+  UR_CALL(calculateKernelWorkDimensions(hZeKernel, hDevice,
+                                        zeThreadGroupDimensions, WG, workDim,
+                                        pGlobalWorkSize, pLocalWorkSize));
+
+  auto signalEvent = getSignalEvent(phEvent, UR_COMMAND_KERNEL_LAUNCH);
+
+  auto waitList = getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  bool memoryMigrated = false;
+  auto memoryMigrate = [&](void *src, void *dst, size_t size) {
+    ZE2UR_CALL_THROWS(zeCommandListAppendMemoryCopy,
+                      (handler.commandList.get(), dst, src, size, nullptr,
+                       waitList.second, waitList.first));
+    memoryMigrated = true;
+  };
+
+  UR_CALL(hKernel->prepareForSubmission(hContext, hDevice, pGlobalWorkOffset,
+                                        workDim, WG[0], WG[1], WG[2],
+                                        memoryMigrate));
+
+  if (memoryMigrated) {
+    // If memory was migrated, we don't need to pass the wait list to
+    // the copy command again.
+    waitList.first = nullptr;
+    waitList.second = 0;
+  }
+
+  TRACK_SCOPE_LATENCY("ur_queue_immediate_in_order_t::"
+                      "zeCommandListAppendLaunchCooperativeKernel");
+  auto zeSignalEvent = signalEvent ? signalEvent->getZeEvent() : nullptr;
+  ZE2UR_CALL(zeCommandListAppendLaunchCooperativeKernel,
+             (handler.commandList.get(), hZeKernel, &zeThreadGroupDimensions,
+              zeSignalEvent, waitList.second, waitList.first));
+
+  return UR_RESULT_SUCCESS;
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueTimestampRecordingExp(

@@ -32,9 +32,9 @@ void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
 }
 
 void ur_event_handle_t_::reset() {
-  // consider make an abstraction for regular/counter based
+  // consider making an abstraction for regular/counter based
   // events if there's more of this type of conditions
-  if (pool->getFlags() & v2::EVENT_FLAGS_COUNTER) {
+  if (!(pool->getFlags() & v2::EVENT_FLAGS_COUNTER)) {
     zeEventHostReset(zeEvent.get());
   }
 }
@@ -153,24 +153,32 @@ ur_queue_handle_t ur_event_handle_t_::getQueue() const { return hQueue; }
 ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
 
 namespace ur::level_zero {
-ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
+ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
+  return hEvent->retain();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
 
-ur_result_t urEventRelease(ur_event_handle_t hEvent) {
+ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
   return hEvent->release();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) {
+                        const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
     ZE2UR_CALL(zeEventHostSynchronize,
                (phEventWaitList[i]->getZeEvent(), UINT64_MAX));
   }
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
                            size_t propValueSize, void *pPropValue,
-                           size_t *pPropValueSizeRet) {
+                           size_t *pPropValueSizeRet) try {
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   switch (propName) {
@@ -207,6 +215,8 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventGetProfilingInfo(
@@ -218,7 +228,7 @@ ur_result_t urEventGetProfilingInfo(
     void *pPropValue,  ///< [out][optional] value of the profiling property
     size_t *pPropValueSizeRet ///< [out][optional] pointer to the actual size in
                               ///< bytes returned in propValue
-) {
+    ) try {
   std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
@@ -287,5 +297,7 @@ ur_result_t urEventGetProfilingInfo(
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero

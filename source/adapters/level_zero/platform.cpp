@@ -196,6 +196,11 @@ ur_result_t urPlatformGetBackendOption(
     *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
+  if (FrontendOption == "-foffload-fp32-prec-div"sv ||
+      FrontendOption == "-foffload-fp32-prec-sqrt"sv) {
+    *PlatformOption = "-ze-fp32-correctly-rounded-divide-sqrt";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
@@ -237,6 +242,15 @@ ur_result_t ur_platform_handle_t_::initialize() {
       if (extension.version ==
           ZE_EVENT_POOL_COUNTER_BASED_EXP_VERSION_CURRENT) {
         ZeDriverEventPoolCountingEventsExtensionFound = true;
+      }
+    }
+
+    // Check if the ImmediateAppendCommandLists extension is available.
+    if (strncmp(extension.name, ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME,
+                strlen(ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_NAME) + 1) == 0) {
+      if (extension.version ==
+          ZE_IMMEDIATE_COMMAND_LIST_APPEND_EXP_VERSION_CURRENT) {
+        zeDriverImmediateCommandListAppendFound = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;

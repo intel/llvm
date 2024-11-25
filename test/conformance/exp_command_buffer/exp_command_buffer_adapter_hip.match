@@ -1,0 +1,10 @@
+# Note: This file is only for use with cts_exe.py
+# These cause SIGILL when built with -fsanitize=cfi on AMD
+{{OPT}}urCommandBufferKernelHandleUpdateTest.Success/*
+{{OPT}}urCommandBufferKernelHandleUpdateTest.UpdateAgain/*
+{{OPT}}urCommandBufferKernelHandleUpdateTest.RestoreOriginalKernel/*
+{{OPT}}urCommandBufferKernelHandleUpdateTest.KernelAlternativeNotRegistered/*
+{{OPT}}urCommandBufferKernelHandleUpdateTest.RegisterInvalidKernelAlternative/*
+{{OPT}}urCommandBufferValidUpdateParametersTest.UpdateDimensionsWithoutUpdatingKernel/*
+{{OPT}}urCommandBufferValidUpdateParametersTest.UpdateOnlyLocalWorkSize/*
+{{OPT}}urCommandBufferValidUpdateParametersTest.SuccessNullptrHandle/*

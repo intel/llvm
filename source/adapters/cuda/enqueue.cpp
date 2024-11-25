@@ -402,6 +402,14 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrier(
   }
 }
 
+UR_APIEXPORT ur_result_t urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, const ur_exp_enqueue_ext_properties_t *,
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  return urEnqueueEventsWaitWithBarrier(hQueue, numEventsInWaitList,
+                                        phEventWaitList, phEvent);
+}
+
 /// Enqueues a wait on the given CUstream for all events.
 /// See \ref enqueueEventWait
 /// TODO: Add support for multiple streams once the Event class is properly
@@ -953,35 +961,71 @@ UR_APIEXPORT ur_result_t UR_APICALL urEnqueueMemBufferCopyRect(
 
 // CUDA has no memset functions that allow setting values more than 4 bytes. UR
 // API lets you pass an arbitrary "pattern" to the buffer fill, which can be
-// more than 4 bytes. We must break up the pattern into 1 byte values, and set
-// the buffer using multiple strided calls.  The first 4 patterns are set using
-// cuMemsetD32Async then all subsequent 1 byte patterns are set using
-// cuMemset2DAsync which is called for each pattern.
+// more than 4 bytes. We must break up the pattern into 1, 2 or 4-byte values
+// and set the buffer using multiple strided calls.
 ur_result_t commonMemSetLargePattern(CUstream Stream, uint32_t PatternSize,
                                      size_t Size, const void *pPattern,
                                      CUdeviceptr Ptr) {
-  // Calculate the number of patterns, stride, number of times the pattern
-  // needs to be applied, and the number of times the first 32 bit pattern
-  // needs to be applied.
-  auto NumberOfSteps = PatternSize / sizeof(uint8_t);
-  auto Pitch = NumberOfSteps * sizeof(uint8_t);
-  auto Height = Size / NumberOfSteps;
-  auto Count32 = Size / sizeof(uint32_t);
+  // Find the largest supported word size into which the pattern can be divided
+  auto BackendWordSize = PatternSize % 4u == 0u   ? 4u
+                         : PatternSize % 2u == 0u ? 2u
+                                                  : 1u;
 
-  // Get 4-byte chunk of the pattern and call cuMemsetD32Async
-  auto Value = *(static_cast<const uint32_t *>(pPattern));
-  UR_CHECK_ERROR(cuMemsetD32Async(Ptr, Value, Count32, Stream));
-  for (auto step = 4u; step < NumberOfSteps; ++step) {
-    // take 1 byte of the pattern
-    Value = *(static_cast<const uint8_t *>(pPattern) + step);
+  // Calculate the number of words in the pattern, the stride, and the number of
+  // times the pattern needs to be applied
+  auto NumberOfSteps = PatternSize / BackendWordSize;
+  auto Pitch = NumberOfSteps * BackendWordSize;
+  auto Height = Size / PatternSize;
 
-    // offset the pointer to the part of the buffer we want to write to
-    auto OffsetPtr = Ptr + (step * sizeof(uint8_t));
+  // Same implementation works for any pattern word type (uint8_t, uint16_t,
+  // uint32_t)
+  auto memsetImpl = [BackendWordSize, NumberOfSteps, Pitch, Height, Size, Ptr,
+                     &Stream](const auto *pPatternWords,
+                              auto &&continuousMemset, auto &&stridedMemset) {
+    // If the pattern is 1 word or the first word is repeated throughout, a fast
+    // continuous fill can be used without the need for slower strided fills
+    bool UseOnlyFirstValue{true};
+    for (auto Step{1u}; (Step < NumberOfSteps) && UseOnlyFirstValue; ++Step) {
+      if (*(pPatternWords + Step) != *pPatternWords) {
+        UseOnlyFirstValue = false;
+      }
+    }
+    auto OptimizedNumberOfSteps{UseOnlyFirstValue ? 1u : NumberOfSteps};
 
-    // set all of the pattern chunks
-    UR_CHECK_ERROR(cuMemsetD2D8Async(OffsetPtr, Pitch, Value, sizeof(uint8_t),
-                                     Height, Stream));
+    // Fill the pattern in steps of BackendWordSize bytes. Use a continuous
+    // fill in the first step because it's faster than a strided fill. Then,
+    // overwrite the other values in subsequent steps.
+    for (auto Step{0u}; Step < OptimizedNumberOfSteps; ++Step) {
+      if (Step == 0) {
+        UR_CHECK_ERROR(continuousMemset(Ptr, *(pPatternWords),
+                                        Size / BackendWordSize, Stream));
+      } else {
+        UR_CHECK_ERROR(stridedMemset(Ptr + Step * BackendWordSize, Pitch,
+                                     *(pPatternWords + Step), 1u, Height,
+                                     Stream));
+      }
+    }
+  };
+
+  // Apply the implementation to the chosen pattern word type
+  switch (BackendWordSize) {
+  case 4u: {
+    memsetImpl(static_cast<const uint32_t *>(pPattern), cuMemsetD32Async,
+               cuMemsetD2D32Async);
+    break;
   }
+  case 2u: {
+    memsetImpl(static_cast<const uint16_t *>(pPattern), cuMemsetD16Async,
+               cuMemsetD2D16Async);
+    break;
+  }
+  default: {
+    memsetImpl(static_cast<const uint8_t *>(pPattern), cuMemsetD8Async,
+               cuMemsetD2D8Async);
+    break;
+  }
+  }
+
   return UR_RESULT_SUCCESS;
 }
 

@@ -214,6 +214,9 @@ template <>
 inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_info_t value, size_t size);
 
 template <>
+inline ur_result_t printFlag<ur_exp_enqueue_ext_flag_t>(std::ostream &os, uint32_t flag);
+
+template <>
 inline ur_result_t printFlag<ur_exp_enqueue_native_command_flag_t>(std::ostream &os, uint32_t flag);
 
 } // namespace ur::details
@@ -348,6 +351,8 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_launch_property_id_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_launch_property_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_peer_info_t value);
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_ext_flag_t value);
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_enqueue_ext_properties_t params);
 inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_native_command_flag_t value);
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_exp_enqueue_native_command_properties_t params);
 
@@ -954,6 +959,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP";
         break;
+    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
+        os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1112,6 +1120,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_structure_type_t value
         break;
     case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES:
         os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES";
+        break;
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES:
+        os << "UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES";
         break;
     default:
         os << "unknown enumerator";
@@ -1372,6 +1383,11 @@ inline ur_result_t printStruct(std::ostream &os, const void *ptr) {
 
     case UR_STRUCTURE_TYPE_EXP_ENQUEUE_NATIVE_COMMAND_PROPERTIES: {
         const ur_exp_enqueue_native_command_properties_t *pstruct = (const ur_exp_enqueue_native_command_properties_t *)ptr;
+        printPtr(os, pstruct);
+    } break;
+
+    case UR_STRUCTURE_TYPE_EXP_ENQUEUE_EXT_PROPERTIES: {
+        const ur_exp_enqueue_ext_properties_t *pstruct = (const ur_exp_enqueue_ext_properties_t *)ptr;
         printPtr(os, pstruct);
     } break;
     default:
@@ -2646,6 +2662,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_device_info_t value) {
     case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP:
         os << "UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP";
         break;
+    case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP:
+        os << "UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -3688,7 +3707,8 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
                 os << ", ";
             }
 
-            os << tptr[i];
+            os << static_cast<int>(
+                tptr[i]);
         }
         os << "}";
     } break;
@@ -4429,6 +4449,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_device_info
         os << ")";
     } break;
     case UR_DEVICE_INFO_ENQUEUE_NATIVE_COMMAND_SUPPORT_EXP: {
+        const ur_bool_t *tptr = (const ur_bool_t *)ptr;
+        if (sizeof(ur_bool_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_DEVICE_INFO_LOW_POWER_EVENTS_EXP: {
         const ur_bool_t *tptr = (const ur_bool_t *)ptr;
         if (sizeof(ur_bool_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(ur_bool_t) << ")";
@@ -7528,15 +7560,19 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_program_proper
     os << (params.count);
 
     os << ", ";
-    os << ".pMetadatas = {";
-    for (size_t i = 0; (params.pMetadatas) != NULL && i < params.count; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pMetadatas = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pMetadatas)));
+    if ((params.pMetadatas) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.count; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pMetadatas))[i];
+            os << ((params.pMetadatas))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << "}";
     return os;
@@ -8661,6 +8697,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_queue_flag_t value) {
     case UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM:
         os << "UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM";
         break;
+    case UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP:
+        os << "UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -8784,6 +8823,16 @@ inline ur_result_t printFlag<ur_queue_flag_t>(std::ostream &os, uint32_t flag) {
             first = false;
         }
         os << UR_QUEUE_FLAG_SYNC_WITH_DEFAULT_STREAM;
+    }
+
+    if ((val & UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) == (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP) {
+        val ^= (uint32_t)UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_QUEUE_FLAG_LOW_POWER_EVENTS_EXP;
     }
     if (val != 0) {
         std::bitset<32> bits(val);
@@ -10163,70 +10212,94 @@ inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_command_bu
     os << (params.newWorkDim);
 
     os << ", ";
-    os << ".pNewMemObjArgList = {";
-    for (size_t i = 0; (params.pNewMemObjArgList) != NULL && i < params.numNewMemObjArgs; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewMemObjArgList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewMemObjArgList)));
+    if ((params.pNewMemObjArgList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.numNewMemObjArgs; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewMemObjArgList))[i];
+            os << ((params.pNewMemObjArgList))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pNewPointerArgList = {";
-    for (size_t i = 0; (params.pNewPointerArgList) != NULL && i < params.numNewPointerArgs; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewPointerArgList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewPointerArgList)));
+    if ((params.pNewPointerArgList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.numNewPointerArgs; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewPointerArgList))[i];
+            os << ((params.pNewPointerArgList))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pNewValueArgList = {";
-    for (size_t i = 0; (params.pNewValueArgList) != NULL && i < params.numNewValueArgs; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewValueArgList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewValueArgList)));
+    if ((params.pNewValueArgList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.numNewValueArgs; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewValueArgList))[i];
+            os << ((params.pNewValueArgList))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pNewGlobalWorkOffset = {";
-    for (size_t i = 0; (params.pNewGlobalWorkOffset) != NULL && i < params.newWorkDim; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewGlobalWorkOffset = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewGlobalWorkOffset)));
+    if ((params.pNewGlobalWorkOffset) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.newWorkDim; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewGlobalWorkOffset))[i];
+            os << ((params.pNewGlobalWorkOffset))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pNewGlobalWorkSize = {";
-    for (size_t i = 0; (params.pNewGlobalWorkSize) != NULL && i < params.newWorkDim; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewGlobalWorkSize = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewGlobalWorkSize)));
+    if ((params.pNewGlobalWorkSize) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.newWorkDim; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewGlobalWorkSize))[i];
+            os << ((params.pNewGlobalWorkSize))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pNewLocalWorkSize = {";
-    for (size_t i = 0; (params.pNewLocalWorkSize) != NULL && i < params.newWorkDim; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pNewLocalWorkSize = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>((params.pNewLocalWorkSize)));
+    if ((params.pNewLocalWorkSize) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < params.newWorkDim; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << ((params.pNewLocalWorkSize))[i];
+            os << ((params.pNewLocalWorkSize))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << "}";
     return os;
@@ -10369,6 +10442,77 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_exp_peer_in
 }
 } // namespace ur::details
 
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_ext_flag_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, enum ur_exp_enqueue_ext_flag_t value) {
+    switch (value) {
+    case UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS:
+        os << "UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS";
+        break;
+    default:
+        os << "unknown enumerator";
+        break;
+    }
+    return os;
+}
+
+namespace ur::details {
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print ur_exp_enqueue_ext_flag_t flag
+template <>
+inline ur_result_t printFlag<ur_exp_enqueue_ext_flag_t>(std::ostream &os, uint32_t flag) {
+    uint32_t val = flag;
+    bool first = true;
+
+    if ((val & UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) == (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS) {
+        val ^= (uint32_t)UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+        if (!first) {
+            os << " | ";
+        } else {
+            first = false;
+        }
+        os << UR_EXP_ENQUEUE_EXT_FLAG_LOW_POWER_EVENTS;
+    }
+    if (val != 0) {
+        std::bitset<32> bits(val);
+        if (!first) {
+            os << " | ";
+        }
+        os << "unknown bit flags " << bits;
+    } else if (first) {
+        os << "0";
+    }
+    return UR_RESULT_SUCCESS;
+}
+} // namespace ur::details
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_exp_enqueue_ext_properties_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, const struct ur_exp_enqueue_ext_properties_t params) {
+    os << "(struct ur_exp_enqueue_ext_properties_t){";
+
+    os << ".stype = ";
+
+    os << (params.stype);
+
+    os << ", ";
+    os << ".pNext = ";
+
+    ur::details::printStruct(os,
+                             (params.pNext));
+
+    os << ", ";
+    os << ".flags = ";
+
+    ur::details::printFlag<ur_exp_enqueue_ext_flag_t>(os,
+                                                      (params.flags));
+
+    os << "}";
+    return os;
+}
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Print operator for the ur_exp_enqueue_native_command_flag_t type
 /// @returns
@@ -10588,16 +10732,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
 ///     std::ostream &
 inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_platform_get_params_t *params) {
 
-    os << ".phAdapters = {";
-    for (size_t i = 0; *(params->pphAdapters) != NULL && i < *params->pNumAdapters; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phAdapters = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphAdapters)));
+    if (*(params->pphAdapters) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumAdapters; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphAdapters))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphAdapters))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".NumAdapters = ";
@@ -10610,16 +10758,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phPlatforms = {";
-    for (size_t i = 0; *(params->pphPlatforms) != NULL && i < *params->pNumEntries; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phPlatforms = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphPlatforms)));
+    if (*(params->pphPlatforms) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumEntries; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphPlatforms))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphPlatforms))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pNumPlatforms = ";
@@ -10773,16 +10925,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pDeviceCount);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pDeviceCount; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pDeviceCount; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -10904,16 +11060,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -11035,16 +11195,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEvents);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEvents; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEvents; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     return os;
 }
@@ -11214,39 +11378,51 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".pLengths = {";
-    for (size_t i = 0; *(params->ppLengths) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pLengths = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppLengths)));
+    if (*(params->ppLengths) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << (*(params->ppLengths))[i];
+            os << (*(params->ppLengths))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
-    os << ".ppBinaries = {";
-    for (size_t i = 0; *(params->pppBinaries) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".ppBinaries = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pppBinaries)));
+    if (*(params->pppBinaries) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pppBinaries))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pppBinaries))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -11306,16 +11482,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pOptions = ";
@@ -11369,16 +11549,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pOptions = ";
@@ -11406,16 +11590,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pcount);
 
     os << ", ";
-    os << ".phPrograms = {";
-    for (size_t i = 0; *(params->pphPrograms) != NULL && i < *params->pcount; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phPrograms = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphPrograms)));
+    if (*(params->pphPrograms) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pcount; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphPrograms))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphPrograms))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pOptions = ";
@@ -11449,16 +11637,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumDevices);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pnumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".count = ";
@@ -11466,16 +11658,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pcount);
 
     os << ", ";
-    os << ".phPrograms = {";
-    for (size_t i = 0; *(params->pphPrograms) != NULL && i < *params->pcount; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phPrograms = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphPrograms)));
+    if (*(params->pphPrograms) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pcount; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphPrograms))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphPrograms))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pOptions = ";
@@ -11681,15 +11877,19 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pcount);
 
     os << ", ";
-    os << ".pSpecConstants = {";
-    for (size_t i = 0; *(params->ppSpecConstants) != NULL && i < *params->pcount; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".pSpecConstants = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->ppSpecConstants)));
+    if (*(params->ppSpecConstants) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pcount; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << (*(params->ppSpecConstants))[i];
+            os << (*(params->ppSpecConstants))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     return os;
 }
@@ -12987,16 +13187,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phAdapters = {";
-    for (size_t i = 0; *(params->pphAdapters) != NULL && i < *params->pNumEntries; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phAdapters = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphAdapters)));
+    if (*(params->pphAdapters) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumEntries; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphAdapters))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphAdapters))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pNumAdapters = ";
@@ -13141,16 +13345,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13178,16 +13386,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13215,16 +13427,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13279,16 +13495,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13343,16 +13563,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13432,16 +13656,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13521,16 +13749,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13585,16 +13817,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13669,16 +13905,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13733,16 +13973,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13807,16 +14051,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13881,16 +14129,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -13945,16 +14197,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14009,16 +14265,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14064,16 +14324,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14123,16 +14387,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14182,16 +14450,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14236,16 +14508,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14342,16 +14618,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14416,16 +14696,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14486,16 +14770,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14556,16 +14844,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14621,16 +14913,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14686,16 +14982,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14746,15 +15046,19 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumPropsInLaunchPropList);
 
     os << ", ";
-    os << ".launchPropList = {";
-    for (size_t i = 0; *(params->plaunchPropList) != NULL && i < *params->pnumPropsInLaunchPropList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".launchPropList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->plaunchPropList)));
+    if (*(params->plaunchPropList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumPropsInLaunchPropList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        os << (*(params->plaunchPropList))[i];
+            os << (*(params->plaunchPropList))[i];
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".numEventsInWaitList = ";
@@ -14762,16 +15066,67 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
+
+    os << ", ";
+    os << ".phEvent = ";
+
+    ur::details::printPtr(os,
+                          *(params->pphEvent));
+
+    return os;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+/// @brief Print operator for the ur_enqueue_events_wait_with_barrier_ext_params_t type
+/// @returns
+///     std::ostream &
+inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct ur_enqueue_events_wait_with_barrier_ext_params_t *params) {
+
+    os << ".hQueue = ";
+
+    ur::details::printPtr(os,
+                          *(params->phQueue));
+
+    os << ", ";
+    os << ".pProperties = ";
+
+    ur::details::printPtr(os,
+                          *(params->ppProperties));
+
+    os << ", ";
+    os << ".numEventsInWaitList = ";
+
+    os << *(params->pnumEventsInWaitList);
+
+    os << ", ";
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
+
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
+    }
 
     os << ", ";
     os << ".phEvent = ";
@@ -14828,16 +15183,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14870,16 +15229,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -14919,16 +15282,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumMemsInMemList);
 
     os << ", ";
-    os << ".phMemList = {";
-    for (size_t i = 0; *(params->pphMemList) != NULL && i < *params->pnumMemsInMemList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phMemList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphMemList)));
+    if (*(params->pphMemList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumMemsInMemList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphMemList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphMemList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pProperties = ";
@@ -14942,16 +15309,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -15237,16 +15608,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -15607,16 +15982,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -15660,16 +16039,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -16175,16 +16558,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumKernelAlternatives);
 
     os << ", ";
-    os << ".phKernelAlternatives = {";
-    for (size_t i = 0; *(params->pphKernelAlternatives) != NULL && i < *params->pnumKernelAlternatives; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phKernelAlternatives = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphKernelAlternatives)));
+    if (*(params->pphKernelAlternatives) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumKernelAlternatives; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphKernelAlternatives))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphKernelAlternatives))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".numSyncPointsInWaitList = ";
@@ -16203,16 +16590,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16280,16 +16671,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16362,16 +16757,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16449,16 +16848,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16531,16 +16934,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16613,16 +17020,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16720,16 +17131,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16827,16 +17242,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -16934,16 +17353,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -17021,16 +17444,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -17098,16 +17525,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -17175,16 +17606,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pSyncPoint = ";
@@ -17230,16 +17665,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".phEvent = ";
@@ -17335,16 +17774,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pnumEventsInWaitList);
 
     os << ", ";
-    os << ".phEventWaitList = {";
-    for (size_t i = 0; *(params->pphEventWaitList) != NULL && i < *params->pnumEventsInWaitList; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phEventWaitList = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphEventWaitList)));
+    if (*(params->pphEventWaitList) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pnumEventsInWaitList; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphEventWaitList))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphEventWaitList))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     return os;
 }
@@ -17787,16 +18230,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pNumEntries; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumEntries; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pNumDevices = ";
@@ -17829,16 +18276,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pNumEntries);
 
     os << ", ";
-    os << ".phDevices = {";
-    for (size_t i = 0; *(params->pphDevices) != NULL && i < *params->pNumEntries; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphDevices)));
+    if (*(params->pphDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumEntries; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pNumDevices = ";
@@ -17934,16 +18385,20 @@ inline std::ostream &operator<<(std::ostream &os, [[maybe_unused]] const struct 
     os << *(params->pNumDevices);
 
     os << ", ";
-    os << ".phSubDevices = {";
-    for (size_t i = 0; *(params->pphSubDevices) != NULL && i < *params->pNumDevices; ++i) {
-        if (i != 0) {
-            os << ", ";
-        }
+    os << ".phSubDevices = ";
+    ur::details::printPtr(os, reinterpret_cast<const void *>(*(params->pphSubDevices)));
+    if (*(params->pphSubDevices) != NULL) {
+        os << " {";
+        for (size_t i = 0; i < *params->pNumDevices; ++i) {
+            if (i != 0) {
+                os << ", ";
+            }
 
-        ur::details::printPtr(os,
-                              (*(params->pphSubDevices))[i]);
+            ur::details::printPtr(os,
+                                  (*(params->pphSubDevices))[i]);
+        }
+        os << "}";
     }
-    os << "}";
 
     os << ", ";
     os << ".pNumDevicesRet = ";
@@ -18468,6 +18923,9 @@ inline ur_result_t UR_APICALL printFunctionParams(std::ostream &os, ur_function_
     } break;
     case UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP: {
         os << (const struct ur_enqueue_kernel_launch_custom_exp_params_t *)params;
+    } break;
+    case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT: {
+        os << (const struct ur_enqueue_events_wait_with_barrier_ext_params_t *)params;
     } break;
     case UR_FUNCTION_ENQUEUE_COOPERATIVE_KERNEL_LAUNCH_EXP: {
         os << (const struct ur_enqueue_cooperative_kernel_launch_exp_params_t *)params;
