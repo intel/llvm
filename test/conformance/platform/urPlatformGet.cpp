@@ -3,9 +3,12 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-#include "fixtures.h"
+#include <uur/fixtures.h>
 
-using urPlatformGetTest = uur::platform::urTest;
+struct urPlatformGetTest : ::testing::Test {
+    std::vector<ur_adapter_handle_t> &adapters =
+        uur::PlatformEnvironment::instance->adapters;
+};
 
 TEST_F(urPlatformGetTest, Success) {
     uint32_t count;
