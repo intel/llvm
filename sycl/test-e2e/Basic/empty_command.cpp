@@ -1,7 +1,7 @@
 // RUN: %{build} -o %t.out %cxx_std_optionc++20
 // RUN: %{run} %t.out
 
-#include <sycl/sycl.hpp>
+#include <sycl/detail/core.hpp>
 
 #include <latch>
 #include <thread>
