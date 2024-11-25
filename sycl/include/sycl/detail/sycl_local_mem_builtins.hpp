@@ -10,7 +10,7 @@
 
 #include <sycl/detail/defines_elementary.hpp> // for __DPCPP_SYCL_EXTERNAL
 
-#include <cstddef>  // for size_t, uint8_t
+#include <cstddef> // for size_t, uint8_t
 
 #ifdef __SYCL_DEVICE_ONLY__
 // Request a fixed-size allocation in local address space at kernel scope.
