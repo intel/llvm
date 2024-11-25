@@ -730,6 +730,71 @@ MemorySanitizerOptions::MemorySanitizerOptions(int TO, bool R, bool K,
       Recover(getOptOrDefault(ClKeepGoing, Kernel || R)),
       EagerChecks(getOptOrDefault(ClEagerChecks, EagerChecks)) {}
 
+static StringMap<GlobalVariable *> GlobalStringMap;
+
+GlobalVariable *getOrCreateGlobalString(Module &M, StringRef Name,
+                                        StringRef Value,
+                                        unsigned AddressSpace) {
+  GlobalVariable *StringGV = nullptr;
+  if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
+    return GlobalStringMap.at(Value.str());
+
+  auto *Ty = ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
+  StringGV = new GlobalVariable(
+      M, Ty, true, GlobalValue::InternalLinkage,
+      ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
+      GlobalValue::NotThreadLocal, AddressSpace);
+  GlobalStringMap[Value.str()] = StringGV;
+
+  return StringGV;
+}
+
+static void extendSpirKernelArgs(Module &M) {
+  SmallVector<Constant *, 8> SpirKernelsMetadata;
+
+  auto DL = M.getDataLayout();
+  Type *IntptrTy = DL.getIntPtrType(M.getContext());
+
+  // SpirKernelsMetadata only saves fixed kernels, and is described by
+  // following structure:
+  //  uptr unmangled_kernel_name
+  //  uptr unmangled_kernel_name_size
+  StructType *StructTy = StructType::get(IntptrTy, IntptrTy);
+  for (Function &F : M) {
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+      continue;
+
+    if (!F.hasFnAttribute(Attribute::SanitizeMemory) ||
+        F.hasFnAttribute(Attribute::DisableSanitizerInstrumentation))
+      continue;
+
+    auto KernelName = F.getName();
+    auto *KernelNameGV = getOrCreateGlobalString(M, "__msan_kernel", KernelName,
+                                                 kSpirOffloadGlobalAS);
+    SpirKernelsMetadata.emplace_back(ConstantStruct::get(
+        StructTy, ConstantExpr::getPointerCast(KernelNameGV, IntptrTy),
+        ConstantInt::get(IntptrTy, KernelName.size())));
+  }
+
+  // Create global variable to record spirv kernels' information
+  ArrayType *ArrayTy = ArrayType::get(StructTy, SpirKernelsMetadata.size());
+  Constant *MetadataInitializer =
+      ConstantArray::get(ArrayTy, SpirKernelsMetadata);
+  GlobalVariable *MsanSpirKernelMetadata = new GlobalVariable(
+      M, MetadataInitializer->getType(), false, GlobalValue::AppendingLinkage,
+      MetadataInitializer, "__MsanKernelMetadata", nullptr,
+      GlobalValue::NotThreadLocal, 1);
+  MsanSpirKernelMetadata->setUnnamedAddr(GlobalValue::UnnamedAddr::Local);
+  // Add device global attributes
+  MsanSpirKernelMetadata->addAttribute(
+      "sycl-device-global-size", std::to_string(DL.getTypeAllocSize(ArrayTy)));
+  MsanSpirKernelMetadata->addAttribute("sycl-device-image-scope");
+  MsanSpirKernelMetadata->addAttribute("sycl-host-access", "0"); // read only
+  MsanSpirKernelMetadata->addAttribute("sycl-unique-id",
+                                       "_Z20__MsanKernelMetadata");
+  MsanSpirKernelMetadata->setDSOLocal(true);
+}
+
 PreservedAnalyses MemorySanitizerPass::run(Module &M,
                                            ModuleAnalysisManager &AM) {
   // Return early if nosanitize_memory module flag is present for the module.
@@ -743,6 +808,11 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
     Modified = true;
   }
 
+  if (TargetTriple.isSPIROrSPIRV()) {
+    extendSpirKernelArgs(M);
+    Modified = true;
+  }
+
   auto &FAM = AM.getResult<FunctionAnalysisManagerModuleProxy>(M).getManager();
   for (Function &F : M) {
     if (F.empty())
@@ -751,6 +821,10 @@ PreservedAnalyses MemorySanitizerPass::run(Module &M,
     Modified |=
         Msan.sanitizeFunction(F, FAM.getResult<TargetLibraryAnalysis>(F));
   }
+
+  // Clear GlobalStringMap to prevent its content from being used by other
+  // modules
+  GlobalStringMap.clear();
 
   if (!Modified)
     return PreservedAnalyses::all();
@@ -1276,7 +1350,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
   SmallVector<std::pair<IntrinsicInst *, AllocaInst *>, 16> LifetimeStartList;
   SmallVector<StoreInst *, 16> StoreList;
   int64_t SplittableBlocksCount = 0;
-  StringMap<GlobalVariable *> GlobalStringMap;
 
   MemorySanitizerVisitor(Function &F, MemorySanitizer &MS,
                          const TargetLibraryInfo &TLI)
@@ -1474,24 +1547,6 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
     return LazyWarningDebugLocationCount[DebugLoc] >= ClDisambiguateWarning;
   }
 
-  GlobalVariable *GetOrCreateGlobalString(Module &M, StringRef Name,
-                                          StringRef Value,
-                                          unsigned AddressSpace) {
-    GlobalVariable *StringGV = nullptr;
-    if (GlobalStringMap.find(Value.str()) != GlobalStringMap.end())
-      return GlobalStringMap.at(Value.str());
-
-    auto *Ty =
-        ArrayType::get(Type::getInt8Ty(M.getContext()), Value.size() + 1);
-    StringGV = new GlobalVariable(
-        M, Ty, true, GlobalValue::InternalLinkage,
-        ConstantDataArray::getString(M.getContext(), Value), Name, nullptr,
-        GlobalValue::NotThreadLocal, AddressSpace);
-    GlobalStringMap[Value.str()] = StringGV;
-
-    return StringGV;
-  }
-
   /// Helper function to insert a warning at IRB's current insert point.
   void insertWarningFn(IRBuilder<> &IRB, Value *Origin) {
     if (!Origin)
@@ -1562,7 +1617,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
               if (auto &Loc = ConvertedShadowInst->getDebugLoc()) {
                 llvm::SmallString<128> Source = Loc->getDirectory();
                 sys::path::append(Source, Loc->getFilename());
-                auto *FileNameGV = GetOrCreateGlobalString(
+                auto *FileNameGV = getOrCreateGlobalString(
                     *M, "__asan_file", Source, kSpirOffloadConstantAS);
                 Args.push_back(
                     ConstantExpr::getPointerCast(FileNameGV, ConstASPtrTy));
@@ -1581,7 +1636,7 @@ struct MemorySanitizerVisitor : public InstVisitor<MemorySanitizerVisitor> {
 
           // function name
           auto FuncName = F.getName();
-          auto *FuncNameGV = GetOrCreateGlobalString(
+          auto *FuncNameGV = getOrCreateGlobalString(
               *M, "__asan_func", demangle(FuncName), kSpirOffloadConstantAS);
           Args.push_back(
               ConstantExpr::getPointerCast(FuncNameGV, ConstASPtrTy));
