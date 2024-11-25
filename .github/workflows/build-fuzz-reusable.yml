@@ -47,6 +47,8 @@ jobs:
         cmake --build build -j $(nproc)
 
     - name: Configure CMake
+      # CFI sanitization (or flto?) seems to cause linking to fail
+      # https://github.com/oneapi-src/unified-runtime/issues/2323
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -58,6 +60,7 @@ jobs:
         -DUR_USE_ASAN=ON
         -DUR_USE_UBSAN=ON
         -DUR_BUILD_ADAPTER_L0=ON
+        -DUR_USE_CFI=OFF
         -DUR_LEVEL_ZERO_LOADER_LIBRARY=${{github.workspace}}/level-zero/build/lib/libze_loader.so
         -DUR_LEVEL_ZERO_INCLUDE_DIR=${{github.workspace}}/level-zero/include/
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++

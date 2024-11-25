@@ -168,5 +168,10 @@ UR_APIEXPORT ur_result_t UR_APICALL urPlatformGetBackendOption(
     *ppPlatformOption = "";
     return UR_RESULT_SUCCESS;
   }
+  if (pFrontendOption == "-foffload-fp32-prec-div"sv ||
+      pFrontendOption == "-foffload-fp32-prec-sqrt"sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }

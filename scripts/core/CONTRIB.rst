@@ -393,13 +393,18 @@ The format of the match files are as follows:
   matches a single character.
 * Empty lines or lines beginning with ``#`` are ignored.
 * A line beginning with ``{{OPT}}`` is a optional test; see below.
-* For compatibility with an older version of the matching logic, ``{{.*}}`` is
-  interpreted as ``*`` and ``{{NONDETERMINISTIC}}`` is ignored.
 
 Normally tests in the match file must fail (either by crashing or having a test
 failure) for the given adapter. However this can be disabled by prepending
 ``{{OPT}}`` to the match line. This can be used if the test is flaky or
 depends on a particular environment.
+
+This matching is done via ``test/conformance/cts_exe.py``, which is designed to be
+called from ctest. However, it can be run manually as follows:
+
+.. code-block:: console
+
+    test/conformance/cts_exe.py --test_command build/bin/test-adapter --failslist test/conformance/adapter/adapter_adapter_mytarget.match -- --backend=BACKEND
 
 Experimental Features
 =====================

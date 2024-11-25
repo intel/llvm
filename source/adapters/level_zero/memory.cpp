@@ -2240,7 +2240,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                     nullptr, 0u, nullptr));
       }
       if (waitlist.ZeEventList) {
-        delete waitlist.ZeEventList;
+        delete[] waitlist.ZeEventList;
       }
     }
     Allocation.Valid = true;

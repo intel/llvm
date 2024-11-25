@@ -10593,6 +10593,70 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
+__urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    const ur_exp_enqueue_ext_properties_t *
+        pProperties, ///< [in][optional] pointer to the extended enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
+    ) try {
+    ur_result_t result = UR_RESULT_SUCCESS;
+
+    ur_enqueue_events_wait_with_barrier_ext_params_t params = {
+        &hQueue, &pProperties, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+
+    auto beforeCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_before_callback(
+            "urEnqueueEventsWaitWithBarrierExt"));
+    if (beforeCallback) {
+        result = beforeCallback(&params);
+        if (result != UR_RESULT_SUCCESS) {
+            return result;
+        }
+    }
+
+    auto replaceCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_replace_callback(
+            "urEnqueueEventsWaitWithBarrierExt"));
+    if (replaceCallback) {
+        result = replaceCallback(&params);
+    } else {
+
+        // optional output handle
+        if (phEvent) {
+            *phEvent = mock::createDummyHandle<ur_event_handle_t>();
+        }
+        result = UR_RESULT_SUCCESS;
+    }
+
+    if (result != UR_RESULT_SUCCESS) {
+        return result;
+    }
+
+    auto afterCallback = reinterpret_cast<ur_mock_callback_t>(
+        mock::getCallbacks().get_after_callback(
+            "urEnqueueEventsWaitWithBarrierExt"));
+    if (afterCallback) {
+        return afterCallback(&params);
+    }
+
+    return result;
+} catch (...) {
+    return exceptionToResult(std::current_exception());
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueNativeCommandExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
@@ -10995,6 +11059,9 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
     pDdiTable->pfnReadHostPipe = driver::urEnqueueReadHostPipe;
 
     pDdiTable->pfnWriteHostPipe = driver::urEnqueueWriteHostPipe;
+
+    pDdiTable->pfnEventsWaitWithBarrierExt =
+        driver::urEnqueueEventsWaitWithBarrierExt;
 
     return result;
 } catch (...) {
