@@ -13,10 +13,10 @@
 
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
-#include "sycl/detail/pi.h"
+#include "sycl/detail/ur.hpp"
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -50,65 +50,55 @@ template <> const char *get_spec_constant_symbolic_ID<SpecConst1>() {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   std::vector<char> SpecConstData;
-  PiProperty SC1 = makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
+  MockProperty SC1 =
+      makeSpecConstant<int>(SpecConstData, "SC1", {0}, {0}, {42});
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
   addSpecConstants({SC1}, std::move(SpecConstData), PropSet);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
-
-  PiArray<PiOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({"CacheTestKernel", "CacheTestKernel2"});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::PiImage Img = generateDefaultImage();
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImage Img = generateDefaultImage();
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 struct TestCtx {
-  detail::pi::PiContext context;
+  ur_context_handle_t context;
 };
 
 std::unique_ptr<TestCtx> globalCtx;
 
-static pi_result redefinedKernelGetInfo(pi_kernel kernel,
-                                        pi_kernel_info param_name,
-                                        size_t param_value_size,
-                                        void *param_value,
-                                        size_t *param_value_size_ret) {
-  if (param_name == PI_KERNEL_INFO_CONTEXT) {
-    auto ctx = reinterpret_cast<detail::pi::PiContext *>(param_value);
+static ur_result_t redefinedKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_KERNEL_INFO_CONTEXT) {
+    auto ctx = reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue);
     *ctx = globalCtx->context;
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 class KernelAndProgramCacheTest : public ::testing::Test {
 public:
-  KernelAndProgramCacheTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  KernelAndProgramCacheTest() : Mock{}, Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
-    Mock.redefineBefore<detail::PiApiKind::piKernelGetInfo>(
-        redefinedKernelGetInfo);
+    mock::getCallbacks().set_before_callback("urKernelGetInfo",
+                                             &redefinedKernelGetInfo);
   }
 
 protected:
-  unittest::PiMock Mock;
+  unittest::UrMock<> Mock;
   sycl::platform Plt;
 };
 

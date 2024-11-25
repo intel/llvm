@@ -4,13 +4,10 @@
 // spir-v gen for legacy images at O0 not working
 // UNSUPPORTED: O0
 
-// https://github.com/intel/llvm/issues/11434
-// UNSUPPORTED: gpu-intel-dg2
-
 // RUN: %{build} -o %t.out
 // Native images are created with host pointers only with host unified memory
 // support, enforce it for this test.
-// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s
+// RUN: env SYCL_HOST_UNIFIED_MEMORY=1 SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 
 #include <iostream>
 
@@ -306,108 +303,65 @@ int main() {
 // clang-format off
 //CHECK: start copyD2H-Image
 //CHECK: -- 1D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
 //CHECK: about to destruct 1D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/1/1
+//CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 //CHECK: -- 2D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
 //CHECK: about to destruct 2D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/1
-// CHECK-NEXT: <unknown> : 256
+//CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}, .rowPitch = 256
 //CHECK: -- 3D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
+//CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 
 //CHECK: about to destruct 3D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/3
-// CHECK-NEXT: <unknown> : 256
-// CHECK-NEXT: <unknown> : 1280
+//CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
 //CHECK: end copyD2H-Image
 
-//CHECK: start copyH2D-image
-//CHECK: -- 1D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 256 / 256  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/1/1
+// CHECK: start copyH2D-image
+// CHECK: -- 1D
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 256, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urMemImageCreate({{.*}} .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
 // The order of the following calls may vary since some of them are made by a
-// host task (in a separate thread).
-//CHECK-DAG: ---> piMemImageCreate(
-//CHECK-DAG: image_desc w/h/d : 16 / 1 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4340
-//CHECK-DAG: ---> piEnqueueMemImageRead(
-//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/1/1
-//CHECK: about to destruct 1D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/1/1
-//CHECK: -- 2D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/1
+// host task (in a separate thread). Don't check for the actual function name
+// as it may be interleaved with other tracing output.
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE1D, .width = 16, .height = 1, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK: about to destruct 1D
+// CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 1, .depth = 1}
+// CHECK: -- 2D
 // The order of the following calls may vary since some of them are made by a
-// host task (in a separate thread).
-//CHECK-DAG: ---> piMemImageCreate(
-//CHECK-DAG: image_desc w/h/d : 16 / 5 / 1  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4337
-//CHECK-DAG: ---> piEnqueueMemImageRead(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
-//CHECK-DAG: <unknown> : 256
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/1
-//CHECK-DAG: <unknown> : 256
-//CHECK: about to destruct 2D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/1
-//CHECK: -- 3D
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 256 / 1280  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK: ---> piMemImageCreate(
-//CHECK: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/3
+// host task (in a separate thread). Don't check for the actual function name
+// as it may be interleaved with other tracing output.
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE2D, .width = 16, .height = 5, .depth = 1, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK: about to destruct 2D
+// CHECK: <--- urEnqueueMemImageRead({{.*}}.region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 1}
+// CHECK: -- 3D
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 256, .slicePitch = 1280, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}
 // The order of the following calls may vary since some of them are made by a
-// host task (in a separate thread).
-//CHECK-DAG: ---> piMemImageCreate(
-//CHECK-DAG: image_desc w/h/d : 16 / 5 / 3  --  arrSz/row/slice : 0 / 0 / 0  --  num_mip_lvls/num_smpls/image_type : 0 / 0 / 4338
-//CHECK-DAG: ---> piEnqueueMemImageRead(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
-//CHECK-DAG: <unknown> : 256
-//CHECK-DAG: <unknown> : 1280
-//CHECK-DAG: ---> piEnqueueMemImageWrite(
-//CHECK-DAG: pi_image_region width/height/depth : 16/5/3
-//CHECK-DAG: <unknown> : 256
-//CHECK-DAG: <unknown> : 1280
-//CHECK: about to destruct 3D
-//CHECK: ---> piEnqueueMemImageRead(
-//CHECK: pi_image_region width/height/depth : 16/5/3
-// CHECK-NEXT: <unknown> : 256
-// CHECK-NEXT: <unknown> : 1280
-//CHECK: end copyH2D-image
+// host task (in a separate thread). Don't check for the actual function name
+// as it may be interleaved with other tracing output.
+// CHECK-DAG: .type = UR_MEM_TYPE_IMAGE3D, .width = 16, .height = 5, .depth = 3, .arraySize = 0, .rowPitch = 0, .slicePitch = 0, .numMipLevel = 0, .numSamples = 0
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
+// CHECK-DAG: .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
+// CHECK: about to destruct 3D
+// CHECK: <--- urEnqueueMemImageRead({{.*}} .region = (struct ur_rect_region_t){.width = 16, .height = 5, .depth = 3}, .rowPitch = 256, .slicePitch = 1280
+
+// CHECK: end copyH2D-image
 // clang-format on

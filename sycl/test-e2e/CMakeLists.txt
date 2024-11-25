@@ -61,6 +61,8 @@ else()
   set(SYCL_E2E_CLANG_CXX_FLAGS ${CMAKE_CXX_FLAGS})
 endif()
 
+set(SYCL_E2E_CLANG_CXX_FLAGS "${SYCL_E2E_CLANG_CXX_FLAGS} -Werror")
+
 if(SYCL_TEST_E2E_STANDALONE)
   configure_file("${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in"
                  "${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py")

@@ -1,11 +1,12 @@
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <vector>
 
 // Helper holder for all the data we want to capture from mocked APIs
 struct LinkingCapturesHolder {
-  unsigned NumOfPiProgramCreateCalls = 0;
-  unsigned NumOfPiProgramLinkCalls = 0;
+  unsigned NumOfUrProgramCreateCalls = 0;
+  unsigned NumOfUrProgramCreateWithBinaryCalls = 0;
+  unsigned NumOfUrProgramLinkCalls = 0;
   unsigned ProgramUsedToCreateKernel = 0;
   std::vector<unsigned> LinkedPrograms;
 
@@ -18,8 +19,8 @@ struct LinkingCapturesHolder {
   }
 
   void clear() {
-    NumOfPiProgramCreateCalls = 0;
-    NumOfPiProgramLinkCalls = 0;
+    NumOfUrProgramCreateCalls = 0;
+    NumOfUrProgramLinkCalls = 0;
     ProgramUsedToCreateKernel = 0;
     LinkedPrograms.clear();
   }
@@ -27,56 +28,62 @@ struct LinkingCapturesHolder {
 
 static LinkingCapturesHolder CapturedLinkingData;
 
-static pi_result redefined_piProgramCreate(pi_context, const void *il,
-                                           size_t length, pi_program *res) {
-  auto *Magic = reinterpret_cast<const unsigned char *>(il);
-  *res = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*res)->setDataAs<unsigned>(*Magic);
-  ++CapturedLinkingData.NumOfPiProgramCreateCalls;
-  return PI_SUCCESS;
+static ur_result_t redefined_urProgramCreateWithIL(void *pParams) {
+  auto Params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  auto *Magic = reinterpret_cast<const unsigned char *>(*Params.ppIL);
+  ur_program_handle_t *res = *Params.pphProgram;
+  *res = mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
+  reinterpret_cast<mock::dummy_handle_t>(*res)->setDataAs<unsigned>(*Magic);
+  ++CapturedLinkingData.NumOfUrProgramCreateCalls;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result
-redefined_piProgramLink(pi_context context, pi_uint32 num_devices,
-                        const pi_device *device_list, const char *options,
-                        pi_uint32 num_input_programs,
-                        const pi_program *input_programs,
-                        void (*pfn_notify)(pi_program program, void *user_data),
-                        void *user_data, pi_program *ret_program) {
+static ur_result_t redefined_urProgramCreateWithBinary(void *pParams) {
+  auto Params = *static_cast<ur_program_create_with_binary_params_t *>(pParams);
+  auto *Magic = reinterpret_cast<const unsigned char *>(*Params.pppBinaries[0]);
+  ur_program_handle_t *res = *Params.pphProgram;
+  *res = mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
+  reinterpret_cast<mock::dummy_handle_t>(*res)->setDataAs<unsigned>(*Magic);
+  ++CapturedLinkingData.NumOfUrProgramCreateWithBinaryCalls;
+  return UR_RESULT_SUCCESS;
+}
+
+static ur_result_t redefined_urProgramLinkExp(void *pParams) {
+  auto Params = *static_cast<ur_program_link_exp_params_t *>(pParams);
   unsigned ResProgram = 1;
-  for (pi_uint32 I = 0; I < num_input_programs; ++I) {
-    auto Val = reinterpret_cast<DummyHandlePtrT>(input_programs[I])
+  auto Programs = *Params.pphPrograms;
+  for (uint32_t I = 0; I < *Params.pcount; ++I) {
+    auto Val = reinterpret_cast<mock::dummy_handle_t>(Programs[I])
                    ->getDataAs<unsigned>();
     ResProgram *= Val;
     CapturedLinkingData.LinkedPrograms.push_back(Val);
   }
 
-  ++CapturedLinkingData.NumOfPiProgramLinkCalls;
+  ++CapturedLinkingData.NumOfUrProgramLinkCalls;
 
-  *ret_program = createDummyHandle<pi_program>(sizeof(unsigned));
-  reinterpret_cast<DummyHandlePtrT>(*ret_program)
+  ur_program_handle_t *ret_program = *Params.pphProgram;
+  *ret_program = mock::createDummyHandle<ur_program_handle_t>(sizeof(unsigned));
+  reinterpret_cast<mock::dummy_handle_t>(*ret_program)
       ->setDataAs<unsigned>(ResProgram);
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefined_piKernelCreate(pi_program program,
-                                          const char *kernel_name,
-                                          pi_kernel *ret_kernel) {
+static ur_result_t redefined_urKernelCreate(void *pParams) {
+  auto Params = *static_cast<ur_kernel_create_params_t *>(pParams);
   CapturedLinkingData.ProgramUsedToCreateKernel =
-      reinterpret_cast<DummyHandlePtrT>(program)->getDataAs<unsigned>();
-  *ret_kernel = createDummyHandle<pi_kernel>();
-  return PI_SUCCESS;
+      reinterpret_cast<mock::dummy_handle_t>(*Params.phProgram)
+          ->getDataAs<unsigned>();
+  **Params.pphKernel = mock::createDummyHandle<ur_kernel_handle_t>();
+  return UR_RESULT_SUCCESS;
 }
 
-static sycl::unittest::PiMock setupRuntimeLinkingMock() {
-  sycl::unittest::PiMock Mock;
-
-  Mock.redefine<sycl::detail::PiApiKind::piProgramCreate>(
-      redefined_piProgramCreate);
-  Mock.redefine<sycl::detail::PiApiKind::piProgramLink>(
-      redefined_piProgramLink);
-  Mock.redefine<sycl::detail::PiApiKind::piKernelCreate>(
-      redefined_piKernelCreate);
-
-  return Mock;
+static void setupRuntimeLinkingMock() {
+  mock::getCallbacks().set_replace_callback("urProgramCreateWithIL",
+                                            redefined_urProgramCreateWithIL);
+  mock::getCallbacks().set_replace_callback(
+      "urProgramCreateWithBinary", redefined_urProgramCreateWithBinary);
+  mock::getCallbacks().set_replace_callback("urProgramLinkExp",
+                                            redefined_urProgramLinkExp);
+  mock::getCallbacks().set_replace_callback("urKernelCreate",
+                                            redefined_urKernelCreate);
 }

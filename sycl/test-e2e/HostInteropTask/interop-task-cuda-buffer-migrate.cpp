@@ -1,4 +1,5 @@
 // REQUIRES: cuda, cuda_dev_kit
+// REQUIRES: build-and-run-mode
 //
 // RUN: %{build} -o %t.out %cuda_options
 // RUN: %{run} %t.out
@@ -8,7 +9,6 @@
 //
 // Make sure that memory migration works for buffers across devices in a context
 // when using host tasks.
-//
 
 #include <cuda.h>
 #include <iostream>

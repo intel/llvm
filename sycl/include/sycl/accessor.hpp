@@ -9,8 +9,6 @@
 #pragma once
 
 #include <sycl/access/access.hpp>                     // for target, mode
-#include <sycl/aliases.hpp>                           // for float4, int4
-#include <sycl/aspects.hpp>                           // for aspect
 #include <sycl/atomic.hpp>                            // for atomic
 #include <sycl/buffer.hpp>                            // for range
 #include <sycl/detail/accessor_iterator.hpp>          // for accessor_iterator
@@ -24,7 +22,6 @@
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp>            // for PropWithDataKind
 #include <sycl/detail/property_list_base.hpp>         // for PropertyListBase
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/detail/type_traits.hpp>                // for const_if_const_AS
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
@@ -36,19 +33,13 @@
 #include <sycl/properties/buffer_properties.hpp>      // for buffer, buffer...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range
-#include <sycl/sampler.hpp>                           // for addressing_mode
 
 #include <cstddef>     // for size_t
 #include <functional>  // for hash
 #include <iterator>    // for reverse_iterator
 #include <limits>      // for numeric_limits
 #include <memory>      // for shared_ptr
-#include <optional>    // for nullopt, optional
-#include <stdint.h>    // for uint32_t
-#include <tuple>       // for _Swallow_assign
 #include <type_traits> // for enable_if_t
-#include <typeinfo>    // for type_info
-#include <variant>     // for hash
 
 /// \file accessor.hpp
 /// The file contains implementations of accessor class.

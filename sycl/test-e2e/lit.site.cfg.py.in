@@ -26,6 +26,8 @@ config.cuda_include = "@CUDA_INCLUDE@"
 
 config.opencl_include_dir = os.path.join(config.sycl_include, 'sycl')
 
+config.igc_tag_file = os.path.join("/usr/local/lib/igc/", 'IGCTAG.txt')
+
 config.sycl_devices = lit_config.params.get("sycl_devices", "@SYCL_TEST_E2E_TARGETS@").split(';')
 
 config.hip_platform = "@HIP_PLATFORM@"

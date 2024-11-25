@@ -58,7 +58,8 @@ Jessica Davies, Intel +
 Joe Garvey, Intel +
 Greg Lueck, Intel +
 John Pennycook, Intel +
-Roland Schulz, Intel
+Roland Schulz, Intel +
+Fraser Cormack, Codeplay
 
 == Overview
 
@@ -231,6 +232,68 @@ template <> struct is_property_key<device_has_key> : std::true_type {};
 SYCL implementations may introduce additional kernel properties. If any
 combinations of kernel attributes are invalid, this must be clearly documented
 as part of the new kernel property definition.
+
+=== Kernel Properties for the CUDA backend
+
+The kernel properties specified in this section may only be used to decorate
+kernels that are submitted to the CUDA backend. Attempting to submit a kernel
+with these properties to another backend has undefined behavior.
+
+```c++
+namespace sycl {
+namespace ext {
+namespace oneapi {
+namespace experimental {
+
+struct max_work_group_size_key {
+  template <size_t... Dims>
+  using value_t = property_value<max_work_group_size_key, std::integral_constant<size_t, Dims>...>;
+}; // max_work_group_size_key
+
+struct max_linear_work_group_size_key {
+  template <size_t Size>
+  using value_t = property_value<max_linear_work_group_size_key, std::integral_constant<size_t, Size>>;
+}; // max_linear_work_group_size_key
+
+template <size_t... Dims>
+inline constexpr max_work_group_size_key::value_t<Dims...> max_work_group_size;
+
+template <size_t Size>
+inline constexpr max_linear_work_group_size_key::value_t<Size> max_linear_work_group_size;
+
+template <> struct is_property_key<max_work_group_size_key> : std::true_type {};
+template <> struct is_property_key<max_linear_work_group_size_key> : std::true_type {};
+
+} // namespace experimental
+} // namespace oneapi
+} // namespace ext
+} // namespace sycl
+```
+
+|===
+|Property|Description
+
+|`max_work_group_size`
+|The `max_work_group_size` property provides a promise to the compiler
+that the kernel will never be launched with a larger work-group than the
+specified size. The number of template arguments in the `Dims` parameter pack
+must match the dimensionality of the work-group used to invoke the kernel. The
+order of the template arguments matches the constructor of the `range` class.
+
+If the kernel is submitted with an `nd_range` that exceeds the size specified
+by the property, the implementation must throw a synchronous exception with the
+`errc::nd_range` error code.
+
+|`max_linear_work_group_size`
+|The `max_linear_work_group_size` property provides a promise to the compiler
+that the kernel will never be launched with a work-group for which the return
+value of `group::get_local_linear_range()` exceeds the specified amount.
+
+If the kernel is submitted with an `nd_range` that exceeds the size specified
+by the property, the implementation must throw a synchronous exception with the
+`errc::nd_range` error code.
+
+|===
 
 === Adding a Property List to a Kernel Launch
 

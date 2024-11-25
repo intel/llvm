@@ -8,26 +8,28 @@
 
 #pragma once
 
-#include <sycl/detail/pi.h>
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
-void memBufferCreateHelper(const PluginPtr &Plugin, pi_context Ctx,
-                           pi_mem_flags Flags, size_t Size, void *HostPtr,
-                           pi_mem *RetMem,
-                           const pi_mem_properties *Props = nullptr);
-void memReleaseHelper(const PluginPtr &Plugin, pi_mem Mem);
-void memBufferMapHelper(const PluginPtr &Plugin, pi_queue command_queue,
-                        pi_mem buffer, pi_bool blocking_map,
-                        pi_map_flags map_flags, size_t offset, size_t size,
-                        pi_uint32 num_events_in_wait_list,
-                        const pi_event *event_wait_list, pi_event *event,
-                        void **ret_map);
-void memUnmapHelper(const PluginPtr &Plugin, pi_queue command_queue,
-                    pi_mem memobj, void *mapped_ptr,
-                    pi_uint32 num_events_in_wait_list,
-                    const pi_event *event_wait_list, pi_event *event);
+void memBufferCreateHelper(const AdapterPtr &Adapter, ur_context_handle_t Ctx,
+                           ur_mem_flags_t Flags, size_t Size,
+                           ur_mem_handle_t *RetMem,
+                           const ur_buffer_properties_t *Props = nullptr);
+void memReleaseHelper(const AdapterPtr &Adapter, ur_mem_handle_t Mem);
+void memBufferMapHelper(const AdapterPtr &Adapter,
+                        ur_queue_handle_t command_queue, ur_mem_handle_t buffer,
+                        bool blocking_map, ur_map_flags_t map_flags,
+                        size_t offset, size_t size,
+                        uint32_t num_events_in_wait_list,
+                        const ur_event_handle_t *event_wait_list,
+                        ur_event_handle_t *event, void **ret_map);
+void memUnmapHelper(const AdapterPtr &Adapter, ur_queue_handle_t command_queue,
+                    ur_mem_handle_t memobj, void *mapped_ptr,
+                    uint32_t num_events_in_wait_list,
+                    const ur_event_handle_t *event_wait_list,
+                    ur_event_handle_t *event);
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

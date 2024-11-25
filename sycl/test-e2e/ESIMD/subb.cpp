@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14868
 
 // The test verifies ESIMD API that substracts 2 32-bit integer scalars/vectors
 // with borrow returning the result as 2 parts: borrow flag the input modified

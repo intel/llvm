@@ -12,11 +12,11 @@
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_sycl.hpp>
 #include <detail/kernel_impl.hpp>
+#include <detail/persistent_device_code_cache.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/device.hpp>
 #include <sycl/kernel_bundle.hpp>
 
@@ -360,6 +360,85 @@ public:
     Language = Lang;
   }
 
+  std::string trimXsFlags(std::string &str) {
+    // Trim first and last quote if they exist, but no others.
+    char EncounteredQuote = '\0';
+    auto Start = std::find_if(str.begin(), str.end(), [&](char c) {
+      if (!EncounteredQuote && (c == '\'' || c == '"')) {
+        EncounteredQuote = c;
+        return false;
+      }
+      return !std::isspace(c);
+    });
+    auto End = std::find_if(str.rbegin(), str.rend(), [&](char c) {
+                 if (c == EncounteredQuote) {
+                   EncounteredQuote = '\0';
+                   return false;
+                 }
+                 return !std::isspace(c);
+               }).base();
+    if (Start != std::end(str) && End != std::begin(str) && Start < End) {
+      return std::string(Start, End);
+    }
+
+    return "";
+  }
+
+  std::string extractXsFlags(const std::vector<std::string> &BuildOptions) {
+    std::stringstream SS;
+    for (std::string Option : BuildOptions) {
+      auto Where = Option.find("-Xs");
+      if (Where != std::string::npos) {
+        Where += 3;
+        std::string Flags = Option.substr(Where);
+        SS << trimXsFlags(Flags) << " ";
+      }
+    }
+    return SS.str();
+  }
+
+  bool
+  extKernelCompilerFetchFromCache(const std::vector<device> Devices,
+                                  const std::vector<std::string> &BuildOptions,
+                                  const std::string &SourceStr,
+                                  ur_program_handle_t &UrProgram) {
+    using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
+    ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+
+    std::string UserArgs = syclex::detail::userArgsAsString(BuildOptions);
+
+    std::vector<ur_device_handle_t> DeviceHandles;
+    std::transform(
+        Devices.begin(), Devices.end(), std::back_inserter(DeviceHandles),
+        [](const device &Dev) { return getSyclObjImpl(Dev)->getHandleRef(); });
+
+    std::vector<const uint8_t *> Binaries;
+    std::vector<size_t> Lengths;
+    std::vector<std::vector<char>> BinProgs =
+        PersistentDeviceCodeCache::getCompiledKernelFromDisc(Devices, UserArgs,
+                                                             SourceStr);
+    if (BinProgs.empty()) {
+      return false;
+    }
+    for (auto &BinProg : BinProgs) {
+      Binaries.push_back((uint8_t *)(BinProg.data()));
+      Lengths.push_back(BinProg.size());
+    }
+
+    ur_program_properties_t Properties = {};
+    Properties.stype = UR_STRUCTURE_TYPE_PROGRAM_PROPERTIES;
+    Properties.pNext = nullptr;
+    Properties.count = 0;
+    Properties.pMetadatas = nullptr;
+
+    Adapter->call<UrApiKind::urProgramCreateWithBinary>(
+        ContextImpl->getHandleRef(), DeviceHandles.size(), DeviceHandles.data(),
+        Lengths.data(), Binaries.data(), &Properties, &UrProgram);
+
+    return true;
+  }
+
   std::shared_ptr<kernel_bundle_impl>
   build_from_source(const std::vector<device> Devices,
                     const std::vector<std::string> &BuildOptions,
@@ -370,75 +449,102 @@ public:
 
     using ContextImplPtr = std::shared_ptr<sycl::detail::context_impl>;
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
 
-    std::vector<pi::PiDevice> DeviceVec;
+    std::vector<ur_device_handle_t> DeviceVec;
     DeviceVec.reserve(Devices.size());
     for (const auto &SyclDev : Devices) {
-      pi::PiDevice Dev = getSyclObjImpl(SyclDev)->getHandleRef();
+      ur_device_handle_t Dev = getSyclObjImpl(SyclDev)->getHandleRef();
       DeviceVec.push_back(Dev);
     }
 
-    const auto spirv = [&]() -> std::vector<uint8_t> {
-      if (Language == syclex::source_language::opencl) {
-        // if successful, the log is empty. if failed, throws an error with the
-        // compilation log.
-        const auto &SourceStr = std::get<std::string>(this->Source);
-        std::vector<uint32_t> IPVersionVec(Devices.size());
-        std::transform(DeviceVec.begin(), DeviceVec.end(), IPVersionVec.begin(),
-                       [&](pi::PiDevice d) {
-                         uint32_t ipVersion = 0;
-                         Plugin->call<PiApiKind::piDeviceGetInfo>(
-                             d, PI_EXT_ONEAPI_DEVICE_INFO_IP_VERSION,
-                             sizeof(uint32_t), &ipVersion, nullptr);
-                         return ipVersion;
-                       });
-        return syclex::detail::OpenCLC_to_SPIRV(SourceStr, IPVersionVec,
-                                                BuildOptions, LogPtr);
-      }
-      if (Language == syclex::source_language::spirv) {
-        const auto &SourceBytes =
-            std::get<std::vector<std::byte>>(this->Source);
-        std::vector<uint8_t> Result(SourceBytes.size());
-        std::transform(SourceBytes.cbegin(), SourceBytes.cend(), Result.begin(),
-                       [](std::byte B) { return static_cast<uint8_t>(B); });
-        return Result;
-      }
-      if (Language == syclex::source_language::sycl) {
-        const auto &SourceStr = std::get<std::string>(this->Source);
-        return syclex::detail::SYCL_to_SPIRV(SourceStr, IncludePairs,
-                                             BuildOptions, LogPtr,
-                                             RegisteredKernelNames);
-      }
-      throw sycl::exception(
-          make_error_code(errc::invalid),
-          "OpenCL C and SPIR-V are the only supported languages at this time");
-    }();
+    ur_program_handle_t UrProgram = nullptr;
+    // SourceStrPtr will be null when source is Spir-V bytes.
+    const std::string *SourceStrPtr = std::get_if<std::string>(&this->Source);
+    bool FetchedFromCache = false;
+    if (PersistentDeviceCodeCache::isEnabled() && SourceStrPtr) {
+      FetchedFromCache = extKernelCompilerFetchFromCache(
+          Devices, BuildOptions, *SourceStrPtr, UrProgram);
+    }
 
-    sycl::detail::pi::PiProgram PiProgram = nullptr;
-    Plugin->call<PiApiKind::piProgramCreate>(
-        ContextImpl->getHandleRef(), spirv.data(), spirv.size(), &PiProgram);
-    // program created by piProgramCreate is implicitly retained.
+    if (!FetchedFromCache) {
+      const auto spirv = [&]() -> std::vector<uint8_t> {
+        if (Language == syclex::source_language::opencl) {
+          // if successful, the log is empty. if failed, throws an error with
+          // the compilation log.
+          std::vector<uint32_t> IPVersionVec(Devices.size());
+          std::transform(DeviceVec.begin(), DeviceVec.end(),
+                         IPVersionVec.begin(), [&](ur_device_handle_t d) {
+                           uint32_t ipVersion = 0;
+                           Adapter->call<UrApiKind::urDeviceGetInfo>(
+                               d, UR_DEVICE_INFO_IP_VERSION, sizeof(uint32_t),
+                               &ipVersion, nullptr);
+                           return ipVersion;
+                         });
+          return syclex::detail::OpenCLC_to_SPIRV(*SourceStrPtr, IPVersionVec,
+                                                  BuildOptions, LogPtr);
+        }
+        if (Language == syclex::source_language::spirv) {
+          const auto &SourceBytes =
+              std::get<std::vector<std::byte>>(this->Source);
+          std::vector<uint8_t> Result(SourceBytes.size());
+          std::transform(SourceBytes.cbegin(), SourceBytes.cend(),
+                         Result.begin(),
+                         [](std::byte B) { return static_cast<uint8_t>(B); });
+          return Result;
+        }
+        if (Language == syclex::source_language::sycl) {
+          return syclex::detail::SYCL_to_SPIRV(*SourceStrPtr, IncludePairs,
+                                               BuildOptions, LogPtr,
+                                               RegisteredKernelNames);
+        }
+        if (Language == syclex::source_language::sycl_jit) {
+          const auto &SourceStr = std::get<std::string>(this->Source);
+          return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
+                                                   BuildOptions, LogPtr,
+                                                   RegisteredKernelNames);
+        }
+        throw sycl::exception(
+            make_error_code(errc::invalid),
+            "SYCL C++, OpenCL C and SPIR-V are the only supported "
+            "languages at this time");
+      }();
 
-    Plugin->call<errc::build, PiApiKind::piProgramBuild>(
-        PiProgram, DeviceVec.size(), DeviceVec.data(), nullptr, nullptr,
-        nullptr);
+      Adapter->call<UrApiKind::urProgramCreateWithIL>(
+          ContextImpl->getHandleRef(), spirv.data(), spirv.size(), nullptr,
+          &UrProgram);
+      // program created by urProgramCreateWithIL is implicitly retained.
+      if (UrProgram == nullptr)
+        throw sycl::exception(
+            sycl::make_error_code(errc::invalid),
+            "urProgramCreateWithIL resulted in a null program handle.");
+
+    } // if(!FetchedFromCache)
+
+    std::string XsFlags = extractXsFlags(BuildOptions);
+    auto Res = Adapter->call_nocheck<UrApiKind::urProgramBuildExp>(
+        UrProgram, DeviceVec.size(), DeviceVec.data(), XsFlags.c_str());
+    if (Res == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
+      Res = Adapter->call_nocheck<UrApiKind::urProgramBuild>(
+          ContextImpl->getHandleRef(), UrProgram, XsFlags.c_str());
+    }
+    Adapter->checkUrResult<errc::build>(Res);
 
     // Get the number of kernels in the program.
     size_t NumKernels;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_NUM_KERNELS, sizeof(size_t), &NumKernels,
         nullptr);
 
     // Get the kernel names.
     size_t KernelNamesSize;
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, 0, nullptr, &KernelNamesSize);
 
     // semi-colon delimited list of kernel names.
     std::string KernelNamesStr(KernelNamesSize, ' ');
-    Plugin->call<PiApiKind::piProgramGetInfo>(
-        PiProgram, PI_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
+    Adapter->call<UrApiKind::urProgramGetInfo>(
+        UrProgram, UR_PROGRAM_INFO_KERNEL_NAMES, KernelNamesStr.size(),
         &KernelNamesStr[0], nullptr);
     std::vector<std::string> KernelNames =
         detail::split_string(KernelNamesStr, ';');
@@ -447,8 +553,17 @@ public:
     auto KernelIDs = std::make_shared<std::vector<kernel_id>>();
     auto DevImgImpl = std::make_shared<device_image_impl>(
         nullptr, MContext, MDevices, bundle_state::executable, KernelIDs,
-        PiProgram);
+        UrProgram);
     device_image_plain DevImg{DevImgImpl};
+
+    // If caching enabled and kernel not fetched from cache, cache.
+    if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
+        SourceStrPtr) {
+      PersistentDeviceCodeCache::putCompiledKernelToDisc(
+          Devices, syclex::detail::userArgsAsString(BuildOptions),
+          *SourceStrPtr, UrProgram);
+    }
+
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,
                                                 KernelNames, Language);
   }
@@ -456,7 +571,8 @@ public:
   std::string adjust_kernel_name(const std::string &Name,
                                  syclex::source_language Lang) {
     // Once name demangling support is in, we won't need this.
-    if (Lang != syclex::source_language::sycl)
+    if (Lang != syclex::source_language::sycl &&
+        Lang != syclex::source_language::sycl_jit)
       return Name;
 
     bool isMangled = Name.find("__sycl_kernel_") != std::string::npos;
@@ -487,16 +603,16 @@ public:
     assert(MDeviceImages.size() > 0);
     const std::shared_ptr<detail::device_image_impl> &DeviceImageImpl =
         detail::getSyclObjImpl(MDeviceImages[0]);
-    sycl::detail::pi::PiProgram PiProgram = DeviceImageImpl->get_program_ref();
+    ur_program_handle_t UrProgram = DeviceImageImpl->get_ur_program_ref();
     ContextImplPtr ContextImpl = getSyclObjImpl(MContext);
-    const PluginPtr &Plugin = ContextImpl->getPlugin();
-    sycl::detail::pi::PiKernel PiKernel = nullptr;
-    Plugin->call<PiApiKind::piKernelCreate>(PiProgram, AdjustedName.c_str(),
-                                            &PiKernel);
-    // Kernel created by piKernelCreate is implicitly retained.
+    const AdapterPtr &Adapter = ContextImpl->getAdapter();
+    ur_kernel_handle_t UrKernel = nullptr;
+    Adapter->call<UrApiKind::urKernelCreate>(UrProgram, AdjustedName.c_str(),
+                                             &UrKernel);
+    // Kernel created by urKernelCreate is implicitly retained.
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
-        PiKernel, detail::getSyclObjImpl(MContext), Self);
+        UrKernel, detail::getSyclObjImpl(MContext), Self);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }
@@ -589,11 +705,11 @@ public:
     auto [Kernel, CacheMutex, ArgMask] =
         detail::ProgramManager::getInstance().getOrCreateKernel(
             MContext, KernelID.get_name(), /*PropList=*/{},
-            SelectedImage->get_program_ref());
+            SelectedImage->get_ur_program_ref());
 
     std::shared_ptr<kernel_impl> KernelImpl = std::make_shared<kernel_impl>(
         Kernel, detail::getSyclObjImpl(MContext), SelectedImage, Self, ArgMask,
-        SelectedImage->get_program_ref(), CacheMutex);
+        SelectedImage->get_ur_program_ref(), CacheMutex);
 
     return detail::createSyclObjFromImpl<kernel>(KernelImpl);
   }

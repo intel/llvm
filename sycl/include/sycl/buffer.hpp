@@ -18,7 +18,6 @@
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/is_device_copyable.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h> // for pi_native_handle and PI_ERROR_INVAL
 #include <sycl/detail/property_helper.hpp>
 #include <sycl/detail/stl_type_traits.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
@@ -26,6 +25,7 @@
 #include <sycl/id.hpp>
 #include <sycl/property_list.hpp>
 #include <sycl/range.hpp>
+#include <ur_api.h> // for ur_native_handle_t
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -67,7 +67,7 @@ class buffer_impl;
 
 template <typename T, int Dimensions, typename AllocatorT>
 buffer<T, Dimensions, AllocatorT, void>
-make_buffer_helper(pi_native_handle Handle, const context &Ctx,
+make_buffer_helper(ur_native_handle_t Handle, const context &Ctx,
                    const event &Evt, bool OwnNativeHandle = true) {
   return buffer<T, Dimensions, AllocatorT, void>(Handle, Ctx, OwnNativeHandle,
                                                  Evt);
@@ -111,7 +111,7 @@ protected:
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool IsConstPtr);
 
-  buffer_plain(pi_native_handle MemObject, const context &SyclContext,
+  buffer_plain(ur_native_handle_t MemObject, const context &SyclContext,
                std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
                bool OwnNativeHandle, const event &AvailableEvent);
 
@@ -138,7 +138,7 @@ protected:
     return getPropList().template get_property<propertyT>();
   }
 
-  std::vector<pi_native_handle> getNativeVector(backend BackendName) const;
+  std::vector<ur_native_handle_t> getNativeVector(backend BackendName) const;
 
   const std::unique_ptr<SYCLMemObjAllocator> &get_allocator_internal() const;
 
@@ -732,7 +732,7 @@ private:
   friend class accessor;
   template <typename HT, int HDims, typename HAllocT>
   friend buffer<HT, HDims, HAllocT, void>
-  detail::make_buffer_helper(pi_native_handle, const context &, const event &,
+  detail::make_buffer_helper(ur_native_handle_t, const context &, const event &,
                              bool);
   template <typename SYCLObjT> friend class ext::oneapi::weak_object;
 
@@ -747,7 +747,7 @@ private:
 
   // Interop constructor
   template <int N = dimensions, typename = EnableIfOneDimension<N>>
-  buffer(pi_native_handle MemObject, const context &SyclContext,
+  buffer(ur_native_handle_t MemObject, const context &SyclContext,
          bool OwnNativeHandle, const event &AvailableEvent,
          const detail::code_location CodeLoc = detail::code_location::current())
       : buffer_plain(MemObject, SyclContext,

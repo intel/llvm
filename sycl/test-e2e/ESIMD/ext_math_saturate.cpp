@@ -10,6 +10,8 @@
 // RUN: %{build} -fsycl-device-code-split=per_kernel %{mathflags} -o %t.out
 // RUN: %{run} %t.out
 
+// UNSUPPORTED: arch-intel_gpu_pvc
+
 // This test checks extended math operations called with saturation.
 // Combinations of
 // - argument type - half, float

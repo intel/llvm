@@ -11,51 +11,47 @@
 class BufferDestructionCheckL0 : public BufferDestructionCheckCommon<
                                      sycl::backend::ext_oneapi_level_zero> {};
 
-pi_device GlobalDeviceHandle(createDummyHandle<pi_device>());
+ur_device_handle_t
+    GlobalDeviceHandle(mock::createDummyHandle<ur_device_handle_t>());
 
-inline pi_result customMockDevicesGet(pi_platform platform,
-                                      pi_device_type device_type,
-                                      pi_uint32 num_entries, pi_device *devices,
-                                      pi_uint32 *num_devices) {
-  if (num_devices)
-    *num_devices = 1;
+inline ur_result_t customMockDevicesGet(void *pParams) {
+  auto params = *reinterpret_cast<ur_device_get_params_t *>(pParams);
+  if (*params.ppNumDevices)
+    **params.ppNumDevices = 1;
 
-  if (devices && num_entries > 0)
-    devices[0] = GlobalDeviceHandle;
+  if (*params.pphDevices && *params.pNumEntries > 0)
+    *params.pphDevices[0] = GlobalDeviceHandle;
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-inline pi_result customMockContextGetInfo(pi_context context,
-                                          pi_context_info param_name,
-                                          size_t param_value_size,
-                                          void *param_value,
-                                          size_t *param_value_size_ret) {
-  switch (param_name) {
-  case PI_CONTEXT_INFO_NUM_DEVICES: {
-    if (param_value)
-      *static_cast<pi_uint32 *>(param_value) = 1;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_uint32);
-    return PI_SUCCESS;
+inline ur_result_t customMockContextGetInfo(void *pParams) {
+  auto params = *static_cast<ur_context_get_info_params_t *>(pParams);
+  switch (*params.ppropName) {
+  case UR_CONTEXT_INFO_NUM_DEVICES: {
+    if (*params.ppPropValue)
+      *static_cast<uint32_t *>(*params.ppPropValue) = 1;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(uint32_t);
+    return UR_RESULT_SUCCESS;
   }
-  case PI_CONTEXT_INFO_DEVICES: {
-    if (param_value)
-      *static_cast<pi_device *>(param_value) = GlobalDeviceHandle;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(GlobalDeviceHandle);
+  case UR_CONTEXT_INFO_DEVICES: {
+    if (*params.ppPropValue)
+      *static_cast<ur_device_handle_t *>(*params.ppPropValue) =
+          GlobalDeviceHandle;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(GlobalDeviceHandle);
     break;
   }
   default:;
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(BufferDestructionCheckL0, BufferWithSizeOnlyInterop) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piContextGetInfo>(
-      customMockContextGetInfo);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDevicesGet>(
-      customMockDevicesGet);
+  mock::getCallbacks().set_after_callback("urContextGetInfo",
+                                          &customMockContextGetInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGet", &customMockDevicesGet);
 
   auto Test = [&](sycl::ext::oneapi::level_zero::ownership Ownership) {
     sycl::context ContextForInterop{Plt};

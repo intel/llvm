@@ -86,19 +86,19 @@ execution once all of its dependent events have completed.
 
 In this example:
 
-```
+```c++
 q.submit([&](sycl::handler &cgh) {
     cgh.depends_on(dep_event);
-    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle h) {
       printf("This will print before dep_event has completed.\n");
       // This stream has been synchronized with dep_event's underlying
       // hipEvent_t
-      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+      hipStream_t stream = h.get_native_queue<sycl::backend::ext_oneapi_hip>();
       hipMemcpyAsync(target_ptr, native_mem, test_size * sizeof(int),
                       hipMemcpyDeviceToHost, stream);
     });
   });
-q.wait()
+q.wait();
 ```
 
 The print statement may print before `dep_event` has completed. However, the
@@ -189,11 +189,11 @@ sycl::queue q;
 q.submit([&](sycl::handler &cgh) {
     sycl::accessor acc{buf, cgh};
 
-    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle &h) {
+    cgh.ext_codeplay_enqueue_native_command([=](sycl::interop_handle h) {
       // Can extract device pointers from accessors
-      void *native_mem = h.get_native_mem<sycl::backend::hip>(acc);
+      void *native_mem = h.get_native_mem<sycl::backend::ext_oneapi_hip>(acc);
       // Can extract stream
-      hipStream_t stream = h.get_native_queue<sycl::backend::hip>();
+      hipStream_t stream = h.get_native_queue<sycl::backend::ext_oneapi_hip>();
 
       // Can enqueue arbitrary backend operations. This could also be a kernel
       // launch or call to a library that enqueues operations on the stream etc

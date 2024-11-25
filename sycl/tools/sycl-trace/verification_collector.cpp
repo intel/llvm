@@ -11,11 +11,8 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include "pi_arguments_handler.hpp"
-#include "pi_structs.hpp"
 #include "usm_analyzer.hpp"
 
-#include <detail/plugin_printers.hpp>
 #include <sycl/detail/spinlock.hpp>
 
 #include <iostream>
@@ -32,7 +29,6 @@ void vPrintersInit() {
   std::ignore = PrinterType;
 
   auto &GS = USMAnalyzer::getInstance();
-  GS.setupUSMHandlers();
   // this environment variable is for proper testing only
   GS.changeTerminationOnErrorState(
       std::getenv("SYCL_TRACE_TERMINATE_ON_WARNING"));
@@ -50,13 +46,9 @@ XPTI_CALLBACK_API void vCallback(uint16_t TraceType,
   // Lock while we print information
   std::lock_guard<sycl::detail::SpinLock> _{GlobalLock};
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
-  const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
   if (TraceType == xpti::trace_function_with_args_begin) {
-    GS.ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
-                                Data->args_data);
+    GS.handlePreCall(Data);
   } else if (TraceType == xpti::trace_function_with_args_end) {
-    const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
-    GS.ArgHandlerPostCall.handle(Data->function_id, *Plugin, Result,
-                                 Data->args_data);
+    GS.handlePostCall(Data);
   }
 }

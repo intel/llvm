@@ -1,10 +1,16 @@
-// UNSUPPORTED: windows
-// Disabled on windows due to bug VS 2019 missing math builtins
+// REQUIRES: windows
+// REQUIRES: build-and-run-mode
 
-// REQUIRES: (accelerator || cpu) && windows
-// RUN: %{build} -c -o %t.o
-// RUN: %clangxx -fsycl %t.o %sycl_libs_dir/../bin/libsycl-cmath.o -o %t.out
+// TODO: Add hypotf case back when the missing symbol is fixed.
+
+// DEFINE: %{mathflags} = %if cl_options %{/clang:-fno-fast-math%} %else %{-fno-fast-math%}
+
+// RUN: %{build} %{mathflags} -o %t.out
 // RUN: %{run} %t.out
+
+// RUN: %clangxx -fsycl -fsycl-device-lib-jit-link %{mathflags} %s -o %t.out
+// RUN: %if !gpu %{ %{run} %t.out %}
+
 #include "math_utils.hpp"
 #include <iostream>
 #include <math.h>
@@ -14,11 +20,11 @@ namespace s = sycl;
 constexpr s::access::mode sycl_read = s::access::mode::read;
 constexpr s::access::mode sycl_write = s::access::mode::write;
 
-#define TEST_NUM 39
+#define TEST_NUM 35
 
-float ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0,   1,   1,   0.5, 0, 0, 1,
-                           0, 2, 0, 0, 0, 0, 0,   1,   0,   1,   2, 0, 1,
-                           2, 5, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN, 1, 2, 0};
+float ref_val[TEST_NUM] = {1, 0, 0, 0, 0, 0, 0, 1,   1,   0.5, 0,  0,
+                           1, 0, 2, 0, 0, 0, 0, 0,   1,   0,   1,  2,
+                           0, 1, 2, 0, 0, 0, 0, 0.5, 0.5, NAN, NAN};
 
 float refIptr = 1;
 
@@ -33,13 +39,13 @@ void device_math_test(s::queue &deviceQueue) {
   int quo = -1;
 
   // Varaible enm stores the enum value retured by MSVC function
-  short enm[2] = {10, 10};
+  short enm = 10;
 
   {
     s::buffer<float, 1> buffer1(result, numOfItems);
     s::buffer<float, 1> buffer2(&iptr, s::range<1>{1});
     s::buffer<int, 1> buffer3(&quo, s::range<1>{1});
-    s::buffer<short, 1> buffer4(enm, s::range<1>{2});
+    s::buffer<short, 1> buffer4(&enm, s::range<1>{1});
     deviceQueue.submit([&](sycl::handler &cgh) {
       auto res_access = buffer1.template get_access<sycl_write>(cgh);
       auto iptr_access = buffer2.template get_access<sycl_write>(cgh);
@@ -74,7 +80,6 @@ void device_math_test(s::queue &deviceQueue) {
         res_access[i++] = expm1f(0.0f);
         res_access[i++] = fdimf(1.0f, 0.0f);
         res_access[i++] = fmaf(1.0f, 1.0f, 1.0f);
-        res_access[i++] = hypotf(3.0f, 4.0f);
         res_access[i++] = ilogbf(1.0f);
         res_access[i++] = log1pf(0.0f);
         res_access[i++] = log2f(1.0f);
@@ -84,12 +89,7 @@ void device_math_test(s::queue &deviceQueue) {
         float a = NAN;
         res_access[i++] = tgammaf(a);
         res_access[i++] = lgammaf(a);
-        enm_access[0] = _FDtest(&a);
-        a = 0.0f;
-        enm_access[1] = _FExp(&a, 1.0f, 0);
-        res_access[i++] = a;
-        res_access[i++] = _FCosh(0.0f, 2.0f);
-        res_access[i++] = _FSinh(0.0f, 1.0f);
+        enm_access[0] = _fdtest(&a);
       });
     });
   }
@@ -106,10 +106,7 @@ void device_math_test(s::queue &deviceQueue) {
   assert(quo == 0);
 
   // Test enum value returned by _FDtest
-  assert(enm[0] == _NANCODE);
-
-  // Test enum value returned by _FExp
-  assert(enm[1] == _FINITE);
+  assert(enm == _NANCODE);
 }
 
 int main() {

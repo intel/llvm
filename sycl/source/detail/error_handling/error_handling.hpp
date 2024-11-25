@@ -10,28 +10,29 @@
 
 #include <detail/cg.hpp>
 #include <detail/device_impl.hpp>
-#include <sycl/detail/pi.h>
+#include <ur_api.h>
 
 namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
 namespace enqueue_kernel_launch {
-/// Analyzes error code and arguments of piEnqueueKernelLaunch to emit
+/// Analyzes error code and arguments of urEnqueueKernelLaunch to emit
 /// user-friendly exception describing the problem.
 ///
 /// This function is expected to be called only for non-success error codes,
-/// i.e. the first argument must not be equal to PI_SUCCESS.
+/// i.e. the first argument must not be equal to UR_RESULT_SUCCESS.
 ///
 /// This function actually never returns and always throws an exception with
 /// error description.
-void handleErrorOrWarning(pi_result, const device_impl &, pi_kernel,
+void handleErrorOrWarning(ur_result_t, const device_impl &, ur_kernel_handle_t,
                           const NDRDescT &);
 } // namespace enqueue_kernel_launch
 
 namespace kernel_get_group_info {
-/// Analyzes error code of piKernelGetGroupInfo.
-void handleErrorOrWarning(pi_result, pi_kernel_group_info, const PluginPtr &);
+/// Analyzes error code of urKernelGetGroupInfo.
+void handleErrorOrWarning(ur_result_t, ur_kernel_group_info_t,
+                          const AdapterPtr &);
 } // namespace kernel_get_group_info
 
 } // namespace detail

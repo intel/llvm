@@ -42,7 +42,14 @@ Specifically, this library depends on the following SYCL extensions:
     ../extensions/supported/sycl_ext_oneapi_assert.asciidoc)
 * [sycl_ext_oneapi_enqueue_barrier](
     ../extensions/supported/sycl_ext_oneapi_enqueue_barrier.asciidoc)
-* [sycl_ext_oneapi_usm_device_read_only](../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+* [sycl_ext_oneapi_usm_device_read_only](
+    ../extensions/supported/sycl_ext_oneapi_usm_device_read_only.asciidoc)
+* [sycl_ext_oneapi_properties](
+    ../extensions/experimental/sycl_ext_oneapi_properties.asciidoc)
+* [sycl_ext_oneapi_enqueue_functions](
+    ../extensions/experimental/sycl_ext_oneapi_enqueue_functions.asciidoc)
+* [sycl_ext_oneapi_kernel_properties](
+    ../extensions/experimental/sycl_ext_oneapi_kernel_properties.asciidoc)
 
 If available, the following extensions extend SYCLcompat functionality:
 
@@ -51,6 +58,10 @@ If available, the following extensions extend SYCLcompat functionality:
 * [sycl_ext_oneapi_max_work_group_query](
   https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_max_work_group_query.md)
   \[Optional\]
+
+### Hardware Requirements
+
+Some of the functionalities provided by SYCLcompat rely on Unified Shared Memory (`aspect::usm_device_allocations`), though most of the USM-like memory APIs (malloc*, memcpy*, memset*) support hardware with only buffer/accessor support. See section [Buffer Support](#buffer-support) below.
 
 ## Usage
 
@@ -206,44 +217,6 @@ These translate any kernel dimensions from one convention to the other. An
 example of an equivalent SYCL call for a 3D kernel using `compat` is
 `syclcompat::global_id::x() == get_global_id(2)`.
 
-### Local Memory
-
-When using `compat` functions, there are two distinct interfaces to allocate
-device local memory. The first interface uses the _sycl_ext_oneapi_local_memory_
-extension to leverage local memory defined at compile time.
-_sycl_ext_oneapi_local_memory_ is accessed through the following wrapper:
-
-``` c++
-namespace syclcompat {
-
-template <typename AllocT> auto *local_mem();
-
-} // syclcompat
-```
-
-`syclcompat::local_mem<AllocT>()` can be used as illustrated in the example
-below.
-
-```c++
-// Sample kernel
-using namespace syclcompat;
-template <int BLOCK_SIZE>
-void local_mem_2d(int *d_A) {
-  // Local memory extension wrapper, size defined at compile-time
-  auto As = local_mem<int[BLOCK_SIZE][BLOCK_SIZE]>();
-  int id_x = local_id::x();
-  int id_y = local_id::y();
-  As[id_y][id_x] = id_x * BLOCK_SIZE + id_y;
-  wg_barrier();
-  int val = As[BLOCK_SIZE - id_y - 1][BLOCK_SIZE - id_x - 1];
-  d_A[global_id::y() * BLOCK_SIZE + global_id::x()] = val;
-}
-```
-
-The second interface allows users to allocate device local memory at runtime.
-SYCLcompat provides this functionality through its kernel launch interface,
-`launch<function>`, defined in the following section.
-
 ### launch<function>
 
 SYCLcompat provides a kernel `launch` interface which accepts a function that
@@ -254,7 +227,7 @@ device _function_ with the use of an `auto F` template parameter, and a variadic
 `Args` for the function's arguments.
 
 Various overloads for `launch<function>` exist to permit the user to launch on a
-specific `queue`, or to define dynamically sized device local memory.
+specific `queue`, or to describe the range as either `nd_range` or `dim3, dim3`.
 
 ``` c++
 namespace syclcompat {
@@ -272,22 +245,6 @@ sycl::event launch(const sycl::nd_range<Dim> &range,
 template <auto F, typename... Args>
 sycl::event launch(const dim3 &grid, const dim3 &threads,
                    sycl::queue q, Args... args);
-
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   sycl::queue q, Args... args);
-
-template <auto F, int Dim, typename... Args>
-sycl::event launch(const sycl::nd_range<Dim> &range, size_t mem_size,
-                   Args... args);
-
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads,
-                   size_t mem_size, sycl::queue q, Args... args);
-
-template <auto F, typename... Args>
-sycl::event launch(const dim3 &grid, const dim3 &threads,
-                   size_t mem_size, Args... args);
 
 } // syclcompat
 ```
@@ -313,9 +270,112 @@ auto range = sycl::nd_range<3>{blocksPerGrid * threadsPerBlock,
 syclcompat::launch<vectorAdd>(range, d_A, d_B, d_C, n);
 ```
 
-For dynamic local memory allocation, `launch<function>` injects a pointer to a
-local `char *` accessor of `mem_size` as the last argument of the kernel
-function. For example, the previous function named `vectorAdd` can be modified
+Note that since `syclcompat::launch` accepts a device function, the kernel
+lambda is constructed by SYCLcompat internally. This means that, for
+example, `sycl::local_accessor`s cannot be declared. Instead, users wishing to
+use local memory should launch with a `launch_policy` object as described below.
+
+#### launch_policy
+
+In addition to the simple `syclcompat::launch` interface described above,
+SYCLcompat provides a more flexible (`experimental`) interface to `launch` a
+kernel with a given `launch_policy`. By constructing and passing a
+`launch_policy`, users can pass `sycl::ext::oneapi::experimental::properties`
+associated with the kernel or launch, as well as request **local memory** for
+the kernel.
+
+In order to disambiguate the variadic constructor of `launch_policy`, the
+following wrapper structs are defined. The `kernel_properties` and
+`launch_properties` wrappers can be constructed *either* with a variadc set of
+properties, or with an existing `sycl_exp::properties` object.
+
+```cpp
+namespace syclcompat::experimental {
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+// Wrapper for kernel sycl_exp::properties
+template <typename Properties> struct kernel_properties {
+  using Props = Properties;
+  template <typename... Props>
+  kernel_properties(Props... properties);
+  template <typename... Props>
+  kernel_properties(sycl_exp::properties<Props...> properties)
+  Properties props;
+};
+
+// Wrapper for launch sycl_exp::properties
+template <typename Properties> struct launch_properties {
+  using Props = Properties;
+  template <typename... Props>
+  launch_properties(Props... properties);
+  template <typename... Props>
+  launch_properties(sycl_exp::properties<Props...> properties)
+  Properties props;
+};
+
+// Wrapper for local memory size
+struct local_mem_size {
+  local_mem_size(size_t size = 0);
+  size_t size;
+};
+
+} //namespace syclcompat::experimental
+```
+
+The constructors of `launch_policy` are variadic, accepting any form of range
+(`nd_range`, `range`, `dim3`, `dim3, dim3`), followed by zero or more of
+`local_memory_size`, `kernel_properties`, and `launch_properties`:
+
+``` c++
+namespace syclcompat::experimental {
+namespace sycl_exp = sycl::ext::oneapi::experimental;
+
+// launch_policy is constructed by the user & passed to `compat_exp::launch`
+template <typename Range, typename KProps, typename LProps, bool LocalMem>
+class launch_policy {
+public:
+  using KPropsT = KProps;
+  using LPropsT = LProps;
+  using RangeT = Range;
+  static constexpr bool HasLocalMem = LocalMem;
+
+  template <typename... Ts>
+  launch_policy(Range range, Ts... ts);
+
+  template <typename... Ts>
+  launch_policy(dim3 global_range, Ts... ts);
+
+  template <typename... Ts>
+  launch_policy(dim3 global_range, dim3 local_range, Ts... ts);
+
+  KProps get_kernel_properties();
+  LProps get_launch_properties();
+  size_t get_local_mem_size();
+  Range get_range();
+};
+} //namespace syclcompat::experimental
+```
+
+The `launch` overloads accepting a `launch_policy` are:
+
+```cpp
+namespace syclcompat::experimental {
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, sycl::queue q, Args... args);
+
+template <auto F, typename LaunchPolicy, typename... Args>
+sycl::event launch(LaunchPolicy launch_policy, Args... args);
+} //namespace syclcompat::experimental
+
+```
+
+For local memory, `launch<function>` injects a `char *` pointer to the beginning
+of a local accessor of the requested `local_mem_size` as the last argument of
+the kernel function. This `char *` can then be reinterpreted as the datatype
+required by the user within the kernel function.
+
+For example, the previous function named `vectorAdd` can be modified
 with the following signature, which adds a `char *` pointer to access local
 memory inside the kernel:
 
@@ -324,56 +384,42 @@ void vectorAdd(const float *A, const float *B, float *C, int n,
                char *local_mem);
 ```
 
-Then, `vectorAdd` can be launched like this:
+Then, the new `vectorAdd` can be launched like this:
 
 ``` c++
-syclcompat::launch<vectorAdd>(blocksPerGrid, threadsPerBlock, mem_size, d_A,
-                              d_B, d_C, n);
+using syclcompat::experimental;
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                      local_mem_size(nbytes)};
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
-or this:
+To request a different cache/local memory split on supported hardware:
 
-``` c++
-auto range = sycl::nd_range<3>{globalSize, localSize};
-syclcompat::launch<vectorAdd>(range, mem_size, d_A, d_B, d_C, n);
+```c++
+using syclcompat::experimental;
+namespace sycl_intel_exp = sycl::ext::intel::experimental;
+
+sycl_intel_exp::cache_config cache_config{
+    sycl_intel_exp::large_slm};
+kernel_properties kernel_props{cache_config};
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                      local_mem_size(nbytes), kernel_props};
+
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
-This `launch` interface allows users to define an internal memory pool, or
-scratchpad, that can then be reinterpreted as the datatype required by the user
-within the kernel function.
+To request a certain cluster dimension on supported hardware:
 
-To launch a kernel with a specified sub-group size, overloads similar to above
-`launch` functions are present in the `syclcompat::experimental` namespace,
-which accept SubgroupSize as a template parameter and can be called as
-`launch<Function, SubgroupSize>`
+```c++
+using syclcompat::experimental;
+namespace sycl_exp = sycl::ext::oneapi::experimental;
 
-```cpp
+sycl_exp::cuda::cluster_size cluster_dims(cluster_range);
+launch_policy policy{blocksPerGrid, threadsPerBlock,
+                                  local_mem_size(nbytes), 
+                                  launch_properties{cluster_dims}};
 
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<3> launch_range, std::size_t local_memory_size,
-       sycl::queue queue, Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<Dim> launch_range, std::size_t local_memory_size,
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
-       std::size_t local_memory_size, Args... args);
-
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<3> launch_range, sycl::queue queue, 
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(sycl::nd_range<Dim> launch_range,
-       Args... args);
-
-template <auto F, int SubgroupSize, typename... Args>
-sycl::event launch(::syclcompat::dim3 grid_dim, ::syclcompat::dim3 block_dim,
-       Args... args);
-
+launch<vectorAdd>(policy, d_A, d_B, d_C, n);
 ```
 
 ### Utilities
@@ -564,14 +610,6 @@ namespace syclcompat {
 namespace experimental {
 // Forward declarations for types relating to unsupported memcpy_parameter API:
 
-enum memcpy_direction {
-  host_to_host,
-  host_to_device,
-  device_to_host,
-  device_to_device,
-  automatic
-};
-
 #ifdef SYCL_EXT_ONEAPI_BINDLESS_IMAGES
 class image_mem_wrapper;
 #endif
@@ -590,7 +628,6 @@ struct memcpy_parameter {
   data_wrapper from{};
   data_wrapper to{};
   sycl::range<3> size{};
-  syclcompat::detail::memcpy_direction direction{syclcompat::detail::memcpy_direction::automatic};
 };
 
 /// [UNSUPPORTED] Synchronously copies 2D/3D memory data specified by \p param .
@@ -667,18 +704,16 @@ enum class memory_region {
 
 using byte_t = uint8_t;
 
-enum class target { device, local };
-
 template <memory_region Memory, class T = byte_t> class memory_traits {
 public:
   static constexpr sycl::access::address_space asp =
       (Memory == memory_region::local)
           ? sycl::access::address_space::local_space
           : sycl::access::address_space::global_space;
-  static constexpr target target =
+  static constexpr sycl::target target =
       (Memory == memory_region::local)
-          ? target::local
-          : target::device;
+          ? sycl::target::local
+          : sycl::target::device;
   static constexpr sycl::access_mode mode =
       (Memory == memory_region::constant)
           ? sycl::access_mode::read
@@ -689,7 +724,7 @@ public:
   using value_t = typename std::remove_cv_t<T>;
   template <size_t Dimension = 1>
   using accessor_t = typename std::conditional_t<
-      target == target::local,
+      target == sycl::target::local,
       sycl::local_accessor<T, Dimension>,
       sycl::accessor<T, Dimension, mode>>;
   using pointer_t = T *;
@@ -811,6 +846,58 @@ public:
 };
 
 } // syclcompat
+```
+
+#### Buffer Support
+
+Although SYCLcompat is primarily designed around the Unified Shared Memory
+model, there is (limited) support for the buffer/accessor model. This can be
+enabled by setting the compiler define `SYCLCOMPAT_USM_LEVEL_NONE`. This macro
+instructs SYCLcompat to effectively provide emulated USM pointers via a Memory
+Manager singleton.
+
+Note that in `SYCLCOMPAT_USM_LEVEL_NONE` mode, the pointers returned by e.g.
+`syclcompat::malloc`, and passed to `syclcompat::memcpy` can *only* interact
+with `syclcompat` APIs. It is legal to perform pointer arithmetic on these
+virtual pointers, but attempting to dereference them, passing them to `sycl`
+APIs, or passing them into kernels will result in an error.
+
+The SYCLcompat tests with the suffix `_usmnone.cpp` provide examples of how to
+use `SYCLCOMPAT_USM_LEVEL_NONE`.
+
+### ptr_to_int
+
+The following cuda backend specific function is introduced in order to
+translate from local memory pointers to `uint32_t` or `size_t` variables that
+contain a byte address to the local (local refers to`.shared` in nvptx) memory
+state space.
+
+``` c++
+namespace syclcompat {
+template <typename T>
+__syclcompat_inline__
+    std::enable_if_t<std::is_same_v<T, uint32_t> || std::is_same_v<T, size_t>,
+                     T>
+    ptr_to_int(void *ptr)
+} // namespace syclcompat
+```
+
+These variables can be used in inline PTX instructions that take address
+operands. Such inline PTX instructions are commonly used in optimized
+libraries. A simplified example usage of the above functions is as follows:
+
+``` c++
+  half *data = syclcompat::local_mem<half[NUM_ELEMENTS]>();
+  // ...
+  // ...
+  T addr =
+      syclcompat::ptr_to_int<T>(reinterpret_cast<char *>(data) + (id % 8) * 16);
+  uint32_t fragment;
+#if defined(__NVPTX__)
+  asm volatile("ldmatrix.sync.aligned.m8n8.x1.shared.b16 {%0}, [%1];\n"
+               : "=r"(fragment)
+               : "r"(addr));
+#endif
 ```
 
 ### Device Information
@@ -971,6 +1058,10 @@ static inline unsigned int get_device_id(const sycl::device &dev);
 // Util function to get the number of available devices
 static inline unsigned int device_count();
 
+// Util function to check whether a device supports some kinds of sycl::aspect.
+static inline void
+has_capability_or_fail(const sycl::device &dev,
+                       const std::initializer_list<sycl::aspect> &props);
 } // syclcompat
 ```
 
@@ -1031,6 +1122,7 @@ class device_ext : public sycl::device {
   int get_max_work_group_size() const;
   int get_mem_base_addr_align() const;
   size_t get_global_mem_size() const;
+  size_t get_local_mem_size() const;
   void get_memory_info(size_t &free_memory, size_t &total_memory) const;
 
   void get_device_info(device_info &out) const;
@@ -1492,6 +1584,27 @@ public:
 } // namespace syclcompat
 ```
 
+SYCLcompat provides a wrapper API `max_active_work_groups_per_cu` providing
+'work-groups per compute unit' semantics. It is templated on the kernel
+functor, and takes a work-group size represented by either `sycl::range<Dim>`
+or `syclcompat::dim3`, the local memory size in bytes, and an optional queue.
+The function returns the maximum number of work-groups which can be executed
+per compute unit. May return *zero* even when below resource limits (i.e.
+returning `0` does not imply the kernel cannot execute).
+```cpp
+namespace syclcompat{
+template <class KernelName>
+size_t max_active_work_groups_per_cu(
+    syclcompat::dim3 wg_dim3, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue());
+
+template <class KernelName, int RangeDim>
+size_t max_active_work_groups_per_cu(
+    sycl::range<RangeDim> wg_range, size_t local_mem_size,
+    sycl::queue queue = syclcompat::get_default_queue());
+}
+```
+
 To assist machine translation, helper aliases are provided for inlining and
 alignment attributes. The class template declarations `sycl_compat_kernel_name`
 and `sycl_compat_kernel_scalar` are used to assist automatic generation of
@@ -1502,11 +1615,15 @@ SYCL spec supported by the current SYCL compiler.
 
 The `SYCLCOMPAT_CHECK_ERROR` macro encapsulates an error-handling mechanism for
 expressions that might throw `sycl::exception` and `std::runtime_error`. If no
-exceptions are thrown, it returns `syclcompat::error_code::SUCCESS`. If a
-`sycl::exception` is caught, it returns `syclcompat::error_code::BACKEND_ERROR`.
+exceptions are thrown, it returns `syclcompat::error_code::success`. If a
+`sycl::exception` is caught, it returns `syclcompat::error_code::backend_error`.
 If a `std::runtime_error` exception is caught,
-`syclcompat::error_code::DEFAULT_ERROR` is returned instead. For both cases, it
+`syclcompat::error_code::default_error` is returned instead. For both cases, it
 prints the error message to the standard error stream.
+
+`get_error_string_dummy` is a dummy function introduced to assist auto
+migration. The SYCLomatic user should replace it with a real error-handling 
+function. SYCL reports errors using exceptions and does not use error codes.
 
 ``` c++
 namespace syclcompat {
@@ -1528,7 +1645,7 @@ template <int Arg> class syclcompat_kernel_scalar;
 #define __syclcompat_noinline__ __attribute__((noinline))
 #endif
 
-#define SYCLCOMPAT_COMPATIBILITY_TEMP (600)
+#define SYCLCOMPAT_COMPATIBILITY_TEMP (900)
 
 #ifdef _WIN32
 #define SYCLCOMPAT_EXPORT __declspec(dllexport)
@@ -1538,7 +1655,8 @@ template <int Arg> class syclcompat_kernel_scalar;
 
 
 namespace syclcompat {
-enum error_code { SUCCESS = 0, BACKEND_ERROR = 1, DEFAULT_ERROR = 999 };
+enum error_code { success = 0, backend_error = 1, default_error = 999 };
+inline const char *get_error_string_dummy(int ec);
 }
 
 #define SYCLCOMPAT_CHECK_ERROR(expr)
@@ -1648,7 +1766,51 @@ second operand, respectively. These three APIs return a single 32-bit value with
 the accumulated result, which is unsigned if both operands are `uint32_t` and
 signed otherwise.
 
+Various maths functions are defined operate on any floating point types.
+`syclcompat::is_floating_point_v` extends the standard library's
+`std::is_floating_point_v` to include `sycl::half` and, where available,
+`sycl::ext::oneapi::bfloat16`. The current version of SYCLcompat also provides
+a specialization of `std::common_type_t` for `sycl::ext::oneapi::bfloat16`,
+though this will be moved to the `sycl_ext_oneapi_bfloat16` extension in
+future.
+
 ```cpp
+namespace std {
+template <> struct common_type<sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <>
+struct common_type<sycl::ext::oneapi::bfloat16, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<sycl::ext::oneapi::bfloat16, T> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+
+template <typename T> struct common_type<T, sycl::ext::oneapi::bfloat16> {
+  using type = sycl::ext::oneapi::bfloat16;
+};
+} // namespace std
+```
+
+```cpp
+namespace syclcompat{
+
+// Trait for extended floating point definition
+template <typename T>
+struct is_floating_point : std::is_floating_point<T>{};
+
+template <> struct is_floating_point<sycl::half> : std::true_type {};
+
+#ifdef SYCL_EXT_ONEAPI_BFLOAT16_MATH_FUNCTIONS
+template <> struct is_floating_point<sycl::ext::oneapi::bfloat16> : std::true_type {};
+#endif
+template <typename T>
+
+inline constexpr bool is_floating_point_v = is_floating_point<T>::value;
+
 inline unsigned int funnelshift_l(unsigned int low, unsigned int high,
                                   unsigned int shift); 
 
@@ -1675,11 +1837,9 @@ inline std::enable_if_t<ValueT::size() == 2, ValueT> isnan(const ValueT a);
 // cbrt function wrapper.
 template <typename ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
+                            std::is_same_v<ValueT, sycl::half>,
                         ValueT>
-cbrt(ValueT val) {
-  return sycl::cbrt(static_cast<ValueT>(val));
-}
+cbrt(ValueT val);
 
 // For floating-point types, `float` or `double` arguments are acceptable.
 // For integer types, `std::uint32_t`, `std::int32_t`, `std::uint64_t` or
@@ -1717,6 +1877,10 @@ template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmax_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
 
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmax_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
+
 // Performs 2 elements comparison and returns the smaller one. If either of
 // inputs is NaN, then return NaN.
 template <typename ValueT, typename ValueU>
@@ -1725,6 +1889,10 @@ inline std::common_type_t<ValueT, ValueU> fmin_nan(const ValueT a,
 template <typename ValueT, typename ValueU>
 inline sycl::vec<std::common_type_t<ValueT, ValueU>, 2>
 fmin_nan(const sycl::vec<ValueT, 2> a, const sycl::vec<ValueU, 2> b);
+
+template <typename ValueT, typename ValueU>
+inline sycl::marray<std::common_type_t<ValueT, ValueU>, 2>
+fmin_nan(const sycl::marray<ValueT, 2> a, const sycl::marray<ValueU, 2> b);
 
 inline float pow(const float a, const int b) { return sycl::pown(a, b); }
 inline double pow(const double a, const int b) { return sycl::pown(a, b); }
@@ -1738,17 +1906,11 @@ template <typename ValueT, typename ValueU>
 inline typename std::enable_if_t<!std::is_floating_point_v<ValueT>, double>
 pow(const ValueT a, const ValueU b);
 
-template <typename ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        ValueT>
-relu(const ValueT a);
+template <typename ValueT> inline ValueT relu(const ValueT a);
 
-template <class ValueT>
-inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
-                            std::is_same_v<sycl::half, ValueT>,
-                        sycl::vec<ValueT, 2>>
-relu(const sycl::vec<ValueT, 2> a);
+template <class ValueT, int NumElements>
+inline sycl::vec<ValueT, NumElements>
+relu(const sycl::vec<ValueT, NumElements> a);
 
 template <class ValueT>
 inline std::enable_if_t<std::is_floating_point_v<ValueT> ||
@@ -1786,14 +1948,13 @@ unordered_compare_both(const ValueT a, const ValueT b,
                        const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned compare_mask(const sycl::vec<ValueT, 2> a,
-                             const sycl::vec<ValueT, 2> b,
-                             const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+compare_mask(const ValueT a, const ValueT b, const BinaryOperation binary_op);
 
 template <typename ValueT, class BinaryOperation>
-inline unsigned unordered_compare_mask(const sycl::vec<ValueT, 2> a,
-                                       const sycl::vec<ValueT, 2> b,
-                                       const BinaryOperation binary_op);
+inline std::enable_if_t<ValueT::size() == 2, unsigned>
+unordered_compare_mask(const ValueT a, const ValueT b,
+                       const BinaryOperation binary_op);
 
 template <typename S, typename T> inline T vectorized_max(T a, T b);
 
@@ -1847,13 +2008,17 @@ inline dot_product_acc_t<T1, T2> dp2a_hi(T1 a, T2 b,
 template <typename T1, typename T2>
 inline dot_product_acc_t<T1, T2> dp4a(T1 a, T2 b,
                                       dot_product_acc_t<T1, T2> c);
+} // namespace syclcompat
 ```
 
 `vectorized_binary` computes the `BinaryOperation` for two operands,
 with each value treated as a vector type. `vectorized_unary` offers the same
-interface for operations with a single operand.
+interface for operations with a single operand. `vectorized_ternary` offers the
+interface for three operands with two `BinaryOperation`.
 The implemented `BinaryOperation`s are `abs_diff`, `add_sat`, `rhadd`, `hadd`,
 `maximum`, `minimum`, and `sub_sat`.
+And the `vectorized_with_pred` offers the `BinaryOperation` for two operands,
+meanwihle provides the pred of high/low halfword operation.
 
 ```cpp
 namespace syclcompat {
@@ -1868,7 +2033,19 @@ struct abs {
 
 template <typename VecT, class BinaryOperation>
 inline unsigned vectorized_binary(unsigned a, unsigned b,
-                                  const BinaryOperation binary_op);
+                                  const BinaryOperation binary_op,
+                                  bool need_relu = false);
+
+template <typename VecT, typename BinaryOperation1, typename BinaryOperation2>
+inline unsigned vectorized_ternary(unsigned a, unsigned b, unsigned c,
+                                   const BinaryOperation1 binary_op1,
+                                   const BinaryOperation2 binary_op2,
+                                   bool need_relu = false);
+
+template <typename ValueT, typename BinaryOperation>
+inline unsigned vectorized_with_pred(unsigned a, unsigned b,
+                                     const BinaryOperation binary_op,
+                                     bool *pred_hi, bool *pred_lo);
 
 // A sycl::abs_diff wrapper functor.
 struct abs_diff {
@@ -1894,11 +2071,15 @@ struct hadd {
 struct maximum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::min wrapper functor.
 struct minimum {
   template <typename ValueT>
   auto operator()(const ValueT x, const ValueT y) const;
+  template <typename ValueT>
+  auto operator()(const ValueT x, const ValueT y, bool *pred) const;
 };
 // A sycl::sub_sat wrapper functor.
 struct sub_sat {

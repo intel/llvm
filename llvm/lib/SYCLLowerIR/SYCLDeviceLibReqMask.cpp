@@ -763,7 +763,7 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
 uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
-  if (!Triple(M.getTargetTriple()).isSPIR())
+  if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
     return 0;
   uint32_t ReqMask = 0;
   for (const Function &SF : M) {

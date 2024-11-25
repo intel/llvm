@@ -1,7 +1,7 @@
-// REQUIRES: linux, cpu
-// RUN: %{build} %device_asan_flags -DVAR=1 -O2 -g -o %t1
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} -Wno-error=array-bounds %device_asan_flags -DVAR=1 -O2 -g -o %t1
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t1 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR1 %s
-// RUN: %{build} %device_asan_flags -DVAR=2 -O2 -g -o %t2
+// RUN: %{build} -Wno-error=array-bounds %device_asan_flags -DVAR=2 -O2 -g -o %t2
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t2 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR2 %s
 // RUN: %{build} %device_asan_flags -DVAR=3 -O2 -g -o %t3
 // RUN: env SYCL_PREFER_UR=1 %{run} not %t3 2>&1 | FileCheck --check-prefixes CHECK,CHECK-VAR3 %s

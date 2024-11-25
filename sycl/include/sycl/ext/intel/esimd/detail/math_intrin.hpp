@@ -13,6 +13,13 @@
 
 /// @cond ESIMD_DETAIL
 
+/// **************************** WARNING ************************************
+/// When declaring new SPIR-V intrinsics (functions starting with __spirv),
+/// it is imperitive to exactly follow the pattern of the existing SPIR-V
+/// intrinsics. If not followed, the declaration may conflict with
+/// the Clang-generated functions and cause compilation errors.
+/// **************************** WARNING ************************************
+
 #include <sycl/builtins.hpp>
 #include <sycl/ext/intel/esimd/common.hpp>
 #include <sycl/ext/intel/esimd/detail/elem_type_traits.hpp>
@@ -32,63 +39,74 @@
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_exp2(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_exp2(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_exp2(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_recip(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_recip(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_recip(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_cos(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_cos(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_cos(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_log2(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_log2(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_log2(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_rsqrt(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_rsqrt(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_rsqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sin(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_sin(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_sin(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_sqrt(T);
 template <typename T, int N>
 extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_sqrt(__ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_sqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
 template <typename T>
 extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_native_powr(T, T);
 template <typename T, int N>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
-    __spirv_ocl_native_powr(__ESIMD_raw_vec_t(T, N), __ESIMD_raw_vec_t(T, N));
+    __spirv_ocl_native_powr(__ESIMD_raw_vec_t(T, N),
+                            __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_fabs(T);
 template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_fabs(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_s_abs(T);
 template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_s_abs(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_fmin(T, T);
 template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_fmin(__ESIMD_raw_vec_t(T, N),
                      __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
 
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_fmax(T, T);
 template <typename T, int N>
-__ESIMD_INTRIN __ESIMD_raw_vec_t(T, N)
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
     __spirv_ocl_fmax(__ESIMD_raw_vec_t(T, N),
                      __ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
+template <typename T> extern __DPCPP_SYCL_EXTERNAL T __spirv_ocl_rsqrt(T);
+template <typename T, int N>
+extern __DPCPP_SYCL_EXTERNAL __ESIMD_raw_vec_t(T, N)
+    __spirv_ocl_rsqrt(__ESIMD_raw_vec_t(T, N)) __ESIMD_INTRIN_END;
+
 // saturation intrinsics
 template <typename T0, typename T1, int SZ>
 __ESIMD_INTRIN __ESIMD_raw_vec_t(T0, SZ)

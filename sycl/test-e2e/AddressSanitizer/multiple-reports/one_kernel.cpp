@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -Xarch_device -fsanitize-recover=address -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} %t 2>&1 | FileCheck %s
 
@@ -27,5 +27,6 @@ int main() {
   // CHECK: ====ERROR: DeviceSanitizer
   // CHECK-NOT: ====ERROR: DeviceSanitizer
 
+  sycl::free(array, Q);
   return 0;
 }

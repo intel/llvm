@@ -41,7 +41,7 @@ references below to the "core SYCL specification" or to section numbers in the
 SYCL specification refer to that revision.
 
 The `sycl::ext::oneapi::bfloat16` class is provided by the
-link:supported/sycl_ext_oneapi_bfloat16.asciidoc[sycl_ext_oneapi_bfloat16]
+link:../supported/sycl_ext_oneapi_bfloat16.asciidoc[sycl_ext_oneapi_bfloat16]
 extension.
 
 

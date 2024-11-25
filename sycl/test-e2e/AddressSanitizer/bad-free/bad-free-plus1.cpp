@@ -1,10 +1,10 @@
-// REQUIRES: linux, cpu
-// RUN: %{build} %device_asan_flags -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
-// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
-// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t
-// RUN: %force_device_asan_rt %{run} not %t 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -O0 -g -o %t1.out
+// RUN: %force_device_asan_rt %{run} not %t1.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-DEVICE %s
+// RUN: %{build} %device_asan_flags -DMALLOC_HOST -O0 -g -o %t2.out
+// RUN: %force_device_asan_rt %{run} not %t2.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-HOST %s
+// RUN: %{build} %device_asan_flags -DMALLOC_SHARED -O0 -g -o %t3.out
+// RUN: %force_device_asan_rt %{run} not %t3.out 2>&1 | FileCheck --check-prefixes CHECK,CHECK-SHARED %s
 #include <sycl/usm.hpp>
 
 constexpr size_t N = 64;
@@ -25,5 +25,9 @@ int main() {
   // CHECK-HOST:   [[ADDR]] is located inside of Host USM region {{\[0x.*, 0x.*\)}}
   // CHECK-SHARED: [[ADDR]] is located inside of Shared USM region {{\[0x.*, 0x.*\)}}
   // CHECK-DEVICE: [[ADDR]] is located inside of Device USM region {{\[0x.*, 0x.*\)}}
+  // CHECK:  allocated here:
+  // CHECK-HOST: in main {{.*bad-free-plus1.cpp:}}[[@LINE-13]]
+  // CHECK-SHARED: in main {{.*bad-free-plus1.cpp:}}[[@LINE-12]]
+  // CHECK-DEVICE: in main {{.*bad-free-plus1.cpp:}}[[@LINE-11]]
   return 0;
 }

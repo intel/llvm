@@ -136,8 +136,8 @@ printTestInfo(sycl::ext::oneapi::experimental::bindless_image_sampler &samp,
   case sycl::addressing_mode::clamp_to_edge:
     std::cout << "clamp_to_edge\n";
     break;
-  case sycl::addressing_mode::clamp:
-    std::cout << "clamp\n";
+  case sycl::addressing_mode::ext_oneapi_clamp_to_border:
+    std::cout << "ext_oneapi_clamp_to_border\n";
     break;
   case sycl::addressing_mode::none:
     std::cout << "none\n";
@@ -581,7 +581,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
   if (SampFiltMode == sycl::filtering_mode::nearest) {
 
     sycl::addressing_mode SampAddrMode = samp.addressing[0];
-    if (SampAddrMode == sycl::addressing_mode::clamp) {
+    if (SampAddrMode == sycl::addressing_mode::ext_oneapi_clamp_to_border) {
       return clampNearest<VecType>(coords, globalSize, inputImage);
     }
 
@@ -623,7 +623,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
 
   } else { // linear
     sycl::addressing_mode SampAddrMode = samp.addressing[0];
-    if (SampAddrMode == sycl::addressing_mode::clamp) {
+    if (SampAddrMode == sycl::addressing_mode::ext_oneapi_clamp_to_border) {
       return clampLinear<DType, NChannels>(coords, globalSize, inputImage);
     }
     if (SampAddrMode == sycl::addressing_mode::clamp_to_edge) {
@@ -662,6 +662,7 @@ read(sycl::range<2> globalSize, sycl::vec<float, 2> coords, float offset,
     }
   }
   assert(false && "Invalid sampler encountered!");
+  return {};
 }
 
 }; // namespace sampling_helpers

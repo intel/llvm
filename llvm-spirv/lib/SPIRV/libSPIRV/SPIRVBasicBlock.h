@@ -77,9 +77,9 @@ public:
   const SPIRVInstruction *getTerminateInstr() const {
     return InstVec.empty() ? nullptr : InstVec.back();
   }
-  // OpVariable instructions must be the first instructions in the block,
+  // Variables must be the first instructions in the block,
   // intermixed with OpLine and OpNoLine instructions. Return first instruction
-  // not being an OpVariable, OpLine or OpNoLine.
+  // not being an OpVariable, OpUntypedVariableKHR, OpLine or OpNoLine.
   SPIRVInstruction *getVariableInsertionPoint() const;
 
   void setScope(SPIRVEntry *Scope) override;

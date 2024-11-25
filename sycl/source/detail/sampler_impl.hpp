@@ -8,10 +8,10 @@
 
 #pragma once
 
-#include <CL/__spirv/spirv_types.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/export.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/property_list.hpp>
 
 #include <mutex>
@@ -39,7 +39,7 @@ public:
 
   coordinate_normalization_mode get_coordinate_normalization_mode() const;
 
-  sycl::detail::pi::PiSampler getOrCreateSampler(const context &Context);
+  ur_sampler_handle_t getOrCreateSampler(const context &Context);
 
   ~sampler_impl();
 
@@ -49,12 +49,14 @@ private:
   /// Protects all the fields that can be changed by class' methods.
   std::mutex MMutex;
 
-  std::unordered_map<context, sycl::detail::pi::PiSampler> MContextToSampler;
+  std::unordered_map<context, ur_sampler_handle_t> MContextToSampler;
 
   coordinate_normalization_mode MCoordNormMode;
   addressing_mode MAddrMode;
   filtering_mode MFiltMode;
   property_list MPropList;
+
+  void verifyProps(const property_list &Props) const;
 };
 
 } // namespace detail

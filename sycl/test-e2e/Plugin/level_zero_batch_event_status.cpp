@@ -4,36 +4,36 @@
 // RUN: %{build} -o %t.out
 
 // Set batching to 4 explicitly
-// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck %s
 
 // level_zero_batch_test.cpp
 //
 // This tests the level zero plugin's kernel batching code.  It specifically
 // tests that the current batch is submitted when an Event execution status
 // request is made.  This test uses explicit SYCL_PI_LEVEL_ZERO_BATCH_SIZE=4
-// to make sure that the batching is submitted when the piEventGetInfo is
+// to make sure that the batching is submitted when the urEventGetInfo is
 // done, rather than some other dynamic batching criteria.
 //
-// CHECK: ---> piEnqueueKernelLaunch
+// CHECK: ---> urEnqueueKernelLaunch
 // CHECK: ZE ---> zeCommandListAppendLaunchKernel
-// Shouldn't have closed until we see a piEventGetInfo
+// Shouldn't have closed until we see a urEventGetInfo
 // CHECK-NOT:  ZE ---> zeCommandListClose
 // CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists
-// CHECK: ---> piEventGetInfo
-// Shouldn't see another piGetEventInfo until after closing command list
-// CHECK-NOT: ---> piEventGetInfo
-// Look for close and Execute after piEventGetInfo
+// CHECK: ---> urEventGetInfo
+// Shouldn't see another urGetEventInfo until after closing command list
+// CHECK-NOT: ---> urEventGetInfo
+// Look for close and Execute after urEventGetInfo
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
-// CHECK: ---> piEventGetInfo
-// CHECK-NOT: piEventsWait
-// CHECK: ---> piEnqueueKernelLaunch
+// CHECK: ---> urEventGetInfo
+// CHECK-NOT: ---> urEventsWait
+// CHECK: ---> urEnqueueKernelLaunch
 // CHECK: ZE ---> zeCommandListAppendLaunchKernel
-// CHECK: ---> piQueueFinish
-// Look for close and Execute after piQueueFinish
+// CHECK: ---> urQueueFinish
+// Look for close and Execute after urQueueFinish
 // CHECK:  ZE ---> zeCommandListClose
 // CHECK:  ZE ---> zeCommandQueueExecuteCommandLists
-// CHECK: ---> piEventGetInfo
+// CHECK: ---> urEventGetInfo
 // No close and execute here, should already have happened.
 // CHECK-NOT:  ZE ---> zeCommandListClose
 // CHECK-NOT:  ZE ---> zeCommandQueueExecuteCommandLists

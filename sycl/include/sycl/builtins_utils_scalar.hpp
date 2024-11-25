@@ -8,15 +8,13 @@
 
 #pragma once
 
-#include <sycl/access/access.hpp>              // for address_space, decorated
-#include <sycl/aliases.hpp>                    // for half
-#include <sycl/detail/boolean.hpp>             // for Boolean
-#include <sycl/detail/defines_elementary.hpp>  // for __SYCL_ALWAYS_INLINE
-#include <sycl/detail/generic_type_traits.hpp> // for is_svgenfloat, is_sge...
-#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
-#include <sycl/detail/type_traits.hpp>         // for make_larger_t, marray...
-#include <sycl/half_type.hpp>                  // for half, intel
-#include <sycl/multi_ptr.hpp>                  // for address_space_cast
+#include <sycl/access/access.hpp>
+#include <sycl/aliases.hpp>
+#include <sycl/detail/defines_elementary.hpp>
+#include <sycl/detail/generic_type_traits.hpp>
+#include <sycl/detail/type_traits.hpp>
+#include <sycl/half_type.hpp>
+#include <sycl/multi_ptr.hpp>
 
 #include <algorithm>
 #include <cstring>

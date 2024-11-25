@@ -13,15 +13,16 @@
 // explicitly. Since the test is going to crash, we'll have to follow a similar
 // approach as on Linux - call the test in a subprocess.
 //
-// RUN: env SYCL_PI_TRACE=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
+// RUN: env SYCL_UR_TRACE=2 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-FALLBACK
 // RUN: env SHOULD_CRASH=1 SYCL_DEVICELIB_INHIBIT_NATIVE=1 CL_CONFIG_USE_VECTORIZER=False %{run} %t.out | FileCheck %s --check-prefix=CHECK-MESSAGE
 //
 // CHECK-MESSAGE: {{.*}}assert-windows.cpp:{{[0-9]+}}: (null): global id:
 // [{{[0-3]}},0,0], local id: [{{[0-3]}},0,0] Assertion `accessorC[wiID] == 0 &&
 // "Invalid value"` failed.
 //
-// CHECK-FALLBACK: ---> piProgramLink
+// CHECK-FALLBACK: <--- urProgramLink
 
+#include "../helpers.hpp"
 #include <array>
 #include <assert.h>
 #include <iostream>
@@ -47,7 +48,7 @@ void simple_vadd(const std::array<T, N> &VA, const std::array<T, N> &VB,
     }
   });
 
-  int shouldCrash = getenv("SHOULD_CRASH") ? 1 : 0;
+  bool shouldCrash = env::isDefined("SHOULD_CRASH");
 
   sycl::range<1> numOfItems{N};
   sycl::buffer<T, 1> bufferA(VA.data(), numOfItems);

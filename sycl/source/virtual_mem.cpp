@@ -30,12 +30,12 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
         sycl::make_error_code(sycl::errc::feature_not_supported),
         "Device does not support aspect::ext_oneapi_virtual_mem.");
 
-  pi_virtual_mem_granularity_info GranularityQuery = [=]() {
+  ur_virtual_mem_granularity_info_t GranularityQuery = [=]() {
     switch (Mode) {
     case granularity_mode::minimum:
-      return PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM;
+      return UR_VIRTUAL_MEM_GRANULARITY_INFO_MINIMUM;
     case granularity_mode::recommended:
-      return PI_EXT_ONEAPI_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED;
+      return UR_VIRTUAL_MEM_GRANULARITY_INFO_RECOMMENDED;
     }
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
                           "Unrecognized granularity mode.");
@@ -45,19 +45,23 @@ __SYCL_EXPORT size_t get_mem_granularity(const device &SyclDevice,
       sycl::detail::getSyclObjImpl(SyclDevice);
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
 #ifndef NDEBUG
-  size_t InfoOutputSize;
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
+  size_t InfoOutputSize = 0;
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
       ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
       0, nullptr, &InfoOutputSize);
   assert(InfoOutputSize == sizeof(size_t) &&
          "Unexpected output size of granularity info query.");
 #endif // NDEBUG
   size_t Granularity = 0;
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGranularityGetInfo>(
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemGranularityGetInfo>(
       ContextImpl->getHandleRef(), DeviceImpl->getHandleRef(), GranularityQuery,
       sizeof(size_t), &Granularity, nullptr);
+  if (Granularity == 0)
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Unexpected granularity result: memory granularity shouldn't be 0.");
   return Granularity;
 }
 
@@ -113,9 +117,9 @@ __SYCL_EXPORT uintptr_t reserve_virtual_mem(uintptr_t Start, size_t NumBytes,
 
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
   void *OutPtr = nullptr;
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemReserve>(
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemReserve>(
       ContextImpl->getHandleRef(), reinterpret_cast<void *>(Start), NumBytes,
       &OutPtr);
   return reinterpret_cast<uintptr_t>(OutPtr);
@@ -125,20 +129,19 @@ __SYCL_EXPORT void free_virtual_mem(uintptr_t Ptr, size_t NumBytes,
                                     const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemFree>(
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemFree>(
       ContextImpl->getHandleRef(), reinterpret_cast<void *>(Ptr), NumBytes);
 }
 
 __SYCL_EXPORT void set_access_mode(const void *Ptr, size_t NumBytes,
                                    address_access_mode Mode,
                                    const context &SyclContext) {
-  sycl::detail::pi::PiVirtualAccessFlags AccessFlags =
-      sycl::detail::AccessModeToVirtualAccessFlags(Mode);
+  auto AccessFlags = sycl::detail::AccessModeToVirtualAccessFlags(Mode);
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemSetAccess>(
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemSetAccess>(
       ContextImpl->getHandleRef(), Ptr, NumBytes, AccessFlags);
 }
 
@@ -147,24 +150,24 @@ __SYCL_EXPORT address_access_mode get_access_mode(const void *Ptr,
                                                   const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
 #ifndef NDEBUG
-  size_t InfoOutputSize;
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
+  size_t InfoOutputSize = 0;
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
-      PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr, &InfoOutputSize);
-  assert(InfoOutputSize == sizeof(sycl::detail::pi::PiVirtualAccessFlags) &&
+      UR_VIRTUAL_MEM_INFO_ACCESS_MODE, 0, nullptr, &InfoOutputSize);
+  assert(InfoOutputSize == sizeof(ur_virtual_mem_access_flags_t) &&
          "Unexpected output size of access mode info query.");
 #endif // NDEBUG
-  sycl::detail::pi::PiVirtualAccessFlags AccessFlags;
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemGetInfo>(
+  ur_virtual_mem_access_flags_t AccessFlags;
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemGetInfo>(
       ContextImpl->getHandleRef(), Ptr, NumBytes,
-      PI_EXT_ONEAPI_VIRTUAL_MEM_INFO_ACCESS_MODE,
-      sizeof(sycl::detail::pi::PiVirtualAccessFlags), &AccessFlags, nullptr);
+      UR_VIRTUAL_MEM_INFO_ACCESS_MODE, sizeof(ur_virtual_mem_access_flags_t),
+      &AccessFlags, nullptr);
 
-  if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_RW)
+  if (AccessFlags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE)
     return address_access_mode::read_write;
-  if (AccessFlags & PI_VIRTUAL_ACCESS_FLAG_READ_ONLY)
+  if (AccessFlags & UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY)
     return address_access_mode::read;
   return address_access_mode::none;
 }
@@ -173,8 +176,8 @@ __SYCL_EXPORT void unmap(const void *Ptr, size_t NumBytes,
                          const context &SyclContext) {
   std::shared_ptr<sycl::detail::context_impl> ContextImpl =
       sycl::detail::getSyclObjImpl(SyclContext);
-  const sycl::detail::PluginPtr &Plugin = ContextImpl->getPlugin();
-  Plugin->call<sycl::detail::PiApiKind::piextVirtualMemUnmap>(
+  const sycl::detail::AdapterPtr &Adapter = ContextImpl->getAdapter();
+  Adapter->call<sycl::detail::UrApiKind::urVirtualMemUnmap>(
       ContextImpl->getHandleRef(), Ptr, NumBytes);
 }
 

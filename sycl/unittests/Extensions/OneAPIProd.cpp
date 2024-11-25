@@ -8,7 +8,7 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -16,15 +16,16 @@ using namespace sycl;
 
 static bool QueueFlushed = false;
 
-static pi_result redefinedQueueFlush(pi_queue Queue) {
+static ur_result_t redefinedQueueFlush(void *) {
   QueueFlushed = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(OneAPIProdTest, PiQueueFlush) {
-  sycl::unittest::PiMock Mock(backend::ext_oneapi_level_zero);
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefine<detail::PiApiKind::piQueueFlush>(redefinedQueueFlush);
+  sycl::unittest::UrMock<backend::ext_oneapi_level_zero> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_replace_callback("urQueueFlush",
+                                            &redefinedQueueFlush);
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
   Queue.ext_oneapi_prod();

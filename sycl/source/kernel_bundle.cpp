@@ -6,6 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include <detail/compiler.hpp>
 #include <detail/device_binary_image.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_compiler/kernel_compiler_opencl.hpp>
@@ -40,7 +41,7 @@ bool device_image_plain::has_kernel(const kernel_id &KernelID,
   return impl->has_kernel(KernelID, Dev);
 }
 
-pi_native_handle device_image_plain::getNative() const {
+ur_native_handle_t device_image_plain::getNative() const {
   return impl->getNative();
 }
 
@@ -306,35 +307,6 @@ std::vector<kernel_id> get_kernel_ids() {
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   if (KernelIDs.empty())
     return true;
-  // TODO: also need to check that the architecture specified by the
-  // "-fsycl-targets" flag matches the device when we are able to get the
-  // device's arch.
-  auto doesImageTargetMatchDevice = [](const device &Dev,
-                                       const detail::RTDeviceBinaryImage &Img) {
-    const char *Target = Img.getRawData().DeviceTargetSpec;
-    auto BE = Dev.get_backend();
-    if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
-      return (BE == sycl::backend::opencl ||
-              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
-               0) {
-      return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_GEN) ==
-               0) {
-      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
-                              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64_FPGA) ==
-               0) {
-      return Dev.is_accelerator();
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      return BE == sycl::backend::ext_oneapi_cuda;
-    } else if (strcmp(Target, __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
-      return BE == sycl::backend::ext_oneapi_hip;
-    }
-
-    return false;
-  };
-
   // One kernel may be contained in several binary images depending on the
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
@@ -346,7 +318,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
                        return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              doesImageTargetMatchDevice(Dev, *Img);
+                              doesImageTargetMatchDevice(*Img, Dev);
                      }))
       return false;
   }
@@ -379,6 +351,8 @@ bool is_source_kernel_bundle_supported(backend BE, source_language Language) {
       return true;
     } else if (Language == source_language::sycl) {
       return detail::SYCL_Compilation_Available();
+    } else if (Language == source_language::sycl_jit) {
+      return detail::SYCL_JIT_Compilation_Available();
     }
   }
 

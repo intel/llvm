@@ -1,10 +1,10 @@
-// REQUIRES: linux, cpu
-// RUN: %{build} %device_asan_flags -g -O0 -o %t.out
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -g -O1 -o %t.out
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
-// RUN: %{build} %device_asan_flags -g -O2 -o %t.out
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+// REQUIRES: linux, cpu || (gpu && level_zero)
+// RUN: %{build} %device_asan_flags -g -O0 -o %t1.out
+// RUN: %{run} not %t1.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -g -O1 -o %t2.out
+// RUN: %{run} not %t2.out 2>&1 | FileCheck %s
+// RUN: %{build} %device_asan_flags -g -O2 -o %t3.out
+// RUN: %{run} not %t3.out 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
 constexpr std::size_t N = 8;

@@ -1,3 +1,0 @@
-REQUIRES: cpu
-RUN: env SYCL_PI_TRACE=1 %{run} %T/rsbench -s large -l 34 -p 300000 -P 1000 -W 100 -m event
-XFAIL: *

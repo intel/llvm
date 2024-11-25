@@ -11,7 +11,7 @@
 #include <detail/platform_impl.hpp>
 #include <sycl/aspects.hpp>
 #include <sycl/detail/cl.h>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/kernel_bundle.hpp>
@@ -39,17 +39,15 @@ public:
   device_impl();
 
   /// Constructs a SYCL device instance using the provided raw device handle.
-  explicit device_impl(pi_native_handle, const PluginPtr &Plugin);
+  explicit device_impl(ur_native_handle_t, const AdapterPtr &Adapter);
 
   /// Constructs a SYCL device instance using the provided
-  /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device,
-                       PlatformImplPtr Platform);
+  /// UR device instance.
+  explicit device_impl(ur_device_handle_t Device, PlatformImplPtr Platform);
 
   /// Constructs a SYCL device instance using the provided
-  /// PI device instance.
-  explicit device_impl(sycl::detail::pi::PiDevice Device,
-                       const PluginPtr &Plugin);
+  /// UR device instance.
+  explicit device_impl(ur_device_handle_t Device, const AdapterPtr &Adapter);
 
   ~device_impl();
 
@@ -59,39 +57,39 @@ public:
   /// requirements described in 4.3.1.
   cl_device_id get() const;
 
-  /// Get reference to PI device
+  /// Get reference to UR device
   ///
   /// For host device an exception is thrown
   ///
-  /// \return non-constant reference to PI device
-  sycl::detail::pi::PiDevice &getHandleRef() { return MDevice; }
+  /// \return non-constant reference to UR device
+  ur_device_handle_t &getHandleRef() { return MDevice; }
 
-  /// Get constant reference to PI device
+  /// Get constant reference to UR device
   ///
   /// For host device an exception is thrown
   ///
-  /// \return constant reference to PI device
-  const sycl::detail::pi::PiDevice &getHandleRef() const { return MDevice; }
+  /// \return constant reference to UR device
+  const ur_device_handle_t &getHandleRef() const { return MDevice; }
 
   /// Check if device is a CPU device
   ///
   /// \return true if SYCL device is a CPU device
-  bool is_cpu() const { return MType == PI_DEVICE_TYPE_CPU; }
+  bool is_cpu() const { return MType == UR_DEVICE_TYPE_CPU; }
 
   /// Check if device is a GPU device
   ///
   /// \return true if SYCL device is a GPU device
-  bool is_gpu() const { return MType == PI_DEVICE_TYPE_GPU; }
+  bool is_gpu() const { return MType == UR_DEVICE_TYPE_GPU; }
 
   /// Check if device is an accelerator device
   ///
   /// \return true if SYCL device is an accelerator device
-  bool is_accelerator() const { return MType == PI_DEVICE_TYPE_ACC; }
+  bool is_accelerator() const { return MType == UR_DEVICE_TYPE_FPGA; }
 
   /// Return device type
   ///
   /// \return the type of the device
-  sycl::detail::pi::PiDeviceType get_device_type() const { return MType; }
+  ur_device_type_t get_device_type() const { return MType; }
 
   /// Get associated SYCL platform
   ///
@@ -105,8 +103,8 @@ public:
   /// \return The associated SYCL platform.
   platform get_platform() const;
 
-  /// \return the associated plugin with this device.
-  const PluginPtr &getPlugin() const { return MPlatform->getPlugin(); }
+  /// \return the associated adapter with this device.
+  const AdapterPtr &getAdapter() const { return MPlatform->getAdapter(); }
 
   /// Check SYCL extension support by device
   ///
@@ -115,7 +113,7 @@ public:
   bool has_extension(const std::string &ExtensionName) const;
 
   std::vector<device>
-  create_sub_devices(const cl_device_partition_property *Properties,
+  create_sub_devices(const ur_device_partition_properties_t *Properties,
                      size_t SubDevicesCount) const;
 
   /// Partition device into sub devices
@@ -201,7 +199,7 @@ public:
   /// Gets the native handle of the SYCL device.
   ///
   /// \return a native handle.
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   /// Indicates if the SYCL device has the given feature.
   ///
@@ -290,19 +288,19 @@ public:
   PlatformImplPtr getPlatformImpl() const { return MPlatform; }
 
   /// Get device info string
-  std::string
-  get_device_info_string(sycl::detail::pi::PiDeviceInfo InfoCode) const;
+  std::string get_device_info_string(ur_device_info_t InfoCode) const;
 
   /// Get device architecture
   ext::oneapi::experimental::architecture getDeviceArch() const;
 
 private:
-  explicit device_impl(pi_native_handle InteropDevice,
-                       sycl::detail::pi::PiDevice Device,
-                       PlatformImplPtr Platform, const PluginPtr &Plugin);
-  sycl::detail::pi::PiDevice MDevice = 0;
-  sycl::detail::pi::PiDeviceType MType;
-  sycl::detail::pi::PiDevice MRootDevice = nullptr;
+  explicit device_impl(ur_native_handle_t InteropDevice,
+                       ur_device_handle_t Device, PlatformImplPtr Platform,
+                       const AdapterPtr &Adapter);
+
+  ur_device_handle_t MDevice = 0;
+  ur_device_type_t MType;
+  ur_device_handle_t MRootDevice = nullptr;
   PlatformImplPtr MPlatform;
   bool MIsAssertFailSupported = false;
   mutable std::string MDeviceName;

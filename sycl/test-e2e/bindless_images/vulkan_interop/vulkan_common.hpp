@@ -50,6 +50,8 @@ static PFN_vkGetMemoryFdKHR vk_getMemoryFdKHR;
 static PFN_vkGetSemaphoreFdKHR vk_getSemaphoreFdKHR;
 #endif
 
+static PFN_vkGetImageMemoryRequirements2 vk_getImageMemoryRequirements2;
+
 static uint32_t vk_computeQueueFamilyIndex;
 static uint32_t vk_transferQueueFamilyIndex;
 
@@ -58,6 +60,8 @@ static VkCommandPool vk_transferCmdPool;
 
 static VkCommandBuffer vk_computeCmdBuffer;
 static VkCommandBuffer vk_transferCmdBuffers[2];
+
+static bool requiresDedicatedAllocation = false;
 
 // A static debug callback function that relays messages from the Vulkan
 // validation layer to the terminal.
@@ -220,7 +224,8 @@ VkResult setupDevice(std::string device) {
   bool foundDevice = false;
 
   // Define the required device extensions to run the tests.
-  static constexpr std::string_view requiredExtensions[] = {
+  static constexpr const char *requiredExtensions[] = {
+      VK_KHR_GET_MEMORY_REQUIREMENTS_2_EXTENSION_NAME,
       VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
       VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
 #ifdef _WIN32
@@ -325,28 +330,15 @@ VkResult setupDevice(std::string device) {
 
   VkPhysicalDeviceFeatures deviceFeatures = {};
 
-  // Store our required device extensions. To be passed to the Vulkan device
-  // creation function.
-  std::vector<const char *> extensions = {
-      VK_KHR_EXTERNAL_MEMORY_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_SEMAPHORE_EXTENSION_NAME,
-#ifdef _WIN32
-      VK_KHR_EXTERNAL_MEMORY_WIN32_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_SEMAPHORE_WIN32_EXTENSION_NAME,
-#else
-      VK_KHR_EXTERNAL_SEMAPHORE_FD_EXTENSION_NAME,
-      VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME,
-#endif
-  };
-
   // Create the Vulkan device with the above queues, extensions, and layers.
   VkDeviceCreateInfo dci = {};
   dci.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
   dci.pQueueCreateInfos = qcis.data();
   dci.queueCreateInfoCount = qcis.size();
   dci.pEnabledFeatures = &deviceFeatures;
-  dci.enabledExtensionCount = extensions.size();
-  dci.ppEnabledExtensionNames = extensions.data();
+  dci.enabledExtensionCount =
+      sizeof(requiredExtensions) / sizeof(requiredExtensions[0]);
+  dci.ppEnabledExtensionNames = &requiredExtensions[0];
 
   VK_CHECK_CALL_RET(
       vkCreateDevice(vk_physical_device, &dci, nullptr, &vk_device));
@@ -389,6 +381,15 @@ VkResult setupDevice(std::string device) {
     return VK_ERROR_UNKNOWN;
   }
 #endif
+
+  vk_getImageMemoryRequirements2 =
+      reinterpret_cast<PFN_vkGetImageMemoryRequirements2>(
+          vkGetDeviceProcAddr(vk_device, "vkGetImageMemoryRequirements2KHR"));
+  if (!vk_getImageMemoryRequirements2) {
+    std::cerr << "Could not get func pointer to "
+                 "\"vkGetImageMemoryRequirements2KHR\"!\n";
+    return VK_ERROR_UNKNOWN;
+  }
 
   return VK_SUCCESS;
 }
@@ -472,7 +473,7 @@ program is compiled for.
 */
 VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
                     VkImageUsageFlags usage, size_t mipLevels,
-                    bool exportable = true) {
+                    bool linearTiling = false, bool exportable = true) {
   VkImageCreateInfo ici = {};
   ici.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
   ici.imageType = type;
@@ -483,6 +484,10 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
   ici.usage = usage;
   ici.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
   ici.samples = VK_SAMPLE_COUNT_1_BIT;
+
+  if (linearTiling) {
+    ici.tiling = VK_IMAGE_TILING_LINEAR;
+  }
 
   VkExternalMemoryImageCreateInfo emici = {};
   if (exportable) {
@@ -505,19 +510,45 @@ VkImage createImage(VkImageType type, VkFormat format, VkExtent3D extent,
 }
 
 /*
+Returns the row pitch with which a linear image's first subresource was
+created with in bytes.
+*/
+VkDeviceSize getImageRowPitch(VkImage image) {
+
+  VkImageSubresource imageSubresource = {};
+  imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+  imageSubresource.mipLevel = 0;
+  imageSubresource.arrayLayer = 0;
+
+  VkSubresourceLayout subresourceLayout = {};
+  vkGetImageSubresourceLayout(vk_device, image, &imageSubresource,
+                              &subresourceLayout);
+
+  return subresourceLayout.rowPitch;
+}
+
+/*
 Allocate `size` of device memory of the specified memory type.
 This function also allows users to specify whether the memory will be
 exportable, in which case the appropriate extension struct is populated based on
 the OS the program is compiled for.
 */
 VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
-                                    bool exportable = true) {
-  VkMemoryAllocateInfo mai = {};
+                                    VkImage image, bool exportable = true) {
+  VkMemoryAllocateInfo mai{};
   mai.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
   mai.allocationSize = size;
   mai.memoryTypeIndex = memoryTypeIndex;
 
-  VkExportMemoryAllocateInfo emai = {};
+  VkMemoryDedicatedAllocateInfoKHR dedicatedInfo{};
+  if (requiresDedicatedAllocation) {
+    dedicatedInfo.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_ALLOCATE_INFO_KHR;
+    dedicatedInfo.image = image;
+    dedicatedInfo.buffer = VK_NULL_HANDLE;
+    mai.pNext = &dedicatedInfo;
+  }
+
+  VkExportMemoryAllocateInfo emai{};
   if (exportable) {
     emai.sType = VK_STRUCTURE_TYPE_EXPORT_MEMORY_ALLOCATE_INFO;
 #ifdef _WIN32
@@ -525,7 +556,10 @@ VkDeviceMemory allocateDeviceMemory(size_t size, uint32_t memoryTypeIndex,
 #else
     emai.handleTypes = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OPAQUE_FD_BIT;
 #endif
-    mai.pNext = &emai;
+    if (requiresDedicatedAllocation)
+      dedicatedInfo.pNext = &emai;
+    else
+      mai.pNext = &emai;
   }
 
   VkDeviceMemory memory;
@@ -543,11 +577,28 @@ property flags passed.
 */
 uint32_t getImageMemoryTypeIndex(VkImage image, VkMemoryPropertyFlags flags,
                                  VkMemoryRequirements &memRequirements) {
-  vkGetImageMemoryRequirements(vk_device, image, &memRequirements);
+  VkMemoryDedicatedRequirements dedicatedRequirements{};
+  dedicatedRequirements.sType = VK_STRUCTURE_TYPE_MEMORY_DEDICATED_REQUIREMENTS;
+
+  VkMemoryRequirements2 memoryRequirements2{};
+  memoryRequirements2.sType = VK_STRUCTURE_TYPE_MEMORY_REQUIREMENTS_2;
+  memoryRequirements2.pNext = &dedicatedRequirements;
+
+  VkImageMemoryRequirementsInfo2 imageRequirementsInfo{};
+  imageRequirementsInfo.sType =
+      VK_STRUCTURE_TYPE_IMAGE_MEMORY_REQUIREMENTS_INFO_2;
+  imageRequirementsInfo.image = image;
+
+  vk_getImageMemoryRequirements2(vk_device, &imageRequirementsInfo,
+                                 &memoryRequirements2);
+
+  if (dedicatedRequirements.requiresDedicatedAllocation)
+    requiresDedicatedAllocation = true;
 
   VkPhysicalDeviceMemoryProperties memProperties;
   vkGetPhysicalDeviceMemoryProperties(vk_physical_device, &memProperties);
 
+  memRequirements = memoryRequirements2.memoryRequirements;
   for (uint32_t i = 0; i < memProperties.memoryTypeCount; i++) {
     if ((memRequirements.memoryTypeBits & (1 << i)) &&
         (memProperties.memoryTypes[i].propertyFlags & flags) == flags) {
@@ -738,8 +789,8 @@ struct vulkan_image_test_resources_t {
     VkMemoryRequirements memRequirements;
     auto inputImageMemoryTypeIndex = vkutil::getImageMemoryTypeIndex(
         vkImage, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, memRequirements);
-    imageMemory =
-        vkutil::allocateDeviceMemory(imageSizeBytes, inputImageMemoryTypeIndex);
+    imageMemory = vkutil::allocateDeviceMemory(
+        imageSizeBytes, inputImageMemoryTypeIndex, vkImage);
     VK_CHECK_CALL(
         vkBindImageMemory(vk_device, vkImage, imageMemory, 0 /*memoryOffset*/));
 
@@ -750,7 +801,8 @@ struct vulkan_image_test_resources_t {
         stagingBuffer, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
                            VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
     stagingMemory = vkutil::allocateDeviceMemory(
-        imageSizeBytes, inputStagingMemoryTypeIndex, false /*exportable*/);
+        imageSizeBytes, inputStagingMemoryTypeIndex, nullptr /*image*/,
+        false /*exportable*/);
     VK_CHECK_CALL(vkBindBufferMemory(vk_device, stagingBuffer, stagingMemory,
                                      0 /*memoryOffset*/));
   }
@@ -769,7 +821,20 @@ Vulkan format.
 */
 VkFormat to_vulkan_format(sycl::image_channel_order order,
                           sycl::image_channel_type channel_type) {
-  if (channel_type == sycl::image_channel_type::signed_int8) {
+  if (channel_type == sycl::image_channel_type::unorm_int8) {
+    switch (order) {
+    case sycl::image_channel_order::r:
+      return VK_FORMAT_R8_UNORM;
+    case sycl::image_channel_order::rg:
+      return VK_FORMAT_R8G8_UNORM;
+    case sycl::image_channel_order::rgba:
+      return VK_FORMAT_R8G8B8A8_UNORM;
+    default: {
+      std::cerr << "error in converting to vulkan format\n";
+      exit(-1);
+    }
+    }
+  } else if (channel_type == sycl::image_channel_type::signed_int8) {
 
     switch (order) {
     case sycl::image_channel_order::r:
@@ -818,6 +883,19 @@ VkFormat to_vulkan_format(sycl::image_channel_order order,
       return VK_FORMAT_R16G16_SINT;
     case sycl::image_channel_order::rgba:
       return VK_FORMAT_R16G16B16A16_SINT;
+    default: {
+      std::cerr << "error in converting to vulkan format\n";
+      exit(-1);
+    }
+    }
+  } else if (channel_type == sycl::image_channel_type::fp16) {
+    switch (order) {
+    case sycl::image_channel_order::r:
+      return VK_FORMAT_R16_SFLOAT;
+    case sycl::image_channel_order::rg:
+      return VK_FORMAT_R16G16_SFLOAT;
+    case sycl::image_channel_order::rgba:
+      return VK_FORMAT_R16G16B16A16_SFLOAT;
     default: {
       std::cerr << "error in converting to vulkan format\n";
       exit(-1);

@@ -13,6 +13,7 @@
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/event.hpp>
 #include <sycl/properties/buffer_properties.hpp>
 #include <sycl/properties/image_properties.hpp>
@@ -22,6 +23,7 @@
 #include <atomic>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <type_traits>
 
 namespace sycl {
@@ -31,7 +33,8 @@ namespace detail {
 // Forward declarations
 class context_impl;
 class event_impl;
-class plugin;
+class Adapter;
+using AdapterPtr = std::shared_ptr<Adapter>;
 
 using ContextImplPtr = std::shared_ptr<context_impl>;
 using EventImplPtr = std::shared_ptr<event_impl>;
@@ -65,31 +68,30 @@ public:
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
       : SYCLMemObjT(/*SizeInBytes*/ 0, Props, std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               const size_t SizeInBytes, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
   SYCLMemObjT(cl_mem MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator)
-      : SYCLMemObjT(pi::cast<pi_native_handle>(MemObject), SyclContext,
+      : SYCLMemObjT(ur::cast<ur_native_handle_t>(MemObject), SyclContext,
                     /*SizeInBytes*/ (size_t)0, AvailableEvent,
                     std::move(Allocator)) {}
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator);
 
-  SYCLMemObjT(pi_native_handle MemObject, const context &SyclContext,
+  SYCLMemObjT(ur_native_handle_t MemObject, const context &SyclContext,
               bool OwnNativeHandle, event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
-              sycl::detail::pi::PiMemImageChannelOrder Order,
-              sycl::detail::pi::PiMemImageChannelType Type,
-              range<3> Range3WithOnes, unsigned Dimensions, size_t ElementSize);
+              ur_image_format_t Format, range<3> Range3WithOnes,
+              unsigned Dimensions, size_t ElementSize);
 
   virtual ~SYCLMemObjT() = default;
 
-  const PluginPtr &getPlugin() const;
+  const AdapterPtr &getAdapter() const;
 
   size_t getSizeInBytes() const noexcept override { return MSizeInBytes; }
   __SYCL2020_DEPRECATED("get_count() is deprecated, please use size() instead")
@@ -196,6 +198,7 @@ public:
         MUserPtr = HostPtr;
       } else if (canReadHostPtr(HostPtr, RequiredAlign)) {
         MUserPtr = HostPtr;
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -229,6 +232,7 @@ public:
         MUserPtr = HostPtr.get();
       } else if (canReadHostPtr(HostPtr.get(), RequiredAlign)) {
         MUserPtr = HostPtr.get();
+        std::lock_guard<std::mutex> Lock(MCreateShadowCopyMtx);
         MCreateShadowCopy = [this, RequiredAlign, HostPtr]() -> void {
           setAlign(RequiredAlign);
           MShadowCopy = allocateHostMem();
@@ -265,13 +269,12 @@ public:
   }
 
   static size_t getBufSizeForContext(const ContextImplPtr &Context,
-                                     pi_native_handle MemObject);
+                                     ur_native_handle_t MemObject);
 
   void handleWriteAccessorCreation();
 
   void *allocateMem(ContextImplPtr Context, bool InitFromUserData,
-                    void *HostPtr,
-                    sycl::detail::pi::PiEvent &InteropEvent) override {
+                    void *HostPtr, ur_event_handle_t &InteropEvent) override {
     (void)Context;
     (void)InitFromUserData;
     (void)HostPtr;
@@ -328,8 +331,8 @@ public:
  
 protected:
   // An allocateMem helper that determines which host ptr to use
-  void determineHostPtr(bool InitFromUserData, void *&HostPtr,
-                        bool &HostPtrReadOnly);
+  void determineHostPtr(const ContextImplPtr &Context, bool InitFromUserData,
+                        void *&HostPtr, bool &HostPtrReadOnly);
 
   // Allocator used for allocation memory on host.
   std::unique_ptr<SYCLMemObjAllocator> MAllocator;
@@ -342,7 +345,7 @@ protected:
   ContextImplPtr MInteropContext;
   // Native backend memory object handle passed by user to interoperability
   // constructor.
-  sycl::detail::pi::PiMem MInteropMemObject;
+  ur_mem_handle_t MInteropMemObject;
   // Indicates whether memory object is created using interoperability
   // constructor or not.
   bool MOpenCLInterop;
@@ -351,7 +354,7 @@ protected:
   // Indicates if memory object should write memory to the host on destruction.
   bool MNeedWriteBack;
   // Size of memory.
-  size_t MSizeInBytes;
+  size_t MSizeInBytes = 0;
   // User's pointer passed to constructor.
   void *MUserPtr;
   // Copy of memory passed by user to constructor.
@@ -376,6 +379,7 @@ protected:
   // defer the memory allocation and copying to the point where a writable
   // accessor is created.
   std::function<void(void)> MCreateShadowCopy = []() -> void {};
+  std::mutex MCreateShadowCopyMtx;
   bool MOwnNativeHandle = true;
 };
 } // namespace detail

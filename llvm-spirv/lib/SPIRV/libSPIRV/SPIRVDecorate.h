@@ -231,6 +231,8 @@ public:
   }
 };
 
+class SPIRVDecorateString : public SPIRVDecorate {};
+
 class SPIRVDecorateId : public SPIRVDecorateGeneric {
 public:
   static const Op OC = OpDecorateId;
@@ -383,6 +385,8 @@ protected:
   SPIRVWord MemberNumber;
 };
 
+class SPIRVMemberDecorateString : public SPIRVMemberDecorate {};
+
 class SPIRVDecorationGroup : public SPIRVEntry {
 public:
   static const Op OC = OpDecorationGroup;
@@ -514,15 +518,6 @@ public:
   //  Complete constructor for UserSemantic decoration
   SPIRVDecorateUserSemanticAttr(SPIRVEntry *TheTarget,
                                 const std::string &AnnotateString)
-      : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
-};
-
-class SPIRVDecorateFuncParamDescAttr
-    : public SPIRVDecorateStrAttrBase<internal::DecorationFuncParamDescINTEL> {
-public:
-  //  Complete constructor for UserSemantic decoration
-  SPIRVDecorateFuncParamDescAttr(SPIRVEntry *TheTarget,
-                                 const std::string &AnnotateString)
       : SPIRVDecorateStrAttrBase(TheTarget, AnnotateString) {}
 };
 

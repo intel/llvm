@@ -1,7 +1,7 @@
 // REQUIRES: gpu, level_zero, level_zero_dev_kit
 
 // RUN: %{build} %level_zero_options -o %t.out
-// RUN: env SYCL_PI_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 UR_L0_DEBUG=1 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test that the wait with a barrier is fully batched, i.e. it doesn't cause
 // extra submissions.
@@ -22,26 +22,26 @@ int main(int argc, char *argv[]) {
   queue q;
 
   submit_kernel(q); // starts a batch
-                    // CHECK: ---> piEnqueueKernelLaunch
+                    // CHECK: ---> urEnqueueKernelLaunch
                     // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
 
   // continue the batch
   event barrier = q.ext_oneapi_submit_barrier();
-  // CHECK: ---> piEnqueueEventsWaitWithBarrier
+  // CHECK: ---> urEnqueueEventsWaitWithBarrier
   // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
 
   submit_kernel(q);
-  // CHECK: ---> piEnqueueKernelLaunch
+  // CHECK: ---> urEnqueueKernelLaunch
   // CHECK-NOT: ZE ---> zeCommandQueueExecuteCommandLists
 
   // interop should close the batch
   ze_event_handle_t ze_event =
       get_native<backend::ext_oneapi_level_zero>(barrier);
-  // CHECK: ---> piextEventGetNativeHandle
+  // CHECK: ---> urEventGetNativeHandle
   // CHECK: ZE ---> zeCommandQueueExecuteCommandLists
   zeEventHostSynchronize(ze_event, UINT64_MAX);
 
-  // CHECK: ---> piQueueFinish
+  // CHECK: ---> urQueueFinish
   q.wait_and_throw();
   return 0;
 }

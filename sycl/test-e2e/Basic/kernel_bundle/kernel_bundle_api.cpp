@@ -5,7 +5,7 @@
 // device image is statically linked against fallback libdevice.
 // RUN: %{build} %if cpu %{ -DSYCL_DISABLE_FALLBACK_ASSERT=1 %} -fsycl-device-code-split=per_kernel -o %t.out
 // RUN: %if cuda %{ %{run} %t.out %}
-// RUN: %if cpu %{ env SYCL_PI_TRACE=2 %{run} %t.out | FileCheck %s %}
+// RUN: %if cpu %{ env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s %}
 
 #include <iostream>
 #include <sycl/detail/core.hpp>
@@ -150,46 +150,27 @@ int main() {
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject1 =
         sycl::compile(KernelBundleInput1, KernelBundleInput1.get_devices());
-    // CHECK:---> piProgramCreate
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE1:[0-9a-fA-Fx]]]
+    // CHECK:<--- urProgramCreate
+    // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE1:[0-9a-fA-Fx]+]])
+    // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE1]]
+    // CHECK:<--- urProgramCompile
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE1]]
 
     sycl::kernel_bundle<sycl::bundle_state::object> KernelBundleObject2 =
         sycl::compile(KernelBundleInput2, KernelBundleInput2.get_devices());
-    // CHECK:---> piProgramCreate
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE2:[0-9a-fA-Fx]]]
+    // CHECK:<--- urProgramCreate
+    // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE2:[0-9a-fA-Fx]+]])
+    // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piProgramCompile(
-    // CHECK-Next: <unknown> : [[PROGRAM_HANDLE2]]
+    // CHECK:<--- urProgramCompile(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE2]]
 
     sycl::kernel_bundle<sycl::bundle_state::executable> KernelBundleExecutable =
         sycl::link({KernelBundleObject1, KernelBundleObject2},
                    KernelBundleObject1.get_devices());
-    // CHECK:---> piProgramLink(
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <const char *>:
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <nullptr>
-    // CHECK-NEXT: <nullptr>
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT:---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}
-    // PI tracing doesn't allow checking for all input programs so far.
+    // CHECK:<--- urProgramLink{{.*}} -> UR_RESULT_SUCCESS;
+    // UR tracing doesn't allow checking for all input programs so far.
 
     assert(KernelBundleExecutable.has_kernel(Kernel1ID));
     assert(KernelBundleExecutable.has_kernel(Kernel2ID));
@@ -198,20 +179,16 @@ int main() {
         KernelBundleExecutable2 =
             sycl::build(KernelBundleInput1, KernelBundleInput1.get_devices());
 
-    // CHECK:---> piProgramCreate
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE3:[0-9a-fA-Fx]]]
+    // CHECK:<--- urProgramCreate
+    // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE3:[0-9a-fA-Fx]+]])
+    // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
+    // CHECK:<--- urProgramBuild(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE3]]
     //
-    // CHECK:---> piProgramRetain(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE3]]
-    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    // CHECK:<--- urProgramRetain(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE3]]
+    // CHECK-SAME:-> UR_RESULT_SUCCESS;
 
     // Version of link which finds intersection of associated devices between
     // input bundles
@@ -227,40 +204,33 @@ int main() {
     sycl::kernel_bundle KernelBundleExecutable =
         sycl::get_kernel_bundle<sycl::bundle_state::executable>(Ctx, {Dev},
                                                                 {Kernel3ID});
-    // CHECK:---> piextDeviceSelectBinary
-    // CHECK:---> piProgramCreate
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: ) ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[PROGRAM_HANDLE4:[0-9a-fA-Fx]]]
+    // CHECK:<--- urProgramCreate
+    // CHECK-SAME:, .phProgram = {{.*}} ([[PROGRAM_HANDLE4:[0-9a-fA-Fx]+]])
+    // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piProgramBuild(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE4]]
+    // CHECK:<--- urProgramBuild(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
     //
-    // CHECK:---> piProgramRetain(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE4]]
-    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    // CHECK:<--- urProgramRetain(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
+    // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piKernelCreate(
-    // CHECK-NEXT: <unknown> : [[PROGRAM_HANDLE4]]
-    // CHECK-NEXT:<const char *>: _ZTS11Kernel3Name
-    // CHECK-NEXT: <unknown> : {{.*}}
-    // CHECK-NEXT: ---> pi_result : PI_SUCCESS
-    // CHECK-NEXT: [out]<unknown> ** : {{.*}}[ [[KERNEL_HANDLE:[0-9a-fA-Fx]]]
+    // CHECK:<--- urKernelCreate(
+    // CHECK-SAME: .hProgram = [[PROGRAM_HANDLE4]]
+    // CHECK-SAME: .pKernelName = {{[0-9a-fA-Fx]+}} (_ZTS11Kernel3Name)
+    // CHECK-SAME: .phKernel = {{[0-9a-fA-Fx]+}}  ([[KERNEL_HANDLE:[0-9a-fA-Fx]+]])
+    // CHECK-SAME: -> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piKernelRetain(
-    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
-    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    // CHECK:<--- urKernelRetain(
+    // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
+    // CHECK-SAME:-> UR_RESULT_SUCCESS;
     //
-    // CHECK:---> piEnqueueKernelLaunch(
-    // CHECK-NEXT:<unknown> : {{.*}}
-    // CHECK-NEXT:<unknown> : [[KERNEL_HANDLE]]
+    // CHECK:<--- urEnqueueKernelLaunch(
+    // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
     //
-    // CHECK:---> piKernelRelease(
-    // CHECK-NEXT: <unknown> : [[KERNEL_HANDLE]]
-    // CHECK-NEXT:---> pi_result : PI_SUCCESS
+    // CHECK:<--- urKernelRelease(
+    // CHECK-SAME: .hKernel = [[KERNEL_HANDLE]]
+    // CHECK-SAME:-> UR_RESULT_SUCCESS;
 
     sycl::buffer<int, 1> Buf(sycl::range<1>{1});
 

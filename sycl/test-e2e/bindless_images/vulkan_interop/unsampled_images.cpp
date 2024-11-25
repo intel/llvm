@@ -1,8 +1,9 @@
-// REQUIRES: cuda
+// REQUIRES: cuda || (windows && level_zero && aspect-ext_oneapi_bindless_images)
 // REQUIRES: vulkan
+// REQUIRES: build-and-run-mode
 
-// RUN: %{build} %link-vulkan -o %t.out
-// RUN: %{run} %t.out
+// RUN: %{build} %link-vulkan -o %t.out %if any-device-is-level_zero %{ -Wno-ignored-attributes -DTEST_L0_SUPPORTED_VK_FORMAT %}
+// RUN: %{run} env NEOReadDebugKeys=1 UseBindlessMode=1 UseExternalAllocatorForSshAndDsh=1 %t.out
 
 // Uncomment to print additional test information
 // #define VERBOSE_PRINT
@@ -19,25 +20,25 @@ namespace syclexp = sycl::ext::oneapi::experimental;
 // Helpers and utilities
 namespace util {
 struct handles_t {
-  syclexp::interop_mem_handle input_interop_mem_handle_1,
-      input_interop_mem_handle_2, output_interop_mem_handle;
+  syclexp::external_mem input_external_mem_1, input_external_mem_2,
+      output_external_mem;
   syclexp::image_mem_handle input_mem_handle_1, input_mem_handle_2,
       output_mem_handle;
-  syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle,
-      sycl_done_interop_semaphore_handle;
+  syclexp::external_semaphore sycl_wait_external_semaphore,
+      sycl_done_external_semaphore;
   syclexp::unsampled_image_handle input_1, input_2, output;
 };
 
 template <typename InteropMemHandleT, typename InteropSemHandleT>
-handles_t
-create_test_handles(sycl::context &ctxt, sycl::device &dev,
-                    InteropMemHandleT img_in_interop_handle_1,
-                    InteropMemHandleT img_in_interop_handle_2,
-                    InteropMemHandleT img_out_interop_handle,
-                    InteropSemHandleT sycl_wait_semaphore_handle,
-                    InteropSemHandleT sycl_done_semaphore_handle,
-                    const size_t img_size,
-                    sycl::ext::oneapi::experimental::image_descriptor &desc) {
+handles_t create_test_handles(
+    sycl::context &ctxt, sycl::device &dev,
+    InteropMemHandleT img_in_interop_handle_1,
+    InteropMemHandleT img_in_interop_handle_2,
+    InteropMemHandleT img_out_interop_handle,
+    [[maybe_unused]] InteropSemHandleT sycl_wait_semaphore_handle,
+    [[maybe_unused]] InteropSemHandleT sycl_done_semaphore_handle,
+    const size_t img_size,
+    sycl::ext::oneapi::experimental::image_descriptor &desc) {
   // Extension: map the external memory descriptors
 
 #ifdef _WIN32
@@ -66,23 +67,20 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
 #endif
 
   // Extension: create interop memory handles
-  syclexp::interop_mem_handle input_interop_mem_handle_1 =
+  syclexp::external_mem input_external_mem_1 =
       syclexp::import_external_memory(input_ext_mem_desc_1, dev, ctxt);
-  syclexp::interop_mem_handle input_interop_mem_handle_2 =
+  syclexp::external_mem input_external_mem_2 =
       syclexp::import_external_memory(input_ext_mem_desc_2, dev, ctxt);
-  syclexp::interop_mem_handle output_interop_mem_handle =
+  syclexp::external_mem output_external_mem =
       syclexp::import_external_memory(output_ext_mem_desc, dev, ctxt);
 
   // Extension: map image memory handles
   syclexp::image_mem_handle input_mapped_mem_handle_1 =
-      syclexp::map_external_image_memory(input_interop_mem_handle_1, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(input_external_mem_1, desc, dev, ctxt);
   syclexp::image_mem_handle input_mapped_mem_handle_2 =
-      syclexp::map_external_image_memory(input_interop_mem_handle_2, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(input_external_mem_2, desc, dev, ctxt);
   syclexp::image_mem_handle output_mapped_mem_handle =
-      syclexp::map_external_image_memory(output_interop_mem_handle, desc, dev,
-                                         ctxt);
+      syclexp::map_external_image_memory(output_external_mem, desc, dev, ctxt);
 
   // Extension: create the image and return the handle
   syclexp::unsampled_image_handle input_1 =
@@ -92,6 +90,7 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
   syclexp::unsampled_image_handle output =
       syclexp::create_image(output_mapped_mem_handle, desc, dev, ctxt);
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Extension: import semaphores
 #ifdef _WIN32
   syclexp::external_semaphore_descriptor<syclexp::resource_win32_handle>
@@ -113,31 +112,37 @@ create_test_handles(sycl::context &ctxt, sycl::device &dev,
           syclexp::external_semaphore_handle_type::opaque_fd};
 #endif
 
-  syclexp::interop_semaphore_handle sycl_wait_interop_semaphore_handle =
+  syclexp::external_semaphore sycl_wait_external_semaphore =
       syclexp::import_external_semaphore(sycl_wait_external_semaphore_desc, dev,
                                          ctxt);
-  syclexp::interop_semaphore_handle sycl_done_interop_semaphore_handle =
+  syclexp::external_semaphore sycl_done_external_semaphore =
       syclexp::import_external_semaphore(sycl_done_external_semaphore_desc, dev,
                                          ctxt);
+#else  // #ifdef TEST_SEMAPHORE_IMPORT
+  syclexp::external_semaphore sycl_wait_external_semaphore{};
+  syclexp::external_semaphore sycl_done_external_semaphore{};
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
 
-  return {input_interop_mem_handle_1,
-          input_interop_mem_handle_2,
-          output_interop_mem_handle,
+  return {input_external_mem_1,
+          input_external_mem_2,
+          output_external_mem,
           input_mapped_mem_handle_1,
           input_mapped_mem_handle_2,
           output_mapped_mem_handle,
-          sycl_wait_interop_semaphore_handle,
-          sycl_done_interop_semaphore_handle,
+          sycl_wait_external_semaphore,
+          sycl_done_external_semaphore,
           input_1,
           input_2,
           output};
 }
 
 void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
-  syclexp::release_external_semaphore(
-      handles.sycl_wait_interop_semaphore_handle, dev, ctxt);
-  syclexp::release_external_semaphore(
-      handles.sycl_done_interop_semaphore_handle, dev, ctxt);
+#ifdef TEST_SEMAPHORE_IMPORT
+  syclexp::release_external_semaphore(handles.sycl_wait_external_semaphore, dev,
+                                      ctxt);
+  syclexp::release_external_semaphore(handles.sycl_done_external_semaphore, dev,
+                                      ctxt);
+#endif
   syclexp::destroy_image_handle(handles.input_1, dev, ctxt);
   syclexp::destroy_image_handle(handles.input_2, dev, ctxt);
   syclexp::destroy_image_handle(handles.output, dev, ctxt);
@@ -147,12 +152,9 @@ void cleanup_test(sycl::context &ctxt, sycl::device &dev, handles_t handles) {
                           syclexp::image_type::standard, dev, ctxt);
   syclexp::free_image_mem(handles.output_mem_handle,
                           syclexp::image_type::standard, dev, ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_1, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.input_interop_mem_handle_2, dev,
-                                   ctxt);
-  syclexp::release_external_memory(handles.output_interop_mem_handle, dev,
-                                   ctxt);
+  syclexp::release_external_memory(handles.input_external_mem_1, dev, ctxt);
+  syclexp::release_external_memory(handles.input_external_mem_2, dev, ctxt);
+  syclexp::release_external_memory(handles.output_external_mem, dev, ctxt);
 }
 
 template <typename InteropMemHandleT, typename InteropSemHandleT, int NDims,
@@ -181,9 +183,10 @@ void run_ndim_test(sycl::range<NDims> global_size,
       img_out_interop_handle, sycl_wait_semaphore_handle,
       sycl_done_semaphore_handle, img_size, desc);
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Extension: wait for imported semaphore
-  q.ext_oneapi_wait_external_semaphore(
-      handles.sycl_wait_interop_semaphore_handle);
+  q.ext_oneapi_wait_external_semaphore(handles.sycl_wait_external_semaphore);
+#endif
 
   try {
     q.submit([&](sycl::handler &cgh) {
@@ -243,11 +246,13 @@ void run_ndim_test(sycl::range<NDims> global_size,
           });
     });
 
+#ifdef TEST_SEMAPHORE_IMPORT
     // Extension: signal imported semaphore
     q.submit([&](sycl::handler &cgh) {
       cgh.ext_oneapi_signal_external_semaphore(
-          handles.sycl_done_interop_semaphore_handle);
+          handles.sycl_done_external_semaphore);
     });
+#endif
 
     // Wait for kernel completion before destroying external objects
     q.wait_and_throw();
@@ -367,6 +372,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     VK_CHECK_CALL(vkQueueWaitIdle(vk_compute_queue));
   }
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Create semaphore to later import in SYCL
   printString("Creating semaphores\n");
   VkSemaphore syclWaitSemaphore;
@@ -402,6 +408,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     VK_CHECK_CALL(
         vkCreateSemaphore(vk_device, &sci, nullptr, &syclDoneSemaphore));
   }
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
 
   printString("Copying staging memory to images\n");
   // Copy staging to main image memory
@@ -431,12 +438,17 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     submission.commandBufferCount = 1;
     submission.pCommandBuffers = &vk_transferCmdBuffers[0];
 
+#ifdef TEST_SEMAPHORE_IMPORT
     submission.signalSemaphoreCount = 1;
     submission.pSignalSemaphores = &syclWaitSemaphore;
+#endif
     submission.pWaitDstStageMask = stages.data();
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
                                 &submission, VK_NULL_HANDLE /*fence*/));
+#ifndef TEST_SEMAPHORE_IMPORT
+    VK_CHECK_CALL(vkQueueWaitIdle(vk_transfer_queue));
+#endif
   }
 
   printString("Getting memory interop handles\n");
@@ -458,6 +470,7 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
 
   printString("Getting semaphore interop handles\n");
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Pass semaphores to SYCL for synchronization
 #ifdef _WIN32
   auto sycl_wait_semaphore_handle =
@@ -470,6 +483,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
   auto sycl_done_semaphore_handle =
       vkutil::getSemaphoreOpaqueFD(syclDoneSemaphore);
 #endif
+#else  // #ifdef TEST_SEMAPHORE_IMPORT
+  void *sycl_wait_semaphore_handle = nullptr;
+  void *sycl_done_semaphore_handle = nullptr;
+#endif // #ifdef TEST_SEMAPHORE_IMPORT
 
   printString("Calling into SYCL with interop memory and semaphore handles\n");
 
@@ -505,8 +522,10 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     submission.commandBufferCount = 1;
     submission.pCommandBuffers = &vk_transferCmdBuffers[1];
 
+#ifdef TEST_SEMAPHORE_IMPORT
     submission.waitSemaphoreCount = 1;
     submission.pWaitSemaphores = &syclDoneSemaphore;
+#endif
     submission.pWaitDstStageMask = stages.data();
 
     VK_CHECK_CALL(vkQueueSubmit(vk_transfer_queue, 1 /*submitCount*/,
@@ -543,19 +562,60 @@ bool run_test(sycl::range<NDims> dims, sycl::range<NDims> local_size,
     printString("  Results are correct!\n");
   }
 
+#ifdef TEST_SEMAPHORE_IMPORT
   // Cleanup
   vkDestroySemaphore(vk_device, syclWaitSemaphore, nullptr);
   vkDestroySemaphore(vk_device, syclDoneSemaphore, nullptr);
+#endif
 
   return validated;
 }
 
 bool run_all() {
   unsigned int seed = 0;
+  bool valid = true;
+#ifdef TEST_L0_SUPPORTED_VK_FORMAT
+  printString("Running 3D float\n");
+  valid &= run_test<3, float, 1, sycl::image_channel_type::fp32,
+                    sycl::image_channel_order::r, class fp32_3d_c1>(
+      {1024, 1024, 16}, {16, 16, 1}, seed);
 
+  printString("Running 3D half2\n");
+  valid &= run_test<3, sycl::half, 2, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rg, class fp16_3d_c2>(
+      {1920, 1080, 8}, {16, 8, 2}, seed);
+
+  printString("Running 3D half4\n");
+  valid &= run_test<3, sycl::half, 4, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rgba, class fp16_3d_c4>(
+      {2048, 2048, 4}, {16, 16, 1}, seed);
+
+  printString("Running 3D unorm_int8_c4\n");
+  valid &= run_test<3, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                    sycl::image_channel_order::rgba, class unorm_int8_3d_c4>(
+      {2048, 2048, 2}, {16, 16, 1}, seed);
+
+  printString("Running 2D float\n");
+  valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
+                    sycl::image_channel_order::r, class fp32_2d_c1>(
+      {1024, 1024}, {16, 16}, seed);
+  printString("Running 2D half2\n");
+  valid &= run_test<2, sycl::half, 2, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rg, class fp16_2d_c2>(
+      {1920, 1080}, {16, 8}, seed);
+  printString("Running 2D half4\n");
+  valid &= run_test<2, sycl::half, 4, sycl::image_channel_type::fp16,
+                    sycl::image_channel_order::rgba, class fp16_2d_c4>(
+      {2048, 2048}, {16, 16}, seed);
+
+  printString("Running 2D unorm_int8_c4\n");
+  valid &= run_test<2, uint8_t, 4, sycl::image_channel_type::unorm_int8,
+                    sycl::image_channel_order::rgba, class unorm_int8_2d_c4>(
+      {2048, 2048}, {2, 2}, seed);
+#else
   printString("Running 3D uint4\n");
-  bool valid = run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
-                        sycl::image_channel_order::rgba, class uint4_3d>(
+  valid &= run_test<3, uint32_t, 4, sycl::image_channel_type::signed_int32,
+                    sycl::image_channel_order::rgba, class uint4_3d>(
       {272, 144, 4}, {16, 16, 4}, seed);
 
   printString("Running 3D uint2\n");
@@ -611,7 +671,7 @@ bool run_all() {
   valid &= run_test<2, float, 1, sycl::image_channel_type::fp32,
                     sycl::image_channel_order::r, class float1_2d>(
       {32, 32}, {2, 2}, seed);
-
+#endif
   return valid;
 }
 

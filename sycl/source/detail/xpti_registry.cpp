@@ -82,7 +82,7 @@ void XPTIRegistry::bufferAssociateNotification(const void *UserObj,
   xpti::offload_association_data_t BufAssoc{(uintptr_t)UserObj,
                                             (uintptr_t)MemObj};
 
-  // Add association between user level and PI level memory object
+  // Add association between user level and UR level memory object
   xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
                         nullptr, IId, &BufAssoc);
 #endif
@@ -101,7 +101,7 @@ void XPTIRegistry::bufferReleaseNotification(const void *UserObj,
   xpti::offload_association_data_t BufRelease{(uintptr_t)UserObj,
                                               (uintptr_t)MemObj};
 
-  // Release PI level memory object
+  // Release UR level memory object
   xptiNotifySubscribers(GBufferStreamID, NotificationTraceType, nullptr,
                         nullptr, IId, &BufRelease);
 #endif

@@ -19,15 +19,18 @@
 #if SYCL_BACKEND_OPENCL
 #include <sycl/backend/opencl.hpp>
 #endif
+#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
+#include <sycl/ext/oneapi/backend/level_zero.hpp>
+#endif
 #include <sycl/builtins.hpp>
 #include <sycl/context.hpp>
 #include <sycl/define_vendors.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_aspect_traits.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/event.hpp>
 #include <sycl/exception.hpp>
-#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/functional.hpp>
 #include <sycl/group.hpp>
 #include <sycl/group_algorithm.hpp>
@@ -54,14 +57,12 @@
 #include <sycl/specialization_id.hpp>
 #include <sycl/stream.hpp>
 #include <sycl/sub_group.hpp>
-#include <sycl/types.hpp>
 #include <sycl/usm.hpp>
 #include <sycl/usm/usm_allocator.hpp>
 #include <sycl/usm/usm_pointer_info.hpp>
+#include <sycl/vector.hpp>
 #include <sycl/version.hpp>
-#if SYCL_EXT_ONEAPI_BACKEND_LEVEL_ZERO
-#include <sycl/ext/oneapi/backend/level_zero.hpp>
-#endif
+
 #include <sycl/ext/codeplay/experimental/fusion_wrapper.hpp>
 #include <sycl/ext/intel/experimental/fp_control_kernel_properties.hpp>
 #include <sycl/ext/intel/experimental/fpga_mem/fpga_datapath.hpp>
@@ -69,8 +70,11 @@
 #include <sycl/ext/intel/experimental/fpga_mem/properties.hpp>
 #include <sycl/ext/intel/experimental/pipe_properties.hpp>
 #include <sycl/ext/intel/experimental/pipes.hpp>
+#include <sycl/ext/intel/experimental/task_sequence.hpp>
+#include <sycl/ext/intel/experimental/task_sequence_properties.hpp>
 #include <sycl/ext/intel/experimental/usm_properties.hpp>
 #include <sycl/ext/intel/usm_pointers.hpp>
+#include <sycl/ext/oneapi/bfloat16.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>
 #include <sycl/ext/oneapi/device_global/device_global.hpp>
 #include <sycl/ext/oneapi/device_global/properties.hpp>
@@ -92,15 +96,19 @@
 #include <sycl/ext/oneapi/experimental/fixed_size_group.hpp>
 #include <sycl/ext/oneapi/experimental/forward_progress.hpp>
 #include <sycl/ext/oneapi/experimental/group_load_store.hpp>
+#include <sycl/ext/oneapi/experimental/group_sort.hpp>
 #include <sycl/ext/oneapi/experimental/opportunistic_group.hpp>
 #include <sycl/ext/oneapi/experimental/prefetch.hpp>
 #include <sycl/ext/oneapi/experimental/profiling_tag.hpp>
 #include <sycl/ext/oneapi/experimental/raw_kernel_arg.hpp>
+#include <sycl/ext/oneapi/experimental/reduction_properties.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/work_group_memory.hpp>
 #include <sycl/ext/oneapi/filter_selector.hpp>
 #include <sycl/ext/oneapi/free_function_queries.hpp>
 #include <sycl/ext/oneapi/functional.hpp>
+#include <sycl/ext/oneapi/get_kernel_info.hpp>
 #include <sycl/ext/oneapi/group_local_memory.hpp>
 #include <sycl/ext/oneapi/kernel_properties/properties.hpp>
 #include <sycl/ext/oneapi/matrix/matrix.hpp>

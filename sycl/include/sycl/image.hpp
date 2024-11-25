@@ -20,17 +20,16 @@
 #include <sycl/detail/export.hpp>                     // for __SYCL_EXPORT
 #include <sycl/detail/impl_utils.hpp>                 // for getSyclObjImpl
 #include <sycl/detail/owner_less_base.hpp>            // for OwnerLessBase
-#include <sycl/detail/pi.h>                           // for pi_native_handle
 #include <sycl/detail/stl_type_traits.hpp>            // for iterator_value...
 #include <sycl/detail/sycl_mem_obj_allocator.hpp>     // for SYCLMemObjAllo...
-#include <sycl/detail/type_list.hpp>                  // for is_contained
 #include <sycl/event.hpp>                             // for event
 #include <sycl/exception.hpp>                         // for make_error_code
 #include <sycl/ext/oneapi/accessor_property_list.hpp> // for accessor_prope...
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
-#include <sycl/types.hpp>                             // for vec
+#include <sycl/vector.hpp>                            // for vec
+#include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t
 #include <functional>  // for function
@@ -112,15 +111,12 @@ namespace detail {
 
 class image_impl;
 
-// validImageDataT: cl_int4, cl_uint4, cl_float4, cl_half4
-template <typename T>
-using is_validImageDataT = typename detail::is_contained<
-    T, type_list<vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
-                 vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>>::type;
-
+// Valid image DataT: cl_int4, cl_uint4, cl_float4, cl_half4
 template <typename DataT>
-using EnableIfImgAccDataT =
-    typename std::enable_if_t<is_validImageDataT<DataT>::value, DataT>;
+using EnableIfImgAccDataT = typename std::enable_if_t<
+    check_type_in_v<DataT, vec<opencl::cl_int, 4>, vec<opencl::cl_uint, 4>,
+                    vec<opencl::cl_float, 4>, vec<opencl::cl_half, 4>>,
+    DataT>;
 
 inline image_channel_type FormatChannelType(image_format Format) {
   switch (Format) {
@@ -247,7 +243,7 @@ protected:
               uint8_t Dimensions);
 #endif
 
-  image_plain(pi_native_handle MemObject, const context &SyclContext,
+  image_plain(ur_native_handle_t MemObject, const context &SyclContext,
               event AvailableEvent,
               std::unique_ptr<SYCLMemObjAllocator> Allocator,
               uint8_t Dimensions, image_channel_order Order,
@@ -672,7 +668,7 @@ public:
   }
 
 private:
-  image(pi_native_handle MemObject, const context &SyclContext,
+  image(ur_native_handle_t MemObject, const context &SyclContext,
         event AvailableEvent, image_channel_order Order,
         image_channel_type Type, bool OwnNativeHandle, range<Dimensions> Range)
       : common_base(MemObject, SyclContext, AvailableEvent,

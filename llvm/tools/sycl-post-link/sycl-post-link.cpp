@@ -38,8 +38,8 @@
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
@@ -104,7 +104,7 @@ cl::opt<std::string> OutputDir{
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
 struct TargetFilenamePair {
-  std::optional<std::string> Target;
+  std::string Target;
   std::string Filename;
 };
 
@@ -305,13 +305,20 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff) {
-  const auto &PropSet = computeModuleProperties(
-      MD.getModule(), MD.entries(), GlobProps, MD.Props.SpecConstsMet,
-      MD.isSpecConstantDefault());
+                                 StringRef Suff, StringRef Target = "") {
+  auto PropSet =
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+
+  std::string NewSuff = Suff.str();
+  if (!Target.empty()) {
+    PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
+                Target);
+    NewSuff += "_";
+    NewSuff += Target;
+  }
 
   std::error_code EC;
-  std::string SCFile = makeResultFileName(".prop", I, Suff);
+  std::string SCFile = makeResultFileName(".prop", I, NewSuff);
   raw_fd_ostream SCOut(SCFile, EC);
   checkError(EC, "error opening file '" + SCFile + "'");
   PropSet.write(SCOut);
@@ -396,35 +403,47 @@ StringRef getModuleSuffix(const module_split::ModuleDesc &MD) {
   return MD.isESIMD() ? "_esimd" : "";
 }
 
+bool isTargetCompatibleWithModule(const std::string &Target,
+                                  module_split::ModuleDesc &IrMD);
+
+void addTableRow(util::SimpleTable &Table,
+                 const IrPropSymFilenameTriple &RowData);
+
+// @param OutTables List of tables (one for each target) to output results
 // @param MD Module descriptor to save
 // @param IRFilename filename of already available IR component. If not empty,
 //   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
-// @return a triple of files where IR, Property and Symbols components of the
-//   Module descriptor are written respectively.
-IrPropSymFilenameTriple saveModule(module_split::ModuleDesc &MD, int I,
-                                   StringRef IRFilename = "") {
-  IrPropSymFilenameTriple Res;
+void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+  IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
-
+  MD.saveSplitInformationAsMetadata();
   if (!IRFilename.empty()) {
     // don't save IR, just record the filename
-    Res.Ir = IRFilename.str();
+    BaseTriple.Ir = IRFilename.str();
   } else {
     MD.cleanup();
-    Res.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
-  GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
-                               EmitExportedSymbols, EmitImportedSymbols,
-                               DeviceGlobals};
-  if (DoPropGen)
-    Res.Prop = saveModuleProperties(MD, Props, I, Suffix);
-
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
-    Res.Sym = saveModuleSymbolTable(MD, I, Suffix);
+    BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
   }
-  return Res;
+
+  for (const auto &[Table, OutputFile] : zip_equal(OutTables, OutputFiles)) {
+    if (!isTargetCompatibleWithModule(OutputFile.Target, MD))
+      continue;
+    auto CopyTriple = BaseTriple;
+    if (DoPropGen) {
+      GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
+                                   EmitExportedSymbols, EmitImportedSymbols,
+                                   DeviceGlobals};
+      CopyTriple.Prop =
+          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+    }
+    addTableRow(*Table, CopyTriple);
+  }
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
@@ -680,13 +699,13 @@ handleESIMD(module_split::ModuleDesc &&MDesc, bool &Modified,
 // information comes from the device config file (DeviceConfigFile.td).
 // For example, the intel_gpu_tgllp target does not support fp64 - therefore,
 // a module using fp64 would *not* be compatible with intel_gpu_tgllp.
-bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
+bool isTargetCompatibleWithModule(const std::string &Target,
                                   module_split::ModuleDesc &IrMD) {
   // When the user does not specify a target,
   // (e.g. -o out.table compared to -o intel_gpu_pvc,out-pvc.table)
-  // Target will have no value and we will not want to perform any filtering, so
+  // Target will be empty and we will not want to perform any filtering, so
   // we return true here.
-  if (!Target.has_value())
+  if (Target.empty())
     return true;
 
   // TODO: If a target not found in the device config file is passed,
@@ -694,11 +713,11 @@ bool isTargetCompatibleWithModule(const std::optional<std::string> &Target,
   // since not all the information for all the targets is filled out
   // right now, we return true, having the affect that unrecognized
   // targets have no filtering applied to them.
-  if (!is_contained(DeviceConfigFile::TargetTable, *Target))
+  if (!is_contained(DeviceConfigFile::TargetTable, Target))
     return true;
 
   const DeviceConfigFile::TargetInfo &TargetInfo =
-      DeviceConfigFile::TargetTable[*Target];
+      DeviceConfigFile::TargetTable[Target];
   const SYCLDeviceRequirements &ModuleReqs =
       IrMD.getOrComputeDeviceRequirements();
 
@@ -765,16 +784,15 @@ processInputModule(std::unique_ptr<Module> M) {
   Modified |= removeSYCLKernelsConstRefArray(*M.get());
 
   // There may be device_global variables kept alive in "llvm.compiler.used"
-  // to keep the optimizer from wrongfully removing them. Since it has served
-  // its purpose, these device_global variables can be removed. If they are not
-  // used inside the device code after they have been removed from
-  // "llvm.compiler.used" they can be erased safely.
-  Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
+  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
+  // symbols are usually removed at backend lowering, but this is handled here
+  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
+  if (M->getTargetTriple().find("spir") != std::string::npos)
+    Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // Instrument each image scope device globals if the module has been
-  // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M))
-    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
+  Modified |= runModulePass<SYCLJointMatrixTransformPass>(*M);
 
   // Do invoke_simd processing before splitting because this:
   // - saves processing time (the pass is run once, even though on larger IR)
@@ -856,10 +874,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
-      IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-      for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
-        if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
-          addTableRow(*Table, T);
+      saveModule(Tables, IrMD, ID, OutIRFileName);
     }
 
     ++ID;
@@ -867,10 +882,7 @@ processInputModule(std::unique_ptr<Module> M) {
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
-        IrPropSymFilenameTriple T = saveModule(IrMD, ID, OutIRFileName);
-        for (const auto &[Table, OutputFile] : zip_equal(Tables, OutputFiles))
-          if (isTargetCompatibleWithModule(OutputFile.Target, IrMD))
-            addTableRow(*Table, T);
+        saveModule(Tables, IrMD, ID, OutIRFileName);
       }
 
       ++ID;

@@ -9,7 +9,7 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 
@@ -26,7 +26,7 @@ public:
 
   MemObjType getType() const override { return MemObjType::Buffer; }
 
-  void *allocateMem(ContextImplPtr, bool, void *, sycl::detail::pi::PiEvent &) {
+  void *allocateMem(ContextImplPtr, bool, void *, ur_event_handle_t &) {
     return nullptr;
   }
 
@@ -51,8 +51,8 @@ static sycl::device getDeviceWithHostUnifiedMemory(sycl::platform &Plt) {
 }
 
 TEST_F(SchedulerTest, LinkedAllocaDependencies) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::device Dev = getDeviceWithHostUnifiedMemory(Plt);
 
   // 1. create two commands: alloca + alloca and link them

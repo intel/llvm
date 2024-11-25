@@ -8,13 +8,11 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
 #include <sycl/detail/info_desc_helpers.hpp>
 #include <sycl/detail/owner_less_base.hpp>
-#include <sycl/detail/pi.h>
 #include <sycl/detail/string.hpp>
 #include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
@@ -22,7 +20,11 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/platform.hpp>
+#include <ur_api.h>
+
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
 
 #include <cstddef>
 #include <memory>
@@ -35,7 +37,7 @@
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
-class device_selector;
+class platform;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;
@@ -336,7 +338,10 @@ public:
   /// query `CL_DEVICE_PROFILE`, as defined in section 4.2 "Querying Devices" of
   /// the OpenCL specification. If the device does not support kernel bundles
   /// written in `source_language::opencl`, returns the empty string.
-  std::string ext_oneapi_cl_profile() const;
+  std::string ext_oneapi_cl_profile() const {
+    detail::string profile = ext_oneapi_cl_profile_impl();
+    return profile.c_str();
+  }
 
 // TODO: Remove this diagnostics when __SYCL_WARN_IMAGE_ASPECT is removed.
 #if defined(__clang__)
@@ -347,7 +352,7 @@ private:
   std::shared_ptr<detail::device_impl> impl;
   device(std::shared_ptr<detail::device_impl> impl) : impl(impl) {}
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   template <class Obj>
   friend const decltype(Obj::impl) &
@@ -370,6 +375,7 @@ private:
   bool ext_oneapi_supports_cl_extension(
       detail::string_view name,
       ext::oneapi::experimental::cl_version *version = nullptr) const;
+  detail::string ext_oneapi_cl_profile_impl() const;
 };
 
 } // namespace _V1

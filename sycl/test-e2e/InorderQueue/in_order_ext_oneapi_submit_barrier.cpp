@@ -1,10 +1,10 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 // Test to check that we don't insert unnecessary urEnqueueEventsWaitWithBarrier
 // calls if queue is in-order and wait list is empty.
 
-// CHECK-NOT: ---> urEnqueueEventsWaitWithBarrier
+// CHECK-NOT: <--- urEnqueueEventsWaitWithBarrier
 
 #include <condition_variable>
 

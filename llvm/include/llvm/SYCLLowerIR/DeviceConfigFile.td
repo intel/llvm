@@ -53,8 +53,8 @@ def AspectExt_oneapi_bindless_images : Aspect<"ext_oneapi_bindless_images">;
 def AspectExt_oneapi_bindless_images_shared_usm : Aspect<"ext_oneapi_bindless_images_shared_usm">;
 def AspectExt_oneapi_bindless_images_1d_usm : Aspect<"ext_oneapi_bindless_images_1d_usm">;
 def AspectExt_oneapi_bindless_images_2d_usm : Aspect<"ext_oneapi_bindless_images_2d_usm">;
-def AspectExt_oneapi_interop_memory_import : Aspect<"ext_oneapi_interop_memory_import">;
-def AspectExt_oneapi_interop_semaphore_import : Aspect<"ext_oneapi_interop_semaphore_import">;
+def AspectExt_oneapi_external_memory_import : Aspect<"ext_oneapi_external_memory_import">;
+def AspectExt_oneapi_external_semaphore_import : Aspect<"ext_oneapi_external_semaphore_import">;
 def AspectExt_oneapi_mipmap : Aspect<"ext_oneapi_mipmap">;
 def AspectExt_oneapi_mipmap_anisotropy : Aspect<"ext_oneapi_mipmap_anisotropy">;
 def AspectExt_oneapi_mipmap_level_reference : Aspect<"ext_oneapi_mipmap_level_reference">;
@@ -83,6 +83,9 @@ def AspectExt_oneapi_private_alloca : Aspect<"ext_oneapi_private_alloca">;
 def AspectExt_oneapi_queue_profiling_tag : Aspect<"ext_oneapi_queue_profiling_tag">;
 def AspectExt_oneapi_virtual_mem : Aspect<"ext_oneapi_virtual_mem">;
 def AspectExt_oneapi_cuda_cluster_group : Aspect<"ext_oneapi_cuda_cluster_group">;
+def AspectExt_intel_fpga_task_sequence : Aspect<"ext_intel_fpga_task_sequence">;
+def AspectExt_oneapi_atomic16 : Aspect<"ext_oneapi_atomic16">;
+def AspectExt_oneapi_virtual_functions : Aspect<"ext_oneapi_virtual_functions">;
 // Deprecated aspects
 def AspectInt64_base_atomics : Aspect<"int64_base_atomics">;
 def AspectInt64_extended_atomics : Aspect<"int64_extended_atomics">;
@@ -129,9 +132,9 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_intel_device_id, AspectExt_intel_memory_clock_rate, AspectExt_intel_memory_bus_width, AspectEmulated,
     AspectExt_intel_legacy_image, AspectExt_oneapi_bindless_images,
     AspectExt_oneapi_bindless_images_shared_usm, AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm,
-    AspectExt_oneapi_interop_memory_import, AspectExt_oneapi_interop_semaphore_import,
+    AspectExt_oneapi_external_memory_import, AspectExt_oneapi_external_semaphore_import,
     AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy, AspectExt_oneapi_mipmap_level_reference,
-    AspectExt_oneapi_bindless_sampled_image_fetch_3d, AspectExt_oneapi_cubemap, 
+    AspectExt_oneapi_cubemap, 
     AspectExt_oneapi_cubemap_seamless_filtering, 
     AspectExt_oneapi_image_array,
     AspectExt_oneapi_unique_addressing_per_dim,
@@ -139,11 +142,15 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_images_sample_2d_usm,
     AspectExt_oneapi_bindless_sampled_image_fetch_1d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_1d,
     AspectExt_oneapi_bindless_sampled_image_fetch_2d_usm, AspectExt_oneapi_bindless_sampled_image_fetch_2d,
+    AspectExt_oneapi_bindless_sampled_image_fetch_3d,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component, 
-    AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph,
-    AspectExt_oneapi_private_alloca, AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group],
+    AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
+    AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
+    AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
+    AspectExt_intel_fpga_task_sequence,
+    AspectExt_oneapi_atomic16,
+    AspectExt_oneapi_virtual_functions],
     []>;
 // This definition serves the only purpose of testing whether the deprecated aspect list defined in here and in SYCL RT
 // match.
@@ -152,9 +159,17 @@ def : TargetInfo<"__TestDeprecatedAspectList",
     AspectUsm_restricted_shared_allocations, AspectHost],
     []>;
 
+defvar IntelCpuAspects = [
+    AspectCpu, AspectFp16, AspectFp64, AspectQueue_profiling, AspectAtomic64,
+    AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
+    AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
+    AspectExt_oneapi_fixed_size_group, AspectExt_oneapi_opportunistic_group,
+    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
+] # AllUSMAspects;
+
 def : TargetInfo<"spir64", [], [], "", "", 1>;
 def : TargetInfo<"spir64_gen", [], [], "", "", 1>;
-def : TargetInfo<"spir64_x86_64", [AspectFp64, AspectAtomic64], [4, 8, 16, 32, 64], "", "", 1>;
+def : TargetInfo<"spir64_x86_64", IntelCpuAspects, [4, 8, 16, 32, 64], "", "", 1>;
 def : TargetInfo<"spir64_fpga", [], [], "", "", 1>;
 def : TargetInfo<"x86_64", [], [], "", "", 1>;
 // Examples of how to use a combination of explicitly specified values + predefined lists
@@ -173,6 +188,8 @@ class IntelTargetInfo<string Name, list<Aspect> Aspects, list<int> subGroupSizes
 : TargetInfo<Name, IntelBaseAspects # Aspects, subGroupSizesList>;
 // Note: only the "canonical" target names are listed here - see
 // SYCL::gen::resolveGenDevice().
+def : IntelTargetInfo<"intel_gpu_bmg_g21", Fp16Fp64Atomic64, Sg16_32>;
+def : IntelTargetInfo<"intel_gpu_lnl_m", Fp16Fp64Atomic64, Sg16_32>;
 def : IntelTargetInfo<"intel_gpu_arl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_h", Fp16Fp64Atomic64, Sg8_16_32>;
 def : IntelTargetInfo<"intel_gpu_mtl_u", Fp16Fp64Atomic64, Sg8_16_32>;
@@ -218,8 +235,8 @@ defvar CudaMinAspects = !listconcat(AllUSMAspects, [AspectGpu, AspectFp64, Aspec
     AspectExt_oneapi_opportunistic_group, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]);
 // Bindless images aspects are partially supported on CUDA and disabled by default at the moment.
 defvar CudaBindlessImagesAspects = [AspectExt_oneapi_bindless_images, AspectExt_oneapi_bindless_images_shared_usm,
-    AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_interop_memory_import,
-    AspectExt_oneapi_interop_semaphore_import, AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy,
+    AspectExt_oneapi_bindless_images_1d_usm, AspectExt_oneapi_bindless_images_2d_usm, AspectExt_oneapi_external_memory_import,
+    AspectExt_oneapi_external_semaphore_import, AspectExt_oneapi_mipmap, AspectExt_oneapi_mipmap_anisotropy,
     AspectExt_oneapi_mipmap_level_reference, AspectExt_oneapi_cubemap, AspectExt_oneapi_cubemap_seamless_filtering,
     AspectExt_oneapi_image_array, AspectExt_oneapi_unique_addressing_per_dim, AspectExt_oneapi_bindless_images_sample_2d_usm,
     AspectExt_oneapi_bindless_images_sample_2d_usm];
@@ -260,7 +277,11 @@ class HipTargetInfo<string targetName, list<Aspect> aspectList, list<int> subGro
 defvar HipSubgroupSizesGCN2 = [16];     // gfx7
 defvar HipSubgroupSizesGCN3 = [16];     // gfx8, GCN 3rd gen and 4th gen have the same subgroup sizes
 defvar HipSubgroupSizesGCN5 = [64];     // gfx900-gfx906 GCN5.0 (known as "Vega"), gfx90c GCN5.1 (known as "Vega 7nm")
-defvar HipSubgroupSizesRDNA = [32, 64]; // gfxX10-gfx11 (encapsulates RDNA1..3), natively 32 (64-waves mode available)
+// According to the "Accelerator and GPU hardware specifications table" docs,
+// (see: https://rocm.docs.amd.com/en/latest/reference/gpu-arch-specs.html)
+// the ROCm driver selects wave32 mode for the gfx10 and gfx11 family of GPUs.
+// Also, see relevant ROCm issue: https://github.com/ROCm/hipamd/issues/59
+defvar HipSubgroupSizesRDNA = [32];     // gfxX10-gfx11 (encapsulates RDNA1..3), (wave64 mode available but not used).
 defvar HipSubgroupSizesCDNA = [64];     // gfx908, gfx90a (encapsulates CDNA1..2)
 
 defvar HipMinAspects = [AspectGpu, AspectFp64, AspectOnline_compiler, AspectOnline_linker, AspectQueue_profiling,
@@ -275,7 +296,16 @@ def : HipTargetInfo<"amd_gpu_gfx908", !listconcat(HipMinAspects, AllUSMAspects,
 def : HipTargetInfo<"amd_gpu_gfx90a", !listconcat(HipMinAspects, AllUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_native_assert]),
     HipSubgroupSizesCDNA>;
+// TODO: Need to verify whether device-side asserts (oneapi_native_assert) are
+// now working for the new CDNA3 gfx940, gfx941, gfx942 GPUs and fixed for the
+// other supported, gfx1030 and gfx1100, RDNA3 GPUs.
 def : HipTargetInfo<"amd_gpu_gfx940", !listconcat(HipMinAspects, AllUSMAspects,
+    [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
+    HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx941", !listconcat(HipMinAspects, AllUSMAspects,
+    [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
+    HipSubgroupSizesCDNA>;
+def : HipTargetInfo<"amd_gpu_gfx942", !listconcat(HipMinAspects, AllUSMAspects,
     [AspectExt_intel_device_info_uuid, AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph]),
     HipSubgroupSizesCDNA>;
 def : HipTargetInfo<"amd_gpu_gfx1030", !listconcat(HipMinAspects, AllUSMAspects,
@@ -290,6 +320,9 @@ def : HipTargetInfo<"amd_gpu_gfx906", !listconcat(HipMinAspects, AllUSMAspects),
 def : HipTargetInfo<"amd_gpu_gfx700", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx701", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx702", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx703", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx704", HipMinAspects, HipSubgroupSizesGCN2>;
+def : HipTargetInfo<"amd_gpu_gfx705", HipMinAspects, HipSubgroupSizesGCN2>;
 def : HipTargetInfo<"amd_gpu_gfx801", HipMinAspects, HipSubgroupSizesGCN3>;
 def : HipTargetInfo<"amd_gpu_gfx802", HipMinAspects, HipSubgroupSizesGCN3>;
 def : HipTargetInfo<"amd_gpu_gfx803", HipMinAspects, HipSubgroupSizesGCN3>;
@@ -317,7 +350,5 @@ def : HipTargetInfo<"amd_gpu_gfx1103", !listconcat(HipMinAspects, AllUSMAspects)
 def : HipTargetInfo<"amd_gpu_gfx1150", !listconcat(HipMinAspects, AllUSMAspects), HipSubgroupSizesRDNA>;
 def : HipTargetInfo<"amd_gpu_gfx1151", !listconcat(HipMinAspects, AllUSMAspects), HipSubgroupSizesRDNA>;
 // TBA
-def : HipTargetInfo<"amd_gpu_gfx941", [], []>;  // CDNA 3
-def : HipTargetInfo<"amd_gpu_gfx942", [], []>;  // CDNA 3
 def : HipTargetInfo<"amd_gpu_gfx1200", [], []>; // RDNA 4
 def : HipTargetInfo<"amd_gpu_gfx1201", [], []>; // RDNA 4

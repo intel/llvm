@@ -8,23 +8,27 @@ compiler and runtime.
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `ONEAPI_DEVICE_SELECTOR` | [See below.](#oneapi_device_selector)  | This device selection environment variable can be used to limit the choice of devices available when the SYCL-using application is run.  Useful for limiting devices to a certain type (like GPUs or accelerators) or backends (like Level Zero or OpenCL).  This device selection mechanism is replacing `SYCL_DEVICE_FILTER` .  The `ONEAPI_DEVICE_SELECTOR` syntax is shared with OpenMP and also allows sub-devices to be chosen. [See below.](#oneapi_device_selector) for a full description.   |
-| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu` or `acc`. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
+| `SYCL_DEVICE_ALLOWLIST` | See [below](#sycl_device_allowlist) | Filter out devices that do not match the pattern specified. `BackendName` accepts `host`, `opencl`, `level_zero`, `native_cpu` or `cuda`. `DeviceType` accepts `host`, `cpu`, `gpu`, `fpga`, or `acc`. `fpga` and `acc` are handled in the same manner. `DeviceVendorId` accepts uint32_t in hex form (`0xXYZW`). `DriverVersion`, `PlatformVersion`, `DeviceName` and `PlatformName` accept regular expression. Special characters, such as parenthesis, must be escaped. DPC++ runtime will select only those devices which satisfy provided values above and regex. More than one device can be specified using the piping symbol "\|".|
 | `SYCL_DISABLE_PARALLEL_FOR_RANGE_ROUNDING` | Any(\*) | Disables automatic rounding-up of `parallel_for` invocation ranges. |
 | `SYCL_CACHE_DIR` | Path | Path to persistent cache root directory. Default values are `%AppData%\libsycl_cache` for Windows and `$XDG_CACHE_HOME/libsycl_cache` on Linux, if `XDG_CACHE_HOME` is not set then `$HOME/.cache/libsycl_cache`. When none of the environment variables are set SYCL persistent cache is disabled. |
 | `SYCL_CACHE_DISABLE_PERSISTENT (deprecated)` | Any(\*) | Has no effect. |
 | `SYCL_CACHE_PERSISTENT` | Integer | Controls persistent device compiled code cache. Turns it on if set to '1' and turns it off if set to '0'. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is off. |
 | `SYCL_CACHE_IN_MEM` | '1' or '0' | Enable ('1') or disable ('0') in-memory caching of device compiled code. When cache is enabled SYCL runtime will try to cache and reuse JIT-compiled binaries. Default is '1'. |
-| `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches cache eviction off when the variable is set. |
-| `SYCL_CACHE_MAX_SIZE` | Positive integer | Cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
-| `SYCL_CACHE_THRESHOLD` | Positive integer | Cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
-| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Default value is 0 to cache all images. |
-| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Too big kernels may overload disk too fast. Default value is 1 GB. |
+| `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` | Positive integer  | `SYCL_IN_MEM_CACHE_EVICTION_THRESHOLD` accepts an integer that specifies the maximum size of the in-memory program cache in bytes. Eviction is performed when the cache size exceeds the threshold. The default value is 0 which means that eviction is disabled.  |
+| `SYCL_CACHE_EVICTION_DISABLE` | Any(\*) | Switches persistent cache eviction off when the variable is set. |
+| `SYCL_CACHE_MAX_SIZE` | Positive integer | Persistent cache eviction is triggered once total size of cached images exceeds the value in megabytes (default - 8 192 for 8 GB). Set to 0 to disable size-based cache eviction. |
+| `SYCL_CACHE_THRESHOLD` | Positive integer | Persistent cache eviction threshold in days (default value is 7 for 1 week). Set to 0 for disabling time-based cache eviction. |
+| `SYCL_CACHE_MIN_DEVICE_IMAGE_SIZE` | Positive integer | Minimum size of device code image in bytes which is reasonable to cache on disk because disk access operation may take more time than do JIT compilation for it. Applicable only for persistent cache. Default value is 0 to cache all images. |
+| `SYCL_CACHE_MAX_DEVICE_IMAGE_SIZE` | Positive integer | Maximum size of device image in bytes which is cached. Caching big kernels may overload the disk very fast. Applicable only for persistent cache. Default value is 1 GB. |
 | `SYCL_ENABLE_DEFAULT_CONTEXTS` | '1' or '0' | Enable ('1') or disable ('0') creation of default platform contexts in SYCL runtime. The default context for each platform contains all devices in the platform. Refer to [Platform Default Contexts](extensions/supported/sycl_ext_oneapi_default_context.asciidoc) extension to learn more. Enabled by default on Linux and disabled on Windows. |
 | `SYCL_RT_WARNING_LEVEL` | Positive integer | The higher warning level is used the more warnings and performance hints the runtime library may print. Default value is '0', which means no warning/hint messages from the runtime library are allowed. The value '1' enables performance warnings from device runtime/codegen. The values greater than 1 are reserved for future use. |
 | `SYCL_USM_HOSTPTR_IMPORT` | Integer | Enable by specifying non-zero value. Buffers created with a host pointer will result in host data promotion to USM, improving data transfer performance. To use this feature, also set SYCL_HOST_UNIFIED_MEMORY=1. |
 | `SYCL_EAGER_INIT` | Integer | Enable by specifying non-zero value. Tells the SYCL runtime to do as much as possible initialization at objects construction as opposed to doing lazy initialization on the fly. This may mean doing some redundant work at warmup but ensures fastest possible execution on the following hot and reportable paths. It also instructs PI plugins to do the same. Default is "0".  |
 | `SYCL_REDUCTION_PREFERRED_WORKGROUP_SIZE` | See [below](#sycl_reduction_preferred_workgroup_size) | Controls the preferred work-group size of reductions. |
 | `SYCL_ENABLE_FUSION_CACHING` | '1' or '0' | Enable ('1') or disable ('0') caching of JIT compilations for kernel fusion. Caching avoids repeatedly running the JIT compilation pipeline if the same sequence of kernels is fused multiple times. Default value is '1'. |
+| `SYCL_JIT_AMDGCN_PTX_KERNELS` | '1' or '0' | Enable ('1') or disable ('0') JIT compilation of kernels. Only supported for Nvidia and AMD backends. Note, that it is required to have a valid binary for the desired backend (AMD or CUDA), that was compiled with `-fsycl-embed-ir` in order to use JIT-ing. When JIT-ing is enabled SYCL runtime will try to cache and reuse JIT-compiled kernels, furthermore if a kernel uses specialization constants the compiler will attempt to materialize the values in place, turning them to de-facto compile time constants. Default is '0'. |
+| `SYCL_JIT_AMDGCN_PTX_TARGET_CPU` | Any(\*) | Allows setting the target architecture to be used when JIT-ing kernels. Examples include setting SM version for Nvidia, or target architecture for AMD. |
+| `SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES` | Any(\*) | Allows setting desired target features to be used when JIT-ing kernels. Examples include setting PTX version for Nvidia. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -193,7 +197,7 @@ variables in production code.</span>
 | Environment variable | Values | Description |
 | -------------------- | ------ | ----------- |
 | `SYCL_PREFER_UR` | Integer | If non-0 then run through Unified Runtime if desired backend is supported there. Default is 0.  |
-| `SYCL_PI_TRACE` | Described [below](#sycl_pi_trace-options)  | Enable specified level of tracing for PI. |
+| `SYCL_UR_TRACE` | Integer | Described [below](#sycl_ur_trace-options)  | Enable specified level of tracing for UR. |
 | `SYCL_QUEUE_THREAD_POOL_SIZE` | Positive integer | Number of threads in thread pool of queue. |
 | `SYCL_DEVICELIB_NO_FALLBACK` | Any(\*) | Disable loading and linking of device library images |
 | `SYCL_PRINT_EXECUTION_GRAPH` | Described [below](#sycl_print_execution_graph-options) | Print execution graph to DOT text file. |
@@ -207,9 +211,10 @@ variables in production code.</span>
 | `SYCL_USE_KERNEL_SPV` | Path to the SPIR-V binary | Load device image from the specified file. If runtime is unable to read the file, `sycl::runtime_error` exception is thrown. The image is assumed to have been created using the `-fno-sycl-dead-args-optimization` option. |
 | `SYCL_DUMP_IMAGES` | Any(\*) | Dump device image binaries to file. Control has no effect if `SYCL_USE_KERNEL_SPV` is set. |
 | `SYCL_HOST_UNIFIED_MEMORY` | Integer | Enforce host unified memory support or lack of it for the execution graph builder. If set to 0, it is enforced as not supported by all devices. If set to 1, it is enforced as supported by all devices. |
-| `SYCL_CACHE_TRACE` | Any(\*) | If the variable is set, messages are sent to std::cerr when caching events or non-blocking failures happen (e.g. unable to access cache item file). |
+| `SYCL_CACHE_TRACE` | Described [below](#sycl_cache_trace-options). | Enable tracing for different SYCL and `kernel_compiler` caches. |
 | `SYCL_PARALLEL_FOR_RANGE_ROUNDING_TRACE` | Any(\*) | Enables tracing of `parallel_for` invocations with rounded-up ranges. |
 | `SYCL_PI_SUPPRESS_ERROR_MESSAGE` | Any(\*) | Suppress printing of error message, only used for CI in order not to interrupt errors generated by underlying toolchains; note that the variable only modifies the printing of the error message (error value, name, description and location), the handling of error return code and aborting/throwing behaviour remains unchanged. |
+| `SYCL_JIT_COMPILER_DEBUG` | Any(\*) | Passes can specify their own debug types, `sycl-spec-const-materializer` enables debug output generation in specialization constants materialization pass. |
 
 `(*) Note: Any means this environment variable is effective when set to any non-null value.`
 
@@ -227,15 +232,31 @@ variables in production code.</span>
 | after_addHostAcc | print graph after addHostAccessor method |
 | always | print graph before and after each of the above methods |
 
-### `SYCL_PI_TRACE` Options
 
-`SYCL_PI_TRACE` accepts a bit-mask. Supported tracing levels are in the table below
+### `SYCL_UR_TRACE` Options
+
+`SYCL_UR_TRACE` accepts a bit-mask, so individual tracing types can be enabled.
+Setting a value of `-1` will enable all tracing types.
+
+Supported tracing levels are in the table below
 
 | Option | Description |
 | ------ | ----------- |
-| 1 | Enable basic tracing, which is tracing of PI plugins/devices discovery |
-| 2 | Enable tracing of the PI calls |
+| 1 | Enable basic tracing, which is tracing of UR adapters/devices discovery |
+| 2 | Enable tracing of the UR calls |
 | -1 | Enable all levels of tracing |
+
+### `SYCL_CACHE_TRACE` Options
+
+`SYCL_CACHE_TRACE` accepts a bit-mask to control the tracing of different SYCL caches. The input value is parsed as an integer and the following bit-masks are used to determine the tracing behavior:
+| Bit-mask | Corresponding cache tracing |
+| ------ | ----------- |
+| 0x01 | Enable tracing of persistent cache |
+| 0x02 | Enable tracing of in-memory cache |
+| 0x04 | Enable tracing of `kernel_compiler` cache |
+
+Any valid combination of the above bit-masks can be used to enable/disable tracing of the corresponding caches. If the input value is not 0 and not a valid number, the disk cache tracing will be enabled (deprecated behavior).
+The default value is 0 and no tracing is enabled.
 
 ## Debugging variables for Level Zero Plugin
 

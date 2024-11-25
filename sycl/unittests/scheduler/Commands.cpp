@@ -8,36 +8,36 @@
 
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
-#include <helpers/PiMock.hpp>
+#include "ur_mock_helpers.hpp"
+#include <helpers/UrMock.hpp>
 
 #include <iostream>
 
 using namespace sycl;
 
-pi_result redefinePiEnqueueEventsWaitWithBarrier(pi_queue Queue,
-                                                 pi_uint32 NumEventsInWaitList,
-                                                 const pi_event *EventWaitList,
-                                                 pi_event *Event) {
+ur_result_t redefineEnqueueEventsWaitWithBarrier(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
 
-  for (pi_uint32 i = 0; i != NumEventsInWaitList; ++i)
-    EXPECT_NE(EventWaitList[i], nullptr);
+  for (uint32_t i = 0; i != *params.pnumEventsInWaitList; ++i)
+    EXPECT_NE((*params.pphEventWaitList)[i], nullptr);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 // Hack that allows to return a context in redefinePiEventGetInfo
-sycl::detail::pi::PiContext queue_global_context = nullptr;
+ur_context_handle_t queue_global_context = nullptr;
 
-pi_result redefinePiEventGetInfo(pi_event, pi_event_info, size_t,
-                                 void *param_value, size_t *) {
-  *reinterpret_cast<sycl::detail::pi::PiContext *>(param_value) =
+ur_result_t redefineUrEventGetInfo(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  *reinterpret_cast<ur_context_handle_t *>(*params.ppPropValue) =
       queue_global_context;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 //
 // This test checks a handling of empty events in WaitWithBarrier command.
-// Original reproducer for l0 plugin led to segfault(nullptr dereference):
+// Original reproducer for l0 adapter led to segfault(nullptr dereference):
 //
 // #include <sycl/sycl.hpp>
 // int main() {
@@ -47,11 +47,11 @@ pi_result redefinePiEventGetInfo(pi_event, pi_event_info, size_t,
 // }
 //
 TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
-      redefinePiEnqueueEventsWaitWithBarrier);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrier", &redefineEnqueueEventsWaitWithBarrier);
 
   queue Queue{Plt.get_devices()[0]};
   sycl::detail::QueueImplPtr QueueImpl = detail::getSyclObjImpl(Queue);
@@ -59,17 +59,15 @@ TEST_F(SchedulerTest, WaitEmptyEventWithBarrier) {
   queue_global_context =
       detail::getSyclObjImpl(Queue.get_context())->getHandleRef();
 
-  Mock.redefineBefore<detail::PiApiKind::piEventGetInfo>(
-      redefinePiEventGetInfo);
+  mock::getCallbacks().set_before_callback("urEventGetInfo",
+                                           &redefineUrEventGetInfo);
 
   auto EmptyEvent = std::make_shared<detail::event_impl>();
 
-  pi_event PIEvent = nullptr;
-  pi_result Res = mock_piEventCreate(/*context = */ (pi_context)0x1, &PIEvent);
-  EXPECT_TRUE(PI_SUCCESS == Res);
+  ur_event_handle_t UREvent = mock::createDummyHandle<ur_event_handle_t>();
 
   auto Event =
-      std::make_shared<detail::event_impl>(PIEvent, Queue.get_context());
+      std::make_shared<detail::event_impl>(UREvent, Queue.get_context());
 
   using EventList = std::vector<detail::EventImplPtr>;
   std::vector<EventList> InputEventWaitLists = {

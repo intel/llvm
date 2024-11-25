@@ -11,6 +11,7 @@
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/ESIMD/LowerESIMD.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/IR/Module.h"
 
 #define DEBUG_TYPE "LowerESIMDKernelAttrs"
 

@@ -12,16 +12,18 @@
 #include <detail/scheduler/commands.hpp>
 #include <sycl/sycl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
 class EAMTestKernel;
 class EAMTestKernel2;
+class EAMTestKernel3;
 constexpr const char EAMTestKernelName[] = "EAMTestKernel";
 constexpr const char EAMTestKernel2Name[] = "EAMTestKernel2";
+constexpr const char EAMTestKernel3Name[] = "EAMTestKernel3";
 constexpr unsigned EAMTestKernelNumArgs = 4;
 
 namespace sycl {
@@ -39,72 +41,83 @@ struct KernelInfo<EAMTestKernel2> : public unittest::MockKernelInfoBase {
   static constexpr const char *getName() { return EAMTestKernel2Name; }
 };
 
+template <>
+struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
+  static constexpr unsigned getNumParams() { return EAMTestKernelNumArgs; }
+  static constexpr const char *getName() { return EAMTestKernel3Name; }
+};
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateEAMTestKernelImage() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernelImage() {
   using namespace sycl::unittest;
 
   // Eliminated arguments are 1st and 3rd.
   std::vector<unsigned char> KernelEAM{0b00000101};
-  PiProperty EAMKernelPOI = makeKernelParamOptInfo(
+  MockProperty EAMKernelPOI = makeKernelParamOptInfo(
       EAMTestKernelName, EAMTestKernelNumArgs, KernelEAM);
-  PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  MockPropertySet PropSet;
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernelName});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{std::move(Entries), std::move(PropSet)};
 
   return Img;
 }
 
-static sycl::unittest::PiImage generateEAMTestKernel2Image() {
+static sycl::unittest::MockDeviceImage generateEAMTestKernel3Image() {
   using namespace sycl::unittest;
 
-  PiPropertySet PropSet;
+  // Eliminated arguments are 2nd and 4th.
+  std::vector<unsigned char> KernelEAM{0b00001010};
+  MockProperty EAMKernelPOI = makeKernelParamOptInfo(
+      EAMTestKernel3Name, EAMTestKernelNumArgs, KernelEAM);
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  std::vector<unsigned char> Bin{6, 7, 8, 9, 10, 11}; // Random data
+  MockPropertySet PropSet;
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({EAMTestKernel2Name});
+  std::vector<MockOffloadEntry> Entries =
+      makeEmptyKernels({EAMTestKernel3Name});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::PiImage EAMImg = generateEAMTestKernelImage();
-static sycl::unittest::PiImage EAM2Img = generateEAMTestKernel2Image();
-static sycl::unittest::PiImageArray<1> EAMImgArray{&EAMImg};
-static sycl::unittest::PiImageArray<1> EAM2ImgArray{&EAM2Img};
+static sycl::unittest::MockDeviceImage EAMImg = generateEAMTestKernelImage();
+static sycl::unittest::MockDeviceImage EAM2Img =
+    sycl::unittest::generateDefaultImage({EAMTestKernel2Name});
+static sycl::unittest::MockDeviceImage EAM3Img = generateEAMTestKernel3Image();
+static sycl::unittest::MockDeviceImageArray<1> EAMImgArray{&EAMImg};
+static sycl::unittest::MockDeviceImageArray<1> EAM2ImgArray{&EAM2Img};
+static sycl::unittest::MockDeviceImageArray<1> EAM3ImgArray{&EAM3Img};
 
-// pi_program address is used as a key for ProgramManager::NativePrograms
-// storage. redefinedProgramLinkCommon makes pi_program address equal to 0x1.
+// ur_program_handle_t address is used as a key for ProgramManager::NativePrograms
+// storage. redefinedProgramLinkCommon makes ur_program_handle_t address equal to 0x1.
 // Make sure that size of Bin is different for device images used in these tests
 // and greater than 1.
-inline pi_result redefinedProgramCreateEAM(pi_context, const void *, size_t,
-                                           pi_program *ret_program) {
-  static size_t PiProgramAddr = 2;
-  *ret_program = reinterpret_cast<pi_program>(PiProgramAddr++);
-  return PI_SUCCESS;
+inline ur_result_t redefinedProgramCreateEAM(void *pParams) {
+  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  static size_t UrProgramAddr = 2;
+  **params.pphProgram = reinterpret_cast<ur_program_handle_t>(UrProgramAddr++);
+  return UR_RESULT_SUCCESS;
+}
+
+mock::dummy_handle_t_ FixedHandle;
+inline ur_result_t setFixedProgramPtr(void *pParams) {
+  auto params = *static_cast<ur_program_create_with_il_params_t *>(pParams);
+  **params.pphProgram = reinterpret_cast<ur_program_handle_t>(&FixedHandle);
+  return UR_RESULT_SUCCESS;
+}
+inline ur_result_t releaseFixedProgramPtr(void *pParams) {
+  // Do nothing
+  return UR_RESULT_SUCCESS;
 }
 
 class MockHandler : public sycl::handler {
@@ -165,7 +178,7 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
   auto SyclKernelImpl = sycl::detail::getSyclObjImpl(SyclKernel);
   std::shared_ptr<sycl::detail::device_image_impl> DeviceImageImpl =
       SyclKernelImpl->getDeviceImage();
-  sycl::detail::pi::PiProgram Program = DeviceImageImpl->get_program_ref();
+  ur_program_handle_t Program = DeviceImageImpl->get_ur_program_ref();
 
   EXPECT_TRUE(nullptr == ExecKernel->MSyclKernel ||
               !ExecKernel->MSyclKernel->isCreatedFromSource());
@@ -175,15 +188,15 @@ const sycl::detail::KernelArgMask *getKernelArgMaskFromBundle(
 }
 
 // After both kernels are compiled ProgramManager.NativePrograms contains info
-// about each pi_program. However, the result of the linkage of these kernels
-// isn't stored in ProgramManager.NativePrograms.
+// about each UR program handle. However, the result of the linkage of these
+// kernels isn't stored in ProgramManager.NativePrograms.
 // Check that eliminated arg mask can be found for one of kernels in a
 // kernel bundle after two kernels are compiled and linked.
 TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCreate>(
-      redefinedProgramCreateEAM);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCreateWithIL",
+                                           &redefinedProgramCreateEAM);
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::queue Queue{Dev};
@@ -203,4 +216,59 @@ TEST(EliminatedArgMask, KernelBundleWith2Kernels) {
   ExpElimArgMask[0] = ExpElimArgMask[2] = true;
 
   EXPECT_EQ(*EliminatedArgMask, ExpElimArgMask);
+}
+
+// It's possible for the same handle to be reused for multiple distinct programs
+// This can happen if a program is released (freeing underlying memory) and then
+// a new program happens to get given that same memory for its handle.
+// The ProgramContext stores a map with `ur_program_handle_t`s, which are never
+// cleared. This test ensures that newer `ur_program_handle_t`s with the same
+// values override older ones.
+TEST(EliminatedArgMask, ReuseOfHandleValues) {
+  sycl::detail::ProgramManager &PM =
+      sycl::detail::ProgramManager::getInstance();
+
+  ur_program_handle_t ProgBefore = nullptr;
+  ur_program_handle_t ProgAfter = nullptr;
+  {
+    auto Name = sycl::detail::KernelInfo<EAMTestKernel>::getName();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
+    mock::getCallbacks().set_replace_callback("urProgramCreateWithIL",
+                                              &setFixedProgramPtr);
+    mock::getCallbacks().set_replace_callback("urProgramRelease",
+                                              &releaseFixedProgramPtr);
+
+    const sycl::device Dev = Plt.get_devices()[0];
+    sycl::queue Queue{Dev};
+    auto Ctx = Queue.get_context();
+    ProgBefore = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                      sycl::detail::getSyclObjImpl(Dev), Name);
+    auto Mask = PM.getEliminatedKernelArgMask(ProgBefore, Name);
+    EXPECT_NE(Mask, nullptr);
+    EXPECT_EQ(Mask->at(0), 1);
+  }
+
+  {
+    auto Name = sycl::detail::KernelInfo<EAMTestKernel3>::getName();
+    sycl::unittest::UrMock<> Mock;
+    sycl::platform Plt = sycl::platform();
+    mock::getCallbacks().set_replace_callback("urProgramCreateWithIL",
+                                              &setFixedProgramPtr);
+    mock::getCallbacks().set_replace_callback("urProgramRelease",
+                                              &releaseFixedProgramPtr);
+
+    const sycl::device Dev = Plt.get_devices()[0];
+    sycl::queue Queue{Dev};
+    auto Ctx = Queue.get_context();
+    ProgAfter = PM.getBuiltURProgram(sycl::detail::getSyclObjImpl(Ctx),
+                                     sycl::detail::getSyclObjImpl(Dev), Name);
+    auto Mask = PM.getEliminatedKernelArgMask(ProgAfter, Name);
+    EXPECT_NE(Mask, nullptr);
+    EXPECT_EQ(Mask->at(0), 0);
+  }
+
+  // Verify that the test is behaving correctly and that the pointer is being
+  // reused
+  EXPECT_EQ(ProgBefore, ProgAfter);
 }

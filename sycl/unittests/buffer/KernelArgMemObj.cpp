@@ -8,9 +8,9 @@
 
 #include <gtest/gtest.h>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 class TestKernelWithMemObj;
 
@@ -33,39 +33,37 @@ struct KernelInfo<TestKernelWithMemObj> : public unittest::MockKernelInfoBase {
 } // namespace _V1
 } // namespace sycl
 
-static auto Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"TestKernelWithMemObj"});
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 using namespace sycl;
 
 bool PropertyPresent = false;
-pi_mem_obj_property PropsCopy{};
+ur_kernel_arg_mem_obj_properties_t PropsCopy{};
 
-pi_result redefinedKernelSetArgMemObj(pi_kernel kernel, pi_uint32 arg_index,
-                                      const pi_mem_obj_property *arg_properties,
-                                      const pi_mem *arg_value) {
-  PropertyPresent = arg_properties != nullptr;
+ur_result_t redefinedKernelSetArgMemObj(void *pParams) {
+  auto params = *static_cast<ur_kernel_set_arg_mem_obj_params_t *>(pParams);
+  PropertyPresent = *params.ppProperties != nullptr;
   if (PropertyPresent)
-    PropsCopy = *arg_properties;
-  return PI_SUCCESS;
+    PropsCopy = **params.ppProperties;
+  return UR_RESULT_SUCCESS;
 }
 
-class BufferTestPiArgs : public ::testing::Test {
+class BuferTestUrArgs : public ::testing::Test {
 public:
-  BufferTestPiArgs()
-      : Mock(sycl::backend::ext_oneapi_level_zero), Plt{Mock.getPlatform()} {}
+  BuferTestUrArgs() : Mock(), Plt{sycl::platform()} {}
 
 protected:
   void SetUp() override {
     PropertyPresent = false;
     PropsCopy = {};
-    Mock.redefineBefore<detail::PiApiKind::piextKernelSetArgMemObj>(
-        redefinedKernelSetArgMemObj);
+    mock::getCallbacks().set_before_callback("urKernelSetArgMemObj",
+                                             &redefinedKernelSetArgMemObj);
   }
 
   template <sycl::access::mode AccessMode>
-  void TestFunc(pi_mem_obj_access ExpectedAccessMode) {
+  void TestFunc(ur_mem_flags_t ExpectedAccessMode) {
     queue Queue(context(Plt), default_selector_v);
     sycl::buffer<int, 1> Buf(3);
     Queue
@@ -80,31 +78,30 @@ protected:
         })
         .wait();
     ASSERT_TRUE(PropertyPresent);
-    EXPECT_EQ(PropsCopy.type, PI_KERNEL_ARG_MEM_OBJ_ACCESS);
-    EXPECT_EQ(PropsCopy.mem_access, ExpectedAccessMode);
+    EXPECT_EQ(PropsCopy.memoryAccess, ExpectedAccessMode);
   }
 
 protected:
-  sycl::unittest::PiMock Mock;
+  sycl::unittest::UrMock<sycl::backend::ext_oneapi_level_zero> Mock;
   sycl::platform Plt;
 };
 
-TEST_F(BufferTestPiArgs, KernelSetArgMemObjReadWrite) {
-  TestFunc<sycl::access::mode::read_write>(PI_ACCESS_READ_WRITE);
+TEST_F(BuferTestUrArgs, KernelSetArgMemObjReadWrite) {
+  TestFunc<sycl::access::mode::read_write>(UR_MEM_FLAG_READ_WRITE);
 }
 
-TEST_F(BufferTestPiArgs, KernelSetArgMemObjDiscardReadWrite) {
-  TestFunc<sycl::access::mode::discard_read_write>(PI_ACCESS_READ_WRITE);
+TEST_F(BuferTestUrArgs, KernelSetArgMemObjDiscardReadWrite) {
+  TestFunc<sycl::access::mode::discard_read_write>(UR_MEM_FLAG_READ_WRITE);
 }
 
-TEST_F(BufferTestPiArgs, KernelSetArgMemObjRead) {
-  TestFunc<sycl::access::mode::read>(PI_ACCESS_READ_ONLY);
+TEST_F(BuferTestUrArgs, KernelSetArgMemObjRead) {
+  TestFunc<sycl::access::mode::read>(UR_MEM_FLAG_READ_ONLY);
 }
 
-TEST_F(BufferTestPiArgs, KernelSetArgMemObjWrite) {
-  TestFunc<sycl::access::mode::write>(PI_ACCESS_WRITE_ONLY);
+TEST_F(BuferTestUrArgs, KernelSetArgMemObjWrite) {
+  TestFunc<sycl::access::mode::write>(UR_MEM_FLAG_WRITE_ONLY);
 }
 
-TEST_F(BufferTestPiArgs, KernelSetArgMemObjDiscardWrite) {
-  TestFunc<sycl::access::mode::discard_write>(PI_ACCESS_WRITE_ONLY);
+TEST_F(BuferTestUrArgs, KernelSetArgMemObjDiscardWrite) {
+  TestFunc<sycl::access::mode::discard_write>(UR_MEM_FLAG_WRITE_ONLY);
 }

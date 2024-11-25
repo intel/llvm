@@ -18,13 +18,12 @@
 #include <sycl/detail/array.hpp>               // for array
 #include <sycl/detail/export.hpp>              // for __SYCL_EXPORT
 #include <sycl/detail/generic_type_traits.hpp> // for max_v, min_v, TryToGe...
-#include <sycl/detail/type_list.hpp>           // for is_contained, type_list
 #include <sycl/exception.hpp>
 #include <sycl/id.hpp>                         // for id
 #include <sycl/image.hpp>                      // for image_channel_type
 #include <sycl/range.hpp>                      // for range
 #include <sycl/sampler.hpp>                    // for addressing_mode, coor...
-#include <sycl/types.hpp>                      // for vec, operator*, round...
+#include <sycl/vector.hpp>                     // for vec, operator*, round...
 
 #include <cstdint>     // for int32_t, uint16_t
 #include <stddef.h>    // for size_t
@@ -35,26 +34,25 @@ inline namespace _V1 {
 namespace detail {
 
 template <typename T>
-using IsValidCoordType = typename is_contained<
-    T, boost::mp11::mp_unique<type_list<opencl::cl_int, opencl::cl_float,
-                                        std::int32_t, float>>>::type;
+inline constexpr bool is_valid_coord_type_v =
+    check_type_in_v<T, opencl::cl_int, opencl::cl_float, std::int32_t, float>;
 
 // The formula for unnormalization coordinates:
 // NormalizedCoords = [UnnormalizedCoords[i] * Range[i] for i in range(0, 3)]
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, T>
+std::enable_if_t<is_valid_coord_type_v<T>, T>
 UnnormalizeCoordinates(const T &Coords, const range<3> &Range) {
   return Coords * Range[0];
 }
 
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, vec<T, 2>>
+std::enable_if_t<is_valid_coord_type_v<T>, vec<T, 2>>
 UnnormalizeCoordinates(const vec<T, 2> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1]};
 }
 
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, vec<T, 4>>
+std::enable_if_t<is_valid_coord_type_v<T>, vec<T, 4>>
 UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
   return {Coords.x() * Range[0], Coords.y() * Range[1], Coords.z() * Range[2],
           0};
@@ -65,19 +63,19 @@ UnnormalizeCoordinates(const vec<T, 4> &Coords, const range<3> &Range) {
 // calculation won't pass 0.
 // Non-valid coordinates are written as 0.
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, float4> convertToFloat4(T Coords) {
+std::enable_if_t<is_valid_coord_type_v<T>, float4> convertToFloat4(T Coords) {
   return {static_cast<float>(Coords), 0.5f, 0.5f, 0.f};
 }
 
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, float4>
+std::enable_if_t<is_valid_coord_type_v<T>, float4>
 convertToFloat4(vec<T, 2> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()), 0.5f,
           0.f};
 }
 
 template <typename T>
-std::enable_if_t<IsValidCoordType<T>::value, float4>
+std::enable_if_t<is_valid_coord_type_v<T>, float4>
 convertToFloat4(vec<T, 4> Coords) {
   return {static_cast<float>(Coords.x()), static_cast<float>(Coords.y()),
           static_cast<float>(Coords.z()), 0.f};
@@ -761,9 +759,8 @@ void imageWriteHostImpl(const CoordT &Coords, const WriteDataT &Color,
                ImgChannelType);
     break;
   case image_channel_type::fp16:
-    writePixel(
-        convertWriteData<half>(Color, ImgChannelType),
-        reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
+    writePixel(convertWriteData<half>(Color, ImgChannelType),
+               reinterpret_cast<half *>(Ptr), ImgChannelOrder, ImgChannelType);
     break;
   case image_channel_type::fp32:
     writePixel(convertWriteData<float>(Color, ImgChannelType),

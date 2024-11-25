@@ -28,14 +28,14 @@ permissions: read-all
 
 jobs:
   build-lin:
-    name: Linux (Self build + shared libraries + no-assertions)
+    name: Linux (Self build + no-assertions)
     if: github.repository == 'intel/llvm'
     uses: ./.github/workflows/sycl-linux-build.yml
     with:
       build_cache_root: "/__w/llvm"
-      build_cache_suffix: sprod_shared
-      build_artifact_suffix: sprod_shared
-      build_configure_extra_args: --shared-libs --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
+      build_cache_suffix: default
+      build_artifact_suffix: default
+      build_configure_extra_args: --no-assertions --hip --cuda --native_cpu --cmake-opt="-DSYCL_ENABLE_STACK_PRINTING=ON" --cmake-opt="-DSYCL_LIB_WITH_DEBUG_SYMBOL=ON"
       # Docker image has last nightly pre-installed and added to the PATH
       build_image: "ghcr.io/intel/llvm/sycl_ubuntu2204_nightly:build"
       cc: clang
@@ -52,10 +52,18 @@ jobs:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Linux", "gen12"]'
             extra_lit_opts: --param gpu-intel-gen12=True
-            target_devices: ext_oneapi_level_zero:gpu;opencl:fpga
+            target_devices: level_zero:gpu;opencl:fpga
+            reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics with Level Zero
             runner: '["Linux", "arc"]'
             extra_lit_opts: --param matrix-xmx8=True --param gpu-intel-dg2=True
+            reset_intel_gpu: true
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: ext_oneapi_hip:gpu
+            reset_intel_gpu: false
           # Performance tests below. Specifics:
           #  - only run performance tests (use LIT_FILTER env)
           #  - ask llvm-lit to show all the output, even for PASS (-a)
@@ -67,19 +75,21 @@ jobs:
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True --param gpu-intel-gen12=True
             target_devices: all
+            reset_intel_gpu: true
           - name: Perf tests on Intel Arc A-Series Graphics system
             runner: '["Linux", "arc"]'
             env: '{"LIT_FILTER":"PerformanceTests/"}'
             extra_lit_opts: -a -j 1 --param enable-perf-tests=True
             target_devices: all
+            reset_intel_gpu: true
     uses: ./.github/workflows/sycl-linux-run-tests.yml
     with:
       name: ${{ matrix.name }}
       runner: ${{ matrix. runner }}
-      image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-      image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
-      target_devices: ${{ matrix.target_devices || 'ext_oneapi_level_zero:gpu' }}
-      reset_gpu: true
+      image: ${{ matrix.image || 'ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest' }}
+      image_options: ${{ matrix.image_options || '-u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN' }}
+      target_devices: ${{ matrix.target_devices || 'level_zero:gpu' }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
       env: ${{ matrix.env || '{}' }}
@@ -87,7 +97,7 @@ jobs:
       ref: ${{ github.sha }}
       merge_ref: ''
 
-      sycl_toolchain_artifact: sycl_linux_sprod_shared
+      sycl_toolchain_artifact: sycl_linux_default
       sycl_toolchain_archive: ${{ needs.build-lin.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build-lin.outputs.artifact_decompress_command }}
 

@@ -2,8 +2,8 @@
 // RUN: %{build} %cuda_options -lcudart -lcuda -x cuda -o %t.out
 // RUN: %{run} %t.out
 
-// An issue has been reported in https://github.com/intel/llvm/issues/14115
 // XFAIL: *
+// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14116
 
 #include <cuda.h>
 #include <sycl/detail/core.hpp>

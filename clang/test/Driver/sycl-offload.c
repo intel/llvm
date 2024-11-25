@@ -69,6 +69,13 @@
 // RUN:   | FileCheck -check-prefix=CHK-SYCL-TARGET %s
 // CHK-SYCL-TARGET-NOT: error: SYCL target is invalid
 
+/// -fsycl-device-obj argument check
+// RUN: %clang -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// RUN: %clang_cl -### -fsycl-device-obj=test -fsycl %s 2>&1 \
+// RUN: | FileCheck -check-prefix=DEVICE_OBJ_WARN %s
+// DEVICE_OBJ_WARN: warning: ignoring invalid '-fsycl-device-obj' value 'test', using default value 'llvmir' [-Wunused-command-line-argument]
+
 /// ###########################################################################
 
 /// Check warning for duplicate offloading targets.
@@ -162,7 +169,7 @@
 // RUN: %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver -c %s -### 2>&1 \
 // RUN:  | FileCheck %s -check-prefix=CHK-INT-HEADER
 // CHK-INT-HEADER: clang{{.*}} "-fsycl-is-device"{{.*}} "-fsycl-int-header=[[INPUT1:.+\-header.+\.h]]" "-fsycl-int-footer={{.*}}"
-// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
+// CHK-INT-HEADER: clang{{.*}} "-triple" "x86_64-unknown-linux-gnu" {{.*}} "-include-internal-header" "[[INPUT1]]" "-dependency-filter" "[[INPUT1]]"
 
 /// ###########################################################################
 
@@ -371,21 +378,46 @@
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 2: compiler, {1}, ir, (host-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 3: input, "[[INPUT]]", c++, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 5: compiler, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 6: backend, {5}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: compiler, {9}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: backend, {10}, ir, (device-sycl, sm_50)
-// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {11}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 3: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 5: compiler, {4}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 6: backend, {5}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 7: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {6}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 8: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 9: preprocessor, {8}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 10: compiler, {9}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 11: backend, {10}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH: 12: offload, "device-sycl (spir64-unknown-unknown)" {11}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 15: backend, {14}, assembler, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 16: assembler, {15}, object, (host-sycl)
 // CHK-PHASE-MULTI-TARG-BOUND-ARCH: 17: clang-linker-wrapper, {16}, image, (host-sycl)
+
+// RUN:  %clang -target x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
+// RUN:     -fno-sycl-instrument-device-code -fno-sycl-device-lib=all \
+// RUN:     -fsycl-targets=nvptx64-nvidia-cuda,spir64_gen \
+// RUN:     -Xsycl-target-backend=spir64_gen "-device skl" \
+// RUN:     -ccc-print-phases %s 2>&1 \
+// RUN:   | FileCheck -check-prefix=CHK-PHASE-MULTI-TARG-BOUND-ARCH2 %s
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 2: compiler, {1}, ir, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 3: input, "[[INPUT]]", c++, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 5: compiler, {4}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 6: backend, {5}, ir, (device-sycl, skl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 7: offload, "device-sycl (spir64_gen-unknown-unknown:skl)" {6}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 8: input, "[[INPUT]]", c++, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 10: compiler, {9}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 11: backend, {10}, ir, (device-sycl, sm_50)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_50)" {11}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 13: clang-offload-packager, {7, 12}, image, (device-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 14: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {13}, ir
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 15: backend, {14}, assembler, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 16: assembler, {15}, object, (host-sycl)
+// CHK-PHASE-MULTI-TARG-BOUND-ARCH2: 17: clang-linker-wrapper, {16}, image, (host-sycl)
 
 /// ###########################################################################
 
@@ -395,21 +427,21 @@
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 0: input, "[[INPUT:.+\.c]]", c++, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 1: preprocessor, {0}, c++-cpp-output, (host-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 2: compiler, {1}, ir, (host-sycl)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 3: input, "[[INPUT]]", c++, (device-sycl)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 4: preprocessor, {3}, c++-cpp-output, (device-sycl)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 5: compiler, {4}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 6: backend, {5}, ir, (device-sycl)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 7: offload, "device-sycl (spir64-unknown-unknown)" {6}, ir
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 8: input, "[[INPUT]]", c++, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 10: compiler, {9}, ir, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 11: backend, {10}, ir, (device-sycl, gfx908)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 12: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {11}, ir
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 13: input, "[[INPUT]]", c++, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 14: preprocessor, {13}, c++-cpp-output, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: compiler, {14}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: backend, {15}, ir, (device-sycl, sm_75)
-// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {16}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 3: input, "[[INPUT]]", c++, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 4: preprocessor, {3}, c++-cpp-output, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 5: compiler, {4}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 6: backend, {5}, ir, (device-sycl, gfx908)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 7: offload, "device-sycl (amdgcn-amd-amdhsa:gfx908)" {6}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 8: input, "[[INPUT]]", c++, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 9: preprocessor, {8}, c++-cpp-output, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 10: compiler, {9}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 11: backend, {10}, ir, (device-sycl, sm_75)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 12: offload, "device-sycl (nvptx64-nvidia-cuda:sm_75)" {11}, ir
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 13: input, "[[INPUT]]", c++, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 14: preprocessor, {13}, c++-cpp-output, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 15: compiler, {14}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 16: backend, {15}, ir, (device-sycl)
+// CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 17: offload, "device-sycl (spir64-unknown-unknown)" {16}, ir
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 18: clang-offload-packager, {7, 12, 17}, image, (device-sycl)
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 19: offload, "host-sycl (x86_64-unknown-linux-gnu)" {2}, "device-sycl (x86_64-unknown-linux-gnu)" {18}, ir
 // CHK-PHASE-MULTI-TARG-SPIRV-NVIDIA-AMD: 20: backend, {19}, assembler, (host-sycl)
@@ -420,7 +452,7 @@
 // RUN: %clang_cl -fsycl --offload-new-driver /Fosomefile.obj -c %s -### 2>&1 \
 // RUN:   | FileCheck -check-prefix=FO-CHECK %s
 // FO-CHECK: clang{{.*}} "-fsycl-int-header=[[HEADER:.+\.h]]" "-fsycl-int-footer={{.*}}"
-// FO-CHECK: clang{{.*}} "-include" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
+// FO-CHECK: clang{{.*}} "-include-internal-header" "[[HEADER]]" {{.*}} "-o" "somefile.obj"
 
 /// passing of a library should not trigger the unbundler
 // RUN: touch %t.a
@@ -490,14 +522,10 @@
 // RUN: %clang -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // RUN: %clang_cl -### -fsycl --offload-new-driver %s 2>&1 | FileCheck %s -check-prefixes=CHECK-HEADER-DIR
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-device"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
+// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT:[^"]*]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
 // CHECK-HEADER-DIR: clang{{.*}} "-fsycl-is-host"
-// CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl"
-// CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include{{[/\\]+}}sycl{{[/\\]+}}stl_wrappers"
 // CHECK-HEADER-DIR-NOT: -internal-isystem
 // CHECK-HEADER-DIR-SAME: "-internal-isystem" "[[ROOT]]bin{{[/\\]+}}..{{[/\\]+}}include"
@@ -507,7 +535,7 @@
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-ffreestanding
 // RUN:   not %clang -### -fsycl --offload-new-driver -static-libstdc++ %s 2>&1 \
 // RUN:   | FileCheck -check-prefix=CHK-INCOMPATIBILITY %s -DINCOMPATOPT=-static-libstdc++
-// CHK-INCOMPATIBILITY: error: '[[INCOMPATOPT]]' is not supported with '-fsycl'
+// CHK-INCOMPATIBILITY: error: invalid argument '[[INCOMPATOPT]]' not allowed with '-fsycl'
 
 /// Using -fsyntax-only with -fsycl --offload-new-driver should not emit IR
 // RUN:   %clang -### -fsycl --offload-new-driver -fsyntax-only %s 2>&1 \

@@ -12,8 +12,7 @@
  * distinct binary executable.
  */
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
 #include <gtest/gtest.h>
@@ -26,19 +25,23 @@ extern "C" BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason,
 
 static std::atomic<int> TearDownCalls{0};
 
-pi_result redefinedTearDown(void *PluginParameter) {
+// Before the port this was an override for LoaderTearDown, UR's mock
+// functionality can't override loader functions but AdapterRelease is called
+// in the runtime in the same place as LoaderTearDown
+ur_result_t redefinedAdapterRelease(void *) {
   fprintf(stderr, "intercepted tear down\n");
   ++TearDownCalls;
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 #endif
 
 TEST(Windows, DllMainCall) {
 #ifdef _WIN32
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piTearDown>(redefinedTearDown);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urAdapterRelease",
+                                           &redefinedAdapterRelease);
 
   // Teardown calls are only expected on sycl.dll library unload, not when
   // process gets terminated.

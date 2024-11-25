@@ -1,6 +1,6 @@
 // REQUIRES: cpu
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=-1 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 
 #include <sycl/detail/core.hpp>
 
@@ -19,10 +19,9 @@ int main() {
 
   Q.submit([&](handler &Cgh) {
     // Now that we have a read-write host allocation, check that the native
-    // buffer is created with the PI_MEM_FLAGS_HOST_PTR_USE flag.
-    // CHECK: piMemBufferCreate
-    // CHECK-NEXT: {{.*}} : {{.*}}
-    // CHECK-NEXT: {{.*}} : 9
+    // buffer is created with the UR_MEM_FLAG_USE_HOST_POINTER flag.
+    // CHECK: <--- urMemBufferCreate
+    // CHECK-SAME: UR_MEM_FLAG_USE_HOST_POINTER
     auto BufAcc = Buf.get_access<access::mode::read>(Cgh);
     Cgh.single_task<Foo>([=]() { int A = BufAcc[0]; });
   });

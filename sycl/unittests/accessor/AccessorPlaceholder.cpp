@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 #include <numeric>
 #include <sycl/sycl.hpp>
 
@@ -49,8 +48,8 @@ TEST(AccessorPlaceholderTest, PlaceholderNoneTargetDevice) {
   int data(14);
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);
@@ -67,8 +66,8 @@ TEST(AccessorPlaceholderTest, PlaceholderTrueTargetDevice) {
   int data(14);
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);
@@ -85,8 +84,8 @@ TEST(AccessorPlaceholderTest, PlaceholderFalseTargetDevice) {
   int data(14);
   sycl::range<1> r(1);
   sycl::buffer<int, 1> data_buf(&data, r);
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
   sycl::queue q{Plt.get_devices()[0]};
   q.submit([&](sycl::handler &cgh) {
     AccT acc(data_buf, cgh);

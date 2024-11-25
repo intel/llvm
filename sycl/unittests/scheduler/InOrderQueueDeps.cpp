@@ -9,8 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
+#include <sycl/usm.hpp>
 
 #include <iostream>
 #include <memory>
@@ -18,59 +19,42 @@
 namespace {
 using namespace sycl;
 
-pi_result redefinedEnqueueMemBufferReadRect(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_read,
-    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch,
-    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    void *ptr, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  EXPECT_EQ(num_events_in_wait_list, 0u);
-  return PI_SUCCESS;
+ur_result_t redefinedEnqueueMemBufferReadRect(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_mem_buffer_read_rect_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemBufferWriteRect(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_write,
-    pi_buff_rect_offset buffer_offset, pi_buff_rect_offset host_offset,
-    pi_buff_rect_region region, size_t buffer_row_pitch,
-    size_t buffer_slice_pitch, size_t host_row_pitch, size_t host_slice_pitch,
-    const void *ptr, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  EXPECT_EQ(num_events_in_wait_list, 0u);
-  return PI_SUCCESS;
+ur_result_t redefinedEnqueueMemBufferWriteRect(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_buffer_write_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemBufferMap(pi_queue command_queue, pi_mem buffer,
-                                       pi_bool blocking_map,
-                                       pi_map_flags map_flags, size_t offset,
-                                       size_t size,
-                                       pi_uint32 num_events_in_wait_list,
-                                       const pi_event *event_wait_list,
-                                       pi_event *event, void **ret_map) {
-  EXPECT_EQ(num_events_in_wait_list, 0u);
-  return PI_SUCCESS;
+ur_result_t redefinedEnqueueMemBufferMap(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_buffer_map_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
-                                   void *mapped_ptr,
-                                   pi_uint32 num_events_in_wait_list,
-                                   const pi_event *event_wait_list,
-                                   pi_event *event) {
-  EXPECT_EQ(num_events_in_wait_list, 0u);
-  return PI_SUCCESS;
+ur_result_t redefinedEnqueueMemUnmap(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_unmap_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, 0u);
+  return UR_RESULT_SUCCESS;
 }
 
 TEST_F(SchedulerTest, InOrderQueueDeps) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferReadRect>(
-      redefinedEnqueueMemBufferReadRect);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferWriteRect>(
-      redefinedEnqueueMemBufferWriteRect);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferMap>(
-      redefinedEnqueueMemBufferMap);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemUnmap>(
-      redefinedEnqueueMemUnmap);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferReadRect",
+                                           &redefinedEnqueueMemBufferReadRect);
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferWriteRect",
+                                           &redefinedEnqueueMemBufferWriteRect);
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferMap",
+                                           &redefinedEnqueueMemBufferMap);
+  mock::getCallbacks().set_before_callback("urEnqueueMemUnmap",
+                                           &redefinedEnqueueMemUnmap);
 
   context Ctx{Plt.get_devices()[0]};
   queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
@@ -102,14 +86,14 @@ TEST_F(SchedulerTest, InOrderQueueDeps) {
 }
 
 bool BarrierCalled = false;
-pi_event ExpectedEvent = nullptr;
-pi_result redefinedEnqueueEventsWaitWithBarrier(
-    pi_queue command_queue, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  EXPECT_EQ(num_events_in_wait_list, 1u);
-  EXPECT_EQ(ExpectedEvent, *event_wait_list);
+ur_event_handle_t ExpectedEvent = nullptr;
+ur_result_t redefinedEnqueueEventsWaitWithBarrier(void *pParams) {
+  auto params =
+      *static_cast<ur_enqueue_events_wait_with_barrier_params_t *>(pParams);
+  EXPECT_EQ(*params.pnumEventsInWaitList, 1u);
+  EXPECT_EQ(ExpectedEvent, **params.pphEventWaitList);
   BarrierCalled = true;
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
 sycl::event submitKernel(sycl::queue &Q) {
@@ -120,10 +104,11 @@ sycl::event submitKernel(sycl::queue &Q) {
 TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   // Check that isolated kernels (i.e. those that don't modify the graph)
   // are handled properly during filtering.
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
-      redefinedEnqueueEventsWaitWithBarrier);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+  BarrierCalled = false;
 
   context Ctx{Plt.get_devices()[0]};
   queue Q1{Ctx, default_selector_v, property::queue::in_order()};
@@ -136,9 +121,103 @@ TEST_F(SchedulerTest, InOrderQueueIsolatedDeps) {
   {
     event E1 = submitKernel(Q1);
     event E2 = submitKernel(Q2);
-    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandleRef();
+    ExpectedEvent = detail::getSyclObjImpl(E2)->getHandle();
     Q1.ext_oneapi_submit_barrier({E1, E2});
     EXPECT_TRUE(BarrierCalled);
   }
 }
+
+std::vector<size_t> KernelEventListSize;
+
+inline ur_result_t customEnqueueKernelLaunch(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  KernelEventListSize.push_back(*params.pnumEventsInWaitList);
+  return UR_RESULT_SUCCESS;
+}
+
+TEST_F(SchedulerTest, TwoInOrderQueuesOnSameContext) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueueFirst{Ctx, default_selector_v, property::queue::in_order()};
+  queue InOrderQueueSecond{Ctx, default_selector_v,
+                           property::queue::in_order()};
+
+  event EvFirst = InOrderQueueFirst.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  std::ignore = InOrderQueueSecond.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(EvFirst);
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueueFirst.wait();
+  InOrderQueueSecond.wait();
+
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 1u);
+}
+
+TEST_F(SchedulerTest, InOrderQueueNoSchedulerPath) {
+  KernelEventListSize.clear();
+  sycl::unittest::UrMock<> Mock;
+  mock::getCallbacks().set_before_callback("urEnqueueKernelLaunch",
+                                           &customEnqueueKernelLaunch);
+
+  sycl::platform Plt = sycl::platform();
+
+  context Ctx{Plt};
+  queue InOrderQueue{Ctx, default_selector_v, property::queue::in_order()};
+
+  event EvFirst = InOrderQueue.submit(
+      [&](sycl::handler &CGH) { CGH.single_task<TestKernel<>>([] {}); });
+  std::ignore = InOrderQueue.submit([&](sycl::handler &CGH) {
+    CGH.depends_on(EvFirst);
+    CGH.single_task<TestKernel<>>([] {});
+  });
+
+  InOrderQueue.wait();
+
+  ASSERT_EQ(KernelEventListSize.size(), 2u);
+  EXPECT_EQ(KernelEventListSize[0] /*EventsCount*/, 0u);
+  // native device events for device kernel submitted to the same in-order queue
+  // don't need to be explicitly passed as dependencies
+  EXPECT_EQ(KernelEventListSize[1] /*EventsCount*/, 0u);
+}
+
+// Test that barrier is not filtered out when waitlist contains an event
+// produced by command which is bypassing the scheduler.
+TEST_F(SchedulerTest, BypassSchedulerWithBarrier) {
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueEventsWaitWithBarrier", &redefinedEnqueueEventsWaitWithBarrier);
+  BarrierCalled = false;
+
+  context Ctx{Plt};
+  queue Q1{Ctx, default_selector_v, property::queue::in_order()};
+  queue Q2{Ctx, default_selector_v, property::queue::in_order()};
+  static constexpr size_t Size = 10;
+
+  int *X = malloc_host<int>(Size, Ctx);
+
+  // Submit a command which bypasses the scheduler.
+  auto FillEvent = Q2.memset(X, 0, sizeof(int) * Size);
+  // Submit a barrier which depends on that event.
+  ExpectedEvent = detail::getSyclObjImpl(FillEvent)->getHandle();
+  auto BarrierQ1 = Q1.ext_oneapi_submit_barrier({FillEvent});
+  Q1.wait();
+  Q2.wait();
+  // Verify that barrier is not filtered out.
+  EXPECT_EQ(BarrierCalled, true);
+
+  free(X, Ctx);
+}
+
 } // anonymous namespace

@@ -16,7 +16,7 @@
 #include <set>
 #include <unordered_set>
 
-#include <detail/pi_utils.hpp>
+#include <detail/ur_utils.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 
 namespace sycl {
@@ -37,14 +37,14 @@ struct DeviceGlobalUSMMem {
 
   void *const &getPtr() const noexcept { return MPtr; }
 
-  // Gets the initialization event if it exists. If not the OwnedPiEvent
+  // Gets the initialization event if it exists. If not the OwnedUrEvent
   // will contain no event.
-  OwnedPiEvent getInitEvent(const PluginPtr &Plugin);
+  OwnedUrEvent getInitEvent(const AdapterPtr &Adapter);
 
 private:
   void *MPtr;
   std::mutex MInitEventMutex;
-  std::optional<sycl::detail::pi::PiEvent> MInitEvent;
+  std::optional<ur_event_handle_t> MInitEvent;
 
   friend struct DeviceGlobalMapEntry;
 };

@@ -36,7 +36,6 @@
 // further translation to SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "clmdtospv"
 
 #include "PreprocessMetadata.h"
 #include "OCLUtil.h"
@@ -50,6 +49,8 @@
 #include "llvm/IR/InstVisitor.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/TargetParser/Triple.h"
+
+#define DEBUG_TYPE "clmdtospv"
 
 using namespace llvm;
 using namespace SPIRV;
@@ -128,32 +129,28 @@ void PreprocessMetadataBase::visit(Module *M) {
     // of ExecutionMode instructions.
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 17, i32 X, i32 Y, i32 Z}
-    if (MDNode *WGSize = Kernel.getMetadata(kSPIR2MD::WGSize)) {
-      assert(WGSize->getNumOperands() >= 1 && WGSize->getNumOperands() <= 3 &&
-             "reqd_work_group_size does not have between 1 and 3 operands.");
-      SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGSize);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeLocalSize)
-          .add(DecodedVals[0])
-          .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
-          .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
-          .done();
-    }
-
     // !{void (i32 addrspace(1)*)* @kernel, i32 18, i32 X, i32 Y, i32 Z}
-    if (MDNode *WGSizeHint = Kernel.getMetadata(kSPIR2MD::WGSizeHint)) {
-      assert(WGSizeHint->getNumOperands() >= 1 &&
-             WGSizeHint->getNumOperands() <= 3 &&
-             "work_group_size_hint does not have between 1 and 3 operands.");
-      SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGSizeHint);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeLocalSizeHint)
-          .add(DecodedVals[0])
-          .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
-          .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
-          .done();
+    // !{void (i32 addrspace(1)*)* @kernel, i32 max_work_group_size, i32 X,
+    //         i32 Y, i32 Z}
+    std::pair<unsigned, const char *> WGSizeMDs[3] = {
+        {spv::ExecutionModeLocalSize, kSPIR2MD::WGSize},
+        {spv::ExecutionModeLocalSizeHint, kSPIR2MD::WGSizeHint},
+        {spv::ExecutionModeMaxWorkgroupSizeINTEL, kSPIR2MD::MaxWGSize},
+    };
+
+    for (auto &[ExMode, MDName] : WGSizeMDs) {
+      if (MDNode *WGMD = Kernel.getMetadata(MDName)) {
+        assert(WGMD->getNumOperands() >= 1 && WGMD->getNumOperands() <= 3 &&
+               "work-group metadata does not have between 1 and 3 operands.");
+        SmallVector<unsigned, 3> DecodedVals = decodeMDNode(WGMD);
+        EM.addOp()
+            .add(&Kernel)
+            .add(ExMode)
+            .add(DecodedVals[0])
+            .add(DecodedVals.size() >= 2 ? DecodedVals[1] : 1)
+            .add(DecodedVals.size() == 3 ? DecodedVals[2] : 1)
+            .done();
+      }
     }
 
     // !{void (i32 addrspace(1)*)* @kernel, i32 30, i32 hint}
@@ -180,23 +177,6 @@ void PreprocessMetadataBase::visit(Module *M) {
           .add(&Kernel)
           .add(spv::ExecutionModeSubgroupSize)
           .add(Val)
-          .done();
-    }
-
-    // !{void (i32 addrspace(1)*)* @kernel, i32 max_work_group_size, i32 X,
-    //         i32 Y, i32 Z}
-    if (MDNode *MaxWorkgroupSizeINTEL =
-            Kernel.getMetadata(kSPIR2MD::MaxWGSize)) {
-      assert(MaxWorkgroupSizeINTEL->getNumOperands() == 3 &&
-             "max_work_group_size does not have 3 operands.");
-      SmallVector<unsigned, 3> DecodedVals =
-          decodeMDNode(MaxWorkgroupSizeINTEL);
-      EM.addOp()
-          .add(&Kernel)
-          .add(spv::ExecutionModeMaxWorkgroupSizeINTEL)
-          .add(DecodedVals[0])
-          .add(DecodedVals[1])
-          .add(DecodedVals[2])
           .done();
     }
 
@@ -294,12 +274,16 @@ void PreprocessMetadataBase::preprocessOCLMetadata(Module *M, SPIRVMDBuilder *B,
   // !{x} = !{i32 3, i32 102000}
   B->addNamedMD(kSPIRVMD::Source)
       .addOp()
-      .add(CLVer == kOCLVer::CL21 ? spv::SourceLanguageOpenCL_CPP
-                                  : spv::SourceLanguageOpenCL_C)
+      .add(M->getNamedMetadata(kSPIR2MD::OCLCXXVer) &&
+                   (CLVer == kOCLVer::CLCXX10 || CLVer == kOCLVer::CLCXX2021)
+               ? spv::SourceLanguageCPP_for_OpenCL
+               : spv::SourceLanguageOpenCL_C)
       .add(CLVer)
       .done();
   if (EraseOCLMD)
-    B->eraseNamedMD(kSPIR2MD::OCLVer).eraseNamedMD(kSPIR2MD::SPIRVer);
+    B->eraseNamedMD(kSPIR2MD::OCLVer)
+        .eraseNamedMD(kSPIR2MD::SPIRVer)
+        .eraseNamedMD(kSPIR2MD::OCLCXXVer);
 
   // !spirv.MemoryModel = !{!x}
   // !{x} = !{i32 1, i32 2}

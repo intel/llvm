@@ -22,6 +22,7 @@
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/intel/esimd.hpp>
+#include <sycl/ext/oneapi/experimental/group_load_store.hpp>
 #include <sycl/ext/oneapi/experimental/invoke_simd.hpp>
 
 #include <functional>
@@ -34,7 +35,7 @@
 #ifdef IMPL_SUBGROUP
 #define SUBGROUP_ATTR
 #else
-#define SUBGROUP_ATTR [[intel::reqd_sub_group_size(VL)]]
+#define SUBGROUP_ATTR [[sycl::reqd_sub_group_size(VL)]]
 #endif
 
 using namespace sycl::ext::oneapi::experimental;
@@ -102,10 +103,9 @@ int main(void) {
 
             unsigned int offset = g.get_group_id() * g.get_local_range() +
                                   sg.get_group_id() * sg.get_max_local_range();
-            float va = sg.load(
-                PA.get_multi_ptr<access::decorated::yes>().get() + offset);
-            float vb = sg.load(
-                PB.get_multi_ptr<access::decorated::yes>().get() + offset);
+            float va, vb;
+            group_load(sg, PA.get_multi_ptr<access::decorated::yes>().get() + offset, va);
+            group_load(sg, PB.get_multi_ptr<access::decorated::yes>().get() + offset, vb);
             // We need to get a pointer to the starting address of where the
             // result of the vector addition should be stored in/written back to
             // C. Returns the index (ordinal number) of the work-group to which

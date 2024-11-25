@@ -6,12 +6,12 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/sycl.hpp>
 #include <detail/config.hpp>
 #include <detail/device_impl.hpp>
 #include <gtest/gtest.h>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
+#include <sycl/sycl.hpp>
 
 using namespace sycl;
 
@@ -20,50 +20,47 @@ namespace {
 inline constexpr auto EnableDefaultContextsName =
     "SYCL_ENABLE_DEFAULT_CONTEXTS";
 
-pi_device ParentDevice = nullptr;
-pi_platform PiPlatform = nullptr;
+ur_device_handle_t ParentDevice = nullptr;
+ur_platform_handle_t UrPlatform = nullptr;
 
-pi_result redefinedDeviceGetInfoAfter(pi_device device,
-                                      pi_device_info param_name,
-                                      size_t param_value_size,
-                                      void *param_value,
-                                      size_t *param_value_size_ret) {
-  if (param_name == PI_DEVICE_INFO_PARTITION_PROPERTIES) {
-    if (param_value) {
+ur_result_t redefinedDeviceGetInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_device_get_info_params_t *>(pParams);
+  if (*params.ppropName == UR_DEVICE_INFO_SUPPORTED_PARTITIONS) {
+    if (*params.ppPropValue) {
       auto *Result =
-          reinterpret_cast<pi_device_partition_property *>(param_value);
-      *Result = PI_DEVICE_PARTITION_EQUALLY;
+          reinterpret_cast<ur_device_partition_t *>(*params.ppPropValue);
+      *Result = UR_DEVICE_PARTITION_EQUALLY;
     }
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(pi_device_partition_property);
-  } else if (param_name == PI_DEVICE_INFO_MAX_COMPUTE_UNITS) {
-    auto *Result = reinterpret_cast<pi_uint32 *>(param_value);
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(ur_device_partition_t);
+  } else if (*params.ppropName == UR_DEVICE_INFO_MAX_COMPUTE_UNITS) {
+    auto *Result = reinterpret_cast<uint32_t *>(*params.ppPropValue);
     *Result = 2;
-  } else if (param_name == PI_DEVICE_INFO_PARENT_DEVICE) {
-    auto *Result = reinterpret_cast<pi_device *>(param_value);
-    *Result = (device == ParentDevice) ? nullptr : ParentDevice;
-  } else if (param_name == PI_DEVICE_INFO_PLATFORM) {
-    auto *Result = reinterpret_cast<pi_platform *>(param_value);
-    *Result = PiPlatform;
-  } else if (param_name == PI_DEVICE_INFO_EXTENSIONS) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 0;
+  } else if (*params.ppropName == UR_DEVICE_INFO_PARENT_DEVICE) {
+    auto *Result = reinterpret_cast<ur_device_handle_t *>(*params.ppPropValue);
+    *Result = (*params.phDevice == ParentDevice) ? nullptr : ParentDevice;
+  } else if (*params.ppropName == UR_DEVICE_INFO_PLATFORM) {
+    auto *Result =
+        reinterpret_cast<ur_platform_handle_t *>(*params.ppPropValue);
+    *Result = UrPlatform;
+  } else if (*params.ppropName == UR_DEVICE_INFO_EXTENSIONS) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 0;
     }
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-pi_result redefinedDevicePartitionAfter(
-    pi_device device, const pi_device_partition_property *properties,
-    pi_uint32 num_devices, pi_device *out_devices, pi_uint32 *out_num_devices) {
-  if (out_devices) {
-    for (size_t I = 0; I < num_devices; ++I) {
-      out_devices[I] = reinterpret_cast<pi_device>(1000 + I);
+ur_result_t redefinedDevicePartitionAfter(void *pParams) {
+  auto params = *static_cast<ur_device_partition_params_t *>(pParams);
+  if (*params.pphSubDevices) {
+    for (size_t I = 0; I < *params.pNumDevices; ++I) {
+      *params.pphSubDevices[I] = reinterpret_cast<ur_device_handle_t>(1000 + I);
     }
   }
-  if (out_num_devices)
-    *out_num_devices = num_devices;
-  return PI_SUCCESS;
+  if (*params.ppNumDevicesRet)
+    **params.ppNumDevicesRet = *params.pNumDevices;
+  return UR_RESULT_SUCCESS;
 }
 
 // Check that the device is verified to be either a member of the context or a
@@ -73,17 +70,17 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
       EnableDefaultContextsName, "1",
       detail::SYCLConfig<detail::SYCL_ENABLE_DEFAULT_CONTEXTS>::reset);
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
-  PiPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
+  UrPlatform = detail::getSyclObjImpl(Plt)->getHandleRef();
   context DefaultCtx = Plt.ext_oneapi_get_default_context();
   device Dev = DefaultCtx.get_devices()[0];
 
-  Mock.redefineAfter<detail::PiApiKind::piDeviceGetInfo>(
-      redefinedDeviceGetInfoAfter);
-  Mock.redefineAfter<detail::PiApiKind::piDevicePartition>(
-      redefinedDevicePartitionAfter);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &redefinedDeviceGetInfoAfter);
+  mock::getCallbacks().set_after_callback("urDevicePartition",
+                                          &redefinedDevicePartitionAfter);
 
   // Device is a member of the context.
   {
@@ -120,7 +117,7 @@ TEST(QueueDeviceCheck, CheckDeviceRestriction) {
   {
     ParentDevice = nullptr;
     device Device = detail::createSyclObjFromImpl<device>(
-        std::make_shared<detail::device_impl>(reinterpret_cast<pi_device>(0x01),
+        std::make_shared<detail::device_impl>(reinterpret_cast<ur_device_handle_t>(0x01),
                                               detail::getSyclObjImpl(Plt)));
     queue Q{Device};
     EXPECT_NE(Q.get_context(), DefaultCtx);

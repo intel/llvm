@@ -94,10 +94,10 @@ implementation supports.
 namespace sycl::ext::oneapi::experimental {
 
 // Shorthands for address space names
-constexpr inline address_space global_space = sycl::access::address_space::global_space;
-constexpr inline address_space local_space = sycl::access::address_space::local_space;
-constexpr inline address_space private_space = sycl::access::address_space::private_space;
-constexpr inline address_space generic_space = sycl::access::address_space::generic_space;
+constexpr inline access::address_space global_space = access::address_space::global_space;
+constexpr inline access::address_space local_space = access::address_space::local_space;
+constexpr inline access::address_space private_space = access::address_space::private_space;
+constexpr inline access::address_space generic_space = access::address_space::generic_space;
 
 template <access::address_space Space,
           typename ElementType>

@@ -1,4 +1,4 @@
-// RUN: %{build} -fsycl-device-code-split=per_kernel -o %t.out \
+// RUN: %{build} -Wno-error=unused-command-line-argument -fsycl-device-code-split=per_kernel -o %t.out \
 // RUN: -fsycl-dead-args-optimization
 // RUN: %{run} %t.out
 //

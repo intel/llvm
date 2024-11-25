@@ -161,7 +161,7 @@ struct OCLBuiltinTransInfo {
   std::string Postfix; // Postfix to be added
   /// Postprocessor of operands
   std::function<void(BuiltinCallMutator &)> PostProc;
-  Type *RetTy;      // Return type of the translated function
+  Type *RetTy; // Return type of the translated function
   OCLBuiltinTransInfo() : RetTy(nullptr) {
     PostProc = [](BuiltinCallMutator &) {};
   }
@@ -351,8 +351,9 @@ const OCLScopeKind OCLLegacyAtomicMemScope = OCLMS_work_group;
 namespace kOCLVer {
 const unsigned CL12 = 102000;
 const unsigned CL20 = 200000;
-const unsigned CL21 = 201000;
 const unsigned CL30 = 300000;
+const unsigned CLCXX10 = 100000;
+const unsigned CLCXX2021 = 202100000;
 } // namespace kOCLVer
 
 namespace OclExt {
@@ -534,17 +535,18 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
   F->setLinkage(GlobalValue::PrivateLinkage);
 
   LLVMContext &Ctx = M->getContext();
-  BasicBlock *BB = BasicBlock::Create(Ctx, "entry", F);
-  IRBuilder<> IRB(BB);
+  BasicBlock *EntryBB = BasicBlock::Create(Ctx, "entry", F);
+  IRBuilder<> EntryIRB(EntryBB);
+  AllocaInst *Result = EntryIRB.CreateAlloca(Ty, nullptr, "result");
   SwitchInst *SI;
   F->arg_begin()->setName("key");
   if (KeyMask) {
     Value *MaskV = ConstantInt::get(Type::getInt32Ty(Ctx), KeyMask);
-    Value *NewKey = IRB.CreateAnd(MaskV, F->arg_begin());
+    Value *NewKey = EntryIRB.CreateAnd(MaskV, F->arg_begin());
     NewKey->setName("key.masked");
-    SI = IRB.CreateSwitch(NewKey, BB);
+    SI = EntryIRB.CreateSwitch(NewKey, EntryBB);
   } else {
-    SI = IRB.CreateSwitch(F->arg_begin(), BB);
+    SI = EntryIRB.CreateSwitch(F->arg_begin(), EntryBB);
   }
 
   if (!DefaultCase) {
@@ -554,18 +556,52 @@ getOrCreateSwitchFunc(StringRef MapName, Value *V,
     SI->setDefaultDest(DefaultBB);
   }
 
+  BasicBlock *ExitBB = BasicBlock::Create(Ctx, "exit", F);
+  BasicBlock *CaseBB = nullptr;
   Map.foreach ([&](int Key, int Val) {
     if (IsReverse)
       std::swap(Key, Val);
-    BasicBlock *CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
+    CaseBB = BasicBlock::Create(Ctx, "case." + Twine(Key), F);
     IRBuilder<> CaseIRB(CaseBB);
-    CaseIRB.CreateRet(CaseIRB.getInt32(Val));
-    SI->addCase(IRB.getInt32(Key), CaseBB);
+    CaseIRB.CreateStore(CaseIRB.getInt32(Val), Result);
+    CaseIRB.CreateBr(ExitBB);
+    SI->addCase(EntryIRB.getInt32(Key), CaseBB);
     if (Key == DefaultCase)
       SI->setDefaultDest(CaseBB);
   });
-  assert(SI->getDefaultDest() != BB && "Invalid default destination in switch");
+
+  ExitBB->moveAfter(CaseBB);
+  IRBuilder<> ExitIRB(ExitBB);
+  LoadInst *RetVal = ExitIRB.CreateLoad(Ty, Result, "retVal");
+  ExitIRB.CreateRet(RetVal);
+
+  assert(SI->getDefaultDest() != EntryBB &&
+         "Invalid default destination in switch");
   return addCallInst(M, MapName, Ty, V, nullptr, InsertPoint);
+}
+
+/// Maps LLVM SyncScope into SPIR-V Scope.
+///
+/// \param [in] Ctx Context for the LLVM SyncScope
+/// \param [in] Id SyncScope::ID value which needs to be mapped to SPIR-V Scope
+inline spv::Scope toSPIRVScope(const LLVMContext &Ctx, SyncScope::ID Id) {
+  // We follow Clang/LLVM convention by which the default is System scope, which
+  // in SPIR-V maps to CrossDevice scope. This is in order to ensure that the
+  // resulting SPIR-V is conservatively correct (i.e. always works), under the
+  // assumption that it is the responsibility of the higher level language to
+  // choose a narrower scope, if desired.
+  switch (Id) {
+  case SyncScope::SingleThread:
+    return spv::ScopeInvocation;
+  case SyncScope::System:
+    return spv::ScopeCrossDevice;
+  default:
+    SmallVector<StringRef> SSIDs;
+    Ctx.getSyncScopeNames(SSIDs);
+    spv::Scope S = ScopeCrossDevice; // Default to CrossDevice scope.
+    OCLStrMemScopeMap::find(SSIDs[Id].str(), &S);
+    return S;
+  }
 }
 
 /// Performs conversion from OpenCL memory_scope into SPIR-V Scope.

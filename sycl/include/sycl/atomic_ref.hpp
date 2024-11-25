@@ -10,7 +10,8 @@
 
 #include <sycl/access/access.hpp> // for address_space
 #include <sycl/bit_cast.hpp>      // for bit_cast
-#include <sycl/memory_enums.hpp>  // for getStdMemoryOrder, memory_order
+#include <sycl/ext/oneapi/experimental/address_cast.hpp>
+#include <sycl/memory_enums.hpp> // for getStdMemoryOrder, memory_order
 
 #ifdef __SYCL_DEVICE_ONLY__
 #include <sycl/detail/spirv.hpp>
@@ -25,6 +26,13 @@
 
 namespace sycl {
 inline namespace _V1 {
+
+// forward declarartion
+namespace detail::half_impl {
+class half;
+}
+using half = detail::half_impl::half;
+
 namespace detail {
 
 using memory_order = sycl::memory_order;
@@ -36,7 +44,7 @@ template <typename T> struct IsValidAtomicRefType {
        std::is_same_v<T, long> || std::is_same_v<T, unsigned long> ||
        std::is_same_v<T, long long> || std::is_same_v<T, unsigned long long> ||
        std::is_same_v<T, float> || std::is_same_v<T, double> ||
-       std::is_pointer_v<T>);
+       std::is_pointer_v<T> || std::is_same_v<T, sycl::half>);
 };
 
 template <sycl::access::address_space AS> struct IsValidAtomicRefAddressSpace {
@@ -116,7 +124,7 @@ class atomic_ref_base {
   static_assert(
       detail::IsValidAtomicRefType<T>::value,
       "Invalid atomic type.  Valid types are int, unsigned int, long, "
-      "unsigned long, long long, unsigned long long, float, double "
+      "unsigned long, long long, unsigned long long, sycl::half, float, double "
       "and pointer types");
   static_assert(detail::IsValidAtomicRefAddressSpace<AddressSpace>::value,
                 "Invalid atomic address_space.  Valid address spaces are: "
@@ -150,8 +158,16 @@ public:
   }
 
 #ifdef __SYCL_DEVICE_ONLY__
+#if defined(__SPIR__)
+  explicit atomic_ref_base(T &ref)
+      : ptr(ext::oneapi::experimental::static_address_cast<AddressSpace>(
+            &ref)) {}
+#else
+  // CUDA/HIP don't support `ext::oneapi::experimental::static_address_cast`
+  // yet.
   explicit atomic_ref_base(T &ref)
       : ptr(address_space_cast<AddressSpace, access::decorated::no>(&ref)) {}
+#endif
 #else
   // FIXME: This reinterpret_cast is UB, but happens to work for now
   explicit atomic_ref_base(T &ref)
@@ -259,7 +275,7 @@ protected:
 };
 
 // Hook allowing partial specializations to inherit atomic_ref_base
-template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder,
+template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace,
           typename = void>
 class atomic_ref_impl
@@ -270,10 +286,9 @@ public:
 };
 
 // Partial specialization for integral types
-template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder,
+template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
-class atomic_ref_impl<T, IsAspectAtomic64AttrUsed, DefaultOrder, DefaultScope,
-                      AddressSpace,
+class atomic_ref_impl<T, SizeOfT, DefaultOrder, DefaultScope, AddressSpace,
                       typename std::enable_if_t<std::is_integral_v<T>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
@@ -418,11 +433,11 @@ private:
 };
 
 // Partial specialization for floating-point types
-template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder,
+template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
-class atomic_ref_impl<T, IsAspectAtomic64AttrUsed, DefaultOrder, DefaultScope,
-                      AddressSpace,
-                      typename std::enable_if_t<std::is_floating_point_v<T>>>
+class atomic_ref_impl<T, SizeOfT, DefaultOrder, DefaultScope, AddressSpace,
+                      typename std::enable_if_t<std::is_floating_point_v<T> ||
+                                                std::is_same_v<T, sycl::half>>>
     : public atomic_ref_base<T, DefaultOrder, DefaultScope, AddressSpace> {
 
 public:
@@ -534,15 +549,15 @@ class atomic_ref_impl<
 #else
 class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
-    T, /*IsAspectAtomic64AttrUsed = */ true, DefaultOrder, DefaultScope,
-    AddressSpace, typename std::enable_if_t<std::is_integral_v<T>>>
-    : public atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false,
-                             DefaultOrder, DefaultScope, AddressSpace> {
+    T, /*SizeOfT = */ 8, DefaultOrder, DefaultScope, AddressSpace,
+    typename std::enable_if_t<std::is_integral_v<T>>>
+    : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                             AddressSpace> {
 public:
-  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
-                        DefaultScope, AddressSpace>::atomic_ref_impl;
-  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
-                        DefaultScope, AddressSpace>::atomic_ref_impl::operator=;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl::operator=;
 };
 
 // Partial specialization for 64-bit floating-point types needed for optional
@@ -554,28 +569,51 @@ class atomic_ref_impl<
 #else
 class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
-    T, /*IsAspectAtomic64AttrUsed = */ true, DefaultOrder, DefaultScope,
-    AddressSpace, typename std::enable_if_t<std::is_floating_point_v<T>>>
-    : public atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false,
-                             DefaultOrder, DefaultScope, AddressSpace> {
+    T, /*SizeOfT = */ 8, DefaultOrder, DefaultScope, AddressSpace,
+    typename std::enable_if_t<std::is_floating_point_v<T> ||
+                              std::is_same_v<T, sycl::half>>>
+    : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                             AddressSpace> {
 public:
-  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
-                        DefaultScope, AddressSpace>::atomic_ref_impl;
-  using atomic_ref_impl<T, /*IsAspectAtomic64AttrUsed = */ false, DefaultOrder,
-                        DefaultScope, AddressSpace>::atomic_ref_impl::operator=;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl::operator=;
+};
+
+// Partial specialization for 16-bit floating-point types needed for optional
+// kernel features
+template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
+          access::address_space AddressSpace>
+#ifndef __SYCL_DEVICE_ONLY__
+class atomic_ref_impl<
+#else
+class
+    [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]] atomic_ref_impl<
+#endif
+    T, /*SizeOfT = */ 2, DefaultOrder, DefaultScope, AddressSpace,
+    typename std::enable_if_t<std::is_floating_point_v<T> ||
+                              std::is_same_v<T, sycl::half>>>
+    : public atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                             AddressSpace> {
+public:
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl;
+  using atomic_ref_impl<T, /*SizeOfT = */ 4, DefaultOrder, DefaultScope,
+                        AddressSpace>::atomic_ref_impl::operator=;
 };
 
 // Partial specialization for pointer types
 // Arithmetic is emulated because target's representation of T* is unknown
 // TODO: Find a way to use intptr_t or uintptr_t atomics instead
-template <typename T, bool IsAspectAtomic64AttrUsed, memory_order DefaultOrder,
+template <typename T, size_t SizeOfT, memory_order DefaultOrder,
           memory_scope DefaultScope, access::address_space AddressSpace>
 #ifndef __SYCL_DEVICE_ONLY__
 class atomic_ref_impl<
 #else
 class [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]] atomic_ref_impl<
 #endif
-    T *, IsAspectAtomic64AttrUsed, DefaultOrder, DefaultScope, AddressSpace>
+    T *, SizeOfT, DefaultOrder, DefaultScope, AddressSpace>
     : public atomic_ref_base<uintptr_t, DefaultOrder, DefaultScope,
                              AddressSpace> {
 
@@ -713,15 +751,17 @@ template <typename T, memory_order DefaultOrder, memory_scope DefaultScope,
           access::address_space AddressSpace =
               access::address_space::generic_space>
 // if sizeof(T) == 8 bytes, then the type T is optional kernel feature, so it
-// was decorated with [[__sycl_detail__::__uses_aspects__(aspect::atomic64))]]
+// was decorated with [[__sycl_detail__::__uses_aspects__(aspect::atomic64)]]
 // attribute in detail::atomic_ref_impl partial specializations above
-class atomic_ref
-    : public detail::atomic_ref_impl<T, sizeof(T) == 8, DefaultOrder,
-                                     DefaultScope, AddressSpace> {
+//
+// if sizeof(T) == 2 bytes, then decorated with
+// [[__sycl_detail__::__uses_aspects__(aspect::ext_oneapi_atomic16)]]
+class atomic_ref : public detail::atomic_ref_impl<T, sizeof(T), DefaultOrder,
+                                                  DefaultScope, AddressSpace> {
 public:
-  using detail::atomic_ref_impl<T, sizeof(T) == 8, DefaultOrder, DefaultScope,
+  using detail::atomic_ref_impl<T, sizeof(T), DefaultOrder, DefaultScope,
                                 AddressSpace>::atomic_ref_impl;
-  using detail::atomic_ref_impl<T, sizeof(T) == 8, DefaultOrder, DefaultScope,
+  using detail::atomic_ref_impl<T, sizeof(T), DefaultOrder, DefaultScope,
                                 AddressSpace>::operator=;
 };
 

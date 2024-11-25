@@ -32,10 +32,10 @@ void foo() {
 // CHECK: store float %_arg_f2, ptr addrspace(4) %_arg_f2.addr
 
 // Store the int and the float into the struct created
-// CHECK: %x = getelementptr inbounds %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 0
+// CHECK: %x = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 0
 // CHECK: %0 = load i32, ptr addrspace(4) %_arg_x.addr
 // CHECK: store i32 %0, ptr addrspace(4) %x
-// CHECK: %f2 = getelementptr inbounds %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 1
+// CHECK: %f2 = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %__SYCLKernel{{.*}}, i32 0, i32 1
 // CHECK: %1 = load float, ptr addrspace(4) %_arg_f2.addr
 // CHECK: store float %1, ptr addrspace(4) %f2
 
@@ -52,10 +52,10 @@ void foo() {
 // CHECK:  %this1 = load ptr addrspace(4), ptr addrspace(4) %this.addr.ascast
 
 // Check the store of 10 into the int value
-// CHECK:  %x = getelementptr inbounds %class.anon, ptr addrspace(4) %this1, i32 0, i32 0
+// CHECK:  %x = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %this1, i32 0, i32 0
 // CHECK:  store i32 10, ptr addrspace(4) %x
 
 // Check the store of 2.3f into the float value
-// CHECK:  %f2 = getelementptr inbounds %class.anon, ptr addrspace(4) %this1, i32 0, i32 1
+// CHECK:  %f2 = getelementptr inbounds nuw %class.anon, ptr addrspace(4) %this1, i32 0, i32 1
 // CHECK:  store float 0x4002666660000000, ptr addrspace(4) %f2
 // CHECK:  ret void

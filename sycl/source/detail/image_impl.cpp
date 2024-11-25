@@ -10,6 +10,7 @@
 #include <detail/image_impl.hpp>
 #include <detail/memory_manager.hpp>
 #include <detail/xpti_registry.hpp>
+#include <sycl/detail/ur.hpp>
 
 #include <algorithm>
 #include <vector>
@@ -107,167 +108,162 @@ uint8_t getImageElementSize(uint8_t NumChannels, image_channel_type Type) {
   return Retval;
 }
 
-sycl::detail::pi::PiMemImageChannelOrder
-convertChannelOrder(image_channel_order Order) {
+ur_image_channel_order_t convertChannelOrder(image_channel_order Order) {
   switch (Order) {
   case image_channel_order::a:
-    return PI_IMAGE_CHANNEL_ORDER_A;
+    return UR_IMAGE_CHANNEL_ORDER_A;
   case image_channel_order::r:
-    return PI_IMAGE_CHANNEL_ORDER_R;
+    return UR_IMAGE_CHANNEL_ORDER_R;
   case image_channel_order::rx:
-    return PI_IMAGE_CHANNEL_ORDER_Rx;
+    return UR_IMAGE_CHANNEL_ORDER_RX;
   case image_channel_order::rg:
-    return PI_IMAGE_CHANNEL_ORDER_RG;
+    return UR_IMAGE_CHANNEL_ORDER_RG;
   case image_channel_order::rgx:
-    return PI_IMAGE_CHANNEL_ORDER_RGx;
+    return UR_IMAGE_CHANNEL_ORDER_RGX;
   case image_channel_order::ra:
-    return PI_IMAGE_CHANNEL_ORDER_RA;
+    return UR_IMAGE_CHANNEL_ORDER_RA;
   case image_channel_order::rgb:
-    return PI_IMAGE_CHANNEL_ORDER_RGB;
+    return UR_IMAGE_CHANNEL_ORDER_RGB;
   case image_channel_order::rgbx:
-    return PI_IMAGE_CHANNEL_ORDER_RGBx;
+    return UR_IMAGE_CHANNEL_ORDER_RGBX;
   case image_channel_order::rgba:
-    return PI_IMAGE_CHANNEL_ORDER_RGBA;
+    return UR_IMAGE_CHANNEL_ORDER_RGBA;
   case image_channel_order::argb:
-    return PI_IMAGE_CHANNEL_ORDER_ARGB;
+    return UR_IMAGE_CHANNEL_ORDER_ARGB;
   case image_channel_order::bgra:
-    return PI_IMAGE_CHANNEL_ORDER_BGRA;
+    return UR_IMAGE_CHANNEL_ORDER_BGRA;
   case image_channel_order::intensity:
-    return PI_IMAGE_CHANNEL_ORDER_INTENSITY;
+    return UR_IMAGE_CHANNEL_ORDER_INTENSITY;
   case image_channel_order::luminance:
-    return PI_IMAGE_CHANNEL_ORDER_LUMINANCE;
+    return UR_IMAGE_CHANNEL_ORDER_LUMINANCE;
   case image_channel_order::abgr:
-    return PI_IMAGE_CHANNEL_ORDER_ABGR;
+    return UR_IMAGE_CHANNEL_ORDER_ABGR;
   case image_channel_order::ext_oneapi_srgba:
-    return PI_IMAGE_CHANNEL_ORDER_sRGBA;
+    return UR_IMAGE_CHANNEL_ORDER_SRGBA;
   }
   assert(false && "Unhandled image_channel_order");
-  return static_cast<sycl::detail::pi::PiMemImageChannelOrder>(0);
+  return static_cast<ur_image_channel_order_t>(0);
 }
 
-image_channel_order
-convertChannelOrder(sycl::detail::pi::PiMemImageChannelOrder Order) {
+image_channel_order convertChannelOrder(ur_image_channel_order_t Order) {
   switch (Order) {
-  case PI_IMAGE_CHANNEL_ORDER_A:
+  case UR_IMAGE_CHANNEL_ORDER_A:
     return image_channel_order::a;
-  case PI_IMAGE_CHANNEL_ORDER_R:
+  case UR_IMAGE_CHANNEL_ORDER_R:
     return image_channel_order::r;
-  case PI_IMAGE_CHANNEL_ORDER_Rx:
+  case UR_IMAGE_CHANNEL_ORDER_RX:
     return image_channel_order::rx;
-  case PI_IMAGE_CHANNEL_ORDER_RG:
+  case UR_IMAGE_CHANNEL_ORDER_RG:
     return image_channel_order::rg;
-  case PI_IMAGE_CHANNEL_ORDER_RGx:
+  case UR_IMAGE_CHANNEL_ORDER_RGX:
     return image_channel_order::rgx;
-  case PI_IMAGE_CHANNEL_ORDER_RA:
+  case UR_IMAGE_CHANNEL_ORDER_RA:
     return image_channel_order::ra;
-  case PI_IMAGE_CHANNEL_ORDER_RGB:
+  case UR_IMAGE_CHANNEL_ORDER_RGB:
     return image_channel_order::rgb;
-  case PI_IMAGE_CHANNEL_ORDER_RGBx:
+  case UR_IMAGE_CHANNEL_ORDER_RGBX:
     return image_channel_order::rgbx;
-  case PI_IMAGE_CHANNEL_ORDER_RGBA:
+  case UR_IMAGE_CHANNEL_ORDER_RGBA:
     return image_channel_order::rgba;
-  case PI_IMAGE_CHANNEL_ORDER_ARGB:
+  case UR_IMAGE_CHANNEL_ORDER_ARGB:
     return image_channel_order::argb;
-  case PI_IMAGE_CHANNEL_ORDER_BGRA:
+  case UR_IMAGE_CHANNEL_ORDER_BGRA:
     return image_channel_order::bgra;
-  case PI_IMAGE_CHANNEL_ORDER_INTENSITY:
+  case UR_IMAGE_CHANNEL_ORDER_INTENSITY:
     return image_channel_order::intensity;
-  case PI_IMAGE_CHANNEL_ORDER_LUMINANCE:
+  case UR_IMAGE_CHANNEL_ORDER_LUMINANCE:
     return image_channel_order::luminance;
-  case PI_IMAGE_CHANNEL_ORDER_ABGR:
+  case UR_IMAGE_CHANNEL_ORDER_ABGR:
     return image_channel_order::abgr;
-  case PI_IMAGE_CHANNEL_ORDER_sRGBA:
+  case UR_IMAGE_CHANNEL_ORDER_SRGBA:
     return image_channel_order::ext_oneapi_srgba;
+  default:
+    assert(false && "Unhandled image_channel_order");
   }
-  assert(false && "Unhandled image_channel_order");
   return static_cast<image_channel_order>(0);
 }
 
-sycl::detail::pi::PiMemImageChannelType
-convertChannelType(image_channel_type Type) {
+ur_image_channel_type_t convertChannelType(image_channel_type Type) {
   switch (Type) {
   case image_channel_type::snorm_int8:
-    return PI_IMAGE_CHANNEL_TYPE_SNORM_INT8;
+    return UR_IMAGE_CHANNEL_TYPE_SNORM_INT8;
   case image_channel_type::snorm_int16:
-    return PI_IMAGE_CHANNEL_TYPE_SNORM_INT16;
+    return UR_IMAGE_CHANNEL_TYPE_SNORM_INT16;
   case image_channel_type::unorm_int8:
-    return PI_IMAGE_CHANNEL_TYPE_UNORM_INT8;
+    return UR_IMAGE_CHANNEL_TYPE_UNORM_INT8;
   case image_channel_type::unorm_int16:
-    return PI_IMAGE_CHANNEL_TYPE_UNORM_INT16;
+    return UR_IMAGE_CHANNEL_TYPE_UNORM_INT16;
   case image_channel_type::unorm_short_565:
-    return PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
+    return UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565;
   case image_channel_type::unorm_short_555:
-    return PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
+    return UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555;
   case image_channel_type::unorm_int_101010:
-    return PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010;
+    return UR_IMAGE_CHANNEL_TYPE_INT_101010;
   case image_channel_type::signed_int8:
-    return PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
+    return UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8;
   case image_channel_type::signed_int16:
-    return PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
+    return UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16;
   case image_channel_type::signed_int32:
-    return PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
+    return UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32;
   case image_channel_type::unsigned_int8:
-    return PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
+    return UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8;
   case image_channel_type::unsigned_int16:
-    return PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
+    return UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16;
   case image_channel_type::unsigned_int32:
-    return PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
+    return UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32;
   case image_channel_type::fp16:
-    return PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
+    return UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT;
   case image_channel_type::fp32:
-    return PI_IMAGE_CHANNEL_TYPE_FLOAT;
+    return UR_IMAGE_CHANNEL_TYPE_FLOAT;
   }
   assert(false && "Unhandled image_channel_order");
-  return static_cast<sycl::detail::pi::PiMemImageChannelType>(0);
+  return static_cast<ur_image_channel_type_t>(0);
 }
 
-image_channel_type
-convertChannelType(sycl::detail::pi::PiMemImageChannelType Type) {
+image_channel_type convertChannelType(ur_image_channel_type_t Type) {
   switch (Type) {
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT8:
     return image_channel_type::snorm_int8;
-  case PI_IMAGE_CHANNEL_TYPE_SNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_SNORM_INT16:
     return image_channel_type::snorm_int16;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT8:
     return image_channel_type::unorm_int8;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_INT16:
     return image_channel_type::unorm_int16;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565:
     return image_channel_type::unorm_short_565;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
+  case UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555:
     return image_channel_type::unorm_short_555;
-  case PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010:
+  case UR_IMAGE_CHANNEL_TYPE_INT_101010:
     return image_channel_type::unorm_int_101010;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8:
     return image_channel_type::signed_int8;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT16:
     return image_channel_type::signed_int16;
-  case PI_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_SIGNED_INT32:
     return image_channel_type::signed_int32;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8:
     return image_channel_type::unsigned_int8;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT16:
     return image_channel_type::unsigned_int16;
-  case PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
+  case UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT32:
     return image_channel_type::unsigned_int32;
-  case PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
+  case UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT:
     return image_channel_type::fp16;
-  case PI_IMAGE_CHANNEL_TYPE_FLOAT:
+  case UR_IMAGE_CHANNEL_TYPE_FLOAT:
     return image_channel_type::fp32;
+  default:
+    assert(false && "Unhandled image_channel_order");
   }
-  assert(false && "Unhandled image_channel_order");
   return static_cast<image_channel_type>(0);
 }
 
 template <typename T>
-static void getImageInfo(const ContextImplPtr Context,
-                         sycl::detail::pi::PiMemImageInfo Info, T &Dest,
-                         sycl::detail::pi::PiMem InteropMemObject) {
-  const PluginPtr &Plugin = Context->getPlugin();
-  sycl::detail::pi::PiMem Mem =
-      pi::cast<sycl::detail::pi::PiMem>(InteropMemObject);
-  Plugin->call<PiApiKind::piMemImageGetInfo>(Mem, Info, sizeof(T), &Dest,
-                                             nullptr);
+static void getImageInfo(const ContextImplPtr Context, ur_image_info_t Info,
+                         T &Dest, ur_mem_handle_t InteropMemObject) {
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urMemImageGetInfo>(InteropMemObject, Info, sizeof(T),
+                                              &Dest, nullptr);
 }
 
 image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
@@ -277,46 +273,47 @@ image_impl::image_impl(cl_mem MemObject, const context &SyclContext,
     : BaseT(MemObject, SyclContext, std::move(AvailableEvent),
             std::move(Allocator)),
       MDimensions(Dimensions), MRange({0, 0, 0}) {
-  sycl::detail::pi::PiMem Mem =
-      pi::cast<sycl::detail::pi::PiMem>(BaseT::MInteropMemObject);
+  ur_mem_handle_t Mem = ur::cast<ur_mem_handle_t>(BaseT::MInteropMemObject);
   const ContextImplPtr Context = getSyclObjImpl(SyclContext);
-  const PluginPtr &Plugin = Context->getPlugin();
-  Plugin->call<PiApiKind::piMemGetInfo>(Mem, PI_MEM_SIZE, sizeof(size_t),
-                                        &(BaseT::MSizeInBytes), nullptr);
+  const AdapterPtr &Adapter = Context->getAdapter();
+  Adapter->call<UrApiKind::urMemGetInfo>(Mem, UR_MEM_INFO_SIZE, sizeof(size_t),
+                                         &(BaseT::MSizeInBytes), nullptr);
 
-  sycl::detail::pi::PiMemImageFormat Format;
-  getImageInfo(Context, PI_IMAGE_INFO_FORMAT, Format, Mem);
-  MOrder = detail::convertChannelOrder(Format.image_channel_order);
-  MType = detail::convertChannelType(Format.image_channel_data_type);
+  ur_image_format_t Format;
+  getImageInfo(Context, UR_IMAGE_INFO_FORMAT, Format, Mem);
+  MOrder = detail::convertChannelOrder(Format.channelOrder);
+  MType = detail::convertChannelType(Format.channelType);
   MNumChannels = getImageNumberChannels(MOrder);
 
-  getImageInfo(Context, PI_IMAGE_INFO_ELEMENT_SIZE, MElementSize, Mem);
+  getImageInfo(Context, UR_IMAGE_INFO_ELEMENT_SIZE, MElementSize, Mem);
   assert(getImageElementSize(MNumChannels, MType) == MElementSize);
 
-  getImageInfo(Context, PI_IMAGE_INFO_ROW_PITCH, MRowPitch, Mem);
-  getImageInfo(Context, PI_IMAGE_INFO_SLICE_PITCH, MSlicePitch, Mem);
+  getImageInfo(Context, UR_IMAGE_INFO_ROW_PITCH, MRowPitch, Mem);
+  getImageInfo(Context, UR_IMAGE_INFO_SLICE_PITCH, MSlicePitch, Mem);
 
   switch (MDimensions) {
   case 3:
-    getImageInfo(Context, PI_IMAGE_INFO_DEPTH, MRange[2], Mem);
+    getImageInfo(Context, UR_IMAGE_INFO_DEPTH, MRange[2], Mem);
     [[fallthrough]];
   case 2:
-    getImageInfo(Context, PI_IMAGE_INFO_HEIGHT, MRange[1], Mem);
+    getImageInfo(Context, UR_IMAGE_INFO_HEIGHT, MRange[1], Mem);
     [[fallthrough]];
   case 1:
-    getImageInfo(Context, PI_IMAGE_INFO_WIDTH, MRange[0], Mem);
+    getImageInfo(Context, UR_IMAGE_INFO_WIDTH, MRange[0], Mem);
   }
 }
 
-image_impl::image_impl(pi_native_handle MemObject, const context &SyclContext,
+image_impl::image_impl(ur_native_handle_t MemObject, const context &SyclContext,
                        event AvailableEvent,
                        std::unique_ptr<SYCLMemObjAllocator> Allocator,
                        uint8_t Dimensions, image_channel_order Order,
                        image_channel_type Type, bool OwnNativeHandle,
                        range<3> Range3WithOnes)
     : BaseT(MemObject, SyclContext, OwnNativeHandle, std::move(AvailableEvent),
-            std::move(Allocator), detail::convertChannelOrder(Order),
-            detail::convertChannelType(Type), Range3WithOnes, Dimensions,
+            std::move(Allocator),
+            ur_image_format_t{detail::convertChannelOrder(Order),
+                              detail::convertChannelType(Type)},
+            Range3WithOnes, Dimensions,
             getImageElementSize(getImageNumberChannels(Order), Type)),
       MDimensions(Dimensions), MRange(Range3WithOnes) {
   MOrder = Order;
@@ -328,15 +325,15 @@ image_impl::image_impl(pi_native_handle MemObject, const context &SyclContext,
 
 void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
                               void *HostPtr,
-                              sycl::detail::pi::PiEvent &OutEventToWait) {
+                              ur_event_handle_t &OutEventToWait) {
   bool HostPtrReadOnly = false;
-  BaseT::determineHostPtr(InitFromUserData, HostPtr, HostPtrReadOnly);
+  BaseT::determineHostPtr(Context, InitFromUserData, HostPtr, HostPtrReadOnly);
 
-  sycl::detail::pi::PiMemImageDesc Desc = getImageDesc(HostPtr != nullptr);
+  ur_image_desc_t Desc = getImageDesc(HostPtr != nullptr);
   assert(checkImageDesc(Desc, Context, HostPtr) &&
          "The check an image desc failed.");
 
-  sycl::detail::pi::PiMemImageFormat Format = getImageFormat();
+  ur_image_format_t Format = getImageFormat();
   assert(checkImageFormat(Format, Context) &&
          "The check an image format failed.");
 
@@ -346,110 +343,105 @@ void *image_impl::allocateMem(ContextImplPtr Context, bool InitFromUserData,
       BaseT::MInteropContext, MProps, OutEventToWait);
 }
 
-bool image_impl::checkImageDesc(const sycl::detail::pi::PiMemImageDesc &Desc,
+bool image_impl::checkImageDesc(const ur_image_desc_t &Desc,
                                 ContextImplPtr Context, void *UserPtr) {
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D, PI_MEM_TYPE_IMAGE1D_ARRAY,
-               PI_MEM_TYPE_IMAGE2D_ARRAY, PI_MEM_TYPE_IMAGE2D) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D, UR_MEM_TYPE_IMAGE1D_ARRAY,
+               UR_MEM_TYPE_IMAGE2D_ARRAY, UR_MEM_TYPE_IMAGE2D) &&
       !checkImageValueRange<info::device::image2d_max_width>(
-          getDevices(Context), Desc.image_width))
+          getDevices(Context), Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D/2D image/image array, the width must be a Value "
                     ">= 1 and <= info::device::image2d_max_width");
 
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_width>(
-          getDevices(Context), Desc.image_width))
+          getDevices(Context), Desc.width))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the width must be a Value >= 1 and <= "
                     "info::device::image3d_max_width");
 
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE2D,
-               PI_MEM_TYPE_IMAGE2D_ARRAY) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE2D, UR_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image2d_max_height>(
-          getDevices(Context), Desc.image_height))
+          getDevices(Context), Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 2D image or image array, the height must be a Value "
                     ">= 1 and <= info::device::image2d_max_height");
 
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_height>(
-          getDevices(Context), Desc.image_height))
+          getDevices(Context), Desc.height))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the heightmust be a Value >= 1 and <= "
                     "info::device::image3d_max_height");
 
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE3D) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE3D) &&
       !checkImageValueRange<info::device::image3d_max_depth>(
-          getDevices(Context), Desc.image_depth))
+          getDevices(Context), Desc.depth))
     throw exception(make_error_code(errc::invalid),
                     "For a 3D image, the depth must be a Value >= 1 and <= "
                     "info::device::image2d_max_depth");
 
-  if (checkAny(Desc.image_type, PI_MEM_TYPE_IMAGE1D_ARRAY,
-               PI_MEM_TYPE_IMAGE2D_ARRAY) &&
+  if (checkAny(Desc.type, UR_MEM_TYPE_IMAGE1D_ARRAY,
+               UR_MEM_TYPE_IMAGE2D_ARRAY) &&
       !checkImageValueRange<info::device::image_max_array_size>(
-          getDevices(Context), Desc.image_array_size))
+          getDevices(Context), Desc.arraySize))
     throw exception(make_error_code(errc::invalid),
                     "For a 1D and 2D image array, the array_size must be a "
                     "Value >= 1 and <= info::device::image_max_array_size.");
 
-  if ((nullptr == UserPtr) && (0 != Desc.image_row_pitch))
+  if ((nullptr == UserPtr) && (0 != Desc.rowPitch))
     throw exception(make_error_code(errc::invalid),
                     "The row_pitch must be 0 if host_ptr is nullptr.");
 
-  if ((nullptr == UserPtr) && (0 != Desc.image_slice_pitch))
+  if ((nullptr == UserPtr) && (0 != Desc.slicePitch))
     throw exception(make_error_code(errc::invalid),
                     "The slice_pitch must be 0 if host_ptr is nullptr.");
 
-  if (0 != Desc.num_mip_levels)
+  if (0 != Desc.numMipLevel)
     throw exception(make_error_code(errc::invalid),
                     "The mip_levels must be 0.");
 
-  if (0 != Desc.num_samples)
+  if (0 != Desc.numSamples)
     throw exception(make_error_code(errc::invalid),
                     "The num_samples must be 0.");
-
-  if (nullptr != Desc.buffer)
-    throw exception(make_error_code(errc::invalid),
-                    "The buffer must be nullptr, because SYCL does not support "
-                    "image creation from memory objects.");
 
   return true;
 }
 
-bool image_impl::checkImageFormat(
-    const sycl::detail::pi::PiMemImageFormat &Format, ContextImplPtr Context) {
+bool image_impl::checkImageFormat(const ur_image_format_t &Format,
+                                  ContextImplPtr Context) {
   (void)Context;
-  if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_INTENSITY,
-               PI_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
-      !checkAny(
-          Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
-          PI_IMAGE_CHANNEL_TYPE_UNORM_INT16, PI_IMAGE_CHANNEL_TYPE_SNORM_INT8,
-          PI_IMAGE_CHANNEL_TYPE_SNORM_INT16, PI_IMAGE_CHANNEL_TYPE_HALF_FLOAT,
-          PI_IMAGE_CHANNEL_TYPE_FLOAT))
+  if (checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_INTENSITY,
+               UR_IMAGE_CHANNEL_ORDER_LUMINANCE) &&
+      !checkAny(Format.channelType, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+                UR_IMAGE_CHANNEL_TYPE_UNORM_INT16,
+                UR_IMAGE_CHANNEL_TYPE_SNORM_INT8,
+                UR_IMAGE_CHANNEL_TYPE_SNORM_INT16,
+                UR_IMAGE_CHANNEL_TYPE_HALF_FLOAT, UR_IMAGE_CHANNEL_TYPE_FLOAT))
     throw exception(
         make_error_code(errc::invalid),
-        "CL_INTENSITY or CL_LUMINANCE format can only be used if channel data "
-        "type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, CL_SNORM_INT16, "
-        "CL_HALF_FLOAT, or CL_FLOAT.");
+        "CL_INTENSITY or CL_LUMINANCE format can only be used if channel "
+        "data type = CL_UNORM_INT8, CL_UNORM_INT16, CL_SNORM_INT8, "
+        "CL_SNORM_INT16, CL_HALF_FLOAT, or CL_FLOAT.");
 
-  if (checkAny(Format.image_channel_data_type,
-               PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
-               PI_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
-               PI_IMAGE_CHANNEL_TYPE_UNORM_INT_101010) &&
-      !checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_RGB,
-                PI_IMAGE_CHANNEL_ORDER_RGBx))
-    throw exception(make_error_code(errc::invalid),
-                    "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
-                    "CL_UNORM_INT_101010. These channel types can only be used "
-                    "with CL_RGB or CL_RGBx channel order.");
+  if (checkAny(Format.channelType, UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_565,
+               UR_IMAGE_CHANNEL_TYPE_UNORM_SHORT_555,
+               UR_IMAGE_CHANNEL_TYPE_INT_101010) &&
+      !checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_RGB,
+                UR_IMAGE_CHANNEL_ORDER_RGBX))
+    throw exception(
+        make_error_code(errc::invalid),
+        "type = CL_UNORM_SHORT_565, CL_UNORM_SHORT_555 or "
+        "CL_UNORM_INT_101010."
+        "These channel types can only be used with CL_RGB or CL_RGBx channel "
+        "order.");
 
-  if (checkAny(Format.image_channel_order, PI_IMAGE_CHANNEL_ORDER_ARGB,
-               PI_IMAGE_CHANNEL_ORDER_BGRA, PI_IMAGE_CHANNEL_ORDER_ABGR) &&
-      !checkAny(
-          Format.image_channel_data_type, PI_IMAGE_CHANNEL_TYPE_UNORM_INT8,
-          PI_IMAGE_CHANNEL_TYPE_SNORM_INT8, PI_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
-          PI_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
+  if (checkAny(Format.channelOrder, UR_IMAGE_CHANNEL_ORDER_ARGB,
+               UR_IMAGE_CHANNEL_ORDER_BGRA, UR_IMAGE_CHANNEL_ORDER_ABGR) &&
+      !checkAny(Format.channelType, UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
+                UR_IMAGE_CHANNEL_TYPE_SNORM_INT8,
+                UR_IMAGE_CHANNEL_TYPE_SIGNED_INT8,
+                UR_IMAGE_CHANNEL_TYPE_UNSIGNED_INT8))
     throw exception(
         make_error_code(errc::invalid),
         "CL_ARGB, CL_BGRA, CL_ABGR	These formats can only be used if "
@@ -488,6 +480,33 @@ void image_impl::unsampledImageConstructorNotification(
 
 void image_impl::unsampledImageDestructorNotification(void *UserObj) {
   XPTIRegistry::unsampledImageDestructorNotification(UserObj);
+}
+
+void image_impl::verifyProps(const property_list &Props) const {
+  auto CheckDataLessProperties = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)               \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)
+    switch (PropertyKind) {
+#include <sycl/properties/image_properties.def>
+    default:
+      return false;
+    }
+  };
+  auto CheckPropertiesWithData = [](int PropertyKind) {
+#define __SYCL_DATA_LESS_PROP(NS_QUALIFIER, PROP_NAME, ENUM_VAL)
+#define __SYCL_MANUALLY_DEFINED_PROP(NS_QUALIFIER, PROP_NAME)                  \
+  case NS_QUALIFIER::PROP_NAME::getKind():                                     \
+    return true;
+    switch (PropertyKind) {
+#include <sycl/properties/image_properties.def>
+    default:
+      return false;
+    }
+  };
+  detail::PropertyValidator::checkPropsAndThrow(Props, CheckDataLessProperties,
+                                                CheckPropertiesWithData);
 }
 
 } // namespace detail

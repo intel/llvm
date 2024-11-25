@@ -10,9 +10,9 @@
 
 #include <sycl/detail/defines_elementary.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -56,88 +56,80 @@ struct KernelInfo<EAMTestKernel3> : public unittest::MockKernelInfoBase {
 } // namespace sycl
 
 template <typename T>
-static sycl::unittest::PiImage
+static sycl::unittest::MockDeviceImage
 generateEAMTestKernelImage(std::string _cmplOptions, std::string _lnkOptions) {
   using namespace sycl::unittest;
 
   std::vector<unsigned char> KernelEAM1{0b00000101};
-  PiProperty EAMKernelPOI =
+  MockProperty EAMKernelPOI =
       makeKernelParamOptInfo(sycl::detail::KernelInfo<T>::getName(),
                              EAMTestKernelNumArgs1, KernelEAM1);
-  PiArray<PiProperty> ImgKPOI{std::move(EAMKernelPOI)};
+  std::vector<MockProperty> ImgKPOI{std::move(EAMKernelPOI)};
 
-  PiPropertySet PropSet;
-  PropSet.insert(__SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO,
-                 std::move(ImgKPOI));
+  MockPropertySet PropSet;
+  PropSet.insert(__SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO, std::move(ImgKPOI));
 
   std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
 
-  PiArray<PiOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({sycl::detail::KernelInfo<T>::getName()});
 
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              _cmplOptions,                           // Compile options
-              _lnkOptions,                            // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img{SYCL_DEVICE_BINARY_TYPE_SPIRV,       // Format
+                      __SYCL_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
+                      _cmplOptions,                        // Compile options
+                      _lnkOptions,                         // Link options
+                      std::move(Bin),
+                      std::move(Entries),
+                      std::move(PropSet)};
   return Img;
 }
 
-inline pi_result redefinedProgramLink(pi_context, pi_uint32, const pi_device *,
-                                      const char *_linkOpts, pi_uint32,
-                                      const pi_program *,
-                                      void (*)(pi_program, void *), void *,
-                                      pi_program *) {
-  assert(_linkOpts != nullptr);
-  auto add_link_opts = std::string(_linkOpts);
+inline ur_result_t redefinedProgramLink(void *pParams) {
+  auto params = *static_cast<ur_program_link_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  auto add_link_opts = std::string(*params.ppOptions);
   if (!add_link_opts.empty()) {
     if (!current_link_options.empty())
       current_link_options += " ";
-    current_link_options += std::string(_linkOpts);
+    current_link_options += std::string(*params.ppOptions);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-inline pi_result redefinedProgramCompile(pi_program, pi_uint32,
-                                         const pi_device *,
-                                         const char *_compileOpts, pi_uint32,
-                                         const pi_program *, const char **,
-                                         void (*)(pi_program, void *), void *) {
-  assert(_compileOpts != nullptr);
-  auto add_compile_opts = std::string(_compileOpts);
+inline ur_result_t redefinedProgramCompile(void *pParams) {
+  auto params = *static_cast<ur_program_compile_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  auto add_compile_opts = std::string(*params.ppOptions);
   if (!add_compile_opts.empty()) {
     if (!current_compile_options.empty())
       current_compile_options += " ";
-    current_compile_options += std::string(_compileOpts);
+    current_compile_options += std::string(*params.ppOptions);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-inline pi_result redefinedProgramBuild(
-    pi_program prog, pi_uint32, const pi_device *, const char *options,
-    void (*pfn_notify)(pi_program program, void *user_data), void *user_data) {
-  assert(options != nullptr);
-  current_build_opts = std::string(options);
-  return PI_SUCCESS;
+inline ur_result_t redefinedProgramBuild(void *pParams) {
+  auto params = *static_cast<ur_program_build_exp_params_t *>(pParams);
+  assert(*params.ppOptions != nullptr);
+  current_build_opts = std::string(*params.ppOptions);
+  return UR_RESULT_SUCCESS;
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_options = "";
-  static sycl::unittest::PiImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel1>(expected_options,
                                                  expected_options);
-  static sycl::unittest::PiImageArray<1> DevImageArray_{&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray_{&DevImage};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel1>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
@@ -151,12 +143,12 @@ TEST(Link_Compile_Options, compile_link_Options_Test_empty_options) {
 }
 
 TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
@@ -164,11 +156,11 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
                   "-cl-opt-disable -cl-fp32-correctly-rounded-divide-sqrt",
               expected_link_options_1 =
                   "-cl-denorms-are-zero -cl-no-signed-zeros";
-  static sycl::unittest::PiImage DevImage_1 =
+  static sycl::unittest::MockDeviceImage DevImage_1 =
       generateEAMTestKernelImage<EAMTestKernel2>(expected_compile_options_1,
                                                  expected_link_options_1);
 
-  static sycl::unittest::PiImageArray<1> DevImageArray = {&DevImage_1};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray = {&DevImage_1};
   auto KernelID_1 = sycl::get_kernel_id<EAMTestKernel2>();
   sycl::queue Queue{Dev};
   const sycl::context Ctx = Queue.get_context();
@@ -186,23 +178,23 @@ TEST(Link_Compile_Options, compile_link_Options_Test_filled_options) {
 // TODO : Add check for linking 2 device images together when implemented.
 
 TEST(Link_Compile_Options, check_sycl_build) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramCompile>(
-      redefinedProgramCompile);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramLink>(
-      redefinedProgramLink);
-  Mock.redefineBefore<sycl::detail::PiApiKind::piProgramBuild>(
-      redefinedProgramBuild);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urProgramCompileExp",
+                                           &redefinedProgramCompile);
+  mock::getCallbacks().set_before_callback("urProgramLinkExp",
+                                           &redefinedProgramLink);
+  mock::getCallbacks().set_before_callback("urProgramBuildExp",
+                                           &redefinedProgramBuild);
   const sycl::device Dev = Plt.get_devices()[0];
   current_link_options.clear();
   current_compile_options.clear();
   std::string expected_compile_options = "-cl-opt-disable",
               expected_link_options = "-cl-denorms-are-zero";
-  static sycl::unittest::PiImage DevImage =
+  static sycl::unittest::MockDeviceImage DevImage =
       generateEAMTestKernelImage<EAMTestKernel3>(expected_compile_options,
                                                  expected_link_options);
-  static sycl::unittest::PiImageArray<1> DevImageArray{&DevImage};
+  static sycl::unittest::MockDeviceImageArray<1> DevImageArray{&DevImage};
   auto KernelID = sycl::get_kernel_id<EAMTestKernel3>();
   sycl::context Ctx{Dev};
   sycl::queue Queue{Ctx, Dev};

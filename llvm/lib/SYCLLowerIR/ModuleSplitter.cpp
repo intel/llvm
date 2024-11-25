@@ -26,6 +26,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/LowerInvokeSimd.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
+#include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Error.h"
 #include "llvm/Support/FileSystem.h"
@@ -52,9 +53,9 @@ constexpr char SYCL_SCOPE_NAME[] = "<SYCL>";
 constexpr char ESIMD_SCOPE_NAME[] = "<ESIMD>";
 constexpr char ESIMD_MARKER_MD[] = "sycl_explicit_simd";
 
-cl::opt<bool> SupportDynamicLinking{
-    "support-dynamic-linking",
-    cl::desc("Generate device images that are suitable for dynamic linking"),
+cl::opt<bool> AllowDeviceImageDependencies{
+    "allow-device-image-dependencies",
+    cl::desc("Allow dependencies between device images"),
     cl::cat(getModuleSplitCategory()), cl::init(false)};
 
 EntryPointsGroupScope selectDeviceCodeGroupScope(const Module &M,
@@ -113,7 +114,8 @@ bool isGenericBuiltin(StringRef FName) {
 }
 
 bool isKernel(const Function &F) {
-  return F.getCallingConv() == CallingConv::SPIR_KERNEL;
+  return F.getCallingConv() == CallingConv::SPIR_KERNEL ||
+         F.getCallingConv() == CallingConv::AMDGPU_KERNEL;
 }
 
 bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
@@ -136,7 +138,10 @@ bool isEntryPoint(const Function &F, bool EmitOnlyKernelsAsEntryPoints) {
            !isGenericBuiltin(F.getName());
   }
 
-  return false;
+  // Even if we are emitting only kernels as entry points, virtual functions
+  // should still be treated as entry points, because they are going to be
+  // outlined into separate device images and linked in later.
+  return F.hasFnAttribute("indirectly-callable");
 }
 
 // Represents "dependency" or "use" graph of global objects (functions and
@@ -182,11 +187,8 @@ public:
       FuncTypeToFuncsMap[F.getFunctionType()].insert(&F);
     }
 
-    // We add every function into the graph except if
-    // SupportDynamicLinking is true
     for (const auto &F : M.functions()) {
-
-      if (SupportDynamicLinking && canBeImportedFunction(F))
+      if (canBeImportedFunction(F))
         continue;
 
       // case (1), see comment above the class definition
@@ -660,23 +662,71 @@ void ModuleDesc::restoreLinkageOfDirectInvokeSimdTargets() {
   }
 }
 
-// Predicate for Internalize pass.
-bool mustPreserveGV(const GlobalValue &GV) {
-  if (const Function *F = dyn_cast<Function>(&GV))
-    if (!canBeImportedFunction(*F))
-      return false;
+// Predicate for Internalize pass. The pass is very aggressive and essentially
+// tries to internalize absolutely everything. This function serves as "input
+// from a linker" that tells the pass what must be preserved in order to make
+// the transformation safe.
+static bool mustPreserveGV(const GlobalValue &GV) {
+  if (const Function *F = dyn_cast<Function>(&GV)) {
+    // When dynamic linking is supported, we internalize everything (except
+    // kernels which are the entry points from host code to device code) that
+    // cannot be imported which also means that there is no point of having it
+    // visible outside of the current module.
+    if (AllowDeviceImageDependencies)
+      return F->getCallingConv() == CallingConv::SPIR_KERNEL ||
+             canBeImportedFunction(*F);
+
+    // Otherwise, we are being even more aggressive: SYCL modules are expected
+    // to be self-contained, meaning that they have no external dependencies.
+    // Therefore, we can internalize every function that is not an entry point.
+    // One exception here is virtual functions: when they are in use, modules
+    // are not self-contained anymore and some device images has to be linked
+    // at runtime to resolve all symbols.
+    // Functions marked with referenced-indirectly attribute is another
+    // exception: that attribute was originally introduced for function pointers
+    // and even though its main usage was deprecated and dropped, it is still
+    // used in invoke_simd (but that use needs to be revisited).
+    return F->hasFnAttribute("sycl-entry-point") ||
+           F->hasFnAttribute("indirectly-callable") ||
+           F->hasFnAttribute("referenced-indirectly");
+  }
+
+  // Otherwise, we don't have enough information about a global and picking a
+  // safe side saying that all other globals must be preserved (we should have
+  // cleaned up unused globals during dependency graph analysis already).
   return true;
 }
 
 // TODO: try to move all passes (cleanup, spec consts, compile time properties)
 // in one place and execute MPM.run() only once.
 void ModuleDesc::cleanup() {
+  // Any definitions of virtual functions should be removed and turned into
+  // declarations, they are supposed to be provided by a different module.
+  if (!EntryPoints.Props.HasVirtualFunctionDefinitions) {
+    for (Function &F : *M)
+      if (F.hasFnAttribute("indirectly-callable")) {
+        F.deleteBody();
+        if (F.hasComdat())
+          F.setComdat(nullptr);
+      }
+  } else {
+    // Otherwise externalize them so they are not dropped by GlobalDCE
+    for (Function &F : *M)
+      if (F.hasFnAttribute("indirectly-callable"))
+        F.setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
+  }
+
+  // Callback for internalize can't be a lambda with captures, so we propagate
+  // necessary information through the module itself.
+  if (!AllowDeviceImageDependencies)
+    for (Function *F : EntryPoints.Functions)
+      F->addFnAttr("sycl-entry-point");
+
   ModuleAnalysisManager MAM;
   MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
   ModulePassManager MPM;
   // Do cleanup.
-  if (SupportDynamicLinking)
-    MPM.addPass(InternalizePass(mustPreserveGV));
+  MPM.addPass(InternalizePass(mustPreserveGV));
   MPM.addPass(GlobalDCEPass());           // Delete unreachable globals.
   MPM.addPass(StripDeadDebugInfoPass());  // Remove dead debug info.
   MPM.addPass(StripDeadPrototypesPass()); // Remove dead func decls.
@@ -748,6 +798,23 @@ void ModuleDesc::dump() const {
   llvm::errs() << "}\n";
 }
 #endif // NDEBUG
+
+void ModuleDesc::saveSplitInformationAsMetadata() {
+  // Add metadata to the module so we can identify what kind of SYCL/ESIMD split
+  // later.
+  auto *SplitMD = M->getOrInsertNamedMetadata(SYCL_ESIMD_SPLIT_MD_NAME);
+  auto *SplitMDOp = MDNode::get(
+      M->getContext(), ConstantAsMetadata::get(ConstantInt::get(
+                           Type::getInt8Ty(M->getContext()),
+                           static_cast<uint8_t>(EntryPoints.Props.HasESIMD))));
+  SplitMD->addOperand(SplitMDOp);
+
+  // Add metadata to the module so we can identify it as the default value spec
+  // constants split later.
+  if (isSpecConstantDefault())
+    M->getOrInsertNamedMetadata(
+        SpecConstantsPass::SPEC_CONST_DEFAULT_VAL_MODULE_MD_STRING);
+}
 
 void EntryPointGroup::saveNames(std::vector<std::string> &Dest) const {
   Dest.reserve(Dest.size() + Functions.size());
@@ -1060,6 +1127,17 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Categorizer.registerSimpleStringAttributeRule(
         sycl::utils::ATTR_SYCL_MODULE_ID);
 
+    // This attribute marks virtual functions and effectively dictates how they
+    // should be groupped together. By design we won't split those groups of
+    // virtual functions further even if functions from the same group use
+    // different optional features and therefore this rule is put here.
+    // Strictly speaking, we don't even care about module-id splitting for
+    // those, but to avoid that we need to refactor the whole categorizer.
+    // However, this is good enough as it is for an initial version.
+    // TODO: for AOT use case we shouldn't be outlining those and instead should
+    // only select those functions which are compatible with the target device
+    Categorizer.registerSimpleStringAttributeRule("indirectly-callable");
+
     // Optional features
     // Note: Add more rules at the end of the list to avoid chaning orders of
     // output files in existing tests.
@@ -1099,8 +1177,19 @@ getDeviceCodeSplitter(ModuleDesc &&MD, IRSplitMode Mode, bool IROutputOnly,
     Groups.reserve(EntryPointsMap.size());
     // Start with properties of a source module
     EntryPointGroup::Properties MDProps = MD.getEntryPointGroup().Props;
-    for (auto &[Key, EntryPoints] : EntryPointsMap)
-      Groups.emplace_back(Key, std::move(EntryPoints), MDProps);
+    for (auto &[Key, EntryPoints] : EntryPointsMap) {
+      bool HasVirtualFunctions = false;
+      for (auto *F : EntryPoints) {
+        if (F->hasFnAttribute("indirectly-callable")) {
+          HasVirtualFunctions = true;
+          break;
+        }
+      }
+
+      auto PropsCopy = MDProps;
+      PropsCopy.HasVirtualFunctionDefinitions = HasVirtualFunctions;
+      Groups.emplace_back(Key, std::move(EntryPoints), PropsCopy);
+    }
   }
 
   bool DoSplit = (Mode != SPLIT_NONE &&
@@ -1220,6 +1309,7 @@ static Expected<SplitModule> saveModuleDesc(ModuleDesc &MD, std::string Prefix,
                                             bool OutputAssembly) {
   SplitModule SM;
   Prefix += OutputAssembly ? ".ll" : ".bc";
+  MD.saveSplitInformationAsMetadata();
   Error E = saveModuleIRInFile(MD.getModule(), Prefix, OutputAssembly);
   if (E)
     return E;
@@ -1312,8 +1402,26 @@ splitSYCLModule(std::unique_ptr<Module> M, ModuleSplitterSettings Settings) {
 }
 
 bool canBeImportedFunction(const Function &F) {
+  // It may be theoretically possible to determine what is importable
+  // based solely on function F, but the "SYCL/imported symbols"
+  // property list MUST NOT have any imported symbols that are not supplied
+  // the exported symbols from another device image.  This will lead to a
+  // runtime crash "No device image found for external symbol". Generating
+  // precise "SYCL/imported symbols" can be difficult because there exist
+  // functions that may look like they can be imported, but are supplied outside
+  // of user device code (e.g. _Z38__spirv_JointMatrixWorkItemLength...) In
+  // order to be safe and not require perfect name analysis just start with this
+  // simple check.
+  if (!AllowDeviceImageDependencies)
+    return false;
+
+  // SYCL_EXTERNAL property is not recorded for a declaration
+  // in a header file.  Thus SYCL IR that is a declaration
+  // will be considered as SYCL_EXTERNAL for the purposes of
+  // this function.
   if (F.isIntrinsic() || F.getName().starts_with("__") ||
-      !llvm::sycl::utils::isSYCLExternalFunction(&F))
+      isSpirvSyclBuiltin(F.getName()) || isESIMDBuiltin(F.getName()) ||
+      (!F.isDeclaration() && !llvm::sycl::utils::isSYCLExternalFunction(&F)))
     return false;
 
   bool ReturnValue = true;

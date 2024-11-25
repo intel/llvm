@@ -12,6 +12,7 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/ESIMD/ESIMDUtils.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
+#include "llvm/SYCLLowerIR/TargetHelpers.h"
 
 #include "llvm/ADT/APInt.h"
 #include "llvm/ADT/StringMap.h"
@@ -361,18 +362,24 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       AddFPControlMetadataForWidth(SPIRV_DENORM_PRESERVE, 64);
   }
 
-  if (AttrKindStr == "sycl-work-group-size" ||
-      AttrKindStr == "sycl-work-group-size-hint") {
-    // Split values in the comma-separated list integers.
-    SmallVector<StringRef, 3> ValStrs;
-    Attr.getValueAsString().split(ValStrs, ',');
+  static constexpr std::tuple<const char *, const char *> SimpleWGAttrs[] = {
+      {"sycl-work-group-size", "reqd_work_group_size"},
+      {"sycl-work-group-size-hint", "work_group_size_hint"},
+      {"sycl-max-work-group-size", "max_work_group_size"},
+  };
 
-    assert(ValStrs.size() <= 3 &&
-           "sycl-work-group-size and sycl-work-group-size-hint currently only "
-           "support up to three values");
+  for (auto &[AttrKind, MDStr] : SimpleWGAttrs) {
+    if (AttrKindStr != AttrKind)
+      continue;
+    // Split values in the comma-separated list integers.
+    SmallVector<StringRef, 3> AttrValStrs;
+    Attr.getValueAsString().split(AttrValStrs, ',');
+
+    size_t NumDims = AttrValStrs.size();
+    assert(NumDims <= 3 && "Incorrect number of values for kernel property");
 
     // SYCL work-group sizes must be reversed for SPIR-V.
-    std::reverse(ValStrs.begin(), ValStrs.end());
+    std::reverse(AttrValStrs.begin(), AttrValStrs.end());
 
     // Use integer pointer size as closest analogue to size_t.
     IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
@@ -381,14 +388,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
     // Get the integers from the strings.
     SmallVector<Metadata *, 3> MDVals;
-    for (StringRef ValStr : ValStrs)
+    for (StringRef ValStr : AttrValStrs)
       MDVals.push_back(ConstantAsMetadata::get(
           Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, ValStr, 10))));
+    while (MDVals.size() < 3)
+      MDVals.push_back(ConstantAsMetadata::get(
+          Constant::getIntegerValue(SizeTTy, APInt(SizeTBitSize, 1, 10))));
 
-    const char *MDName = (AttrKindStr == "sycl-work-group-size")
-                             ? "reqd_work_group_size"
-                             : "work_group_size_hint";
-    return std::pair<std::string, MDNode *>(MDName, MDNode::get(Ctx, MDVals));
+    if (NumDims < 3) {
+      if (!F.hasMetadata("work_group_num_dim"))
+        F.setMetadata("work_group_num_dim",
+                      MDNode::get(Ctx, ConstantAsMetadata::get(ConstantInt::get(
+                                           Type::getInt32Ty(Ctx), NumDims))));
+    }
+
+    return std::pair<std::string, MDNode *>(MDStr, MDNode::get(Ctx, MDVals));
   }
 
   if (AttrKindStr == "sycl-sub-group-size") {
@@ -398,6 +412,21 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
         Constant::getIntegerValue(Ty, APInt(32, SubGroupSize)));
     SmallVector<Metadata *, 1> MD{MDVal};
     return std::pair<std::string, MDNode *>("intel_reqd_sub_group_size",
+                                            MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-max-linear-work-group-size") {
+    auto MaxLinearSize = getAttributeAsInteger<uint64_t>(Attr);
+    // Use integer pointer size as closest analogue to size_t.
+    IntegerType *IntPtrTy = DLayout.getIntPtrType(Ctx);
+    IntegerType *SizeTTy = Type::getIntNTy(Ctx, IntPtrTy->getBitWidth());
+    unsigned SizeTBitSize = SizeTTy->getBitWidth();
+
+    // Get the integers from the strings.
+    Metadata *MD = ConstantAsMetadata::get(Constant::getIntegerValue(
+        SizeTTy, APInt(SizeTBitSize, MaxLinearSize, 10)));
+
+    return std::pair<std::string, MDNode *>("max_linear_work_group_size",
                                             MDNode::get(Ctx, MD));
   }
 
@@ -416,6 +445,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-streaming-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"streaming"} or
     //   !N = !{!"streaming", !"stall_free_return"}
     SmallVector<Metadata *, 2> MD;
@@ -428,6 +458,7 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
 
   if (AttrKindStr == "sycl-register-map-interface") {
     // generate either:
+    //   !ip_interface !N
     //   !N = !{!"csr"} or
     //   !N = !{!"csr", !"wait_for_done_write"}
     SmallVector<Metadata *, 2> MD;
@@ -436,6 +467,20 @@ attributeToExecModeMetadata(const Attribute &Attr, Function &F) {
       MD.push_back(MDString::get(Ctx, "wait_for_done_write"));
     return std::pair<std::string, MDNode *>("ip_interface",
                                             MDNode::get(Ctx, MD));
+  }
+
+  if (AttrKindStr == "sycl-fpga-cluster") {
+    // generate either:
+    //   !stall_free !N
+    //   !N = !{i32 1} or
+    //   !stall_enable !N
+    //   !N = !{i32 1}
+    std::string ClusterType =
+        getAttributeAsInteger<uint32_t>(Attr) ? "stall_enable" : "stall_free";
+    Metadata *ClusterMDArgs[] = {
+        ConstantAsMetadata::get(ConstantInt::get(Type::getInt32Ty(Ctx), 1))};
+    return std::pair<std::string, MDNode *>(ClusterType,
+                                            MDNode::get(Ctx, ClusterMDArgs));
   }
 
   if ((AttrKindStr == SYCL_REGISTER_ALLOC_MODE_ATTR ||
@@ -572,9 +617,13 @@ PreservedAnalyses CompileTimePropertiesPass::run(Module &M,
   }
 
   // Process all properties on kernels.
+  TargetHelpers::KernelCache HIPCUDAKCache;
+  HIPCUDAKCache.populateKernels(M);
+
   for (Function &F : M) {
     // Only consider kernels.
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
+    if (F.getCallingConv() != CallingConv::SPIR_KERNEL &&
+        !HIPCUDAKCache.isKernel(F))
       continue;
 
     // Compile time properties on kernel arguments

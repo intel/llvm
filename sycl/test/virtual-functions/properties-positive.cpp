@@ -11,16 +11,16 @@ namespace oneapi = sycl::ext::oneapi::experimental;
 
 class Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   virtual void foo() {}
 };
 
 class Derived : public Base {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<void>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<void>)
   virtual void bar() {}
 };
 
@@ -28,16 +28,16 @@ class SubDerived : public Derived {
 public:
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<int>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<int>)
   void bar() override {}
 };
 
 class SubSubDerived : public SubDerived {
 public:
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable)
   void foo() override {}
 
-  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable<Base>)
+  SYCL_EXT_ONEAPI_FUNCTION_PROPERTY(oneapi::indirectly_callable_in<Base>)
   void bar() override {}
 };
 
@@ -48,11 +48,12 @@ int main() {
       oneapi::is_property_key<oneapi::indirectly_callable_key>::value);
   static_assert(oneapi::is_property_key<oneapi::calls_indirectly_key>::value);
 
-  oneapi::properties props_empty{oneapi::calls_indirectly<>};
-  oneapi::properties props_void{oneapi::calls_indirectly<void>};
-  oneapi::properties props_int{oneapi::calls_indirectly<int>};
-  oneapi::properties props_base{oneapi::calls_indirectly<Base>};
-  oneapi::properties props_multiple{oneapi::calls_indirectly<int, Base>};
+  oneapi::properties props_empty{oneapi::assume_indirect_calls};
+  oneapi::properties props_void{oneapi::assume_indirect_calls_to<void>};
+  oneapi::properties props_int{oneapi::assume_indirect_calls_to<int>};
+  oneapi::properties props_base{oneapi::assume_indirect_calls_to<Base>};
+  oneapi::properties props_multiple{
+     oneapi::assume_indirect_calls_to<int, Base>};
 
   q.single_task(props_empty, [=]() {});
   q.single_task(props_void, [=]() {});

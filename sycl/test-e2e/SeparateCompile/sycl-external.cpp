@@ -2,15 +2,15 @@
 // different object file.
 // RUN: %{build} -DSOURCE1 -c -o %t1.o
 // RUN: %{build} -DSOURCE2 -c -o %t2.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t1.o %t2.o -o %t.exe
-// RUN: %{run} %t.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t1.o %t2.o -Wno-unused-command-line-argument -o %t1.exe
+// RUN: %{run} %t1.exe
 //
 // Test2 - check that kernel can call a SYCL_EXTERNAL function defined in a
 // static library.
 // RUN: rm -f %t.a
 // RUN: llvm-ar crv %t.a %t1.o
-// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o %t.a -o %t.exe
-// RUN: %{run} %t.exe
+// RUN: %clangxx -fsycl -fsycl-targets=%{sycl_triple} %t2.o %t.a -Wno-unused-command-line-argument -o %t2.exe
+// RUN: %{run} %t2.exe
 
 #include <iostream>
 #include <sycl/detail/core.hpp>

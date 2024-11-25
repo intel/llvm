@@ -7,9 +7,12 @@
 //===----------------------------------------------------------------------===//
 #pragma once
 
+#include "ur_utils.hpp"
+#include <detail/compiler.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/detail/os_util.hpp>
-#include <sycl/detail/pi.hpp>
+#include <sycl/detail/ur.hpp>
+#include <ur_api.h>
 
 #include <sycl/detail/iostream_proxy.hpp>
 
@@ -62,44 +65,44 @@ private:
   std::size_t Size;
 };
 
-// C++ wrapper over the _pi_device_binary_property_struct structure.
+// C++ wrapper over the _sycl_device_binary_property_struct structure.
 class DeviceBinaryProperty {
 public:
-  DeviceBinaryProperty(const _pi_device_binary_property_struct *Prop)
+  DeviceBinaryProperty(const _sycl_device_binary_property_struct *Prop)
       : Prop(Prop) {}
 
-  pi_uint32 asUint32() const;
+  uint32_t asUint32() const;
   ByteArray asByteArray() const;
   const char *asCString() const;
 
 protected:
   friend std::ostream &operator<<(std::ostream &Out,
                                   const DeviceBinaryProperty &P);
-  const _pi_device_binary_property_struct *Prop;
+  const _sycl_device_binary_property_struct *Prop;
 };
 
 std::ostream &operator<<(std::ostream &Out, const DeviceBinaryProperty &P);
 
-// SYCL RT wrapper over PI binary image.
+// SYCL RT wrapper over UR binary image.
 class RTDeviceBinaryImage {
 public:
   // Represents a range of properties to enable iteration over them.
   // Implements the standard C++ STL input iterator interface.
   class PropertyRange {
   public:
-    using ValTy = std::remove_pointer<pi_device_binary_property>::type;
+    using ValTy = std::remove_pointer<sycl_device_binary_property>::type;
 
     class ConstIterator {
-      pi_device_binary_property Cur;
+      sycl_device_binary_property Cur;
 
     public:
       using iterator_category = std::input_iterator_tag;
       using value_type = ValTy;
       using difference_type = ptrdiff_t;
-      using pointer = const pi_device_binary_property;
-      using reference = pi_device_binary_property;
+      using pointer = const sycl_device_binary_property;
+      using reference = sycl_device_binary_property;
 
-      ConstIterator(pi_device_binary_property Cur = nullptr) : Cur(Cur) {}
+      ConstIterator(sycl_device_binary_property Cur = nullptr) : Cur(Cur) {}
       ConstIterator &operator++() {
         Cur++;
         return *this;
@@ -124,18 +127,18 @@ public:
     // Searches for a property set with given name and constructs a
     // PropertyRange spanning all its elements. If property set is not found,
     // the range will span zero elements.
-    PropertyRange(pi_device_binary Bin, const char *PropSetName)
+    PropertyRange(sycl_device_binary Bin, const char *PropSetName)
         : PropertyRange() {
       init(Bin, PropSetName);
     };
-    void init(pi_device_binary Bin, const char *PropSetName);
-    pi_device_binary_property Begin;
-    pi_device_binary_property End;
+    void init(sycl_device_binary Bin, const char *PropSetName);
+    sycl_device_binary_property Begin;
+    sycl_device_binary_property End;
   };
 
 public:
   RTDeviceBinaryImage() : Bin(nullptr) {}
-  RTDeviceBinaryImage(pi_device_binary Bin) { init(Bin); }
+  RTDeviceBinaryImage(sycl_device_binary Bin) { init(Bin); }
   // Explicitly delete copy constructor/operator= to avoid unintentional copies
   RTDeviceBinaryImage(const RTDeviceBinaryImage &) = delete;
   RTDeviceBinaryImage &operator=(const RTDeviceBinaryImage &) = delete;
@@ -147,15 +150,18 @@ public:
   virtual ~RTDeviceBinaryImage() {}
 
   bool supportsSpecConstants() const {
-    return getFormat() == PI_DEVICE_BINARY_TYPE_SPIRV;
+    return getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV;
   }
 
-  const pi_device_binary_struct &getRawData() const { return *get(); }
+  const sycl_device_binary_struct &getRawData() const { return *get(); }
 
   virtual void print() const;
   virtual void dump(std::ostream &Out) const;
 
-  size_t getSize() const {
+  // getSize will be overridden in the case of compressed binary images.
+  // In that case, we return the size of uncompressed data, instead of
+  // BinaryEnd - BinaryStart.
+  virtual size_t getSize() const {
     assert(Bin && "binary image data not set");
     return static_cast<size_t>(Bin->BinaryEnd - Bin->BinaryStart);
   }
@@ -171,13 +177,13 @@ public:
   }
 
   /// Returns the format of the binary image
-  pi::PiDeviceBinaryType getFormat() const {
+  ur::DeviceBinaryType getFormat() const {
     assert(Bin && "binary image data not set");
     return Format;
   }
 
   /// Returns a single property from SYCL_MISC_PROP category.
-  pi_device_binary_property getProperty(const char *PropName) const;
+  sycl_device_binary_property getProperty(const char *PropName) const;
 
   /// Gets the iterator range over specialization constants in this binary
   /// image. For each property pointed to by an iterator within the
@@ -213,6 +219,9 @@ public:
   }
   const PropertyRange &getAssertUsed() const { return AssertUsed; }
   const PropertyRange &getProgramMetadata() const { return ProgramMetadata; }
+  const std::vector<ur_program_metadata_t> &getProgramMetadataUR() const {
+    return ProgramMetadataUR;
+  }
   const PropertyRange &getExportedSymbols() const { return ExportedSymbols; }
   const PropertyRange &getImportedSymbols() const { return ImportedSymbols; }
   const PropertyRange &getDeviceGlobals() const { return DeviceGlobals; }
@@ -228,12 +237,12 @@ public:
   }
 
 protected:
-  void init(pi_device_binary Bin);
-  pi_device_binary get() const { return Bin; }
+  void init(sycl_device_binary Bin);
+  sycl_device_binary get() const { return Bin; }
 
-  pi_device_binary Bin;
+  sycl_device_binary Bin;
 
-  pi::PiDeviceBinaryType Format = PI_DEVICE_BINARY_TYPE_NONE;
+  ur::DeviceBinaryType Format = SYCL_DEVICE_BINARY_TYPE_NONE;
   RTDeviceBinaryImage::PropertyRange SpecConstIDMap;
   RTDeviceBinaryImage::PropertyRange SpecConstDefaultValuesMap;
   RTDeviceBinaryImage::PropertyRange DeviceLibReqMask;
@@ -246,6 +255,8 @@ protected:
   RTDeviceBinaryImage::PropertyRange DeviceRequirements;
   RTDeviceBinaryImage::PropertyRange HostPipes;
   RTDeviceBinaryImage::PropertyRange VirtualFunctions;
+
+  std::vector<ur_program_metadata_t> ProgramMetadataUR;
 
 private:
   static std::atomic<uintptr_t> ImageCounter;
@@ -267,6 +278,35 @@ public:
 protected:
   std::unique_ptr<char[]> Data;
 };
+
+#ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
+// Compressed device binary image. Decompression happens when the image is
+// actually used to build a program.
+// Also, frees the decompressed data in destructor.
+class CompressedRTDeviceBinaryImage : public RTDeviceBinaryImage {
+public:
+  CompressedRTDeviceBinaryImage(sycl_device_binary Bin);
+  ~CompressedRTDeviceBinaryImage() override;
+
+  void Decompress();
+
+  // We return the size of decompressed data, not the size of compressed data.
+  size_t getSize() const override {
+    assert(Bin && "binary image data not set");
+    return m_ImageSize;
+  }
+
+  bool IsCompressed() const { return m_DecompressedData.get() == nullptr; }
+  void print() const override {
+    RTDeviceBinaryImage::print();
+    std::cerr << "    COMPRESSED\n";
+  }
+
+private:
+  std::unique_ptr<char> m_DecompressedData;
+  size_t m_ImageSize;
+};
+#endif // SYCL_RT_ZSTD_NOT_AVAIABLE
 
 } // namespace detail
 } // namespace _V1

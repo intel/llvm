@@ -1,8 +1,8 @@
 // REQUIRES: gpu, level_zero
 
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 SYCL_PI_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE1 %s
-// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_PI_TRACE=-1 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE2 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=1 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE1 %s
+// RUN: env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 SYCL_PI_LEVEL_ZERO_DEVICE_SCOPE_EVENTS=2 SYCL_UR_TRACE=2 UR_L0_DEBUG=1 %{run} %t.out 2>&1 | FileCheck --check-prefixes=MODE2 %s
 // UNSUPPORTED: ze_debug
 
 // Checks that with L0 device-scope events enabled the only host-visible L0
@@ -11,8 +11,7 @@
 //
 // clang-format off
 // MODE1-LABEL: Submitted all kernels
-// MODE1: ---> piEventsWait(
-// MODE1-NEXT:        <unknown> : 1
+// MODE1: ---> urEventWait
 // MODE1: ze_event_pool_desc_t flags set to: 1
 // MODE1: ZE ---> zeEventCreate(ZeEventPool, &ZeEventDesc, &ZeEvent)
 // MODE1: ZE ---> zeCommandListAppendWaitOnEvents(CommandList->first, 1, &ZeEvent)

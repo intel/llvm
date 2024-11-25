@@ -11,8 +11,8 @@
 
 #include <detail/config.hpp>
 #include <detail/handler_impl.hpp>
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
+#include <helpers/UrMock.hpp>
 
 using namespace sycl;
 

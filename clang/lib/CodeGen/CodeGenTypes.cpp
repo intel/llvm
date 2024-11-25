@@ -13,6 +13,7 @@
 #include "CodeGenTypes.h"
 #include "CGCXXABI.h"
 #include "CGCall.h"
+#include "CGHLSLRuntime.h"
 #include "CGOpenCLRuntime.h"
 #include "CGRecordLayout.h"
 #include "TargetInfo.h"
@@ -30,9 +31,8 @@ using namespace clang;
 using namespace CodeGen;
 
 CodeGenTypes::CodeGenTypes(CodeGenModule &cgm)
-  : CGM(cgm), Context(cgm.getContext()), TheModule(cgm.getModule()),
-    Target(cgm.getTarget()), TheCXXABI(cgm.getCXXABI()),
-    TheABIInfo(cgm.getTargetCodeGenInfo().getABIInfo()) {
+    : CGM(cgm), Context(cgm.getContext()), TheModule(cgm.getModule()),
+      Target(cgm.getTarget()) {
   SkippedLayout = false;
   LongDoubleReferenced = false;
 }
@@ -42,6 +42,8 @@ CodeGenTypes::~CodeGenTypes() {
        I = FunctionInfos.begin(), E = FunctionInfos.end(); I != E; )
     delete &*I++;
 }
+
+CGCXXABI &CodeGenTypes::getCXXABI() const { return getCGM().getCXXABI(); }
 
 const CodeGenOptions &CodeGenTypes::getCodeGenOpts() const {
   return CGM.getCodeGenOpts();
@@ -58,7 +60,8 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
   // example, we should probably enable PrintCanonicalTypes and
   // FullyQualifiedNames.
   PrintingPolicy Policy = RD->getASTContext().getPrintingPolicy();
-  Policy.SuppressInlineNamespace = false;
+  Policy.SuppressInlineNamespace =
+      PrintingPolicy::SuppressInlineNamespaceMode::None;
 
   // Name the codegen type after the typedef name
   // if there is no tag type name available
@@ -89,7 +92,14 @@ void CodeGenTypes::addRecordTypeName(const RecordDecl *RD,
 /// ConvertType in that it is used to convert to the memory representation for
 /// a type.  For example, the scalar representation for _Bool is i1, but the
 /// memory representation is usually i8 or i32, depending on the target.
-llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T, bool ForBitField) {
+///
+/// We generally assume that the alloc size of this type under the LLVM
+/// data layout is the same as the size of the AST type.  The alignment
+/// does not have to match: Clang should always use explicit alignments
+/// and packed structs as necessary to produce the layout it needs.
+/// But the size does need to be exactly right or else things like struct
+/// layout will break.
+llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T) {
   if (T->isConstantMatrixType()) {
     const Type *Ty = Context.getCanonicalType(T).getTypePtr();
     const ConstantMatrixType *MT = cast<ConstantMatrixType>(Ty);
@@ -107,15 +117,63 @@ llvm::Type *CodeGenTypes::ConvertTypeForMem(QualType T, bool ForBitField) {
     return llvm::IntegerType::get(FixedVT->getContext(), BytePadded);
   }
 
-  // If this is a bool type, or a bit-precise integer type in a bitfield
-  // representation, map this integer to the target-specified size.
-  if ((ForBitField && T->isBitIntType()) ||
-      (!T->isBitIntType() && R->isIntegerTy(1)))
+  // If T is _Bool or a _BitInt type, ConvertType will produce an IR type
+  // with the exact semantic bit-width of the AST type; for example,
+  // _BitInt(17) will turn into i17. In memory, however, we need to store
+  // such values extended to their full storage size as decided by AST
+  // layout; this is an ABI requirement. Ideally, we would always use an
+  // integer type that's just the bit-size of the AST type; for example, if
+  // sizeof(_BitInt(17)) == 4, _BitInt(17) would turn into i32. That is what's
+  // returned by convertTypeForLoadStore. However, that type does not
+  // always satisfy the size requirement on memory representation types
+  // describe above. For example, a 32-bit platform might reasonably set
+  // sizeof(_BitInt(65)) == 12, but i96 is likely to have to have an alloc size
+  // of 16 bytes in the LLVM data layout. In these cases, we simply return
+  // a byte array of the appropriate size.
+  if (T->isBitIntType()) {
+    if (typeRequiresSplitIntoByteArray(T, R))
+      return llvm::ArrayType::get(CGM.Int8Ty,
+                                  Context.getTypeSizeInChars(T).getQuantity());
+    return llvm::IntegerType::get(getLLVMContext(),
+                                  (unsigned)Context.getTypeSize(T));
+  }
+
+  if (R->isIntegerTy(1))
     return llvm::IntegerType::get(getLLVMContext(),
                                   (unsigned)Context.getTypeSize(T));
 
   // Else, don't map it.
   return R;
+}
+
+bool CodeGenTypes::typeRequiresSplitIntoByteArray(QualType ASTTy,
+                                                  llvm::Type *LLVMTy) {
+  if (!LLVMTy)
+    LLVMTy = ConvertType(ASTTy);
+
+  CharUnits ASTSize = Context.getTypeSizeInChars(ASTTy);
+  CharUnits LLVMSize =
+      CharUnits::fromQuantity(getDataLayout().getTypeAllocSize(LLVMTy));
+  return ASTSize != LLVMSize;
+}
+
+llvm::Type *CodeGenTypes::convertTypeForLoadStore(QualType T,
+                                                  llvm::Type *LLVMTy) {
+  if (!LLVMTy)
+    LLVMTy = ConvertType(T);
+
+  if (T->isBitIntType())
+    return llvm::Type::getIntNTy(
+        getLLVMContext(), Context.getTypeSizeInChars(T).getQuantity() * 8);
+
+  if (LLVMTy->isIntegerTy(1))
+    return llvm::IntegerType::get(getLLVMContext(),
+                                  (unsigned)Context.getTypeSize(T));
+
+  if (T->isExtVectorBoolType())
+    return ConvertTypeForMem(T);
+
+  return LLVMTy;
 }
 
 /// isRecordLayoutComplete - Return true if the specified type is already
@@ -292,34 +350,6 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
   return ResultType;
 }
 
-template <bool NeedTypeInterpret = false>
-llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
-                                       ArrayRef<TemplateArgument> TemplateArgs,
-                                       const unsigned Val = 0) {
-  // TODO: we should actually have exactly 5 template parameters: 1 for
-  // type and 4 for type parameters. But in previous version of the SPIR-V
-  // spec we have Layout matrix type parameter, that was later removed.
-  // Once we update to the newest version of the spec - this should be updated.
-  assert((TemplateArgs.size() == 5 || TemplateArgs.size() == 6) &&
-         "Wrong JointMatrixINTEL template parameters number");
-  // This is required to represent optional 'Component Type Interpretation'
-  // parameter
-  std::vector<unsigned> Params;
-  for (size_t I = 1; I != TemplateArgs.size(); ++I) {
-    assert(TemplateArgs[I].getKind() == TemplateArgument::Integral &&
-           "Wrong JointMatrixINTEL template parameter");
-    Params.push_back(TemplateArgs[I].getAsIntegral().getExtValue());
-  }
-  // Don't add type interpretation for legacy matrices.
-  // Legacy matrices has 5 template parameters, while new representation
-  // has 6.
-  if (NeedTypeInterpret && TemplateArgs.size() != 5)
-    Params.push_back(Val);
-
-  return llvm::TargetExtType::get(CompTy->getContext(),
-                                  "spirv.JointMatrixINTEL", {CompTy}, Params);
-}
-
 llvm::Type *
 getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
                                ArrayRef<TemplateArgument> TemplateArgs) {
@@ -334,49 +364,6 @@ getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
 
   return llvm::TargetExtType::get(
       CompTy->getContext(), "spirv.CooperativeMatrixKHR", {CompTy}, Params);
-}
-
-/// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
-/// which is represented as a pointer to a structure to LLVM extension type
-/// with the parameters that follow SPIR-V JointMatrixINTEL type.
-/// The expected representation is:
-/// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
-///        %use%, (optional) %element_type_interpretation%)
-llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
-  auto *TemplateDecl = cast<ClassTemplateSpecializationDecl>(RD);
-  ArrayRef<TemplateArgument> TemplateArgs =
-      TemplateDecl->getTemplateArgs().asArray();
-  assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
-         "1st JointMatrixINTEL template parameter must be type");
-  llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
-
-  // Per JointMatrixINTEL spec the type can have an optional
-  // 'Component Type Interpretation' parameter. We should emit it in case
-  // if on SYCL level joint matrix accepts 'bfloat16' or 'tf32' objects as
-  // matrix's components. Yet 'bfloat16' should be represented as 'int16' and
-  // 'tf32' as 'float' types.
-  if (CompTy->isStructTy()) {
-    StringRef LlvmTyName = CompTy->getStructName();
-    // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
-    if (LlvmTyName.starts_with("class.sycl::") ||
-        LlvmTyName.starts_with("class.__sycl_internal::"))
-      LlvmTyName = LlvmTyName.rsplit("::").second;
-    if (LlvmTyName == "half") {
-      CompTy = llvm::Type::getHalfTy(getLLVMContext());
-      return getJointMatrixINTELExtType(CompTy, TemplateArgs);
-    } else if (LlvmTyName == "tf32") {
-      CompTy = llvm::Type::getFloatTy(getLLVMContext());
-      // 'tf32' interpretation is mapped to '0'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 0);
-    } else if (LlvmTyName == "bfloat16") {
-      CompTy = llvm::Type::getInt16Ty(getLLVMContext());
-      // 'bfloat16' interpretation is mapped to '1'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 1);
-    } else {
-      llvm_unreachable("Wrong matrix base type!");
-    }
-  }
-  return getJointMatrixINTELExtType(CompTy, TemplateArgs);
 }
 
 /// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
@@ -574,63 +561,30 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     case BuiltinType::OCLReserveID:
       ResultType = CGM.getOpenCLRuntime().convertOpenCLSpecificType(Ty);
       break;
-    case BuiltinType::SveInt8:
-    case BuiltinType::SveUint8:
-    case BuiltinType::SveInt8x2:
-    case BuiltinType::SveUint8x2:
-    case BuiltinType::SveInt8x3:
-    case BuiltinType::SveUint8x3:
-    case BuiltinType::SveInt8x4:
-    case BuiltinType::SveUint8x4:
-    case BuiltinType::SveInt16:
-    case BuiltinType::SveUint16:
-    case BuiltinType::SveInt16x2:
-    case BuiltinType::SveUint16x2:
-    case BuiltinType::SveInt16x3:
-    case BuiltinType::SveUint16x3:
-    case BuiltinType::SveInt16x4:
-    case BuiltinType::SveUint16x4:
-    case BuiltinType::SveInt32:
-    case BuiltinType::SveUint32:
-    case BuiltinType::SveInt32x2:
-    case BuiltinType::SveUint32x2:
-    case BuiltinType::SveInt32x3:
-    case BuiltinType::SveUint32x3:
-    case BuiltinType::SveInt32x4:
-    case BuiltinType::SveUint32x4:
-    case BuiltinType::SveInt64:
-    case BuiltinType::SveUint64:
-    case BuiltinType::SveInt64x2:
-    case BuiltinType::SveUint64x2:
-    case BuiltinType::SveInt64x3:
-    case BuiltinType::SveUint64x3:
-    case BuiltinType::SveInt64x4:
-    case BuiltinType::SveUint64x4:
-    case BuiltinType::SveBool:
-    case BuiltinType::SveBoolx2:
-    case BuiltinType::SveBoolx4:
-    case BuiltinType::SveFloat16:
-    case BuiltinType::SveFloat16x2:
-    case BuiltinType::SveFloat16x3:
-    case BuiltinType::SveFloat16x4:
-    case BuiltinType::SveFloat32:
-    case BuiltinType::SveFloat32x2:
-    case BuiltinType::SveFloat32x3:
-    case BuiltinType::SveFloat32x4:
-    case BuiltinType::SveFloat64:
-    case BuiltinType::SveFloat64x2:
-    case BuiltinType::SveFloat64x3:
-    case BuiltinType::SveFloat64x4:
-    case BuiltinType::SveBFloat16:
-    case BuiltinType::SveBFloat16x2:
-    case BuiltinType::SveBFloat16x3:
-    case BuiltinType::SveBFloat16x4: {
-      ASTContext::BuiltinVectorTypeInfo Info =
-          Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
-      return llvm::ScalableVectorType::get(ConvertType(Info.ElementType),
-                                           Info.EC.getKnownMinValue() *
-                                               Info.NumVectors);
-    }
+#define SVE_VECTOR_TYPE(Name, MangledName, Id, SingletonId)                    \
+  case BuiltinType::Id:
+#define SVE_PREDICATE_TYPE(Name, MangledName, Id, SingletonId)                 \
+  case BuiltinType::Id:
+#define SVE_OPAQUE_TYPE(Name, MangledName, Id, SingletonId)
+#include "clang/Basic/AArch64SVEACLETypes.def"
+      {
+        ASTContext::BuiltinVectorTypeInfo Info =
+            Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
+        auto VTy =
+            llvm::VectorType::get(ConvertType(Info.ElementType), Info.EC);
+        switch (Info.NumVectors) {
+        default:
+          llvm_unreachable("Expected 1, 2, 3 or 4 vectors!");
+        case 1:
+          return VTy;
+        case 2:
+          return llvm::StructType::get(VTy, VTy);
+        case 3:
+          return llvm::StructType::get(VTy, VTy, VTy);
+        case 4:
+          return llvm::StructType::get(VTy, VTy, VTy, VTy);
+        }
+      }
     case BuiltinType::SveCount:
       return llvm::TargetExtType::get(getLLVMContext(), "aarch64.svcount");
 #define PPC_VECTOR_TYPE(Name, Id, Size) \
@@ -644,14 +598,15 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       {
         ASTContext::BuiltinVectorTypeInfo Info =
             Context.getBuiltinVectorTypeInfo(cast<BuiltinType>(Ty));
-        // Tuple types are expressed as aggregregate types of the same scalable
-        // vector type (e.g. vint32m1x2_t is two vint32m1_t, which is {<vscale x
-        // 2 x i32>, <vscale x 2 x i32>}).
         if (Info.NumVectors != 1) {
-          llvm::Type *EltTy = llvm::ScalableVectorType::get(
-              ConvertType(Info.ElementType), Info.EC.getKnownMinValue());
-          llvm::SmallVector<llvm::Type *, 4> EltTys(Info.NumVectors, EltTy);
-          return llvm::StructType::get(getLLVMContext(), EltTys);
+          unsigned I8EltCount =
+              Info.EC.getKnownMinValue() *
+              ConvertType(Info.ElementType)->getScalarSizeInBits() / 8;
+          return llvm::TargetExtType::get(
+              getLLVMContext(), "riscv.vector.tuple",
+              llvm::ScalableVectorType::get(
+                  llvm::Type::getInt8Ty(getLLVMContext()), I8EltCount),
+              Info.NumVectors);
         }
         return llvm::ScalableVectorType::get(ConvertType(Info.ElementType),
                                              Info.EC.getKnownMinValue());
@@ -664,11 +619,14 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       llvm_unreachable("Unexpected wasm reference builtin type!");             \
   } break;
 #include "clang/Basic/WebAssemblyReferenceTypes.def"
-#define AMDGPU_OPAQUE_PTR_TYPE(Name, MangledName, AS, Width, Align, Id,        \
-                               SingletonId)                                    \
+#define AMDGPU_OPAQUE_PTR_TYPE(Name, Id, SingletonId, Width, Align, AS)        \
   case BuiltinType::Id:                                                        \
     return llvm::PointerType::get(getLLVMContext(), AS);
 #include "clang/Basic/AMDGPUTypes.def"
+#define HLSL_INTANGIBLE_TYPE(Name, Id, SingletonId) case BuiltinType::Id:
+#include "clang/Basic/HLSLIntangibleTypes.def"
+      ResultType = CGM.getHLSLRuntime().convertHLSLSpecificType(Ty);
+      break;
     case BuiltinType::Dependent:
 #define BUILTIN_TYPE(Id, SingletonId)
 #define PLACEHOLDER_TYPE(Id, SingletonId) \
@@ -704,12 +662,13 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       if (ClangETy && ClangETy->isStructureOrClassType()) {
         RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
         if (RD && RD->getQualifiedNameAsString() ==
-                      "__spv::__spirv_JointMatrixINTEL") {
-          ResultType = ConvertSYCLJointMatrixINTELType(RD);
+                      "__spv::__spirv_CooperativeMatrixKHR") {
+          ResultType = ConvertSPVCooperativeMatrixType(RD);
           break;
         } else if (RD && RD->getQualifiedNameAsString() ==
-                             "__spv::__spirv_CooperativeMatrixKHR") {
-          ResultType = ConvertSPVCooperativeMatrixType(RD);
+                             "__spv::__spirv_TaskSequenceINTEL") {
+          ResultType = llvm::TargetExtType::get(getLLVMContext(),
+                                                "spirv.TaskSequenceINTEL");
           break;
         }
       }
@@ -865,6 +824,9 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
     ResultType = llvm::Type::getIntNTy(getLLVMContext(), EIT->getNumBits());
     break;
   }
+  case Type::HLSLAttributedResource:
+    ResultType = CGM.getHLSLRuntime().convertHLSLSpecificType(Ty);
+    break;
   }
 
   assert(ResultType && "Didn't convert a type?");

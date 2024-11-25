@@ -35,7 +35,6 @@
 // This file implements regularization of LLVM module for SPIR-V.
 //
 //===----------------------------------------------------------------------===//
-#define DEBUG_TYPE "spv-lower-const-expr"
 
 #include "SPIRVLowerConstExpr.h"
 #include "OCLUtil.h"
@@ -55,6 +54,8 @@
 
 #include <list>
 #include <set>
+
+#define DEBUG_TYPE "spv-lower-const-expr"
 
 using namespace llvm;
 using namespace SPIRV;

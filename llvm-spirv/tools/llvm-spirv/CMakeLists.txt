@@ -10,11 +10,17 @@ set(LLVM_LINK_COMPONENTS
   TransformUtils
 )
 
+if(SPIRV_BACKEND_FOUND)
+  list(APPEND LLVM_LINK_COMPONENTS "SPIRVCodeGen")
+endif()
+
 add_llvm_tool(llvm-spirv
   llvm-spirv.cpp
   # llvm_setup_rpath messes with the rpath making llvm-spirv not executable from the build directory
   NO_INSTALL_RPATH
 )
+
+setup_host_tool(llvm-spirv LLVM_SPIRV llvm-spirv_exe llvm-spirv_target)
 
 if (LLVM_SPIRV_BUILD_EXTERNAL OR LLVM_LINK_LLVM_DYLIB)
   target_link_libraries(llvm-spirv PRIVATE LLVMSPIRVLib)

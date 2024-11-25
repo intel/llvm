@@ -60,7 +60,7 @@ public:
     return &MRequirement;
   };
 
-  cl_int enqueueImp() override { return MRetVal; }
+  ur_result_t enqueueImp() override { return MRetVal; }
 
   MOCK_METHOD3(enqueue,
                bool(sycl::detail::EnqueueResultT &, sycl::detail::BlockingT,
@@ -71,12 +71,12 @@ public:
     return sycl::detail::Command::enqueue(EnqueueResult, Blocking, ToCleanUp);
   }
 
-  cl_int MRetVal = CL_SUCCESS;
+  ur_result_t MRetVal = UR_RESULT_SUCCESS;
 
   void waitForEventsCall(
       std::shared_ptr<sycl::detail::queue_impl> Queue,
       std::vector<std::shared_ptr<sycl::detail::event_impl>> &RawEvents,
-      pi_event &Event) {
+      ur_event_handle_t &Event) {
     Command::waitForEvents(Queue, RawEvents, Event);
   }
 
@@ -197,14 +197,8 @@ public:
                                sycl::detail::QueueImplPtr Queue,
                                std::vector<sycl::detail::Command *> &ToEnqueue,
                                bool EventNeeded) {
-    return MGraphBuilder
-        .addCG(std::move(CommandGroup), Queue, ToEnqueue, EventNeeded)
-        .NewCmd;
-  }
-
-  void cancelFusion(sycl::detail::QueueImplPtr Queue,
-                    std::vector<sycl::detail::Command *> &ToEnqueue) {
-    MGraphBuilder.cancelFusion(Queue, ToEnqueue);
+    return MGraphBuilder.addCG(std::move(CommandGroup), Queue, ToEnqueue,
+                               EventNeeded);
   }
 };
 

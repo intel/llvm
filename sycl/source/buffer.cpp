@@ -54,7 +54,7 @@ buffer_plain::buffer_plain(
 }
 
 buffer_plain::buffer_plain(
-    pi_native_handle MemObject, const context &SyclContext,
+    ur_native_handle_t MemObject, const context &SyclContext,
     std::unique_ptr<detail::SYCLMemObjAllocator> Allocator,
     bool OwnNativeHandle, const event &AvailableEvent) {
   impl = std::make_shared<detail::buffer_impl>(MemObject, SyclContext,
@@ -82,7 +82,7 @@ void buffer_plain::set_write_back(bool NeedWriteBack) {
   impl->set_write_back(NeedWriteBack);
 }
 
-std::vector<pi_native_handle>
+std::vector<ur_native_handle_t>
 buffer_plain::getNativeVector(backend BackendName) const {
   return impl->getNativeVector(BackendName);
 }

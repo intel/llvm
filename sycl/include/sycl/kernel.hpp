@@ -8,28 +8,26 @@
 
 #pragma once
 
-#include <cstddef>                            // for size_t
-#include <memory>                             // for shared_ptr, hash, opera...
 #include <sycl/backend_types.hpp>             // for backend, backend_return_t
-#include <sycl/context.hpp>                   // for context
 #include <sycl/detail/defines_elementary.hpp> // for __SYCL2020_DEPRECATED
 #include <sycl/detail/export.hpp>             // for __SYCL_EXPORT
 #include <sycl/detail/info_desc_helpers.hpp>  // for is_kernel_device_specif...
 #include <sycl/detail/owner_less_base.hpp>    // for OwnerLessBase
-#include <sycl/detail/pi.h>                   // for pi_native_handle
-#include <sycl/detail/string.hpp>
-#include <sycl/detail/string_view.hpp>
 #include <sycl/detail/util.hpp>
-#include <sycl/device.hpp>              // for device
 #include <sycl/kernel_bundle_enums.hpp> // for bundle_state
-#include <sycl/range.hpp>               // for range
-#include <variant>                      // for hash
+#include <ur_api.h>                     // for ur_native_handle_t
+
+#include <cstddef> // for size_t
+#include <memory>  // for shared_ptr, hash, opera...
+#include <variant> // for hash
 
 namespace sycl {
 inline namespace _V1 {
 // Forward declaration
 class context;
 class queue;
+class device;
+template <int Dimensions> class range;
 template <backend Backend> class backend_traits;
 template <bundle_state State> class kernel_bundle;
 template <backend BackendName, class SyclObjectT>
@@ -159,18 +157,38 @@ public:
       get_info(const device &Device, const range<3> &WGSize) const;
 
   // TODO: Revisit and align with sycl_ext_oneapi_forward_progress extension
-  // once #7598 is merged.
+  // once #7598 is merged. (regarding the 'max_num_work_group_sync' query)
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \return depends on information being queried.
   template <typename Param>
-  typename Param::return_type ext_oneapi_get_info(const queue &q) const;
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue) const;
+
+  /// Query queue/launch-specific information from a kernel using the
+  /// info::kernel_queue_specific descriptor for a specific Queue and values.
+  /// max_num_work_groups is the only valid descriptor for this function.
+  ///
+  /// \param Queue is a valid SYCL queue.
+  /// \param WorkGroupSize is the work-group size the number of work-groups is
+  /// requested for.
+  /// \return depends on information being queried.
+  template <typename Param>
+  typename detail::is_kernel_queue_specific_info_desc<Param>::return_type
+  ext_oneapi_get_info(queue Queue, const range<3> &WorkGroupSize,
+                      size_t DynamicLocalMemorySize) const;
 
 private:
   /// Constructs a SYCL kernel object from a valid kernel_impl instance.
   kernel(std::shared_ptr<detail::kernel_impl> Impl);
 
-  pi_native_handle getNative() const;
+  ur_native_handle_t getNative() const;
 
   __SYCL_DEPRECATED("Use getNative() member function")
-  pi_native_handle getNativeImpl() const;
+  ur_native_handle_t getNativeImpl() const;
 
   std::shared_ptr<detail::kernel_impl> impl;
 

@@ -10,10 +10,10 @@
 
 #if defined(__SPIR__) || defined(__SPIRV__)
 
-#include <CL/__spirv/spirv_ops.hpp>
-#include <CL/__spirv/spirv_types.hpp>
 #include <cassert>
 #include <cstdint>
+#include <sycl/__spirv/spirv_ops.hpp>
+#include <sycl/__spirv/spirv_types.hpp>
 
 DEVICE_EXTERN_C_INLINE
 uint16_t __devicelib_ConvertFToBF16INTEL(const float &x) {

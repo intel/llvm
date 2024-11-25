@@ -16,6 +16,11 @@ RUN groupadd -g 1001 sycl && useradd sycl -u 1001 -g 1001 -m -s /bin/bash
 # Add sycl user to video/irc groups so that it can access GPU
 RUN usermod -aG video sycl
 RUN usermod -aG irc sycl
+
+# group 109 is required for sycl user to access PVC card.
+RUN groupadd -g 109 render
+RUN usermod -aG render sycl
+
 # Allow sycl user to run as sudo
 RUN echo "sycl  ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 

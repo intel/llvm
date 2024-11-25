@@ -36,6 +36,15 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   throw sycl::exception(sycl::errc::build,
                         "kernel_compiler does not support GCC<8");
 }
+
+std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
+  return std::accumulate(UserArguments.begin(), UserArguments.end(),
+                         std::string(""),
+                         [](const std::string &A, const std::string &B) {
+                           return A.empty() ? B : A + " " + B;
+                         });
+}
+
 } // namespace detail
 } // namespace ext::oneapi::experimental
 } // namespace _V1
@@ -43,12 +52,15 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
 
 #else
 
+#include <sycl/detail/os_util.hpp>
+
 #include <ctime>
 #include <filesystem>
 #include <fstream>
 #include <random>
 #include <regex>
 #include <sstream>
+#include <stdio.h>
 
 namespace sycl {
 inline namespace _V1 {
@@ -56,34 +68,50 @@ namespace ext::oneapi::experimental {
 namespace detail {
 
 std::string generateSemiUniqueId() {
-  // Get the current time as a time_t object.
-  std::time_t CurrentTime = std::time(nullptr);
+  auto Now = std::chrono::high_resolution_clock::now();
+  auto Milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(
+      Now.time_since_epoch());
 
-  // Convert time_t to a string with format YYYYMMDD_HHMMSS.
-  std::tm *LocalTime = std::localtime(&CurrentTime);
+  // Generate random number between 10'000 and 99'900.
+  std::random_device RD;
+  std::mt19937 Gen(RD());
+  std::uniform_int_distribution<int> Distrib(10'000, 99'999);
+  int RandomNumber = Distrib(Gen);
+
+  // Combine time and random number into a string.
   std::stringstream Ss;
-  Ss << std::put_time(LocalTime, "%Y%m%d_%H%M%S");
-
-  // Amend with random number.
-  std::random_device Rd;
-  int RandomNumber = Rd() % 900 + 100;
-  Ss << "_" << std::setfill('0') << std::setw(3) << RandomNumber;
+  Ss << Milliseconds.count() << "_" << std::setfill('0') << std::setw(5)
+     << RandomNumber;
 
   return Ss.str();
 }
 
 std::filesystem::path prepareWS(const std::string &Id) {
-  const std::filesystem::path TmpDirectoryPath =
-      std::filesystem::temp_directory_path();
-  std::filesystem::path NewDirectoryPath = TmpDirectoryPath / Id;
+  namespace fs = std::filesystem;
+  const fs::path TmpDirectoryPath = fs::temp_directory_path();
+  fs::path NewDirectoryPath = TmpDirectoryPath / Id;
 
   try {
-    std::filesystem::create_directories(NewDirectoryPath);
-  } catch (const std::filesystem::filesystem_error &E) {
+    fs::create_directories(NewDirectoryPath);
+    fs::permissions(NewDirectoryPath, fs::perms::owner_read |
+                                          fs::perms::owner_write |
+                                          fs::perms::owner_exec); // 0700
+
+  } catch (const fs::filesystem_error &E) {
     throw sycl::exception(sycl::errc::build, E.what());
   }
 
   return NewDirectoryPath;
+}
+
+void deleteWS(const std::filesystem::path &ParentDir) {
+  try {
+    std::filesystem::remove_all(ParentDir);
+  } catch (const std::filesystem::filesystem_error &E) {
+    // We could simply suppress this, since deleting the directory afterwards
+    // is not critical. But if there are problems, seems good to know.
+    throw sycl::exception(sycl::errc::build, E.what());
+  }
 }
 
 std::string userArgsAsString(const std::vector<std::string> &UserArguments) {
@@ -153,7 +181,7 @@ void outputIncludeFiles(const std::filesystem::path &Dirpath,
 }
 
 std::string getCompilerName() {
-#ifdef __WIN32
+#ifdef _WIN32
   std::string Compiler = "clang++.exe";
 #else
   std::string Compiler = "clang++";
@@ -161,54 +189,81 @@ std::string getCompilerName() {
   return Compiler;
 }
 
-void invokeCompiler(const std::filesystem::path &FPath,
-                    const std::filesystem::path &DPath, const std::string &Id,
-                    const std::vector<std::string> &UserArgs,
-                    std::string *LogPtr) {
+// We are assuming that the compiler is in /bin and the shared lib in
+// the adjacent /lib.
+std::filesystem::path getCompilerPath() {
+  std::string Compiler = getCompilerName();
+  const std::string LibSYCLDir = sycl::detail::OSUtil::getCurrentDSODir();
+  std::filesystem::path CompilerPath =
+      std::filesystem::path(LibSYCLDir) / ".." / "bin" / Compiler;
+  return CompilerPath;
+}
+
+int invokeCommand(const std::string &command, std::string &output) {
+#ifdef _WIN32
+  FILE *pipe = _popen(command.c_str(), "r");
+#else
+  FILE *pipe = popen(command.c_str(), "r");
+#endif
+  if (!pipe) {
+    return -1;
+  }
+
+  char buffer[1024];
+  while (!feof(pipe)) {
+    if (fgets(buffer, sizeof(buffer), pipe) != NULL) {
+      output += buffer;
+    }
+  }
+
+#ifdef _WIN32
+  _pclose(pipe);
+#else
+  pclose(pipe);
+#endif
+
+  return 0;
+}
+
+std::string invokeCompiler(const std::filesystem::path &FPath,
+                           const std::filesystem::path &DPath,
+                           const std::string &Id,
+                           const std::vector<std::string> &UserArgs,
+                           std::string *LogPtr) {
 
   std::filesystem::path FilePath(FPath);
   std::filesystem::path ParentDir(DPath);
   std::filesystem::path TargetPath = ParentDir / (Id + ".bin");
   std::filesystem::path LogPath = ParentDir / "compilation_log.txt";
-  std::string Compiler = getCompilerName();
+  std::string Compiler = getCompilerPath().make_preferred().string();
 
   std::string Command =
       Compiler + " -fsycl -o " + TargetPath.make_preferred().string() + " " +
       userArgsAsString(UserArgs) +
       " -fno-sycl-dead-args-optimization -fsycl-dump-device-code=" +
       ParentDir.make_preferred().string() + " " +
-      FilePath.make_preferred().string() + " 2> " +
-      LogPath.make_preferred().string();
+      FilePath.make_preferred().string() + " 2>&1";
 
-  int Result = std::system(Command.c_str());
-
-  // Read the log file contents into the log variable.
   std::string CompileLog;
-  std::ifstream LogStream;
-  LogStream.open(LogPath);
-  if (LogStream.is_open()) {
-    std::stringstream LogBuffer;
-    LogBuffer << LogStream.rdbuf();
-    CompileLog.append(LogBuffer.str());
-    if (LogPtr != nullptr)
-      LogPtr->append(LogBuffer.str());
+  int Result = invokeCommand(Command, CompileLog);
 
-  } else if (Result == 0 && LogPtr != nullptr) {
-    // If there was a compilation problem, we want to report that (below),
-    // not a mere "missing log" error.
-    throw sycl::exception(sycl::errc::build,
-                          "failure retrieving compilation log");
+  if (LogPtr != nullptr) {
+    LogPtr->append(CompileLog);
   }
 
+  // There is little chance of Result being non-zero.
+  // Actual compilation failure is not detected by error code,
+  // but by missing .spv files.
   if (Result != 0) {
     throw sycl::exception(sycl::errc::build,
                           "Compile failure: " + std::to_string(Result) + " " +
                               CompileLog);
   }
+  return CompileLog;
 }
 
 std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
-                              const std::string &Id) {
+                              const std::string &Id, std::string &CompileLog) {
   std::regex PatternRegex(Id + R"(.*\.spv)");
 
   // Iterate through all files in the directory matching the pattern.
@@ -219,10 +274,8 @@ std::filesystem::path findSpv(const std::filesystem::path &ParentDir,
     }
   }
 
-  // File not found, throw.
-  throw sycl::exception(sycl::errc::build, "SPIRV output matching " + Id +
-                                               " missing from " +
-                                               ParentDir.filename().string());
+  // Missing .spv file indicates there was a compilation failure.
+  throw sycl::exception(sycl::errc::build, "Compile failure: " + CompileLog);
 }
 
 spirv_vec_t loadSpvFromFile(const std::filesystem::path &FileName) {
@@ -245,9 +298,11 @@ SYCL_to_SPIRV(const std::string &SYCLSource, include_pairs_t IncludePairs,
   const std::filesystem::path ParentDir  = prepareWS(id);
   std::filesystem::path FilePath         = outputCpp(ParentDir, id, SYCLSource, UserArgs, RegisteredKernelNames);
                                            outputIncludeFiles(ParentDir, IncludePairs);
-                                           invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
-  std::filesystem::path SpvPath          = findSpv(ParentDir, id);
-                                    return loadSpvFromFile(SpvPath);
+  std::string CompileLog                 = invokeCompiler(FilePath, ParentDir, id, UserArgs, LogPtr);
+  std::filesystem::path SpvPath          = findSpv(ParentDir, id, CompileLog);
+  spirv_vec_t Spv                        = loadSpvFromFile(SpvPath);
+                                           deleteWS(ParentDir);
+                                           return Spv;
   // clang-format on
 }
 
@@ -256,9 +311,9 @@ bool SYCL_Compilation_Available() {
   std::string id = generateSemiUniqueId();
   const std::filesystem::path tmp = std::filesystem::temp_directory_path();
   std::filesystem::path DumpPath = tmp / (id + "_version.txt");
-  std::string Compiler = getCompilerName();
+  std::string Compiler = getCompilerPath().make_preferred().string();
   std::string TestCommand =
-      Compiler + " --version &> " + DumpPath.make_preferred().string();
+      Compiler + " --version > " + DumpPath.make_preferred().string();
   int result = std::system(TestCommand.c_str());
 
   return (result == 0);
@@ -269,3 +324,40 @@ bool SYCL_Compilation_Available() {
 } // namespace _V1
 } // namespace sycl
 #endif
+
+#if SYCL_EXT_JIT_ENABLE
+#include "../jit_compiler.hpp"
+#endif
+
+namespace sycl {
+inline namespace _V1 {
+namespace ext::oneapi::experimental {
+namespace detail {
+
+bool SYCL_JIT_Compilation_Available() {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().isAvailable();
+#else
+  return false;
+#endif
+}
+
+spirv_vec_t SYCL_JIT_to_SPIRV(
+    [[maybe_unused]] const std::string &SYCLSource,
+    [[maybe_unused]] include_pairs_t IncludePairs,
+    [[maybe_unused]] const std::vector<std::string> &UserArgs,
+    [[maybe_unused]] std::string *LogPtr,
+    [[maybe_unused]] const std::vector<std::string> &RegisteredKernelNames) {
+#if SYCL_EXT_JIT_ENABLE
+  return sycl::detail::jit_compiler::get_instance().compileSYCL(
+      "rtc", SYCLSource, IncludePairs, UserArgs, LogPtr, RegisteredKernelNames);
+#else
+  throw sycl::exception(sycl::errc::build,
+                        "kernel_compiler via sycl-jit is not available");
+#endif
+}
+
+} // namespace detail
+} // namespace ext::oneapi::experimental
+} // namespace _V1
+} // namespace sycl

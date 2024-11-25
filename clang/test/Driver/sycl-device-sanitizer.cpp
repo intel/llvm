@@ -8,6 +8,8 @@
 // SYCL-ASAN-SAME: "-mllvm" "-asan-constructor-kind=none"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-stack=0"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-globals=0"
+// SYCL-ASAN-SAME: "-mllvm" "-asan-stack-dynamic-alloca=0"
+// SYCL-ASAN-SAME: "-mllvm" "-asan-use-after-return=never"
 // SYCL-ASAN-SAME: "-mllvm" "-asan-mapping-scale=4"
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=address -c %s -### 2>&1 \

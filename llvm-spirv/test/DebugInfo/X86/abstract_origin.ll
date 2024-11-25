@@ -30,16 +30,16 @@ target triple = "spir64-unknown-unknown"
 ; Function Attrs: alwaysinline nounwind ssp uwtable
 define void @g() #0 !dbg !7 {
 entry:
-  tail call void (...) @f() #3, !dbg !10
+  tail call void @f() #3, !dbg !10
   ret void, !dbg !11
 }
 
-declare void @f(...)
+declare void @f()
 
 ; Function Attrs: nounwind ssp uwtable
 define void @h() #2 !dbg !12 {
 entry:
-  tail call void (...) @f() #3, !dbg !13
+  tail call void @f() #3, !dbg !13
   ret void, !dbg !15
 }
 

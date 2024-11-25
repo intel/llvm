@@ -8,6 +8,7 @@
 #include <numeric>
 #include <sycl/detail/core.hpp>
 #include <sycl/group_algorithm.hpp>
+#include <sycl/sub_group.hpp>
 #include <sycl/sycl_span.hpp>
 
 using namespace sycl;
@@ -28,8 +29,10 @@ void test(queue &q, const InputContainer &input, InitT init,
       const auto g = it.get_group();
       const auto sg = it.get_sub_group();
       const auto idx = it.get_local_id();
-      const auto begin = a_in.get_pointer();
-      const auto end = a_in.get_pointer() + N;
+      const auto begin =
+          a_in.template get_multi_ptr<access::decorated::no>().get();
+      const auto end =
+          a_in.template get_multi_ptr<access::decorated::no>().get() + N;
 
       a_reduce_out[0] = reduce_over_group(g, a_in[idx], init, binary_op);
       a_reduce_out[1] = joint_reduce(g, begin, end, init, binary_op);

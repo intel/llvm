@@ -6,9 +6,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/xpti_registry.hpp>
 
@@ -26,16 +26,12 @@ XPTI_CALLBACK_API bool queryReceivedNotifications(uint16_t &TraceType,
 XPTI_CALLBACK_API void resetReceivedNotifications();
 XPTI_CALLBACK_API void addAnalyzedTraceType(uint16_t);
 
-inline pi_result redefinedPluginGetLastError(char **message) {
-  return PI_ERROR_INVALID_VALUE;
+inline ur_result_t redefinedAdapterGetLastError(void *) {
+  return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
-pi_result redefinedEnqueueKernelLaunch(
-    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
-    const size_t *global_work_offset, const size_t *global_work_size,
-    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+ur_result_t redefinedEnqueueKernelLaunch(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 class QueueApiFailures : public ::testing::Test {
@@ -70,7 +66,7 @@ public:
                                       "libxptifw.so", [] {}};
   unittest::ScopedEnvVar XPTISubscriber{"XPTI_SUBSCRIBERS",
                                         "libxptitest_subscriber.so", [] {}};
-  sycl::unittest::PiMock MockPlugin;
+  sycl::unittest::UrMock<> MockAdapter;
 
   static constexpr char FileName[] = "QueueApiFailures.cpp";
   static constexpr char FunctionName[] = "TestCaseExecution";
@@ -92,14 +88,15 @@ public:
   const std::string TestKernelLocationMessage = BuildCodeLocationMessage(
       TestKI::getFileName(), TestKI::getFunctionName(), TestKI::getLineNumber(),
       TestKI::getColumnNumber());
-  const std::string PiLevelFailMessage = "Native API failed";
+  const std::string URLevelFailMessage = "Native API failed";
+  const std::string SYCLLevelFailMessage = "Enqueue process failed";
 };
 
 TEST_F(QueueApiFailures, QueueSubmit) {
-  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunch);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
+                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
@@ -123,10 +120,10 @@ TEST_F(QueueApiFailures, QueueSubmit) {
 }
 
 TEST_F(QueueApiFailures, QueueSingleTask) {
-  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunch);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
+                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   try {
@@ -145,20 +142,15 @@ TEST_F(QueueApiFailures, QueueSingleTask) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedUSMEnqueueMemset(pi_queue Queue, void *Ptr,
-                                    const void *Pattern, size_t PatternSize,
-                                    size_t Count,
-                                    pi_uint32 Num_events_in_waitlist,
-                                    const pi_event *Events_waitlist,
-                                    pi_event *Event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+ur_result_t redefinedEnqueueUSMFill(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 TEST_F(QueueApiFailures, QueueMemset) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
-      redefinedUSMEnqueueMemset);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill",
+                                            &redefinedEnqueueUSMFill);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
@@ -179,20 +171,15 @@ TEST_F(QueueApiFailures, QueueMemset) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedUSMEnqueueMemcpy(pi_queue queue, pi_bool blocking,
-                                    void *dst_ptr, const void *src_ptr,
-                                    size_t size,
-                                    pi_uint32 num_events_in_waitlist,
-                                    const pi_event *events_waitlist,
-                                    pi_event *event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+ur_result_t redefinedUSMEnqueueMemcpy(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 TEST_F(QueueApiFailures, QueueMemcpy) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
-      redefinedUSMEnqueueMemcpy);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy",
+                                            &redefinedUSMEnqueueMemcpy);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
@@ -216,10 +203,10 @@ TEST_F(QueueApiFailures, QueueMemcpy) {
 }
 
 TEST_F(QueueApiFailures, QueueCopy) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemcpy>(
-      redefinedUSMEnqueueMemcpy);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMMemcpy",
+                                            &redefinedUSMEnqueueMemcpy);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAllocSrc = (unsigned char *)sycl::malloc_host(1, Q);
@@ -242,19 +229,11 @@ TEST_F(QueueApiFailures, QueueCopy) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-pi_result redefinedUSMEnqueueFill(pi_queue Queue, void *Ptr,
-                                  const void *Pattern, size_t PatternSize,
-                                  size_t Count, pi_uint32 NumEventsInWaitList,
-                                  const pi_event *EventWaitList,
-                                  pi_event *Event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
-}
-
 TEST_F(QueueApiFailures, QueueFill) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueFill>(
-      redefinedUSMEnqueueFill);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMFill",
+                                            &redefinedEnqueueUSMFill);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
@@ -272,23 +251,23 @@ TEST_F(QueueApiFailures, QueueFill) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(URLevelFailMessage));
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(SYCLLevelFailMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-inline pi_result redefinedUSMEnqueuePrefetch(pi_queue queue, const void *ptr,
-                                             size_t size,
-                                             pi_usm_migration_flags flags,
-                                             pi_uint32 num_events_in_waitlist,
-                                             const pi_event *events_waitlist,
-                                             pi_event *event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+inline ur_result_t redefinedUSMEnqueuePrefetch(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 TEST_F(QueueApiFailures, QueuePrefetch) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueuePrefetch>(
-      redefinedUSMEnqueuePrefetch);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMPrefetch",
+                                            &redefinedUSMEnqueuePrefetch);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(4, Q);
@@ -306,21 +285,23 @@ TEST_F(QueueApiFailures, QueuePrefetch) {
   ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
   EXPECT_EQ(TraceType, xpti::trace_diagnostics);
   EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(URLevelFailMessage));
+  ASSERT_TRUE(queryReceivedNotifications(TraceType, Message));
+  EXPECT_EQ(TraceType, xpti::trace_diagnostics);
+  EXPECT_THAT(Message, HasSubstr(TestCodeLocationMessage));
+  EXPECT_THAT(Message, HasSubstr(SYCLLevelFailMessage));
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-inline pi_result redefinedUSMEnqueueMemAdvise(pi_queue queue, const void *ptr,
-                                              size_t length,
-                                              pi_mem_advice advice,
-                                              pi_event *event) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+inline ur_result_t redefinedUSMEnqueueMemAdvise(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 TEST_F(QueueApiFailures, QueueMemAdvise) {
-  MockPlugin.redefine<detail::PiApiKind::piextUSMEnqueueMemAdvise>(
-      redefinedUSMEnqueueMemAdvise);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueUSMAdvise",
+                                            &redefinedUSMEnqueueMemAdvise);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   unsigned char *HostAlloc = (unsigned char *)sycl::malloc_host(1, Q);
@@ -342,10 +323,10 @@ TEST_F(QueueApiFailures, QueueMemAdvise) {
 }
 
 TEST_F(QueueApiFailures, QueueParallelFor) {
-  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunch);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEnqueueKernelLaunch",
+                                            &redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q;
   bool ExceptionCaught = false;
   const int globalWIs{512};
@@ -365,9 +346,8 @@ TEST_F(QueueApiFailures, QueueParallelFor) {
   EXPECT_FALSE(queryReceivedNotifications(TraceType, Message));
 }
 
-inline pi_result redefinedEventsWait(pi_uint32 num_events,
-                                     const pi_event *event_list) {
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+inline ur_result_t redefinedEventWait(void *) {
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 inline void silentAsyncHandler(exception_list Exceptions) {
@@ -375,9 +355,9 @@ inline void silentAsyncHandler(exception_list Exceptions) {
 }
 
 TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
-  MockPlugin.redefine<detail::PiApiKind::piEventsWait>(redefinedEventsWait);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urEventWait", &redefinedEventWait);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   sycl::queue Q(default_selector(), silentAsyncHandler);
   bool ExceptionCaught = false;
   event EventToDepend;
@@ -414,8 +394,8 @@ TEST_F(QueueApiFailures, QueueHostTaskWaitFail) {
 }
 
 TEST_F(QueueApiFailures, QueueHostTaskFail) {
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
   enum ExceptionType { STD_EXCEPTION = 0, SYCL_EXCEPTION };
   auto Test = [&](ExceptionType ExType) {
     sycl::queue Q(default_selector(), silentAsyncHandler);
@@ -466,24 +446,20 @@ std::mutex m;
 std::condition_variable cv;
 bool EnqueueKernelLaunchCalled = false;
 
-pi_result redefinedEnqueueKernelLaunchWithStatus(
-    pi_queue queue, pi_kernel kernel, pi_uint32 work_dim,
-    const size_t *global_work_offset, const size_t *global_work_size,
-    const size_t *local_work_size, pi_uint32 num_events_in_wait_list,
-    const pi_event *event_wait_list, pi_event *event) {
+ur_result_t redefinedEnqueueKernelLaunchWithStatus(void *) {
   {
     std::lock_guard<std::mutex> lk(m);
     EnqueueKernelLaunchCalled = true;
   }
   cv.notify_one();
-  return PI_ERROR_PLUGIN_SPECIFIC_ERROR;
+  return UR_RESULT_ERROR_ADAPTER_SPECIFIC;
 }
 
 TEST_F(QueueApiFailures, QueueKernelAsync) {
-  MockPlugin.redefine<detail::PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunchWithStatus);
-  MockPlugin.redefine<detail::PiApiKind::piPluginGetLastError>(
-      redefinedPluginGetLastError);
+  mock::getCallbacks().set_replace_callback(
+      "urEnqueueKernelLaunch", &redefinedEnqueueKernelLaunchWithStatus);
+  mock::getCallbacks().set_replace_callback("urAdapterGetLastError",
+                                            &redefinedAdapterGetLastError);
 
   sycl::queue Q(default_selector(), silentAsyncHandler);
   bool ExceptionCaught = false;

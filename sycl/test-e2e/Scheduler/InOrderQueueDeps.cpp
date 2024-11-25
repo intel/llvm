@@ -1,5 +1,5 @@
 // RUN: %{build} -o %t.out
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out 2>&1 | FileCheck %s
 //
 // XFAIL: hip_nvidia
 
@@ -38,34 +38,16 @@ int main() {
 
   // Sequential submissions to the same in-order queue should not result in any
   // event dependencies.
-  // CHECK: piEnqueueKernelLaunch
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: : 0
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK-SAME: .numEventsInWaitList = 0
   submitKernel(InOrderQueueA, Buf);
-  // CHECK: piEnqueueKernelLaunch
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: : 0
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK-SAME: .numEventsInWaitList = 0
   submitKernel(InOrderQueueA, Buf);
   // Submisssion to a different in-order queue should explicitly depend on the
   // previous command group.
-  // CHECK: piEnqueueKernelLaunch
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: :
-  // CHECK-NEXT: : 1
+  // CHECK: <--- urEnqueueKernelLaunch
+  // CHECK-SAME: .numEventsInWaitList = 1
   submitKernel(InOrderQueueB, Buf);
 
   return 0;

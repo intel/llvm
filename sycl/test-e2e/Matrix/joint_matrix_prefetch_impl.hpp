@@ -74,7 +74,7 @@ void matrix_multiply(T *C, T1 *A, T2 *B, queue q) {
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            const auto global_idx = spmd_item.get_global_id(0);
@@ -106,8 +106,7 @@ int main() {
   }
   if (!support_p) {
     std::cout << "Prefetch not supported on this device" << std::endl;
-    // Once the test is not marked as XFAIL, this should change to return 0;
-    return 1;
+    return 0;
   }
   static constexpr size_t M = TM * 2;
   static constexpr size_t N = TN * 2;

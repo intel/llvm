@@ -1,6 +1,6 @@
 // RUN: %clangxx -fsycl -fsycl-device-only -fno-discard-value-names -fno-sycl-early-optimizations -o %t.bc %s
 // RUN: sycl-post-link -properties %t.bc -spec-const=emulation -o %t.table
-// RUN: llvm-spirv -o %t.spv -spirv-max-version=1.3 -spirv-ext=+all %t.bc
+// RUN: llvm-spirv -o %t.spv -spirv-max-version=1.3 -spirv-ext=+all,-SPV_KHR_untyped_pointers %t.bc
 // RUN: llvm-spirv -o %t.rev.bc -r %t.spv
 // RUN: llvm-dis %t.rev.bc -o=- | FileCheck %s
 

@@ -14,6 +14,7 @@
 
 #pragma once
 
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/PassManager.h"
 
 #include <cassert>
@@ -23,6 +24,7 @@
 namespace llvm {
 
 // Forward declaration.
+class GlobalVariable;
 class IntrinsicInst;
 
 class CompileTimePropertiesPass

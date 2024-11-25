@@ -1,6 +1,6 @@
 // Fails with opencl non-cpu, enable when fixed.
 // XFAIL: (opencl && !cpu && !accelerator)
-// RUN: %{build} -I . -o %t.out
+// RUN: %{build} -I . -o %t.out %if any-device-is-cuda %{ -Xsycl-target-backend=nvptx64-nvidia-cuda --cuda-gpu-arch=sm_70 %}
 // RUN: %{run} %t.out
 
 // Disabled temporarily while investigation into the failure is ongoing.
@@ -10,6 +10,7 @@
 #include <cstdlib>
 #include <type_traits>
 
+#include <sycl/builtins.hpp>
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/experimental/root_group.hpp>
 #include <sycl/group_barrier.hpp>
@@ -29,12 +30,21 @@ void testQueriesAndProperties() {
   const auto maxWGs = kernel.ext_oneapi_get_info<
       sycl::ext::oneapi::experimental::info::kernel_queue_specific::
           max_num_work_group_sync>(q);
+  const auto wgRange = sycl::range{WorkGroupSize, 1, 1};
+  const auto maxWGsWithLimits = kernel.ext_oneapi_get_info<
+      sycl::ext::oneapi::experimental::info::kernel_queue_specific::
+          max_num_work_group_sync>(q, wgRange, wgRange.size() * sizeof(int));
   const auto props = sycl::ext::oneapi::experimental::properties{
       sycl::ext::oneapi::experimental::use_root_sync};
   q.single_task<class QueryKernel>(props, []() {});
-  static_assert(std::is_same_v<std::remove_cv<decltype(maxWGs)>::type, size_t>,
-                "max_num_work_group_sync query must return size_t");
-  assert(maxWGs >= 1 && "max_num_work_group_sync query failed");
+
+  static auto check_max_num_work_group_sync = [](auto Result) {
+    static_assert(std::is_same_v<std::remove_cv_t<decltype(Result)>, size_t>,
+                  "max_num_work_group_sync query must return size_t");
+    assert(Result >= 1 && "max_num_work_group_sync query failed");
+  };
+  check_max_num_work_group_sync(maxWGs);
+  check_max_num_work_group_sync(maxWGsWithLimits);
 }
 
 void testRootGroup() {
@@ -53,10 +63,17 @@ void testRootGroup() {
     sycl::accessor data{dataBuf, h};
     h.parallel_for<
         class RootGroupKernel>(range, props, [=](sycl::nd_item<1> it) {
+      volatile float X = 1.0f;
+      volatile float Y = 1.0f;
       auto root = it.ext_oneapi_get_root_group();
       data[root.get_local_id()] = root.get_local_id();
       sycl::group_barrier(root);
-
+      // Delay half of the workgroups with extra work to check that the barrier
+      // synchronizes the whole device.
+      if (it.get_group(0) % 2 == 0) {
+        X += sycl::sin(X);
+        Y += sycl::cos(Y);
+      }
       root =
           sycl::ext::oneapi::experimental::this_work_item::get_root_group<1>();
       int sum = data[root.get_local_id()] +

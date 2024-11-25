@@ -12,10 +12,7 @@
 
 #include "xpti/xpti_trace_framework.h"
 
-#include "pi_arguments_handler.hpp"
 #include "usm_analyzer.hpp"
-
-#include <detail/plugin_printers.hpp>
 
 #include <iostream>
 #include <map>
@@ -35,7 +32,7 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
                                      unsigned int /*minor_version*/,
                                      const char * /*version_str*/,
                                      const char *StreamName) {
-  if (std::string_view(StreamName) == "sycl.pi.debug") {
+  if (std::string_view(StreamName) == "ur.call") {
     uint8_t StreamID = xptiRegisterStream(StreamName);
     xptiRegisterCallback(StreamID, xpti::trace_function_with_args_begin,
                          tpCallback);
@@ -44,12 +41,11 @@ XPTI_CALLBACK_API void xptiTraceInit(unsigned int /*major_version*/,
     auto &GS = USMAnalyzer::getInstance();
     GS.changeTerminationOnErrorState(true);
     GS.printToErrorStream();
-    GS.setupUSMHandlers();
   }
 }
 
 XPTI_CALLBACK_API void xptiTraceFinish(const char *StreamName) {
-  if (std::string_view(StreamName) == "sycl.pi.debug") {
+  if (std::string_view(StreamName) == "ur.call") {
     bool hadLeak = false;
     auto &GS = USMAnalyzer::getInstance();
     if (GS.ActivePointers.size() > 0) {
@@ -80,13 +76,9 @@ XPTI_CALLBACK_API void tpCallback(uint16_t TraceType,
   std::lock_guard<std::mutex> Lock(IOMutex);
 
   const auto *Data = static_cast<const xpti::function_with_args_t *>(UserData);
-  const auto *Plugin = static_cast<pi_plugin *>(Data->user_data);
   if (TraceType == xpti::trace_function_with_args_begin) {
-    GS.ArgHandlerPreCall.handle(Data->function_id, *Plugin, std::nullopt,
-                                Data->args_data);
+    GS.handlePreCall(Data);
   } else if (TraceType == xpti::trace_function_with_args_end) {
-    const pi_result Result = *static_cast<pi_result *>(Data->ret_data);
-    GS.ArgHandlerPostCall.handle(Data->function_id, *Plugin, Result,
-                                 Data->args_data);
+    GS.handlePostCall(Data);
   }
 }

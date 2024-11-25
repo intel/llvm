@@ -10,6 +10,7 @@
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/image.hpp>
@@ -22,9 +23,12 @@ inline namespace _V1 {
 platform::platform() : platform(default_selector_v) {}
 
 platform::platform(cl_platform_id PlatformId) {
-  impl = detail::platform_impl::getOrMakePlatformImpl(
-      detail::pi::cast<sycl::detail::pi::PiPlatform>(PlatformId),
-      sycl::detail::pi::getPlugin<backend::opencl>());
+  auto Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+  ur_platform_handle_t UrPlatform = nullptr;
+  Adapter->call<detail::UrApiKind::urPlatformCreateWithNativeHandle>(
+      detail::ur::cast<ur_native_handle_t>(PlatformId), Adapter->getUrAdapter(),
+      /* pProperties = */ nullptr, &UrPlatform);
+  impl = detail::platform_impl::getOrMakePlatformImpl(UrPlatform, Adapter);
 }
 
 // protected constructor for internal use
@@ -57,7 +61,7 @@ platform::get_info_impl() const {
   return detail::convert_to_abi_neutral(impl->template get_info<Param>());
 }
 
-pi_native_handle platform::getNative() const { return impl->getNative(); }
+ur_native_handle_t platform::getNative() const { return impl->getNative(); }
 
 bool platform::has(aspect Aspect) const { return impl->has(Aspect); }
 

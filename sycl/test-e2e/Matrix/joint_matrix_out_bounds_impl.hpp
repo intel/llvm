@@ -33,7 +33,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, 1 * sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            auto pA =
@@ -63,7 +63,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
            joint_matrix<sub_group, float, use::accumulator, TM, TN> sub_c;
            // bounds-checked load where width and height are added
            ext::intel::experimental::matrix::joint_matrix_fill_checked(
-               sg, sub_c, 1, N, M, N, sg_startx * TM, sg_starty / sg_size * TN);
+               sg, sub_c, 1, M, N, sg_startx * TM, sg_starty / sg_size * TN);
            for (int k = 0; k < K; k += TK) {
              // bounds-checked load where width and height are added
              ext::intel::experimental::matrix::joint_matrix_load_checked(
@@ -72,7 +72,7 @@ void matrix_multiply(T1 *C, T2 *A, T2 *B, queue q) {
              // bounds-checked load where width and height are added
              ext::intel::experimental::matrix::joint_matrix_load_checked(
                  sg, sub_b, pB, N * vnniFactor, K / vnniFactor, N * vnniFactor,
-                 k, sg_starty / sg_size * TN * vnniFactor);
+                 k / vnniFactor, sg_starty / sg_size * TN * vnniFactor);
              joint_matrix_mad(sg, sub_c, sub_a, sub_b, sub_c);
            }
            // bounds-checked store where width and height are added

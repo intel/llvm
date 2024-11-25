@@ -1,15 +1,15 @@
 {
   "linux": {
     "compute_runtime": {
-      "github_tag": "24.22.29735.20",
-      "version": "24.22.29735.20",
-      "url": "https://github.com/intel/compute-runtime/releases/tag/24.22.29735.20",
+      "github_tag": "24.39.31294.12",
+      "version": "24.39.31294.12",
+      "url": "https://github.com/intel/compute-runtime/releases/tag/24.39.31294.12",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "igc": {
-      "github_tag": "igc-1.0.16900.23",
-      "version": "1.0.16900.23",
-      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.16900.23",
+      "github_tag": "igc-1.0.17791.9",
+      "version": "1.0.17791.9",
+      "url": "https://github.com/intel/intel-graphics-compiler/releases/tag/igc-1.0.17791.9",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "cm": {
@@ -19,27 +19,27 @@
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "level_zero": {
-      "github_tag": "v1.17.17",
-      "version": "v1.17.17",
-      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.17.17",
+      "github_tag": "v1.18.5",
+      "version": "v1.18.5",
+      "url": "https://github.com/oneapi-src/level-zero/releases/tag/v1.18.5",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclgpu"
     },
     "tbb": {
-      "github_tag": "v2021.12.0",
-      "version": "2021.12.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.12.0/oneapi-tbb-2021.12.0-lin.tgz",
+      "github_tag": "v2022.0.0",
+      "version": "2022.0.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2022.0.0/oneapi-tbb-2022.0.0-lin.tgz",
       "root": "{DEPS_ROOT}/tbb/lin"
     },
     "oclcpu": {
-      "github_tag": "2024-WW25",
-      "version": "2024.18.6.0.02",
-      "url": "https://github.com/intel/llvm/releases/download/2024-WW25/oclcpuexp-2024.18.6.0.02_rel.tar.gz",
+      "github_tag": "2024-WW43",
+      "version": "2024.18.10.0.08",
+      "url": "https://github.com/intel/llvm/releases/download/2024-WW43/oclcpuexp-2024.18.10.0.08_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2024-WW25",
-      "version": "2024.18.6.0.02",
-      "url": "https://github.com/intel/llvm/releases/download/2024-WW25/fpgaemu-2024.18.6.0.02_rel.tar.gz",
+      "github_tag": "2024-WW43",
+      "version": "2024.18.10.0.08",
+      "url": "https://github.com/intel/llvm/releases/download/2024-WW43/fpgaemu-2024.18.10.0.08_rel.tar.gz",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {
@@ -53,21 +53,21 @@
       "root": ""
     },
     "tbb": {
-      "github_tag": "v2021.12.0",
-      "version": "2021.12.0",
-      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2021.12.0/oneapi-tbb-2021.12.0-win.zip",
+      "github_tag": "v2022.0.0",
+      "version": "2022.0.0",
+      "url": "https://github.com/oneapi-src/oneTBB/releases/download/v2022.0.0/oneapi-tbb-2022.0.0-win.zip",
       "root": "{DEPS_ROOT}/tbb/win"
     },
     "oclcpu": {
-      "github_tag": "2024-WW25",
-      "version": "2024.18.6.0.02",
-      "url": "https://github.com/intel/llvm/releases/download/2024-WW25/win-oclcpuexp-2024.18.6.0.02_rel.zip",
+      "github_tag": "2024-WW43",
+      "version": "2024.18.10.0.08",
+      "url": "https://github.com/intel/llvm/releases/download/2024-WW43/win-oclcpuexp-2024.18.10.0.08_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclcpu"
     },
     "fpgaemu": {
-      "github_tag": "2024-WW25",
-      "version": "2024.18.6.0.02",
-      "url": "https://github.com/intel/llvm/releases/download/2024-WW25/win-fpgaemu-2024.18.6.0.02_rel.zip",
+      "github_tag": "2024-WW43",
+      "version": "2024.18.10.0.08",
+      "url": "https://github.com/intel/llvm/releases/download/2024-WW43/win-fpgaemu-2024.18.10.0.08_rel.zip",
       "root": "{DEPS_ROOT}/opencl/runtime/linux/oclfpgaemu"
     },
     "fpga": {

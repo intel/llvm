@@ -1042,39 +1042,39 @@ inline constexpr overaligned_tag<_Np> overaligned{};
 
 // traits [simd.traits]
 template <class _Tp>
-struct is_abi_tag : std::integral_constant<bool, false> {};
+struct is_abi_tag : std::false_type {};
 
 template <_StorageKind __kind, int _Np>
 struct is_abi_tag<__simd_abi<__kind, _Np>>
-    : std::integral_constant<bool, true> {};
+  : std::true_type {};
 
 template <class _Tp>
-struct is_simd : std::integral_constant<bool, false> {};
+struct is_simd : std::false_type {};
 
 template <class _Tp, class _Abi>
-struct is_simd<simd<_Tp, _Abi>> : std::integral_constant<bool, true> {};
+struct is_simd<simd<_Tp, _Abi>> : std::true_type {};
 
 template <class _Tp>
-struct is_simd_mask : std::integral_constant<bool, false> {};
+struct is_simd_mask : std::false_type {};
 
 template <class _Tp, class _Abi>
-struct is_simd_mask<simd_mask<_Tp, _Abi>> : std::integral_constant<bool, true> {
+struct is_simd_mask<simd_mask<_Tp, _Abi>> : std::true_type {
 };
 
 template <class _Tp>
-struct is_simd_flag_type : std::integral_constant<bool, false> {};
+struct is_simd_flag_type : std::false_type {};
 
 template <>
 struct is_simd_flag_type<element_aligned_tag>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <>
 struct is_simd_flag_type<vector_aligned_tag>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <size_t _Align>
 struct is_simd_flag_type<overaligned_tag<_Align>>
-    : std::integral_constant<bool, true> {};
+    : std::true_type {};
 
 template <class _Tp>
 inline constexpr bool is_abi_tag_v = is_abi_tag<_Tp>::value;

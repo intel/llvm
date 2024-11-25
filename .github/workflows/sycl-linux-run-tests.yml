@@ -21,9 +21,6 @@ on:
         type: string
         required: True
       extra_cmake_args:
-        description: |
-          If empty, then HIP_PLATFORM and AMD_ARCH would be automatically added
-          if inputs.target_devices contains 'ext_oneapi_hip'
         type: string
         required: False
       tests_selector:
@@ -62,18 +59,23 @@ on:
         default: ''
         required: False
 
-      reset_gpu:
+      reset_intel_gpu:
         type: string
         required: False
-      install_drivers:
+      install_igc_driver:
         type: string
         required: False
-      use_dev_igc:
+      install_dev_igc_driver:
         type: string
         required: False
       env:
         type: string
         default: '{}'
+        required: False
+
+      skip_run:
+        type: string
+        default: 'false'
         required: False
 
   workflow_dispatch:
@@ -105,7 +107,7 @@ on:
           - 'opencl:cpu'
           - 'opencl:gpu'
           - 'opencl:fpga'
-          - 'ext_oneapi_level_zero:gpu'
+          - 'level_zero:gpu'
           - 'ext_oneapi_hip:gpu'
       tests_selector:
         type: choice
@@ -129,13 +131,13 @@ on:
           Extra options to be added to LIT_OPTS.
         default: ''
 
-      install_drivers:
+      install_igc_driver:
         type: choice
         options:
           - false
           - true
 
-      use_dev_igc:
+      install_dev_igc_driver:
         type: choice
         options:
           - false
@@ -146,6 +148,7 @@ permissions:
 
 jobs:
   run:
+    if: github.event_name == 'workflow_dispatch' || inputs.skip_run == 'false'
     name: ${{ inputs.name }}
     runs-on: ${{ fromJSON(inputs.runner) }}
     container:
@@ -153,8 +156,8 @@ jobs:
       options: ${{ inputs.image_options }}
     env: ${{ fromJSON(inputs.env) }}
     steps:
-    - name: Reset GPU
-      if: inputs.reset_gpu == 'true'
+    - name: Reset Intel GPU
+      if: inputs.reset_intel_gpu == 'true'
       run: |
         sudo mount -t debugfs none /sys/kernel/debug
         sudo bash -c 'echo 1 > /sys/kernel/debug/dri/0/i915_wedged'
@@ -179,23 +182,23 @@ jobs:
       with:
         path: khronos_sycl_cts
         repository: 'KhronosGroup/SYCL-CTS'
-        ref: 'SYCL-2020'
-        default_branch: 'SYCL-2020'
+        ref: 'main'
+        default_branch: 'main'
         cache_path: "/__w/repo_cache/"
     - name: SYCL CTS GIT submodules init
       if: inputs.tests_selector == 'cts'
       run: |
         git -C khronos_sycl_cts submodule update --init
     - name: Install drivers
-      if: inputs.install_drivers == 'true'
+      if: inputs.install_igc_driver == 'true' || inputs.install_dev_igc_driver == 'true'
       env:
         GITHUB_TOKEN: ${{ github.token }}
       run: |
-        if [ "${{ inputs.use_dev_igc }}" = "true" ]; then
+        if [ "${{ inputs.install_dev_igc_driver }}" = "true" ]; then
             # If libllvm14 is already installed (dev igc docker), still return true.
             sudo apt-get install -yqq libllvm14 || true;
         fi
-        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.use_dev_igc == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
+        sudo -E bash devops/scripts/install_drivers.sh llvm/devops/dependencies.json ${{ inputs.install_dev_igc_driver == 'true' && 'llvm/devops/dependencies-igc-dev.json --use-dev-igc' || '' }} --all
     - name: Source OneAPI TBB vars.sh
       shell: bash
       run: |
@@ -261,7 +264,7 @@ jobs:
         echo LD_LIBRARY_PATH=$PWD/toolchain/lib/:$LD_LIBRARY_PATH >> $GITHUB_ENV
     - run: which clang++ sycl-ls
     - run: sycl-ls --verbose
-    - run: SYCL_PI_TRACE=-1 sycl-ls
+    - run: SYCL_UR_TRACE=1 sycl-ls
     - run: |
           if [ -f /usr/local/lib/igc/IGCTAG.txt ]; then
             cat /usr/local/lib/igc/IGCTAG.txt
@@ -276,12 +279,6 @@ jobs:
       run: |
         if [ -n "$CMAKE_EXTRA_ARGS" ]; then
           echo "opts=$CMAKE_EXTRA_ARGS" >> $GITHUB_OUTPUT
-        else
-          if [ "${{ contains(inputs.target_devices, 'ext_oneapi_hip')  }}" == "true" ]; then
-            echo 'opts=-DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"' >> $GITHUB_OUTPUT
-          else
-            echo 'opts=' >> $GITHUB_OUTPUT
-          fi
         fi
     - name: Configure E2E tests
       if: inputs.tests_selector == 'e2e'
@@ -300,23 +297,32 @@ jobs:
           awk '/^Failed Tests|Unexpectedly Passed Tests|Unresolved tests|Testing Time/{flag=1}/FAILED: CMakeFiles/{flag=0}flag' e2e.log >> $GITHUB_STEP_SUMMARY
         fi
         exit $exit_code
-    - name: List excluded SYCL CTS categories
-      if: inputs.tests_selector == 'cts' && env.CTS_TESTS_TO_BUILD == ''
-      run: |
-        cat $PWD/devops/cts_exclude_filter
     - name: Build SYCL CTS tests
       if: inputs.tests_selector == 'cts'
       env:
         CMAKE_EXTRA_ARGS: ${{ inputs.extra_cmake_args }}
       run: |
-        # Do not exclude any category if passing the CTS_TESTS_TO_BUILD variable.
-        cts_exclude_filter=$([ -n "$CTS_TESTS_TO_BUILD" ] && echo "" || echo "$PWD/devops/cts_exclude_filter")
+        cts_exclude_filter=""
+        # If CTS_TESTS_TO_BUILD is null - use filter
+        if [ -z "$CTS_TESTS_TO_BUILD" ]; then
+          if [ "${{ contains(inputs.target_devices, 'opencl:cpu')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_OCL_CPU
+          elif [ "${{ contains(inputs.target_devices, 'level_zero:gpu')  }}" = "true" ]; then
+            cts_exclude_filter=$PWD/devops/cts_exclude_filter_L0_GPU
+          fi
+
+          # List excluded SYCL CTS categories:
+          # SYCL_CTS_EXCLUDE_TEST_CATEGORIES - Optional file specifying a list
+          # of test categories to be excluded from the build.
+          echo "::group::Excluded test categories"
+          cat $cts_exclude_filter
+          echo "::endgroup::"
+        fi
 
         cmake -GNinja -B./build-cts -S./khronos_sycl_cts -DCMAKE_CXX_COMPILER=$(which clang++) \
         -DSYCL_IMPLEMENTATION=DPCPP \
         -DSYCL_CTS_EXCLUDE_TEST_CATEGORIES="$cts_exclude_filter" \
         -DSYCL_CTS_ENABLE_OPENCL_INTEROP_TESTS=OFF \
-        -DSYCL_CTS_MEASURE_BUILD_TIMES=ON \
         -DDPCPP_INSTALL_DIR="$(dirname $(which clang++))/.." \
         $CMAKE_EXTRA_ARGS
         # Ignore errors so that if one category build fails others still have a

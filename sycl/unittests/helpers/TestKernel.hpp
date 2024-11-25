@@ -8,8 +8,8 @@
 
 #pragma once
 
+#include "MockDeviceImage.hpp"
 #include "MockKernelInfo.hpp"
-#include "PiImage.hpp"
 
 template <size_t KernelSize = 1> class TestKernel;
 
@@ -33,6 +33,6 @@ struct KernelInfo<TestKernel<KernelSize>>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"TestKernel"});
-static sycl::unittest::PiImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};

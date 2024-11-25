@@ -14,7 +14,7 @@
 #include <sycl/feature_test.hpp>   // for SYCL_EXT_ONEAPI_SUB_GROUP_MASK
 #include <sycl/id.hpp>             // for id
 #include <sycl/marray.hpp>         // for marray
-#include <sycl/types.hpp>          // for vec
+#include <sycl/vector.hpp>         // for vec
 
 #include <assert.h>     // for assert
 #include <climits>      // for CHAR_BIT
@@ -111,7 +111,7 @@ struct sub_group_mask {
       size_t RemainingBytes = sizeof(Bits) - BytesCopied;
       size_t BytesToCopy =
           RemainingBytes < sizeof(T) ? RemainingBytes : sizeof(T);
-      sycl::detail::memcpy(reinterpret_cast<char *>(&Bits) + BytesCopied,
+      sycl::detail::memcpy_no_adl(reinterpret_cast<char *>(&Bits) + BytesCopied,
                            &val[I], BytesToCopy);
       BytesCopied += BytesToCopy;
     }

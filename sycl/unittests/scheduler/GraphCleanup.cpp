@@ -9,9 +9,9 @@
 #include "SchedulerTest.hpp"
 #include "SchedulerTestUtils.hpp"
 
-#include <helpers/PiMock.hpp>
 #include <helpers/ScopedEnvVar.hpp>
 #include <helpers/TestKernel.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <detail/buffer_impl.hpp>
 
@@ -28,32 +28,23 @@ using namespace sycl;
 inline constexpr auto HostUnifiedMemoryName = "SYCL_HOST_UNIFIED_MEMORY";
 
 int val;
-static pi_result redefinedEnqueueMemBufferMap(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    pi_map_flags map_flags, size_t offset, size_t size,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event, void **ret_map) {
-  *event = reinterpret_cast<pi_event>(new int{});
-  *ret_map = &val;
-  return PI_SUCCESS;
+static ur_result_t redefinedEnqueueMemBufferMap(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_buffer_map_params_t *>(pParams);
+  **params.pphEvent = reinterpret_cast<ur_event_handle_t>(new int{});
+  **params.pppRetMap = &val;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEnqueueMemUnmap(pi_queue command_queue, pi_mem memobj,
-                                          void *mapped_ptr,
-                                          pi_uint32 num_events_in_wait_list,
-                                          const pi_event *event_wait_list,
-                                          pi_event *event) {
-  *event = reinterpret_cast<pi_event>(new int{});
-  return PI_SUCCESS;
+static ur_result_t redefinedEnqueueMemUnmap(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_unmap_params_t *>(pParams);
+  **params.pphEvent = reinterpret_cast<ur_event_handle_t>(new int{});
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEnqueueMemBufferFill(
-    pi_queue command_queue, pi_mem buffer, const void *pattern,
-    size_t pattern_size, size_t offset, size_t size,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *event) {
-  *event = reinterpret_cast<pi_event>(new int{});
-  return PI_SUCCESS;
+static ur_result_t redefinedEnqueueMemBufferFill(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_buffer_fill_params_t *>(pParams);
+  **params.pphEvent = reinterpret_cast<ur_event_handle_t>(new int{});
+  return UR_RESULT_SUCCESS;
 }
 
 static void verifyCleanup(detail::MemObjRecord *Record,
@@ -163,8 +154,8 @@ static void checkCleanupOnEnqueue(MockScheduler &MS,
 
   // Check addCopyBack
   MockCmd = addNewMockCmds();
-  LeafMockCmd->getEvent()->getHandleRef() =
-      reinterpret_cast<pi_event>(new int{});
+  LeafMockCmd->getEvent()->setHandle(
+      reinterpret_cast<ur_event_handle_t>(new int{}));
   MS.addCopyBack(&MockReq);
   verifyCleanup(Record, AllocaCmd, MockCmd, CommandDeleted);
 
@@ -208,14 +199,14 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
   unittest::ScopedEnvVar HostUnifiedMemoryVar{
       HostUnifiedMemoryName, "1",
       detail::SYCLConfig<detail::SYCL_HOST_UNIFIED_MEMORY>::reset};
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferMap>(
-      redefinedEnqueueMemBufferMap);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemUnmap>(
-      redefinedEnqueueMemUnmap);
-  Mock.redefineBefore<detail::PiApiKind::piEnqueueMemBufferFill>(
-      redefinedEnqueueMemBufferFill);
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferMap",
+                                           &redefinedEnqueueMemBufferMap);
+  mock::getCallbacks().set_before_callback("urEnqueueMemUnmap",
+                                           &redefinedEnqueueMemUnmap);
+  mock::getCallbacks().set_before_callback("urEnqueueMemBufferFill",
+                                           &redefinedEnqueueMemBufferFill);
 
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
@@ -278,8 +269,8 @@ TEST_F(SchedulerTest, PostEnqueueCleanup) {
 
 // Check that host tasks are cleaned up after completion.
 TEST_F(SchedulerTest, HostTaskCleanup) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
 
@@ -317,8 +308,8 @@ struct AttachSchedulerWrapper {
 
 // Check that stream buffers are released alongside graph cleanup.
 TEST_F(SchedulerTest, StreamBufferDeallocation) {
-  unittest::PiMock Mock;
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);
@@ -366,21 +357,22 @@ private:
 
 bool EventCompleted = false;
 
-pi_result redefinedEventGetInfo(pi_event Event, pi_event_info PName,
-                                size_t PVSize, void *PV, size_t *PVSizeRet) {
-  EXPECT_EQ(PName, PI_EVENT_INFO_COMMAND_EXECUTION_STATUS)
+ur_result_t redefinedEventGetInfo(void *pParams) {
+  auto params = *static_cast<ur_event_get_info_params_t *>(pParams);
+  EXPECT_EQ(*params.ppropName, UR_EVENT_INFO_COMMAND_EXECUTION_STATUS)
       << "Unknown param name";
-  EXPECT_EQ(PVSize, 4u);
-  *(static_cast<pi_int32 *>(PV)) =
-      EventCompleted ? PI_EVENT_COMPLETE : PI_EVENT_SUBMITTED;
-  return PI_SUCCESS;
+  EXPECT_EQ(*params.ppropSize, 4u);
+  *(static_cast<int32_t *>(*params.ppPropValue)) =
+      EventCompleted ? UR_EVENT_STATUS_COMPLETE : UR_EVENT_STATUS_SUBMITTED;
+  return UR_RESULT_SUCCESS;
 }
 
 // Check that auxiliary resources are released alongside graph cleanup.
 TEST_F(SchedulerTest, AuxiliaryResourcesDeallocation) {
-  unittest::PiMock Mock;
-  Mock.redefine<sycl::detail::PiApiKind::piEventGetInfo>(redefinedEventGetInfo);
-  platform Plt = Mock.getPlatform();
+  unittest::UrMock<> Mock;
+  mock::getCallbacks().set_replace_callback("urEventGetInfo",
+                                            &redefinedEventGetInfo);
+  platform Plt = sycl::platform();
   context Ctx{Plt};
   queue Queue{Ctx, default_selector_v};
   detail::QueueImplPtr QueueImplPtr = detail::getSyclObjImpl(Queue);

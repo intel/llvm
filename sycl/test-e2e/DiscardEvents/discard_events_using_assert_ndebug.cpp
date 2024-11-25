@@ -1,14 +1,12 @@
 // RUN: %{build} -DNDEBUG -o %t.out
 //
-// RUN: env SYCL_PI_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
+// RUN: env SYCL_UR_TRACE=2 %{run} %t.out &> %t.txt ; FileCheck %s --input-file %t.txt
 //
 // The test checks that the last parameter is `nullptr` for
-// piEnqueueKernelLaunch.
-// {{0|0000000000000000}} is required for various output on Linux and Windows.
+// urEnqueueKernelLaunch.
 //
-// CHECK: ---> piEnqueueKernelLaunch(
-// CHECK:        pi_event * :
-// CHECK-NEXT:        pi_event * : {{0|0000000000000000}}[ nullptr ]
+// CHECK: <--- urEnqueueKernelLaunch
+// CHECK: .phEvent = nullptr
 //
 // CHECK: The test passed.
 

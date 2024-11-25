@@ -18,6 +18,7 @@
  * pipe.
  */
 
+#include "ur_mock_helpers.hpp"
 #define SYCL_FALLBACK_ASSERT 1
 // Enable use of interop kernel c-tor
 #define __SYCL_INTERNAL_API
@@ -27,9 +28,9 @@
 #include <detail/context_impl.hpp>
 #include <detail/device_impl.hpp>
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/PiImage.hpp>
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
@@ -72,58 +73,42 @@ struct KernelInfo<::sycl::detail::__sycl_service_kernel__::AssertInfoCopier>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::PiImage generateDefaultImage() {
+static sycl::unittest::MockDeviceImage generateDefaultImage() {
   using namespace sycl::unittest;
 
   static const std::string KernelName = "TestKernel";
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
 
   setKernelUsesAssert({KernelName}, PropSet);
 
-  std::vector<unsigned char> Bin{0, 1, 2, 3, 4, 5}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({KernelName});
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({KernelName});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::PiImage generateCopierKernelImage() {
+static sycl::unittest::MockDeviceImage generateCopierKernelImage() {
   using namespace sycl::unittest;
 
   static const std::string CopierKernelName =
       "_ZTSN2cl4sycl6detail23__sycl_service_kernel__16AssertInfoCopierE";
 
-  PiPropertySet PropSet;
+  MockPropertySet PropSet;
 
-  std::vector<unsigned char> Bin{10, 11, 12, 13, 14, 15}; // Random data
+  std::vector<MockOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
 
-  PiArray<PiOffloadEntry> Entries = makeEmptyKernels({CopierKernelName});
-
-  PiImage Img{PI_DEVICE_BINARY_TYPE_SPIRV,            // Format
-              __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64, // DeviceTargetSpec
-              "",                                     // Compile options
-              "",                                     // Link options
-              std::move(Bin),
-              std::move(Entries),
-              std::move(PropSet)};
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-sycl::unittest::PiImage Imgs[] = {generateDefaultImage(),
-                                  generateCopierKernelImage()};
-sycl::unittest::PiImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDefaultImage(),
+                                          generateCopierKernelImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 struct AssertHappened {
   int Flag = 0;
@@ -166,29 +151,25 @@ static int MemoryMapCounter = MemoryMapCounterBase;
 static constexpr int PauseWaitOnIdx = KernelLaunchCounterBase + 1;
 
 // Mock redifinitions
-static pi_result redefinedKernelGetGroupInfoAfter(
-    pi_kernel kernel, pi_device device, pi_kernel_group_info param_name,
-    size_t param_value_size, void *param_value, size_t *param_value_size_ret) {
-  if (param_name == PI_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
-    if (param_value_size_ret) {
-      *param_value_size_ret = 3 * sizeof(size_t);
-    } else if (param_value) {
-      auto size = static_cast<size_t *>(param_value);
+static ur_result_t redefinedKernelGetGroupInfoAfter(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_group_info_params_t *>(pParams);
+  if (*params.ppropName == UR_KERNEL_GROUP_INFO_COMPILE_WORK_GROUP_SIZE) {
+    if (*params.ppPropSizeRet) {
+      **params.ppPropSizeRet = 3 * sizeof(size_t);
+    } else if (*params.ppPropValue) {
+      auto size = static_cast<size_t *>(*params.ppPropValue);
       size[0] = 1;
       size[1] = 1;
       size[2] = 1;
     }
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result
-redefinedEnqueueKernelLaunchAfter(pi_queue, pi_kernel, pi_uint32,
-                                  const size_t *, const size_t *,
-                                  const size_t *LocalSize, pi_uint32 NDeps,
-                                  const pi_event *Deps, pi_event *RetEvent) {
-  static pi_event UserKernelEvent = *RetEvent;
+static ur_result_t redefinedEnqueueKernelLaunchAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_kernel_launch_params_t *>(pParams);
+  static ur_event_handle_t UserKernelEvent = **params.pphEvent;
   int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
@@ -196,64 +177,62 @@ redefinedEnqueueKernelLaunchAfter(pi_queue, pi_kernel, pi_uint32,
 
   if (PauseWaitOnIdx == Val) {
     // It should be copier kernel. Check if it depends on user's one.
-    EXPECT_EQ(NDeps, 1U);
-    EXPECT_EQ(Deps[0], UserKernelEvent);
+    EXPECT_EQ(*params.pnumEventsInWaitList, 1U);
+    EXPECT_EQ(*params.pphEventWaitList[0], UserKernelEvent);
   }
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEventsWaitPositive(pi_uint32 num_events,
-                                             const pi_event *event_list) {
+static ur_result_t redefinedEventWaitPositive(void *pParams) {
+  auto params = *static_cast<ur_event_wait_params_t *>(pParams);
   // there should be two events: one is for memory map and the other is for
   // copier kernel
-  assert(num_events == 2);
+  assert(*params.pnumEvents == 2);
 
-  int EventIdx1 = reinterpret_cast<int *>(event_list[0])[0];
-  int EventIdx2 = reinterpret_cast<int *>(event_list[1])[0];
+  int EventIdx1 = reinterpret_cast<int *>((*params.pphEventWaitList)[0])[0];
+  int EventIdx2 = reinterpret_cast<int *>((*params.pphEventWaitList)[1])[0];
   // This output here is to reduce amount of time requried to debug/reproduce
   // a failing test upon feature break
   printf("Waiting for events %i, %i\n", EventIdx1, EventIdx2);
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEventsWaitNegative(pi_uint32 num_events,
-                                             const pi_event *event_list) {
+static ur_result_t redefinedEventWaitNegative(void *pParams) {
+  auto params = *static_cast<ur_enqueue_events_wait_params_t *>(pParams);
   // For negative tests we do not expect the copier kernel to be used, so
   // instead we accept whatever amount we get.
   // This output here is to reduce amount of time requried to debug/reproduce
   // a failing test upon feature break
-  printf("Waiting for %i events ", num_events);
-  for (size_t I = 0; I < num_events; ++I)
-    printf("%i, ", reinterpret_cast<int *>(event_list[I])[0]);
+  printf("Waiting for %i events ", *params.pnumEventsInWaitList);
+  for (size_t I = 0; I < *params.pnumEventsInWaitList; ++I)
+    printf("%i, ", reinterpret_cast<int *>(*params.pphEvent[I])[0]);
   printf("\n");
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedEnqueueMemBufferMapAfter(
-    pi_queue command_queue, pi_mem buffer, pi_bool blocking_map,
-    pi_map_flags map_flags, size_t offset, size_t size,
-    pi_uint32 num_events_in_wait_list, const pi_event *event_wait_list,
-    pi_event *RetEvent, void **RetMap) {
+static ur_result_t redefinedEnqueueMemBufferMapAfter(void *pParams) {
+  auto params = *static_cast<ur_enqueue_mem_buffer_map_params_t *>(pParams);
   MemoryMapCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
   printf("Memory map %i\n", MemoryMapCounter);
 
-  *RetMap = (void *)&ExpectedToOutput;
+  **params.pppRetMap = (void *)&ExpectedToOutput;
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static void setupMock(sycl::unittest::PiMock &Mock) {
+static void setupMock(sycl::unittest::UrMock<> &Mock) {
   using namespace sycl::detail;
-  Mock.redefineAfter<PiApiKind::piKernelGetGroupInfo>(
-      redefinedKernelGetGroupInfoAfter);
-  Mock.redefineAfter<PiApiKind::piEnqueueKernelLaunch>(
-      redefinedEnqueueKernelLaunchAfter);
-  Mock.redefineAfter<PiApiKind::piEnqueueMemBufferMap>(
-      redefinedEnqueueMemBufferMapAfter);
-  Mock.redefineBefore<PiApiKind::piEventsWait>(redefinedEventsWaitPositive);
+  mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
+                                          &redefinedKernelGetGroupInfoAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueKernelLaunch",
+                                          &redefinedEnqueueKernelLaunchAfter);
+  mock::getCallbacks().set_after_callback("urEnqueueMemBufferMap",
+                                          &redefinedEnqueueMemBufferMapAfter);
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &redefinedEventWaitPositive);
 }
 
 namespace TestInteropKernel {
@@ -261,125 +240,123 @@ const sycl::context *Context = nullptr;
 const sycl::device *Device = nullptr;
 int KernelLaunchCounter = ::KernelLaunchCounterBase;
 
-static pi_result redefinedKernelGetInfo(pi_kernel Kernel,
-                                        pi_kernel_info ParamName,
-                                        size_t ParamValueSize, void *ParamValue,
-                                        size_t *ParamValueSizeRet) {
-  if (PI_KERNEL_INFO_CONTEXT == ParamName) {
-    pi_context PiContext =
+static ur_result_t redefinedKernelGetInfo(void *pParams) {
+  auto params = *static_cast<ur_kernel_get_info_params_t *>(pParams);
+  if (UR_KERNEL_INFO_CONTEXT == *params.ppropName) {
+    ur_context_handle_t UrContext =
         sycl::detail::getSyclObjImpl(*Context)->getHandleRef();
 
-    if (ParamValue)
-      memcpy(ParamValue, &PiContext, sizeof(PiContext));
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(PiContext);
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &UrContext, sizeof(UrContext));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(UrContext);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  if (PI_KERNEL_INFO_PROGRAM == ParamName) {
-    pi_program PIProgram = nullptr;
-    pi_result Res = mock_piProgramCreate(/*pi_context=*/0x0, /**il*/ nullptr,
-                                         /*length=*/0, &PIProgram);
-    EXPECT_TRUE(PI_SUCCESS == Res);
+  if (UR_KERNEL_INFO_PROGRAM == *params.ppropName) {
+    ur_program_handle_t URProgram =
+        mock::createDummyHandle<ur_program_handle_t>();
 
-    if (ParamValue)
-      memcpy(ParamValue, &PIProgram, sizeof(PIProgram));
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(PIProgram);
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &URProgram, sizeof(URProgram));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(URProgram);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  if (PI_KERNEL_INFO_FUNCTION_NAME == ParamName) {
+  if (UR_KERNEL_INFO_FUNCTION_NAME == *params.ppropName) {
     static const char FName[] = "TestFnName";
-    if (ParamValue) {
+    if (*params.ppPropValue) {
       size_t L = strlen(FName) + 1;
-      if (L < ParamValueSize)
-        L = ParamValueSize;
+      if (L < *params.ppropSize)
+        L = *params.ppropSize;
 
-      memcpy(ParamValue, FName, L);
+      memcpy(*params.ppPropValue, FName, L);
     }
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = strlen(FName) + 1;
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = strlen(FName) + 1;
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  return PI_ERROR_UNKNOWN;
+  return UR_RESULT_ERROR_UNKNOWN;
 }
 
-static pi_result redefinedEnqueueKernelLaunch(pi_queue, pi_kernel, pi_uint32,
-                                              const size_t *, const size_t *,
-                                              const size_t *LocalSize,
-                                              pi_uint32 N, const pi_event *Deps,
-                                              pi_event *RetEvent) {
+static ur_result_t redefinedEnqueueKernelLaunch(void *pParms) {
   int Val = KernelLaunchCounter++;
   // This output here is to reduce amount of time requried to debug/reproduce a
   // failing test upon feature break
   printf("Enqueued %i\n", Val);
 
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-static pi_result redefinedProgramGetInfo(pi_program P,
-                                         pi_program_info ParamName,
-                                         size_t ParamValueSize,
-                                         void *ParamValue,
-                                         size_t *ParamValueSizeRet) {
-  if (PI_PROGRAM_INFO_NUM_DEVICES == ParamName) {
+static ur_result_t redefinedProgramGetInfo(void *pParams) {
+  auto params = *static_cast<ur_program_get_info_params_t *>(pParams);
+  if (UR_PROGRAM_INFO_NUM_DEVICES == *params.ppropName) {
     static const int V = 1;
 
-    if (ParamValue)
-      memcpy(ParamValue, &V, sizeof(V));
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(V);
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &V, sizeof(V));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(V);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  if (PI_PROGRAM_INFO_DEVICES == ParamName) {
-    EXPECT_EQ(ParamValueSize, 1 * sizeof(pi_device));
+  if (UR_PROGRAM_INFO_DEVICES == *params.ppropName) {
+    EXPECT_EQ(*params.ppropSize, 1 * sizeof(ur_device_handle_t));
 
-    pi_device Dev = sycl::detail::getSyclObjImpl(*Device)->getHandleRef();
+    ur_device_handle_t Dev = sycl::detail::getSyclObjImpl(*Device)->getHandleRef();
 
-    if (ParamValue)
-      memcpy(ParamValue, &Dev, sizeof(Dev));
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(Dev);
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &Dev, sizeof(Dev));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(Dev);
 
-    return PI_SUCCESS;
+    return UR_RESULT_SUCCESS;
   }
 
-  return PI_ERROR_UNKNOWN;
+  // Required if program cache eviction is enabled.
+  if (UR_PROGRAM_INFO_BINARY_SIZES == *params.ppropName) {
+    size_t BinarySize = 1;
+
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &BinarySize, sizeof(size_t));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(size_t);
+
+    return UR_RESULT_SUCCESS;
+  }
+
+  return UR_RESULT_ERROR_UNKNOWN;
 }
 
-static pi_result redefinedProgramGetBuildInfo(pi_program P, pi_device D,
-                                              pi_program_build_info ParamName,
-                                              size_t ParamValueSize,
-                                              void *ParamValue,
-                                              size_t *ParamValueSizeRet) {
-  if (PI_PROGRAM_BUILD_INFO_BINARY_TYPE == ParamName) {
-    static const pi_program_binary_type T = PI_PROGRAM_BINARY_TYPE_EXECUTABLE;
-    if (ParamValue)
-      memcpy(ParamValue, &T, sizeof(T));
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = sizeof(T);
-    return PI_SUCCESS;
+static ur_result_t redefinedProgramGetBuildInfo(void *pParams) {
+  auto params = *static_cast<ur_program_get_build_info_params_t *>(pParams);
+  if (UR_PROGRAM_BUILD_INFO_BINARY_TYPE == *params.ppropName) {
+    static const ur_program_binary_type_t T = UR_PROGRAM_BINARY_TYPE_EXECUTABLE;
+    if (*params.ppPropValue)
+      memcpy(*params.ppPropValue, &T, sizeof(T));
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = sizeof(T);
+    return UR_RESULT_SUCCESS;
   }
 
-  if (PI_PROGRAM_BUILD_INFO_OPTIONS == ParamName) {
-    if (ParamValueSizeRet)
-      *ParamValueSizeRet = 0;
-    return PI_SUCCESS;
+  if (UR_PROGRAM_BUILD_INFO_OPTIONS == *params.ppropName) {
+    if (*params.ppPropSizeRet)
+      **params.ppPropSizeRet = 0;
+    return UR_RESULT_SUCCESS;
   }
 
-  return PI_ERROR_UNKNOWN;
+  return UR_RESULT_ERROR_UNKNOWN;
 }
 
 } // namespace TestInteropKernel
 
-static void setupMockForInterop(sycl::unittest::PiMock &Mock,
+static void setupMockForInterop(sycl::unittest::UrMock<> &Mock,
                                 const sycl::context &Ctx,
                                 const sycl::device &Dev) {
   using namespace sycl::detail;
@@ -388,19 +365,22 @@ static void setupMockForInterop(sycl::unittest::PiMock &Mock,
   TestInteropKernel::Device = &Dev;
   TestInteropKernel::Context = &Ctx;
 
-  Mock.redefineAfter<PiApiKind::piKernelGetGroupInfo>(
-      redefinedKernelGetGroupInfoAfter);
-  Mock.redefineBefore<PiApiKind::piEnqueueKernelLaunch>(
-      TestInteropKernel::redefinedEnqueueKernelLaunch);
-  Mock.redefineAfter<PiApiKind::piEnqueueMemBufferMap>(
-      redefinedEnqueueMemBufferMapAfter);
-  Mock.redefineBefore<PiApiKind::piEventsWait>(redefinedEventsWaitNegative);
-  Mock.redefineBefore<PiApiKind::piKernelGetInfo>(
-      TestInteropKernel::redefinedKernelGetInfo);
-  Mock.redefineBefore<PiApiKind::piProgramGetInfo>(
-      TestInteropKernel::redefinedProgramGetInfo);
-  Mock.redefineBefore<PiApiKind::piProgramGetBuildInfo>(
-      TestInteropKernel::redefinedProgramGetBuildInfo);
+  mock::getCallbacks().set_after_callback("urKernelGetGroupInfo",
+                                          &redefinedKernelGetGroupInfoAfter);
+  mock::getCallbacks().set_before_callback(
+      "urEnqueueKernelLaunch",
+      &TestInteropKernel::redefinedEnqueueKernelLaunch);
+  mock::getCallbacks().set_after_callback("urEnqueueMemBufferMap",
+                                          &redefinedEnqueueMemBufferMapAfter);
+  mock::getCallbacks().set_before_callback("urEventWait",
+                                           &redefinedEventWaitNegative);
+  mock::getCallbacks().set_before_callback(
+      "urKernelGetInfo", &TestInteropKernel::redefinedKernelGetInfo);
+  mock::getCallbacks().set_before_callback(
+      "urProgramGetInfo", &TestInteropKernel::redefinedProgramGetInfo);
+  mock::getCallbacks().set_before_callback(
+      "urProgramGetBuildInfo",
+      &TestInteropKernel::redefinedProgramGetBuildInfo);
 }
 
 #ifndef _WIN32
@@ -411,8 +391,8 @@ void ChildProcess(int StdErrFD) {
     exit(1);
   }
 
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   setupMock(Mock);
 
@@ -486,10 +466,10 @@ void ParentProcess(int ChildPID, int ChildStdErrFD) {
 #endif // _WIN32
 
 TEST(Assert, TestPositive) {
-  // Ensure that the mock plugin is initialized before spawning work. Since the
-  // test needs no redefinitions we do not need to create a PiMock instance, but
-  // the mock plugin is still needed to have a valid platform available.
-  sycl::unittest::PiMock::EnsureMockPluginInitialized();
+  // Ensure that the mock adapter is initialized before spawning work. Since the
+  // test needs no redefinitions we do not need to create a UrMock<> instance,
+  // but the mock adapter is still needed to have a valid platform available.
+  // sycl::unittest::UrMock::InitUr();
 
 #ifndef _WIN32
   static constexpr int ReadFDIdx = 0;
@@ -530,8 +510,8 @@ TEST(Assert, TestAssertServiceKernelHidden) {
 }
 
 TEST(Assert, TestInteropKernelNegative) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};
@@ -540,15 +520,12 @@ TEST(Assert, TestInteropKernelNegative) {
 
   sycl::queue Queue{Ctx, Dev};
 
-  pi_kernel PIKernel = nullptr;
+  auto URKernel = mock::createDummyHandle<ur_kernel_handle_t>();
 
-  pi_result Res = mock_piKernelCreate(
-      /*pi_program=*/0x0, /*kernel_name=*/"dummy_kernel", &PIKernel);
-  EXPECT_TRUE(PI_SUCCESS == Res);
-
-  // TODO use make_kernel. This requires a fix in backend.cpp to get plugin
-  // from context instead of free getPlugin to alllow for mocking of its methods
-  sycl::kernel KInterop((cl_kernel)PIKernel, Ctx);
+  // TODO use make_kernel. This requires a fix in backend.cpp to get adapter
+  // from context instead of free getAdapter to allow for mocking of its
+  // methods
+  sycl::kernel KInterop((cl_kernel)URKernel, Ctx);
 
   Queue.submit([&](sycl::handler &H) { H.single_task(KInterop); });
 
@@ -557,8 +534,8 @@ TEST(Assert, TestInteropKernelNegative) {
 }
 
 TEST(Assert, TestInteropKernelFromProgramNegative) {
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt = Mock.getPlatform();
+  sycl::unittest::UrMock<> Mock;
+  sycl::platform Plt = sycl::platform();
 
   const sycl::device Dev = Plt.get_devices()[0];
   sycl::context Ctx{Dev};

@@ -13,6 +13,16 @@ set(DEPLOY_RT_TEST_ARGS ${DEPLOY_RT_TEST_ARGS} "-v -D SYCL_TOOLS_DIR=${CMAKE_INS
 find_package(Threads REQUIRED)
 set(SYCL_THREADS_LIB ${CMAKE_THREAD_LIBS_INIT})
 
+# TEST_INCLUDE_PATH is used for syntax-only verification of type information.
+list(APPEND test_includes ${SYCL_INCLUDE})
+list(APPEND test_includes ${SYCL_SOURCE_DIR}/source)
+list(APPEND test_includes ${BOOST_UNORDERED_INCLUDE_DIRS})
+if(SYCL_ENABLE_EXTENSION_JIT)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/jit-compiler/include)
+  list(APPEND test_includes ${LLVM_EXTERNAL_SYCL_JIT_SOURCE_DIR}/common/include)
+endif(SYCL_ENABLE_EXTENSION_JIT)
+list(JOIN test_includes ":" TEST_INCLUDE_PATH)
+
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.py.in
   ${CMAKE_CURRENT_BINARY_DIR}/lit.site.cfg.py
@@ -77,66 +87,15 @@ add_custom_target(check-sycl)
 add_dependencies(check-sycl check-sycl-combined-triples)
 set_target_properties(check-sycl PROPERTIES FOLDER "SYCL tests")
 
-add_lit_testsuite(check-sycl-spirv "Running device-agnostic SYCL regression tests for SPIR-V"
-  ${CMAKE_CURRENT_BINARY_DIR}
-  ARGS ${RT_TEST_ARGS}
-  PARAMS "SYCL_TRIPLE=spir64-unknown-unknown"
-  DEPENDS ${SYCL_TEST_DEPS}
-  ${SYCL_TEST_EXCLUDE}
-  EXCLUDE_FROM_CHECK_ALL
-  )
-
 add_lit_testsuite(check-sycl-dumps "Running ABI dump tests only"
   ${CMAKE_CURRENT_BINARY_DIR}
   ARGS ${RT_TEST_ARGS}
   PARAMS "SYCL_LIB_DUMPS_ONLY=True"
-  DEPENDS sycl-runtime-libraries llvm-readobj
+  DEPENDS FileCheck sycl-runtime-libraries llvm-readobj
   EXCLUDE_FROM_CHECK_ALL
   )
 
-if(SYCL_BUILD_BACKEND_CUDA)
-  add_lit_testsuite(check-sycl-ptx "Running device-agnostic SYCL regression tests for NVidia PTX"
-    ${CMAKE_CURRENT_BINARY_DIR}
-    ARGS ${RT_TEST_ARGS}
-    PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
-    DEPENDS ${SYCL_TEST_DEPS}
-    ${SYCL_TEST_EXCLUDE}
-    EXCLUDE_FROM_CHECK_ALL
-  )
-
-  add_custom_target(check-sycl-cuda)
-  add_dependencies(check-sycl-cuda check-sycl-ptx)
+if(NOT WIN32 AND SYCL_ENABLE_EXTENSION_JIT)
+  # lit-based testing of JIT passes isn't supported on Windows.
+  add_dependencies(check-sycl check-sycl-jit)
 endif()
-
-if(SYCL_BUILD_BACKEND_HIP)
-  add_custom_target(check-sycl-hip)
-  if("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "NVIDIA")
-    add_lit_testsuite(check-sycl-hip-ptx "Running device-agnostic SYCL regression tests for HIP NVidia PTX"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=nvptx64-nvidia-cuda"
-      DEPENDS ${SYCL_TEST_DEPS}
-      ${SYCL_TEST_EXCLUDE}
-      EXCLUDE_FROM_CHECK_ALL
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-ptx)
-  elseif("${SYCL_BUILD_PI_HIP_PLATFORM}" STREQUAL "AMD")
-    add_lit_testsuite(check-sycl-hip-gcn "Running device-agnostic SYCL regression tests for HIP AMDGCN"
-      ${CMAKE_CURRENT_BINARY_DIR}
-      ARGS ${RT_TEST_ARGS}
-      PARAMS "SYCL_TRIPLE=amdgcn-amd-amdhsa"
-      DEPENDS ${SYCL_TEST_DEPS}
-      ${SYCL_TEST_EXCLUDE}
-      EXCLUDE_FROM_CHECK_ALL
-    )
-
-    add_dependencies(check-sycl-hip check-sycl-hip-gcn)
-  else()
-    message(FATAL_ERROR "SYCL_BUILD_PI_HIP_PLATFORM must be set to either 'AMD' or 'NVIDIA' (set to: '${SYCL_BUILD_PI_HIP_PLATFORM}')")
-  endif()
-endif()
-
-if(SYCL_ENABLE_KERNEL_FUSION)
-  add_dependencies(check-sycl check-sycl-fusion)
-endif(SYCL_ENABLE_KERNEL_FUSION)

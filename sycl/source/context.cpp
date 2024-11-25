@@ -8,12 +8,14 @@
 
 #include <detail/backend_impl.hpp>
 #include <detail/context_impl.hpp>
+#include <detail/ur.hpp>
 #include <sycl/context.hpp>
 #include <sycl/detail/common.hpp>
 #include <sycl/device.hpp>
 #include <sycl/device_selector.hpp>
 #include <sycl/exception.hpp>
 #include <sycl/exception_list.hpp>
+#include <sycl/info/info_desc.hpp>
 #include <sycl/platform.hpp>
 #include <sycl/properties/all_properties.hpp>
 
@@ -70,10 +72,16 @@ context::context(const std::vector<device> &DeviceList,
                                                   PropList);
 }
 context::context(cl_context ClContext, async_handler AsyncHandler) {
-  const auto &Plugin = sycl::detail::pi::getPlugin<backend::opencl>();
-  impl = std::make_shared<detail::context_impl>(
-      detail::pi::cast<sycl::detail::pi::PiContext>(ClContext), AsyncHandler,
-      Plugin);
+  const auto &Adapter = sycl::detail::ur::getAdapter<backend::opencl>();
+
+  ur_context_handle_t hContext = nullptr;
+  ur_native_handle_t nativeHandle =
+      reinterpret_cast<ur_native_handle_t>(ClContext);
+  Adapter->call<detail::UrApiKind::urContextCreateWithNativeHandle>(
+      nativeHandle, Adapter->getUrAdapter(), 0, nullptr, nullptr, &hContext);
+
+  impl =
+      std::make_shared<detail::context_impl>(hContext, AsyncHandler, Adapter);
 }
 
 template <typename Param>
@@ -118,7 +126,7 @@ std::vector<device> context::get_devices() const {
 
 context::context(std::shared_ptr<detail::context_impl> Impl) : impl(Impl) {}
 
-pi_native_handle context::getNative() const { return impl->getNative(); }
+ur_native_handle_t context::getNative() const { return impl->getNative(); }
 
 const property_list &context::getPropList() const {
   return impl->getPropList();

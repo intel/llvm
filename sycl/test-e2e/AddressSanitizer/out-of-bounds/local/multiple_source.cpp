@@ -1,8 +1,8 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_1 -c -o %t1.o
 // RUN: %{build} %device_asan_flags -O2 -g -DUSER_CODE_2 -c -o %t2.o
 // RUN: %clangxx -fsycl %device_asan_flags -O2 -g %t1.o %t2.o -o %t.out
-// RUN: env SYCL_PREFER_UR=1 %{run} not %t.out 2>&1 | FileCheck %s
+// RUN: %{run} not %t.out 2>&1 | FileCheck %s
 #include <sycl/usm.hpp>
 
 constexpr std::size_t N = 4;

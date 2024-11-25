@@ -1,5 +1,5 @@
 // RUN: %{build} -g -o %t.out
-// RUN: %{build} -g -O0 -o %t.out
+// RUN: %{build} -g %O0 -o %t.out
 // RUN: %{build} -g -O2 -o %t.out
 //
 // The idea of this test is to make sure that we can compile the following

@@ -21,15 +21,15 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-inline sycl::detail::pi::PiVirtualAccessFlags AccessModeToVirtualAccessFlags(
+inline ur_virtual_mem_access_flag_t AccessModeToVirtualAccessFlags(
     ext::oneapi::experimental::address_access_mode Mode) {
   switch (Mode) {
   case ext::oneapi::experimental::address_access_mode::read:
-    return PI_VIRTUAL_ACCESS_FLAG_READ_ONLY;
+    return UR_VIRTUAL_MEM_ACCESS_FLAG_READ_ONLY;
   case ext::oneapi::experimental::address_access_mode::read_write:
-    return PI_VIRTUAL_ACCESS_FLAG_RW;
+    return UR_VIRTUAL_MEM_ACCESS_FLAG_READ_WRITE;
   case ext::oneapi::experimental::address_access_mode::none:
-    return 0;
+    return UR_VIRTUAL_MEM_ACCESS_FLAG_NONE;
   }
   throw sycl::exception(make_error_code(errc::invalid),
                         "Invalid address_access_mode.");
@@ -41,33 +41,33 @@ public:
                     size_t NumBytes)
       : MDevice(getSyclObjImpl(SyclDevice)),
         MContext(getSyclObjImpl(SyclContext)), MNumBytes(NumBytes) {
-    const PluginPtr &Plugin = MContext->getPlugin();
+    const AdapterPtr &Adapter = MContext->getAdapter();
 
-    auto Err = Plugin->call_nocheck<PiApiKind::piextPhysicalMemCreate>(
-        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes,
+    auto Err = Adapter->call_nocheck<UrApiKind::urPhysicalMemCreate>(
+        MContext->getHandleRef(), MDevice->getHandleRef(), MNumBytes, nullptr,
         &MPhysicalMem);
 
-    if (Err == PI_ERROR_OUT_OF_RESOURCES || Err == PI_ERROR_OUT_OF_HOST_MEMORY)
+    if (Err == UR_RESULT_ERROR_OUT_OF_RESOURCES ||
+        Err == UR_RESULT_ERROR_OUT_OF_HOST_MEMORY)
       throw sycl::exception(make_error_code(errc::memory_allocation),
                             "Failed to allocate physical memory.");
-    Plugin->checkPiResult(Err);
+    Adapter->checkUrResult(Err);
   }
 
   ~physical_mem_impl() noexcept(false) {
-    const PluginPtr &Plugin = MContext->getPlugin();
-    Plugin->call<PiApiKind::piextPhysicalMemRelease>(MPhysicalMem);
+    const AdapterPtr &Adapter = MContext->getAdapter();
+    Adapter->call<UrApiKind::urPhysicalMemRelease>(MPhysicalMem);
   }
 
   void *map(uintptr_t Ptr, size_t NumBytes,
             ext::oneapi::experimental::address_access_mode Mode,
             size_t Offset) const {
-    sycl::detail::pi::PiVirtualAccessFlags AccessFlags =
-        AccessModeToVirtualAccessFlags(Mode);
-    const PluginPtr &Plugin = MContext->getPlugin();
+    auto AccessFlags = AccessModeToVirtualAccessFlags(Mode);
+    const AdapterPtr &Adapter = MContext->getAdapter();
     void *ResultPtr = reinterpret_cast<void *>(Ptr);
-    Plugin->call<PiApiKind::piextVirtualMemMap>(
-        MContext->getHandleRef(), ResultPtr, NumBytes, MPhysicalMem, Offset,
-        AccessFlags);
+    Adapter->call<UrApiKind::urVirtualMemMap>(MContext->getHandleRef(),
+                                              ResultPtr, NumBytes, MPhysicalMem,
+                                              Offset, AccessFlags);
     return ResultPtr;
   }
 
@@ -77,13 +77,11 @@ public:
   device get_device() const { return createSyclObjFromImpl<device>(MDevice); }
   size_t size() const noexcept { return MNumBytes; }
 
-  sycl::detail::pi::PiPhysicalMem &getHandleRef() { return MPhysicalMem; }
-  const sycl::detail::pi::PiPhysicalMem &getHandleRef() const {
-    return MPhysicalMem;
-  }
+  ur_physical_mem_handle_t &getHandleRef() { return MPhysicalMem; }
+  const ur_physical_mem_handle_t &getHandleRef() const { return MPhysicalMem; }
 
 private:
-  sycl::detail::pi::PiPhysicalMem MPhysicalMem = nullptr;
+  ur_physical_mem_handle_t MPhysicalMem = nullptr;
   const std::shared_ptr<device_impl> MDevice;
   const std::shared_ptr<context_impl> MContext;
   const size_t MNumBytes;

@@ -11,16 +11,16 @@
 #include "llvm/Support/Signals.h"
 #endif
 
+#include <detail/adapter.hpp>
 #include <detail/config.hpp>
 #include <detail/global_handler.hpp>
 #include <detail/platform_impl.hpp>
-#include <detail/plugin.hpp>
 #include <detail/program_manager/program_manager.hpp>
 #include <detail/scheduler/scheduler.hpp>
 #include <detail/thread_pool.hpp>
+#include <detail/ur.hpp>
 #include <detail/xpti_registry.hpp>
 #include <sycl/detail/device_filter.hpp>
-#include <sycl/detail/pi.hpp>
 #include <sycl/detail/spinlock.hpp>
 
 #ifdef _WIN32
@@ -170,7 +170,7 @@ Scheduler &GlobalHandler::getScheduler() {
   // work. So, registering signal handler here because:
   // 1) getScheduler is likely to be called for any non-trivial application;
   // 2) first call to getScheduler is likely to be done after main starts.
-  // The same is done in getPlugins.
+  // The same is done in getAdapters.
   enableOnCrashStackPrinting();
   return *MScheduler.Inst;
 }
@@ -207,9 +207,10 @@ std::mutex &GlobalHandler::getPlatformMapMutex() {
 std::mutex &GlobalHandler::getFilterMutex() {
   return getOrCreate(MFilterMutex);
 }
-std::vector<PluginPtr> &GlobalHandler::getPlugins() {
+
+std::vector<AdapterPtr> &GlobalHandler::getAdapters() {
   enableOnCrashStackPrinting();
-  return getOrCreate(MPlugins);
+  return getOrCreate(MAdapters);
 }
 
 ods_target_list &
@@ -231,7 +232,7 @@ ThreadPool &GlobalHandler::getHostTaskThreadPool() {
 void GlobalHandler::releaseDefaultContexts() {
   // Release shared-pointers to SYCL objects.
   // Note that on Windows the destruction of the default context
-  // races with the detaching of the DLL object that calls piTearDown.
+  // races with the detaching of the DLL object that calls urLoaderTearDown.
 
   MPlatformToDefaultContextCache.Inst.reset(nullptr);
 }
@@ -261,23 +262,25 @@ bool GlobalHandler::isOkToDefer() const { return OkToDefer; }
 void GlobalHandler::endDeferredRelease() { OkToDefer = false; }
 
 // Note: Split from shutdown so it is available to the unittests for ensuring
-//       that the mock plugin is the lone plugin.
-void GlobalHandler::unloadPlugins() {
-  // Call to GlobalHandler::instance().getPlugins() initializes plugins. If
+//       that the mock adapter is the lone adapter.
+void GlobalHandler::unloadAdapters() {
+  // Call to GlobalHandler::instance().getAdapters() initializes adapters. If
   // user application has loaded SYCL runtime, and never called any APIs,
-  // there's no need to load and unload plugins.
-  if (MPlugins.Inst) {
-    for (const PluginPtr &Plugin : getPlugins()) {
-      // PluginParameter for Teardown is the boolean tracking if a
-      // given plugin has been teardown successfully.
-      // This tracking prevents usage of this plugin after teardown
-      // has been completed to avoid invalid resource access.
-      Plugin->call<PiApiKind::piTearDown>(&Plugin->pluginReleased);
-      Plugin->unload();
+  // there's no need to load and unload adapters.
+  if (MAdapters.Inst) {
+    for (const auto &Adapter : getAdapters()) {
+      Adapter->release();
     }
   }
+
+  UrFuncInfo<UrApiKind::urLoaderTearDown> loaderTearDownInfo;
+  auto loaderTearDown =
+      loaderTearDownInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
+  loaderTearDown();
+  // urLoaderTearDown();
+
   // Clear after unload to avoid uses after unload.
-  getPlugins().clear();
+  getAdapters().clear();
 }
 
 void GlobalHandler::prepareSchedulerToRelease(bool Blocking) {
@@ -300,11 +303,11 @@ void GlobalHandler::drainThreadPool() {
 // threads may be shutdown once the end of main() is reached
 // making an orderly shutdown difficult. Fortunately, Windows
 // itself is very aggressive about reclaiming memory. Thus,
-// we focus solely on unloading the plugins, so as to not
+// we focus solely on unloading the adapters, so as to not
 // accidentally retain device handles. etc
 void shutdown_win() {
   GlobalHandler *&Handler = GlobalHandler::getInstancePtr();
-  Handler->unloadPlugins();
+  Handler->unloadAdapters();
 }
 #else
 void shutdown_early() {
@@ -334,15 +337,15 @@ void shutdown_late() {
   if (!Handler)
     return;
 
-  // First, release resources, that may access plugins.
+  // First, release resources, that may access adapters.
   Handler->MPlatformCache.Inst.reset(nullptr);
   Handler->MScheduler.Inst.reset(nullptr);
   Handler->MProgramManager.Inst.reset(nullptr);
 
-  // Clear the plugins and reset the instance if it was there.
-  Handler->unloadPlugins();
-  if (Handler->MPlugins.Inst)
-    Handler->MPlugins.Inst.reset(nullptr);
+  // Clear the adapters and reset the instance if it was there.
+  Handler->unloadAdapters();
+  if (Handler->MAdapters.Inst)
+    Handler->MAdapters.Inst.reset(nullptr);
 
   Handler->MXPTIRegistry.Inst.reset(nullptr);
 
@@ -356,29 +359,37 @@ void shutdown_late() {
 extern "C" __SYCL_EXPORT BOOL WINAPI DllMain(HINSTANCE hinstDLL,
                                              DWORD fdwReason,
                                              LPVOID lpReserved) {
-  bool PrintPiTrace = false;
-  static const char *PiTrace = std::getenv("SYCL_PI_TRACE");
-  static const int PiTraceValue = PiTrace ? std::stoi(PiTrace) : 0;
-  if (PiTraceValue == -1 || PiTraceValue == 2) { // Means print all PI traces
-    PrintPiTrace = true;
+  bool PrintUrTrace = false;
+  try {
+    PrintUrTrace =
+        sycl::detail::ur::trace(sycl::detail::ur::TraceLevel::TRACE_CALLS);
+  } catch (std::exception &e) {
+    __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in DllMain", e);
+    return FALSE;
   }
 
   // Perform actions based on the reason for calling.
   switch (fdwReason) {
   case DLL_PROCESS_DETACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_DETACH syclx.dll\n" << std::endl;
 
 #ifdef XPTI_ENABLE_INSTRUMENTATION
     if (xptiTraceEnabled())
       return TRUE; // When doing xpti tracing, we can't safely call shutdown.
-                   // TODO: figure out what XPTI is doing that prevents release.
+                   // TODO: figure out what XPTI is doing that prevents
+                   // release.
 #endif
 
-    shutdown_win();
+    try {
+      shutdown_win();
+    } catch (std::exception &e) {
+      __SYCL_REPORT_EXCEPTION_TO_STREAM("exception in shutdown_win", e);
+      return FALSE;
+    }
     break;
   case DLL_PROCESS_ATTACH:
-    if (PrintPiTrace)
+    if (PrintUrTrace)
       std::cout << "---> DLL_PROCESS_ATTACH syclx.dll\n" << std::endl;
     break;
   case DLL_THREAD_ATTACH:

@@ -1,4 +1,4 @@
-// REQUIRES: linux, cpu
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -Xarch_device -fsanitize-recover=address -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 %{run} %t 2>&1 | FileCheck %s
 
@@ -46,5 +46,6 @@ int main() {
   // CHECK: {{READ of size 4 at kernel <.*Kernel4> LID\(0, 0, 0\) GID\(4, 0, 0\)}}
   // CHECK: {{  #0 .* .*multiple_kernels.cpp:}}[[@LINE-4]]
 
+  sycl::free(array, Q);
   return 0;
 }

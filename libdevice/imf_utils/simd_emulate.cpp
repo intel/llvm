@@ -7,8 +7,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "../device_imf.hpp"
+#include "../device.h"
+
 #ifdef __LIBDEVICE_IMF_ENABLED__
+
+#include "../device_imf.hpp"
 
 template <typename Tp> struct __twice_size;
 template <typename Tp> using __twice_size_t = typename __twice_size<Tp>::type;

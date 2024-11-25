@@ -9,6 +9,7 @@
 #include <detail/platform_util.hpp>
 #include <sycl/detail/os_util.hpp>
 #include <sycl/exception.hpp>
+#include <ur_api.h>
 
 #if defined(__SYCL_RT_OS_LINUX)
 #include <errno.h>

@@ -18,17 +18,17 @@ void matrix_multiply(big_matrix<TResult, M, N> &C, big_matrix<T, M, K> &A,
   buffer<TResult, 2> bufC(C.get_data(), range<2>(M, N));
 
   queue q;
-  size_t sg_size = get_sg_size<mult<T, TM, TN, TK>>(q);
+  size_t sg_size = get_sg_size<mult<TResult, TM, TN, TK>>(q);
   q.submit([&](handler &cgh) {
      accessor accA{bufA, cgh};
      accessor accB{bufB, cgh};
      accessor accC{bufC, cgh};
 
-     cgh.parallel_for<mult<T, TM, TN, TK>>(
+     cgh.parallel_for<mult<TResult, TM, TN, TK>>(
          nd_range<2>({NDRangeM, NDRangeN * sg_size}, {1, sg_size}),
          [=](nd_item<2> spmd_item)
 #ifdef SG_SZ
-             [[intel::reqd_sub_group_size(SG_SZ)]]
+             [[sycl::reqd_sub_group_size(SG_SZ)]]
 #endif
          {
            // The submatrix API has to be accessed by all the workitems in a
@@ -112,6 +112,9 @@ int main() {
                         matrix_combinations>();
 
   for (unsigned int i = 0; i < combinations.size(); i++) {
+    if (combinations[i].atype != matrix_type::fp16)
+      continue;
+
     if (combinations[i].nsize == 0) { // Intel AMX
       test<float, half, 2, /*TM*/ 16, /*TN*/ 16, /*TK*/ 32>();
       break;
@@ -119,6 +122,22 @@ int main() {
 
     if (combinations[i].nsize == 16) { // architecture::intel_gpu_pvc
       test<float, half, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+      // test<half, half, 2, /*TM*/ 8, /*TN*/ 16, /*TK*/ 16>();
+
+      // This combination is not currently supported for sub group size = 32 in
+      // IGC
+#if (!defined(SG_SZ) || SG_SZ != 32)
+      // test<float, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // test<half, half, /*TM*/ 16, /*TN*/ 16, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 16>();
+      // test<float, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // test<half, half, /*TM*/ 1, /*TN*/ 64, /*TK*/ 32>();
+      // test<float, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+      // test<half, half, /*TM*/ 32, /*TN*/ 64, /*TK*/ 32>();
+#endif
       break;
     }
 

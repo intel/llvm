@@ -6,16 +6,17 @@
 //
 //===----------------------------------------------------------------------===//
 #include <sycl/feature_test.hpp>
-#if SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#if SYCL_EXT_JIT_ENABLE
 #include <KernelFusion.h>
 #include <detail/device_image_impl.hpp>
+#include <detail/helpers.hpp>
 #include <detail/jit_compiler.hpp>
 #include <detail/kernel_bundle_impl.hpp>
 #include <detail/kernel_impl.hpp>
 #include <detail/queue_impl.hpp>
 #include <detail/sycl_mem_obj_t.hpp>
-#include <sycl/detail/pi.hpp>
-#include <sycl/ext/codeplay/experimental/fusion_properties.hpp>
+#include <sycl/detail/os_util.hpp>
+#include <sycl/detail/ur.hpp>
 #include <sycl/kernel_bundle.hpp>
 
 namespace sycl {
@@ -30,16 +31,21 @@ static inline void printPerformanceWarning(const std::string &Message) {
 
 jit_compiler::jit_compiler() {
   auto checkJITLibrary = [this]() -> bool {
-    static const std::string JITLibraryName = "libsycl-fusion.so";
+#ifdef _WIN32
+    static const std::string dir = sycl::detail::OSUtil::getCurrentDSODir();
+    static const std::string JITLibraryName = dir + "\\" + "sycl-jit.dll";
+#else
+    static const std::string JITLibraryName = "libsycl-jit.so";
+#endif
 
-    void *LibraryPtr = sycl::detail::pi::loadOsLibrary(JITLibraryName);
+    void *LibraryPtr = sycl::detail::ur::loadOsLibrary(JITLibraryName);
     if (LibraryPtr == nullptr) {
       printPerformanceWarning("Could not find JIT library " + JITLibraryName);
       return false;
     }
 
     this->AddToConfigHandle = reinterpret_cast<AddToConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "addToJITConfiguration"));
     if (!this->AddToConfigHandle) {
       printPerformanceWarning(
@@ -48,7 +54,7 @@ jit_compiler::jit_compiler() {
     }
 
     this->ResetConfigHandle = reinterpret_cast<ResetConfigFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr,
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr,
                                                   "resetJITConfiguration"));
     if (!this->ResetConfigHandle) {
       printPerformanceWarning(
@@ -57,8 +63,26 @@ jit_compiler::jit_compiler() {
     }
 
     this->FuseKernelsHandle = reinterpret_cast<FuseKernelsFuncT>(
-        sycl::detail::pi::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "fuseKernels"));
     if (!this->FuseKernelsHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->MaterializeSpecConstHandle =
+        reinterpret_cast<MaterializeSpecConstFuncT>(
+            sycl::detail::ur::getOsLibraryFuncAddress(
+                LibraryPtr, "materializeSpecConstants"));
+    if (!this->MaterializeSpecConstHandle) {
+      printPerformanceWarning(
+          "Cannot resolve JIT library function entry point");
+      return false;
+    }
+
+    this->CompileSYCLHandle = reinterpret_cast<CompileSYCLFuncT>(
+        sycl::detail::ur::getOsLibraryFuncAddress(LibraryPtr, "compileSYCL"));
+    if (!this->CompileSYCLHandle) {
       printPerformanceWarning(
           "Cannot resolve JIT library function entry point");
       return false;
@@ -70,11 +94,11 @@ jit_compiler::jit_compiler() {
 }
 
 static ::jit_compiler::BinaryFormat
-translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
+translateBinaryImageFormat(ur::DeviceBinaryType Type) {
   switch (Type) {
-  case PI_DEVICE_BINARY_TYPE_SPIRV:
+  case SYCL_DEVICE_BINARY_TYPE_SPIRV:
     return ::jit_compiler::BinaryFormat::SPIRV;
-  case PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
+  case SYCL_DEVICE_BINARY_TYPE_LLVMIR_BITCODE:
     return ::jit_compiler::BinaryFormat::LLVM;
   default:
     throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
@@ -106,69 +130,6 @@ translateBinaryImageFormat(pi::PiDeviceBinaryType Type) {
                   Queue->getDeviceImplPtr()->getDeviceArch()));
 }
 
-std::pair<const RTDeviceBinaryImage *, sycl::detail::pi::PiProgram>
-retrieveKernelBinary(QueueImplPtr &Queue, CGExecKernel *KernelCG) {
-  auto KernelName = KernelCG->getKernelName();
-
-  bool isNvidia =
-      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_cuda;
-  bool isHIP =
-      Queue->getDeviceImplPtr()->getBackend() == backend::ext_oneapi_hip;
-  if (isNvidia || isHIP) {
-    auto KernelID = ProgramManager::getInstance().getSYCLKernelID(KernelName);
-    std::vector<kernel_id> KernelIds{KernelID};
-    auto DeviceImages =
-        ProgramManager::getInstance().getRawDeviceImages(KernelIds);
-    auto DeviceImage = std::find_if(
-        DeviceImages.begin(), DeviceImages.end(),
-        [isNvidia](RTDeviceBinaryImage *DI) {
-          const std::string &TargetSpec = isNvidia ? std::string("llvm_nvptx64")
-                                                   : std::string("llvm_amdgcn");
-          return DI->getFormat() == PI_DEVICE_BINARY_TYPE_LLVMIR_BITCODE &&
-                 DI->getRawData().DeviceTargetSpec == TargetSpec;
-        });
-    if (DeviceImage == DeviceImages.end()) {
-      return {nullptr, nullptr};
-    }
-    auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
-    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    sycl::detail::pi::PiProgram Program =
-        detail::ProgramManager::getInstance().createPIProgram(**DeviceImage,
-                                                              Context, Device);
-    return {*DeviceImage, Program};
-  }
-
-  const RTDeviceBinaryImage *DeviceImage = nullptr;
-  sycl::detail::pi::PiProgram Program = nullptr;
-  if (KernelCG->getKernelBundle() != nullptr) {
-    // Retrieve the device image from the kernel bundle.
-    auto KernelBundle = KernelCG->getKernelBundle();
-    kernel_id KernelID =
-        detail::ProgramManager::getInstance().getSYCLKernelID(KernelName);
-
-    auto SyclKernel = detail::getSyclObjImpl(
-        KernelBundle->get_kernel(KernelID, KernelBundle));
-
-    DeviceImage = SyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = SyclKernel->getDeviceImage()->get_program_ref();
-  } else if (KernelCG->MSyclKernel != nullptr) {
-    DeviceImage = KernelCG->MSyclKernel->getDeviceImage()->get_bin_image_ref();
-    Program = KernelCG->MSyclKernel->getDeviceImage()->get_program_ref();
-  } else {
-    auto ContextImpl = Queue->getContextImplPtr();
-    auto Context = detail::createSyclObjFromImpl<context>(ContextImpl);
-    auto DeviceImpl = Queue->getDeviceImplPtr();
-    auto Device = detail::createSyclObjFromImpl<device>(DeviceImpl);
-    DeviceImage = &detail::ProgramManager::getInstance().getDeviceImage(
-        KernelName, Context, Device);
-    Program = detail::ProgramManager::getInstance().createPIProgram(
-        *DeviceImage, Context, Device);
-  }
-  return {DeviceImage, Program};
-}
-
 static ::jit_compiler::ParameterKind
 translateArgType(kernel_param_kind_t Kind) {
   using PK = ::jit_compiler::ParameterKind;
@@ -186,6 +147,8 @@ translateArgType(kernel_param_kind_t Kind) {
     return PK::SpecConstBuffer;
   case kind::kind_stream:
     return PK::Stream;
+  case kind::kind_work_group_memory:
+    return PK::WorkGroupMemory;
   case kind::kind_invalid:
     return PK::Invalid;
   }
@@ -207,22 +170,8 @@ struct PromotionInformation {
 
 using PromotionMap = std::unordered_map<SYCLMemObjI *, PromotionInformation>;
 
-template <typename Obj> Promotion getPromotionTarget(const Obj &obj) {
-  auto Result = Promotion::None;
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_private>()) {
-    Result = Promotion::Private;
-  }
-  if (obj.template has_property<
-          ext::codeplay::experimental::property::promote_local>()) {
-    if (Result != Promotion::None) {
-      throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
-                            "Two contradicting promotion properties on the "
-                            "same buffer/accessor are not allowed.");
-    }
-    Result = Promotion::Local;
-  }
-  return Result;
+template <typename Obj> Promotion getPromotionTarget(const Obj &) {
+  return Promotion::None;
 }
 
 static Promotion getInternalizationInfo(Requirement *Req) {
@@ -678,10 +627,115 @@ updatePromotedArgs(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
   }
 }
 
+ur_kernel_handle_t jit_compiler::materializeSpecConstants(
+    QueueImplPtr Queue, const RTDeviceBinaryImage *BinImage,
+    const std::string &KernelName,
+    const std::vector<unsigned char> &SpecConstBlob) {
+#ifndef _WIN32
+  if (!BinImage) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+  }
+  if (KernelName.empty()) {
+    throw sycl::exception(
+        sycl::make_error_code(sycl::errc::invalid),
+        "Cannot jit kernel with invalid kernel function name");
+  }
+  auto &PM = detail::ProgramManager::getInstance();
+  if (auto CachedKernel =
+          PM.getCachedMaterializedKernel(KernelName, SpecConstBlob))
+    return CachedKernel;
+
+  auto &RawDeviceImage = BinImage->getRawData();
+  auto DeviceImageSize = static_cast<size_t>(RawDeviceImage.BinaryEnd -
+                                             RawDeviceImage.BinaryStart);
+  // Set 0 as the number of address bits, because the JIT compiler can set this
+  // field based on information from LLVM module's data-layout.
+  auto BinaryImageFormat = translateBinaryImageFormat(BinImage->getFormat());
+  if (BinaryImageFormat == ::jit_compiler::BinaryFormat::INVALID) {
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid),
+                          "No suitable IR available for materializing");
+  }
+  ::jit_compiler::SYCLKernelBinaryInfo BinInfo{
+      BinaryImageFormat, 0, RawDeviceImage.BinaryStart, DeviceImageSize};
+
+  ::jit_compiler::TargetInfo TargetInfo = getTargetInfo(Queue);
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetInfo::set(std::move(TargetInfo)));
+  bool DebugEnabled =
+      detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0;
+  AddToConfigHandle(
+      ::jit_compiler::option::JITEnableVerbose::set(DebugEnabled));
+  auto SetUpOption = [](const std::string &Value) {
+    ::jit_compiler::JITEnvVar Option(Value.begin(), Value.end());
+    return Option;
+  };
+  ::jit_compiler::JITEnvVar TargetCPUOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_CPU>::get());
+  AddToConfigHandle(::jit_compiler::option::JITTargetCPU::set(TargetCPUOpt));
+  ::jit_compiler::JITEnvVar TargetFeaturesOpt = SetUpOption(
+      detail::SYCLConfig<detail::SYCL_JIT_AMDGCN_PTX_TARGET_FEATURES>::get());
+  AddToConfigHandle(
+      ::jit_compiler::option::JITTargetFeatures::set(TargetFeaturesOpt));
+
+  auto MaterializerResult =
+      MaterializeSpecConstHandle(KernelName.c_str(), BinInfo, SpecConstBlob);
+  if (MaterializerResult.failed()) {
+    std::string Message{"Compilation for kernel failed with message:\n"};
+    Message.append(MaterializerResult.getErrorMessage());
+    if (DebugEnabled) {
+      std::cerr << Message << "\n";
+    }
+    throw sycl::exception(sycl::make_error_code(sycl::errc::invalid), Message);
+  }
+
+  auto &MaterializerKernelInfo = MaterializerResult.getKernelInfo();
+  sycl_device_binary_struct MaterializedRawDeviceImage{RawDeviceImage};
+  MaterializedRawDeviceImage.BinaryStart =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart;
+  MaterializedRawDeviceImage.BinaryEnd =
+      MaterializerKernelInfo.BinaryInfo.BinaryStart +
+      MaterializerKernelInfo.BinaryInfo.BinarySize;
+
+  const bool OrigCacheCfg = SYCLConfig<SYCL_CACHE_IN_MEM>::get();
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "0", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec constel.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+
+  RTDeviceBinaryImage MaterializedRTDevBinImage{&MaterializedRawDeviceImage};
+  const auto &Context = Queue->get_context();
+  const auto &Device = Queue->get_device();
+  auto NewKernel = PM.getOrCreateMaterializedKernel(
+      MaterializedRTDevBinImage, Context, Device, KernelName, SpecConstBlob);
+
+  if (OrigCacheCfg) {
+    if (0 != setenv("SYCL_CACHE_IN_MEM", "1", true)) {
+      throw sycl::exception(
+          sycl::make_error_code(sycl::errc::invalid),
+          "Failed to set env variable in materialize spec const.");
+    }
+    SYCLConfig<SYCL_CACHE_IN_MEM>::reset();
+  }
+
+  return NewKernel;
+#else  // _WIN32
+  (void)Queue;
+  (void)BinImage;
+  (void)KernelName;
+  (void)SpecConstBlob;
+  return nullptr;
+#endif // _WIN32
+}
+
 std::unique_ptr<detail::CG>
 jit_compiler::fuseKernels(QueueImplPtr Queue,
                           std::vector<ExecCGCommand *> &InputKernels,
-                          const property_list &PropList) {
+                          const property_list &) {
   if (!isAvailable()) {
     printPerformanceWarning("JIT library not available");
     return nullptr;
@@ -703,8 +757,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<Requirement *> &Requirements = CGData.MRequirements;
   std::vector<detail::EventImplPtr> &Events = CGData.MEvents;
   std::vector<::jit_compiler::NDRange> Ranges;
-  sycl::detail::pi::PiKernelCacheConfig KernelCacheConfig =
-      PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+  ur_kernel_cache_config_t KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
   unsigned KernelIndex = 0;
   ParamList FusedParams;
   PromotionMap PromotedAccs;
@@ -723,8 +776,8 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
       return nullptr;
     }
 
-    auto [DeviceImage, Program] = retrieveKernelBinary(Queue, KernelCG);
-
+    auto [DeviceImage, Program] =
+        retrieveKernelBinary(Queue, KernelName.c_str(), KernelCG);
     if (!DeviceImage || !Program) {
       printPerformanceWarning("No suitable IR available for fusion");
       return nullptr;
@@ -867,7 +920,7 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
     if (KernelIndex == 0) {
       KernelCacheConfig = KernelCG->MKernelCacheConfig;
     } else if (KernelCG->MKernelCacheConfig != KernelCacheConfig) {
-      KernelCacheConfig = PI_EXT_KERNEL_EXEC_INFO_CACHE_DEFAULT;
+      KernelCacheConfig = UR_KERNEL_CACHE_CONFIG_DEFAULT;
     }
 
     ++KernelIndex;
@@ -879,18 +932,15 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   std::vector<::jit_compiler::JITConstant> JITConstants;
   std::vector<::jit_compiler::ParameterIdentity> ParamIdentities;
   ParamList NonIdenticalParameters;
-  for (auto PI = FusedParams.begin(); PI != FusedParams.end();) {
-    PI = preProcessArguments(ArgsStorage, PI, PromotedAccs, InternalizeParams,
+  for (auto UR = FusedParams.begin(); UR != FusedParams.end();) {
+    UR = preProcessArguments(ArgsStorage, UR, PromotedAccs, InternalizeParams,
                              JITConstants, NonIdenticalParameters,
                              ParamIdentities);
   }
 
   // Retrieve barrier flags.
   ::jit_compiler::BarrierFlags BarrierFlags =
-      (PropList
-           .has_property<ext::codeplay::experimental::property::no_barriers>())
-          ? ::jit_compiler::getNoBarrierFlag()
-          : ::jit_compiler::getLocalAndGlobalBarrierFlag();
+      ::jit_compiler::getLocalAndGlobalBarrierFlag();
 
   static size_t FusedKernelNameIndex = 0;
   auto FusedKernelName = "fused_" + std::to_string(FusedKernelNameIndex++);
@@ -975,28 +1025,28 @@ jit_compiler::fuseKernels(QueueImplPtr Queue,
   return FusedCG;
 }
 
-pi_device_binaries jit_compiler::createPIDeviceBinary(
+sycl_device_binaries jit_compiler::createPIDeviceBinary(
     const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
     ::jit_compiler::BinaryFormat Format) {
 
   const char *TargetSpec = nullptr;
-  pi_device_binary_type BinFormat = PI_DEVICE_BINARY_TYPE_NATIVE;
+  sycl_device_binary_type BinFormat = SYCL_DEVICE_BINARY_TYPE_NATIVE;
   switch (Format) {
   case ::jit_compiler::BinaryFormat::PTX: {
-    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_NVPTX64;
-    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    TargetSpec = __SYCL_DEVICE_BINARY_TARGET_NVPTX64;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
     break;
   }
   case ::jit_compiler::BinaryFormat::AMDGCN: {
-    TargetSpec = __SYCL_PI_DEVICE_BINARY_TARGET_AMDGCN;
-    BinFormat = PI_DEVICE_BINARY_TYPE_NONE;
+    TargetSpec = __SYCL_DEVICE_BINARY_TARGET_AMDGCN;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_NONE;
     break;
   }
   case ::jit_compiler::BinaryFormat::SPIRV: {
     TargetSpec = (FusedKernelInfo.BinaryInfo.AddressBits == 64)
-                     ? __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV64
-                     : __SYCL_PI_DEVICE_BINARY_TARGET_SPIRV32;
-    BinFormat = PI_DEVICE_BINARY_TYPE_SPIRV;
+                     ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                     : __SYCL_DEVICE_BINARY_TARGET_SPIRV32;
+    BinFormat = SYCL_DEVICE_BINARY_TYPE_SPIRV;
     break;
   }
   default:
@@ -1015,13 +1065,14 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
 
   // Create a property entry for the argument usage mask for the fused kernel.
   auto ArgMask = encodeArgUsageMask(FusedKernelInfo.Args.UsageMask);
-  PropertyContainer ArgMaskProp{FusedKernelName, ArgMask.data(), ArgMask.size(),
-                                pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+  PropertyContainer ArgMaskProp{
+      FusedKernelName, ArgMask.data(), ArgMask.size(),
+      sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY};
 
   // Create a property set for the argument usage masks of all kernels
   // (currently only one).
   PropertySetContainer ArgMaskPropSet{
-      __SYCL_PI_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
+      __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO};
 
   ArgMaskPropSet.addProperty(std::move(ArgMaskProp));
 
@@ -1030,7 +1081,7 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
   if (Format == ::jit_compiler::BinaryFormat::PTX ||
       Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     // Add a program metadata property with the reqd_work_group_size attribute.
-    // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+    // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
     auto ReqdWGS = std::find_if(
         FusedKernelInfo.Attributes.begin(), FusedKernelInfo.Attributes.end(),
         [](const ::jit_compiler::SYCLKernelAttribute &Attr) {
@@ -1041,21 +1092,20 @@ pi_device_binaries jit_compiler::createPIDeviceBinary(
       auto Encoded = encodeReqdWorkGroupSize(*ReqdWGS);
       std::stringstream PropName;
       PropName << FusedKernelInfo.Name.c_str();
-      PropName << __SYCL_PI_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
+      PropName << __SYCL_PROGRAM_METADATA_TAG_REQD_WORK_GROUP_SIZE;
       PropertyContainer ReqdWorkGroupSizeProp{
           PropName.str(), Encoded.data(), Encoded.size(),
-          pi_property_type::PI_PROPERTY_TYPE_BYTE_ARRAY};
+          sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY};
       PropertySetContainer ProgramMetadata{
-          __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+          __SYCL_PROPERTY_SET_PROGRAM_METADATA};
       ProgramMetadata.addProperty(std::move(ReqdWorkGroupSizeProp));
       Binary.addProperty(std::move(ProgramMetadata));
     }
   }
   if (Format == ::jit_compiler::BinaryFormat::AMDGCN) {
     PropertyContainer NeedFinalization{
-        __SYCL_PI_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
-    PropertySetContainer ProgramMetadata{
-        __SYCL_PI_PROPERTY_SET_PROGRAM_METADATA};
+        __SYCL_PROGRAM_METADATA_TAG_NEED_FINALIZATION, 1};
+    PropertySetContainer ProgramMetadata{__SYCL_PROPERTY_SET_PROGRAM_METADATA};
     ProgramMetadata.addProperty(std::move(NeedFinalization));
     Binary.addProperty(std::move(ProgramMetadata));
   }
@@ -1107,7 +1157,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   std::vector<uint8_t> Encoded(NumBytes, 0u);
   uint8_t *Ptr = Encoded.data();
   // Skip 64-bit wide size argument with value 0 at the start of the data.
-  // See CUDA PI (pi_cuda.cpp) _pi_program::set_metadata for reference.
+  // See CUDA UR (ur_cuda.cpp) _ur_program::set_metadata for reference.
   Ptr += sizeof(uint64_t);
   for (const auto &Val : Attr.Values) {
     auto UVal = static_cast<uint32_t>(Val);
@@ -1117,8 +1167,54 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   return Encoded;
 }
 
+std::vector<uint8_t> jit_compiler::compileSYCL(
+    const std::string &Id, const std::string &SYCLSource,
+    const std::vector<std::pair<std::string, std::string>> &IncludePairs,
+    const std::vector<std::string> &UserArgs, std::string *LogPtr,
+    const std::vector<std::string> &RegisteredKernelNames) {
+
+  // TODO: Handle template instantiation.
+  if (!RegisteredKernelNames.empty()) {
+    throw sycl::exception(
+        sycl::errc::build,
+        "Property `sycl::ext::oneapi::experimental::registered_kernel_names` "
+        "is not yet supported for the `sycl_jit` source language");
+  }
+
+  std::string SYCLFileName = Id + ".cpp";
+  ::jit_compiler::InMemoryFile SourceFile{SYCLFileName.c_str(),
+                                          SYCLSource.c_str()};
+
+  std::vector<::jit_compiler::InMemoryFile> IncludeFilesView;
+  IncludeFilesView.reserve(IncludePairs.size());
+  std::transform(IncludePairs.begin(), IncludePairs.end(),
+                 std::back_inserter(IncludeFilesView), [](const auto &Pair) {
+                   return ::jit_compiler::InMemoryFile{Pair.first.c_str(),
+                                                       Pair.second.c_str()};
+                 });
+  std::vector<const char *> UserArgsView;
+  UserArgsView.reserve(UserArgs.size());
+  std::transform(UserArgs.begin(), UserArgs.end(),
+                 std::back_inserter(UserArgsView),
+                 [](const auto &Arg) { return Arg.c_str(); });
+
+  auto Result = CompileSYCLHandle(SourceFile, IncludeFilesView, UserArgsView);
+
+  if (Result.failed()) {
+    throw sycl::exception(sycl::errc::build, Result.getErrorMessage());
+  }
+
+  // TODO: We currently don't have a meaningful build log.
+  (void)LogPtr;
+
+  const auto &BI = Result.getKernelInfo().BinaryInfo;
+  assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
+  std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
+  return SPV;
+}
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl
 
-#endif // SYCL_EXT_CODEPLAY_KERNEL_FUSION
+#endif // SYCL_EXT_JIT_ENABLE

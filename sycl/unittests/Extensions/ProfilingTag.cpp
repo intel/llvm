@@ -8,99 +8,127 @@
 
 #include <sycl/sycl.hpp>
 
-#include <helpers/PiMock.hpp>
+#include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
 
-template <pi_bool TimestampSupport>
-pi_result after_piDeviceGetInfo(pi_device, pi_device_info param_name,
-                                size_t param_value_size, void *param_value,
-                                size_t *param_value_size_ret) {
-  if (param_name == PI_EXT_ONEAPI_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT) {
-    if (param_value)
-      *static_cast<pi_bool *>(param_value) = TimestampSupport;
-    if (param_value_size_ret)
-      *param_value_size_ret = sizeof(TimestampSupport);
+template <ur_bool_t TimestampSupport>
+ur_result_t after_urDeviceGetInfo(void *pParams) {
+  auto &Params = *reinterpret_cast<ur_device_get_info_params_t *>(pParams);
+  if (*Params.ppropName == UR_DEVICE_INFO_TIMESTAMP_RECORDING_SUPPORT_EXP) {
+    if (Params.ppPropValue)
+      *static_cast<ur_bool_t *>(*Params.ppPropValue) = TimestampSupport;
+    if (*Params.ppPropSizeRet)
+      **Params.ppPropSizeRet = sizeof(TimestampSupport);
   }
-  return PI_SUCCESS;
+  return UR_RESULT_SUCCESS;
 }
 
-thread_local size_t counter_piEnqueueTimestampRecordingExp = 0;
-inline pi_result after_piEnqueueTimestampRecordingExp(pi_queue, pi_bool,
-                                                      pi_uint32,
-                                                      const pi_event *,
-                                                      pi_event *) {
-  ++counter_piEnqueueTimestampRecordingExp;
-  return PI_SUCCESS;
+thread_local size_t counter_urEnqueueTimestampRecordingExp = 0;
+inline ur_result_t after_urEnqueueTimestampRecordingExp(void *) {
+  ++counter_urEnqueueTimestampRecordingExp;
+  return UR_RESULT_SUCCESS;
 }
 
-thread_local std::optional<pi_profiling_info> LatestProfilingQuery;
-inline pi_result after_piEventGetProfilingInfo(pi_event,
-                                               pi_profiling_info param_name,
-                                               size_t, void *, size_t *) {
-  LatestProfilingQuery = param_name;
-  return PI_SUCCESS;
+thread_local std::optional<ur_profiling_info_t> LatestProfilingQuery;
+inline ur_result_t after_urEventGetProfilingInfo(void *pParams) {
+  auto &Params =
+      *reinterpret_cast<ur_event_get_profiling_info_params_t *>(pParams);
+  LatestProfilingQuery = *Params.ppropName;
+  return UR_RESULT_SUCCESS;
 }
 
-thread_local size_t counter_piEnqueueEventsWaitWithBarrier = 0;
-inline pi_result after_piEnqueueEventsWaitWithBarrier(pi_queue, pi_uint32,
-                                                      const pi_event *,
-                                                      pi_event *) {
-  ++counter_piEnqueueEventsWaitWithBarrier;
-  return PI_SUCCESS;
+thread_local size_t counter_urEnqueueEventsWaitWithBarrier = 0;
+inline ur_result_t after_urEnqueueEventsWaitWithBarrier(void *) {
+  ++counter_urEnqueueEventsWaitWithBarrier;
+  return UR_RESULT_SUCCESS;
 }
 
 class ProfilingTagTest : public ::testing::Test {
 public:
-  ProfilingTagTest() : Mock{}, Plt{Mock.getPlatform()} {}
+  ProfilingTagTest() : Mock{} {}
 
 protected:
   void SetUp() override {
-    counter_piEnqueueTimestampRecordingExp = 0;
-    counter_piEnqueueEventsWaitWithBarrier = 0;
+    counter_urEnqueueTimestampRecordingExp = 0;
+    counter_urEnqueueEventsWaitWithBarrier = 0;
     LatestProfilingQuery = std::nullopt;
   }
 
 protected:
-  sycl::unittest::PiMock Mock;
-  sycl::platform Plt;
+  sycl::unittest::UrMock<> Mock;
 };
 
 TEST_F(ProfilingTagTest, ProfilingTagSupportedDefaultQueue) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueTimestampRecordingExp>(
-      after_piEnqueueTimestampRecordingExp);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      after_piEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<true>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
-  sycl::context Ctx{Plt};
+  sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx, sycl::default_selector_v};
   sycl::device Dev = Queue.get_device();
 
   ASSERT_TRUE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{1}, counter_piEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  // TODO: We expect two barriers for now, while marker events leak. Adjust when
+  //       addressed.
+  ASSERT_EQ(size_t{2}, counter_urEnqueueEventsWaitWithBarrier);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, PI_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, PI_PROFILING_INFO_COMMAND_END);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
+}
+
+TEST_F(ProfilingTagTest, ProfilingTagSupportedInOrderQueue) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<true>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{
+      Ctx, sycl::default_selector_v, {sycl::property::queue::in_order()}};
+  sycl::device Dev = Queue.get_device();
+
+  ASSERT_TRUE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
+
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrier);
+
+  E.get_profiling_info<sycl::info::event_profiling::command_start>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+
+  E.get_profiling_info<sycl::info::event_profiling::command_end>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 }
 
 TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo<true>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueTimestampRecordingExp>(
-      after_piEnqueueTimestampRecordingExp);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      after_piEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<true>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
 
-  sycl::context Ctx{Plt};
+  sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
                     sycl::default_selector_v,
                     {sycl::property::queue::enable_profiling()}};
@@ -109,26 +137,58 @@ TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingQueue) {
   ASSERT_TRUE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{1}, counter_piEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
 
   E.get_profiling_info<sycl::info::event_profiling::command_start>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, PI_PROFILING_INFO_COMMAND_START);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
 
   E.get_profiling_info<sycl::info::event_profiling::command_end>();
   ASSERT_TRUE(LatestProfilingQuery.has_value());
-  ASSERT_EQ(*LatestProfilingQuery, PI_PROFILING_INFO_COMMAND_END);
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
+}
+
+TEST_F(ProfilingTagTest, ProfilingTagSupportedProfilingInOrderQueue) {
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<true>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
+
+  sycl::context Ctx{sycl::platform()};
+  sycl::queue Queue{Ctx,
+                    sycl::default_selector_v,
+                    {sycl::property::queue::enable_profiling(),
+                     sycl::property::queue::in_order()}};
+  sycl::device Dev = Queue.get_device();
+
+  ASSERT_TRUE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
+
+  sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueEventsWaitWithBarrier);
+
+  E.get_profiling_info<sycl::info::event_profiling::command_start>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_START);
+
+  E.get_profiling_info<sycl::info::event_profiling::command_end>();
+  ASSERT_TRUE(LatestProfilingQuery.has_value());
+  ASSERT_EQ(*LatestProfilingQuery, UR_PROFILING_INFO_COMMAND_END);
 }
 
 TEST_F(ProfilingTagTest, ProfilingTagFallbackDefaultQueue) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo<false>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueTimestampRecordingExp>(
-      after_piEnqueueTimestampRecordingExp);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEventGetProfilingInfo>(
-      after_piEventGetProfilingInfo);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<false>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback("urEventGetProfilingInfo",
+                                          &after_urEventGetProfilingInfo);
 
-  sycl::context Ctx{Plt};
+  sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx, sycl::default_selector_v};
   sycl::device Dev = Queue.get_device();
 
@@ -143,14 +203,14 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackDefaultQueue) {
 }
 
 TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
-  Mock.redefineAfter<sycl::detail::PiApiKind::piDeviceGetInfo>(
-      after_piDeviceGetInfo<false>);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueTimestampRecordingExp>(
-      after_piEnqueueTimestampRecordingExp);
-  Mock.redefineAfter<sycl::detail::PiApiKind::piEnqueueEventsWaitWithBarrier>(
-      after_piEnqueueEventsWaitWithBarrier);
+  mock::getCallbacks().set_after_callback("urDeviceGetInfo",
+                                          &after_urDeviceGetInfo<false>);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueTimestampRecordingExp", &after_urEnqueueTimestampRecordingExp);
+  mock::getCallbacks().set_after_callback(
+      "urEnqueueEventsWaitWithBarrier", &after_urEnqueueEventsWaitWithBarrier);
 
-  sycl::context Ctx{Plt};
+  sycl::context Ctx{sycl::platform()};
   sycl::queue Queue{Ctx,
                     sycl::default_selector_v,
                     {sycl::property::queue::enable_profiling()}};
@@ -159,6 +219,6 @@ TEST_F(ProfilingTagTest, ProfilingTagFallbackProfilingQueue) {
   ASSERT_FALSE(Dev.has(sycl::aspect::ext_oneapi_queue_profiling_tag));
 
   sycl::event E = sycl::ext::oneapi::experimental::submit_profiling_tag(Queue);
-  ASSERT_EQ(size_t{0}, counter_piEnqueueTimestampRecordingExp);
-  ASSERT_EQ(size_t{1}, counter_piEnqueueEventsWaitWithBarrier);
+  ASSERT_EQ(size_t{0}, counter_urEnqueueTimestampRecordingExp);
+  ASSERT_EQ(size_t{1}, counter_urEnqueueEventsWaitWithBarrier);
 }
