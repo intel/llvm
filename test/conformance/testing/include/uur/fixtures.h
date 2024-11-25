@@ -35,6 +35,13 @@
 
 namespace uur {
 
+struct urAdapterTest : ::testing::Test,
+                       ::testing::WithParamInterface<ur_adapter_handle_t> {
+    void SetUp() override { adapter = GetParam(); }
+
+    ur_adapter_handle_t adapter;
+};
+
 struct urPlatformTest : ::testing::Test {
     void SetUp() override {
         platform = uur::PlatformEnvironment::instance->platform;
@@ -106,6 +113,14 @@ struct urDeviceTest : urPlatformTest,
     ur_device_handle_t device;
 };
 } // namespace uur
+
+#define UUR_INSTANTIATE_ADAPTER_TEST_SUITE_P(FIXTURE)                          \
+    INSTANTIATE_TEST_SUITE_P(                                                  \
+        , FIXTURE,                                                             \
+        ::testing::ValuesIn(uur::AdapterEnvironment::instance->adapters),      \
+        [](const ::testing::TestParamInfo<ur_adapter_handle_t> &info) {        \
+            return uur::GetAdapterBackendName(info.param);                     \
+        })
 
 #define UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(FIXTURE)                           \
     INSTANTIATE_TEST_SUITE_P(                                                  \
