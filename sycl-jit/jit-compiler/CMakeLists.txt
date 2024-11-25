@@ -8,7 +8,6 @@ add_llvm_library(sycl-jit
    lib/fusion/JITContext.cpp
    lib/fusion/ModuleHelper.cpp
    lib/rtc/DeviceCompilation.cpp
-   lib/rtc/PostLinkActions.cpp
    lib/helper/ConfigHelper.cpp
 
    SHARED

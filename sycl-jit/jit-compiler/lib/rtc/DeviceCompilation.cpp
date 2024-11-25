@@ -8,8 +8,6 @@
 
 #include "DeviceCompilation.h"
 
-#include "PostLinkActions.h"
-
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
 #include <clang/CodeGen/CodeGenAction.h>
@@ -20,6 +18,8 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
+#include <llvm/IR/PassInstrumentation.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
@@ -37,7 +37,6 @@ using namespace llvm::sycl;
 using namespace llvm::module_split;
 using namespace llvm::util;
 using namespace jit_compiler;
-using namespace jit_compiler::post_link;
 
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
@@ -365,26 +364,26 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   return Error::success();
 }
 
+template <class PassClass> static bool runModulePass(llvm::Module &M) {
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  MPM.addPass(PassClass{});
+  PreservedAnalyses Res = MPM.run(M, MAM);
+  return !Res.areAllPreserved();
+}
+
 Expected<RTCBundleInfo> jit_compiler::performPostLink(
     llvm::Module &Module, [[maybe_unused]] const InputArgList &UserArgList) {
   // This is a simplified version of `processInputModule` in
   // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
   // left out of the algorithm for now.
 
-  // After linking device bitcode "llvm.used" holds references to the kernels
-  // that are defined in the device image. But after splitting device image into
-  // separate kernels we may end up with having references to kernel declaration
-  // originating from "llvm.used" in the IR that is passed to llvm-spirv tool,
-  // and these declarations cause an assertion in llvm-spirv. To workaround this
-  // issue remove "llvm.used" from the input module before performing any other
-  // actions.
-  removeSYCLKernelsConstRefArray(Module);
-
-  // There may be device_global variables kept alive in "llvm.compiler.used"
-  // to keep the optimizer from wrongfully removing them. llvm.compiler.used
-  // symbols are usually removed at backend lowering, but this is handled here
-  // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
-  removeDeviceGlobalFromCompilerUsed(Module);
+  assert(!Module.getGlobalVariable("llvm.used") &&
+         !Module.getGlobalVariable("llvm.compiler.used"));
+  // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
+  // `removeDeviceGlobalFromCompilerUsed` methods.
 
   assert(!isModuleUsingAsan(Module));
   // Otherwise: Need to instrument each image scope device globals if the module
