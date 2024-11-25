@@ -68,11 +68,6 @@ void __msan_internal_report_save(const uint32_t size,
   const int Expected = MSAN_REPORT_NONE;
   int Desired = MSAN_REPORT_START;
 
-  if (UNLIKELY(!__MsanLaunchInfo)) {
-    __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
-    return;
-  }
-
   auto &SanitizerReport =
       ((__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get())->Report;
 
@@ -116,8 +111,6 @@ void __msan_internal_report_save(const uint32_t size,
 
     // Show we've done copying
     atomicStore(&SanitizerReport.Flag, MSAN_REPORT_FINISH);
-
-    MSAN_DEBUG(__spirv_ocl_printf(__msan_print_report, size, func));
   }
 }
 
@@ -162,17 +155,17 @@ MSAN_MAYBE_WARNING(u32, 4)
 MSAN_MAYBE_WARNING(u64, 8)
 
 DEVICE_EXTERN_C_NOINLINE uptr __msan_get_shadow(uptr addr, uint32_t as) {
+  // Return clean shadow (0s) by default
+  uptr shadow_ptr = (uptr)CleanShadow;
+
   if (UNLIKELY(!__MsanLaunchInfo)) {
     __spirv_ocl_printf(__msan_print_warning_nolaunchinfo);
-    return 0;
+    return shadow_ptr;
   }
 
   auto launch_info = (__SYCL_GLOBAL__ MsanLaunchInfo *)__MsanLaunchInfo.get();
   MSAN_DEBUG(__spirv_ocl_printf(__msan_print_launchinfo, (void *)launch_info,
                                 launch_info->GlobalShadowOffset));
-
-  // Return clean shadow (0s) by default
-  uptr shadow_ptr = (uptr)CleanShadow;
 
   if (LIKELY(launch_info->DeviceTy == DeviceType::CPU)) {
     shadow_ptr = __msan_get_shadow_cpu(addr);

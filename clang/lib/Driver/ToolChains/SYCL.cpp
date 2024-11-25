@@ -691,6 +691,10 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
         SanitizeVal = "address";
         break;
       }
+      if (Arg.find("-fsanitize=memory") != std::string::npos) {
+        SanitizeVal = "memory";
+        break;
+      }
     }
   }
 

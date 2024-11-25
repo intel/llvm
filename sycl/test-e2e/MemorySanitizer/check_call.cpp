@@ -13,19 +13,17 @@ __attribute__((noinline)) long long foo(int data1, long long data2) {
 
 int main() {
   sycl::queue Q;
-  auto *array1 = sycl::malloc_device<int>(2, Q);
-  auto *array2 = sycl::malloc_device<long long>(2, Q);
+  auto *array = sycl::malloc_device<int>(2, Q);
 
   Q.submit([&](sycl::handler &h) {
     h.single_task<class MyKernel>(
-        [=]() { array2[0] = foo(array1[0], array2[1]); });
+        [=]() { array[0] = foo(array[0], array[1]); });
   });
   Q.wait();
   // CHECK: use-of-uninitialized-value
   // CHECK: kernel <{{.*MyKernel}}>
   // CHECK: #0 {{.*}} {{.*check_call.cpp}}:[[@LINE-5]]
 
-  sycl::free(array1, Q);
-  sycl::free(array2, Q);
+  sycl::free(array, Q);
   return 0;
 }

@@ -161,6 +161,7 @@
 #include "llvm/Analysis/GlobalsModRef.h"
 #include "llvm/Analysis/TargetLibraryInfo.h"
 #include "llvm/Analysis/ValueTracking.h"
+#include "llvm/Demangle/Demangle.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/AttributeMask.h"
 #include "llvm/IR/Attributes.h"
@@ -196,6 +197,7 @@
 #include "llvm/Support/DebugCounter.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/TargetParser/Triple.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
@@ -526,6 +528,19 @@ static const PlatformMemoryMapParams FreeBSD_X86_MemoryMapParams = {
 static const PlatformMemoryMapParams NetBSD_X86_MemoryMapParams = {
     nullptr,
     &NetBSD_X86_64_MemoryMapParams,
+};
+
+// SPIR Linux
+static const MemoryMapParams Intel_SPIR_MemoryMapParams = {
+    0, // AndMask
+    0, // XorMask (not used)
+    0, // ShadowBase (not used)
+    0, // OriginBase
+};
+
+static const PlatformMemoryMapParams Intel_GFX_MemoryMapParams = {
+    nullptr,
+    &Intel_SPIR_MemoryMapParams,
 };
 
 // Spir memory address space
@@ -1069,6 +1084,7 @@ void MemorySanitizer::initializeModule(Module &M) {
       // NOTE: Support SPIR or SPIRV only, without MapParams
       if (!TargetTriple.isSPIROrSPIRV())
         report_fatal_error("unsupported architecture");
+      MapParams = Intel_GFX_MemoryMapParams.bits64;
       break;
     default:
       report_fatal_error("unsupported operating system");
