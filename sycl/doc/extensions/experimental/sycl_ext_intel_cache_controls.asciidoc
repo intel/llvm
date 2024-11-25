@@ -196,8 +196,6 @@ inline constexpr read_hint_key::value_t<Cs...> read_hint;
 namespace oneapi {
 namespace experimental {
 
-template <>
-struct is_property_key<intel::experimental::read_hint_key> : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::read_hint_key,
                           annotated_ptr<T, PropertyListT>> : std::true_type {};
@@ -261,8 +259,6 @@ inline constexpr write_hint_key::value_t<Cs...> write_hint;
 namespace oneapi {
 namespace experimental {
 
-template <>
-struct is_property_key<intel::experimental::write_hint_key> : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::write_hint_key,
                           annotated_ptr<T, PropertyListT>> : std::true_type {};
@@ -336,9 +332,6 @@ inline constexpr read_assertion_key::value_t<Cs...> read_assertion;
 namespace oneapi {
 namespace experimental {
 
-template <>
-struct is_property_key<intel::experimental::read_assertion_key>
-    : std::true_type {};
 template <typename T, typename PropertyListT>
 struct is_property_key_of<intel::experimental::read_assertion_key,
                           annotated_ptr<T, PropertyListT>> : std::true_type {};
