@@ -24,11 +24,11 @@
 
 namespace sycl {
 inline namespace _V1 {
-namespace ext::oneapi {
-
 class kernel_id;
 template <bundle_state State> class kernel_bundle;
 template <bundle_state State> class device_image;
+
+namespace ext::oneapi {
 
 namespace detail {
 template <typename SyclObject> struct owner_less_base {

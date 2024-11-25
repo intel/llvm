@@ -5,8 +5,6 @@
 
 #include "weak_object_utils.hpp"
 
-#include <sycl/kernel_bundle.hpp>
-
 #include <sycl/ext/oneapi/owner_less.hpp>
 
 #include <map>
