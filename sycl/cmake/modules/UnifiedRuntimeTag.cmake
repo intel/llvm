@@ -4,4 +4,4 @@
 # Date:   Wed Nov 20 14:49:17 2024 +0000
 #     Merge pull request #2258 from aarongreig/aaron/tryUseExtensionSubgroupInfo
 #     Use extension version of clGetKernelSubGroupInfo when necessary.
-set(UNIFIED_RUNTIME_TAG 3fc25b9cbded69d1bde8d2e677cc63b6ebefc223)
+set(UNIFIED_RUNTIME_TAG 6ba65403fbe6e25c2947e7c10a671b8d3f3ad208)
