@@ -1,4 +1,4 @@
-= sycl_ext_oneapi_device_image_content
+= sycl_ext_oneapi_device_image_backend_content
 
 :source-highlighter: coderay
 :coderay-linenums-mode: table
@@ -37,7 +37,7 @@ https://github.com/intel/llvm/issues
 
 == Dependencies
 
-This extension is written against the SYCL 2020 revision 8 specification.
+This extension is written against the SYCL 2020 revision 9 specification.
 All references below to the "core SYCL specification" or to section numbers in
 the SYCL specification refer to that revision.
 
@@ -56,8 +56,8 @@ specification.*
 
 == Overview
 
-This extension adds a mechanism to obtain the raw content of the device images
-that are in a kernel bundle.
+This extension adds a mechanism to obtain the raw backend content of the device
+images that are in a kernel bundle.
 The format of this content is implementation-defined, so applications that make
 use of this extension are normally not portable to other implementations of
 SYCL.
@@ -70,8 +70,8 @@ SYCL.
 This extension provides a feature-test macro as described in the core SYCL
 specification.
 An implementation supporting this extension must predefine the macro
-`SYCL_EXT_ONEAPI_DEVICE_IMAGE_CONTENT` to one of the values defined in the table
-below.
+`SYCL_EXT_ONEAPI_DEVICE_IMAGE_BACKEND_CONTENT` to one of the values defined in
+the table below.
 Applications can test for the existence of this macro to determine if the
 implementation supports this feature, or applications can test the macro's
 value to determine which of the extension's features the implementation
@@ -98,8 +98,8 @@ namespace sycl {
 template <bundle_state State>
 class device_image {
  public:
-  std::vector<std::byte> ext_oneapi_get_content() const;
-  std::span<std::byte> ext_oneapi_get_content_view() const;
+  std::vector<std::byte> ext_oneapi_get_backend_content() const;
+  std::span<std::byte> ext_oneapi_get_backend_content_view() const;
 
   /*...*/
 };
@@ -114,11 +114,13 @@ class device_image {
 a@
 [source,c++]
 ----
-std::vector<std::byte> ext_oneapi_get_content() const;
+std::vector<std::byte> ext_oneapi_get_backend_content() const;
 ----
 !====
 
-_Returns:_ A copy of the raw bytes for this device image.
+_Constraints:_ Available only when `State` is `bundle_state::executable`.
+
+_Returns:_ A copy of the raw backend content for this device image.
 The format of this data is implementation-defined.
 See below for a description of this format on {dpcpp}.
 
@@ -129,13 +131,15 @@ See below for a description of this format on {dpcpp}.
 a@
 [source,c++]
 ----
-std::span<std::byte> ext_oneapi_get_content_view() const;
+std::span<std::byte> ext_oneapi_get_content_backend_view() const;
 ----
 !====
 
 Available only when the compiler is {cpp}20 or higher.
 
-_Returns:_ A view of the raw bytes for this device image.
+_Constraints:_ Available only when `State` is `bundle_state::executable`.
+
+_Returns:_ A view of the raw backend content for this device image.
 The data behind this view has the same lifetime as the `kernel_bundle` that
 contains this `device_image`.
 
@@ -145,67 +149,43 @@ contains this `device_image`.
 == Device image format for {dpcpp}
 
 This section is non-normative and applies only to the {dpcpp} implementation.
-The format of the data returned by `device_image::ext_oneapi_get_content` and
-`device_image::ext_oneapi_get_content_view` depends on the backend of the kernel
-bundle that contains the device image and also on the `State` of the device
-image.
+The format of the data returned by
+`device_image::ext_oneapi_get_backend_content` and
+`device_image::ext_oneapi_get_backend_content_view` depends on the backend of the
+kernel bundle that contains the device image.
 
 === Format on Level Zero
 
-The format depends on the `State` of the device image:
-
-* `bundle_state::input`: The format could change in the future, but it is
-  currently a SPIR-V module representing one or more kernels.
-  This SPIR-V module may be partially linked, with references to internal
-  library functions that are not defined in the SPIR-V module.
-
-* `bundle_state::object`: The same format as `bundle_state::input`.
-
-* `bundle_state::executable`: The device image content is native ISA for the
-  device, which can be passed to `zeModuleCreate` as `ZE_MODULE_FORMAT_NATIVE`
-  format.
+The device image's backend content is native ISA for the device, which can be
+passed to `zeModuleCreate` as `ZE_MODULE_FORMAT_NATIVE` format.
 
 :ref1: ../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc#level-zero-and-opencl-compatibility
 
-[_Note:_ The interface to kernels in the device image is not defined in the
-general case, which means there is no portable way to invoke kernels from a
-Level Zero module that is created from the raw device image content.
+[_Note:_ The interface to kernels in the device image backend content is not
+defined in the general case, which means there is no portable way to invoke
+kernels from a Level Zero module that is created from the raw device image
+content.
 However, see link:{ref1}[here] for a limited case where this portability is
 guaranteed.
 _{endnote}_]
 
 === Format on OpenCL
 
-The format depends on the `State` of the device image:
+The device image's backend content is executable binary device code representing
+one or more kernels, which can be passed to `clCreateProgramWithBinary`.
 
-* `bundle_state::input`: The format could change in the future, but it is
-  currently a SPIR-V module as described above for Level Zero.
-
-* `bundle_state::object`: The device image content is an unspecified format that
-  is created by calling `clCompileProgram`.
-
-* `bundle_state::executable`: The device image content is executable binary
-  device code representing one or more kernels, which can be passed to
-  `clCreateProgramWithBinary`.
-
-[_Note:_ The interface to kernels in the device image is not defined in the
-general case, which means there is no portable way to invoke kernels from a
-OpenCL `cl_program` object that is created from the raw device image content.
+[_Note:_ The interface to kernels in the device image backend content is not
+defined in the general case, which means there is no portable way to invoke
+kernels from a OpenCL `cl_program` object that is created from the raw device
+image content.
 However, see link:{ref1}[here] for a limited case where this portability is
 guaranteed.
 _{endnote}_]
 
 === Format on CUDA
 
-The format depends on the `State` of the device image:
-
-* `bundle_state::input`: The device image content is a PTX module representing
-  one or more kernels.
-
-* `bundle_state::object`: ???
-
-* `bundle_state::executable`: The device image content is a CUBIN module
-  representing one or more kernels.
+The device image's backend content is a CUBIN module representing one or more
+kernels.
 
 
 == Example
@@ -214,8 +194,8 @@ The format depends on the `State` of the device image:
 
 A kernel bundle can contain multiple device images with different
 representations of the same kernel for different devices.
-This example shows how to get the device image content for a particular kernel
-for a particular device.
+This example shows how to get the device image's backend content for a
+particular kernel for a particular device.
 Note that this example also uses the kernel syntax described in link:{ref2}[
 sycl_ext_oneapi_free_function_kernels], but it is not necessary to define
 kernels in that syntax when using this extension.
@@ -246,7 +226,7 @@ void main() {
   for (auto& img: bundle) {
     // Search for the device image that contains "iota" for this device.
     if (img.has_kernel(iota, dev)) {
-      bytes = img.ext_oneapi_get_content();
+      bytes = img.ext_oneapi_get_backend_content();
       break;
     }
   }

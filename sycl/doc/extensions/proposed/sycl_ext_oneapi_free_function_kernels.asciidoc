@@ -795,15 +795,14 @@ when the kernel adheres to the following restrictions:
   `-fno-sycl-dead-args-optimization` option.
 
 In order to invoke a kernel using Level Zero or OpenCL, the application must
-first obtain the raw native ISA content of the device image that contains the
+first obtain the raw backend content of the device image that contains the
 kernel.
 One way to do this is by using
-link:../proposed/sycl_ext_oneapi_device_image_content.asciidoc[
-sycl_ext_oneapi_device_image_content] to obtain the content of the device image
-in `bundle_state::executable` state.
+link:../proposed/sycl_ext_oneapi_device_image_backend_content.asciidoc[
+sycl_ext_oneapi_device_image_backend_content].
 It is also possible to compile the application in AOT mode via the
-`-fsycl-targets` compiler option and then extract the device image from the
-executable file.
+`-fsycl-targets` compiler option and then extract the device image's backend
+content from the executable file.
 
 Both Level Zero and OpenCL identify a kernel via a _name_ string.
 (See `zeKernelCreate` and `clCreateKernel` in their respective specifications.)
