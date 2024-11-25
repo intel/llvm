@@ -59,14 +59,16 @@ class ComputeBench(Suite):
             ExecImmediateCopyQueue(self, 0, 1, 'Device', 'Device', 1024),
             ExecImmediateCopyQueue(self, 1, 1, 'Device', 'Host', 1024),
             VectorSum(self),
-            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1),
-            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1),
-            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1),
-            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1),
-            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 1, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 1, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 1, 1, 1),
+            MemcpyExecute(self, 400, 1, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 100, 8, 102400, 10, 0, 1, 1),
+            MemcpyExecute(self, 400, 8, 1024, 1000, 0, 1, 1),
+            MemcpyExecute(self, 10, 16, 1024, 10000, 0, 1, 1),
+            MemcpyExecute(self, 4096, 1, 1024, 10, 0, 1, 0),
+            MemcpyExecute(self, 4096, 4, 1024, 10, 0, 1, 0),
         ]
 
         if options.ur is not None:
@@ -267,22 +269,23 @@ class VectorSum(ComputeBenchmark):
         ]
 
 class MemcpyExecute(ComputeBenchmark):
-    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM):
+    def __init__(self, bench, numOpsPerThread, numThreads, allocSize, iterations, srcUSM, dstUSM, useEvent):
         self.numOpsPerThread = numOpsPerThread
         self.numThreads = numThreads
         self.allocSize = allocSize
         self.iterations = iterations
         self.srcUSM = srcUSM
         self.dstUSM = dstUSM
+        self.useEvents = useEvent
         super().__init__(bench, "multithread_benchmark_ur", "MemcpyExecute")
 
     def name(self):
-        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}"
+        return f"multithread_benchmark_ur MemcpyExecute opsPerThread:{self.numOpsPerThread}, numThreads:{self.numThreads}, allocSize:{self.allocSize} srcUSM:{self.srcUSM} dstUSM:{self.dstUSM}" + (" without events" if not self.useEvents else "")
 
     def bin_args(self) -> list[str]:
         return [
             "--Ioq=1",
-            "--UseEvents=1",
+            f"--UseEvents={self.useEvents}",
             "--MeasureCompletion=1",
             "--UseQueuePerThread=1",
             f"--AllocSize={self.allocSize}",
