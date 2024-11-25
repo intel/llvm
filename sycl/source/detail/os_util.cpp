@@ -69,6 +69,20 @@ bool procMapsAddressInRange(std::istream &Stream, uintptr_t Addr) {
   return Addr >= Start && Addr < End;
 }
 
+#if defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+static std::string getDirName(const char *Path)
+#else
+std::string OSUtil::getDirName(const char *Path)
+#endif
+{
+  std::string Tmp(Path);
+  // dirname(3) needs a writable C string: a null-terminator is written where a
+  // path should split.
+  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
+  Tmp.resize(TruncatedSize);
+  return Tmp;
+}
+
 /// Returns an absolute path to a directory where the object was found.
 std::string OSUtil::getCurrentDSODir() {
   // Examine /proc/self/maps and find where this function (getCurrendDSODir)
@@ -130,19 +144,10 @@ std::string OSUtil::getCurrentDSODir() {
     char Path[PATH_MAX];
     Stream.getline(Path, PATH_MAX - 1);
     Path[PATH_MAX - 1] = '\0';
-    return OSUtil::getDirName(Path);
+    return getDirName(Path);
   }
   assert(false && "Unable to find the current function in /proc/self/maps");
   return "";
-}
-
-std::string OSUtil::getDirName(const char *Path) {
-  std::string Tmp(Path);
-  // dirname(3) needs a writable C string: a null-terminator is written where a
-  // path should split.
-  size_t TruncatedSize = strlen(dirname(const_cast<char *>(Tmp.c_str())));
-  Tmp.resize(TruncatedSize);
-  return Tmp;
 }
 
 #elif defined(__SYCL_RT_OS_WINDOWS)
@@ -169,6 +174,7 @@ std::string OSUtil::getCurrentDSODir() {
   return Path;
 }
 
+#if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
 std::string OSUtil::getDirName(const char *Path) {
   std::string Tmp(Path);
   // Remove trailing directory separators
@@ -181,6 +187,7 @@ std::string OSUtil::getDirName(const char *Path) {
   // If no directory separator is present return initial path like dirname does
   return Tmp;
 }
+#endif
 
 #elif defined(__SYCL_RT_OS_DARWIN)
 std::string OSUtil::getCurrentDSODir() {

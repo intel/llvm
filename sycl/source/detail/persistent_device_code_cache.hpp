@@ -24,10 +24,6 @@ namespace sycl {
 inline namespace _V1 {
 namespace detail {
 
-/* This is temporary solution until std::filesystem is available when SYCL RT
- * is moved to c++17 standard*/
-std::string getDirName(const char *Path);
-
 /* The class manages inter-process synchronization:
  *  - Path passed to the constructor is appended with .lock and used as lock
  *    file.
