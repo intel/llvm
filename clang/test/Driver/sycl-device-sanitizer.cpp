@@ -40,6 +40,7 @@
 // SYCL-MSAN: clang{{.*}} "-fsycl-is-device"
 // SYCL-MSAN-SAME: -fsanitize=memory
 // SYCL-MSAN-SAME: "-mllvm" "-msan-instrumentation-with-call-threshold=0"
+// SYCL-MSAN-SAME: "-mllvm" "-msan-eager-checks=1"
 
 // RUN: %clangxx -fsycl -Xarch_device -fsanitize=memory -c %s -### 2>&1 \
 // RUN:   | FileCheck --check-prefix=SYCL-MSAN-XARCH-DEVICE %s
