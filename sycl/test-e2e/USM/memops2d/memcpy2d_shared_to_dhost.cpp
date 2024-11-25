@@ -10,8 +10,8 @@
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-// https://github.com/intel/llvm/issues/15648
 // UNSUPPORTED: (gpu-intel-dg2 || hip_amd) && linux
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15648
 
 // Temporarily disabled until the failure is addressed.
 // UNSUPPORTED: (level_zero && windows)

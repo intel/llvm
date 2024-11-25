@@ -1,5 +1,5 @@
 // RUN: %{build} -Wno-error=integer-overflow -Wno-error=implicitly-unsigned-literal -o %t.out
-// RUNx: %{run} %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 

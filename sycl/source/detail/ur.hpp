@@ -14,7 +14,6 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
 #include <ur_api.h>
 
 #include <memory>
@@ -22,6 +21,7 @@
 
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 class Adapter;
 using AdapterPtr = std::shared_ptr<Adapter>;
@@ -36,6 +36,10 @@ initializeUr(ur_loader_config_handle_t LoaderConfig = nullptr);
 // Get the adapter serving given backend.
 template <backend BE> const AdapterPtr &getAdapter();
 } // namespace ur
+
+// Convert from UR backend to SYCL backend enum
+backend convertUrBackend(ur_platform_backend_t UrBackend);
+
 } // namespace detail
 } // namespace _V1
 } // namespace sycl

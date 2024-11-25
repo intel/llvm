@@ -420,7 +420,7 @@ def unary_undef_to_zero: GICombineRule<
 // replaced with undef.
 def propagate_undef_any_op: GICombineRule<
   (defs root:$root),
-  (match (wip_match_opcode G_ADD, G_FPTOSI, G_FPTOUI, G_SUB, G_XOR, G_TRUNC):$root,
+  (match (wip_match_opcode G_ADD, G_FPTOSI, G_FPTOUI, G_SUB, G_XOR, G_TRUNC, G_BITCAST):$root,
          [{ return Helper.matchAnyExplicitUseIsUndef(*${root}); }]),
   (apply [{ Helper.replaceInstWithUndef(*${root}); }])>;
 
@@ -1505,6 +1505,13 @@ def insert_vector_elt_oob : GICombineRule<
          [{ return Helper.matchInsertVectorElementOOB(*${root}, ${matchinfo}); }]),
   (apply [{ Helper.applyBuildFn(*${root}, ${matchinfo}); }])>;
 
+// Combine v8i8 (buildvector i8 (trunc(unmerge)), i8 (trunc), i8 (trunc), i8 (trunc), undef, undef, undef, undef)
+def combine_use_vector_truncate : GICombineRule<
+  (defs root:$root, register_matchinfo:$matchinfo),
+  (match (G_BUILD_VECTOR $dst, GIVariadic<>:$unused):$root,
+         [{ return Helper.matchUseVectorTruncate(*${root}, ${matchinfo}); }]),
+  (apply [{ Helper.applyUseVectorTruncate(*${root}, ${matchinfo}); }])>;
+
 def add_of_vscale : GICombineRule<
    (defs root:$root, build_fn_matchinfo:$matchinfo),
    (match (G_VSCALE $left, $imm1),
@@ -1784,20 +1791,24 @@ class integer_of_opcode<Instruction castOpcode> : GICombineRule <
 
 def integer_of_truncate : integer_of_opcode<G_TRUNC>;
 
-def cast_combines: GICombineGroup<[
+def cast_of_cast_combines: GICombineGroup<[
   truncate_of_zext,
   truncate_of_sext,
   truncate_of_anyext,
-  select_of_zext,
-  select_of_anyext,
-  select_of_truncate,
   zext_of_zext,
   zext_of_anyext,
   sext_of_sext,
   sext_of_anyext,
   anyext_of_anyext,
   anyext_of_zext,
-  anyext_of_sext,
+  anyext_of_sext
+]>;
+
+def cast_combines: GICombineGroup<[
+  cast_of_cast_combines,
+  select_of_zext,
+  select_of_anyext,
+  select_of_truncate,
   buildvector_of_truncate,
   narrow_binop_add,
   narrow_binop_sub,
@@ -1912,7 +1923,8 @@ def all_combines : GICombineGroup<[integer_reassoc_combines, trivial_combines,
     sub_add_reg, select_to_minmax, 
     fsub_to_fneg, commute_constant_to_rhs, match_ands, match_ors,
     combine_concat_vector, match_addos,
-    sext_trunc, zext_trunc, prefer_sign_combines, combine_shuffle_concat]>;
+    sext_trunc, zext_trunc, prefer_sign_combines, combine_shuffle_concat,
+    combine_use_vector_truncate]>;
 
 // A combine group used to for prelegalizer combiners at -O0. The combines in
 // this group have been selected based on experiments to balance code size and

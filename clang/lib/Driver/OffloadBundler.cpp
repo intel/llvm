@@ -688,8 +688,11 @@ class ObjectFileHandler final : public FileHandler {
           return std::move(Err);
 
         // If we are dealing with a bitcode file do not add special globals
-        // llvm.used and llvm.compiler.used to the list of defined symbols.
-        if (SF->isIR() && (Name == "llvm.used" || Name == "llvm.compiler.used"))
+        // llvm.used and llvm.compiler.used and __AsanDeviceGlobalMetadata to
+        // the list of defined symbols.
+        if (SF->isIR() &&
+            (Name == "llvm.used" || Name == "llvm.compiler.used" ||
+             Name == "__AsanDeviceGlobalMetadata"))
           continue;
 
         // Add symbol name with the target prefix to the buffer.
@@ -1726,7 +1729,7 @@ Error OffloadBundler::ListBundleIDsInFile(
     StringRef InputFileName, const OffloadBundlerConfig &BundlerConfig) {
   // Open Input file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
-      MemoryBuffer::getFileOrSTDIN(InputFileName);
+      MemoryBuffer::getFileOrSTDIN(InputFileName, /*IsText=*/true);
   if (std::error_code EC = CodeOrErr.getError())
     return createFileError(InputFileName, EC);
 
@@ -1863,7 +1866,7 @@ Error OffloadBundler::BundleFiles() {
   InputBuffers.reserve(BundlerConfig.InputFileNames.size());
   for (auto &I : BundlerConfig.InputFileNames) {
     ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
-        MemoryBuffer::getFileOrSTDIN(I);
+        MemoryBuffer::getFileOrSTDIN(I, /*IsText=*/true);
     if (std::error_code EC = CodeOrErr.getError())
       return createFileError(I, EC);
     InputBuffers.emplace_back(std::move(*CodeOrErr));
@@ -1931,7 +1934,8 @@ Error OffloadBundler::BundleFiles() {
 Error OffloadBundler::UnbundleFiles() {
   // Open Input file.
   ErrorOr<std::unique_ptr<MemoryBuffer>> CodeOrErr =
-      MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames.front());
+      MemoryBuffer::getFileOrSTDIN(BundlerConfig.InputFileNames.front(),
+                                   /*IsText=*/true);
   if (std::error_code EC = CodeOrErr.getError())
     return createFileError(BundlerConfig.InputFileNames.front(), EC);
 

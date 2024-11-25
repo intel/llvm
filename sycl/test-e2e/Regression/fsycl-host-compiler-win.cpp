@@ -1,6 +1,7 @@
 // RUN: %{build} -fsycl-host-compiler=cl -DDEFINE_CHECK -fsycl-host-compiler-options="-DDEFINE_CHECK /std:c++17 /Zc:__cplusplus" -o %t.exe
 // RUN: %{run} %t.exe
 // REQUIRES: windows
+// REQUIRES: build-and-run-mode
 //
 //==------- fsycl-host-compiler-win.cpp - external host compiler test ------==//
 //

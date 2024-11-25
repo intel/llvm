@@ -23,6 +23,7 @@ enum class BinaryFormat : uint32_t;
 class JITContext;
 struct SYCLKernelInfo;
 struct SYCLKernelAttribute;
+struct RTCBundleInfo;
 template <typename T> class DynArray;
 using ArgUsageMask = DynArray<uint8_t>;
 using JITEnvVar = DynArray<char>;
@@ -44,7 +45,7 @@ public:
                            const std::string &KernelName,
                            const std::vector<unsigned char> &SpecConstBlob);
 
-  std::vector<uint8_t> compileSYCL(
+  sycl_device_binaries compileSYCL(
       const std::string &Id, const std::string &SYCLSource,
       const std::vector<std::pair<std::string, std::string>> &IncludePairs,
       const std::vector<std::string> &UserArgs, std::string *LogPtr,
@@ -68,6 +69,9 @@ private:
   sycl_device_binaries
   createPIDeviceBinary(const ::jit_compiler::SYCLKernelInfo &FusedKernelInfo,
                        ::jit_compiler::BinaryFormat Format);
+
+  sycl_device_binaries
+  createDeviceBinaryImage(const ::jit_compiler::RTCBundleInfo &BundleInfo);
 
   std::vector<uint8_t>
   encodeArgUsageMask(const ::jit_compiler::ArgUsageMask &Mask) const;

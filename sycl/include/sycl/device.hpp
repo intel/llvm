@@ -8,7 +8,6 @@
 
 #pragma once
 
-#include <sycl/aspects.hpp>
 #include <sycl/backend_types.hpp>
 #include <sycl/detail/defines_elementary.hpp>
 #include <sycl/detail/export.hpp>
@@ -21,8 +20,11 @@
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
 #include <sycl/info/info_desc.hpp>
 #include <sycl/kernel_bundle_enums.hpp>
-#include <sycl/platform.hpp>
 #include <ur_api.h>
+
+#ifdef __SYCL_INTERNAL_API
+#include <sycl/detail/cl.h>
+#endif
 
 #include <cstddef>
 #include <memory>
@@ -35,7 +37,7 @@
 namespace sycl {
 inline namespace _V1 {
 // Forward declarations
-class device_selector;
+class platform;
 template <backend BackendName, class SyclObjectT>
 auto get_native(const SyclObjectT &Obj)
     -> backend_return_t<BackendName, SyclObjectT>;

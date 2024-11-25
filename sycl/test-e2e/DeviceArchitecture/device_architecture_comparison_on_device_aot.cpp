@@ -1,8 +1,5 @@
 // REQUIRES: arch-intel_gpu_pvc, ocloc
 
-// XFAIL: arch-intel_gpu_pvc
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/14826
-
 // RUN: %clangxx -fsycl -fsycl-targets=intel_gpu_pvc %s -o %t.out
 // RUN: %{run} %t.out
 

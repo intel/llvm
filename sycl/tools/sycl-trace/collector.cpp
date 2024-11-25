@@ -44,6 +44,9 @@ class CollectorLibraryWrapper {
 public:
   CollectorLibraryWrapper(const std::string &LibraryName)
       : MLibraryName(LibraryName){};
+  CollectorLibraryWrapper(const CollectorLibraryWrapper &Other) = delete;
+  CollectorLibraryWrapper &
+  operator=(const CollectorLibraryWrapper &Other) = delete;
   ~CollectorLibraryWrapper() { clear(); };
 
   const std::string InitFuncName = "init";

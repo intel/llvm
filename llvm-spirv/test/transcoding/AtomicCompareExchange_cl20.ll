@@ -4,6 +4,12 @@ target triple = "spir-unknown-unknown"
 
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv %t.bc -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
+; RUN: llvm-dis < %t.bc | FileCheck %s
+
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -r --spirv-target-env=CL2.0 %t.spv -o %t.bc
 ; RUN: llvm-dis < %t.bc | FileCheck %s
 

@@ -415,20 +415,15 @@ public:
 
     std::vector<const uint8_t *> Binaries;
     std::vector<size_t> Lengths;
-    std::vector<std::vector<std::vector<char>>> PersistentBinaries;
-    for (size_t i = 0; i < Devices.size(); i++) {
-      std::vector<std::vector<char>> BinProg =
-          PersistentDeviceCodeCache::getCompiledKernelFromDisc(
-              Devices[i], UserArgs, SourceStr);
-
-      // exit if any device binary is missing
-      if (BinProg.empty()) {
-        return false;
-      }
-      PersistentBinaries.push_back(BinProg);
-
-      Binaries.push_back((uint8_t *)(PersistentBinaries[i][0].data()));
-      Lengths.push_back(PersistentBinaries[i][0].size());
+    std::vector<std::vector<char>> BinProgs =
+        PersistentDeviceCodeCache::getCompiledKernelFromDisc(Devices, UserArgs,
+                                                             SourceStr);
+    if (BinProgs.empty()) {
+      return false;
+    }
+    for (auto &BinProg : BinProgs) {
+      Binaries.push_back((uint8_t *)(BinProg.data()));
+      Lengths.push_back(BinProg.size());
     }
 
     ur_program_properties_t Properties = {};
@@ -504,10 +499,13 @@ public:
                                                RegisteredKernelNames);
         }
         if (Language == syclex::source_language::sycl_jit) {
-          const auto &SourceStr = std::get<std::string>(this->Source);
-          return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
-                                                   BuildOptions, LogPtr,
-                                                   RegisteredKernelNames);
+          auto *Binaries = syclex::detail::SYCL_JIT_to_SPIRV(
+              *SourceStrPtr, IncludePairs, BuildOptions, LogPtr,
+              RegisteredKernelNames);
+          assert(Binaries->NumDeviceBinaries == 1 &&
+                 "Device code splitting is not yet supported");
+          return std::vector<uint8_t>(Binaries->DeviceBinaries->BinaryStart,
+                                      Binaries->DeviceBinaries->BinaryEnd);
         }
         throw sycl::exception(
             make_error_code(errc::invalid),
@@ -564,11 +562,9 @@ public:
     // If caching enabled and kernel not fetched from cache, cache.
     if (PersistentDeviceCodeCache::isEnabled() && !FetchedFromCache &&
         SourceStrPtr) {
-      for (const auto &Device : Devices) {
-        PersistentDeviceCodeCache::putCompiledKernelToDisc(
-            Device, syclex::detail::userArgsAsString(BuildOptions),
-            *SourceStrPtr, UrProgram);
-      }
+      PersistentDeviceCodeCache::putCompiledKernelToDisc(
+          Devices, syclex::detail::userArgsAsString(BuildOptions),
+          *SourceStrPtr, UrProgram);
     }
 
     return std::make_shared<kernel_bundle_impl>(MContext, MDevices, DevImg,

@@ -9,8 +9,7 @@
 #pragma once
 
 #include <sycl/async_handler.hpp>                           // for async_han...
-#include <sycl/backend.hpp>                                 // for backend_i...
-#include <sycl/backend_types.hpp>                           // for backend
+#include <sycl/backend.hpp>                                 // for backend
 #include <sycl/buffer.hpp>                                  // for buffer_al...
 #include <sycl/buffer.hpp>                                  // for buffer
 #include <sycl/context.hpp>                                 // for context

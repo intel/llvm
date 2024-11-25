@@ -8,10 +8,9 @@
 
 #pragma once
 
-#include <sycl/backend_types.hpp>
-
 namespace sycl {
 inline namespace _V1 {
+enum class backend : char;
 namespace detail {
 
 template <backend Backend, typename SYCLObjectT> struct interop;

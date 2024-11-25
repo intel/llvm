@@ -3,6 +3,10 @@
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s --check-prefix=CHECK-SPIRV
 ; RUN: spirv-val %t.spv
 
+; RUN: llvm-spirv %t.bc -o %t.spv --spirv-ext=+SPV_KHR_untyped_pointers
+; RUN: llvm-spirv %t.bc -spirv-text --spirv-ext=+SPV_KHR_untyped_pointers -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: spirv-val %t.spv
+
 ; CHECK-SPIRV: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-SPIRV: Constant [[Int]] [[MemScope_CrossDevice:[0-9]+]] 0
 ; CHECK-SPIRV: Constant [[Int]] [[MemSemEqual_SeqCst:[0-9]+]] 16

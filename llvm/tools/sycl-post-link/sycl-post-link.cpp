@@ -40,7 +40,6 @@
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
@@ -790,11 +789,6 @@ processInputModule(std::unique_ptr<Module> M) {
   // for SPIR-V since SYCL compilation uses llvm-spirv, not the SPIR-V backend.
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
-
-  // Instrument each image scope device globals if the module has been
-  // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M))
-    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.

@@ -1,4 +1,5 @@
 // REQUIRES: gpu, cuda, hip, opencl, sycl-ls
+// REQUIRES: build-and-run-mode
 
 // RUN: sycl-ls --verbose >%t.default.out
 // RUN: FileCheck %s --check-prefixes=CHECK-BUILTIN-GPU-OPENCL,CHECK-CUSTOM-GPU-OPENCL --input-file %t.default.out

@@ -10,7 +10,7 @@
 
 #define SYCL_EXT_ONEAPI_CUDA_TEX_CACHE_READ 1
 
-#include <sycl/types.hpp>
+#include <sycl/vector.hpp>
 
 #if defined(_WIN32) || defined(_WIN64)
 #define ATTRIBUTE_EXT_VEC_TYPE(N) __declspec(ext_vector_type(N))

@@ -424,11 +424,10 @@ int main(int argc, const char **argv) {
   // Map {offload-kind}-{triple} to target IDs.
   std::map<std::string, std::set<StringRef>> TargetIDs;
   for (StringRef Target : TargetNames) {
-    if (ParsedTargets.contains(Target)) {
+    if (!ParsedTargets.insert(Target).second) {
       reportError(createStringError(errc::invalid_argument,
                                     "Duplicate targets are not allowed"));
     }
-    ParsedTargets.insert(Target);
 
     auto OffloadInfo = OffloadTargetInfo(Target, BundlerConfig);
     bool KindIsValid = OffloadInfo.isOffloadKindValid();

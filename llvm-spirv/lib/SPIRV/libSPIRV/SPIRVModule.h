@@ -500,6 +500,9 @@ public:
                                              SPIRVValue *Value,
                                              SPIRVValue *ExpectedValue,
                                              SPIRVBasicBlock *BB) = 0;
+  virtual SPIRVInstruction *
+  addUntypedPrefetchKHRInst(SPIRVType *Ty, std::vector<SPIRVWord> Args,
+                            SPIRVBasicBlock *BB) = 0;
 
   virtual SPIRVId getExtInstSetId(SPIRVExtInstSetKind Kind) const = 0;
 

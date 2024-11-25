@@ -13,7 +13,7 @@
 #include <detail/platform_impl.hpp>
 #include <detail/platform_info.hpp>
 #include <detail/ur_info_code.hpp>
-#include <sycl/backend.hpp>
+#include <sycl/backend_types.hpp>
 #include <sycl/detail/iostream_proxy.hpp>
 #include <sycl/detail/ur.hpp>
 #include <sycl/detail/util.hpp>

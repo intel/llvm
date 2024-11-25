@@ -179,7 +179,7 @@ void EmitClangOpenCLBuiltinHeader(const llvm::RecordKeeper &Records,
                                   llvm::raw_ostream &OS);
 void EmitClangOpenCLBuiltinTests(const llvm::RecordKeeper &Records,
                                  llvm::raw_ostream &OS);
-void EmitClangSPIRVBuiltins(llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
+void EmitClangSPIRVBuiltins(const llvm::RecordKeeper &Records, llvm::raw_ostream &OS);
 
 void EmitClangDataCollectors(const llvm::RecordKeeper &Records,
                              llvm::raw_ostream &OS);

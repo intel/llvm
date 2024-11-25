@@ -58,6 +58,9 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
+bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                const device &Dev);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;

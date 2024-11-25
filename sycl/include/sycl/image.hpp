@@ -28,7 +28,7 @@
 #include <sycl/property_list.hpp>                     // for property_list
 #include <sycl/range.hpp>                             // for range, rangeTo...
 #include <sycl/sampler.hpp>                           // for image_sampler
-#include <sycl/types.hpp>                             // for vec
+#include <sycl/vector.hpp>                            // for vec
 #include <ur_api.h>                                   // for ur_native_hand...
 
 #include <cstddef>     // for size_t, nullptr_t

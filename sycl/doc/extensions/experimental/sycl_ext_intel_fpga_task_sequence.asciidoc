@@ -299,10 +299,6 @@ inline constexpr invocation_capacity_key::value_t<Size> invocation_capacity;
 template <uint32_t Size>
 inline constexpr response_capacity_key::value_t<Size> response_capacity;
 
-template <> struct is_property_key<balanced_key> : std::true_type {};
-template <> struct is_property_key<invocation_capacity_key> : std::true_type {};
-template <> struct is_property_key<response_capacity_key> : std::true_type {};
-
 template <auto &f, typename PropertyListT>
 struct is_property_key_of<balanced_key, task_sequence<f, PropertyListT>>
   : std::true_type {};

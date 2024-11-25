@@ -50,7 +50,7 @@ private:
 class PropertyContainer {
 
 public:
-  PropertyContainer(const std::string &Name, void *Data, size_t Size,
+  PropertyContainer(const std::string &Name, const void *Data, size_t Size,
                     uint32_t Type);
   // Set a UR_PROPERTY_TYPE_UINT32 property
   PropertyContainer(const std::string &Name, uint32_t Data);

@@ -17,14 +17,14 @@
 // CHECK-NEXT: __spirv/spirv_vars.hpp
 // CHECK-NEXT: multi_ptr.hpp
 // CHECK-NEXT: aliases.hpp
+// CHECK-NEXT: detail/type_traits.hpp
+// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: half_type.hpp
 // CHECK-NEXT: bit_cast.hpp
 // CHECK-NEXT: detail/iostream_proxy.hpp
 // CHECK-NEXT: aspects.hpp
 // CHECK-NEXT: info/aspects.def
 // CHECK-NEXT: info/aspects_deprecated.def
-// CHECK-NEXT: detail/type_traits.hpp
-// CHECK-NEXT: detail/type_traits/vec_marray_traits.hpp
 // CHECK-NEXT: buffer.hpp
 // CHECK-NEXT: backend_types.hpp
 // CHECK-NEXT: detail/array.hpp

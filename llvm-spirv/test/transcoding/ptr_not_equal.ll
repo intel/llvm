@@ -12,17 +12,26 @@
 ; RUN: llvm-dis %t.rev.bc
 ; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
 
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv --spirv-ext=+SPV_KHR_untyped_pointers %t.spv -to-text -o %t.spt
+; RUN: FileCheck < %t.spt %s --check-prefix=CHECK-SPIRV
+; RUN: spirv-val %t.spv
+
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc
+; RUN: FileCheck < %t.rev.ll %s --check-prefix=CHECK-LLVM
+
 ; CHECK-ERROR: RequiresVersion: Cannot fulfill SPIR-V version restriction:
 ; CHECK-ERROR-NEXT: SPIR-V version was restricted to at most 1.3 (66304) but a construct from the input requires SPIR-V version 1.4 (66560) or above
 
 ; SPIR-V 1.4
 ; CHECK-SPIRV: 66560
 ; CHECK-SPIRV: TypeFloat [[#TypeFloat:]] 32
-; CHECK-SPIRV: TypePointer [[#TypePointer:]] [[#]] [[#TypeFloat]]
+; CHECK-SPIRV: {{(TypePointer|TypeUntypedPointerKHR)}} [[#TypePointer:]] [[#]]
 ; CHECK-SPIRV: TypeBool [[#TypeBool:]]
 
-; CHECK-SPIRV: Variable [[#TypePointer]] [[#Var1:]]
-; CHECK-SPIRV: Variable [[#TypePointer]] [[#Var2:]]
+; CHECK-SPIRV: {{(Variable|UntypedVariableKHR)}} [[#TypePointer]] [[#Var1:]]
+; CHECK-SPIRV: {{(Variable|UntypedVariableKHR)}} [[#TypePointer]] [[#Var2:]]
 ; CHECK-SPIRV: PtrEqual [[#TypeBool]] [[#]] [[#Var1]] [[#Var2]]
 ; CHECK-SPIRV: PtrNotEqual [[#TypeBool]] [[#]] [[#Var1]] [[#Var2]]
 

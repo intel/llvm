@@ -145,14 +145,6 @@ public:
   /// load/store type are the same.
   llvm::Type *convertTypeForLoadStore(QualType T, llvm::Type *LLVMTy = nullptr);
 
-  /// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
-  /// which is represented as a pointer to a structure to LLVM extension type
-  /// with the parameters that follow SPIR-V JointMatrixINTEL type.
-  /// The expected representation is:
-  /// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
-  ///        %use%, (optional) %element_type_interpretation%)
-  llvm::Type *ConvertSYCLJointMatrixINTELType(RecordDecl *RD);
-
   /// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
   /// which is represented as a pointer to a structure to LLVM extension type
   /// with the parameters that follow SPIR-V CooperativeMatrixKHR type.

@@ -31,6 +31,9 @@
 #define __SYCL_DEVICE_BINARY_TARGET_NVPTX64 "nvptx64"
 #define __SYCL_DEVICE_BINARY_TARGET_AMDGCN "amdgcn"
 #define __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU "native_cpu"
+// JIT compilation targets for CUDA & HIP devices.
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_NVPTX64 "llvm_nvptx64"
+#define __SYCL_DEVICE_BINARY_TARGET_LLVM_AMDGCN "llvm_amdgcn"
 
 /// Device binary image property set names recognized by the SYCL runtime.
 /// Name must be consistent with

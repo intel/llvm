@@ -1,0 +1,51 @@
+; Check SPIRVReader support for OpCopyMemory.
+
+; REQUIRES: spirv-as
+; RUN: spirv-as --target-env spv1.0 -o %t.spv %s
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-dis %t.rev.bc -o - | FileCheck %s
+
+               OpCapability Addresses
+               OpCapability Int16
+               OpCapability Kernel
+               OpMemoryModel Physical64 OpenCL
+               OpEntryPoint Kernel %kernel "copymemory"
+               OpName %pStruct "pStruct"
+               OpName %dstStruct "dstStruct"
+               OpName %pShort "pShort"
+               OpName %dstShort "dstShort"
+               OpName %pInt "pInt"
+               OpName %dstInt "dstInt"
+     %ushort = OpTypeInt 16 0
+       %uint = OpTypeInt 32 0
+     %struct = OpTypeStruct %ushort %uint %ushort
+       %void = OpTypeVoid
+%gptr_struct = OpTypePointer CrossWorkgroup %struct
+%pptr_struct = OpTypePointer Function %struct
+ %gptr_short = OpTypePointer CrossWorkgroup %ushort
+ %pptr_short = OpTypePointer Function %ushort
+   %gptr_int = OpTypePointer CrossWorkgroup %uint
+   %pptr_int = OpTypePointer Function %uint
+ %kernel_sig = OpTypeFunction %void %gptr_short %gptr_int %gptr_struct
+  %ushort_42 = OpConstant %ushort 42
+  %uint_4242 = OpConstant %uint 4242
+%struct_init = OpConstantComposite %struct %ushort_42 %uint_4242 %ushort_42
+     %kernel = OpFunction %void None %kernel_sig
+   %dstShort = OpFunctionParameter %gptr_short
+     %dstInt = OpFunctionParameter %gptr_int
+  %dstStruct = OpFunctionParameter %gptr_struct
+      %entry = OpLabel
+     %pShort = OpVariable %pptr_short Function %ushort_42
+       %pInt = OpVariable %pptr_int Function %uint_4242
+    %pStruct = OpVariable %pptr_struct Function %struct_init
+               OpCopyMemory %dstShort %pShort
+               OpCopyMemory %dstInt %pInt
+               OpCopyMemory %dstStruct %pStruct
+               OpReturn
+               OpFunctionEnd
+
+; CHECK-LABEL: define spir_kernel void @copymemory(ptr addrspace(1) %dstShort, ptr addrspace(1) %dstInt, ptr addrspace(1) %dstStruct)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstShort, ptr @pShort, i64 2, i1 false)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstInt, ptr @pInt, i64 4, i1 false)
+; CHECK: call void @llvm.memcpy.p1.p0.i64(ptr addrspace(1) %dstStruct, ptr @pStruct, i64 12, i1 false)

@@ -167,10 +167,6 @@ inline constexpr fpga_cluster_key::value_t<
 inline constexpr fpga_cluster_key::value_t<
   fpga_cluster_options_enum::stall_free_clusters> stall_free_clusters;
 
-template <> struct is_property_key<streaming_interface_key> : std::true_type {};
-template <> struct is_property_key<register_map_interface_key> : std::true_type {};
-template <> struct is_property_key<fpga_cluster_key> : std::true_type {};
-
 } // namespace sycl::ext::intel::experimental
 ```
 

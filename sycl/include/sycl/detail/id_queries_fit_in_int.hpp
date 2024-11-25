@@ -23,6 +23,8 @@
 #ifndef __SYCL_DEVICE_ONLY__
 
 #include <sycl/exception.hpp>
+#include <sycl/nd_range.hpp>
+#include <sycl/range.hpp>
 
 #include <limits>
 #include <type_traits>
