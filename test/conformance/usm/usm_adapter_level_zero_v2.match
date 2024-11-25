@@ -1,4 +1,1 @@
-urUSMDeviceAllocTest.InvalidUSMSize/*
 urUSMGetMemAllocInfoTest.Success/*___UR_USM_ALLOC_INFO_POOL
-urUSMHostAllocTest.InvalidUSMSize/*
-urUSMSharedAllocTest.InvalidUSMSize/*
