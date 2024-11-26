@@ -1041,6 +1041,9 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             /*FP64ConvEmu=*/CodeGenOpts.FP64ConvEmu,
             /*ExcludeAspects=*/{"fp64"}));
         MPM.addPass(SYCLPropagateJointMatrixUsagePass());
+        // Allocate static local memory in SYCL kernel scope for each allocation
+        // call.
+        MPM.addPass(SYCLLowerWGLocalMemoryPass());
       });
     else if (LangOpts.SYCLIsHost && !LangOpts.SYCLESIMDBuildHostCode)
       PB.registerPipelineStartEPCallback(
@@ -1183,10 +1186,6 @@ void EmitAssemblyHelper::RunOptimizationPipeline(
             "ITT annotations can only be added to a module with spir target");
         MPM.addPass(SPIRITTAnnotationsPass());
       }
-
-      // Allocate static local memory in SYCL kernel scope for each allocation
-      // call.
-      MPM.addPass(SYCLLowerWGLocalMemoryPass());
 
       // Process properties and annotations
       MPM.addPass(CompileTimePropertiesPass());
