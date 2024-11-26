@@ -332,8 +332,10 @@ kernel_impl::queryMaxNumWorkGroups(queue Queue,
   if (auto Result = Adapter->call_nocheck<
                     UrApiKind::urKernelSuggestMaxCooperativeGroupCountExp>(
           Handle, Dimensions, WG, DynamicLocalMemorySize, &GroupCount);
-      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {
-    // The feature is supported. Check for other errors and throw if any.
+      Result != UR_RESULT_ERROR_UNSUPPORTED_FEATURE &&
+      Result != UR_RESULT_ERROR_INVALID_WORK_GROUP_SIZE) {
+    // The feature is supported and the group size is valid. Check for other
+    // errors and throw if any.
     Adapter->checkUrResult(Result);
     return GroupCount;
   }
