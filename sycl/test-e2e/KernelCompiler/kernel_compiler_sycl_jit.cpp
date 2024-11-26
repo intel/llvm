@@ -56,7 +56,7 @@ auto constexpr SYCLSource = R"===(
 
 // use extern "C" to avoid name mangling
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
-void ff_cp(int *ptr) {
+void ff_cp(int *ptr, int *unused) {
 
   // intentionally using deprecated routine, as opposed to this_work_item::get_nd_item<1>()
   sycl::nd_item<1> Item = sycl::ext::oneapi::experimental::this_nd_item<1>();
@@ -78,6 +78,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](sycl::handler &Handler) {
     Handler.set_arg(0, usmPtr);
+    Handler.set_arg(1, usmPtr);
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
@@ -181,6 +182,7 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
   CheckUnsupported({"-fsycl-device-code-split=kernel"});
   CheckUnsupported({"-fsycl-device-code-split-esimd"});
+  CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;
 }

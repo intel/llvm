@@ -175,6 +175,8 @@ jit_compiler::compileDeviceCode(InMemoryFile SourceFile,
   DerivedArgList DAL{UserArgList};
   const auto &OptTable = getDriverOptTable();
   DAL.AddFlagArg(nullptr, OptTable.getOption(OPT_fsycl_device_only));
+  DAL.AddFlagArg(nullptr,
+                 OptTable.getOption(OPT_fno_sycl_dead_args_optimization));
   DAL.AddJoinedArg(
       nullptr, OptTable.getOption(OPT_resource_dir_EQ),
       (DPCPPRoot + "/lib/clang/" + Twine(CLANG_VERSION_MAJOR)).str());
@@ -516,6 +518,12 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
     // TODO: There are more ESIMD-related options.
     return createStringError(
         "Runtime compilation of ESIMD kernels is not yet supported");
+  }
+
+  if (AL.hasFlag(OPT_fsycl_dead_args_optimization,
+                 OPT_fno_sycl_dead_args_optimization, false)) {
+    return createStringError(
+        "Dead argument optimization must be disabled for runtime compilation");
   }
 
   return std::move(AL);
