@@ -68,7 +68,7 @@ void ff_cp(int *ptr, int *unused) {
 // this name will be mangled
 template <typename T>
 SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
-void ff_templated(T *ptr) {
+void ff_templated(T *ptr, T *unused) {
 
   sycl::nd_item<1> Item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
 
@@ -158,7 +158,7 @@ int test_build_and_run() {
   // Instead, we can TEMPORARILY use the mangled name. Once demangling is
   // supported this might no longer work.
   sycl::kernel k2 =
-      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_");
+      kbExe2.ext_oneapi_get_kernel("_Z26__sycl_kernel_ff_templatedIiEvPT_S1_");
 
   // Test the kernels.
   test_1(q, k, 37 + 5);  // ff_cp seeds 37. AddEm will add 5 more.
