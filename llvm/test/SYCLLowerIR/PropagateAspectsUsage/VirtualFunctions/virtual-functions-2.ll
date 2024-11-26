@@ -15,8 +15,9 @@ define spir_func void @vfnBar() #1 {
   ret void
 }
 
-; CHECK: @kernel() #2 !sycl_used_aspects ![[#aspectsKernel:]]
-define spir_kernel void @kernel() #2 {
+; CHECK: @kernel({{.*}}) #2 !sycl_used_aspects ![[#aspectsKernel:]]
+define spir_kernel void @kernel(ptr %f) #2 {
+  call void %f() #3
   ret void
 }
 
@@ -27,6 +28,7 @@ define spir_kernel void @kernel() #2 {
 attributes #0 = { "indirectly-callable"="setFoo" }
 attributes #1 = { "indirectly-callable"="setBar" }
 attributes #2 = { "calls-indirectly"="setFoo,setBar" }
+attributes #3 = { "virtual-call" } 
 
 !sycl_aspects = !{!0}
 !0 = !{!"fp64", i32 6}
