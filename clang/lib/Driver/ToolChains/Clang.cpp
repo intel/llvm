@@ -10944,7 +10944,8 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
 
   // Fallback spv is NOT involved in AOT compilation or
   // '-fno-sycl-device-lib=all' is applied by user explicitly.
-  if (!TC.getTriple().isSPIRAOT() && !DeviceLibDisable) {
+  if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT() &&
+      !DeviceLibDisable) {
     SYCLInstallationDetector SYCLInstall(TC.getDriver());
     SmallVector<SmallString<128>, 4> SpvLocCandidates;
     SmallString<128> FallbackAssertName("libsycl-fallback-cassert.spv");

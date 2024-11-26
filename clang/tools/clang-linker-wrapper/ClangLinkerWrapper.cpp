@@ -729,7 +729,7 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   CmdArgs.push_back(*SYCLPostLinkPath);
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
-  if (SYCLDeviceLibLoc) {
+  if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
     std::string SYCLDeviceLibSPVLoc = SYCLDeviceLibLoc->getValue();
     llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
     if (HostTriple.isOSWindows())
