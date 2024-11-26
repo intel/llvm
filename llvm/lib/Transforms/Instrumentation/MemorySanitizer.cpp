@@ -485,6 +485,14 @@ static const MemoryMapParams NetBSD_X86_64_MemoryMapParams = {
     0x100000000000, // OriginBase
 };
 
+// SPIR64 Intel
+static const MemoryMapParams Intel_SPIR64_MemoryMapParams = {
+    0, // AndMask
+    0, // XorMask
+    0, // ShadowBase
+    0, // OriginBase
+};
+
 static const PlatformMemoryMapParams Linux_X86_MemoryMapParams = {
     &Linux_I386_MemoryMapParams,
     &Linux_X86_64_MemoryMapParams,
@@ -530,17 +538,9 @@ static const PlatformMemoryMapParams NetBSD_X86_MemoryMapParams = {
     &NetBSD_X86_64_MemoryMapParams,
 };
 
-// SPIR Linux
-static const MemoryMapParams Intel_SPIR_MemoryMapParams = {
-    0, // AndMask
-    0, // XorMask (not used)
-    0, // ShadowBase (not used)
-    0, // OriginBase
-};
-
-static const PlatformMemoryMapParams Intel_GFX_MemoryMapParams = {
+static const PlatformMemoryMapParams Intel_SPIR_MemoryMapParams = {
     nullptr,
-    &Intel_SPIR_MemoryMapParams,
+    &Intel_SPIR64_MemoryMapParams,
 };
 
 // Spir memory address space
@@ -1158,7 +1158,7 @@ void MemorySanitizer::initializeModule(Module &M) {
       // NOTE: Support SPIR or SPIRV only, without MapParams
       if (!TargetTriple.isSPIROrSPIRV())
         report_fatal_error("unsupported architecture");
-      MapParams = Intel_GFX_MemoryMapParams.bits64;
+      MapParams = Intel_SPIR_MemoryMapParams.bits64;
       break;
     default:
       report_fatal_error("unsupported operating system");
