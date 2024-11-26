@@ -168,7 +168,9 @@ PropSetRegTy computeModuleProperties(const Module &M,
                                      const StringRef &DeviceLibSPVLoc) {
 
   PropSetRegTy PropSet;
-  {
+  // If sycl-post-link doesn't specify a valid fallback spv path, the param
+  // 'DeviceLibSPVLoc' is set to an empty string.
+  if (!DeviceLibSPVLoc.empty()) {
     SmallVector<llvm::DeviceLibExt, 16> RequiredLibs;
     llvm::getRequiredSYCLDeviceLibs(M, RequiredLibs);
     for (auto Ext : RequiredLibs) {
