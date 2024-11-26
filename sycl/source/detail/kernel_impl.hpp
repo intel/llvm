@@ -34,7 +34,7 @@ class kernel_impl {
 public:
   /// Constructs a SYCL kernel instance from a UrKernel
   ///
-  /// This constructor is used for plug-in interoperability. It always marks
+  /// This constructor is used for UR adapter interoperability. It always marks
   /// kernel as being created from source.
   ///
   /// \param Kernel is a valid UrKernel instance
