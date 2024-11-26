@@ -7,10 +7,18 @@
 
 #pragma once
 
+#include <sycl/access/access.hpp>
+#include <sycl/detail/defines.hpp>
+#include <sycl/ext/oneapi/properties/properties.hpp>
+#include <sycl/multi_ptr.hpp>
+
+#include <cstddef>
 #include <type_traits>
 
 namespace sycl {
 inline namespace _V1 {
+class handler;
+
 namespace detail {
 template <typename T> struct is_unbounded_array : std::false_type {};
 
@@ -37,8 +45,10 @@ namespace ext::oneapi::experimental {
 
 struct indeterminate_t {};
 inline constexpr indeterminate_t indeterminate;
-
 template <typename DataT, typename PropertyListT = empty_properties_t>
+class work_group_memory;
+
+template <typename DataT, typename PropertyListT>
 class __SYCL_SPECIAL_CLASS __SYCL_TYPE(work_group_memory) work_group_memory
     : sycl::detail::work_group_memory_impl {
 public:

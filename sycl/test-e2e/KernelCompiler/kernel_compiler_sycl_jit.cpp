@@ -16,14 +16,14 @@
 // -- Test again, with caching.
 
 // DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: rm -rf %t/cache_dir
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // -- Add leak check.
-// RUN: rm -rf %t/cache_dir
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
@@ -180,6 +180,8 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+  CheckUnsupported({"-fsycl-device-code-split=kernel"});
+  CheckUnsupported({"-fsycl-device-code-split-esimd"});
   CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;

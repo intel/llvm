@@ -1,7 +1,7 @@
-# commit 1675f053176f0860388aa67fd009750a7e03b2c2
-# Merge: 0ea47d7c 22ca5ee2
+# commit 38ee6ce2a0400573c0c7c5da782bc32ff578fcc4
+# Merge: c7086f7f 91b6db04
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 14:41:15 2024 +0000
-#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
-#     Fix the CL_CORE_FUNCTION macro on windows.
-set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)
+# Date:   Mon Nov 25 11:04:37 2024 +0000
+#     Merge pull request #2303 from nrspruit/zeInitDrivers
+#     [L0] Implement Support for zeInitDrivers
+set(UNIFIED_RUNTIME_TAG 38ee6ce2a0400573c0c7c5da782bc32ff578fcc4)
