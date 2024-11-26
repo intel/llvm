@@ -257,7 +257,7 @@ struct ur_context_handle_t_ : _ur_object {
     EventPoolCacheType CacheType;
 
     calculateCacheIndex(HostVisible, CounterBasedEventEnabled,
-                        InterruptBasedEventEnabled, UsingImmediateCmdList,
+                        UsingImmediateCmdList, InterruptBasedEventEnabled,
                         CacheType);
     if (ZeDevice) {
       auto ZeEventPoolCacheMap =
