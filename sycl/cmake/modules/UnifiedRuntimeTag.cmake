@@ -1,7 +1,5 @@
-# commit 3edf99755ce2af3b53102a7d8438e0fe969efac3
-# Merge: 5955bad3 0b968661
-# Author: Ross Brunton <ross@codeplay.com>
-# Date:   Wed Nov 6 11:07:29 2024 +0000
-#    Merge pull request #2082 from RossBrunton/ross/multiadapt
-#    [CI] Add "loader" support to conformance testing
-set(UNIFIED_RUNTIME_TAG review/yang/fix_kernel_filter)
+# commit f2af85f35957601dd91f81e8fad39fea413ccbf2
+# Author: Yang Zhao <yang2.zhao@intel.com>
+# Date:   Wed Nov 27 00:20:29 2024 +0800
+#     [DeviceSanitizer] Support "-fsanitize-ignorelist=" to disable sanitizing on some of kernels (#2055)
+set(UNIFIED_RUNTIME_TAG f2af85f35957601dd91f81e8fad39fea413ccbf2)
