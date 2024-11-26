@@ -23,8 +23,8 @@ namespace experimental {
 __SYCL_EXPORT sycl::detail::string
 pipe_base::get_pipe_name_impl(const void *HostPipePtr) {
   return {std::string_view{sycl::_V1::detail::ProgramManager::getInstance()
-              .getHostPipeEntry(HostPipePtr)
-              ->MUniqueId}};
+                               .getHostPipeEntry(HostPipePtr)
+                               ->MUniqueId}};
 }
 
 __SYCL_EXPORT bool pipe_base::wait_non_blocking(const event &E) {
