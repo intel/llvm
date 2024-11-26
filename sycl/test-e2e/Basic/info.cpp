@@ -8,6 +8,7 @@
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 //
 //===----------------------------------------------------------------------===//
+#include "sycl/backend_types.hpp"
 #include <sycl/detail/core.hpp>
 
 #include <cassert>
@@ -208,6 +209,7 @@ int main() {
   std::string separator(std::string(80, '-') + "\n");
   std::cout << separator << "Device information\n" << separator;
   device dev(default_selector_v);
+  const sycl::backend Backend = dev.get_backend();
 
   print_info<info::device::device_type, info::device_type>(dev, "Device type");
   print_info<info::device::vendor_id, std::uint32_t>(dev, "Vendor ID");
@@ -332,12 +334,9 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  try {
+  if (Backend == backend::opencl) {
     print_info<info::device::preferred_interop_user_sync, bool>(
         dev, "Preferred interop user sync");
-  } catch (const sycl::exception &e) {
-    std::cout << "Expected exception has been caught: " << e.what()
-              << std::endl;
   }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
@@ -364,11 +363,8 @@ int main() {
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());
-  try {
+  if (Backend == sycl::backend::opencl) {
     print_info<info::platform::profile, std::string>(plt, "Profile");
-  } catch (const sycl::exception &e) {
-    std::cout << "Expected exception has been caught: " << e.what()
-              << std::endl;
   }
   print_info<info::platform::version, std::string>(plt, "Version");
   print_info<info::platform::name, std::string>(plt, "Name");
