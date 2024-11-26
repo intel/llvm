@@ -43,6 +43,11 @@ namespace detail {
 /// Groups the OS-dependent services.
 class __SYCL_EXPORT OSUtil {
 #if !defined(__INTEL_PREVIEW_BREAKING_CHANGES)
+#ifdef _WIN32
+  // Access control is part of the mangling on Windows, have to preserve this
+  // for backward ABI compatibility.
+public:
+#endif
   /// Returns a directory component of a path.
   static std::string getDirName(const char *Path);
 #endif
