@@ -162,6 +162,13 @@ void matrix_copy(unsigned int rows, unsigned int cols, T *src, T *dst) {
   }
 }
 
+template <typename F, typename T>
+void matrix_apply(unsigned int rows, unsigned int cols, T *mat, F op) {
+  for (unsigned int i = 0; i < rows; i++)
+    for (unsigned int j = 0; j < cols; j++)
+      mat[i * cols + j] = op(mat[i * cols + j]);
+}
+
 template <Activation act = Activation::None, typename T1, typename T2,
           bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
@@ -171,17 +178,7 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                                std::is_same_v<T1, bfloat16> ||
                                (std::is_same_v<T1, double> &&
                                 std::is_same_v<T2, double>))) {
-        float diff = 0;
-        if constexpr (act == Activation::None)
-          diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
-        else if constexpr (act == Activation::ReLU)
-          diff =
-              std::fabs(src[i * cols + j] -
-                        (T1)(sycl::max(static_cast<T2>(0), ref[i * cols + j])));
-        else if constexpr (act == Activation::Sigmoid)
-          diff = std::fabs(src[i * cols + j] -
-                           (T1)(1.0f / (1.0f + sycl::exp(-ref[i * cols + j]))));
-
+        float diff = std::fabs(src[i * cols + j] - (T1)ref[i * cols + j]);
         if (diff > FLOAT_EPSILON || std::isnan(src[i * cols + j])) {
           std::cout << "Incorrect result in matrix. "
                     << "i: " << i << ", j: " << j
@@ -190,7 +187,8 @@ bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
                     << ", Epsilon: " << FLOAT_EPSILON << "\n";
           return false;
         }
-      } else if constexpr (exact || std::is_same_v<T1, int32_t>) {
+      } else if constexpr (exact || std::is_same_v<T1, int32_t> ||
+                           std::is_same_v<T1, int8_t>) {
         if (src[i * cols + j] != ref[i * cols + j]) {
           std::cout << "Incorrect result in matrix."
                     << "i: " << i << ", j: " << j

@@ -7,31 +7,22 @@
 //===----------------------------------------------------------------------===//
 #include <sycl/usm.hpp>
 
-template <typename Tc, typename Ta, size_t M, size_t N>
-bool apply_verify(Tc *C, Tc *D, Ta *A, Ta *Ar, Tc *Cref, Ta *Aref) {
-  for (size_t i = 0; i < M; i++)
-    for (size_t j = 0; j < N; j++) {
-      Tc diffd = D[i * N + j] - Cref[i * N + j] * 2;
-      Tc diffc = C[i * N + j] - sycl::max(static_cast<Tc>(0), Cref[i * N + j]);
-      Ta diffar = Ar[i * N + j] - (Aref[i * N + j] + 42);
-      Ta diffa = A[i * N + j] - (Aref[i * N + j] + 5);
-      if constexpr (std::is_same_v<Ta, bfloat16>) {
-        if (std::fabs(diffd) > FLOAT_EPSILON ||
-            std::fabs(diffc) > FLOAT_EPSILON ||
-            std::fabs(diffar) > FLOAT_EPSILON ||
-            std::fabs(diffa) > FLOAT_EPSILON || std::isnan(C[i * N + j]) ||
-            std::isnan(A[i * N + j])) {
-          return false;
-        }
-      } else {
-        if (std::abs(diffd) > 0 || std::abs(diffc) > 0 ||
-            std::abs(diffar) > 0 || std::abs(diffa) > 0) {
-          return false;
-        }
-      }
-    }
-  return true;
+template <typename T> T mul2(T x) { return x * 2; }
+
+template <typename T> T add5(T x) { return x + 5; }
+
+template <typename Tc, size_t M, size_t N>
+bool apply_verify(Tc *C, Tc *D, Tc *ref) {
+  Tc *refcopy = (Tc *)std::malloc(M * N * sizeof(Tc));
+  memcpy(refcopy, ref, M * N * sizeof(Tc));
+  matrix_apply(M, N, ref, [](Tc x) { return mul2(x); });
+  bool res = matrix_compare(M, N, D, ref);
+
+  matrix_apply(M, N, refcopy, [](Tc x) { return add5(x); });
+  res &= matrix_compare(M, N, C, refcopy);
+  return res;
 }
+
 template <typename Tc, typename Ta, size_t TM, size_t TN, size_t TK, size_t M,
           size_t N, size_t K, class kernel_name>
 bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, Tc *Cref, Ta *Aref,
@@ -77,8 +68,8 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, Tc *Cref, Ta *Aref,
                sg, sub_c, pC + (sg_startx * TM) * N + sg_starty / sg_size * TN,
                N, layout::row_major);
            joint_matrix_apply(sg, sub_c, sub_d, [](Tc &x, Tc &y) {
-             y = x * 2;
-             x = sycl::max(static_cast<Tc>(0), x);
+             y = mul2(x);
+             x = add5(x);
            });
            joint_matrix_store(
                sg, sub_d, pD + (sg_startx * TM) * N + sg_starty / sg_size * TN,
@@ -90,8 +81,8 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, Tc *Cref, Ta *Aref,
                sg, sub_a, pA + (sg_startx * TM) * K + sg_starty / sg_size * TK,
                K);
            joint_matrix_apply(sg, sub_a, sub_ar, [](Ta &x, Ta &y) {
-             y = x + 42;
-             x += 5;
+             y = mul2(x);
+             x = add5(x);
            });
            ext::intel::experimental::matrix::joint_matrix_store(
                sg, sub_ar,
@@ -101,7 +92,8 @@ bool apply_two_matrices(Tc *C, Tc *D, Ta *A, Ta *Ar, Tc *Cref, Ta *Aref,
                K);
          }); // parallel for
    }).wait();
-  return apply_verify<Tc, Ta, M, N>(C, D, A, Ar, Cref, Aref);
+  return apply_verify<Tc, M, N>(C, D, Cref) &&
+         apply_verify<Ta, M, N>(A, Ar, Aref);
 }
 
 template <typename Ta, typename Tc, size_t TM, size_t TN, size_t TK,

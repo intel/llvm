@@ -15,6 +15,12 @@ constexpr size_t TM = 8;
 constexpr size_t TN = 16;
 constexpr size_t TK = 16;
 
+template <typename T> T ReLU(T x) { return sycl::max(static_cast<T>(0), x); }
+
+template <typename T> T Sigmoid(T x) {
+  return x = 1.0f / (1.0f + sycl::exp(-x));
+}
+
 template <Activation act, size_t TM, size_t TK, typename Group, typename Tsrc,
           typename Tdest, use UseSrc, use UseDest, layout LayoutSrc,
           layout LayoutDest>
@@ -25,13 +31,11 @@ void applyActivation(
     joint_matrix_copy(sg, sub_c, sub_a);
   } else if constexpr (act == Activation::ReLU) {
 
-    joint_matrix_apply(
-        sg, sub_c, [=](float &x) { x = sycl::max(static_cast<float>(0), x); });
+    joint_matrix_apply(sg, sub_c, [=](float &x) { x = ReLU(x); });
     joint_matrix_copy(sg, sub_c, sub_a);
 
   } else if constexpr (act == Activation::Sigmoid) {
-    joint_matrix_apply(sg, sub_c,
-                       [=](float &x) { x = 1.0f / (1.0f + sycl::exp(-x)); });
+    joint_matrix_apply(sg, sub_c, [=](float &x) { x = Sigmoid(x); });
     joint_matrix_copy(sg, sub_c, sub_a);
   }
   return;
@@ -107,13 +111,14 @@ int main() {
   std::cout << (res ? "Copy passed" : "Copy failed") << std::endl;
 
   matrix_activation_copy<Activation::ReLU>(MC, MA);
-  res &= matrix_compare<Activation::ReLU>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
-                                          (float *)C);
+  matrix_apply(MATRIX_M, MATRIX_N, (float *)C, [](float x) { return ReLU(x); });
+  res &= matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
   std::cout << (res ? "ReLU passed" : "ReLU failed") << std::endl;
 
   matrix_activation_copy<Activation::Sigmoid>(MC, MA);
-  res &= matrix_compare<Activation::Sigmoid>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
-                                             (float *)C);
+  matrix_apply(MATRIX_M, MATRIX_N, (float *)C,
+               [](float x) { return Sigmoid(x); });
+  res &= matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
   std::cout << (res ? "Sigmoid passed" : "Sigmoid failed") << std::endl;
 
   return !res;
