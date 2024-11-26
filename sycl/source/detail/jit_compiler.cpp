@@ -1119,6 +1119,44 @@ sycl_device_binaries jit_compiler::createPIDeviceBinary(
   return JITDeviceBinaries.back().getPIDeviceStruct();
 }
 
+sycl_device_binaries jit_compiler::createDeviceBinaryImage(
+    const ::jit_compiler::RTCBundleInfo &BundleInfo) {
+  DeviceBinaryContainer Binary;
+  for (const auto &Symbol : BundleInfo.SymbolTable) {
+    // Create an offload entry for each kernel.
+    // It seems to be OK to set zero for most of the information here, at least
+    // that is the case for compiled SPIR-V binaries.
+    OffloadEntryContainer Entry{Symbol.c_str(), /*Addr=*/nullptr, /*Size=*/0,
+                                /*Flags=*/0, /*Reserved=*/0};
+    Binary.addOffloadEntry(std::move(Entry));
+  }
+
+  for (const auto &FPS : BundleInfo.Properties) {
+    PropertySetContainer PropSet{FPS.Name.c_str()};
+    for (const auto &FPV : FPS.Values) {
+      if (FPV.IsUIntValue) {
+        PropSet.addProperty(PropertyContainer{FPV.Name.c_str(), FPV.UIntValue});
+      } else {
+        PropSet.addProperty(PropertyContainer{
+            FPV.Name.c_str(), FPV.Bytes.begin(), FPV.Bytes.size(),
+            sycl_property_type::SYCL_PROPERTY_TYPE_BYTE_ARRAY});
+      }
+    }
+    Binary.addProperty(std::move(PropSet));
+  }
+
+  DeviceBinariesCollection Collection;
+  Collection.addDeviceBinary(std::move(Binary),
+                             BundleInfo.BinaryInfo.BinaryStart,
+                             BundleInfo.BinaryInfo.BinarySize,
+                             (BundleInfo.BinaryInfo.AddressBits == 64)
+                                 ? __SYCL_DEVICE_BINARY_TARGET_SPIRV64
+                                 : __SYCL_DEVICE_BINARY_TARGET_SPIRV32,
+                             SYCL_DEVICE_BINARY_TYPE_SPIRV);
+  JITDeviceBinaries.push_back(std::move(Collection));
+  return JITDeviceBinaries.back().getPIDeviceStruct();
+}
+
 std::vector<uint8_t> jit_compiler::encodeArgUsageMask(
     const ::jit_compiler::ArgUsageMask &Mask) const {
   // This must match the decoding logic in program_manager.cpp.
@@ -1167,7 +1205,7 @@ std::vector<uint8_t> jit_compiler::encodeReqdWorkGroupSize(
   return Encoded;
 }
 
-std::vector<uint8_t> jit_compiler::compileSYCL(
+sycl_device_binaries jit_compiler::compileSYCL(
     const std::string &Id, const std::string &SYCLSource,
     const std::vector<std::pair<std::string, std::string>> &IncludePairs,
     const std::vector<std::string> &UserArgs, std::string *LogPtr,
@@ -1211,10 +1249,7 @@ std::vector<uint8_t> jit_compiler::compileSYCL(
   // TODO: We currently don't have a meaningful build log.
   (void)LogPtr;
 
-  const auto &BI = Result.getKernelInfo().BinaryInfo;
-  assert(BI.Format == ::jit_compiler::BinaryFormat::SPIRV);
-  std::vector<uint8_t> SPV(BI.BinaryStart, BI.BinaryStart + BI.BinarySize);
-  return SPV;
+  return createDeviceBinaryImage(Result.getBundleInfo());
 }
 
 } // namespace detail
