@@ -332,11 +332,16 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  print_info<info::device::preferred_interop_user_sync, bool>(
-      dev, "Preferred interop user sync");
+  try {
+    print_info<info::device::preferred_interop_user_sync, bool>(
+        dev, "Preferred interop user sync");
+  } catch (sycl::exception &e) {
+    std::cout << "Expected exception has been caught: " << e.what()
+              << std::endl;
+  }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (sycl::exception e) {
+  } catch (sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }
@@ -359,7 +364,12 @@ int main() {
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());
-  print_info<info::platform::profile, std::string>(plt, "Profile");
+  try {
+    print_info<info::platform::profile, std::string>(plt, "Profile");
+  } catch (sycl::exception &e) {
+    std::cout << "Expected exception has been caught: " << e.what()
+              << std::endl;
+  }
   print_info<info::platform::version, std::string>(plt, "Version");
   print_info<info::platform::name, std::string>(plt, "Name");
   print_info<info::platform::vendor, std::string>(plt, "Vendor");
