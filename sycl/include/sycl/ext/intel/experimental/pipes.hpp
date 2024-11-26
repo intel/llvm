@@ -66,8 +66,12 @@ protected:
 // before that. Make sure we use "inline" everywhere except when compiling
 // `pipes.cpp` so that we'd still provide this backward-compatibility ABI symbol
 // via `pipes.cpp` TU.
+#ifdef __SYCL_PIPES_CPP
 __SYCL_EXPORT
-#ifndef __SYCL_PIPES_CPP
+#ifdef WIN32
+inline
+#endif
+#else
 inline
 #endif
     std::string
