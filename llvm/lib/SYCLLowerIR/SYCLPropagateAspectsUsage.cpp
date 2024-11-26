@@ -666,8 +666,10 @@ void processDeclaredVirtualFunctionSets(
   if (!F->hasFnAttribute("calls-indirectly"))
     return;
 
-  // "Construction" kernels which reference the vtable
-  // can be marked with calls-indirectly attribute by SYCLVirtualFunctionAnalysis pass. 
+  // "Construction" kernels which reference vtables but do not actually 
+  // perform any virtual calls have the calls-indirectly attribute 
+  // attached by SYCLVirtualFunctionAnalysis pass. We do not want to
+  // attach sycl_used_aspects metadata to such kernels.
   bool hasVirtualCall = false;
   for (const Instruction &I : instructions(F)) {
     const auto *CI = dyn_cast<CallInst>(&I);
