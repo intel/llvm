@@ -375,6 +375,8 @@ struct ur_queue_handle_t_ : _ur_object {
   // Keeps track of whether we are using Counter-based Events
   bool CounterBasedEventsEnabled = false;
 
+  bool InterruptBasedEventsEnabled = false;
+
   // Map of all command lists used in this queue.
   ur_command_list_map_t CommandListMap;
 
@@ -532,8 +534,6 @@ struct ur_queue_handle_t_ : _ur_object {
   // Helper method telling whether we need to reuse discarded event in this
   // queue.
   bool doReuseDiscardedEvents();
-
-  bool interruptBasedEventsEnabled();
 
   // Append command to provided command list to wait and reset the last event if
   // it is discarded and create new ur_event_handle_t wrapper using the same
@@ -713,7 +713,7 @@ struct ur_queue_handle_t_ : _ur_object {
 ur_result_t createEventAndAssociateQueue(
     ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
     ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
-    std::optional<bool> HostVisible = std::nullopt, std::optional<bool> InterruptBasedEvents = std::nullopt);
+    std::optional<bool> HostVisible = std::nullopt);
 
 // This helper function checks to see if an event for a command can be included
 // at the end of a command list batch. This will only be true if the event does

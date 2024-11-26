@@ -488,9 +488,9 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
   if (Device) {
     ZeDevice = Device->ZeDevice;
   }
-  std::list<ze_event_pool_handle_t> *ZePoolCache =
-      getZeEventPoolCache(HostVisible, ProfilingEnabled,
-                          CounterBasedEventEnabled, UsingImmCmdList, ZeDevice);
+  std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
+      HostVisible, ProfilingEnabled, CounterBasedEventEnabled, UsingImmCmdList,
+      InterruptBasedEventEnabled, ZeDevice);
 
   if (!ZePoolCache->empty()) {
     if (NumEventsAvailableInEventPool[ZePoolCache->front()] == 0) {
@@ -572,7 +572,7 @@ ur_result_t ur_context_handle_t_::getFreeSlotInExistingOrNewPool(
 
 ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
     bool HostVisible, bool WithProfiling, ur_device_handle_t Device,
-    bool CounterBasedEventEnabled) {
+    bool CounterBasedEventEnabled, bool InterruptBasedEventEnabled) {
   std::scoped_lock<ur_mutex> Lock(EventCacheMutex);
   auto Cache = getEventCache(HostVisible, WithProfiling, Device,
                              CounterBasedEventEnabled);
@@ -585,6 +585,12 @@ ur_event_handle_t ur_context_handle_t_::getEventFromContextCache(
 
   auto It = Cache->begin();
   ur_event_handle_t Event = *It;
+  if (Event->CounterBasedEventsEnabled != CounterBasedEventEnabled) {
+    return nullptr;
+  }
+  if (Event->InterruptBasedEventsEnabled != InterruptBasedEventEnabled) {
+    return nullptr;
+  }
   Cache->erase(It);
   // We have to reset event before using it.
   Event->reset();
@@ -636,7 +642,8 @@ ur_context_handle_t_::decrementUnreleasedEventsInPool(ur_event_handle_t Event) {
 
   std::list<ze_event_pool_handle_t> *ZePoolCache = getZeEventPoolCache(
       Event->isHostVisible(), Event->isProfilingEnabled(),
-      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists, ZeDevice);
+      Event->CounterBasedEventsEnabled, UsingImmediateCommandlists,
+      Event->InterruptBasedEventsEnabled, ZeDevice);
 
   // Put the empty pool to the cache of the pools.
   if (NumEventsUnreleasedInEventPool[Event->ZeEventPool] == 0)

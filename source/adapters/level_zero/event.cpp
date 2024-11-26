@@ -438,7 +438,7 @@ ur_result_t urEnqueueEventsWaitWithBarrier(
       ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
       ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
       Queue, NumEventsInWaitList, EventWaitList, OutEvent,
-      Queue->interruptBasedEventsEnabled());
+      Queue == nullptr ? false : Queue->InterruptBasedEventsEnabled);
 }
 
 ur_result_t urEnqueueEventsWaitWithBarrierExt(
@@ -470,7 +470,7 @@ ur_result_t urEnqueueEventsWaitWithBarrierExt(
         ur_queue_handle_t, uint32_t, const ur_event_handle_t *,
         ur_event_handle_t *, bool)>(EnqueueEventsWaitWithBarrier)(
         Queue, NumEventsInWaitList, EventWaitList, OutEvent,
-        Queue->interruptBasedEventsEnabled());
+        Queue ? Queue->InterruptBasedEventsEnabled : false);
   }
 }
 
@@ -1342,7 +1342,8 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   }
 
   if (auto CachedEvent = Context->getEventFromContextCache(
-          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled)) {
+          HostVisible, ProfilingEnabled, Device, CounterBasedEventEnabled,
+          InterruptBasedEventEnabled)) {
     *RetEvent = CachedEvent;
     return UR_RESULT_SUCCESS;
   }
@@ -1355,7 +1356,7 @@ ur_result_t EventCreate(ur_context_handle_t Context, ur_queue_handle_t Queue,
   if (auto Res = Context->getFreeSlotInExistingOrNewPool(
           ZeEventPool, Index, HostVisible, ProfilingEnabled, Device,
           CounterBasedEventEnabled, UsingImmediateCommandlists,
-          Queue->interruptBasedEventsEnabled()))
+          InterruptBasedEventEnabled))
     return Res;
 
   ZeStruct<ze_event_desc_t> ZeEventDesc;

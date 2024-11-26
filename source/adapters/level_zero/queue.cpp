@@ -1192,10 +1192,20 @@ ur_queue_handle_t_::ur_queue_handle_t_(
     }
     return std::atoi(UrRet) != 0;
   }();
+  static const bool useInterruptBasedEvents = [] {
+    const char *UrRet = std::getenv("UR_L0_USE_INTERRUPT_BASED_EVENTS");
+    if (!UrRet) {
+      return true;
+    }
+    return std::atoi(UrRet) != 0;
+  }();
   this->CounterBasedEventsEnabled =
       UsingImmCmdLists && isInOrderQueue() && Device->useDriverInOrderLists() &&
       useDriverCounterBasedEvents &&
       Device->Platform->ZeDriverEventPoolCountingEventsExtensionFound;
+  this->InterruptBasedEventsEnabled = useInterruptBasedEvents &&
+                                      isLowPowerEvents() && isInOrderQueue() &&
+                                      Device->useDriverInOrderLists();
 }
 
 void ur_queue_handle_t_::adjustBatchSizeForFullBatch(bool IsCopy) {
@@ -1492,11 +1502,6 @@ ur_queue_handle_t_::executeCommandList(ur_command_list_ptr_t CommandList,
 
 bool ur_queue_handle_t_::doReuseDiscardedEvents() {
   return ReuseDiscardedEvents && isInOrderQueue() && isDiscardEvents();
-}
-
-bool ur_queue_handle_t_::interruptBasedEventsEnabled() {
-  return isInOrderQueue() && Device->useDriverInOrderLists() &&
-         isLowPowerEvents();
 }
 
 ur_result_t
@@ -1877,10 +1882,12 @@ ur_result_t setSignalEvent(ur_queue_handle_t Queue, bool UseCopyEngine,
 //        visible pool.
 // \param HostVisible tells if the event must be created in the
 //        host-visible pool. If not set then this function will decide.
-ur_result_t createEventAndAssociateQueue(
-    ur_queue_handle_t Queue, ur_event_handle_t *Event, ur_command_t CommandType,
-    ur_command_list_ptr_t CommandList, bool IsInternal, bool IsMultiDevice,
-    std::optional<bool> HostVisible, std::optional<bool> InterruptBasedEvents) {
+ur_result_t createEventAndAssociateQueue(ur_queue_handle_t Queue,
+                                         ur_event_handle_t *Event,
+                                         ur_command_t CommandType,
+                                         ur_command_list_ptr_t CommandList,
+                                         bool IsInternal, bool IsMultiDevice,
+                                         std::optional<bool> HostVisible) {
 
   if (!HostVisible.has_value()) {
     // Internal/discarded events do not need host-scope visibility.
@@ -1896,9 +1903,7 @@ ur_result_t createEventAndAssociateQueue(
     UR_CALL(EventCreate(
         Queue->Context, Queue, IsMultiDevice, HostVisible.value(), Event,
         Queue->CounterBasedEventsEnabled, false /*ForceDisableProfiling*/,
-        InterruptBasedEvents.has_value()
-            ? InterruptBasedEvents.value()
-            : Queue->interruptBasedEventsEnabled()));
+        Queue->InterruptBasedEventsEnabled));
 
   (*Event)->UrQueue = Queue;
   (*Event)->CommandType = CommandType;

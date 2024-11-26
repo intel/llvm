@@ -168,9 +168,9 @@ struct ur_context_handle_t_ : _ur_object {
   // head.
   //
   // Cache of event pools to which host-visible events are added to.
-  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{12};
+  std::vector<std::list<ze_event_pool_handle_t>> ZeEventPoolCache{30};
   std::vector<std::unordered_map<ze_device_handle_t, size_t>>
-      ZeEventPoolCacheDeviceMap{12};
+      ZeEventPoolCacheDeviceMap{30};
 
   // This map will be used to determine if a pool is full or not
   // by storing number of empty slots available in the pool.
@@ -224,7 +224,8 @@ struct ur_context_handle_t_ : _ur_object {
   ur_event_handle_t getEventFromContextCache(bool HostVisible,
                                              bool WithProfiling,
                                              ur_device_handle_t Device,
-                                             bool CounterBasedEventEnabled);
+                                             bool CounterBasedEventEnabled,
+                                             bool InterruptBasedEventEnabled);
 
   // Add ur_event_handle_t to cache.
   void addEventToContextCache(ur_event_handle_t);
@@ -235,17 +236,29 @@ struct ur_context_handle_t_ : _ur_object {
     HostVisibleCounterBasedRegularCacheType,
     HostInvisibleCounterBasedRegularCacheType,
     HostVisibleCounterBasedImmediateCacheType,
-    HostInvisibleCounterBasedImmediateCacheType
+    HostInvisibleCounterBasedImmediateCacheType,
+
+    HostVisibleInterruptBasedRegularCacheType,
+    HostInvisibleInterruptBasedRegularCacheType,
+    HostVisibleInterruptBasedImmediateCacheType,
+    HostInvisibleInterruptBasedImmediateCacheType,
+
+    HostVisibleInterruptAndCounterBasedRegularCacheType,
+    HostInvisibleInterruptAndCounterBasedRegularCacheType,
+    HostVisibleInterruptAndCounterBasedImmediateCacheType,
+    HostInvisibleInterruptAndCounterBasedImmediateCacheType
   };
 
   std::list<ze_event_pool_handle_t> *
   getZeEventPoolCache(bool HostVisible, bool WithProfiling,
                       bool CounterBasedEventEnabled, bool UsingImmediateCmdList,
+                      bool InterruptBasedEventEnabled,
                       ze_device_handle_t ZeDevice) {
     EventPoolCacheType CacheType;
 
     calculateCacheIndex(HostVisible, CounterBasedEventEnabled,
-                        UsingImmediateCmdList, CacheType);
+                        InterruptBasedEventEnabled, UsingImmediateCmdList,
+                        CacheType);
     if (ZeDevice) {
       auto ZeEventPoolCacheMap =
           WithProfiling ? &ZeEventPoolCacheDeviceMap[CacheType * 2]
@@ -265,23 +278,57 @@ struct ur_context_handle_t_ : _ur_object {
   ur_result_t calculateCacheIndex(bool HostVisible,
                                   bool CounterBasedEventEnabled,
                                   bool UsingImmediateCmdList,
+                                  bool InterruptBasedEventEnabled,
                                   EventPoolCacheType &CacheType) {
-    if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
-      CacheType = HostVisibleCounterBasedRegularCacheType;
-    } else if (CounterBasedEventEnabled && !HostVisible &&
-               !UsingImmediateCmdList) {
-      CacheType = HostInvisibleCounterBasedRegularCacheType;
-    } else if (CounterBasedEventEnabled && HostVisible &&
-               UsingImmediateCmdList) {
-      CacheType = HostVisibleCounterBasedImmediateCacheType;
-    } else if (CounterBasedEventEnabled && !HostVisible &&
-               UsingImmediateCmdList) {
-      CacheType = HostInvisibleCounterBasedImmediateCacheType;
-    } else if (!CounterBasedEventEnabled && HostVisible) {
-      CacheType = HostVisibleCacheType;
+    if (InterruptBasedEventEnabled) {
+      if (CounterBasedEventEnabled) {
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptAndCounterBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptAndCounterBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptAndCounterBasedRegularCacheType;
+          }
+        }
+      } else {
+        if (HostVisible) {
+          if (UsingImmediateCmdList) {
+            CacheType = HostVisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostVisibleInterruptBasedRegularCacheType;
+          }
+        } else {
+          if (UsingImmediateCmdList) {
+            CacheType = HostInvisibleInterruptBasedImmediateCacheType;
+          } else {
+            CacheType = HostInvisibleInterruptBasedRegularCacheType;
+          }
+        }
+      }
     } else {
-      CacheType = HostInvisibleCacheType;
+      if (CounterBasedEventEnabled && HostVisible && !UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 !UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedRegularCacheType;
+      } else if (CounterBasedEventEnabled && HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostVisibleCounterBasedImmediateCacheType;
+      } else if (CounterBasedEventEnabled && !HostVisible &&
+                 UsingImmediateCmdList) {
+        CacheType = HostInvisibleCounterBasedImmediateCacheType;
+      } else if (!CounterBasedEventEnabled && HostVisible) {
+        CacheType = HostVisibleCacheType;
+      } else {
+        CacheType = HostInvisibleCacheType;
+      }
     }
+
     return UR_RESULT_SUCCESS;
   }
 
