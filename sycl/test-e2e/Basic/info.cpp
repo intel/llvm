@@ -335,13 +335,13 @@ int main() {
   try {
     print_info<info::device::preferred_interop_user_sync, bool>(
         dev, "Preferred interop user sync");
-  } catch (sycl::exception &e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (sycl::exception &e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }
@@ -366,7 +366,7 @@ int main() {
   platform plt(dev.get_platform());
   try {
     print_info<info::platform::profile, std::string>(plt, "Profile");
-  } catch (sycl::exception &e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }
