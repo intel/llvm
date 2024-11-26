@@ -335,13 +335,7 @@ public:
   /// @param path The path to write the DOT file to.
   /// @param verbose If true, print additional information about the nodes such
   /// as kernel args or memory access where applicable.
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  void print_graph(const std::string path, bool verbose = false) const {
-    print_graph(sycl::detail::string_view{path}, verbose);
-  }
-#else
   void print_graph(const std::string path, bool verbose = false) const;
-#endif
 
   /// Get a list of all nodes contained in this graph.
   std::vector<node> get_nodes() const;
@@ -378,16 +372,29 @@ protected:
   /// added as dependencies.
   void addGraphLeafDependencies(node Node);
 
+  void print_graph(sycl::detail::string_view path, bool verbose = false) const;
+
   template <class Obj>
   friend const decltype(Obj::impl) &
   sycl::detail::getSyclObjImpl(const Obj &SyclObject);
   template <class T>
   friend T sycl::detail::createSyclObjFromImpl(decltype(T::impl) ImplObj);
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
-  void print_graph(sycl::detail::string_view path, bool verbose = false) const;
-#endif
   std::shared_ptr<detail::graph_impl> impl;
 };
+
+#ifdef __SYCL_GRAPH_IMPL_CPP
+__SYCL_EXPORT
+#if WIN32
+inline
+#endif
+#else
+inline
+#endif
+    void
+    modifiable_command_graph::print_graph(const std::string path,
+                                          bool verbose) const {
+  print_graph(sycl::detail::string_view{path}, verbose);
+}
 
 // Templateless executable command-graph base class.
 class __SYCL_EXPORT executable_command_graph {

@@ -4202,6 +4202,7 @@
 ?prefetch@queue@_V1@sycl@@QEAA?AVevent@23@PEBX_KV423@AEBUcode_location@detail@23@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVcontext@45@@Z
 ?prepare_for_device_copy@experimental@oneapi@ext@_V1@sycl@@YAXPEBX_KAEBVqueue@45@@Z
+?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@IEBAXVstring_view@267@_N@Z
 ?print_graph@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBAXV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@_N@Z
 ?processArg@handler@_V1@sycl@@AEAAXPEAXAEBW4kernel_param_kind_t@detail@23@H_KAEA_K_N4@Z
 ?query@tls_code_loc_t@detail@_V1@sycl@@QEAAAEBUcode_location@234@XZ
