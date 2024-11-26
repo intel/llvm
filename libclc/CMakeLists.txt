@@ -113,7 +113,7 @@ if( EXISTS ${LIBCLC_CUSTOM_LLVM_TOOLS_BINARY_DIR} )
 
   # If we've requested a custom binary directory, there are some otherwise
   # optional tools which we want to ensure are present.
-  if( NOT TARGET libclc::llvm-spirv OR NOT TARGET libclc::libclc-remangler )
+  if( NOT TARGET llvm-spirv_target OR NOT TARGET libclc-remangler_target )
     message( FATAL_ERROR "libclc toolchain incomplete!" )
   endif()
 endif()

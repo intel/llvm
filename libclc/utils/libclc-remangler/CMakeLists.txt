@@ -25,26 +25,12 @@ clang_target_link_libraries(libclc-remangler
   LLVMOption
   )
 
-if(CMAKE_CROSSCOMPILING)
-  if(LLVM_NATIVE_TOOL_DIR AND NOT LIBCLC_REMANGLER_PATH)
-    if(EXISTS "${LLVM_NATIVE_TOOL_DIR}/libclc-remangler${LLVM_HOST_EXECUTABLE_SUFFIX}")
-      set(LLVM_CONFIG_PATH "${LLVM_NATIVE_TOOL_DIR}/libclc-remangler${LLVM_HOST_EXECUTABLE_SUFFIX}")
-    endif()
-  endif()
-
-  if(NOT LIBCLC_REMANGLER_PATH)
-    build_native_tool(libclc-remangler LIBCLC_REMANGLER_PATH)
-    set(LIBCLC_REMANGLER_PATH "${LIBCLC_REMANGLER_PATH}" CACHE STRING "")
-
-    add_custom_target(NativeLibCLCRemangler DEPENDS ${LIBCLC_REMANGLER_PATH})
-    add_dependencies(libclc-remangler NativeLibCLCRemangler)
-  endif()
-else()
-  set(LIBCLC_REMANGLER_PATH "${CMAKE_CURRENT_BINARY_DIR}/bin/libclc-remangler" CACHE STRING "")
-endif()
-
 # If we've not already imported a libclc-remangler tool from an external build,
 # set it up now.
-if(NOT TARGET libclc::libclc-remangler)
-  add_executable(libclc::libclc-remangler ALIAS libclc-remangler)
+if(NOT TARGET libclc-remangler_target)
+  if ( CMAKE_CROSSCOMPILING )
+    setup_host_tool(libclc-remangler LIBCLC_REMANGLER libclc-remangler_exe libclc-remangler_target)
+  else()
+    add_executable(libclc-remangler_target ALIAS libclc-remangler)
+  endif()
 endif()
