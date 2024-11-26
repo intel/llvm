@@ -2089,7 +2089,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::single_task (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
@@ -2134,7 +2134,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::single_task (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
@@ -2184,7 +2184,7 @@ public:
   /// \param CodeLoc contains the code location of user code
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::single_task (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<
@@ -2438,7 +2438,7 @@ public:
   /// const KernelType &KernelFunc".
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<

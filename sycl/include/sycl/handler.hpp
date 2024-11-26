@@ -2314,7 +2314,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::single_task (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<ext::oneapi::experimental::is_property_list<
@@ -2367,7 +2367,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
@@ -2386,7 +2386,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
@@ -2405,7 +2405,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename PropertiesT,
             typename... RestT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
@@ -2448,7 +2448,7 @@ public:
 
   template <typename KernelName = detail::auto_name, int Dims,
             typename PropertiesT, typename... RestT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   std::enable_if_t<(sizeof...(RestT) > 1) &&
@@ -2478,7 +2478,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups, PropertiesT Props,
@@ -2490,7 +2490,7 @@ public:
 
   template <typename KernelName = detail::auto_name, typename KernelType,
             int Dims, typename PropertiesT>
-  __SYCL2020_DEPRECATED(
+  __SYCL_DEPRECATED(
       "Use sycl::ext::oneapi::experimental::parallel_for (provided in the "
       "sycl_ext_oneapi_enqueue_functions extension) instead.")
   void parallel_for_work_group(range<Dims> NumWorkGroups,
