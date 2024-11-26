@@ -439,8 +439,8 @@ The caching isn't done when:
 - Employ the same built object for multiple devices of the same ISA,
   capabilities and so on. *NOTE:* It's not really known if it's possible to
   check if two distinct devices are *exactly* the same. Probably this should be
-  an improvement request for plugins. By now it is assumed that two devices with
-  the same device id <a name="what-is-did">2</a> are the same.
+  an improvement request for the UR adapters. By now it is assumed that two
+  devices with the same device id <a name="what-is-did">2</a> are the same.
 - Improve testing: cover real use-cases. See currently covered cases
   [here](https://github.com/intel/llvm/blob/sycl/sycl/unittests/kernel-and-program/Cache.cpp).
 - Implement tool for exploring cache items (initially it is possible using OS
