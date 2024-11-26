@@ -35,7 +35,7 @@ def int_dx_typedBufferLoad_checkbit
 def int_dx_typedBufferStore
     : DefaultAttrsIntrinsic<[], [llvm_any_ty, llvm_i32_ty, llvm_anyvector_ty]>;
 
-def int_dx_updateCounter
+def int_dx_bufferUpdateCounter
     : DefaultAttrsIntrinsic<[llvm_i32_ty], [llvm_any_ty, llvm_i8_ty],
                             [IntrInaccessibleMemOrArgMemOnly]>;
     
