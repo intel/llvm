@@ -87,9 +87,8 @@ prepareOclocArgs(sycl::info::device_type DeviceType, device_arch DeviceArch,
 /// @param UserArgs - User's options to ocloc compiler.
 static std::vector<byte>
 compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
-               device_arch DeviceArch, bool Is64Bit,
-               string_view DeviceStepping, void *&CompileToSPIRVHandle,
-               void *&FreeSPIRVOutputsHandle,
+               device_arch DeviceArch, bool Is64Bit, string_view DeviceStepping,
+               void *&CompileToSPIRVHandle, void *&FreeSPIRVOutputsHandle,
                const std::vector<std::string> &UserArgs) {
   std::string Source{Src.data()};
 
@@ -205,8 +204,7 @@ compileToSPIRV(string_view Src, sycl::info::device_type DeviceType,
 
 template <source_language Lang>
 __SYCL_EXPORT std::vector<byte> online_compiler<Lang>::compile_impl(
-    detail::string_view Src,
-    detail::string_view DeviceStepping,
+    detail::string_view Src, detail::string_view DeviceStepping,
     const std::vector<detail::string_view> &Options) {
 
   if (OutputFormatVersion != std::pair<int, int>{0, 0}) {

@@ -239,7 +239,7 @@ template <>
 template <>
 #if !defined(__SYCL_ONLINE_COMPILER_CPP) ||                                    \
     defined(__INTEL_PREVIEW_BREAKING_CHANGES)
-    inline
+inline
 #else
 __SYCL_EXPORT
 #endif
