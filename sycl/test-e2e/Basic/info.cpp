@@ -323,7 +323,12 @@ int main() {
   print_info<info::device::name, std::string>(dev, "Name");
   print_info<info::device::vendor, std::string>(dev, "Vendor");
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
-  print_info<info::device::profile, std::string>(dev, "Profile");
+  try {
+    print_info<info::device::profile, std::string>(dev, "Profile");
+  } catch (const sycl::exception &e) {
+    std::cout << "Expected exception has been caught: " << e.what()
+              << std::endl;
+  }
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
@@ -333,9 +338,12 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  if (Backend == backend::opencl) {
+  try {
     print_info<info::device::preferred_interop_user_sync, bool>(
         dev, "Preferred interop user sync");
+  } catch (const sycl::exception &e) {
+    std::cout << "Expected exception has been caught: " << e.what()
+              << std::endl;
   }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
@@ -362,9 +370,7 @@ int main() {
 
   std::cout << separator << "Platform information\n" << separator;
   platform plt(dev.get_platform());
-  if (Backend == sycl::backend::opencl) {
-    print_info<info::platform::profile, std::string>(plt, "Profile");
-  }
+  print_info<info::platform::profile, std::string>(plt, "Profile");
   print_info<info::platform::version, std::string>(plt, "Version");
   print_info<info::platform::name, std::string>(plt, "Name");
   print_info<info::platform::vendor, std::string>(plt, "Vendor");
