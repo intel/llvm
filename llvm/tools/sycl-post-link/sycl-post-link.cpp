@@ -782,39 +782,6 @@ bool hasVirtualFunctionsAndOptionalKernelFeatures(const Module &M) {
   return hasVirtualFunctions && hasOptionalKernelFeatures;
 }
 
-// std::optional<module_split::ModuleDesc>
-// makeDummy(module_split::ModuleDesc &MD) {
-//   bool hasVirtualFunctions = false;
-//   bool hasOptionalKernelFeatures = false;
-//   for (Function &F : M.functions()) {
-//     if (F.hasFnAttribute("indirectly-callable"))
-//       hasVirtualFunctions = true;
-//     if (F.getMetadata("sycl_used_aspects"))
-//       hasOptionalKernelFeatures = true;
-//     if (hasVirtualFunctions && hasOptionalKernelFeatures)
-//       break;
-//   }
-//   if (!hasVirtualFunctions || !hasOptionalKernelFeatures)
-//     return {};
-
-//   auto MDCopy = MD.clone();
-
-//   for (Function &F : MDCopy.getModule().functions()) {
-//     if (!F.hasFnAttribute("indirectly-callable"))
-//       continue;
-
-//     F.erase(F.begin(), F.end());
-//     BasicBlock *newBB = BasicBlock::Create(F.getContext(), "entry", &F);
-//     IRBuilder<> builder(newBB);
-//     if (F.getReturnType()->isVoidTy())
-//       builder.CreateRetVoid();
-//     else
-//       builder.CreateRet(UndefValue::get(F.getReturnType()));
-//   }
-
-//   return MDCopy;
-// }
-
 std::vector<std::unique_ptr<util::SimpleTable>>
 processInputModule(std::unique_ptr<Module> M) {
   // Construct the resulting table which will accumulate all the outputs.
