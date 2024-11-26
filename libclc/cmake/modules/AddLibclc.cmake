@@ -456,7 +456,7 @@ function(add_libclc_builtin_set)
             "${LIBCLC_LIBRARY_OUTPUT_INTDIR}/remangled-${long_width}-${signedness}_char.${obj_suffix_mangled}" )
         add_custom_command( OUTPUT "${builtins_remangle_path}"
           COMMAND ${CMAKE_COMMAND} -E make_directory ${LIBCLC_LIBRARY_OUTPUT_INTDIR}
-          COMMAND libclc::libclc-remangler
+          COMMAND ${LIBCLC_REMANGLER_PATH}
           -o "${builtins_remangle_path}"
           --long-width=${long_width}
           --char-signedness=${signedness}
@@ -489,7 +489,7 @@ function(add_libclc_builtin_set)
       math(EXPR libclc-remangler-test-no "${libclc-remangler-test-no}+1")
       set(current-test "libclc-remangler-test-${obj_suffix}-${libclc-remangler-test-no}")
       add_custom_target(${current-test}
-        COMMAND libclc::libclc-remangler
+        COMMAND ${LIBCLC_REMANGLER_PATH}
         --long-width=l32
         --char-signedness=signed
         --input-ir=${target-ir}
