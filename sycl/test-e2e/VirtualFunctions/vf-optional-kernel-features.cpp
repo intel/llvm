@@ -29,7 +29,7 @@ int main() {
   // Selected device may not support 'fp64' aspect
   sycl::queue Q;
 
-  Base *Obj = sycl::malloc_device<Base>(1, Q);
+  Base *Obj = sycl::malloc_shared<Base>(1, Q);
 
   Q.single_task<Constructor>([=]() {
     // Even though at LLVM IR level this kernel does reference 'Base::foo'
