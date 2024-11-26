@@ -208,7 +208,6 @@ int main() {
   std::string separator(std::string(80, '-') + "\n");
   std::cout << separator << "Device information\n" << separator;
   device dev(default_selector_v);
-  const sycl::backend Backend = dev.get_backend();
 
   print_info<info::device::device_type, info::device_type>(dev, "Device type");
   print_info<info::device::vendor_id, std::uint32_t>(dev, "Vendor ID");
