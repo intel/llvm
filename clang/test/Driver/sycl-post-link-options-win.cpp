@@ -3,7 +3,7 @@
 // RUN: %clangxx -### --target=x86_64-pc-windows-msvc -fsycl \
 // RUN:          -Xdevice-post-link -O0 %s 2>&1 \
 // RUN:   | FileCheck -check-prefix OPTIONS_POSTLINK_JIT_OLD %s
-// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "-properties" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
+// OPTIONS_POSTLINK_JIT_OLD: sycl-post-link{{.*}} "-O2" "-device-globals" "--device-lib-spv-dir={{.*}}" "-properties" "-spec-const=native" "-split=auto" "-emit-only-kernels-as-entry-points" "-emit-param-info" "-symbols" "-emit-exported-symbols" "-emit-imported-symbols" "-split-esimd" "-lower-esimd" "-O0"
 // -------
 // Generate .o file as linker wrapper input.
 //
