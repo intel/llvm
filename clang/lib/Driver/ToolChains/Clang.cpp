@@ -10929,18 +10929,35 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (allowDeviceImageDependencies(TCArgs))
     addArgs(PostLinkArgs, TCArgs, {"-allow-device-image-dependencies"});
 
-  SYCLInstallationDetector SYCLInstall(TC.getDriver());
-  SmallVector<SmallString<128>, 4> SpvLocCandidates;
-  SmallString<128> FallbackAssertName("libsycl-fallback-cassert.spv");
-  SYCLInstall.getSYCLDeviceLibPath(SpvLocCandidates, true);
-  for (const auto &SpvLoc : SpvLocCandidates) {
-    SmallString<128> FullLibName(SpvLoc);
-    llvm::sys::path::append(FullLibName, FallbackAssertName);
-    if (llvm::sys::fs::exists(FullLibName)) {
-      SmallString<128> SYCLDeviceLibDir("--device-lib-spv-dir=");
-      SYCLDeviceLibDir += SpvLoc.str();
-      addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
-      break;
+  bool DeviceLibDisable = false;
+  Arg *DeviceLibArg = TCArgs.getLastArg(options::OPT_fsycl_device_lib_EQ,
+                                        options::OPT_fno_sycl_device_lib_EQ);
+  if (DeviceLibArg &&
+      DeviceLibArg->getOption().matches(options::OPT_fno_sycl_device_lib_EQ)) {
+    for (StringRef Val : DeviceLibArg->getValues()) {
+      if (Val == "all") {
+        DeviceLibDisable = true;
+        break;
+      }
+    }
+  }
+
+  // Fallback spv is NOT involved in AOT compilation or
+  // '-fno-sycl-device-lib=all' is applied by user explicitly.
+  if (!TC.getTriple().isSPIRAOT() && !DeviceLibDisable) {
+    SYCLInstallationDetector SYCLInstall(TC.getDriver());
+    SmallVector<SmallString<128>, 4> SpvLocCandidates;
+    SmallString<128> FallbackAssertName("libsycl-fallback-cassert.spv");
+    SYCLInstall.getSYCLDeviceLibPath(SpvLocCandidates, true);
+    for (const auto &SpvLoc : SpvLocCandidates) {
+      SmallString<128> FullLibName(SpvLoc);
+      llvm::sys::path::append(FullLibName, FallbackAssertName);
+      if (llvm::sys::fs::exists(FullLibName)) {
+        SmallString<128> SYCLDeviceLibDir("--device-lib-spv-dir=");
+        SYCLDeviceLibDir += SpvLoc.str();
+        addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
+        break;
+      }
     }
   }
 }
