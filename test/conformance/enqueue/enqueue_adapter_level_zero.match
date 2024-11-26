@@ -1,5 +1,7 @@
 {{OPT}}urEnqueueEventsWaitTest.Success/*
 {{OPT}}urEnqueueKernelLaunchTest.InvalidKernelArgs/*
+{{OPT}}urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/UseEventsNoQueuePerThread
+{{OPT}}urEnqueueKernelLaunchIncrementMultiDeviceMultiThreadTest.Success/NoUseEventsNoQueuePerThread
 {{OPT}}urEnqueueKernelLaunchKernelWgSizeTest.Success/*
 {{OPT}}urEnqueueKernelLaunchKernelSubGroupTest.Success/*
 {{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/*__copy_2d_3d
