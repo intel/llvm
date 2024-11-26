@@ -791,10 +791,9 @@ processInputModule(std::unique_ptr<Module> M) {
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // AddressSanitizer specific passes
+  // MemorySanitizer specific passes
   if (isModuleUsingMsan(*M)) {
-    // Fix attributes and metadata of the global variable
-    // "__AsanKernelMetadata"
+    // Fix attributes and metadata of KernelMetadata
     Modified |= runModulePass<SanitizerKernelMetadataPass>(*M);
   }
 

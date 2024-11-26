@@ -28,9 +28,8 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
                                                    ModuleAnalysisManager &MAM) {
   auto *KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
-  if (!KernelMetadata) {
+  if (!KernelMetadata)
     return PreservedAnalyses::all();
-  }
 
   auto &DL = M.getDataLayout();
   auto &Ctx = M.getContext();
