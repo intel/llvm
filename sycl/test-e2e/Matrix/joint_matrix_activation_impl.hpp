@@ -15,6 +15,12 @@ constexpr size_t TM = 8;
 constexpr size_t TN = 16;
 constexpr size_t TK = 16;
 
+enum class Activation {
+  ReLU,
+  Sigmoid,
+  None,
+};
+
 template <typename T> T ReLU(T x) { return sycl::max(static_cast<T>(0), x); }
 
 template <typename T> T Sigmoid(T x) {
@@ -105,9 +111,7 @@ int main() {
   big_matrix<bfloat16, MATRIX_M, MATRIX_K> MA((bfloat16 *)&A);
 
   matrix_activation_copy<Activation::None>(MC, MA);
-  bool res0 = matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
-  bool res = matrix_compare<Activation::None>(MATRIX_M, MATRIX_N, (bfloat16 *)A,
-                                              (float *)C);
+  bool res = matrix_compare(MATRIX_M, MATRIX_N, (bfloat16 *)A, (float *)C);
   std::cout << (res ? "Copy passed" : "Copy failed") << std::endl;
 
   matrix_activation_copy<Activation::ReLU>(MC, MA);

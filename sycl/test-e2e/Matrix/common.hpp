@@ -36,12 +36,6 @@ public:
   big_matrix(T *data) : mat(data) {}
 };
 
-enum class Activation {
-  ReLU,
-  Sigmoid,
-  None,
-};
-
 float make_fp32(bfloat16 x) {
   unsigned int y = *((int *)&x);
   y = y << 16;
@@ -169,8 +163,7 @@ void matrix_apply(unsigned int rows, unsigned int cols, T *mat, F op) {
       mat[i * cols + j] = op(mat[i * cols + j]);
 }
 
-template <Activation act = Activation::None, typename T1, typename T2,
-          bool exact = false>
+template <typename T1, typename T2, bool exact = false>
 bool matrix_compare(unsigned int rows, unsigned int cols, T1 *src, T2 *ref) {
   for (int i = 0; i < rows; i++) {
     for (int j = 0; j < cols; j++) {
