@@ -1417,7 +1417,7 @@ get_device_info<info::device::preferred_interop_user_sync>(
     const DeviceImplPtr &Dev) {
   if (Dev->getBackend() != backend::opencl) {
     throw sycl::exception(
-        errc::backend_mismatch,
+        errc::invalid,
         "the info::device::preferred_interop_user_sync info descriptor can "
         "only be queried with an OpenCL backend");
   }
@@ -1429,7 +1429,7 @@ template <>
 inline typename info::device::profile::return_type
 get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
   if (Dev->getBackend() != backend::opencl) {
-    throw sycl::exception(errc::backend_mismatch,
+    throw sycl::exception(errc::invalid,
                           "the info::device::profile info descriptor can "
                           "only be queried with an OpenCL backend");
   }
