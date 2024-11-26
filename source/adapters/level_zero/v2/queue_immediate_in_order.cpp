@@ -153,6 +153,8 @@ ur_result_t ur_queue_immediate_in_order_t::queueRelease() {
   if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  UR_CALL(queueFinish());
+
   delete this;
   return UR_RESULT_SUCCESS;
 }
