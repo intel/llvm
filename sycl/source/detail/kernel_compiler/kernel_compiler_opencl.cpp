@@ -6,7 +6,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include <sycl/detail/ur.hpp> // getOsLibraryFuncAddress
+#include <detail/load_library.hpp> // getOsLibraryFuncAddress
 #include <sycl/exception.hpp> // make_error_code
 
 #include "kernel_compiler_opencl.hpp"
@@ -27,7 +27,7 @@ namespace detail {
 // ensures the OclocLibrary has the right version, etc.
 void checkOclocLibrary(void *OclocLibrary) {
   void *OclocVersionHandle =
-      sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
+      sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocVersion");
   // The initial versions of ocloc library did not have the oclocVersion()
   // function. Those versions had the same API as the first version of ocloc
   // library having that oclocVersion() function.
@@ -67,7 +67,7 @@ void *loadOclocLibrary() {
 #endif
   void *tempPtr = OclocLibrary;
   if (tempPtr == nullptr) {
-    tempPtr = sycl::detail::ur::loadOsLibrary(OclocLibraryName);
+    tempPtr = sycl::detail::loadOsLibrary(OclocLibraryName);
 
     if (tempPtr == nullptr)
       throw sycl::exception(make_error_code(errc::build),
@@ -104,12 +104,12 @@ void SetupLibrary(voidPtr &oclocInvokeHandle, voidPtr &oclocFreeOutputHandle,
       loadOclocLibrary();
 
     oclocInvokeHandle =
-        sycl::detail::ur::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
+        sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocInvoke");
     if (!oclocInvokeHandle)
       throw sycl::exception(the_errc, "Cannot load oclocInvoke() function");
 
-    oclocFreeOutputHandle = sycl::detail::ur::getOsLibraryFuncAddress(
-        OclocLibrary, "oclocFreeOutput");
+    oclocFreeOutputHandle =
+        sycl::detail::getOsLibraryFuncAddress(OclocLibrary, "oclocFreeOutput");
     if (!oclocFreeOutputHandle)
       throw sycl::exception(the_errc, "Cannot load oclocFreeOutput() function");
   }
