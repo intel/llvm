@@ -28,7 +28,7 @@ Environment Variables
 | UR_L0_USE_RELAXED_ALLOCATION_LIMITS         | Controls the use of relaxed allocation limits.               | "0": Relaxed allocation limits are not used.                 | "0"              |
 |                                             |                                                              | "1": Relaxed allocation limits are used.                     |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
-| UR_L0_USE_DRIVER_IN_ORDER_LISTS             | Controls the use of in-order lists from the driver.          | "0": In-order lists from the driver are not used.            | "0"              |
+| UR_L0_USE_DRIVER_INORDER_LISTS              | Controls the use of in-order lists from the driver.          | "0": In-order lists from the driver are not used.            | "0"              |
 |                                             |                                                              | "1": In-order lists from the driver are used.                |                  |
 +---------------------------------------------+--------------------------------------------------------------+--------------------------------------------------------------+------------------+
 | UR_L0_USM_ALLOCATOR_TRACE                   | Enables tracing for the USM allocator.                       | "0": Tracing is disabled.                                    | "0"              |
