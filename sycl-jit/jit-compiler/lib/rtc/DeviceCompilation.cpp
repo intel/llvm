@@ -18,10 +18,14 @@
 #include <clang/Tooling/CompilationDatabase.h>
 #include <clang/Tooling/Tooling.h>
 
+#include <llvm/IR/PassInstrumentation.h>
+#include <llvm/IR/PassManager.h>
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
-
-#include <array>
+#include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
+#include <llvm/SYCLLowerIR/ModuleSplitter.h>
+#include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
+#include <llvm/Support/PropertySetIO.h>
 
 using namespace clang;
 using namespace clang::tooling;
@@ -29,6 +33,10 @@ using namespace clang::driver;
 using namespace clang::driver::options;
 using namespace llvm;
 using namespace llvm::opt;
+using namespace llvm::sycl;
+using namespace llvm::module_split;
+using namespace llvm::util;
+using namespace jit_compiler;
 
 #ifdef _GNU_SOURCE
 #include <dlfcn.h>
@@ -356,6 +364,94 @@ Error jit_compiler::linkDeviceLibraries(llvm::Module &Module,
   return Error::success();
 }
 
+template <class PassClass> static bool runModulePass(llvm::Module &M) {
+  ModulePassManager MPM;
+  ModuleAnalysisManager MAM;
+  // Register required analysis
+  MAM.registerPass([&] { return PassInstrumentationAnalysis(); });
+  MPM.addPass(PassClass{});
+  PreservedAnalyses Res = MPM.run(M, MAM);
+  return !Res.areAllPreserved();
+}
+
+Expected<RTCBundleInfo> jit_compiler::performPostLink(
+    llvm::Module &Module, [[maybe_unused]] const InputArgList &UserArgList) {
+  // This is a simplified version of `processInputModule` in
+  // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
+  // left out of the algorithm for now.
+
+  assert(!Module.getGlobalVariable("llvm.used") &&
+         !Module.getGlobalVariable("llvm.compiler.used"));
+  // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
+  // `removeDeviceGlobalFromCompilerUsed` methods.
+
+  assert(!isModuleUsingAsan(Module));
+  // Otherwise: Need to instrument each image scope device globals if the module
+  // has been instrumented by sanitizer pass.
+
+  // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
+  // LLVM IR specification.
+  runModulePass<SYCLJointMatrixTransformPass>(Module);
+
+  // TODO: Implement actual device code splitting. We're just using the splitter
+  //       to obtain additional information about the module for now.
+  // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
+  //       `shouldEmitOnlyKernelsAsEntryPoints` in
+  //       `clang/lib/Driver/ToolChains/Clang.cpp`.
+  std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
+      ModuleDesc{std::unique_ptr<llvm::Module>{&Module}}, SPLIT_NONE,
+      /*IROutputOnly=*/false,
+      /*EmitOnlyKernelsAsEntryPoints=*/true);
+  assert(Splitter->remainingSplits() == 1);
+
+  // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
+  //       be processed.
+
+  assert(Splitter->hasMoreSplits());
+  ModuleDesc MDesc = Splitter->nextSplit();
+  assert(&Module == &MDesc.getModule());
+  MDesc.saveSplitInformationAsMetadata();
+
+  RTCBundleInfo BundleInfo;
+  BundleInfo.SymbolTable = FrozenSymbolTable{MDesc.entries().size()};
+  transform(MDesc.entries(), BundleInfo.SymbolTable.begin(),
+            [](Function *F) { return F->getName(); });
+
+  // TODO: Determine what is requested.
+  GlobalBinImageProps PropReq{
+      /*EmitKernelParamInfo=*/true, /*EmitProgramMetadata=*/true,
+      /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
+      /*DeviceGlobals=*/false};
+  PropertySetRegistry Properties =
+      computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
+  // TODO: Manually add `compile_target` property as in
+  //       `saveModuleProperties`?
+  const auto &PropertySets = Properties.getPropSets();
+
+  BundleInfo.Properties = FrozenPropertyRegistry{PropertySets.size()};
+  for (auto &&[KV, FrozenPropSet] : zip(PropertySets, BundleInfo.Properties)) {
+    const auto &PropertySetName = KV.first;
+    const auto &PropertySet = KV.second;
+    FrozenPropSet =
+        FrozenPropertySet{PropertySetName.str(), PropertySet.size()};
+    for (auto &&[KV2, FrozenProp] : zip(PropertySet, FrozenPropSet.Values)) {
+      const auto &PropertyName = KV2.first;
+      const auto &PropertyValue = KV2.second;
+      FrozenProp = PropertyValue.getType() == PropertyValue::Type::UINT32
+                       ? FrozenPropertyValue{PropertyName.str(),
+                                             PropertyValue.asUint32()}
+                       : FrozenPropertyValue{
+                             PropertyName.str(), PropertyValue.asRawByteArray(),
+                             PropertyValue.getRawByteArraySize()};
+    }
+  };
+
+  // Regain ownership of the module.
+  MDesc.releaseModulePtr().release();
+
+  return std::move(BundleInfo);
+}
+
 Expected<InputArgList>
 jit_compiler::parseUserArgs(View<const char *> UserArgs) {
   unsigned MissingArgIndex, MissingArgCount;
@@ -410,5 +506,17 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
     }
   }
 
-  return Expected<InputArgList>{std::move(AL)};
+  if (auto DCSMode = AL.getLastArgValue(OPT_fsycl_device_code_split_EQ, "none");
+      DCSMode != "none" && DCSMode != "auto") {
+    return createStringError("Device code splitting is not yet supported");
+  }
+
+  if (AL.hasArg(OPT_fsycl_device_code_split_esimd,
+                OPT_fno_sycl_device_code_split_esimd)) {
+    // TODO: There are more ESIMD-related options.
+    return createStringError(
+        "Runtime compilation of ESIMD kernels is not yet supported");
+  }
+
+  return std::move(AL);
 }
