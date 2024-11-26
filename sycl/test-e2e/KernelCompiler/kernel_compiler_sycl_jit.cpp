@@ -16,14 +16,14 @@
 // -- Test again, with caching.
 
 // DEFINE: %{cache_vars} = %{l0_leak_check} env SYCL_CACHE_PERSISTENT=1 SYCL_CACHE_TRACE=5 SYCL_CACHE_DIR=%t/cache_dir
-// RUN: rm -rf %t/cache_dir
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:  %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // -- Add leak check.
-// RUN: rm -rf %t/cache_dir
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
-// RUN:   %{l0_leak_check} %{cache_vars} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
+// RUN: %if run-mode %{ rm -rf %t/cache_dir %}
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-WRITTEN-TO-CACHE
+// RUN: %{l0_leak_check} %{cache_vars} %{run-unfiltered-devices} %t.out 2>&1 |  FileCheck %s --check-prefixes=CHECK-READ-FROM-CACHE
 
 // CHECK-WRITTEN-TO-CACHE: [Persistent Cache]: enabled
 // CHECK-WRITTEN-TO-CACHE-NOT: [kernel_compiler Persistent Cache]: using cached binary
@@ -56,7 +56,7 @@ auto constexpr SYCLSource = R"===(
 
 // use extern "C" to avoid name mangling
 extern "C" SYCL_EXTERNAL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
-void ff_cp(int *ptr) {
+void ff_cp(int *ptr, int *unused) {
 
   // intentionally using deprecated routine, as opposed to this_work_item::get_nd_item<1>()
   sycl::nd_item<1> Item = sycl::ext::oneapi::experimental::this_nd_item<1>();
@@ -78,6 +78,7 @@ void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   memset(usmPtr, 0, Range * sizeof(int));
   Queue.submit([&](sycl::handler &Handler) {
     Handler.set_arg(0, usmPtr);
+    Handler.set_arg(1, usmPtr);
     Handler.parallel_for(R1, Kernel);
   });
   Queue.wait();
@@ -179,6 +180,9 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend", "-fsanitize=address"});
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
+  CheckUnsupported({"-fsycl-device-code-split=kernel"});
+  CheckUnsupported({"-fsycl-device-code-split-esimd"});
+  CheckUnsupported({"-fsycl-dead-args-optimization"});
 
   return 0;
 }
