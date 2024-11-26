@@ -152,10 +152,6 @@ public:
       ext::oneapi::experimental::detail::dynamic_parameter_impl *, int>>
       MDynamicParameters;
 
-  // Track whether an NDRange was used when submitting a kernel (as opposed to a
-  // range), needed for graph update
-  bool MNDRangeUsed = false;
-
   /// The storage for the arguments passed.
   /// We need to store a copy of values that are passed explicitly through
   /// set_arg, require and so on, because we need them to be alive after

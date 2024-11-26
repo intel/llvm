@@ -446,9 +446,6 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   // Opaque pointers will cause the optimizer to use i8 geps, or to remove
   // 0-index geps entirely (adding bitcasts to the result). Restore these to
   // avoid bitcasts in the resulting IR.
-  if (GV->getContext().supportsTypedPointers())
-    return;
-
   Type *Ty = GV->getValueType();
   Type *ScalarTy = Ty->getScalarType();
   SmallVector<Value *, 4> Users;
@@ -465,7 +462,7 @@ static void simplifyBuiltinVarAccesses(GlobalValue *GV) {
   Type *Int32Ty = Type::getInt32Ty(GV->getContext());
   auto GetGep = [&](unsigned Offset,
                     std::optional<ConstantRange> InRange = std::nullopt) {
-    llvm::ConstantRange GepInRange(llvm::APInt(32, -Offset, true),
+    llvm::ConstantRange GepInRange(llvm::APInt(32, -((signed)Offset), true),
                                    llvm::APInt(32, Offset, true));
     if (InRange)
       GepInRange = *InRange;

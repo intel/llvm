@@ -493,7 +493,8 @@ std::optional<ur_program_handle_t> context_impl::getProgramForDevImgs(
     auto &Cache = LockedCache.get().Cache;
     ur_device_handle_t &DevHandle = getSyclObjImpl(Device)->getHandleRef();
     for (std::uintptr_t ImageIDs : ImgIdentifiers) {
-      auto OuterKey = std::make_pair(ImageIDs, std::set{DevHandle});
+      auto OuterKey =
+          std::make_pair(ImageIDs, std::set<ur_device_handle_t>{DevHandle});
       size_t NProgs = KeyMap.count(OuterKey);
       if (NProgs == 0)
         continue;

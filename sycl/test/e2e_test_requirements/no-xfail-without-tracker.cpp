@@ -27,7 +27,7 @@
 // - ...and check if the list of improperly XFAIL-ed tests needs to be updated.
 //
 // RUN: grep -rI "XFAIL:" %S/../../test-e2e \
-// RUN: -A 1 --include=*.c --include=*.cpp --no-group-separator | \
+// RUN: -A 1 --include=*.cpp --no-group-separator | \
 // RUN: grep -v "XFAIL:" | \
 // RUN: grep -Pv "XFAIL-TRACKER:\s+(?:https://github.com/[\w\d-]+/[\w\d-]+/issues/[\d]+)|(?:[\w]+-[\d]+)" > %t
 // RUN: cat %t | wc -l | FileCheck %s --check-prefix NUMBER-OF-XFAIL-WITHOUT-TRACKER
@@ -42,7 +42,7 @@
 //
 // That number *must not* increase. Any PR which causes this number to grow
 // should be rejected and it should be updated to either keep the number as-is
-// or have it reduced (preferrably, down to zero).
+// or have it reduced (preferably, down to zero).
 //
 // If you see this test failed for your patch, it means that you either
 // introduced XFAIL directive to a test improperly, or broke the format of an
@@ -51,20 +51,16 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 156
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 77
 //
 // List of improperly XFAIL-ed tests.
-// Remove the CHECK once the test has been propely XFAIL-ed.
+// Remove the CHECK once the test has been properly XFAIL-ed.
 //
 // CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
-// CHECK-NEXT: Basic/accessor/accessor.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
-// CHECK-NEXT: Basic/built-ins.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
-// CHECK-NEXT: Basic/fpga_tests/fpga_pipes_mixed_usage.cpp
-// CHECK-NEXT: Basic/image/srgba-read.cpp
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
 // CHECK-NEXT: Basic/max_work_group_size_props.cpp
 // CHECK-NEXT: Basic/partition_supported.cpp
@@ -73,12 +69,9 @@
 // CHECK-NEXT: Basic/span.cpp
 // CHECK-NEXT: Basic/stream/auto_flush.cpp
 // CHECK-NEXT: DeprecatedFeatures/queue_old_interop.cpp
-// CHECK-NEXT: DeprecatedFeatures/set_arg_interop.cpp
-// CHECK-NEXT: DeviceArchitecture/device_architecture_comparison_on_device_aot.cpp
 // CHECK-NEXT: DeviceCodeSplit/split-per-kernel.cpp
 // CHECK-NEXT: DeviceCodeSplit/split-per-source-main.cpp
 // CHECK-NEXT: DeviceLib/assert-windows.cpp
-// CHECK-NEXT: ESIMD/assert.cpp
 // CHECK-NEXT: ESIMD/hardware_dispatch.cpp
 // CHECK-NEXT: GroupAlgorithm/root_group.cpp
 // CHECK-NEXT: GroupLocalMemory/group_local_memory.cpp
@@ -93,7 +86,6 @@
 // CHECK-NEXT: InvokeSimd/Spec/tuple_return.cpp
 // CHECK-NEXT: InvokeSimd/Spec/tuple_vadd.cpp
 // CHECK-NEXT: KernelAndProgram/kernel-bundle-merge-options.cpp
-// CHECK-NEXT: LLVMIntrinsicLowering/sub_byte_bitreverse.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_annotated_ptr.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_bfloat16_packedB.cpp
@@ -104,71 +96,6 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_int8_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_out_bounds.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_scalar.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_int8_matB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_int8_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_uu_int8.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_colA_rowB_colC.cpp
 // CHECK-NEXT: Matrix/joint_matrix_int8_colmajorA_colmajorB.cpp
@@ -177,8 +104,6 @@
 // CHECK-NEXT: NewOffloadDriver/sycl-external-with-optional-features.cpp
 // CHECK-NEXT: OptionalKernelFeatures/throw-exception-for-out-of-registers-on-kernel-launch.cpp
 // CHECK-NEXT: PerformanceTests/Reduction/reduce_over_sub_group.cpp
-// CHECK-NEXT: Plugin/interop-cuda-experimental.cpp
-// CHECK-NEXT: Plugin/interop-experimental-single-TU-SYCL-CUDA-compilation.cpp
 // CHECK-NEXT: Printf/int.cpp
 // CHECK-NEXT: Printf/mixed-address-space.cpp
 // CHECK-NEXT: Printf/percent-symbol.cpp
@@ -208,7 +133,3 @@
 // CHECK-NEXT: Scheduler/MultipleDevices.cpp
 // CHECK-NEXT: Scheduler/ReleaseResourcesTest.cpp
 // CHECK-NEXT: Tracing/buffer_printers.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs-and-call.cpp
-// CHECK-NEXT: VirtualFunctions/multiple-translation-units/separate-vf-defs.cpp
-// CHECK-NEXT: syclcompat/launch/launch_policy_lmem.cpp

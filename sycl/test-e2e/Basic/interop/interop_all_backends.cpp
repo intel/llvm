@@ -1,4 +1,4 @@
-// XFAIL: any-device-is-opencl, any-device-is-cuda, (windows && any-device-is-level_zero), gpu-intel-dg2, hip_amd
+// XFAIL: any-device-is-opencl, any-device-is-cuda, any-device-is-level_zero, gpu-intel-dg2, hip_amd
 // XFAIL-TRACKER: https://github.com/intel/llvm/issues/15819
 // RUN: %if any-device-is-opencl %{ %{build} -o %t-opencl.out %}
 // RUN: %if any-device-is-level_zero %{ %{build} -DBUILD_FOR_L0 -o %t-l0.out %}

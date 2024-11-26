@@ -51,7 +51,8 @@
 
 namespace sycl {
 
-// TODO: Fix in the next ABI breaking windows.
+// TODO: It should be within _V1 namespace, fix in the next ABI breaking
+// windows.
 enum class rounding_mode { automatic = 0, rte = 1, rtz = 2, rtp = 3, rtn = 4 };
 
 inline namespace _V1 {

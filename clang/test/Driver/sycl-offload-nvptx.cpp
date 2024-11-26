@@ -36,7 +36,7 @@
 /// Check phases w/out specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
-// RUN: -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
+// RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda %s 2>&1 \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: | FileCheck -check-prefix=CHK-PHASES-NO-CC %s
@@ -73,7 +73,7 @@
 /// Check phases specifying a compute capability.
 // RUN: %clangxx -ccc-print-phases --sysroot=%S/Inputs/SYCL -std=c++11 \
 // RUN: -target x86_64-unknown-linux-gnu -fsycl -fno-sycl-device-lib=all \
-// RUN: -fsycl-targets=nvptx64-nvidia-cuda \
+// RUN: -fsycl-instrument-device-code -fsycl-targets=nvptx64-nvidia-cuda \
 // RUN: -fsycl-libspirv-path=%S/Inputs/SYCL/lib/nvidiacl \
 // RUN: --cuda-path=%S/Inputs/CUDA_111/usr/local/cuda \
 // RUN: -Xsycl-target-backend "--cuda-gpu-arch=sm_35" %s 2>&1 \

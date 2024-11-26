@@ -10,6 +10,13 @@
 //////////////////////   Link device images
 // RUN: %clangxx --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -v
 
+// Make sure the clang-offload-wrapper is called with the --offload-compress
+// option.
+// RUN: %clangxx --offload-compress -fsycl -fsycl-link -fsycl-targets=spir64_x86_64 -fPIC %t_kernel1_aot.o %t_kernel2_aot.o -o %t_compressed_image.o -### &> %t_driver_opts.txt
+// RUN: FileCheck -input-file=%t_driver_opts.txt %s --check-prefix=CHECK-DRIVER-OPTS
+
+// CHECK-DRIVER-OPTS: clang-offload-wrapper{{.*}} "-offload-compress"
+
 //////////////////////   Compile the host program
 // RUN: %clangxx -fsycl -std=c++17 -Wno-attributes -Wno-deprecated-declarations -fPIC -c %s -o %t_main.o
 

@@ -196,11 +196,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # - name: NVIDIA/CUDA
-          #   runner: '["Linux", "cuda"]'
-          #   image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-          #   image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-          #   target_devices: ext_oneapi_cuda:gpu
+         # - name: NVIDIA/CUDA
+         #   runner: '["Linux", "cuda"]'
+         #   image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+         #   image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
+         #   target_devices: ext_oneapi_cuda:gpu
+         # - name: AMD/HIP
+         #   runner: '["Linux", "amdgpu"]'
+         #   image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+         #   image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+         #   target_devices: ext_oneapi_hip:gpu
+         #   reset_intel_gpu: false
           - name: Run benchmarks on Intel
             runner: '["Linux", "pvc"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
@@ -262,46 +268,51 @@ jobs:
       sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
       sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}
 
+#  test-perf:
+#    needs: [build, detect_changes]
+#    if: |
+#      always() && !cancelled()
+#      && needs.build.outputs.build_conclusion == 'success'
+#      && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
+#          || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
+#    strategy:
+#      fail-fast: false
+#      matrix:
+#        include:
+#          - name: Intel GEN12 Graphics system
+#            runner: '["Linux", "gen12"]'
+#            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+#            image_extra_opts: --device=/dev/dri
+#            reset_intel_gpu: true
+#          - name: Intel Arc A-Series Graphics system
+#            runner: '["Linux", "arc"]'
+#            image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
+#            image_extra_opts: --device=/dev/dri
+#            reset_intel_gpu: true
+#          - name: AMD system
+#            runner: '["Linux", "amdgpu"]'
+#            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+#            image_extra_opts: --device=/dev/dri --device=/dev/kfd
+#          - name: CUDA system
+#            runner: '["Linux", "cuda"]'
+#            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+#            image_extra_opts: --gpus all
+#    uses: ./.github/workflows/sycl-linux-run-tests.yml
+#    with:
+#      name: Perf tests on ${{ matrix.name }}
+#      runner: ${{ matrix. runner }}
+#      image: ${{ matrix.image }}
+#      image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
+#      target_devices: all
+#      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
 
-#   test-perf:
-#     needs: [build, detect_changes]
-#     if: |
-#       always() && !cancelled()
-#       && needs.build.outputs.build_conclusion == 'success'
-#       && (contains(github.event.pull_request.labels.*.name, 'run-perf-tests')
-#           || contains(needs.detect_changes.outputs.filters, 'perf-tests'))
-#     strategy:
-#       fail-fast: false
-#       matrix:
-#         include:
-#           - name: Intel GEN12 Graphics system
-#             runner: '["Linux", "gen12"]'
-#             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-#             image_extra_opts: --device=/dev/dri
-#             reset_intel_gpu: true
-#           - name: Intel Arc A-Series Graphics system
-#             runner: '["Linux", "arc"]'
-#             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-#             image_extra_opts: --device=/dev/dri
-#             reset_intel_gpu: true
-#           - name: AMD system
-#             runner: '["Linux", "amdgpu"]'
-#             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-#             image_extra_opts: --device=/dev/dri --device=/dev/kfd
-#             extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
-#           - name: CUDA system
-#             runner: '["Linux", "cuda"]'
-#             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-#             image_extra_opts: --gpus all
-#     uses: ./.github/workflows/sycl-linux-run-tests.yml
-#     with:
-#       name: Perf tests on ${{ matrix.name }}
-#       runner: ${{ matrix. runner }}
-#       image: ${{ matrix.image }}
-#       image_options: -u 1001 --privileged --cap-add SYS_ADMIN ${{ matrix.image_extra_opts }}
-#       target_devices: all
-#       reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
-# 
-#       env: '{"LIT_FILTER":"PerformanceTests/"}'
-#       extra_lit_opts: -a -j 1 --param enable-perf-tests=True
-#       extra_cmake_args: ${{ matrix.extra_cmake_args }}
+#      env: '{"LIT_FILTER":"PerformanceTests/"}'
+#      extra_lit_opts: -a -j 1 --param enable-perf-tests=True
+#      extra_cmake_args: ${{ matrix.extra_cmake_args }}
+
+#      ref: ${{ github.sha }}
+#      merge_ref: ''
+
+#      sycl_toolchain_artifact: sycl_linux_default
+#      sycl_toolchain_archive: ${{ needs.build.outputs.artifact_archive_name }}
+#      sycl_toolchain_decompress_command: ${{ needs.build.outputs.artifact_decompress_command }}

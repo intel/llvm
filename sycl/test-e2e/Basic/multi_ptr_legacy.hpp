@@ -157,6 +157,7 @@ template <typename T> void testMultPtrArrowOperator() {
     buffer<point<T>, 1> bufferData_2(data_2, numOfItems);
     buffer<point<T>, 1> bufferData_3(data_3, numOfItems);
     buffer<point<T>, 1> bufferData_4(data_4, numOfItems);
+    buffer<bool, 1> result_buf{1};
     queue myQueue;
     myQueue.submit([&](handler &cgh) {
       accessor<point<T>, 1, access::mode::read, access::target::device,
@@ -170,8 +171,12 @@ template <typename T> void testMultPtrArrowOperator() {
                access::placeholder::false_t>
           accessorData_4(bufferData_4, cgh);
 
+      accessor result{result_buf, cgh};
+
       cgh.parallel_for<class testMultPtrArrowOperatorKernel<T>>(
           sycl::nd_range<1>{1, 1}, [=](sycl::nd_item<1>) {
+            // Initialize local memory:
+            accessorData_3[0] = T{3};
             auto ptr_1 =
                 make_ptr<const point<T>, access::address_space::global_space,
                          access::decorated::legacy>(
@@ -195,6 +200,12 @@ template <typename T> void testMultPtrArrowOperator() {
             auto x3 = ptr_3->x;
             auto x4 = ptr_4->x;
 
+            result[0] = true;
+            result[0] &= x1 == T{1};
+            result[0] &= x2 == T{2};
+            result[0] &= x3 == T{3};
+            result[0] &= x4 == T{4};
+
             static_assert(std::is_same<decltype(x1), T>::value,
                           "Expected decltype(ptr_1->x) == T");
             static_assert(std::is_same<decltype(x2), T>::value,
@@ -205,6 +216,8 @@ template <typename T> void testMultPtrArrowOperator() {
                           "Expected decltype(ptr_4->x) == T");
           });
     });
+
+    assert(sycl::host_accessor{result_buf}[0]);
   }
 }
 
