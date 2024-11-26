@@ -1,3 +1,5 @@
+// UNSUPPORTED: system-windows
+
 /// ###########################################################################
 
 // RUN: %clangxx -fsycl -fsanitize=address -c %s -### 2>&1 \
