@@ -4,4 +4,4 @@
 # Date:   Mon Nov 25 11:04:37 2024 +0000
 #     Merge pull request #2303 from nrspruit/zeInitDrivers
 #     [L0] Implement Support for zeInitDrivers
-set(UNIFIED_RUNTIME_TAG 39b72622cf2997459788000ac665e259f728a9ff)
+set(UNIFIED_RUNTIME_TAG ca0a0e3e3b3ad933605a35850ebc11bbf5d5f367)
