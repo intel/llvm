@@ -282,14 +282,46 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWait(
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierImpl(
+    uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+    ur_event_handle_t *phEvent) {
+  TRACK_SCOPE_LATENCY(
+      "ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier");
+
+  std::scoped_lock<ur_shared_mutex> lock(this->Mutex);
+
+  if (!numEventsInWaitList && !phEvent) {
+    // nop
+    return UR_RESULT_SUCCESS;
+  }
+
+  auto signalEvent =
+      getSignalEvent(phEvent, UR_COMMAND_EVENTS_WAIT_WITH_BARRIER);
+  auto [pWaitEvents, numWaitEvents] =
+      getWaitListView(phEventWaitList, numEventsInWaitList);
+
+  ZE2UR_CALL(zeCommandListAppendBarrier,
+             (handler.commandList.get(), signalEvent->getZeEvent(),
+              numWaitEvents, pWaitEvents));
+
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrier(
     uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
     ur_event_handle_t *phEvent) {
   // For in-order queue we don't need a real barrier, just wait for
   // requested events in potentially different queues and add a "barrier"
   // event signal because it is already guaranteed that previous commands
-  // in this queue are completed when the signal is started.
-  return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
+  // in this queue are completed when the signal is started. However, we do
+  // need to use barrier if profiling is enabled: see
+  // zeCommandListAppendWaitOnEvents
+  if ((flags & UR_QUEUE_FLAG_PROFILING_ENABLE) != 0) {
+    return enqueueEventsWaitWithBarrierImpl(numEventsInWaitList,
+                                            phEventWaitList, phEvent);
+  } else {
+    return enqueueEventsWait(numEventsInWaitList, phEventWaitList, phEvent);
+  }
 }
 
 ur_result_t ur_queue_immediate_in_order_t::enqueueEventsWaitWithBarrierExt(
