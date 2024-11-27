@@ -99,7 +99,9 @@ template <bundle_state State>
 class device_image {
  public:
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
+#if defined(__cpp_lib_span)
   std::span<std::byte> ext_oneapi_get_backend_content_view() const;
+#endif
 
   /*...*/
 };
