@@ -879,6 +879,14 @@ ur_result_t urPrintUsmMigrationFlags(enum ur_usm_migration_flag_t value,
     return str_copy(&ss, buffer, buff_size, out_size);
 }
 
+ur_result_t urPrintExpDevice_2dBlockArrayCapabilityFlags(
+    enum ur_exp_device_2d_block_array_capability_flag_t value, char *buffer,
+    const size_t buff_size, size_t *out_size) {
+    std::stringstream ss;
+    ss << value;
+    return str_copy(&ss, buffer, buff_size, out_size);
+}
+
 ur_result_t urPrintExpImageCopyFlags(enum ur_exp_image_copy_flag_t value,
                                      char *buffer, const size_t buff_size,
                                      size_t *out_size) {
