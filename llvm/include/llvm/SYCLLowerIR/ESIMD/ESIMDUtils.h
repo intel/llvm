@@ -137,7 +137,7 @@ struct UpdateUint64MetaDataToMaxValue {
 // functions has changed its attribute to alwaysinline.
 bool prepareForAlwaysInliner(Module &M);
 
-// Remove manging from an ESIMD intrinsic function.
+// Remove mangling from an ESIMD intrinsic function.
 // Returns empty on pattern match failure.
 StringRef stripMangling(StringRef FName);
 
