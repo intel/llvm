@@ -59,7 +59,7 @@ specification.*
 This extension adds a mechanism to obtain the raw backend content of the device
 images that are in a kernel bundle.
 The format of this content is implementation-defined, so applications that make
-use of this extension are normally not portable to other implementations of
+use of this extension are not expected to be portable to other implementations of
 SYCL.
 
 
@@ -122,7 +122,7 @@ _Constraints:_ Available only when `State` is `bundle_state::executable`.
 
 _Returns:_ A copy of the raw backend content for this device image.
 The format of this data is implementation-defined.
-See below for a description of this format on {dpcpp}.
+See below for a description of the formats used by {dpcpp}.
 
 '''
 
@@ -142,6 +142,8 @@ _Constraints:_ Available only when `State` is `bundle_state::executable`.
 _Returns:_ A view of the raw backend content for this device image.
 The data behind this view has the same lifetime as the `kernel_bundle` that
 contains this `device_image`.
+The format of this data is implementation-defined.
+See below for a description of this format on {dpcpp}.
 
 '''
 
