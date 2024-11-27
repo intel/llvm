@@ -947,35 +947,36 @@ ur_result_t urKernelSetExecInfo(
   std::ignore = PropSize;
   std::ignore = Properties;
 
-  auto ZeKernel = Kernel->ZeKernel;
   std::scoped_lock<ur_shared_mutex> Guard(Kernel->Mutex);
-  if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
-      *(static_cast<const ur_bool_t *>(PropValue)) == true) {
-    // The whole point for users really was to not need to know anything
-    // about the types of allocations kernel uses. So in DPC++ we always
-    // just set all 3 modes for each kernel.
-    ze_kernel_indirect_access_flags_t IndirectFlags =
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
-        ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
-    ZE2UR_CALL(zeKernelSetIndirectAccess, (ZeKernel, IndirectFlags));
-  } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
-    ze_cache_config_flag_t ZeCacheConfig{};
-    auto CacheConfig =
-        *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
-    if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
-      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
-    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
-      ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
-    else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
-      ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
-    else
-      // Unexpected cache configuration value.
+  for (auto &ZeKernel : Kernel->ZeKernels) {
+    if (PropName == UR_KERNEL_EXEC_INFO_USM_INDIRECT_ACCESS &&
+        *(static_cast<const ur_bool_t *>(PropValue)) == true) {
+      // The whole point for users really was to not need to know anything
+      // about the types of allocations kernel uses. So in DPC++ we always
+      // just set all 3 modes for each kernel.
+      ze_kernel_indirect_access_flags_t IndirectFlags =
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_HOST |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_DEVICE |
+          ZE_KERNEL_INDIRECT_ACCESS_FLAG_SHARED;
+      ZE2UR_CALL(zeKernelSetIndirectAccess, (ZeKernel, IndirectFlags));
+    } else if (PropName == UR_KERNEL_EXEC_INFO_CACHE_CONFIG) {
+      ze_cache_config_flag_t ZeCacheConfig{};
+      auto CacheConfig =
+          *(static_cast<const ur_kernel_cache_config_t *>(PropValue));
+      if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_SLM)
+        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_SLM;
+      else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_LARGE_DATA)
+        ZeCacheConfig = ZE_CACHE_CONFIG_FLAG_LARGE_DATA;
+      else if (CacheConfig == UR_KERNEL_CACHE_CONFIG_DEFAULT)
+        ZeCacheConfig = static_cast<ze_cache_config_flag_t>(0);
+      else
+        // Unexpected cache configuration value.
+        return UR_RESULT_ERROR_INVALID_VALUE;
+      ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
+    } else {
+      logger::error("urKernelSetExecInfo: unsupported ParamName");
       return UR_RESULT_ERROR_INVALID_VALUE;
-    ZE2UR_CALL(zeKernelSetCacheConfig, (ZeKernel, ZeCacheConfig););
-  } else {
-    logger::error("urKernelSetExecInfo: unsupported ParamName");
-    return UR_RESULT_ERROR_INVALID_VALUE;
+    }
   }
 
   return UR_RESULT_SUCCESS;
