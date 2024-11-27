@@ -788,8 +788,8 @@ ur_result_t ur_queue_immediate_in_order_t::enqueueUSMPrefetch(
       getWaitListView(phEventWaitList, numEventsInWaitList);
 
   if (pWaitEvents) {
-    ZE2UR_CALL(zeCommandListAppendBarrier, (handler.commandList.get(), nullptr,
-                                            numWaitEvents, pWaitEvents));
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (handler.commandList.get(), numWaitEvents, pWaitEvents));
   }
   // TODO: figure out how to translate "flags"
   ZE2UR_CALL(zeCommandListAppendMemoryPrefetch,
@@ -820,8 +820,8 @@ ur_queue_immediate_in_order_t::enqueueUSMAdvise(const void *pMem, size_t size,
   auto [pWaitEvents, numWaitEvents] = getWaitListView(nullptr, 0);
 
   if (pWaitEvents) {
-    ZE2UR_CALL(zeCommandListAppendBarrier, (handler.commandList.get(), nullptr,
-                                            numWaitEvents, pWaitEvents));
+    ZE2UR_CALL(zeCommandListAppendWaitOnEvents,
+               (handler.commandList.get(), numWaitEvents, pWaitEvents));
   }
 
   // TODO: figure out how to translate "flags"
