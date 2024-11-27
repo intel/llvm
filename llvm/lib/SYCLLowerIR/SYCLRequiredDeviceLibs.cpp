@@ -735,24 +735,43 @@ SYCLDeviceLibFuncMap SDLMap = {
 
 } // namespace
 
-// Each fallback device library corresponds to one SPV file whose name is kept
-// in DeviceLibSPVExtMap.
-static std::unordered_map<DeviceLibExt, const char *> DeviceLibSPVExtMap = {
-    {DeviceLibExt::cl_intel_devicelib_assert, "libsycl-fallback-cassert.spv"},
-    {DeviceLibExt::cl_intel_devicelib_math, "libsycl-fallback-cmath.spv"},
+// One devicelib extension may correspond to multiple spv files, following
+// map stores corresponding index values in SPVMetaList for an extension.
+static std::unordered_map<DeviceLibExt, std::vector<size_t>>
+    DeviceLibSPVExtMap = {{DeviceLibExt::cl_intel_devicelib_assert, {0}},
+                          {DeviceLibExt::cl_intel_devicelib_math, {1}},
+                          {DeviceLibExt::cl_intel_devicelib_math_fp64, {2}},
+                          {DeviceLibExt::cl_intel_devicelib_complex, {3}},
+                          {DeviceLibExt::cl_intel_devicelib_complex_fp64, {4}},
+                          {DeviceLibExt::cl_intel_devicelib_cstring, {5}},
+                          {DeviceLibExt::cl_intel_devicelib_imf, {6}},
+                          {DeviceLibExt::cl_intel_devicelib_imf_fp64, {7}},
+                          {DeviceLibExt::cl_intel_devicelib_imf_bf16, {8}},
+                          {DeviceLibExt::cl_intel_devicelib_bfloat16, {9, 10}}};
+
+static SYCLDeviceLibSPVMeta SPVMetaList[] = {
+    {DeviceLibExt::cl_intel_devicelib_assert, "libsycl-fallback-cassert.spv",
+     DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_math, "libsycl-fallback-cmath.spv",
+     DeviceLibIsNative::Ignore},
     {DeviceLibExt::cl_intel_devicelib_math_fp64,
-     "libsycl-fallback-cmath-fp64.spv"},
-    {DeviceLibExt::cl_intel_devicelib_complex, "libsycl-fallback-complex.spv"},
+     "libsycl-fallback-cmath-fp64.spv", DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_complex, "libsycl-fallback-complex.spv",
+     DeviceLibIsNative::Ignore},
     {DeviceLibExt::cl_intel_devicelib_complex_fp64,
-     "libsycl-fallback-complex-fp64.spv"},
-    {DeviceLibExt::cl_intel_devicelib_cstring, "libsycl-fallback-cstring.spv"},
-    {DeviceLibExt::cl_intel_devicelib_imf, "libsycl-fallback-imf.spv"},
-    {DeviceLibExt::cl_intel_devicelib_imf_fp64,
-     "libsycl-fallback-imf-fp64.spv"},
-    {DeviceLibExt::cl_intel_devicelib_imf_bf16,
-     "libsycl-fallback-imf-bf16.spv"},
-    {DeviceLibExt::cl_intel_devicelib_bfloat16,
-     "libsycl-fallback-bfloat16.spv"}};
+     "libsycl-fallback-complex-fp64.spv", DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_cstring, "libsycl-fallback-cstring.spv",
+     DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_imf, "libsycl-fallback-imf.spv",
+     DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_imf_fp64, "libsycl-fallback-imf-fp64.spv",
+     DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "libsycl-fallback-imf-bf16.spv",
+     DeviceLibIsNative::Ignore},
+    {DeviceLibExt::cl_intel_devicelib_bfloat16, "libsycl-fallback-bfloat16.spv",
+     DeviceLibIsNative::No},
+    {DeviceLibExt::cl_intel_devicelib_bfloat16, "libsycl-native-bfloat16.spv",
+     DeviceLibIsNative::Yes}};
 
 namespace llvm {
 // For each device image module, we go through all functions which meets
@@ -760,7 +779,8 @@ namespace llvm {
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
 void getRequiredSYCLDeviceLibs(
-    const Module &M, llvm::SmallVector<DeviceLibExt, 16> &ReqDeviceLibs) {
+    const Module &M,
+    llvm::SmallVector<SYCLDeviceLibSPVMeta, 16> &ReqDeviceLibs) {
   // Device libraries will be enabled only for spir-v module.
   if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
     return;
@@ -776,12 +796,10 @@ void getRequiredSYCLDeviceLibs(
         continue;
 
       DeviceLibUsed.insert(DeviceLibFuncIter->second);
-      ReqDeviceLibs.push_back(DeviceLibFuncIter->second);
+      for (size_t idx : DeviceLibSPVExtMap[DeviceLibFuncIter->second]) {
+        ReqDeviceLibs.push_back(SPVMetaList[idx]);
+      }
     }
   }
-}
-
-const char *getDeviceLibFileName(DeviceLibExt RequiredDeviceLibExt) {
-  return DeviceLibSPVExtMap[RequiredDeviceLibExt];
 }
 } // namespace llvm

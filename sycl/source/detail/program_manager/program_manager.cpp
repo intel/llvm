@@ -1734,6 +1734,12 @@ getDeviceLibPrograms(const ContextImplPtr Context,
           !fp64Support)
         continue;
 
+      DeviceLibByteArray.dropBytes(4);
+      DeviceLibIsNative IsNativeSPV = static_cast<DeviceLibIsNative>(
+          (static_cast<uint32_t>(DeviceLibByteArray[3]) << 24) |
+          (static_cast<uint32_t>(DeviceLibByteArray[2]) << 16) |
+          (static_cast<uint32_t>(DeviceLibByteArray[1]) << 8) |
+          DeviceLibByteArray[0]);
       auto DeviceLibExtReqName = getDeviceLibExtensionStr(DeviceLibExtReq);
       bool InhibitNativeImpl = false;
       if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
@@ -1746,10 +1752,23 @@ getDeviceLibPrograms(const ContextImplPtr Context,
       // 1. underlying device doesn't support the extension
       // 2. user explicitly ask to inhibit usage of native support
       if (!ExtReqAvailable || InhibitNativeImpl) {
+        if (IsNativeSPV == DeviceLibIsNative::Yes)
+          continue;
         DeviceLibByteArray.dropBytes(4);
         Programs.push_back(loadDeviceLibFallback(
             Context, DeviceLibExtReq, Devices,
             /*UseNativeLib=*/false, false, DeviceLibByteArray.begin(),
+            DeviceLibByteArray.size()));
+      } else {
+        // bfloat16 spv has native and generic version, if native support is
+        // available in underlying device, we should use native version and
+        // ignore generic version.
+        if (IsNativeSPV != DeviceLibIsNative::Yes)
+          continue;
+        DeviceLibByteArray.dropBytes(4);
+        Programs.push_back(loadDeviceLibFallback(
+            Context, DeviceLibExtReq, Devices,
+            /*UseNativeLib=*/true, false, DeviceLibByteArray.begin(),
             DeviceLibByteArray.size()));
       }
     }

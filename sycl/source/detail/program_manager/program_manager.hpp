@@ -71,9 +71,9 @@ class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
 class queue_impl;
 class event_impl;
-// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
-// If any update is made here, need to sync with DeviceLibExt definition
-// in llvm/tools/sycl-post-link/sycl-post-link.cpp
+// DeviceLibExt and DeviceLibIsNaitve are shared between sycl runtime and
+// SYCL Post Link tool. If any update is made here, please sync with definition
+// in llvm/llvm/include/llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h
 enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_assert,
   cl_intel_devicelib_math,
@@ -86,6 +86,8 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_imf_bf16,
   cl_intel_devicelib_bfloat16,
 };
+
+enum class DeviceLibIsNative : std::uint32_t {Yes, No, Ignore};
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.

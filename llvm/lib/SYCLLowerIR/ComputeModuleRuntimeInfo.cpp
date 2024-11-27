@@ -171,12 +171,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
   // If sycl-post-link doesn't specify a valid fallback spv path, the param
   // 'DeviceLibSPVLoc' is set to an empty string.
   if (!DeviceLibSPVLoc.empty()) {
-    SmallVector<llvm::DeviceLibExt, 16> RequiredLibs;
+    SmallVector<llvm::SYCLDeviceLibSPVMeta, 16> RequiredLibs;
     llvm::getRequiredSYCLDeviceLibs(M, RequiredLibs);
-    for (auto Ext : RequiredLibs) {
-      const char *SPVFileName = llvm::getDeviceLibFileName(Ext);
+    for (auto ExtMeta : RequiredLibs) {
       std::string SPVPath =
-          DeviceLibSPVLoc.str() + "/" + std::string(SPVFileName);
+          DeviceLibSPVLoc.str() + "/" + std::string(ExtMeta.SPVFileName);
       if (!llvm::sys::fs::exists(SPVPath))
         continue;
 
@@ -188,31 +187,27 @@ PropSetRegTy computeModuleProperties(const Module &M,
       // std::aligned_alloc is not available in some pre-ci Windows machine.
 #if defined(_WIN32) || defined(_WIN64)
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
-          _aligned_malloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
+          _aligned_malloc(alignof(uint32_t), SPVSize + sizeof(uint32_t) * 2));
 #else
-      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
-          std::aligned_alloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
+      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(std::aligned_alloc(
+          alignof(uint32_t), SPVSize + sizeof(uint32_t) * 2));
 #endif
 
       if (!SPVBuffer)
         continue;
 
-      // The data embedded consists of 2 parts, first 4 bytes are corresponding
-      // DeivceLib extension and the following bytes are raw data of fallback
-      // spv files. There is 1 exception for native bfloat16 spv, it is used
-      // to support native bfloat16 conversions on some devices and it doesn't
-      // fully comply to fallback device library mechanism, the extension
-      // 'cl_intel_devicelib_bfloat16' corresponds to 2 fallback spvs: native
-      // version used for devices which supports native bfloat16 conversion and
-      // generic version for all other devices, so we have to embed 1 one field
-      // to distinguish.
-      *(reinterpret_cast<uint32_t *>(SPVBuffer)) = static_cast<uint32_t>(Ext);
-      size_t RawSPVOffset = sizeof(uint32_t);
-      std::memcpy(SPVBuffer + RawSPVOffset, (*SPVMB)->getBufferStart(),
+      // The data embedded consists of 3 parts, overall layout is following:
+      // |--devicelib ext(4 byte)--|--IsNative Flag(4 byte)--|--spv raw data--|
+      *(reinterpret_cast<uint32_t *>(SPVBuffer)) =
+          static_cast<uint32_t>(ExtMeta.SPVExt);
+
+      *(reinterpret_cast<uint32_t *>(SPVBuffer + sizeof(uint32_t))) =
+          static_cast<uint32_t>(ExtMeta.IsNative);
+      std::memcpy(SPVBuffer + sizeof(uint32_t) * 2, (*SPVMB)->getBufferStart(),
                   SPVSize);
       llvm::SYCLDeviceLibSPVBinary SPVBinaryObj(SPVBuffer,
-                                                SPVSize + sizeof(uint32_t));
-      PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, SPVFileName,
+                                                SPVSize + sizeof(uint32_t) * 2);
+      PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, ExtMeta.SPVFileName,
                   SPVBinaryObj);
 #if defined(_WIN32) || defined(_WIN64)
       _aligned_free(SPVBuffer);

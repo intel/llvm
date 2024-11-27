@@ -40,6 +40,14 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
+enum class DeviceLibIsNative : std::uint32_t { Yes, No, Ignore };
+
+struct SYCLDeviceLibSPVMeta {
+  DeviceLibExt SPVExt;
+  const char *SPVFileName;
+  DeviceLibIsNative IsNative;
+};
+
 struct SYCLDeviceLibSPVBinary {
   typedef uint8_t value_type;
   value_type *SPVRawBytes;
@@ -53,8 +61,6 @@ struct SYCLDeviceLibSPVBinary {
 };
 
 void getRequiredSYCLDeviceLibs(const Module &M,
-                               SmallVector<DeviceLibExt, 16> &ReqLibs);
-
-const char *getDeviceLibFileName(DeviceLibExt RequiredDeviceLibExt);
+                               SmallVector<SYCLDeviceLibSPVMeta, 16> &ReqLibs);
 
 } // namespace llvm
