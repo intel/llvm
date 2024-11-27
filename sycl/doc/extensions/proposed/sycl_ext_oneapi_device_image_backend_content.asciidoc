@@ -98,6 +98,7 @@ namespace sycl {
 template <bundle_state State>
 class device_image {
  public:
+  backend ext_oneapi_get_backend() const noexcept;
   std::vector<std::byte> ext_oneapi_get_backend_content() const;
 
 #if defined(__cpp_lib_span)
@@ -109,6 +110,21 @@ class device_image {
 
 } // namespace sycl
 ----
+
+'''
+
+[frame=all,grid=none,separator="@"]
+!====
+a@
+[source,c++]
+----
+backend ext_oneapi_get_backend() const noexcept;
+----
+!====
+
+_Returns:_ The backend that is associated with this device image.
+This is always the same as the backend of the kernel bundle that contains this
+device image.
 
 '''
 
@@ -144,8 +160,7 @@ Available only when the compiler defines the `__cpp_lib_span` feature-test macro
 _Constraints:_ Available only when `State` is `bundle_state::executable`.
 
 _Returns:_ A view of the raw backend content for this device image.
-The data behind this view has the same lifetime as the `kernel_bundle` that
-contains this `device_image`.
+The data behind this view has the same lifetime as the `device_image` object.
 The format of this data is implementation-defined.
 See below for a description of the formats used by {dpcpp}.
 
