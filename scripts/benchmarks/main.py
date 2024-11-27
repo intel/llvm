@@ -5,108 +5,55 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
-from utils.utils import prepare_workdir, load_benchmark_results, save_benchmark_results;
 from benches.compute import *
-from benches.hashtable import Hashtable
-from benches.bitcracker import Bitcracker
-from benches.cudaSift import CudaSift
-from benches.easywave import Easywave
-from benches.quicksilver import QuickSilver
-from benches.SobelFilter import SobelFilter
 from benches.velocity import VelocityBench
 from benches.syclbench import *
-from benches.options import options
-from output import generate_markdown
+from benches.llamacpp import *
+from benches.test import TestSuite
+from benches.options import Compare, options
+from output_markdown import generate_markdown
+from output_html import generate_html
+from history import BenchmarkHistory
+from utils.utils import prepare_workdir;
+
 import argparse
 import re
-import subprocess
 
 # Update this if you are changing the layout of the results files
-INTERNAL_WORKDIR_VERSION = '1.7'
+INTERNAL_WORKDIR_VERSION = '2.0'
 
 def main(directory, additional_env_vars, save_name, compare_names, filter):
     prepare_workdir(directory, INTERNAL_WORKDIR_VERSION)
 
-    cb = ComputeBench(directory)
-    vb = VelocityBench(directory)
-    sb = SyclBench(directory)
+    suites = [
+        ComputeBench(directory),
+        VelocityBench(directory),
+        SyclBench(directory),
+        LlamaCppBench(directory),
+        #TestSuite()
+    ] if not options.dry_run else []
 
-    benchmarks = [
-        # *** Compute benchmarks
-        SubmitKernelSYCL(cb, 0),
-        SubmitKernelSYCL(cb, 1),
-        SubmitKernelUR(cb, 0),
-        SubmitKernelUR(cb, 1),
-        QueueInOrderMemcpy(cb, 0, 'Device', 'Device', 1024),
-        QueueInOrderMemcpy(cb, 0, 'Host', 'Device', 1024),
-        QueueMemcpy(cb, 'Device', 'Device', 1024),
-        StreamMemory(cb, 'Triad', 10 * 1024, 'Device'),
-        ExecImmediateCopyQueue(cb, 0, 1, 'Device', 'Device', 1024),
-        ExecImmediateCopyQueue(cb, 1, 1, 'Device', 'Host', 1024),
-        VectorSum(cb),
-        MemcpyExecute(cb, 400, 8, 1024, 100),
-        MemcpyExecute(cb, 400, 8, 102400, 10),
-        MemcpyExecute(cb, 500, 8, 102400, 10),
-        MemcpyExecute(cb, 400, 1, 1024, 1000),
-        MemcpyExecute(cb, 10, 16, 1024, 1000),
-        MemcpyExecute(cb, 10, 16, 102400, 100),
+    benchmarks = []
 
-        # *** Velocity benchmarks
-        Hashtable(vb),
-        Bitcracker(vb),
-        CudaSift(vb),
-        Easywave(vb),
-        QuickSilver(vb),
-        SobelFilter(vb),
+    for s in suites:
+        print(f"Setting up {type(s).__name__}")
+        s.setup()
+        print(f"{type(s).__name__} setup complete.")
 
-        # *** sycl-bench multi benchmarks
-        # Blocked_transform(sb), # run time < 1ms
-        DagTaskI(sb),
-        DagTaskS(sb),
-        HostDevBandwidth(sb),
-        LocalMem(sb),
-        Pattern_L2(sb),
-        Reduction(sb),
-        ScalarProd(sb),
-        SegmentReduction(sb),
-        UsmAccLatency(sb),
-        UsmAllocLatency(sb),
-        UsmInstrMix(sb),
-        UsmPinnedOverhead(sb),
-        VecAdd(sb),
-
-        # *** sycl-bench single benchmarks
-        # TwoDConvolution(sb), # run time < 1ms
-        Two_mm(sb),
-        Three_mm(sb),
-        # Arith(sb), # run time < 1ms
-        Atax(sb),
-        # Atomic_reduction(sb), # run time < 1ms
-        Bicg(sb),
-        Correlation(sb),
-        Covariance(sb),
-        Gemm(sb),
-        Gesumv(sb),
-        Gramschmidt(sb),
-        KMeans(sb),
-        LinRegCoeff(sb),
-        # LinRegError(sb), # run time < 1ms
-        MatmulChain(sb),
-        MolDyn(sb),
-        Mvt(sb),
-        Sf(sb),
-        Syr2k(sb),
-        Syrk(sb),
-    ]
+    for s in suites:
+        benchmarks += s.benchmarks()
 
     if filter:
         benchmarks = [benchmark for benchmark in benchmarks if filter.search(benchmark.name())]
 
+    for b in benchmarks:
+        print(b.name())
+
     for benchmark in benchmarks:
         try:
-            print(f"setting up {benchmark.name()}... ", end='', flush=True)
+            print(f"Setting up {benchmark.name()}... ")
             benchmark.setup()
-            print("complete.")
+            print(f"{benchmark.name()} setup complete.")
 
         except Exception as e:
             if options.exit_on_failure:
@@ -119,7 +66,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         try:
             merged_env_vars = {**additional_env_vars}
             iteration_results = []
-            for iter in range(options.iterations):
+            iterations = options.iterations if not benchmark.ignore_iterations() else 1
+            for iter in range(iterations):
                 print(f"running {benchmark.name()}, iteration {iter}... ", end='', flush=True)
                 bench_results = benchmark.run(merged_env_vars)
                 if bench_results is not None:
@@ -131,7 +79,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                         iteration_results.append(bench_result)
                 else:
                     print(f"did not finish (OK for sycl-bench).")
-                    break;
+                    break
 
             if len(iteration_results) == 0:
                 continue
@@ -145,6 +93,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
 
                     median_result.unit = benchmark.unit()
                     median_result.name = label
+                    median_result.lower_is_better = benchmark.lower_is_better()
 
                     results.append(median_result)
         except Exception as e:
@@ -158,23 +107,44 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         benchmark.teardown()
         print("complete.")
 
-    chart_data = {"This PR" : results}
+    this_name = "This PR"
+
+    chart_data = {this_name : results}
+
+    history = BenchmarkHistory(directory)
+    # limit how many files we load.
+    # should this be configurable?
+    history.load(1000)
 
     for name in compare_names:
-        print(f"compare name: {name}")
-        compare_result = load_benchmark_results(directory, name)
+        compare_result = history.get_compare(name)
         if compare_result:
-            chart_data[name] = compare_result
+            chart_data[name] = compare_result.results
 
-    if save_name:
-        save_benchmark_results(directory, save_name, results)
+    if options.output_markdown:
+        markdown_content = generate_markdown(this_name, chart_data)
 
-    markdown_content = generate_markdown(chart_data)
+        with open('benchmark_results.md', 'w') as file:
+            file.write(markdown_content)
 
-    with open('benchmark_results.md', 'w') as file:
-        file.write(markdown_content)
+        print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
 
-    print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
+    saved_name = save_name if save_name is not None else this_name
+
+    # It's important we don't save the current results into history before
+    # we calculate historical averages or get latest results for compare.
+    # Otherwise we might be comparing the results to themselves.
+    if not options.dry_run:
+        history.save(saved_name, results, save_name is not None)
+        compare_names.append(saved_name)
+
+    if options.output_html:
+        html_content = generate_html(history.runs, 'oneapi-src/unified-runtime', compare_names)
+
+        with open('benchmark_results.html', 'w') as file:
+            file.write(html_content)
+
+        print(f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html")
 
 def validate_and_parse_env_args(env_args):
     env_vars = {}
@@ -188,9 +158,9 @@ def validate_and_parse_env_args(env_args):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Unified Runtime Benchmark Runner')
     parser.add_argument('benchmark_directory', type=str, help='Working directory to setup benchmarks.')
-    parser.add_argument('sycl', type=str, help='Root directory of the SYCL compiler.')
-    parser.add_argument('ur_dir', type=str, help='UR install prefix path')
-    parser.add_argument('ur_adapter_name', type=str, help='Options to build the Unified Runtime as part of the benchmark')
+    parser.add_argument('--sycl', type=str, help='Root directory of the SYCL compiler.', default=None)
+    parser.add_argument('--ur', type=str, help='UR install prefix path', default=None)
+    parser.add_argument('--adapter', type=str, help='Options to build the Unified Runtime as part of the benchmark', default="level_zero")
     parser.add_argument("--no-rebuild", help='Rebuild the benchmarks from scratch.', action="store_true")
     parser.add_argument("--env", type=str, help='Use env variable for a benchmark run.', action="append", default=[])
     parser.add_argument("--save", type=str, help='Save the results for comparison under a specified name.')
@@ -200,7 +170,12 @@ if __name__ == "__main__":
     parser.add_argument("--filter", type=str, help='Regex pattern to filter benchmarks by name.', default=None)
     parser.add_argument("--epsilon", type=float, help='Threshold to consider change of performance significant', default=0.005)
     parser.add_argument("--verbose", help='Print output of all the commands.', action="store_true")
-    parser.add_argument("--exit_on_failure", help='Exit on first failure.', action="store_true")
+    parser.add_argument("--exit-on-failure", help='Exit on first failure.', action="store_true")
+    parser.add_argument("--compare-type", type=str, choices=[e.value for e in Compare], help='Compare results against previously saved data.', default=Compare.LATEST.value)
+    parser.add_argument("--compare-max", type=int, help='How many results to read for comparisions', default=10)
+    parser.add_argument("--output-html", help='Create HTML output', action="store_true", default=False)
+    parser.add_argument("--output-markdown", help='Create Markdown output', action="store_true", default=True)
+    parser.add_argument("--dry-run", help='Do not run any actual benchmarks', action="store_true", default=False)
 
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
@@ -211,9 +186,14 @@ if __name__ == "__main__":
     options.iterations = args.iterations
     options.timeout = args.timeout
     options.epsilon = args.epsilon
-    options.ur_dir = args.ur_dir
-    options.ur_adapter_name = args.ur_adapter_name
+    options.ur = args.ur
+    options.ur_adapter = args.adapter
     options.exit_on_failure = args.exit_on_failure
+    options.compare = Compare(args.compare_type)
+    options.compare_max = args.compare_max
+    options.output_html = args.output_html
+    options.output_markdown = args.output_markdown
+    options.dry_run = args.dry_run
 
     benchmark_filter = re.compile(args.filter) if args.filter else None
 

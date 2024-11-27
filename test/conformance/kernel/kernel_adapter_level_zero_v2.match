@@ -1,5 +1,4 @@
-{{NONDETERMINISTIC}}
-urKernelSetExecInfoTest.SuccessIndirectAccess/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urKernelSetExecInfoUSMPointersTest.SuccessHost/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urKernelSetExecInfoUSMPointersTest.SuccessDevice/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
-urKernelSetExecInfoUSMPointersTest.SuccessShared/Intel_R__oneAPI_Unified_Runtime_over_Level_Zero___{{.*}}_
+urKernelSetExecInfoTest.SuccessIndirectAccess/*
+urKernelSetExecInfoUSMPointersTest.SuccessHost/*
+urKernelSetExecInfoUSMPointersTest.SuccessDevice/*
+urKernelSetExecInfoUSMPointersTest.SuccessShared/*

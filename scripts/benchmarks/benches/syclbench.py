@@ -7,19 +7,20 @@ import os
 import csv
 import io
 from utils.utils import run, git_clone, create_build_path
-from .base import Benchmark
+from .base import Benchmark, Suite
 from .result import Result
 from .options import options
 
-class SyclBench:
+class SyclBench(Suite):
     def __init__(self, directory):
+        if options.sycl is None:
+            return
+
         self.directory = directory
-        self.built = False
-        self.setup()
         return
 
     def setup(self):
-        if self.built:
+        if options.sycl is None:
             return
 
         build_path = create_build_path(self.directory, 'sycl-bench-build')
@@ -40,6 +41,50 @@ class SyclBench:
 
         self.built = True
 
+    def benchmarks(self) -> list[Benchmark]:
+        if options.sycl is None:
+            return []
+
+        return [
+            # Blocked_transform(self), # run time < 1ms
+            DagTaskI(self),
+            DagTaskS(self),
+            HostDevBandwidth(self),
+            LocalMem(self),
+            Pattern_L2(self),
+            Reduction(self),
+            ScalarProd(self),
+            SegmentReduction(self),
+            UsmAccLatency(self),
+            UsmAllocLatency(self),
+            UsmInstrMix(self),
+            UsmPinnedOverhead(self),
+            VecAdd(self),
+
+            # *** sycl-bench single benchmarks
+            # TwoDConvolution(self), # run time < 1ms
+            Two_mm(self),
+            Three_mm(self),
+            # Arith(self), # run time < 1ms
+            Atax(self),
+            # Atomic_reduction(self), # run time < 1ms
+            Bicg(self),
+            Correlation(self),
+            Covariance(self),
+            Gemm(self),
+            Gesumv(self),
+            Gramschmidt(self),
+            KMeans(self),
+            LinRegCoeff(self),
+            # LinRegError(self), # run time < 1ms
+            MatmulChain(self),
+            MolDyn(self),
+            Mvt(self),
+            Sf(self),
+            Syr2k(self),
+            Syrk(self),
+        ]
+
 class SyclBenchmark(Benchmark):
     def __init__(self, bench, name, test):
         self.bench = bench
@@ -58,7 +103,6 @@ class SyclBenchmark(Benchmark):
         return "ms"
 
     def setup(self):
-        self.bench.setup()
         self.benchmark_bin = os.path.join(self.directory, 'sycl-bench-build', self.bench_name)
 
     def run(self, env_vars) -> list[Result]:

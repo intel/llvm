@@ -30,6 +30,7 @@ struct immediate_command_list_descriptor_t {
   ze_device_handle_t ZeDevice;
   bool IsInOrder;
   uint32_t Ordinal;
+  bool CopyOffloadEnabled;
   ze_command_queue_mode_t Mode;
   ze_command_queue_priority_t Priority;
   std::optional<uint32_t> Index;
@@ -40,6 +41,7 @@ struct regular_command_list_descriptor_t {
   ze_device_handle_t ZeDevice;
   bool IsInOrder;
   uint32_t Ordinal;
+  bool CopyOffloadEnabled;
   bool operator==(const regular_command_list_descriptor_t &rhs) const;
 };
 
@@ -56,12 +58,13 @@ struct command_list_cache_t {
 
   raii::command_list_unique_handle
   getImmediateCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
-                          uint32_t Ordinal, ze_command_queue_mode_t Mode,
+                          uint32_t Ordinal, bool CopyOffloadEnable,
+                          ze_command_queue_mode_t Mode,
                           ze_command_queue_priority_t Priority,
                           std::optional<uint32_t> Index = std::nullopt);
   raii::command_list_unique_handle
   getRegularCommandList(ze_device_handle_t ZeDevice, bool IsInOrder,
-                        uint32_t Ordinal);
+                        uint32_t Ordinal, bool CopyOffloadEnable);
 
   // For testing purposes
   size_t getNumImmediateCommandLists();

@@ -6,18 +6,31 @@
 #include "uur/fixtures.h"
 #include "uur/raii.h"
 
-using urMemBufferPartitionTest = uur::urMemBufferTest;
-UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferPartitionTest);
+using urMemBufferPartitionWithFlagsTest =
+    uur::urContextTestWithParam<ur_mem_flag_t>;
+UUR_TEST_SUITE_P(urMemBufferPartitionWithFlagsTest,
+                 ::testing::Values(UR_MEM_FLAG_READ_WRITE,
+                                   UR_MEM_FLAG_WRITE_ONLY,
+                                   UR_MEM_FLAG_READ_ONLY),
+                 uur::deviceTestWithParamPrinter<ur_mem_flag_t>);
 
-TEST_P(urMemBufferPartitionTest, Success) {
-    ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0,
-                              1024};
+TEST_P(urMemBufferPartitionWithFlagsTest, Success) {
+    uur::raii::Mem buffer = nullptr;
+
+    ASSERT_SUCCESS(
+        urMemBufferCreate(context, getParam(), 1024, nullptr, buffer.ptr()));
+    ASSERT_NE(nullptr, buffer);
+
+    ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0, 512};
     uur::raii::Mem partition = nullptr;
-    ASSERT_SUCCESS(urMemBufferPartition(buffer, UR_MEM_FLAG_READ_WRITE,
+    ASSERT_SUCCESS(urMemBufferPartition(buffer, getParam(),
                                         UR_BUFFER_CREATE_TYPE_REGION, &region,
                                         partition.ptr()));
     ASSERT_NE(partition, nullptr);
 }
+
+using urMemBufferPartitionTest = uur::urMemBufferTest;
+UUR_INSTANTIATE_DEVICE_TEST_SUITE_P(urMemBufferPartitionTest);
 
 TEST_P(urMemBufferPartitionTest, InvalidNullHandleBuffer) {
     ur_buffer_region_t region{UR_STRUCTURE_TYPE_BUFFER_REGION, nullptr, 0,

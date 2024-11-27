@@ -77,6 +77,7 @@ urPlatformGet(ur_adapter_handle_t *, uint32_t, uint32_t NumEntries,
             for (auto i = 0u; i < static_cast<uint32_t>(NumDevices); ++i) {
               hipDevice_t Device;
               UR_CHECK_ERROR(hipDeviceGet(&Device, i));
+              UR_CHECK_ERROR(hipSetDevice(i));
               hipEvent_t EvBase;
               UR_CHECK_ERROR(hipEventCreate(&EvBase));
 
@@ -150,6 +151,11 @@ urPlatformGetBackendOption(ur_platform_handle_t, const char *pFrontendOption,
   if (pFrontendOption == "-O0"sv || pFrontendOption == "-O1"sv ||
       pFrontendOption == "-O2"sv || pFrontendOption == "-O3"sv ||
       pFrontendOption == ""sv) {
+    *ppPlatformOption = "";
+    return UR_RESULT_SUCCESS;
+  }
+  if (pFrontendOption == "-foffload-fp32-prec-div"sv ||
+      pFrontendOption == "-foffload-fp32-prec-sqrt"sv) {
     *ppPlatformOption = "";
     return UR_RESULT_SUCCESS;
   }

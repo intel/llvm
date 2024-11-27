@@ -187,6 +187,24 @@ jobs:
       adapter_name: NATIVE_CPU
       runner_name: NATIVE_CPU
 
+  # Native CPU jobs are here to force the loader to be used (UR will not use the loader if there is only one target)
+  combined-opencl-native-cpu:
+    name: OpenCL + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: OPENCL
+      other_adapter_name: NATIVE_CPU
+      runner_name: OPENCL
+      platform: "OPENCL:Intel(R) OpenCL"
+
+  combined-level-zero-native-cpu:
+    name: Level Zero + Native CPU (Loader)
+    uses: ./.github/workflows/build-hw-reusable.yml
+    with:
+      adapter_name: L0
+      other_adapter_name: NATIVE_CPU
+      runner_name: L0
+
   e2e-level-zero:
     name: E2E L0
     permissions:
@@ -238,10 +256,12 @@ jobs:
            compiler: {c: clang-cl, cxx: clang-cl}
 
         build_type: [Debug, Release]
-        compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
+        # TODO: clang-cl seems to be fully broken (https://github.com/oneapi-src/unified-runtime/issues/2348)
+        #compiler: [{c: cl, cxx: cl}, {c: clang-cl, cxx: clang-cl}]
+        compiler: [{c: cl, cxx: cl}]
         include:
-          - compiler: {c: clang-cl, cxx: clang-cl}
-            toolset: "-T ClangCL"
+          #- compiler: {c: clang-cl, cxx: clang-cl}
+          #  toolset: "-T ClangCL"
           - os: 'windows-2022'
             adapter: {name: L0, var: '-DUR_BUILD_ADAPTER_L0=ON -DUR_STATIC_ADAPTER_L0=ON'}
             build_type: 'Release'

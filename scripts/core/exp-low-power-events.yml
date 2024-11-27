@@ -1,0 +1,114 @@
+#
+# Copyright (C) 2024 Intel Corporation
+#
+# Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
+# See LICENSE.TXT
+# SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#
+# See YaML.md for syntax definition
+#
+--- #--------------------------------------------------------------------------
+type: header
+desc: "Intel $OneApi Unified Runtime Experimental API for low-power events API"
+ordinal: "100"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+typed_etors: true
+desc: "Extension enums to $x_device_info_t to support low-power events."
+name: $x_device_info_t
+etors:
+    - name: LOW_POWER_EVENTS_EXP
+      value: "0x2021"
+      desc: "[$x_bool_t] returns true if the device supports low-power events."
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Extension enums to $x_queue_flags_t to support low power events."
+name: $x_queue_flags_t
+etors:
+    - name: LOW_POWER_EVENTS_EXP
+      desc: >
+            Hint: use low-power events. Only meaningful for Level Zero, where the implementation may use interrupt-driven events.
+            May reduce CPU utilization at the cost of increased event completion latency.
+            Other platforms may ignore this flag.
+      value: "$X_BIT(11)"
+
+--- #--------------------------------------------------------------------------
+type: enum
+desc: "Extended enqueue properties"
+name: $x_exp_enqueue_ext_flags_t
+etors:
+    - name: LOW_POWER_EVENTS
+      desc: >
+            Hint: use low-power events. Only meaningful for Level Zero, where the implementation may use interrupt-driven events.
+            May reduce CPU utilization at the cost of increased event completion latency.
+            Other platforms may ignore this flag.
+      value: "$X_BIT(11)"
+
+--- #--------------------------------------------------------------------------
+type: struct
+desc: "Extended enqueue properties"
+name: $x_exp_enqueue_ext_properties_t
+base: $x_base_properties_t
+members:
+    - type: $x_exp_enqueue_ext_flags_t
+      name: flags
+      desc: "[in] extended enqueue flags"
+
+--- #--------------------------------------------------------------------------
+type: enum
+extend: true
+desc: "Structure type experimental enumerations"
+name: $x_structure_type_t
+etors:
+    - name: EXP_ENQUEUE_EXT_PROPERTIES
+      desc: $x_exp_enqueue_ext_properties_t
+      value: "0x4000"
+
+--- #--------------------------------------------------------------------------
+type: function
+desc: "Enqueue a barrier command which waits a list of events to complete before it completes, with optional extended properties"
+class: $xEnqueue
+name: EventsWaitWithBarrierExt
+ordinal: "0"
+details:
+    - "If the event list is empty, it waits for all previously enqueued commands to complete."
+    - "It blocks command execution - any following commands enqueued after it do not execute until it completes."
+    - "It returns an event which can be waited on."
+analogue:
+    - "**clEnqueueBarrierWithWaitList**"
+params:
+    - type: $x_queue_handle_t
+      name: hQueue
+      desc: "[in] handle of the queue object"
+    - type: const $x_exp_enqueue_ext_properties_t*
+      name: pProperties
+      desc: "[in][optional] pointer to the extended enqueue properties"
+    - type: uint32_t
+      name: numEventsInWaitList
+      desc: "[in] size of the event wait list"
+    - type: "const $x_event_handle_t*"
+      name: phEventWaitList
+      desc: |
+            [in][optional][range(0, numEventsInWaitList)] pointer to a list of events that must be complete before this command can be executed.
+            If nullptr, the numEventsInWaitList must be 0, indicating that all previously enqueued commands
+            must be complete.
+    - type: $x_event_handle_t*
+      name: phEvent
+      desc: |
+            [out][optional] return an event object that identifies this particular command instance. If phEventWaitList and phEvent are not NULL, phEvent must not refer to an element of the phEventWaitList array.
+returns:
+    - $X_RESULT_ERROR_INVALID_QUEUE
+    - $X_RESULT_ERROR_INVALID_EVENT
+    - $X_RESULT_ERROR_INVALID_EVENT_WAIT_LIST:
+        - "`phEventWaitList == NULL && numEventsInWaitList > 0`"
+        - "`phEventWaitList != NULL && numEventsInWaitList == 0`"
+        - "If event objects in phEventWaitList are not valid events."
+    - $X_RESULT_ERROR_IN_EVENT_LIST_EXEC_STATUS:
+        - "An event in `phEventWaitList` has $X_EVENT_STATUS_ERROR."
+    - $X_RESULT_ERROR_INVALID_VALUE
+    - $X_RESULT_ERROR_OUT_OF_HOST_MEMORY
+    - $X_RESULT_ERROR_OUT_OF_RESOURCES

@@ -26,20 +26,12 @@ using queue_group_type = ur_device_handle_t_::queue_group_info_t::type;
 struct ur_command_list_handler_t {
   ur_command_list_handler_t(ur_context_handle_t hContext,
                             ur_device_handle_t hDevice,
-                            const ur_queue_properties_t *pProps,
-                            queue_group_type type, event_pool *eventPool);
+                            const ur_queue_properties_t *pProps);
 
   ur_command_list_handler_t(ze_command_list_handle_t hZeCommandList,
-                            event_pool *eventPool, bool ownZeHandle);
+                            bool ownZeHandle);
 
   raii::command_list_unique_handle commandList;
-  std::unique_ptr<ur_event_handle_t_, std::function<void(ur_event_handle_t)>>
-      internalEvent;
-
-  // TODO: do we need to keep ref count of this for user events?
-  // For counter based events, we can reuse them safely and l0 event pool
-  // cannot be destroyed before the queue is released.
-  ur_event_handle_t lastEvent = nullptr;
 };
 
 struct ur_queue_immediate_in_order_t : _ur_object, public ur_queue_handle_t_ {
@@ -50,43 +42,40 @@ private:
 
   raii::cache_borrowed_event_pool eventPool;
 
-  ur_command_list_handler_t copyHandler;
-  ur_command_list_handler_t computeHandler;
-  ur_command_list_handler_t *lastHandler = nullptr;
+  ur_command_list_handler_t handler;
 
   std::vector<ze_event_handle_t> waitList;
 
+  std::vector<ur_event_handle_t> deferredEvents;
+
   std::pair<ze_event_handle_t *, uint32_t>
-  getWaitListView(const ur_event_handle_t *phWaitEvents, uint32_t numWaitEvents,
-                  ur_command_list_handler_t *pHandler);
+  getWaitListView(const ur_event_handle_t *phWaitEvents,
+                  uint32_t numWaitEvents);
 
-  ur_command_list_handler_t *getCommandListHandlerForCompute();
-  ur_command_list_handler_t *getCommandListHandlerForCopy();
-  ur_command_list_handler_t *getCommandListHandlerForFill(size_t patternSize);
+  ur_event_handle_t getSignalEvent(ur_event_handle_t *hUserEvent,
+                                   ur_command_t commandType);
 
-  ur_event_handle_t getSignalEvent(ur_command_list_handler_t *handler,
-                                   ur_event_handle_t *hUserEvent);
-
-  ur_result_t finalizeHandler(ur_command_list_handler_t *handler);
-  ur_result_t finalizeHandler(ur_command_list_handler_t *handler,
-                              bool blocking);
+  void deferEventFree(ur_event_handle_t hEvent) override;
 
   ur_result_t enqueueRegionCopyUnlocked(
       ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking,
       ur_rect_offset_t srcOrigin, ur_rect_offset_t dstOrigin,
       ur_rect_region_t region, size_t srcRowPitch, size_t srcSlicePitch,
       size_t dstRowPitch, size_t dstSlicePitch, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
+      ur_command_t commandType);
 
   ur_result_t enqueueGenericCopyUnlocked(
       ur_mem_handle_t src, ur_mem_handle_t dst, bool blocking, size_t srcOffset,
       size_t dstOffset, size_t size, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
+      ur_command_t commandType);
 
   ur_result_t enqueueGenericFillUnlocked(
       ur_mem_handle_t hBuffer, size_t offset, size_t patternSize,
       const void *pPattern, size_t size, uint32_t numEventsInWaitList,
-      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent);
+      const ur_event_handle_t *phEventWaitList, ur_event_handle_t *phEvent,
+      ur_command_t commandType);
 
 public:
   ur_queue_immediate_in_order_t(ur_context_handle_t, ur_device_handle_t,
@@ -119,6 +108,10 @@ public:
   enqueueEventsWaitWithBarrier(uint32_t numEventsInWaitList,
                                const ur_event_handle_t *phEventWaitList,
                                ur_event_handle_t *phEvent) override;
+  ur_result_t enqueueEventsWaitWithBarrierExt(
+      const ur_exp_enqueue_ext_properties_t *pProperties,
+      uint32_t numEventsInWaitList, const ur_event_handle_t *phEventWaitList,
+      ur_event_handle_t *phEvent) override;
   ur_result_t enqueueMemBufferRead(ur_mem_handle_t hBuffer, bool blockingRead,
                                    size_t offset, size_t size, void *pDst,
                                    uint32_t numEventsInWaitList,

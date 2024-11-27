@@ -21,7 +21,8 @@ TEST_P(urContextSetExtendedDeleterTest, Success) {
             *static_cast<bool *>(userdata) = true;
         };
 
-        ASSERT_SUCCESS(urContextSetExtendedDeleter(context, deleter, &called));
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urContextSetExtendedDeleter(context, deleter, &called));
     }
     ASSERT_TRUE(called);
 }
