@@ -294,7 +294,7 @@ int test_warning() {
   return 0;
 }
 
-int main(int argc, char**) {
+int main(int argc, char **) {
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
   int optional_tests = (argc > 1) ? test_warning() : 0;
   return test_build_and_run() || test_unsupported_options() || test_error() ||

@@ -62,14 +62,12 @@ public:
       : Failed{true}, BundleInfo{}, ErrorMessage{ErrorMessage} {}
 
   explicit RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)}, ErrorMessage{
-                                                              BuildLog} {}
+      : Failed{false}, BundleInfo{std::move(BundleInfo)},
+        ErrorMessage{BuildLog} {}
 
   bool failed() const { return Failed; }
 
-  const char *getErrorMessage() const {
-    return ErrorMessage.c_str();
-  }
+  const char *getErrorMessage() const { return ErrorMessage.c_str(); }
 
   const RTCBundleInfo &getBundleInfo() const {
     assert(!failed() && "No bundle info");
