@@ -499,10 +499,13 @@ public:
                                                RegisteredKernelNames);
         }
         if (Language == syclex::source_language::sycl_jit) {
-          const auto &SourceStr = std::get<std::string>(this->Source);
-          return syclex::detail::SYCL_JIT_to_SPIRV(SourceStr, IncludePairs,
-                                                   BuildOptions, LogPtr,
-                                                   RegisteredKernelNames);
+          auto *Binaries = syclex::detail::SYCL_JIT_to_SPIRV(
+              *SourceStrPtr, IncludePairs, BuildOptions, LogPtr,
+              RegisteredKernelNames);
+          assert(Binaries->NumDeviceBinaries == 1 &&
+                 "Device code splitting is not yet supported");
+          return std::vector<uint8_t>(Binaries->DeviceBinaries->BinaryStart,
+                                      Binaries->DeviceBinaries->BinaryEnd);
         }
         throw sycl::exception(
             make_error_code(errc::invalid),

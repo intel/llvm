@@ -5,9 +5,6 @@
 // Extra run to check for immediate-command-list in Level Zero
 // RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
-
 // Tests using dynamic command-group objects with buffer accessors
 
 #include "../graph_common.hpp"
@@ -23,14 +20,14 @@ int main() {
       Queue.get_device(),
       {exp_ext::property::graph::assume_buffer_outlives_graph{}}};
 
-  int PatternA = 42;
+  const int PatternA = 42;
   auto CGFA = [&](handler &CGH) {
     CGH.require(Acc);
     CGH.parallel_for(Size,
                      [=](item<1> Item) { Acc[Item.get_id()] = PatternA; });
   };
 
-  int PatternB = 0xA;
+  const int PatternB = 0xA;
   auto CGFB = [&](handler &CGH) {
     CGH.require(Acc);
     CGH.parallel_for(Size,
