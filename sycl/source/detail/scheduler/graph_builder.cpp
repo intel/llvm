@@ -1072,7 +1072,7 @@ Command *Scheduler::GraphBuilder::addCG(
     addNodeToLeaves(Record, NewCmd.get(), Req->MAccessMode, ToEnqueue);
   }
 
-  for (detail::EventImplPtr e : Events) {
+  for (const detail::EventImplPtr &e : Events) {
     // Register all the events as dependencies
     if (Command *ConnCmd = NewCmd->addDep(e, ToCleanUp))
       ToEnqueue.push_back(ConnCmd);
