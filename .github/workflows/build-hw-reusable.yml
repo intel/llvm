@@ -7,10 +7,15 @@ on:
       adapter_name:
         required: true
         type: string
+      other_adapter_name:
+        required: false
+        type: string
+        default: ""
       runner_name:
         required: true
         type: string
       platform:
+        description: "Platform string, `UR_CTS_ADAPTER_PLATFORM` will be set to this."
         required: false
         type: string
         default: ""
@@ -39,9 +44,13 @@ jobs:
     if: github.repository == 'oneapi-src/unified-runtime'  # run only on upstream; forks won't have the HW
     strategy:
       matrix:
-        adapter: [
-          {name: "${{inputs.adapter_name}}", platform: "${{inputs.platform}}", static_Loader: "${{inputs.static_loader}}", static_adapter: "${{inputs.static_loader}}"},
-        ]
+        adapter: [{
+          name: "${{inputs.adapter_name}}",
+          other_name: "${{inputs.other_adapter_name}}",
+          platform: "${{inputs.platform}}",
+          static_Loader: "${{inputs.static_loader}}",
+          static_adapter: "${{inputs.static_loader}}"
+        }]
         build_type: [Debug, Release]
         compiler: [{c: gcc, cxx: g++}, {c: clang, cxx: clang++}]
         # TODO: The latest L0 loader segfaults when built with clang.
@@ -73,6 +82,8 @@ jobs:
         tar -xvf ${{github.workspace}}/dpcpp_compiler.tar.gz -C dpcpp_compiler
 
     - name: Configure CMake
+      # CFI sanitization seems to fail on our CUDA nodes
+      # https://github.com/oneapi-src/unified-runtime/issues/2309
       run: >
         cmake
         -B${{github.workspace}}/build
@@ -82,8 +93,10 @@ jobs:
         -DUR_ENABLE_TRACING=ON
         -DUR_DEVELOPER_MODE=ON
         -DUR_BUILD_TESTS=ON
-        -DUR_CONFORMANCE_TEST_LOADER=OFF
         -DUR_BUILD_ADAPTER_${{matrix.adapter.name}}=ON
+        -DUR_CONFORMANCE_TEST_LOADER=${{ matrix.adapter.other_name != '' && 'ON' || 'OFF' }}
+        ${{ matrix.adapter.other_name != '' && format('-DUR_BUILD_ADAPTER_{0}=ON', matrix.adapter.other_name) || '' }}
+        -DUR_USE_CFI=${{ matrix.adapter.name == 'CUDA' && 'OFF' || 'ON' }}
         -DUR_STATIC_LOADER=${{matrix.adapter.static_Loader}}
         -DUR_STATIC_ADAPTER_${{matrix.adapter.name}}=${{matrix.adapter.static_adapter}}
         -DUR_DPCXX=${{github.workspace}}/dpcpp_compiler/bin/clang++
@@ -103,6 +116,8 @@ jobs:
     - name: Test adapter specific
       working-directory: ${{github.workspace}}/build
       run: ctest -C ${{matrix.build_type}} --output-on-failure -L "adapter-specific" --timeout 180
+      # Don't run adapter specific tests when building multiple adapters
+      if: ${{ matrix.adapter.other_name == '' }}
 
     - name: Test adapters
       working-directory: ${{github.workspace}}/build

@@ -162,6 +162,7 @@ add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/sequence.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/standard_types.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/subgroup.cpp)
 add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/linker_error.cpp)
+add_device_binary(${CMAKE_CURRENT_SOURCE_DIR}/saxpy_usm_local_mem.cpp)
 
 set(KERNEL_HEADER ${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/kernel_entry_points.h)
 add_custom_command(OUTPUT ${KERNEL_HEADER}

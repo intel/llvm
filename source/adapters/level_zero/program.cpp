@@ -618,6 +618,9 @@ ur_result_t urProgramGetGlobalVariablePointer(
                                     ///< variable if it is found in the program.
 ) {
   std::scoped_lock<ur_shared_mutex> lock(Program->Mutex);
+  if (Program->getState(Device->ZeDevice) != ur_program_handle_t_::Exe) {
+    return UR_RESULT_ERROR_INVALID_PROGRAM_EXECUTABLE;
+  }
 
   ze_module_handle_t ZeModuleEntry{};
   ZeModuleEntry = Program->getZeModuleHandle(Device->ZeDevice);
@@ -668,17 +671,16 @@ ur_result_t urProgramGetInfo(
         binarySizes.push_back(Program->getCodeSize(Device->ZeDevice));
         continue;
       }
-      auto ZeModule = Program->getZeModuleHandle(Device->ZeDevice);
-      if (!ZeModule)
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-
       if (State == ur_program_handle_t_::IL ||
           State == ur_program_handle_t_::Object) {
-        // We don't have a binary for this device, so return size of the spirv
-        // code. This is an array of 1 element, initialized as if it were
-        // scalar.
-        return ReturnValue(size_t{Program->getCodeSize()});
+        // We don't have a binary for this device, so return 0.
+        binarySizes.push_back(0);
+        continue;
       } else if (State == ur_program_handle_t_::Exe) {
+        auto ZeModule = Program->getZeModuleHandle(Device->ZeDevice);
+        if (!ZeModule)
+          return UR_RESULT_ERROR_INVALID_PROGRAM;
+
         size_t binarySize = 0;
         ZE2UR_CALL(zeModuleGetNativeBinary, (ZeModule, &binarySize, nullptr));
         binarySizes.push_back(binarySize);
@@ -718,27 +720,17 @@ ur_result_t urProgramGetInfo(
         SzBinary += Program->getCodeSize(ZeDevice);
         continue;
       }
-      auto ZeModule = Program->getZeModuleHandle(ZeDevice);
-      if (!ZeModule) {
-        return UR_RESULT_ERROR_INVALID_PROGRAM;
-      }
-      // If the caller is using a Program which is IL or an object, then
-      // the program has not been built for multiple devices so a single IL is
-      // returned.
-      // TODO: currently if program is not compiled for any of the associated
-      // devices, we just return spirv code, assuming that we either have the
-      // program built for all associated devices or for none. It is possible
-      // that program is compiled for subset of associated devices, so that case
-      // probably should be explicitely specified and handled better.
       if (State == ur_program_handle_t_::IL ||
           State == ur_program_handle_t_::Object) {
+        // We don't have a binary for this device, so don't update the output
+        // pointer to the binary, only set return size to 0.
         if (PropSizeRet)
-          *PropSizeRet = Program->getCodeSize();
-        if (PBinary) {
-          std::memcpy(PBinary[0], Program->getCode(), Program->getCodeSize());
-        }
-        break;
+          *PropSizeRet = 0;
       } else if (State == ur_program_handle_t_::Exe) {
+        auto ZeModule = Program->getZeModuleHandle(ZeDevice);
+        if (!ZeModule) {
+          return UR_RESULT_ERROR_INVALID_PROGRAM;
+        }
         size_t binarySize = 0;
         if (PBinary) {
           NativeBinaryPtr = PBinary[deviceIndex];

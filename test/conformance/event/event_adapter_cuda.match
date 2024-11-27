@@ -1,7 +1,6 @@
-{{NONDETERMINISTIC}}
-urEventGetProfilingInfoTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}___UR_PROFILING_INFO_COMMAND_COMPLETE
-urEventGetProfilingInfoWithTimingComparisonTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEventSetCallbackTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEventSetCallbackTest.ValidateParameters/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEventSetCallbackTest.AllStates/NVIDIA_CUDA_BACKEND___{{.*}}_
-urEventSetCallbackTest.EventAlreadyCompleted/NVIDIA_CUDA_BACKEND___{{.*}}_
+urEventGetProfilingInfoTest.Success/*__UR_PROFILING_INFO_COMMAND_COMPLETE
+urEventGetProfilingInfoWithTimingComparisonTest.Success/*
+urEventSetCallbackTest.Success/*
+urEventSetCallbackTest.ValidateParameters/*
+urEventSetCallbackTest.AllStates/*
+urEventSetCallbackTest.EventAlreadyCompleted/*

@@ -1,2 +1,1 @@
-{{NONDETERMINISTIC}}
-urEnqueueKernelLaunchCustomTest.Success/SYCL_NATIVE_CPU___SYCL_Native_CPU__{{.*}}
+urEnqueueKernelLaunchCustomTest.Success/*

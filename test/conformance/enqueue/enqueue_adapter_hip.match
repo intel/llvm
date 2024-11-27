@@ -1,22 +1,21 @@
-{{NONDETERMINISTIC}}
 # HIP can't check kernel arguments
-urEnqueueKernelLaunchTest.InvalidKernelArgs/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueKernelLaunchKernelSubGroupTest.Success/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueKernelLaunchUSMLinkedList.Success/AMD_HIP_BACKEND___{{.*}}___UsePoolEnabled
-{{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_row_2D
-{{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___copy_3d_2d
-{{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_row_2D
-{{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/AMD_HIP_BACKEND___{{.*}}___write_3d_2d
+urEnqueueKernelLaunchTest.InvalidKernelArgs/*
+urEnqueueKernelLaunchKernelWgSizeTest.NonMatchingLocalSize/*
+urEnqueueKernelLaunchKernelSubGroupTest.Success/*
+urEnqueueKernelLaunchUSMLinkedList.Success/*__UsePoolEnabled
+{{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/*__copy_row_2D
+{{OPT}}urEnqueueMemBufferCopyRectTestWithParam.Success/*__copy_3d_2d
+{{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/*__write_row_2D
+{{OPT}}urEnqueueMemBufferWriteRectTestWithParam.Success/*__write_3d_2d
 
 # HIP doesn't ignore unsupported USM advice or prefetching. Instead of
 # returning UR_RESULT_SUCCESS as per the spec, it instead returns
 # UR_RESULT_ERROR_ADAPTER_SPECIFIC to issue a warning. These tests will fail
 # until this is rectified.
-urEnqueueUSMAdviseWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_ADVICE_FLAG_DEFAULT
-urEnqueueUSMAdviseTest.MultipleParamsSuccess/AMD_HIP_BACKEND___{{.*}}_
-urEnqueueUSMPrefetchWithParamTest.Success/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
-urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/AMD_HIP_BACKEND___{{.*}}___UR_USM_MIGRATION_FLAG_DEFAULT
+urEnqueueUSMAdviseWithParamTest.Success/*__UR_USM_ADVICE_FLAG_DEFAULT
+urEnqueueUSMAdviseTest.MultipleParamsSuccess/*
+urEnqueueUSMPrefetchWithParamTest.Success/*__UR_USM_MIGRATION_FLAG_DEFAULT
+urEnqueueUSMPrefetchWithParamTest.CheckWaitEvent/*__UR_USM_MIGRATION_FLAG_DEFAULT
 
-urEnqueueTimestampRecordingExpTest.Success/AMD_HIP_BACKEND___{{.*}}
-urEnqueueTimestampRecordingExpTest.SuccessBlocking/AMD_HIP_BACKEND___{{.*}}
+urEnqueueTimestampRecordingExpTest.Success/*
+urEnqueueTimestampRecordingExpTest.SuccessBlocking/*

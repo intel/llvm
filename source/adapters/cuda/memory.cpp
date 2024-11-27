@@ -171,6 +171,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   case UR_MEM_INFO_CONTEXT: {
     return ReturnValue(hMemory->getContext());
   }
+  case UR_MEM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hMemory->getReferenceCount());
+  }
 
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;

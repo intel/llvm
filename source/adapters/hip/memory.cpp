@@ -231,10 +231,6 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
                                                  size_t propSize,
                                                  void *pMemInfo,
                                                  size_t *pPropSizeRet) {
-
-  UR_ASSERT(MemInfoType <= UR_MEM_INFO_CONTEXT,
-            UR_RESULT_ERROR_INVALID_ENUMERATION);
-
   // FIXME: Only getting info for the first device in the context. This
   // should be fine in general
   auto Device = hMemory->getContext()->getDevices()[0];
@@ -286,6 +282,9 @@ UR_APIEXPORT ur_result_t UR_APICALL urMemGetInfo(ur_mem_handle_t hMemory,
   case UR_MEM_INFO_CONTEXT: {
     return ReturnValue(hMemory->getContext());
   }
+  case UR_MEM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(hMemory->getReferenceCount());
+  }
 
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
@@ -316,14 +315,18 @@ urMemGetNativeHandle(ur_mem_handle_t hMem, ur_device_handle_t Device,
       return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
     }
   }
-  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-      std::get<BufferMem>(hMem->Mem).getPtr(Device));
-#elif defined(__HIP_PLATFORM_AMD__)
-  *phNativeMem = reinterpret_cast<ur_native_handle_t>(
-      std::get<BufferMem>(hMem->Mem).getPtr(Device));
-#else
+#elif !defined(__HIP_PLATFORM_AMD__)
 #error("Must define exactly one of __HIP_PLATFORM_AMD__ or __HIP_PLATFORM_NVIDIA__");
 #endif
+  if (std::holds_alternative<BufferMem>(hMem->Mem)) {
+    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+        std::get<BufferMem>(hMem->Mem).getPtr(Device));
+  } else if (std::holds_alternative<SurfaceMem>(hMem->Mem)) {
+    *phNativeMem = reinterpret_cast<ur_native_handle_t>(
+        std::get<SurfaceMem>(hMem->Mem).getSurface(Device));
+  } else {
+    return UR_RESULT_ERROR_INVALID_MEM_OBJECT;
+  }
   return UR_RESULT_SUCCESS;
 }
 
