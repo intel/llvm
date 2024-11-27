@@ -369,7 +369,7 @@ __urdlllocal ur_result_t UR_APICALL urProgramLink(
     UR_CALL(pfnProgramLink(hContext, count, phPrograms, pOptions, phProgram));
 
     UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
-    UR_CALL(getAsanInterceptor()->registerProgram(hContext, *phProgram));
+    UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
 }
@@ -401,7 +401,7 @@ ur_result_t UR_APICALL urProgramLinkExp(
                               phPrograms, pOptions, phProgram));
 
     UR_CALL(getAsanInterceptor()->insertProgram(*phProgram));
-    UR_CALL(getAsanInterceptor()->registerProgram(hContext, *phProgram));
+    UR_CALL(getAsanInterceptor()->registerProgram(*phProgram));
 
     return UR_RESULT_SUCCESS;
 }
