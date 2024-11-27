@@ -87,7 +87,7 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
-enum class DeviceLibIsNative : std::uint32_t {Yes, No, Ignore};
+enum class DeviceLibIsNative : std::uint32_t { Yes, No, Ignore };
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
