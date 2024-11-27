@@ -436,6 +436,7 @@ ur_result_t AsanInterceptor::registerProgram(ur_program_handle_t Program) {
 
 ur_result_t AsanInterceptor::unregisterProgram(ur_program_handle_t Program) {
     auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
 
     for (auto AI : ProgramInfo->AllocInfoForGlobals) {
         UR_CALL(getDeviceInfo(AI->Device)->Shadow->ReleaseShadow(AI));
@@ -483,6 +484,7 @@ ur_result_t AsanInterceptor::registerSpirKernels(ur_program_handle_t Program) {
         }
 
         auto PI = getProgramInfo(Program);
+        assert(PI != nullptr && "unregistered program!");
         for (const auto &SKI : SKInfo) {
             if (SKI.Size == 0) {
                 continue;
@@ -519,6 +521,7 @@ AsanInterceptor::registerDeviceGlobals(ur_program_handle_t Program) {
     auto Context = GetContext(Program);
     auto ContextInfo = getContextInfo(Context);
     auto ProgramInfo = getProgramInfo(Program);
+    assert(ProgramInfo != nullptr && "unregistered program!");
 
     for (auto Device : Devices) {
         ManagedQueue Queue(Context, Device);

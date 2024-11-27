@@ -55,6 +55,9 @@ ur_result_t setupContext(ur_context_handle_t Context, uint32_t numDevices,
 bool isInstrumentedKernel(ur_kernel_handle_t hKernel) {
     auto hProgram = GetProgram(hKernel);
     auto PI = getAsanInterceptor()->getProgramInfo(hProgram);
+    if (PI == nullptr) {
+        return false;
+    }
     return PI->isKernelInstrumented(hKernel);
 }
 
@@ -290,8 +293,9 @@ __urdlllocal ur_result_t UR_APICALL urProgramRetain(
     UR_CALL(pfnRetain(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    ProgramInfo->RefCount++;
+    if (ProgramInfo != nullptr) {
+        ProgramInfo->RefCount++;
+    }
 
     return UR_RESULT_SUCCESS;
 }
@@ -419,8 +423,7 @@ ur_result_t UR_APICALL urProgramRelease(
     UR_CALL(pfnProgramRelease(hProgram));
 
     auto ProgramInfo = getAsanInterceptor()->getProgramInfo(hProgram);
-    UR_ASSERT(ProgramInfo != nullptr, UR_RESULT_ERROR_INVALID_VALUE);
-    if (--ProgramInfo->RefCount == 0) {
+    if (ProgramInfo != nullptr && --ProgramInfo->RefCount == 0) {
         UR_CALL(getAsanInterceptor()->unregisterProgram(hProgram));
         UR_CALL(getAsanInterceptor()->eraseProgram(hProgram));
     }
