@@ -1,5 +1,5 @@
-{{NONDETERMINISTIC}}
-urAdapterGetLastErrorTest.Success
-urAdapterGetLastErrorTest.InvalidHandle
-urAdapterGetLastErrorTest.InvalidMessagePtr
-urAdapterGetLastErrorTest.InvalidErrorPtr
+# These pass when the adapter is launched by the loader
+{{OPT}}urAdapterGetLastErrorTest.Success
+{{OPT}}urAdapterGetLastErrorTest.InvalidHandle
+{{OPT}}urAdapterGetLastErrorTest.InvalidMessagePtr
+{{OPT}}urAdapterGetLastErrorTest.InvalidErrorPtr

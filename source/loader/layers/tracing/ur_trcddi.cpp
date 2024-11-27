@@ -9100,6 +9100,60 @@ __urdlllocal ur_result_t UR_APICALL urUsmP2PPeerAccessGetInfoExp(
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+/// @brief Intercept function for urEnqueueEventsWaitWithBarrierExt
+__urdlllocal ur_result_t UR_APICALL urEnqueueEventsWaitWithBarrierExt(
+    ur_queue_handle_t hQueue, ///< [in] handle of the queue object
+    const ur_exp_enqueue_ext_properties_t *
+        pProperties, ///< [in][optional] pointer to the extended enqueue properties
+    uint32_t numEventsInWaitList, ///< [in] size of the event wait list
+    const ur_event_handle_t *
+        phEventWaitList, ///< [in][optional][range(0, numEventsInWaitList)] pointer to a list of
+    ///< events that must be complete before this command can be executed.
+    ///< If nullptr, the numEventsInWaitList must be 0, indicating that all
+    ///< previously enqueued commands
+    ///< must be complete.
+    ur_event_handle_t *
+        phEvent ///< [out][optional] return an event object that identifies this particular
+    ///< command instance. If phEventWaitList and phEvent are not NULL, phEvent
+    ///< must not refer to an element of the phEventWaitList array.
+) {
+    auto pfnEventsWaitWithBarrierExt =
+        getContext()->urDdiTable.Enqueue.pfnEventsWaitWithBarrierExt;
+
+    if (nullptr == pfnEventsWaitWithBarrierExt) {
+        return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+
+    ur_enqueue_events_wait_with_barrier_ext_params_t params = {
+        &hQueue, &pProperties, &numEventsInWaitList, &phEventWaitList,
+        &phEvent};
+    uint64_t instance = getContext()->notify_begin(
+        UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT,
+        "urEnqueueEventsWaitWithBarrierExt", &params);
+
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urEnqueueEventsWaitWithBarrierExt\n");
+
+    ur_result_t result = pfnEventsWaitWithBarrierExt(
+        hQueue, pProperties, numEventsInWaitList, phEventWaitList, phEvent);
+
+    getContext()->notify_end(UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT,
+                             "urEnqueueEventsWaitWithBarrierExt", &params,
+                             &result, instance);
+
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT,
+            &params);
+        logger.info("   <--- urEnqueueEventsWaitWithBarrierExt({}) -> {};\n",
+                    args_str.str(), result);
+    }
+
+    return result;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 /// @brief Intercept function for urEnqueueNativeCommandExp
 __urdlllocal ur_result_t UR_APICALL urEnqueueNativeCommandExp(
     ur_queue_handle_t hQueue, ///< [in] handle of the queue object
@@ -9608,6 +9662,11 @@ __urdlllocal ur_result_t UR_APICALL urGetEnqueueProcAddrTable(
 
     dditable.pfnWriteHostPipe = pDdiTable->pfnWriteHostPipe;
     pDdiTable->pfnWriteHostPipe = ur_tracing_layer::urEnqueueWriteHostPipe;
+
+    dditable.pfnEventsWaitWithBarrierExt =
+        pDdiTable->pfnEventsWaitWithBarrierExt;
+    pDdiTable->pfnEventsWaitWithBarrierExt =
+        ur_tracing_layer::urEnqueueEventsWaitWithBarrierExt;
 
     return result;
 }

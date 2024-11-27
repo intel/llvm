@@ -23,12 +23,15 @@
     (void)0
 
 #define UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(ret)                                 \
-    auto status = ret;                                                         \
-    if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE) {                       \
-        GTEST_SKIP();                                                          \
-    } else {                                                                   \
-        ASSERT_EQ(status, UR_RESULT_SUCCESS);                                  \
-    }
+    do {                                                                       \
+        auto status = ret;                                                     \
+        if (status == UR_RESULT_ERROR_UNSUPPORTED_FEATURE ||                   \
+            status == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION) {               \
+            GTEST_SKIP();                                                      \
+        } else {                                                               \
+            ASSERT_EQ(status, UR_RESULT_SUCCESS);                              \
+        }                                                                      \
+    } while (0)
 
 namespace uur {
 
@@ -205,6 +208,9 @@ struct urMemImageTest : urContextTest {
         if (!imageSupported) {
             GTEST_SKIP();
         }
+        ASSERT_SUCCESS(urMemImageCreate(context, UR_MEM_FLAG_READ_WRITE,
+                                        &image_format, &image_desc, nullptr,
+                                        &image));
     }
 
     void TearDown() override {
@@ -215,7 +221,7 @@ struct urMemImageTest : urContextTest {
     }
 
     ur_image_format_t image_format = {
-        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_ARGB,
+        /*.channelOrder =*/UR_IMAGE_CHANNEL_ORDER_RGBA,
         /*.channelType =*/UR_IMAGE_CHANNEL_TYPE_UNORM_INT8,
     };
     ur_image_desc_t image_desc = {
@@ -226,8 +232,8 @@ struct urMemImageTest : urContextTest {
         /*.height =*/16,
         /*.depth =*/1,
         /*.arraySize =*/1,
-        /*.rowPitch =*/16 * sizeof(char[4]),
-        /*.slicePitch =*/16 * 16 * sizeof(char[4]),
+        /*.rowPitch =*/0,
+        /*.slicePitch =*/0,
         /*.numMipLevel =*/0,
         /*.numSamples =*/0,
     };
@@ -1582,6 +1588,10 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
             backend == UR_PLATFORM_BACKEND_CUDA) {
             GTEST_SKIP();
         }
+        devices = uur::DevicesEnvironment::instance->devices;
+        if (devices.size() < 2) {
+            GTEST_SKIP();
+        }
         UUR_RETURN_ON_FATAL_FAILURE(
             uur::KernelsEnvironment::instance->LoadSource(program_name,
                                                           il_binary));
@@ -1607,6 +1617,7 @@ struct urMultiDeviceProgramTest : urMultiDeviceQueueTest {
     std::string program_name = "foo";
     ur_program_handle_t program = nullptr;
     std::vector<ur_program_metadata_t> metadatas{};
+    std::vector<ur_device_handle_t> devices;
 };
 
 } // namespace uur

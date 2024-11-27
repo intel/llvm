@@ -1746,7 +1746,7 @@ ur_result_t urMemBufferCreateWithNativeHandle(
     ur_mem_handle_t
         *Mem ///< [out] pointer to handle of buffer memory object created.
 ) {
-  bool OwnNativeHandle = Properties->isNativeHandleOwned;
+  bool OwnNativeHandle = Properties ? Properties->isNativeHandleOwned : false;
 
   std::shared_lock<ur_shared_mutex> Lock(Context->Mutex);
 
@@ -1844,9 +1844,6 @@ ur_result_t urMemGetInfo(
     size_t *PropSizeRet ///< [out][optional] pointer to the actual size in
                         ///< bytes of data queried by pMemInfo.
 ) {
-  UR_ASSERT(MemInfoType == UR_MEM_INFO_CONTEXT || !Memory->isImage(),
-            UR_RESULT_ERROR_INVALID_VALUE);
-
   auto Buffer = reinterpret_cast<_ur_buffer *>(Memory);
   std::shared_lock<ur_shared_mutex> Lock(Buffer->Mutex);
   UrReturnHelper ReturnValue(PropSize, MemInfo, PropSizeRet);
@@ -1859,8 +1856,11 @@ ur_result_t urMemGetInfo(
     // Get size of the allocation
     return ReturnValue(size_t{Buffer->Size});
   }
+  case UR_MEM_INFO_REFERENCE_COUNT: {
+    return ReturnValue(Buffer->RefCount.load());
+  }
   default: {
-    die("urMemGetInfo: Parameter is not implemented");
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
   }
 
@@ -2240,7 +2240,7 @@ ur_result_t _ur_buffer::getZeHandle(char *&ZeHandle, access_mode_t AccessMode,
                     nullptr, 0u, nullptr));
       }
       if (waitlist.ZeEventList) {
-        delete waitlist.ZeEventList;
+        delete[] waitlist.ZeEventList;
       }
     }
     Allocation.Valid = true;

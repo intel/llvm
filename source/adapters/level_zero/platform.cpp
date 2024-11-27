@@ -196,6 +196,11 @@ ur_result_t urPlatformGetBackendOption(
     *PlatformOption = "-igc_opts 'PartitionUnit=1,SubroutineThreshold=50000'";
     return UR_RESULT_SUCCESS;
   }
+  if (FrontendOption == "-foffload-fp32-prec-div"sv ||
+      FrontendOption == "-foffload-fp32-prec-sqrt"sv) {
+    *PlatformOption = "-ze-fp32-correctly-rounded-divide-sqrt";
+    return UR_RESULT_SUCCESS;
+  }
   return UR_RESULT_ERROR_INVALID_VALUE;
 }
 
@@ -215,6 +220,7 @@ ur_result_t ur_platform_handle_t_::initialize() {
   ZE2UR_CALL(zeDriverGetExtensionProperties,
              (ZeDriver, &Count, ZeExtensions.data()));
 
+  bool MutableCommandListSpecExtensionSupported = false;
   for (auto &extension : ZeExtensions) {
     // Check if global offset extension is available
     if (strncmp(extension.name, ZE_GLOBAL_OFFSET_EXP_NAME,
@@ -237,6 +243,13 @@ ur_result_t ur_platform_handle_t_::initialize() {
       if (extension.version ==
           ZE_EVENT_POOL_COUNTER_BASED_EXP_VERSION_CURRENT) {
         ZeDriverEventPoolCountingEventsExtensionFound = true;
+      }
+    }
+    // Check if extension is available for Mutable Command List v1.1.
+    if (strncmp(extension.name, ZE_MUTABLE_COMMAND_LIST_EXP_NAME,
+                strlen(ZE_MUTABLE_COMMAND_LIST_EXP_NAME) + 1) == 0) {
+      if (extension.version == ZE_MUTABLE_COMMAND_LIST_EXP_VERSION_1_1) {
+        MutableCommandListSpecExtensionSupported = true;
       }
     }
     zeDriverExtensionMap[extension.name] = extension.version;
@@ -275,37 +288,72 @@ ur_result_t ur_platform_handle_t_::initialize() {
 
   // Check if mutable command list extension is supported and initialize
   // function pointers.
-  ZeMutableCmdListExt.Supported |=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListGetNextCommandIdExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp))) == 0);
+  if (MutableCommandListSpecExtensionSupported) {
+    ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp =
+        (ze_pfnCommandListGetNextCommandIdExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListGetNextCommandIdExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp != nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp =
+        (ze_pfnCommandListUpdateMutableCommandsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandsExp != nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp =
+        (ze_pfnCommandListUpdateMutableCommandSignalEventExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandSignalEventExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandSignalEventExp !=
+        nullptr;
+    ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp =
+        (ze_pfnCommandListUpdateMutableCommandWaitEventsExp_t)
+            ur_loader::LibLoader::getFunctionPtr(
+                GlobalAdapter->processHandle,
+                "zeCommandListUpdateMutableCommandWaitEventsExp");
+    ZeMutableCmdListExt.Supported |=
+        ZeMutableCmdListExt.zexCommandListUpdateMutableCommandWaitEventsExp !=
+        nullptr;
+  } else {
+    ZeMutableCmdListExt.Supported |=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListGetNextCommandIdExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt.zexCommandListGetNextCommandIdExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
-                       (ZeDriver, "zeCommandListUpdateMutableCommandsExp",
-                        reinterpret_cast<void **>(
-                            &ZeMutableCmdListExt
-                                 .zexCommandListUpdateMutableCommandsExp))) ==
-       0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(zeDriverGetExtensionFunctionAddress,
+                         (ZeDriver, "zeCommandListUpdateMutableCommandsExp",
+                          reinterpret_cast<void **>(
+                              &ZeMutableCmdListExt
+                                   .zexCommandListUpdateMutableCommandsExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListUpdateMutableCommandSignalEventExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt
-                     .zexCommandListUpdateMutableCommandSignalEventExp))) == 0);
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandSignalEventExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandSignalEventExp))) ==
+         0);
 
-  ZeMutableCmdListExt.Supported &=
-      (ZE_CALL_NOCHECK(
-           zeDriverGetExtensionFunctionAddress,
-           (ZeDriver, "zeCommandListUpdateMutableCommandWaitEventsExp",
-            reinterpret_cast<void **>(
-                &ZeMutableCmdListExt
-                     .zexCommandListUpdateMutableCommandWaitEventsExp))) == 0);
-
+    ZeMutableCmdListExt.Supported &=
+        (ZE_CALL_NOCHECK(
+             zeDriverGetExtensionFunctionAddress,
+             (ZeDriver, "zeCommandListUpdateMutableCommandWaitEventsExp",
+              reinterpret_cast<void **>(
+                  &ZeMutableCmdListExt
+                       .zexCommandListUpdateMutableCommandWaitEventsExp))) ==
+         0);
+  }
   return UR_RESULT_SUCCESS;
 }
 

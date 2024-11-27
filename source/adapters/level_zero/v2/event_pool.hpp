@@ -41,7 +41,8 @@ public:
   DeviceId Id() { return provider->device()->Id.value(); };
 
   // Allocate an event from the pool. Thread safe.
-  ur_event_handle_t_ *allocate();
+  ur_event_handle_t_ *allocate(ur_queue_handle_t hQueue,
+                               ur_command_t commandType);
 
   // Free an event back to the pool. Thread safe.
   void free(ur_event_handle_t_ *event);

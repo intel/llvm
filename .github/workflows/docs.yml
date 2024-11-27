@@ -45,7 +45,23 @@ jobs:
 
       - name: Build Documentation
         working-directory: ${{github.workspace}}/scripts
-        run: python3 run.py --core
+        run: |
+          python3 run.py --core
+          mkdir -p ${{ github.workspace }}/ur-repo/
+          mkdir -p ${{github.workspace}}/docs/html
+
+      - name: Download benchmark HTML
+        id: download-bench-html
+        uses: actions/cache/restore@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
+        with:
+          path: ur-repo/benchmark_results.html
+          key: benchmark-results-
+
+      - name: Move benchmark HTML
+        # exact or partial cache hit
+        if: steps.download-bench-html.outputs.cache-hit != ''
+        run: |
+          mv ${{ github.workspace }}/ur-repo/benchmark_results.html ${{ github.workspace }}/docs/html/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@0252fc4ba7626f0298f0cf00902a25c6afc77fa8 # v3.0.0

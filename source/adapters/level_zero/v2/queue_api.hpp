@@ -16,6 +16,9 @@
 
 struct ur_queue_handle_t_ {
   virtual ~ur_queue_handle_t_();
+
+  virtual void deferEventFree(ur_event_handle_t hEvent) = 0;
+
   virtual ur_result_t queueGetInfo(ur_queue_info_t, size_t, void *,
                                    size_t *) = 0;
   virtual ur_result_t queueRetain() = 0;
@@ -144,6 +147,10 @@ struct ur_queue_handle_t_ {
       ur_kernel_handle_t, uint32_t, const size_t *, const size_t *, uint32_t,
       const ur_exp_launch_property_t *, uint32_t, const ur_event_handle_t *,
       ur_event_handle_t *) = 0;
+  virtual ur_result_t
+  enqueueEventsWaitWithBarrierExt(const ur_exp_enqueue_ext_properties_t *,
+                                  uint32_t, const ur_event_handle_t *,
+                                  ur_event_handle_t *) = 0;
   virtual ur_result_t
   enqueueNativeCommandExp(ur_exp_enqueue_native_command_function_t, void *,
                           uint32_t, const ur_mem_handle_t *,

@@ -1,7 +1,6 @@
-{{NONDETERMINISTIC}}
-urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urKernelSetArgLocalTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentIndex/NVIDIA_CUDA_BACKEND___{{.*}}_
+urKernelGetGroupInfoWgSizeTest.CompileWorkGroupSize/*
+{{OPT}}urKernelSetArgLocalTest.InvalidKernelArgumentIndex/*
+{{OPT}}urKernelSetArgMemObjTest.InvalidKernelArgumentIndex/*
+{{OPT}}urKernelSetArgPointerNegativeTest.InvalidKernelArgumentIndex/*
+{{OPT}}urKernelSetArgSamplerTest.InvalidKernelArgumentIndex/*
+{{OPT}}urKernelSetArgValueTest.InvalidKernelArgumentIndex/*

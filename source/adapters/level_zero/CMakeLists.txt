@@ -100,7 +100,7 @@ if(UR_BUILD_ADAPTER_L0)
 
     if (WIN32)
     # 0x800: Search for the DLL only in the System32 folder
-    target_link_options(ur_adapter_level_zero PRIVATE /DEPENDENTLOADFLAG:0x800)
+    target_link_options(ur_adapter_level_zero PRIVATE LINKER:/DEPENDENTLOADFLAG:0x800)
     endif()
 
     target_link_libraries(ur_adapter_level_zero PRIVATE
@@ -194,7 +194,7 @@ if(UR_BUILD_ADAPTER_L0_V2)
 
     if (WIN32)
     # 0x800: Search for the DLL only in the System32 folder
-    target_link_options(ur_adapter_level_zero_v2 PUBLIC /DEPENDENTLOADFLAG:0x800)
+    target_link_options(ur_adapter_level_zero_v2 PUBLIC LINKER:/DEPENDENTLOADFLAG:0x800)
     endif()
 
     target_link_libraries(ur_adapter_level_zero_v2 PRIVATE

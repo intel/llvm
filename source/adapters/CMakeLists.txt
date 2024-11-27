@@ -13,7 +13,7 @@ function(add_ur_adapter name)
 
         configure_file(${CMAKE_CURRENT_SOURCE_DIR}/../adapter.def.in ${ADAPTER_VERSION_SCRIPT} @ONLY)
         set_target_properties(${name} PROPERTIES
-            LINK_FLAGS "/DEF:${ADAPTER_VERSION_SCRIPT}"
+            LINK_OPTIONS "LINKER:/DEF:${ADAPTER_VERSION_SCRIPT}"
         )
     elseif(APPLE)
         target_compile_options(${name} PRIVATE "-fvisibility=hidden")

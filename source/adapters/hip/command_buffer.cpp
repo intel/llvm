@@ -1013,7 +1013,12 @@ updateKernelArguments(ur_exp_command_buffer_command_handle_t Command,
     const void *ArgValue = ValueArgDesc.pNewValueArg;
 
     try {
-      Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      // Local memory args are passed as value args with nullptr value
+      if (ArgValue) {
+        Kernel->setKernelArg(ArgIndex, ArgSize, ArgValue);
+      } else {
+        Kernel->setKernelLocalArg(ArgIndex, ArgSize);
+      }
     } catch (ur_result_t Err) {
       return Err;
     }

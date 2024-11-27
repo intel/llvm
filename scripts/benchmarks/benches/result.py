@@ -4,7 +4,9 @@
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
 from dataclasses import dataclass
+from typing import Optional
 from dataclasses_json import dataclass_json
+from datetime import datetime
 
 @dataclass_json
 @dataclass
@@ -15,6 +17,17 @@ class Result:
     env: str
     stdout: str
     passed: bool = True
+    # values should not be set by the benchmark
     unit: str = ""
     name: str = ""
     lower_is_better: bool = True
+    git_hash: str = ''
+    date: Optional[datetime] = None
+
+@dataclass_json
+@dataclass
+class BenchmarkRun:
+    results: list[Result]
+    name: str = 'This PR'
+    git_hash: str = ''
+    date: datetime = None

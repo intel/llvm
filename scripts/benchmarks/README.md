@@ -37,9 +37,10 @@ By default, the benchmark results are not stored. To store them, use the option 
 
 To compare a benchmark run with a previously stored result, use the option `--compare <name>`. You can compare with more than one result.
 
-If no `--compare` option is specified, the benchmark run is compared against a previously stored `baseline`. This baseline is **not** automatically updated. To update it, use the `--save baseline` option.
-The recommended way of updating the baseline is running the benchmarking
-job on main after a merge of relevant changes.
+If no `--compare` option is specified, the benchmark run is compared against a previously stored `baseline`.
+
+Baseline, as well as baseline-v2 (for the level-zero adapter v2) is updated automatically during a nightly job. The results
+are stored [here](https://oneapi-src.github.io/unified-runtime/benchmark_results.html).
 
 ## Requirements
 

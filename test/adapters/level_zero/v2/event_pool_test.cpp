@@ -150,7 +150,8 @@ TEST_P(EventPoolTest, Basic) {
         {
             auto pool = cache->borrow(device->Id.value(), getParam().flags);
 
-            first = pool->allocate();
+            first = pool->allocate(reinterpret_cast<ur_queue_handle_t>(0x1),
+                                   UR_COMMAND_KERNEL_LAUNCH);
             zeFirst = first->getZeEvent();
 
             urEventRelease(first);
@@ -160,7 +161,8 @@ TEST_P(EventPoolTest, Basic) {
         {
             auto pool = cache->borrow(device->Id.value(), getParam().flags);
 
-            second = pool->allocate();
+            second = pool->allocate(reinterpret_cast<ur_queue_handle_t>(0x1),
+                                    UR_COMMAND_KERNEL_LAUNCH);
             zeSecond = second->getZeEvent();
 
             urEventRelease(second);
@@ -179,7 +181,9 @@ TEST_P(EventPoolTest, Threaded) {
                 auto pool = cache->borrow(device->Id.value(), getParam().flags);
                 std::vector<ur_event_handle_t> events;
                 for (int i = 0; i < 100; ++i) {
-                    events.push_back(pool->allocate());
+                    events.push_back(
+                        pool->allocate(reinterpret_cast<ur_queue_handle_t>(0x1),
+                                       UR_COMMAND_KERNEL_LAUNCH));
                 }
                 for (int i = 0; i < 100; ++i) {
                     urEventRelease(events[i]);
@@ -197,7 +201,9 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
     auto pool = cache->borrow(device->Id.value(), getParam().flags);
     std::list<ur_event_handle_t> events;
     for (int i = 0; i < 128; ++i) {
-        events.push_back(pool->allocate());
+        events.push_back(
+            pool->allocate(reinterpret_cast<ur_queue_handle_t>(0x1),
+                           UR_COMMAND_KERNEL_LAUNCH));
     }
     auto frontZeHandle = events.front()->getZeEvent();
     for (int i = 0; i < 8; ++i) {
@@ -205,7 +211,8 @@ TEST_P(EventPoolTest, ProviderNormalUseMostFreePool) {
         events.pop_front();
     }
     for (int i = 0; i < 8; ++i) {
-        auto e = pool->allocate();
+        auto e = pool->allocate(reinterpret_cast<ur_queue_handle_t>(0x1),
+                                UR_COMMAND_KERNEL_LAUNCH);
         events.push_back(e);
     }
 

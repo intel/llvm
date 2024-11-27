@@ -10,10 +10,9 @@ using urPlatformCreateWithNativeHandleTest = uur::platform::urPlatformTest;
 TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urPlatformGetNativeHandle(platform, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urPlatformGetNativeHandle(platform, &native_handle));
 
         // We cannot assume anything about a native_handle, not even if it's
         // `nullptr` since this could be a valid representation within a backend.
@@ -33,10 +32,9 @@ TEST_F(urPlatformCreateWithNativeHandleTest, Success) {
 TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urPlatformGetNativeHandle(platform, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urPlatformGetNativeHandle(platform, &native_handle));
 
         // We cannot assume anything about a native_handle, not even if it's
         // `nullptr` since this could be a valid representation within a backend.
@@ -58,10 +56,9 @@ TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithOwnedNativeHandle) {
 TEST_F(urPlatformCreateWithNativeHandleTest, SuccessWithUnOwnedNativeHandle) {
     for (auto platform : platforms) {
         ur_native_handle_t native_handle = 0;
-        {
-            UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
-                urPlatformGetNativeHandle(platform, &native_handle));
-        }
+
+        UUR_ASSERT_SUCCESS_OR_UNSUPPORTED(
+            urPlatformGetNativeHandle(platform, &native_handle));
 
         // We cannot assume anything about a native_handle, not even if it's
         // `nullptr` since this could be a valid representation within a backend.
