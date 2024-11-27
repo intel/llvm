@@ -656,9 +656,10 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
+# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
+arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
-arch_flag = ""
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
