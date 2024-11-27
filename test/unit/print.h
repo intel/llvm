@@ -71,8 +71,8 @@ struct UrPlatformGet {
 struct UrPlatformGetEmptyArray : UrPlatformGet {
     UrPlatformGetEmptyArray() : UrPlatformGet() {}
     const char *get_expected() {
-        return ".phAdapters = \\{\\}, .NumAdapters = 0, .NumEntries = 0, "
-               ".phPlatforms = \\{\\}, .pNumPlatforms = "
+        return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 0, "
+               ".phPlatforms = nullptr, .pNumPlatforms = "
                "nullptr";
     };
 };
@@ -88,8 +88,8 @@ struct UrPlatformGetTwoPlatforms : UrPlatformGet {
         pNumPlatforms = &num_platforms;
     }
     const char *get_expected() {
-        return ".phAdapters = \\{\\}, .NumAdapters = 0, .NumEntries = 2, "
-               ".phPlatforms = \\{.+, .+\\}, "
+        return ".phAdapters = nullptr, .NumAdapters = 0, .NumEntries = 2, "
+               ".phPlatforms = .+ \\{.+, .+\\}, "
                ".pNumPlatforms = .+ \\(2\\)";
     };
 };
@@ -276,6 +276,23 @@ struct UrDeviceGetInfoParamsPartitionArray : UrDeviceGetInfoParams {
     };
 };
 
+struct UrDeviceGetInfoParamsUUID : UrDeviceGetInfoParams {
+    uint8_t props[10] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
+    UrDeviceGetInfoParamsUUID() : UrDeviceGetInfoParams() {
+        propName = UR_DEVICE_INFO_UUID;
+        pPropValue = &props;
+        propSize = sizeof(props);
+        propSizeRet = sizeof(props);
+    }
+    const char *get_expected() {
+        return ".hDevice = nullptr, .propName = "
+               "UR_DEVICE_INFO_UUID, .propSize "
+               "= 10, .pPropValue = \\{0, 1, 2, 3, 4, 5, 6, 7, 8, 9\\}, "
+               ".pPropSizeRet = .+ "
+               "\\(10\\)";
+    };
+};
+
 struct UrContextGetInfoParams {
     ur_context_get_info_params_t params;
 
@@ -419,8 +436,9 @@ typedef ::testing::Types<
     UrUsmHostAllocParamsHostDesc, UrDeviceGetInfoParamsEmpty,
     UrDeviceGetInfoParamsName, UrDeviceGetInfoParamsQueueFlag,
     UrDeviceGetInfoParamsPartitionArray, UrContextGetInfoParamsDevicesArray,
-    UrDeviceGetInfoParamsInvalidSize, UrProgramMetadataTest,
-    UrDevicePartitionPropertyTest, UrSamplerAddressModesTest>
+    UrDeviceGetInfoParamsInvalidSize, UrDeviceGetInfoParamsUUID,
+    UrProgramMetadataTest, UrDevicePartitionPropertyTest,
+    UrSamplerAddressModesTest>
     Implementations;
 
 TYPED_TEST_SUITE(ParamsTest, Implementations, );

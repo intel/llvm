@@ -7,6 +7,8 @@ if (UR_BUILD_ADAPTER_L0 OR UR_BUILD_ADAPTER_L0_V2)
     include(FetchLevelZero)
     set(UMF_BUILD_LEVEL_ZERO_PROVIDER ON CACHE INTERNAL "Build Level Zero Provider")
     set(UMF_LEVEL_ZERO_INCLUDE_DIR "${LEVEL_ZERO_INCLUDE_DIR}" CACHE INTERNAL "Level Zero headers")
+else()
+    set(UMF_BUILD_LEVEL_ZERO_PROVIDER OFF CACHE INTERNAL "Build Level Zero Provider")
 endif()
 
 add_ur_library(ur_common STATIC
@@ -30,8 +32,8 @@ if (NOT DEFINED UMF_REPO)
 endif()
 
 if (NOT DEFINED UMF_TAG)
-    # main 14.10.2024: Merge pull request #797...
-    set(UMF_TAG 673b844db8ddc2ddda393ccb77416eaebb5f9d92)
+    # main 28.10.2024: Merge pull request #832 ...
+    set(UMF_TAG 43e9af0f50b70ccb989f786243881035dd829203)
 endif()
 
 message(STATUS "Will fetch Unified Memory Framework from ${UMF_REPO}")

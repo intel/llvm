@@ -8,6 +8,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include "common.hpp"
+#include "device.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -189,11 +190,39 @@ urKernelGetSubGroupInfo(ur_kernel_handle_t hKernel, ur_device_handle_t hDevice,
     InputValueSize = MaxDims * sizeof(size_t);
   }
 
-  cl_int Ret = clGetKernelSubGroupInfo(cl_adapter::cast<cl_kernel>(hKernel),
-                                       cl_adapter::cast<cl_device_id>(hDevice),
-                                       mapURKernelSubGroupInfoToCL(propName),
-                                       InputValueSize, InputValue.get(),
-                                       sizeof(size_t), &RetVal, pPropSizeRet);
+  // We need to allow for the possibility that this device runs an older CL and
+  // supports the original khr subgroup extension.
+  cl_ext::clGetKernelSubGroupInfoKHR_fn GetKernelSubGroupInfo = nullptr;
+
+  oclv::OpenCLVersion DevVer;
+  CL_RETURN_ON_FAILURE(cl_adapter::getDeviceVersion(
+      cl_adapter::cast<cl_device_id>(hDevice), DevVer));
+
+  if (DevVer < oclv::V2_1) {
+    bool SubgroupExtSupported = false;
+
+    UR_RETURN_ON_FAILURE(cl_adapter::checkDeviceExtensions(
+        cl_adapter::cast<cl_device_id>(hDevice), {"cl_khr_subgroups"},
+        SubgroupExtSupported));
+    if (!SubgroupExtSupported) {
+      return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+    }
+    cl_context Context = nullptr;
+    CL_RETURN_ON_FAILURE(clGetKernelInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                         CL_KERNEL_CONTEXT, sizeof(Context),
+                                         &Context, nullptr));
+    UR_RETURN_ON_FAILURE(cl_ext::getExtFuncFromContext(
+        Context, cl_ext::ExtFuncPtrCache->clGetKernelSubGroupInfoKHRCache,
+        cl_ext::GetKernelSubGroupInfoName, &GetKernelSubGroupInfo));
+  } else {
+    GetKernelSubGroupInfo = clGetKernelSubGroupInfo;
+  }
+
+  cl_int Ret = GetKernelSubGroupInfo(cl_adapter::cast<cl_kernel>(hKernel),
+                                     cl_adapter::cast<cl_device_id>(hDevice),
+                                     mapURKernelSubGroupInfoToCL(propName),
+                                     InputValueSize, InputValue.get(),
+                                     sizeof(size_t), &RetVal, pPropSizeRet);
 
   if (Ret == CL_INVALID_OPERATION) {
     // clGetKernelSubGroupInfo returns CL_INVALID_OPERATION if the device does

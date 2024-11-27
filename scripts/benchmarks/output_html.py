@@ -3,6 +3,7 @@
 # See LICENSE.TXT
 # SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+import re
 import matplotlib.pyplot as plt
 import mpld3
 from collections import defaultdict
@@ -67,12 +68,22 @@ def prepare_normalized_data(latest_results: dict[str, LatestResults],
     return normalized_data
 
 def format_benchmark_label(label: str) -> list[str]:
-    words = label.split()
-    if len(words) <= 2:
-        return [label]
+    words = re.split(' |_', label)
+    lines = []
+    current_line = []
 
-    mid = len(words) // 2
-    return [' '.join(words[:mid]), ' '.join(words[mid:])]
+    # max line length 30
+    for word in words:
+        if len(' '.join(current_line + [word])) > 30:
+            lines.append(' '.join(current_line))
+            current_line = [word]
+        else:
+            current_line.append(word)
+
+    if current_line:
+        lines.append(' '.join(current_line))
+
+    return lines
 
 def create_bar_plot(ax: plt.Axes,
                    normalized_data: list[list[float]],
@@ -109,9 +120,8 @@ def create_bar_plot(ax: plt.Axes,
 
                 tooltip_labels = [
                     f"Run: {run_name}\n"
-                    f"Benchmark: {benchmark_label}\n"
                     f"Value: {current_value:.2f} {unit}\n"
-                    f"Baseline ({baseline_name}): {baseline_value:.2f} {unit}\n"
+                    f"Normalized to ({baseline_name}): {baseline_value:.2f} {unit}\n"
                     f"Normalized: {value:.1f}%"
                 ]
                 tooltip = mpld3.plugins.LineHTMLTooltip(rect, tooltip_labels, css='.mpld3-tooltip{background:white;padding:8px;border:1px solid #ddd;border-radius:4px;font-family:monospace;white-space:pre;}')
@@ -141,6 +151,37 @@ def add_chart_elements(ax: plt.Axes,
     ax.grid(True, axis='y', alpha=0.2)
     ax.legend(bbox_to_anchor=(1, 1), loc='upper left')
 
+def split_large_groups(benchmark_groups):
+    miscellaneous = []
+    new_groups = defaultdict(list)
+
+    split_happened = False
+    for group, labels in benchmark_groups.items():
+        if len(labels) == 1:
+            miscellaneous.extend(labels)
+        elif len(labels) > 5:
+            split_happened = True
+            mid = len(labels) // 2
+            new_groups[group] = labels[:mid]
+            new_groups[group + '_'] = labels[mid:]
+        else:
+            new_groups[group] = labels
+
+    if miscellaneous:
+        new_groups['Miscellaneous'] = miscellaneous
+
+    if split_happened:
+        return split_large_groups(new_groups)
+    else:
+        return new_groups
+
+def group_benchmark_labels(benchmark_labels):
+    benchmark_groups = defaultdict(list)
+    for label in benchmark_labels:
+        group = re.match(r'^[^_\s]+', label)[0]
+        benchmark_groups[group].append(label)
+    return split_large_groups(benchmark_groups)
+
 def create_normalized_bar_chart(benchmarks: list[BenchmarkSeries], baseline_name: str) -> list[str]:
     latest_results = get_latest_results(benchmarks)
 
@@ -154,10 +195,7 @@ def create_normalized_bar_chart(benchmarks: list[BenchmarkSeries], baseline_name
 
     benchmark_labels = [b.label for b in benchmarks]
 
-    benchmark_groups = defaultdict(list)
-    for label in benchmark_labels:
-        group_name = label.split()[0]
-        benchmark_groups[group_name].append(label)
+    benchmark_groups = group_benchmark_labels(benchmark_labels)
 
     html_charts = []
 

@@ -176,7 +176,7 @@ jobs:
           let markdown = ""
           try {
             const fs = require('fs');
-            markdown = fs.readFileSync('benchmark_results.md', 'utf8');
+            markdown = fs.readFileSync('ur-repo/benchmark_results.md', 'utf8');
           } catch(err) {
           }
 
@@ -199,5 +199,5 @@ jobs:
       if: ${{ always() && inputs.upload_report }}
       uses: actions/cache/save@6849a6489940f00c2f30c0fb92c6274307ccb58a # v4.1.2
       with:
-        path: ${{ github.workspace }}/ur-repo/benchmark_results.html
+        path: ur-repo/benchmark_results.html
         key: benchmark-results-${{ matrix.adapter.str_name }}-${{ github.run_id }}
