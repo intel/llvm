@@ -13,7 +13,7 @@
 // CACHING-ENABLED: zeEventCreate = {{[1-9]}}
 // CACHING-DISABLED: zeEventCreate = 256
 
-// Check event caching modes in the L0 plugin.
+// Check event caching modes in the L0 adapter.
 
 #include <sycl/detail/core.hpp>
 
