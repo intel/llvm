@@ -17,10 +17,10 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
-  exp_ext::command_graph Graph{ctxt, Queue.get_device()};
-  exp_ext::command_graph SubGraph{ctxt, Queue.get_device()};
+  exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
+  exp_ext::command_graph SubGraph{Ctxt, Queue.get_device()};
 
   int *PtrA = malloc_device<int>(Size, Queue);
   int *PtrB = malloc_device<int>(Size, Queue);
@@ -34,7 +34,7 @@ int main() {
   exp_ext::dynamic_parameter InputParam(SubGraph, PtrA);
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id SubKernel_id = exp_ext::get_kernel_id<ff_1>();
   kernel SubKernel = Bundle.get_kernel(SubKernel_id);
   auto SubKernelNode = SubGraph.add([&](handler &cgh) {
@@ -71,8 +71,9 @@ int main() {
     assert(HostDataA[i] == i * 2);
     assert(HostDataB[i] == 0);
   }
+#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
-#endif
+
   return 0;
 }

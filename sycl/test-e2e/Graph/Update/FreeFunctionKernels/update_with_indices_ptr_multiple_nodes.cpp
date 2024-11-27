@@ -16,7 +16,7 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
   exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
@@ -32,7 +32,7 @@ int main() {
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id_A = exp_ext::get_kernel_id<ff_0>();
   kernel Kernel_A = Bundle.get_kernel(Kernel_id_A);
   auto KernelNodeA = Graph.add([&](handler &cgh) {
@@ -72,8 +72,9 @@ int main() {
     assert(HostDataA[i] == i * 2);
     assert(HostDataB[i] == i * 2);
   }
+#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
-#endif
+
   return 0;
 }

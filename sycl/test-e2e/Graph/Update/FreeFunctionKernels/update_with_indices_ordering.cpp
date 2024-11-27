@@ -16,7 +16,7 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
   // Use a large N to try and make the kernel slow
   const size_t N = 1 << 16;
@@ -24,7 +24,7 @@ int main() {
   const size_t NumKernelLoops = 4;
   const size_t NumSubmitLoops = 8;
 
-  exp_ext::command_graph Graph{ctxt, Queue.get_device()};
+  exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
 
   int *PtrA = malloc_device<int>(N, Queue);
   int *PtrB = malloc_device<int>(N, Queue);
@@ -38,7 +38,7 @@ int main() {
   exp_ext::dynamic_parameter InputParam(Graph, PtrA);
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_2>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   auto KernelNode = Graph.add([&](handler &cgh) {
@@ -72,8 +72,9 @@ int main() {
     assert(HostDataA[i] == i * NumKernelLoops * NumSubmitLoops);
     assert(HostDataB[i] == i * NumKernelLoops * NumSubmitLoops);
   }
+#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
-#endif
+
   return 0;
 }

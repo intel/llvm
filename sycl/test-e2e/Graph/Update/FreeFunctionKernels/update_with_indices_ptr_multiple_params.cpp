@@ -16,9 +16,9 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
-  exp_ext::command_graph Graph{ctxt, Queue.get_device()};
+  exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
 
   int *PtrA = malloc_device<int>(Size, Queue);
   int *PtrB = malloc_device<int>(Size, Queue);
@@ -43,7 +43,7 @@ int main() {
   nd_range<1> NDRange{Size, 32};
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_5>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   auto KernelNode = Graph.add([&](handler &cgh) {
@@ -79,9 +79,10 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(OutData[i] == HostDataB[i] + (HostDataA[i] * HostDataC[i]));
   }
+#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
   sycl::free(PtrC, Queue);
-#endif
+
   return 0;
 }

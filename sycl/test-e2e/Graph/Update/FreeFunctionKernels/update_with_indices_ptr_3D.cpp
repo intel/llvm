@@ -16,13 +16,13 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
   const range<3> GlobalWorkSize(1, 2, 2);
   const range<3> LocalWorkSize(1, 2, 2);
   const size_t N = GlobalWorkSize[0] * GlobalWorkSize[1] * GlobalWorkSize[2];
 
-  exp_ext::command_graph Graph{ctxt, Queue.get_device()};
+  exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
 
   int *PtrA = malloc_device<int>(N, Queue);
   int *PtrB = malloc_device<int>(N, Queue);
@@ -38,7 +38,7 @@ int main() {
   nd_range<3> NDRange{GlobalWorkSize, LocalWorkSize};
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id_A = exp_ext::get_kernel_id<ff_3>();
   kernel Kernel_A = Bundle.get_kernel(Kernel_id_A);
   auto NodeA = Graph.add([&](handler &cgh) {
@@ -79,8 +79,9 @@ int main() {
     assert(HostDataA[i] == Ref);
     assert(HostDataB[i] == Ref);
   }
+#endif
   sycl::free(PtrA, Queue);
   sycl::free(PtrB, Queue);
-#endif
+
   return 0;
 }

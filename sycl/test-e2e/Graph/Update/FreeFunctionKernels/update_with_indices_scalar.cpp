@@ -15,9 +15,9 @@
 
 int main() {
   queue Queue{};
-  context ctxt{Queue.get_context()};
+  context Ctxt{Queue.get_context()};
 
-  exp_ext::command_graph Graph{ctxt, Queue.get_device()};
+  exp_ext::command_graph Graph{Ctxt, Queue.get_device()};
 
   int *DeviceData = malloc_device<int>(Size, Queue);
 
@@ -30,7 +30,7 @@ int main() {
   exp_ext::dynamic_parameter InputParam(Graph, ScalarValue);
 
 #ifndef __SYCL_DEVICE_ONLY__
-  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(ctxt);
+  kernel_bundle Bundle = get_kernel_bundle<bundle_state::executable>(Ctxt);
   kernel_id Kernel_id = exp_ext::get_kernel_id<ff_6>();
   kernel Kernel = Bundle.get_kernel(Kernel_id);
   auto KernelNode = Graph.add([&](handler &cgh) {
@@ -58,7 +58,8 @@ int main() {
   for (size_t i = 0; i < Size; i++) {
     assert(HostData[i] == 99);
   }
-  sycl::free(DeviceData, Queue);
 #endif
+  sycl::free(DeviceData, Queue);
+
   return 0;
 }
