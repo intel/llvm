@@ -14,22 +14,18 @@ on:
         # See devops/actions/aws-ec2/action.yml for more details.
         description: "JSON string with array of objects with aws-type, runs-on, aws-ami, aws-spot, aws-disk, aws-timebomb, one-job properties"
         type: string
-        required: true
+        default: '[{"runs-on":"aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}","aws-ami":"ami-01cb0573cb039ab24","aws-type":["g5.2xlarge","g5.4xlarge"],"aws-disk":"/dev/sda1:64","aws-spot":"false"}]'
 
 jobs:
   aws:
     runs-on: ubuntu-20.04
     environment: aws
     steps:
-      - name: Setup script
-        run: |
-          mkdir -p ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/action.yml   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/aws-ec2.js   -P ./aws-ec2
-          wget raw.githubusercontent.com/intel/llvm/sycl/devops/actions/aws-ec2/package.json -P ./aws-ec2
-          npm install ./aws-ec2
-      - name: Start AWS EC2 runners
-        uses: ./aws-ec2
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: devops/actions/aws-ec2
+      - run: npm install ./devops/actions/aws-ec2
+      - uses: ./devops/actions/aws-ec2
         with:
           mode: ${{ inputs.mode }}
           runs-on-list: ${{ inputs.runs-on-list }}

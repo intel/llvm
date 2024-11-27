@@ -23,6 +23,19 @@ jobs:
       # prefer widespread gzip compression.
       artifact_archive_name: sycl_linux.tar.gz
 
+  ubuntu2204_shared_build:
+    if: github.repository == 'intel/llvm'
+    uses: ./.github/workflows/sycl-linux-build.yml
+    secrets: inherit
+    with:
+      build_cache_root: "/__w/"
+      build_cache_suffix: sprod_shared
+      build_artifact_suffix: sprod_shared
+      build_configure_extra_args: '--shared-libs --hip --cuda --native_cpu'
+      merge_ref: ''
+
+      artifact_archive_name: sycl_linux_shared.tar.zst
+
   ubuntu2204_test:
     needs: [ubuntu2204_build]
     if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
@@ -37,28 +50,21 @@ jobs:
             target_devices: ext_oneapi_hip:gpu
             tests_selector: e2e
 
-          - name: NVIDIA/CUDA
-            runner: '["Linux", "cuda"]'
-            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
-            image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
-            target_devices: ext_oneapi_cuda:gpu
-            tests_selector: e2e
-
           - name: Intel L0 GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: level_zero:gpu
-            reset_gpu: true
+            reset_intel_gpu: true
             tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
           - name: Intel OCL GPU
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
-            image_options: -u 1001 --device=/dev/dri --privileged --cap-add SYS_ADMIN
+            image_options: -u 1001 --device=/dev/dri -v /dev/dri/by-path:/dev/dri/by-path --privileged --cap-add SYS_ADMIN
             target_devices: opencl:gpu
-            reset_gpu: true
+            reset_intel_gpu: true
             tests_selector: e2e
             extra_lit_opts: --param gpu-intel-gen12=True
 
@@ -105,7 +111,7 @@ jobs:
       target_devices: ${{ matrix.target_devices }}
       tests_selector: ${{ matrix.tests_selector }}
       extra_lit_opts: ${{ matrix.extra_lit_opts }}
-      reset_gpu: ${{ matrix.reset_gpu }}
+      reset_intel_gpu: ${{ matrix.reset_intel_gpu }}
       ref: ${{ github.sha }}
       merge_ref: ''
       sycl_toolchain_artifact: sycl_linux_default
@@ -127,13 +133,46 @@ jobs:
     if: |
       always()
       && !cancelled()
-      && needs.build.outputs.build_conclusion == 'success'
+      && needs.build-win.outputs.build_conclusion == 'success'
     uses: ./.github/workflows/sycl-windows-run-tests.yml
     with:
       name: Intel GEN12 Graphics with Level Zero
       runner: '["Windows","gen12"]'
       sycl_toolchain_archive: ${{ needs.build-win.outputs.artifact_archive_name }}
       extra_lit_opts: --param gpu-intel-gen12=True
+
+  cuda-aws-start:
+    needs: [ubuntu2204_build]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-aws.yml
+    secrets: inherit
+    with:
+      mode: start
+
+  cuda-run-tests:
+    needs: [ubuntu2204_build, cuda-aws-start]
+    if: ${{ always() && !cancelled() && needs.ubuntu2204_build.outputs.build_conclusion == 'success' }}
+    uses: ./.github/workflows/sycl-linux-run-tests.yml
+    with:
+      name: CUDA E2E
+      runner: '["aws_cuda-${{ github.run_id }}-${{ github.run_attempt }}"]'
+      image: ghcr.io/intel/llvm/ubuntu2204_build:latest-0300ac924620a51f76c4929794637b82790f12ab
+      image_options: -u 1001 --gpus all --cap-add SYS_ADMIN --env NVIDIA_DISABLE_REQUIRE=1
+      target_devices: ext_oneapi_cuda:gpu
+      ref: ${{ github.sha }}
+      merge_ref: ''
+
+      sycl_toolchain_artifact: sycl_linux_default
+      sycl_toolchain_archive: ${{ needs.ubuntu2204_build.outputs.artifact_archive_name }}
+      sycl_toolchain_decompress_command: ${{ needs.ubuntu2204_build.outputs.artifact_decompress_command }}
+
+  cuda-aws-stop:
+    needs: [cuda-aws-start, cuda-run-tests]
+    if: always()
+    uses: ./.github/workflows/sycl-aws.yml
+    secrets: inherit
+    with:
+      mode: stop
 
   nightly_build_upload:
     name: Nightly Build Upload
@@ -159,7 +198,7 @@ jobs:
           echo "TAG=$(date +'%Y-%m-%d')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
         fi
     - name: Upload binaries
-      uses: softprops/action-gh-release@a74c6b72af54cfa997e81df42d94703d6313a2d0
+      uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8
       with:
         files: |
           sycl_linux.tar.gz
