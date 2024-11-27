@@ -290,6 +290,29 @@ Value *SPIRVToLLVM::mapFunction(SPIRVFunction *BF, Function *F) {
   return F;
 }
 
+std::optional<uint64_t> SPIRVToLLVM::transIdAsConstant(SPIRVId Id) {
+  auto *V = BM->get<SPIRVValue>(Id);
+  const auto *ConstValue =
+      dyn_cast<ConstantInt>(transValue(V, nullptr, nullptr));
+  if (!ConstValue)
+    return {};
+  return ConstValue->getZExtValue();
+}
+
+std::optional<uint64_t> SPIRVToLLVM::getAlignment(SPIRVValue *V) {
+  SPIRVWord AlignmentBytes = 0;
+  if (V->hasAlignment(&AlignmentBytes)) {
+    return AlignmentBytes;
+  }
+
+  // If there was no Alignment decoration, look for AlignmentId instead.
+  SPIRVId AlignId;
+  if (V->hasDecorateId(DecorationAlignmentId, 0, &AlignId)) {
+    return transIdAsConstant(AlignId);
+  }
+  return {};
+}
+
 Type *SPIRVToLLVM::transFPType(SPIRVType *T) {
   switch (T->getFloatBitWidth()) {
   case 16:
@@ -3157,9 +3180,9 @@ void SPIRVToLLVM::transFunctionAttrs(SPIRVFunction *BF, Function *F) {
     SPIRVWord MaxOffset = 0;
     if (BA->hasDecorate(DecorationMaxByteOffset, 0, &MaxOffset))
       Builder.addDereferenceableAttr(MaxOffset);
-    SPIRVWord AlignmentBytes = 0;
-    if (BA->hasAlignment(&AlignmentBytes))
-      Builder.addAlignmentAttr(AlignmentBytes);
+    if (auto Alignment = getAlignment(BA)) {
+      Builder.addAlignmentAttr(*Alignment);
+    }
     I->addAttrs(Builder);
   }
   BF->foreachReturnValueAttr([&](SPIRVFuncParamAttrKind Kind) {
@@ -4964,15 +4987,13 @@ bool SPIRVToLLVM::transFPGAFunctionMetadata(SPIRVFunction *BF, Function *F) {
 
 bool SPIRVToLLVM::transAlign(SPIRVValue *BV, Value *V) {
   if (auto *AL = dyn_cast<AllocaInst>(V)) {
-    SPIRVWord Align = 0;
-    if (BV->hasAlignment(&Align))
-      AL->setAlignment(llvm::Align(Align));
+    if (auto Align = getAlignment(BV))
+      AL->setAlignment(llvm::Align(*Align));
     return true;
   }
   if (auto *GV = dyn_cast<GlobalVariable>(V)) {
-    SPIRVWord Align = 0;
-    if (BV->hasAlignment(&Align))
-      GV->setAlignment(MaybeAlign(Align));
+    if (auto Align = getAlignment(BV))
+      GV->setAlignment(MaybeAlign(*Align));
     return true;
   }
   return true;
