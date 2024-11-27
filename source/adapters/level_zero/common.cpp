@@ -11,6 +11,7 @@
 #include "common.hpp"
 #include "logger/ur_logger.hpp"
 #include "usm.hpp"
+#include <level_zero/include/ze_intel_gpu.h>
 
 ur_result_t ze2urResult(ze_result_t ZeResult) {
   if (ZeResult == ZE_RESULT_SUCCESS)
@@ -329,6 +330,14 @@ template <> zes_structure_type_t getZesStructureType<zes_mem_state_t>() {
 template <> zes_structure_type_t getZesStructureType<zes_mem_properties_t>() {
   return ZES_STRUCTURE_TYPE_MEM_PROPERTIES;
 }
+
+#ifdef ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
+template <>
+ze_structure_type_t
+getZeStructureType<ze_intel_device_block_array_exp_properties_t>() {
+  return ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_PROPERTIES;
+}
+#endif // ZE_INTEL_DEVICE_BLOCK_ARRAY_EXP_NAME
 
 // Global variables for ZER_EXT_RESULT_ADAPTER_SPECIFIC_ERROR
 thread_local ur_result_t ErrorMessageCode = UR_RESULT_SUCCESS;
