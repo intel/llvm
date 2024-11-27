@@ -35,10 +35,6 @@ struct ShadowMemory {
     virtual ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
                                             uptr Size, u8 Value) = 0;
 
-    virtual ur_result_t ReleaseShadow(std::shared_ptr<AllocInfo>) {
-        return UR_RESULT_SUCCESS;
-    }
-
     virtual size_t GetShadowSize() = 0;
 
     virtual ur_result_t AllocLocalShadow(ur_queue_handle_t Queue,
@@ -98,8 +94,6 @@ struct ShadowMemoryGPU : public ShadowMemory {
     ur_result_t EnqueuePoisonShadow(ur_queue_handle_t Queue, uptr Ptr,
                                     uptr Size, u8 Value) override final;
 
-    ur_result_t ReleaseShadow(std::shared_ptr<AllocInfo> AI) override final;
-
     ur_result_t AllocLocalShadow(ur_queue_handle_t Queue, uint32_t NumWG,
                                  uptr &Begin, uptr &End) override final;
 
@@ -108,10 +102,7 @@ struct ShadowMemoryGPU : public ShadowMemory {
 
     ur_mutex VirtualMemMapsMutex;
 
-    std::unordered_map<
-        uptr, std::pair<ur_physical_mem_handle_t,
-                        std::unordered_set<std::shared_ptr<AllocInfo>>>>
-        VirtualMemMaps;
+    std::unordered_map<uptr, ur_physical_mem_handle_t> VirtualMemMaps;
 
     uptr LocalShadowOffset = 0;
 
