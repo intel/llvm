@@ -4084,6 +4084,8 @@
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has_context@exception@_V1@sycl@@QEBA_NXZ
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVdevice@34@Vstring_view@134@@Z
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVplatform@34@Vstring_view@134@@Z
 ?has_extension@device@_V1@sycl@@AEBA_NVstring_view@detail@23@@Z
 ?has_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_extension@opencl@_V1@sycl@@YA_NAEBVdevice@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
