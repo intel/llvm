@@ -6969,6 +6969,7 @@ bool SYCLIntegrationFooter::emit(raw_ostream &OS) {
   Policy.adjustForCPlusPlusFwdDecl();
   Policy.SuppressTypedefs = true;
   Policy.SuppressUnwrittenScope = true;
+  Policy.PrintCanonicalTypes = true;
 
   llvm::SmallSet<const VarDecl *, 8> Visited;
   bool EmittedFirstSpecConstant = false;
