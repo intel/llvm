@@ -672,15 +672,16 @@ bool device_impl::has(aspect Aspect) const {
   }
   case aspect::ext_intel_matrix: {
     using arch = sycl::ext::oneapi::experimental::architecture;
-    const std::vector<arch> supported_archs = {
+    const arch supported_archs[] = {
         arch::intel_cpu_spr,     arch::intel_cpu_gnr,
         arch::intel_gpu_pvc,     arch::intel_gpu_dg2_g10,
         arch::intel_gpu_dg2_g11, arch::intel_gpu_dg2_g12,
         arch::intel_gpu_bmg_g21, arch::intel_gpu_lnl_m,
-        arch::intel_gpu_arl_h};
+        arch::intel_gpu_arl_h,
+    };
     try {
       return std::any_of(
-          supported_archs.begin(), supported_archs.end(),
+          std::begin(supported_archs), std::end(supported_archs),
           [=](const arch a) { return this->extOneapiArchitectureIs(a); });
     } catch (const sycl::exception &) {
       // If we're here it means the device does not support architecture
