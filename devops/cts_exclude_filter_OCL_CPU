@@ -2,6 +2,6 @@
 kernel_bundle
 marray
 # https://github.com/intel/llvm/issues/13477
-math_builtin_api
+# math_builtin_api
 # https://github.com/intel/llvm/issues/13574
-hierarchical
+# hierarchical
