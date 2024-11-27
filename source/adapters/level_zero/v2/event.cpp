@@ -13,6 +13,7 @@
 #include "event.hpp"
 #include "event_pool.hpp"
 #include "event_provider.hpp"
+#include "queue_api.hpp"
 
 #include "../ur_interface_loader.hpp"
 
@@ -24,15 +25,23 @@ ur_event_handle_t_::ur_event_handle_t_(
       zeTimerResolution(getDevice()->ZeDeviceProperties->timerResolution),
       timestampMaxValue(getDevice()->getTimestampMask()) {}
 
+void ur_event_handle_t_::resetQueueAndCommand(ur_queue_handle_t hQueue,
+                                              ur_command_t commandType) {
+  this->hQueue = hQueue;
+  this->commandType = commandType;
+}
+
 void ur_event_handle_t_::reset() {
-  // consider make an abstraction for regular/counter based
+  // consider making an abstraction for regular/counter based
   // events if there's more of this type of conditions
-  if (pool->getFlags() & v2::EVENT_FLAGS_COUNTER) {
+  if (!(pool->getFlags() & v2::EVENT_FLAGS_COUNTER)) {
     zeEventHostReset(zeEvent.get());
   }
 }
 
 ze_event_handle_t ur_event_handle_t_::getZeEvent() const {
+  assert(hQueue);
+  assert(commandType != UR_COMMAND_FORCE_UINT32);
   return zeEvent.get();
 }
 
@@ -41,14 +50,27 @@ ur_result_t ur_event_handle_t_::retain() {
   return UR_RESULT_SUCCESS;
 }
 
+ur_result_t ur_event_handle_t_::releaseDeferred() {
+  assert(zeEventQueryStatus(zeEvent.get()) == ZE_RESULT_SUCCESS);
+  assert(RefCount.load() == 0);
+
+  pool->free(this);
+  return UR_RESULT_SUCCESS;
+}
+
 ur_result_t ur_event_handle_t_::release() {
   if (!RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
+  // Need to take a lock before checking if the event is timestamped.
+  std::unique_lock<ur_shared_mutex> lock(Mutex);
+
   if (isTimestamped() && adjustedEventEndTimestamp == 0) {
     // L0 will write end timestamp to this event some time in the future,
     // so we can't release it yet.
-    // TODO: delay releasing until the end timestamp is written.
+
+    assert(hQueue);
+    hQueue->deferEventFree(this);
     return UR_RESULT_SUCCESS;
   }
 
@@ -99,17 +121,16 @@ uint64_t ur_event_handle_t_::getEventEndTimestamp() {
   if (adjustedEventEndTimestamp)
     return adjustedEventEndTimestamp;
 
-  // If the result is 0, we have not yet gotten results back and so we just
-  // return it.
-  if (recordEventEndTimestamp == 0)
-    return recordEventEndTimestamp;
+  auto status = zeEventQueryStatus(zeEvent.get());
+  if (status != ZE_RESULT_SUCCESS) {
+    // profiling info not ready
+    return 0;
+  }
 
-  // Now that we have the result, there is no need to keep it in the queue
-  // anymore, so we cache it on the event and evict the record from the
-  // queue.
   adjustedEventEndTimestamp =
       adjustEndEventTimestamp(getEventStartTimestmap(), recordEventEndTimestamp,
                               timestampMaxValue, zeTimerResolution);
+
   return adjustedEventEndTimestamp;
 }
 
@@ -118,32 +139,46 @@ void ur_event_handle_t_::recordStartTimestamp() {
   UR_CALL_THROWS(ur::level_zero::urDeviceGetGlobalTimestamps(
       getDevice(), &deviceStartTimestamp, nullptr));
 
+  assert(adjustedEventStartTimestamp == 0);
   adjustedEventStartTimestamp = deviceStartTimestamp;
 }
 
-uint64_t *ur_event_handle_t_::getEventEndTimestampPtr() {
-  return &recordEventEndTimestamp;
+std::pair<uint64_t *, ze_event_handle_t>
+ur_event_handle_t_::getEventEndTimestampAndHandle() {
+  return {&recordEventEndTimestamp, zeEvent.get()};
 }
 
-namespace ur::level_zero {
-ur_result_t urEventRetain(ur_event_handle_t hEvent) { return hEvent->retain(); }
+ur_queue_handle_t ur_event_handle_t_::getQueue() const { return hQueue; }
 
-ur_result_t urEventRelease(ur_event_handle_t hEvent) {
+ur_command_t ur_event_handle_t_::getCommandType() const { return commandType; }
+
+namespace ur::level_zero {
+ur_result_t urEventRetain(ur_event_handle_t hEvent) try {
+  return hEvent->retain();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
+}
+
+ur_result_t urEventRelease(ur_event_handle_t hEvent) try {
   return hEvent->release();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventWait(uint32_t numEvents,
-                        const ur_event_handle_t *phEventWaitList) {
+                        const ur_event_handle_t *phEventWaitList) try {
   for (uint32_t i = 0; i < numEvents; ++i) {
     ZE2UR_CALL(zeEventHostSynchronize,
                (phEventWaitList[i]->getZeEvent(), UINT64_MAX));
   }
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
                            size_t propValueSize, void *pPropValue,
-                           size_t *pPropValueSizeRet) {
+                           size_t *pPropValueSizeRet) try {
   UrReturnHelper returnValue(propValueSize, pPropValue, pPropValueSizeRet);
 
   switch (propName) {
@@ -159,6 +194,19 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   case UR_EVENT_INFO_REFERENCE_COUNT: {
     return returnValue(hEvent->RefCount.load());
   }
+  case UR_EVENT_INFO_COMMAND_QUEUE: {
+    return returnValue(ur_queue_handle_t{hEvent->getQueue()});
+  }
+  case UR_EVENT_INFO_CONTEXT: {
+    ur_context_handle_t hContext;
+    UR_CALL(::ur::level_zero::urQueueGetInfo(
+        hEvent->getQueue(), UR_QUEUE_INFO_CONTEXT, sizeof(hContext),
+        reinterpret_cast<void *>(&hContext), nullptr));
+    return returnValue(hContext);
+  }
+  case UR_EVENT_INFO_COMMAND_TYPE: {
+    return returnValue(hEvent->getCommandType());
+  }
   default:
     logger::error(
         "Unsupported ParamName in urEventGetInfo: ParamName=ParamName={}(0x{})",
@@ -167,6 +215,8 @@ ur_result_t urEventGetInfo(ur_event_handle_t hEvent, ur_event_info_t propName,
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urEventGetProfilingInfo(
@@ -178,7 +228,7 @@ ur_result_t urEventGetProfilingInfo(
     void *pPropValue,  ///< [out][optional] value of the profiling property
     size_t *pPropValueSizeRet ///< [out][optional] pointer to the actual size in
                               ///< bytes returned in propValue
-) {
+    ) try {
   std::scoped_lock<ur_shared_mutex> lock(hEvent->Mutex);
 
   // The event must either have profiling enabled or be recording timestamps.
@@ -247,5 +297,7 @@ ur_result_t urEventGetProfilingInfo(
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero

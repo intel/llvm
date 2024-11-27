@@ -8,6 +8,7 @@
 from benches.compute import *
 from benches.velocity import VelocityBench
 from benches.syclbench import *
+from benches.llamacpp import *
 from benches.test import TestSuite
 from benches.options import Compare, options
 from output_markdown import generate_markdown
@@ -27,7 +28,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     suites = [
         ComputeBench(directory),
         VelocityBench(directory),
-        SyclBench(directory)
+        SyclBench(directory),
+        LlamaCppBench(directory),
         #TestSuite()
     ] if not options.dry_run else []
 
@@ -64,7 +66,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         try:
             merged_env_vars = {**additional_env_vars}
             iteration_results = []
-            for iter in range(options.iterations):
+            iterations = options.iterations if not benchmark.ignore_iterations() else 1
+            for iter in range(iterations):
                 print(f"running {benchmark.name()}, iteration {iter}... ", end='', flush=True)
                 bench_results = benchmark.run(merged_env_vars)
                 if bench_results is not None:
@@ -114,7 +117,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     history.load(1000)
 
     for name in compare_names:
-        print(f"compare name: {name}")
         compare_result = history.get_compare(name)
         if compare_result:
             chart_data[name] = compare_result.results
@@ -125,6 +127,8 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open('benchmark_results.md', 'w') as file:
             file.write(markdown_content)
 
+        print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
+
     saved_name = save_name if save_name is not None else this_name
 
     # It's important we don't save the current results into history before
@@ -132,7 +136,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
     # Otherwise we might be comparing the results to themselves.
     if not options.dry_run:
         history.save(saved_name, results, save_name is not None)
-        print(f"Markdown with benchmark results has been written to {os.getcwd()}/benchmark_results.md")
         compare_names.append(saved_name)
 
     if options.output_html:
@@ -141,7 +144,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
         with open('benchmark_results.html', 'w') as file:
             file.write(html_content)
 
-    print(f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html")
+        print(f"HTML with benchmark results has been written to {os.getcwd()}/benchmark_results.html")
 
 def validate_and_parse_env_args(env_args):
     env_vars = {}

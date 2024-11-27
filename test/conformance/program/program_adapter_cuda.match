@@ -1,14 +1,13 @@
-{{NONDETERMINISTIC}}
-urProgramBuildTest.BuildFailure/NVIDIA_CUDA_BACKEND___{{.*}}_
-{{OPT}}urProgramCreateWithILTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}
-{{OPT}}urProgramCreateWithILTest.SuccessWithProperties/NVIDIA_CUDA_BACKEND___{{.*}}
-{{OPT}}urProgramCreateWithILTest.BuildInvalidProgram/NVIDIA_CUDA_BACKEND___{{.*}}
+urProgramBuildTest.BuildFailure/*
+{{OPT}}urProgramCreateWithILTest.Success/*
+{{OPT}}urProgramCreateWithILTest.SuccessWithProperties/*
+{{OPT}}urProgramCreateWithILTest.BuildInvalidProgram/*
 # This test flakily fails
-{{OPT}}urProgramGetBuildInfoSingleTest.LogIsNullTerminated/NVIDIA_CUDA_BACKEND___{{.*}}
-{{OPT}}urProgramSetSpecializationConstantsTest.Success/NVIDIA_CUDA_BACKEND___{{.*}}
-{{OPT}}urProgramSetSpecializationConstantsTest.UseDefaultValue/NVIDIA_CUDA_BACKEND___{{.*}}
-urProgramSetSpecializationConstantsTest.InvalidValueSize/NVIDIA_CUDA_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.InvalidValueId/NVIDIA_CUDA_BACKEND___{{.*}}_
-urProgramSetSpecializationConstantsTest.InvalidValuePtr/NVIDIA_CUDA_BACKEND___{{.*}}_
-urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/NVIDIA_CUDA_BACKEND___{{.*}}_
-urProgramSetMultipleSpecializationConstantsTest.SingleCall/NVIDIA_CUDA_BACKEND___{{.*}}_
+{{OPT}}urProgramGetBuildInfoSingleTest.LogIsNullTerminated/*
+{{OPT}}urProgramSetSpecializationConstantsTest.Success/*
+{{OPT}}urProgramSetSpecializationConstantsTest.UseDefaultValue/*
+urProgramSetSpecializationConstantsTest.InvalidValueSize/*
+urProgramSetSpecializationConstantsTest.InvalidValueId/*
+urProgramSetSpecializationConstantsTest.InvalidValuePtr/*
+urProgramSetMultipleSpecializationConstantsTest.MultipleCalls/*
+urProgramSetMultipleSpecializationConstantsTest.SingleCall/*

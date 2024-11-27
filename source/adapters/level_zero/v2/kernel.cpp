@@ -70,8 +70,10 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(ur_program_handle_t hProgram,
 
 ur_kernel_handle_t_::ur_kernel_handle_t_(
     ur_native_handle_t hNativeKernel, ur_program_handle_t hProgram,
+    ur_context_handle_t context,
     const ur_kernel_native_properties_t *pProperties)
-    : hProgram(hProgram), deviceKernels(1) {
+    : hProgram(hProgram),
+      deviceKernels(context ? context->getPlatform()->getNumDevices() : 0) {
   ur::level_zero::urProgramRetain(hProgram);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
@@ -82,7 +84,12 @@ ur_kernel_handle_t_::ur_kernel_handle_t_(
     throw UR_RESULT_ERROR_INVALID_KERNEL;
   }
 
-  deviceKernels.back().emplace(nullptr, zeKernel, ownZeHandle);
+  for (auto &Dev : context->getDevices()) {
+    deviceKernels[*Dev->Id].emplace(Dev, zeKernel, ownZeHandle);
+
+    // owned only by the first entry
+    ownZeHandle = false;
+  }
   completeInitialization();
 }
 
@@ -126,20 +133,6 @@ size_t ur_kernel_handle_t_::deviceIndex(ur_device_handle_t hDevice) const {
   // root-device's kernel can be submitted to a sub-device's queue
   if (hDevice->isSubDevice()) {
     hDevice = hDevice->RootDevice;
-  }
-
-  // supports kernels created from native handle
-  if (deviceKernels.size() == 1) {
-    assert(deviceKernels[0].has_value());
-    assert(deviceKernels[0].value().hKernel.get());
-
-    auto &kernel = deviceKernels[0].value();
-
-    if (kernel.hDevice != hDevice) {
-      throw UR_RESULT_ERROR_INVALID_DEVICE;
-    }
-
-    return 0;
   }
 
   if (!deviceKernels[hDevice->Id.value()].has_value()) {
@@ -322,17 +315,21 @@ std::vector<char> ur_kernel_handle_t_::getSourceAttributes() const {
 namespace ur::level_zero {
 ur_result_t urKernelCreate(ur_program_handle_t hProgram,
                            const char *pKernelName,
-                           ur_kernel_handle_t *phKernel) {
+                           ur_kernel_handle_t *phKernel) try {
   *phKernel = new ur_kernel_handle_t_(hProgram, pKernelName);
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelGetNativeHandle(ur_kernel_handle_t hKernel,
-                                    ur_native_handle_t *phNativeKernel) {
+                                    ur_native_handle_t *phNativeKernel) try {
   // Return the handle of the kernel for the first device
   *phNativeKernel =
       reinterpret_cast<ur_native_handle_t>(hKernel->getNativeZeHandle());
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
@@ -340,22 +337,30 @@ urKernelCreateWithNativeHandle(ur_native_handle_t hNativeKernel,
                                ur_context_handle_t hContext,
                                ur_program_handle_t hProgram,
                                const ur_kernel_native_properties_t *pProperties,
-                               ur_kernel_handle_t *phKernel) {
-  std::ignore = hContext;
-  *phKernel = new ur_kernel_handle_t_(hNativeKernel, hProgram, pProperties);
+                               ur_kernel_handle_t *phKernel) try {
+  if (!hProgram) {
+    return UR_RESULT_ERROR_INVALID_NULL_HANDLE;
+  }
+
+  *phKernel =
+      new ur_kernel_handle_t_(hNativeKernel, hProgram, hContext, pProperties);
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelRetain(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to retain
-) {
+    ) try {
   hKernel->RefCount.increment();
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelRelease(
     ur_kernel_handle_t hKernel ///< [in] handle for the Kernel to release
-) {
+    ) try {
   if (!hKernel->RefCount.decrementAndTest())
     return UR_RESULT_SUCCESS;
 
@@ -363,6 +368,8 @@ ur_result_t urKernelRelease(
   delete hKernel;
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelSetArgValue(
@@ -373,11 +380,13 @@ ur_result_t urKernelSetArgValue(
         *pProperties, ///< [in][optional] argument properties
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
-) {
+    ) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgValue");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgValue(argIndex, argSize, pProperties, pArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelSetArgPointer(
@@ -387,11 +396,13 @@ ur_result_t urKernelSetArgPointer(
         *pProperties, ///< [in][optional] argument properties
     const void
         *pArgValue ///< [in] argument value represented as matching arg type.
-) {
+    ) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgPointer");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
   return hKernel->setArgPointer(argIndex, pProperties, pArgValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 static ur_mem_handle_t_::device_access_mode_t memAccessFromKernelProperties(
@@ -414,7 +425,7 @@ static ur_mem_handle_t_::device_access_mode_t memAccessFromKernelProperties(
 ur_result_t
 urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
                      const ur_kernel_arg_mem_obj_properties_t *pProperties,
-                     ur_mem_handle_t hArgValue) {
+                     ur_mem_handle_t hArgValue) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgMemObj");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
@@ -423,12 +434,14 @@ urKernelSetArgMemObj(ur_kernel_handle_t hKernel, uint32_t argIndex,
       {hArgValue, memAccessFromKernelProperties(pProperties), argIndex}));
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t
 urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
                     size_t argSize,
-                    const ur_kernel_arg_local_properties_t *pProperties) {
+                    const ur_kernel_arg_local_properties_t *pProperties) try {
   TRACK_SCOPE_LATENCY("ur_kernel_handle_t_::setArgLocal");
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
@@ -436,6 +449,8 @@ urKernelSetArgLocal(ur_kernel_handle_t hKernel, uint32_t argIndex,
   std::ignore = pProperties;
 
   return hKernel->setArgValue(argIndex, argSize, nullptr, nullptr);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelSetExecInfo(
@@ -446,13 +461,15 @@ ur_result_t urKernelSetExecInfo(
         *pProperties, ///< [in][optional] pointer to execution info properties
     const void *pPropValue ///< [in][range(0, propSize)] pointer to memory
                            ///< location holding the property value.
-) {
+    ) try {
   std::ignore = propSize;
   std::ignore = pProperties;
 
   std::scoped_lock<ur_shared_mutex> guard(hKernel->Mutex);
 
   return hKernel->setExecInfo(propName, pPropValue);
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelGetGroupInfo(
@@ -466,7 +483,7 @@ ur_result_t urKernelGetGroupInfo(
                         ///< Kernel Work Group property.
     size_t *pParamValueSizeRet ///< [out][optional] pointer to the actual size
                                ///< in bytes of data being queried by propName.
-) {
+    ) try {
   UrReturnHelper returnValue(paramValueSize, pParamValue, pParamValueSizeRet);
 
   // No locking needed here, we only read const members
@@ -532,6 +549,8 @@ ur_result_t urKernelGetGroupInfo(
   }
   }
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelGetSubGroupInfo(
@@ -544,7 +563,7 @@ ur_result_t urKernelGetSubGroupInfo(
                       ///< Kernel SubGroup property.
     size_t *pPropSizeRet ///< [out][optional] pointer to the actual size in
                          ///< bytes of data being queried by propName.
-) {
+    ) try {
   UrReturnHelper returnValue(propSize, pPropValue, pPropSizeRet);
 
   auto props = hKernel->getProperties(hDevice);
@@ -563,11 +582,13 @@ ur_result_t urKernelGetSubGroupInfo(
     return {};
   }
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
                             ur_kernel_info_t paramName, size_t propSize,
-                            void *pKernelInfo, size_t *pPropSizeRet) {
+                            void *pKernelInfo, size_t *pPropSizeRet) try {
 
   UrReturnHelper ReturnValue(propSize, pKernelInfo, pPropSizeRet);
 
@@ -599,5 +620,7 @@ ur_result_t urKernelGetInfo(ur_kernel_handle_t hKernel,
   }
 
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero

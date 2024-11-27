@@ -28,9 +28,11 @@ struct urEnqueueUSMMemcpy2DTestWithParam
         }
 
         bool memcpy2d_support = false;
-        ASSERT_SUCCESS(urContextGetInfo(
+        [[maybe_unused]] ur_result_t result = urContextGetInfo(
             context, UR_CONTEXT_INFO_USM_MEMCPY2D_SUPPORT,
-            sizeof(memcpy2d_support), &memcpy2d_support, nullptr));
+            sizeof(memcpy2d_support), &memcpy2d_support, nullptr);
+        ASSERT_TRUE(result == UR_RESULT_SUCCESS ||
+                    result == UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION);
         if (!memcpy2d_support) {
             GTEST_SKIP() << "2D USM memcpy is not supported";
         }

@@ -51,7 +51,9 @@ target_link_libraries(fuzztest-base
     ${PROJECT_NAME}::headers
     ${PROJECT_NAME}::common
     -fsanitize=fuzzer)
-target_compile_options(fuzztest-base PRIVATE -g -fsanitize=fuzzer)
+# When built with -g and -flto (which is required by some hardening flags), this causes a segfault in (upstream)
+# LLVM 14-15 while linking when CMAKE_BUILD_TYPE is Release
+target_compile_options(fuzztest-base PRIVATE -fsanitize=fuzzer)
 target_compile_definitions(fuzztest-base PRIVATE -DKERNEL_IL_PATH="${UR_CONFORMANCE_DEVICE_BINARIES_DIR}/fill/spir64.bin.0")
 target_include_directories(fuzztest-base PRIVATE ${UR_CONFORMANCE_DEVICE_BINARIES_DIR})
 add_dependencies(fuzztest-base generate_device_binaries)

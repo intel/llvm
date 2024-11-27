@@ -12,6 +12,7 @@
 #include "common.hpp"
 #include "ur_api.h"
 #include "ze_api.h"
+#include "ze_ddi.h"
 #include "zes_api.h"
 
 struct ur_device_handle_t_;
@@ -59,6 +60,7 @@ struct ur_platform_handle_t_ : public _ur_platform {
   bool ZeDriverGlobalOffsetExtensionFound{false};
   bool ZeDriverModuleProgramExtensionFound{false};
   bool ZeDriverEventPoolCountingEventsExtensionFound{false};
+  bool zeDriverImmediateCommandListAppendFound{false};
 
   // Cache UR devices for reuse
   std::vector<std::unique_ptr<ur_device_handle_t_>> URDevicesCache;

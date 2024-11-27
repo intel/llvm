@@ -106,7 +106,7 @@ namespace ur::level_zero {
 ur_result_t urContextCreate(uint32_t deviceCount,
                             const ur_device_handle_t *phDevices,
                             const ur_context_properties_t *pProperties,
-                            ur_context_handle_t *phContext) {
+                            ur_context_handle_t *phContext) try {
   std::ignore = pProperties;
 
   ur_platform_handle_t hPlatform = phDevices[0]->Platform;
@@ -118,20 +118,24 @@ ur_result_t urContextCreate(uint32_t deviceCount,
   *phContext =
       new ur_context_handle_t_(zeContext, deviceCount, phDevices, true);
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextGetNativeHandle(ur_context_handle_t hContext,
-                                     ur_native_handle_t *phNativeContext) {
+                                     ur_native_handle_t *phNativeContext) try {
   *phNativeContext =
       reinterpret_cast<ur_native_handle_t>(hContext->getZeHandle());
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextCreateWithNativeHandle(
     ur_native_handle_t hNativeContext, ur_adapter_handle_t, uint32_t numDevices,
     const ur_device_handle_t *phDevices,
     const ur_context_native_properties_t *pProperties,
-    ur_context_handle_t *phContext) {
+    ur_context_handle_t *phContext) try {
   auto zeContext = reinterpret_cast<ze_context_handle_t>(hNativeContext);
 
   auto ownZeHandle = pProperties ? pProperties->isNativeHandleOwned : false;
@@ -139,22 +143,25 @@ ur_result_t urContextCreateWithNativeHandle(
   *phContext =
       new ur_context_handle_t_(zeContext, numDevices, phDevices, ownZeHandle);
   return UR_RESULT_SUCCESS;
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextRetain(ur_context_handle_t hContext) {
+ur_result_t urContextRetain(ur_context_handle_t hContext) try {
   return hContext->retain();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
-ur_result_t urContextRelease(ur_context_handle_t hContext) {
+ur_result_t urContextRelease(ur_context_handle_t hContext) try {
   return hContext->release();
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 
 ur_result_t urContextGetInfo(ur_context_handle_t hContext,
                              ur_context_info_t contextInfoType, size_t propSize,
-
-                             void *pContextInfo,
-
-                             size_t *pPropSizeRet) {
+                             void *pContextInfo, size_t *pPropSizeRet) try {
   // No locking needed here, we only read const members
 
   UrReturnHelper ReturnValue(propSize, pContextInfo, pPropSizeRet);
@@ -173,8 +180,16 @@ ur_result_t urContextGetInfo(ur_context_handle_t hContext,
   case UR_CONTEXT_INFO_USM_FILL2D_SUPPORT:
     // 2D USM fill is not supported.
     return ReturnValue(uint8_t{false});
-  default:
-    return UR_RESULT_ERROR_UNSUPPORTED_FEATURE;
+  case UR_CONTEXT_INFO_ATOMIC_MEMORY_ORDER_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_MEMORY_SCOPE_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_ORDER_CAPABILITIES:
+  case UR_CONTEXT_INFO_ATOMIC_FENCE_SCOPE_CAPABILITIES: {
+    return UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION;
   }
+  default:
+    return UR_RESULT_ERROR_INVALID_ENUMERATION;
+  }
+} catch (...) {
+  return exceptionToResult(std::current_exception());
 }
 } // namespace ur::level_zero
