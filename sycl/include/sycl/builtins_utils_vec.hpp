@@ -13,8 +13,9 @@
 #include <sycl/builtins_utils_scalar.hpp>
 
 #include <sycl/detail/type_traits.hpp>
+#include <sycl/detail/vector_convert.hpp>
 #include <sycl/marray.hpp> // for marray
-#include <sycl/types.hpp>  // for vec
+#include <sycl/vector.hpp> // for vec
 
 namespace sycl {
 inline namespace _V1 {

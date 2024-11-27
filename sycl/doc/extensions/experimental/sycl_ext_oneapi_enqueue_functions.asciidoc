@@ -716,6 +716,34 @@ optimize such partial barriers.
 _{endnote}_]
 |====
 
+==== Command Graph
+
+The functions in this section are only available if the
+link:./sycl_ext_oneapi_graph.asciidoc[
+  sycl_ext_oneapi_graph] extension is supported.
+
+|====
+a|
+[frame=all,grid=none]
+!====
+a!
+[source,c++]
+----
+namespace sycl::ext::oneapi::experimental {
+
+void execute_graph(sycl::queue q, command_graph<graph_state::executable> &g);
+
+void execute_graph(sycl::handler &h, command_graph<graph_state::executable> &g);
+
+}
+----
+!====
+_Constraints_: Device and context associated with queue need to be identical 
+to device and context provided at command graph creation.
+
+_Effects_: Submits an executable command graph to the `sycl::queue` or `sycl::handler`.
+
+|====
 
 == Issues
 

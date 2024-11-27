@@ -1,9 +1,6 @@
-# These two take too much time
-kernel_bundle
-marray
 # https://github.com/intel/llvm/issues/13477
 math_builtin_api
 # https://github.com/intel/llvm/issues/13574
 hierarchical
-# fix: https://github.com/KhronosGroup/SYCL-CTS/pull/964
-accessor_legacy
+# CMPLRLLVM-61839
+multi_ptr

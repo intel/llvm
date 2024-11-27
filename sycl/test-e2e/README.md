@@ -369,3 +369,13 @@ temporarily disabled due to some issue.
 If you add `UNSUPPORTED` without `UNSUPPORTED-TRACKER` or `UNSUPPORTED-INTENDED`
 directive, the `no-unsupported-without-tracker.cpp` test will fail, notifying
 you about that.
+
+To disable the test completely, you can use:
+```
+// USNUPPORTED: true
+```
+
+Note: please avoid using `REQUIRES: TEMPORARY_DISABLED` for this purpose, it's
+a non-standard mechanism. Use `UNSUPPORTED: true` instead, we track
+`UNSUPPORTED` tests using the mechanism described above. Otherwise the test
+risks remaining untraceable.

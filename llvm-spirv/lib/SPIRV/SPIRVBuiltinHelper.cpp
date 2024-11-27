@@ -106,6 +106,9 @@ Value *BuiltinCallMutator::doConversion() {
   NewCall->copyMetadata(*CI);
   NewCall->setAttributes(CallAttrs);
   NewCall->setTailCall(CI->isTailCall());
+  if (isa<FPMathOperator>(CI))
+    NewCall->setFastMathFlags(CI->getFastMathFlags());
+
   if (CI->hasFnAttr("fpbuiltin-max-error")) {
     auto Attr = CI->getFnAttr("fpbuiltin-max-error");
     NewCall->addFnAttr(Attr);

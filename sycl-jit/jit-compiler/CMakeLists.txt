@@ -19,16 +19,19 @@ add_llvm_library(sycl-jit
    BitReader
    Core
    Support
+   Option
    Analysis
    IPO
    TransformUtils
    Passes
+   IRReader
    Linker
    ScalarOpts
    InstCombine
    Target
    TargetParser
    MC
+   SYCLLowerIR
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
@@ -39,6 +42,10 @@ add_llvm_library(sycl-jit
    clangTooling
    clangSerialization
 )
+
+if(WIN32)
+  target_link_libraries(sycl-jit PRIVATE Shlwapi)
+endif()
 
 target_compile_options(sycl-jit PRIVATE ${SYCL_JIT_WARNING_FLAGS})
 
