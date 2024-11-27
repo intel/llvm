@@ -67,6 +67,7 @@ protected:
 // `pipes.cpp` so that we'd still provide this backward-compatibility ABI symbol
 // via `pipes.cpp` TU.
 #ifdef __SYCL_PIPES_CPP
+// Magic combination found by trial and error:
 __SYCL_EXPORT
 #ifdef WIN32
 inline
