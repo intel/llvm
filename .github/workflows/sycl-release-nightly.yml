@@ -1,12 +1,10 @@
 name: SYCL Release Branch Nightly
 
+# TODO: schedule workflows are only launched on the main branch
 on:
   workflow_dispatch:
-  # TODO: schedule workflows are only launched on the main branch
   schedule:
     - cron: '0 3 * * *'
-  branches:
-    - sycl-rel*
 
 permissions: read-all
 
