@@ -117,13 +117,11 @@ if(SYCL_PI_UR_USE_FETCH_CONTENT)
   endfunction()
 
   set(UNIFIED_RUNTIME_REPO "https://github.com/oneapi-src/unified-runtime.git")
-  # commit 4d19115165b5497b647ae1b2e110488f84d1806a
-  # Merge: fb6df497 3f128d09
+  # commit 04db12683146673af9a09e923c19cf9a4ee96982
   # Author: Piotr Balcer <piotr.balcer@intel.com>
-  # Date:   Tue Sep 17 10:31:44 2024 +0200
-  #     Merge pull request #2087 from nrspruit/fix_driver_inorder_event_wait
-  #     [L0] Fix urEnqueueEventsWaitWithBarrier for driver in order lists
-  set(UNIFIED_RUNTIME_TAG 4d19115165b5497b647ae1b2e110488f84d1806a)
+  # Date:   Thu Sep 26 12:28:31 2024 +0200
+  #   Set version to v0.10.8
+  set(UNIFIED_RUNTIME_TAG v0.10.8)
 
   set(UMF_BUILD_EXAMPLES OFF CACHE INTERNAL "EXAMPLES")
   # Due to the use of dependentloadflag and no installer for UMF and hwloc we need
