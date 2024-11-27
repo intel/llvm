@@ -43,12 +43,13 @@ ur_result_t GetInfo(ObjectTy object, InfoTy info, Callable cb, T &out_value) {
 
     // special case for strings
     if constexpr (std::is_same_v<std::string, T>) {
-        std::vector<char> data(size);
-        result = cb(object, info, size, data.data(), nullptr);
+        std::string value(size, '\0');
+        result = cb(object, info, size, value.data(), nullptr);
         if (result != UR_RESULT_SUCCESS) {
             return result;
         }
-        out_value = std::string(data.data(), data.size());
+        out_value =
+            value.substr(0, std::min(value.find_last_of('\0'), value.size()));
         return UR_RESULT_SUCCESS;
     } else {
         if (size != sizeof(T)) {

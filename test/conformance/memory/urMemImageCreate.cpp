@@ -2,6 +2,7 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include "uur/known_failure.h"
 #include <uur/fixtures.h>
 #include <uur/raii.h>
 
@@ -188,6 +189,7 @@ TEST_P(urMemImageCreateTest, InvalidNullPointerImageFormat) {
 }
 
 TEST_P(urMemImageCreateTest, InvalidSize) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
 
     uur::raii::Mem image_handle = nullptr;
 
