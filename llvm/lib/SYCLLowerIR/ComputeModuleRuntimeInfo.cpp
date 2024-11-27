@@ -187,7 +187,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       // std::aligned_alloc is not available in some pre-ci Windows machine.
 #if defined(_WIN32) || defined(_WIN64)
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
-          _aligned_malloc(alignof(uint32_t), SPVSize + sizeof(uint32_t) * 2));
+          _aligned_malloc(SPVSize + sizeof(uint32_t) * 2, alignof(uint32_t)));
 #else
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(std::aligned_alloc(
           alignof(uint32_t), SPVSize + sizeof(uint32_t) * 2));
