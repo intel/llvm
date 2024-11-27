@@ -180,10 +180,9 @@ class ClangDiagnosticWrapper {
 
 public:
   ClangDiagnosticWrapper(std::string &LogString, DiagnosticOptions *DiagOpts)
-      : LogStream(LogString) {
-
-    LogPrinter = std::make_unique<TextDiagnosticPrinter>(LogStream, DiagOpts);
-  }
+      : LogStream(LogString),
+        LogPrinter(
+            std::make_unique<TextDiagnosticPrinter>(LogStream, DiagOpts)) {}
 
   clang::TextDiagnosticPrinter *consumer() { return LogPrinter.get(); }
 

@@ -61,7 +61,7 @@ public:
   explicit RTCResult(const char *ErrorMessage)
       : Failed{true}, BundleInfo{}, ErrorMessage{ErrorMessage} {}
 
-  explicit RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
+  RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
       : Failed{false}, BundleInfo{std::move(BundleInfo)},
         ErrorMessage{BuildLog} {}
 
