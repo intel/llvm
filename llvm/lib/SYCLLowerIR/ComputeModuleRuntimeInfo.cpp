@@ -193,8 +193,22 @@ PropSetRegTy computeModuleProperties(const Module &M,
       uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
           std::aligned_alloc(alignof(uint32_t), SPVSize + sizeof(uint32_t)));
 #endif
+
+      if (!SPVBuffer)
+        continue;
+
+      // The data embedded consists of 2 parts, first 4 bytes are corresponding
+      // DeivceLib extension and the following bytes are raw data of fallback
+      // spv files. There is 1 exception for native bfloat16 spv, it is used
+      // to support native bfloat16 conversions on some devices and it doesn't
+      // fully comply to fallback device library mechanism, the extension
+      // 'cl_intel_devicelib_bfloat16' corresponds to 2 fallback spvs: native
+      // version used for devices which supports native bfloat16 conversion and
+      // generic version for all other devices, so we have to embed 1 one field
+      // to distinguish.
       *(reinterpret_cast<uint32_t *>(SPVBuffer)) = static_cast<uint32_t>(Ext);
-      std::memcpy(SPVBuffer + sizeof(uint32_t), (*SPVMB)->getBufferStart(),
+      size_t RawSPVOffset = sizeof(uint32_t);
+      std::memcpy(SPVBuffer + RawSPVOffset, (*SPVMB)->getBufferStart(),
                   SPVSize);
       llvm::SYCLDeviceLibSPVBinary SPVBinaryObj(SPVBuffer,
                                                 SPVSize + sizeof(uint32_t));
