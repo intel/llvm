@@ -45,7 +45,6 @@ match lit_config.params.get("test-mode", "full"):
     case "build-only":
         config.test_mode = "build-only"
         config.sycl_devices = []
-        arch_flag = ""
     case "full":
         config.test_mode = "full"
         config.available_features.add("run-mode")
@@ -659,6 +658,7 @@ config.sycl_dev_features = {}
 
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
+arch_flag = ""
 for sycl_device in config.sycl_devices:
     env = copy.copy(llvm_config.config.environment)
     env["ONEAPI_DEVICE_SELECTOR"] = sycl_device
@@ -798,9 +798,6 @@ for sycl_device in config.sycl_devices:
         )
     elif be == "hip" and config.hip_platform == "NVIDIA":
         config.available_features.add("hip_nvidia")
-        arch_flag = ""
-    else:
-        arch_flag = ""
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
