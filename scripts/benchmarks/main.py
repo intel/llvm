@@ -73,7 +73,7 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                 if bench_results is not None:
                     for bench_result in bench_results:
                         if bench_result.passed:
-                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {benchmark.unit()}).")
+                            print(f"complete ({bench_result.label}: {bench_result.value:.3f} {bench_result.unit}).")
                         else:
                             print(f"complete ({bench_result.label}: verification FAILED)")
                         iteration_results.append(bench_result)
@@ -91,7 +91,6 @@ def main(directory, additional_env_vars, save_name, compare_names, filter):
                     median_index = len(label_results) // 2
                     median_result = label_results[median_index]
 
-                    median_result.unit = benchmark.unit()
                     median_result.name = label
                     median_result.lower_is_better = benchmark.lower_is_better()
 

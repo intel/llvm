@@ -57,9 +57,6 @@ class Benchmark:
     def name(self):
         raise NotImplementedError()
 
-    def unit(self):
-        raise NotImplementedError()
-
     def lower_is_better(self):
         return True
 

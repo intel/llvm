@@ -138,9 +138,6 @@ class LlamaBench(Benchmark):
         self.bench = bench
         super().__init__(bench.directory)
 
-    def unit(self):
-        return "token/s"
-
     def setup(self):
         self.benchmark_bin = os.path.join(self.bench.build_path, 'bin', 'llama-bench')
 
@@ -171,7 +168,7 @@ class LlamaBench(Benchmark):
         for r in parsed:
             (extra_label, mean) = r
             label = f"{self.name()} {extra_label}"
-            results.append(Result(label=label, value=mean, command=command, env=env_vars, stdout=result))
+            results.append(Result(label=label, value=mean, command=command, env=env_vars, stdout=result, unit="token/s"))
         return results
 
     def parse_output(self, output):
