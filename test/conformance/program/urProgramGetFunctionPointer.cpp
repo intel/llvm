@@ -3,6 +3,7 @@
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
 
+#include "uur/known_failure.h"
 #include <uur/fixtures.h>
 
 struct urProgramGetFunctionPointerTest : uur::urProgramTest {
@@ -20,6 +21,7 @@ struct urProgramGetFunctionPointerTest : uur::urProgramTest {
 UUR_INSTANTIATE_KERNEL_TEST_SUITE_P(urProgramGetFunctionPointerTest);
 
 TEST_P(urProgramGetFunctionPointerTest, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
     void *function_pointer = nullptr;
     ASSERT_SUCCESS(urProgramGetFunctionPointer(
         device, program, function_name.data(), &function_pointer));

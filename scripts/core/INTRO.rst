@@ -430,6 +430,13 @@ no valid platforms, then the tests will fail. Command line arguments take priori
 
     A (case insensitive) backend to force the test to use. For example, `opencl`, `level_zero`, `hip` and so on.
 
+.. envvar:: UR_CTS_ALSO_RUN_KNOWN_FAILURES
+
+   A boolean option to enable running tests which have been marked as known
+   failures using the :c:macro:`UUR_KNOWN_FAILURE_ON` macro. Enabled when the
+   environment variable is set to any of the following values: ``1``, ``on``,
+   ``ON``, ``yes``, ``YES``, ``true``, ``TRUE``.
+
 Service identifiers
 ---------------------
 

@@ -2,6 +2,7 @@
 // Part of the Unified-Runtime Project, under the Apache License v2.0 with LLVM Exceptions.
 // See LICENSE.TXT
 // SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+#include "uur/known_failure.h"
 #include <uur/fixtures.h>
 #include <vector>
 
@@ -90,6 +91,7 @@ UUR_DEVICE_TEST_SUITE_P(
     uur::deviceTestWithParamPrinter<ur_image_format_t>);
 
 TEST_P(urMemImageCreateTestWithImageFormatParam, Success) {
+    UUR_KNOWN_FAILURE_ON(uur::OpenCL{"Intel(R) UHD Graphics 770"});
     ur_image_channel_order_t channel_order =
         std::get<1>(GetParam()).channelOrder;
     ur_image_channel_type_t channel_type = std::get<1>(GetParam()).channelType;
