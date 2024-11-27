@@ -367,6 +367,45 @@ the following command from the build directory.
      
     ctest -L "conformance"
 
+Conformance Match Files
+-----------------------
+
+At the moment, not all tests currently pass with all adapters. Some tests are
+selectively marked as failing on certain adapters using a .match file located
+at ``test/conformance/<component>/<component>_adapter_<adapter>.match``. If
+that file exists, then it must contain a list of test specifiers which
+specify tests that fail for the given adapter.
+
+when run through ``ctest``, each failing test will be ran in a separate
+invocation (to capture any crashes) to verify that they are still failing. All
+tests not matched by the filters will also be ran in a single invocation which
+must succeed.
+
+This behaviour can be disabled by setting the environment variable
+``GTEST_OUTPUT``. If this is set, the test runner assumes it is being ran to
+collect testing statistics, and just runs the test suite with no filters.
+
+The format of the match files are as follows:
+
+* Each line consists of the name of a test as understood by gtest. This is the
+  name printed next to ``[ RUN      ]`` in the test log.
+* ``*`` is a wildcard that matches any number of characters in a test name. ``?``
+  matches a single character.
+* Empty lines or lines beginning with ``#`` are ignored.
+* A line beginning with ``{{OPT}}`` is a optional test; see below.
+
+Normally tests in the match file must fail (either by crashing or having a test
+failure) for the given adapter. However this can be disabled by prepending
+``{{OPT}}`` to the match line. This can be used if the test is flaky or
+depends on a particular environment.
+
+This matching is done via ``test/conformance/cts_exe.py``, which is designed to be
+called from ctest. However, it can be run manually as follows:
+
+.. code-block:: console
+
+    test/conformance/cts_exe.py --test_command build/bin/test-adapter --failslist test/conformance/adapter/adapter_adapter_mytarget.match -- --backend=BACKEND
+
 Experimental Features
 =====================
 

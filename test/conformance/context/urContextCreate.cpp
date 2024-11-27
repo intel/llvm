@@ -36,6 +36,17 @@ TEST_P(urContextCreateTest, InvalidNullPointerContext) {
                      urContextCreate(1, &device, nullptr, nullptr));
 }
 
+TEST_P(urContextCreateTest, InvalidEnumeration) {
+    auto device = GetParam();
+
+    ur_context_properties_t properties{UR_STRUCTURE_TYPE_CONTEXT_PROPERTIES,
+                                       nullptr, UR_CONTEXT_FLAGS_MASK};
+    uur::raii::Context context = nullptr;
+
+    ASSERT_EQ_RESULT(UR_RESULT_ERROR_INVALID_ENUMERATION,
+                     urContextCreate(1, &device, &properties, context.ptr()));
+}
+
 using urContextCreateMultiDeviceTest = uur::urAllDevicesTest;
 TEST_F(urContextCreateMultiDeviceTest, Success) {
     if (devices.size() < 2) {

@@ -284,6 +284,59 @@ TEST_P(USMMultiSaxpyKernelTest, UpdateParameters) {
     Validate(new_output, new_X, new_Y, new_A, global_size);
 }
 
+// Checks that passing nullptr to hNewKernel even when kernel binary updates
+// is not supported by the adapter.
+TEST_P(USMMultiSaxpyKernelTest, UpdateNullptrKernel) {
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    uint32_t *output = (uint32_t *)shared_ptrs[0];
+    uint32_t *X = (uint32_t *)shared_ptrs[1];
+    uint32_t *Y = (uint32_t *)shared_ptrs[2];
+    Validate(output, X, Y, A, global_size);
+
+    // New A at index 1
+    uint32_t new_A = 33;
+    ur_exp_command_buffer_update_value_arg_desc_t new_A_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_VALUE_ARG_DESC, // stype
+        nullptr,                                                    // pNext
+        1,                                                          // argIndex
+        sizeof(new_A),                                              // argSize
+        nullptr, // pProperties
+        &new_A,  // hArgValue
+    };
+
+    // Update kernel inputs
+    ur_exp_command_buffer_update_kernel_launch_desc_t update_desc = {
+        UR_STRUCTURE_TYPE_EXP_COMMAND_BUFFER_UPDATE_KERNEL_LAUNCH_DESC, // stype
+        nullptr,                                                        // pNext
+        nullptr,      // hNewKernel
+        0,            // numNewMemObjArgs
+        0,            // numNewPointerArgs
+        1,            // numNewValueArgs
+        n_dimensions, // newWorkDim
+        nullptr,      // pNewMemObjArgList
+        nullptr,      // pNewPointerArgList
+        &new_A_desc,  // pNewValueArgList
+        nullptr,      // pNewGlobalWorkOffset
+        nullptr,      // pNewGlobalWorkSize
+        nullptr,      // pNewLocalWorkSize
+    };
+
+    for (auto &handle : command_handles) {
+        ASSERT_SUCCESS(
+            urCommandBufferUpdateKernelLaunchExp(handle, &update_desc));
+    }
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urQueueFinish(queue));
+
+    // Verify that update occurred correctly
+    uint32_t *new_output = (uint32_t *)shared_ptrs[0];
+    Validate(new_output, X, Y, new_A, global_size);
+}
+
 TEST_P(USMMultiSaxpyKernelTest, UpdateWithoutBlocking) {
     // Prepare new inputs
     ur_exp_command_buffer_update_pointer_arg_desc_t new_input_descs[2];

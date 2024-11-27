@@ -188,7 +188,7 @@ members:
     - type: uint32_t
       name: argIndex
       desc: "[in] Argument index."
-    - type: uint32_t
+    - type: size_t
       name: argSize
       desc: "[in] Argument size."
     - type: "const ur_kernel_arg_value_properties_t *"

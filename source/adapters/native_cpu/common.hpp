@@ -12,6 +12,7 @@
 
 #include "logger/ur_logger.hpp"
 #include "ur/ur.hpp"
+#include <chrono>
 
 constexpr size_t MaxMessageSize = 256;
 
@@ -70,3 +71,31 @@ template <typename T> inline void decrementOrDelete(T *refC) {
   if (refC->decrementReferenceCount() == 0)
     delete refC;
 }
+
+inline uint64_t get_timestamp() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(
+             std::chrono::high_resolution_clock::now().time_since_epoch())
+      .count();
+}
+
+namespace native_cpu {
+
+inline void *aligned_malloc(size_t alignment, size_t size) {
+  void *ptr = nullptr;
+#ifdef _MSC_VER
+  ptr = _aligned_malloc(size, alignment);
+#else
+  ptr = std::aligned_alloc(alignment, size);
+#endif
+  return ptr;
+}
+
+inline void aligned_free(void *ptr) {
+#ifdef _MSC_VER
+  _aligned_free(ptr);
+#else
+  free(ptr);
+#endif
+}
+
+} // namespace native_cpu
