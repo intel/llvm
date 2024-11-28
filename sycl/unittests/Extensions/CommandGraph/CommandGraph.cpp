@@ -7,8 +7,44 @@
 //===----------------------------------------------------------------------===//
 #include "Common.hpp"
 
+#include <map>
+
 using namespace sycl;
 using namespace sycl::ext::oneapi;
+
+// Test creating and using ext::oneapi::weak_object and owner_less for
+// command_graph class in a map
+TEST_F(CommandGraphTest, OwnerLessGraph) {
+
+  using ModifiableGraphT =
+      experimental::command_graph<experimental::graph_state::modifiable>;
+  using ExecutableGraphT =
+      experimental::command_graph<experimental::graph_state::executable>;
+
+  // Test graph objects using the default template parameter
+  weak_object<experimental::command_graph<>> DefaultWeakGraph = Graph;
+  std::map<weak_object<experimental::command_graph<>>, int,
+           owner_less<experimental::command_graph<>>>
+      DefaultGraphMap;
+
+  ASSERT_NO_THROW(DefaultGraphMap.insert({DefaultWeakGraph, 1}));
+
+  // Test graph objects in the modifiable state
+  weak_object<ModifiableGraphT> WeakGraph = Graph;
+  std::map<weak_object<ModifiableGraphT>, int, owner_less<ModifiableGraphT>>
+      ModifiableGraphMap;
+
+  ASSERT_NO_THROW(ModifiableGraphMap.insert({WeakGraph, 1}));
+
+  // Test graph objects in the executable state
+  auto ExecGraph = Graph.finalize();
+
+  weak_object<ExecutableGraphT> WeakGraphExec = ExecGraph;
+  std::map<weak_object<ExecutableGraphT>, int, owner_less<ExecutableGraphT>>
+      ExecGraphMap;
+
+  ASSERT_NO_THROW(ExecGraphMap.insert({WeakGraphExec, 1}));
+}
 
 TEST_F(CommandGraphTest, AddNode) {
   auto GraphImpl = sycl::detail::getSyclObjImpl(Graph);

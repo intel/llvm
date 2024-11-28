@@ -12,6 +12,7 @@
 #include <sycl/context.hpp>                // for context
 #include <sycl/detail/export.hpp>          // for __SYCL_EXPORT
 #include <sycl/detail/kernel_desc.hpp>     // for kernel_param_kind_t
+#include <sycl/detail/owner_less_base.hpp> // for OwnerLessBase
 #include <sycl/detail/property_helper.hpp> // for DataLessPropKind, PropWith...
 #ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 #include <sycl/detail/string_view.hpp>
@@ -236,7 +237,8 @@ private:
 
 namespace detail {
 // Templateless modifiable command-graph base class.
-class __SYCL_EXPORT modifiable_command_graph {
+class __SYCL_EXPORT modifiable_command_graph
+    : public sycl::detail::OwnerLessBase<modifiable_command_graph> {
 public:
   /// Constructor.
   /// @param SyclContext Context to use for graph.
@@ -398,7 +400,8 @@ inline
 }
 
 // Templateless executable command-graph base class.
-class __SYCL_EXPORT executable_command_graph {
+class __SYCL_EXPORT executable_command_graph
+    : public sycl::detail::OwnerLessBase<executable_command_graph> {
 public:
   /// An executable command-graph is not user constructable.
   executable_command_graph() = delete;
