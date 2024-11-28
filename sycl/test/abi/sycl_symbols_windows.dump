@@ -4206,7 +4206,7 @@
 ?reduComputeWGSize@detail@_V1@sycl@@YA_K_K0AEA_K@Z
 ?reduGetMaxNumConcurrentWorkGroups@detail@_V1@sycl@@YAIV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@@Z
 ?reduGetMaxWGSize@detail@_V1@sycl@@YA_KV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
-?reduGetPreferredWGSize@detail@_V1@sycl@@YA_KAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
+?reduGetPreferredDeviceWGSize@detail@_V1@sycl@@YA_KAEAV?$shared_ptr@Vqueue_impl@detail@_V1@sycl@@@std@@_K@Z
 ?registerDynamicParameter@handler@_V1@sycl@@AEAAXAEAVdynamic_parameter_base@detail@experimental@oneapi@ext@23@H@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_mem@12345@AEBVdevice@45@AEBVcontext@45@@Z
 ?release_external_memory@experimental@oneapi@ext@_V1@sycl@@YAXUexternal_mem@12345@AEBVqueue@45@@Z
