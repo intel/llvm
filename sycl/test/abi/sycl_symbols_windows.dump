@@ -3741,6 +3741,8 @@
 ?category@exception@_V1@sycl@@QEBAAEBVerror_category@std@@XZ
 ?clearArgs@handler@_V1@sycl@@AEAAXXZ
 ?code@exception@_V1@sycl@@QEBAAEBVerror_code@std@@XZ
+?compile_impl@?$online_compiler@$00@experimental@intel@ext@_V1@sycl@@AEAA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@0AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@@Z
+?compile_impl@?$online_compiler@$0A@@experimental@intel@ext@_V1@sycl@@AEAA?AV?$vector@EV?$allocator@E@std@@@std@@Vstring_view@detail@56@0AEBV?$vector@Vstring_view@detail@_V1@sycl@@V?$allocator@Vstring_view@detail@_V1@sycl@@@std@@@8@@Z
 ?compile_impl@detail@_V1@sycl@@YA?AV?$shared_ptr@Vkernel_bundle_impl@detail@_V1@sycl@@@std@@AEBV?$kernel_bundle@$0A@@23@AEBV?$vector@Vdevice@_V1@sycl@@V?$allocator@Vdevice@_V1@sycl@@@std@@@5@AEBVproperty_list@23@@Z
 ?complete_fusion@fusion_wrapper@experimental@codeplay@ext@_V1@sycl@@QEAA?AVevent@56@AEBVproperty_list@56@@Z
 ?computeFallbackKernelBounds@handler@_V1@sycl@@AEAA?AV?$id@$01@23@_K0@Z
@@ -4055,6 +4057,7 @@
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
+?get_pipe_name_impl@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AVstring@detail@56@PEBX@Z
 ?get_pitch@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$01@34@XZ
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platform@device@_V1@sycl@@QEBA?AVplatform@23@XZ
@@ -4082,6 +4085,8 @@
 ?has@device@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has@platform@_V1@sycl@@QEBA_NW4aspect@23@@Z
 ?has_context@exception@_V1@sycl@@QEBA_NXZ
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVdevice@34@Vstring_view@134@@Z
+?has_extension@detail@opencl@_V1@sycl@@YA_NAEBVplatform@34@Vstring_view@134@@Z
 ?has_extension@device@_V1@sycl@@AEBA_NVstring_view@detail@23@@Z
 ?has_extension@device@_V1@sycl@@QEBA_NAEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z
 ?has_extension@opencl@_V1@sycl@@YA_NAEBVdevice@23@AEBV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@@Z

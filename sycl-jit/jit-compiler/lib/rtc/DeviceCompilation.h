@@ -27,6 +27,10 @@ compileDeviceCode(InMemoryFile SourceFile, View<InMemoryFile> IncludeFiles,
 llvm::Error linkDeviceLibraries(llvm::Module &Module,
                                 const llvm::opt::InputArgList &UserArgList);
 
+llvm::Expected<RTCBundleInfo>
+performPostLink(llvm::Module &Module,
+                const llvm::opt::InputArgList &UserArgList);
+
 llvm::Expected<llvm::opt::InputArgList>
 parseUserArgs(View<const char *> UserArgs);
 

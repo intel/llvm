@@ -792,10 +792,9 @@ processInputModule(std::unique_ptr<Module> M) {
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
   // MemorySanitizer specific passes
-  if (isModuleUsingMsan(*M)) {
+  if (isModuleUsingAsan(*M) || isModuleUsingMsan(*M)) {
     // Fix attributes and metadata of KernelMetadata
     Modified |= runModulePass<SanitizerKernelMetadataPass>(*M);
-  }
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
