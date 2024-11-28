@@ -1,0 +1,242 @@
+= sycl_ext_oneapi_execution_domain_info
+
+:source-highlighter: coderay
+:coderay-linenums-mode: table
+
+// This section needs to be after the document title.
+:doctype: book
+:toc2:
+:toc: left
+:encoding: utf-8
+:lang: en
+:dpcpp: pass:[DPC++]
+:endnote: &#8212;{nbsp}end{nbsp}note
+
+// Set the default source code type in this document to C++,
+// for syntax highlighting purposes.  This is needed because
+// docbook uses c++ and html5 uses cpp.
+:language: {basebackend@docbook:c++:cpp}
+
+
+== Notice
+
+[%hardbreaks]
+Copyright (C) 2024 Intel Corporation.  All rights reserved.
+
+Khronos(R) is a registered trademark and SYCL(TM) and SPIR(TM) are trademarks
+of The Khronos Group Inc.  OpenCL(TM) is a trademark of Apple Inc. used by
+permission by Khronos.
+
+
+== Contact
+
+To report problems with this extension, please open a new issue at:
+
+https://github.com/intel/llvm/issues
+
+
+== Dependencies
+
+This extension is written against the SYCL 2020 revision 9 specification.  All
+references below to the "core SYCL specification" or to section numbers in the
+SYCL specification refer to that revision.
+
+
+== Status
+
+This is a proposed extension specification, intended to gather community
+feedback.  Interfaces defined in this specification may not be implemented yet
+or may be in a preliminary state.  The specification itself may also change in
+incompatible ways before it is finalized.  *Shipping software products should
+not rely on APIs defined in this specification.*
+
+
+== Overview
+
+SYCL 2020 allows developers to query the number of _compute units_ in a device,
+where each compute unit describes a place where work-groups can execute.
+However, the definition of compute unit is sufficiently vague that different
+implementations and backends interpret it differently, which makes it difficult
+for developers to use the number of compute units in a portable way.
+
+This extension introduces the concept of an _execution domain_ and associated
+device queries to SYCL in order to address this portability issue.
+The definition of execution domain proposed here is intended to be more precise
+than the definition of compute unit -- to provide users with certain guarantees
+-- while remaining sufficiently abstract to describe multiple hardware
+architectures.
+
+The concepts described in this extension are advanced features that developers
+can use to reason about work-item scheduling and device occupancy.
+Most applications should not need to use this extension.
+
+
+== Specification
+
+=== Feature test macro
+
+This extension provides a feature-test macro as described in the core SYCL
+specification.  An implementation supporting this extension must predefine the
+macro `SYCL_EXT_ONEAPI_EXECUTION_DOMAIN_INFO` to one of the values defined in
+the table below.  Applications can test for the existence of this macro to
+determine if the implementation supports this feature, or applications can test
+the macro's value to determine which of the extension's features the
+implementation supports.
+
+[%header,cols="1,5"]
+|===
+|Value
+|Description
+
+|1
+|Initial version of this extension.
+|===
+
+
+=== Execution domains
+
+A SYCL device can be viewed as a hierarchy of non-overlapping _execution
+domains_, each associated with an _execution scope_.
+
+Each execution domain represents a set of hardware resources that the SYCL
+implementation uses to execute groups of SYCL work-items.
+A given group of SYCL work-items with execution scope _S_ must execute in
+exactly one execution domain associated with the same execution scope.
+An implementation may execute multiple groups of SYCL work-items in a single
+execution domain concurrently, as reflected by the return values of other
+device queries (e.g., `max_num_sub_groups`).
+
+The representation of specific hardware architectures in terms of execution
+domains is tied to the execution model exposed by an implementation and is
+thus implementation-defined.
+
+[_Note_: Although the mapping is implementation-defined, code using execution
+domains remains portable because implementations must choose a mapping that
+is consistent with the definition of execution domains and the associated
+queries.{endnote}]
+
+
+=== Execution scopes
+
+The `execution_scope` `enum` is used to represent the hierarchy of threads of
+execution within a SYCL implementation.
+
+[source,c++]
+----
+namespace sycl::ext::oneapi {
+
+enum class execution_scope {
+  work_item,
+  sub_group,
+  work_group,
+  root_group,
+};
+
+}
+----
+
+[_Note_: This `enum` is also defined by the `sycl_ext_oneapi_forward_progress`
+extension.{endnote}]
+
+
+=== Device queries
+
+[source, c++]
+----
+namespace sycl::ext::oneapi::info::device {
+
+temmplate <execution_scope ExecutionScope>
+struct num_execution_domains;
+
+}
+----
+
+[%header,cols="1,5,5"]
+|===
+|Device Descriptor
+|Return Type
+|Description
+
+|`template <execution_scope ExecutionScope>
+ext::oneapi::info::device::num_execution_domains`
+|`size_t`
+|Return the total number of execution domains associated with the execution
+scope specified by the `ExecutionScope` template parameter.
+
+|===
+
+
+== Implementation in {dpcpp}
+
+This section is non-normative and applies only to the {dpcpp} implementation.
+
+The table below explains how {dpcpp} calculates the number of execution domains
+for different combinations of device, backend, and execution scope.
+
+[%header,cols="1,5,5,10"]
+|===
+|Device Type
+|Backend(s)
+|Execution Scope
+|Number of Domains
+
+|Any
+|Any
+|`root_group`
+|1
+
+|CPU
+|OpenCL
+|`work_group`
+|Number of logical cores.
+
+|CPU
+|OpenCL
+|`sub_group`
+|Number of logical cores.
+
+|CPU
+|OpenCL
+|`work_item`
+|Number of logical cores * native SIMD width for 32-bit data types.
+
+|Intel GPU
+|Any
+|`work_group`
+|Number of Xe cores.
+
+|Intel GPU
+|Any
+|`sub_group`
+|Number of Xe cores * number of vector engines.
+
+|Intel GPU
+|Any
+|`work_item`
+|Number of Xe cores * number of vector engines * native SIMD width.
+
+|NVIDIA GPU
+|Any
+|`work_group`
+|Number of streaming multiprocessors (SMs).
+
+|NVIDIA GPU
+|Any
+|`sub_group`
+|Number of SMs * number of warp schedulers per SM.
+
+|NVIDIA GPU
+|Any
+|`work_item`
+|Number of FP32 CUDA cores.
+
+|===
+
+It is important to remember that the values returned by these queries reflect
+hardware resources, and it is a user's responsibility to understand how to use
+these numbers appropriately when choosing a launch configuration.
+
+
+== Issues
+
+None.
