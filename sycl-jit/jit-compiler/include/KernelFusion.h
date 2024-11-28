@@ -62,8 +62,7 @@ public:
       : Failed{true}, BundleInfo{}, BuildLog{BuildLog} {}
 
   RTCResult(RTCBundleInfo &&BundleInfo, const char *BuildLog)
-      : Failed{false}, BundleInfo{std::move(BundleInfo)},
-        BuildLog{BuildLog} {}
+      : Failed{false}, BundleInfo{std::move(BundleInfo)}, BuildLog{BuildLog} {}
 
   bool failed() const { return Failed; }
 
