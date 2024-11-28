@@ -50,7 +50,7 @@ bool isModuleUsingAsan(const Module &M) {
 }
 
 bool isModuleUsingMsan(const Module &M) {
-  return M.getGlobalVariable("__MsanKernelMetadata") != nullptr;
+  return M.getNamedGlobal("__MsanKernelMetadata");
 }
 
 // This function traverses over reversed call graph by BFS algorithm.

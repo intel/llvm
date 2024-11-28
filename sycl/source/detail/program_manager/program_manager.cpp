@@ -1877,11 +1877,11 @@ void ProgramManager::addImages(sycl_device_binaries DeviceBinary) {
         std::string SanValue =
             detail::DeviceBinaryProperty(SanProp).asCString();
 
-        if (SanValue == "asan") {
+        if (SanValue.rfind("asan", 0) == 0) { // starts_with
           m_SanitizerFoundInImage = SanitizerType::AddressSanitizer;
-        } else if (SanValue == "msan") {
+        } else if (SanValue.rfind("msan", 0) == 0) {
           m_SanitizerFoundInImage = SanitizerType::MemorySanitizer;
-        } else if (SanValue == "tsan") {
+        } else if (SanValue.rfind("tsan", 0) == 0) {
           m_SanitizerFoundInImage = SanitizerType::ThreadSanitizer;
         }
       }
