@@ -51,7 +51,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 143
+// NUMBER-OF-XFAIL-WITHOUT-TRACKER: 77
 //
 // List of improperly XFAIL-ed tests.
 // Remove the CHECK once the test has been properly XFAIL-ed.
@@ -59,7 +59,6 @@
 // CHECK: AddressSanitizer/nullpointer/private_nullptr.cpp
 // CHECK-NEXT: Basic/aspects.cpp
 // CHECK-NEXT: Basic/buffer/reinterpret.cpp
-// CHECK-NEXT: Basic/built-ins.cpp
 // CHECK-NEXT: Basic/device_event.cpp
 // CHECK-NEXT: Basic/diagnostics/handler.cpp
 // CHECK-NEXT: Basic/max_linear_work_group_size_props.cpp
@@ -97,71 +96,6 @@
 // CHECK-NEXT: Matrix/SG32/joint_matrix_prefetch.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
 // CHECK-NEXT: Matrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/get_coord_int8_matB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_int8_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_int8_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_out_bounds.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_prefetch.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_unaligned_k.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/SG32/joint_matrix_uu_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_abc.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_int8_packed.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_ops_scalar.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/element_wise_ops.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_float_matC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_int8_matA.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/get_coord_int8_matB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_all_sizes.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_annotated_ptr.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_apply_bf16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_apply_two_matrices.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bf16_fill_k_cache.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bf16_fill_k_cache_unroll.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_array.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_bfloat16_packedB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_colA_rowB_colC.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_down_convert.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_half.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_int8_colmajorA_colmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_rowmajorA_rowmajorB.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_ss_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_su_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_us_int8.cpp
-// CHECK-NEXT: Matrix/SPVCooperativeMatrix/joint_matrix_uu_int8.cpp
 // CHECK-NEXT: Matrix/joint_matrix_bfloat16_colmajorA_colmajorB.cpp
 // CHECK-NEXT: Matrix/joint_matrix_colA_rowB_colC.cpp
 // CHECK-NEXT: Matrix/joint_matrix_int8_colmajorA_colmajorB.cpp

@@ -96,6 +96,7 @@ class node_impl;
 class graph_impl;
 class exec_graph_impl;
 class dynamic_parameter_impl;
+class dynamic_command_group_impl;
 } // namespace detail
 
 enum class node_type {
@@ -215,6 +216,23 @@ public:
 
 } // namespace node
 } // namespace property
+
+class __SYCL_EXPORT dynamic_command_group {
+public:
+  dynamic_command_group(
+      const command_graph<graph_state::modifiable> &Graph,
+      const std::vector<std::function<void(handler &)>> &CGFList);
+
+  size_t get_active_cgf() const;
+  void set_active_cgf(size_t Index);
+
+private:
+  template <class Obj>
+  friend const decltype(Obj::impl) &
+  sycl::detail::getSyclObjImpl(const Obj &SyclObject);
+
+  std::shared_ptr<detail::dynamic_command_group_impl> impl;
+};
 
 namespace detail {
 // Templateless modifiable command-graph base class.
@@ -337,6 +355,12 @@ protected:
   modifiable_command_graph(const std::shared_ptr<detail::graph_impl> &Impl)
       : impl(Impl) {}
 
+  /// Template-less implementation of add() for dynamic command-group nodes.
+  /// @param DynCGF Dynamic Command-group function object to add.
+  /// @param Dep List of predecessor nodes.
+  /// @return Node added to the graph.
+  node addImpl(dynamic_command_group &DynCGF, const std::vector<node> &Dep);
+
   /// Template-less implementation of add() for CGF nodes.
   /// @param CGF Command-group function to add.
   /// @param Dep List of predecessor nodes.
@@ -420,7 +444,8 @@ public:
   /// Constructor.
   /// @param SyclQueue Queue to use for the graph device and context.
   /// @param PropList Optional list of properties to pass.
-  command_graph(const queue &SyclQueue, const property_list &PropList = {})
+  explicit command_graph(const queue &SyclQueue,
+                         const property_list &PropList = {})
       : modifiable_command_graph(SyclQueue, PropList) {}
 
 private:

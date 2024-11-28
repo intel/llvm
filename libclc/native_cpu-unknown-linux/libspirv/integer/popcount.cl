@@ -1,4 +1,4 @@
-#include <func.h>
+#include <clc/clcfunc.h>
 #include <clcmacro.h>
 #include <spirv/spirv.h>
 

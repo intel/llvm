@@ -1,7 +1,7 @@
-# commit a9c7aef861988d4b8421f3e760e63f4e3da9398d (HEAD, origin/main, origin/HEAD)
-# Merge: dbd168c 3142142
-# Author: aarongreig <aaron.greig@codeplay.com>
-# Date:   Mon Oct 28 15:56:46 2024 +0000
-#    Merge pull request #2152 from Bensuo/fabio/binary_update_fix
-#    Fix command-buffer binary update implementation
-set(UNIFIED_RUNTIME_TAG a9c7aef861988d4b8421f3e760e63f4e3da9398d)
+# commit 0a90db9b2c36960c9b28ce18557ca15760724c4d
+# Merge: c4d9fdb4 6e0bdeb9
+# Author: Callum Fare <callum@codeplay.com>
+# Date:   Wed Nov 27 12:16:44 2024 +0000
+#     Merge pull request #2369 from Bensuo/ben/kernel-binary-update-l0
+#     [CMDBUF] Implement kernel binary update for L0 adapter
+set(UNIFIED_RUNTIME_TAG 0a90db9b2c36960c9b28ce18557ca15760724c4d)

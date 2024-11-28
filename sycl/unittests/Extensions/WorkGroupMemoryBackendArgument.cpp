@@ -7,7 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include <gtest/gtest.h>
-#include <helpers/UrImage.hpp>
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/UrMock.hpp>
 #include <sycl/sycl.hpp>
 
@@ -38,9 +38,9 @@ template <> struct KernelInfo<WorkGroupMemoryKernel> {
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage Img =
+static sycl::unittest::MockDeviceImage Img =
     sycl::unittest::generateDefaultImage({"WorkGroupMemoryKernel"});
-static sycl::unittest::UrImageArray<1> ImgArray{&Img};
+static sycl::unittest::MockDeviceImageArray<1> ImgArray{&Img};
 
 static int urKernelSetArgLocalCalls = 0;
 inline ur_result_t redefined_urKernelSetArgLocal(void *) {

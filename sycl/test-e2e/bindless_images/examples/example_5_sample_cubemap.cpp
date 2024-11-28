@@ -1,7 +1,8 @@
 // REQUIRES: cuda
+// REQUIRES: build-and-run-mode
 
 // RUN: %{build} -o %t.out
-// RUN: %t.out
+// RUN: %{run} %t.out
 
 #include <sycl/detail/core.hpp>
 #include <sycl/ext/oneapi/bindless_images.hpp>

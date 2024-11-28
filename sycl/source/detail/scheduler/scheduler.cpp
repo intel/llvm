@@ -583,16 +583,16 @@ ur_kernel_handle_t Scheduler::completeSpecConstMaterialization(
     [[maybe_unused]] const RTDeviceBinaryImage *BinImage,
     [[maybe_unused]] const std::string &KernelName,
     [[maybe_unused]] std::vector<unsigned char> &SpecConstBlob) {
-#if SYCL_EXT_JIT_ENABLE
+#if SYCL_EXT_JIT_ENABLE && !_WIN32
   return detail::jit_compiler::get_instance().materializeSpecConstants(
       Queue, BinImage, KernelName, SpecConstBlob);
-#else  // SYCL_EXT_JIT_ENABLE
+#else  // SYCL_EXT_JIT_ENABLE && !_WIN32
   if (detail::SYCLConfig<detail::SYCL_RT_WARNING_LEVEL>::get() > 0) {
     std::cerr << "WARNING: Materialization of spec constants not supported by "
                  "this build\n";
   }
   return nullptr;
-#endif // SYCL_EXT_JIT_ENABLE
+#endif // SYCL_EXT_JIT_ENABLE && !_WIN32
 }
 
 EventImplPtr Scheduler::addCommandGraphUpdate(
