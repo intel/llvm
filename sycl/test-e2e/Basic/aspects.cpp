@@ -3,6 +3,7 @@
 //
 // Hip is missing some of the parameters tested here so it fails with NVIDIA
 
+
 //==--------------- aspects.cpp - SYCL device test ------------------------==//
 //
 // Returns the various aspects of a device  and platform.
