@@ -69,7 +69,6 @@ add_llvm_component_library(LLVMSYCLLowerIR
   SYCLPropagateJointMatrixUsage.cpp
   SYCLVirtualFunctionsAnalysis.cpp
   SYCLUtils.cpp
-  AsanKernelMetadata.cpp
 
   LocalAccessorToSharedMemory.cpp
   GlobalOffset.cpp

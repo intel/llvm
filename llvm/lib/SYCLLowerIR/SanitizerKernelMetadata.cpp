@@ -6,10 +6,10 @@
 //
 //===----------------------------------------------------------------------===//
 // This pass fixes attributes and metadata of global variable
-// "__SanitizerKernelMetadata".
-// We treat "__SanitizerKernelMetadata" as a device global variable, so that it
-// can be read by runtime. "spirv.Decorations" is removed by llvm-link, so we
-// add it here again.
+// "__AsanKernelMetadata" or "__MsanKernelMetadata".
+// We treat "KernelMetadata" as a device global variable, so that it
+// can be read by runtime.
+// "spirv.Decorations" is removed by llvm-link, so we add it here again.
 //===----------------------------------------------------------------------===//
 
 #include "llvm/SYCLLowerIR/SanitizerKernelMetadata.h"
@@ -27,7 +27,11 @@ constexpr uint32_t SPIRV_HOST_ACCESS_DECOR = 6147;
 
 PreservedAnalyses SanitizerKernelMetadataPass::run(Module &M,
                                                    ModuleAnalysisManager &MAM) {
-  auto *KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
+  auto *KernelMetadata = M.getNamedGlobal("__AsanKernelMetadata");
+
+  if (!KernelMetadata)
+    KernelMetadata = M.getNamedGlobal("__MsanKernelMetadata");
+
   if (!KernelMetadata)
     return PreservedAnalyses::all();
 
