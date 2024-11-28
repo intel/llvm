@@ -58,6 +58,9 @@ checkDevSupportDeviceRequirements(const device &Dev,
                                   const RTDeviceBinaryImage &BinImages,
                                   const NDRDescT &NDRDesc = {});
 
+bool doesImageTargetMatchDevice(const RTDeviceBinaryImage &Img,
+                                const device &Dev);
+
 // This value must be the same as in libdevice/device_itt.h.
 // See sycl/doc/design/ITTAnnotations.md for more info.
 static constexpr uint32_t inline ITTSpecConstId = 0xFF747469;
@@ -144,11 +147,25 @@ public:
                                         const NDRDescT &NDRDesc = {},
                                         bool JITCompilationIsRequired = false);
 
-  ur_program_handle_t getBuiltURProgram(const context &Context,
-                                        const device &Device,
-                                        const std::string &KernelName,
-                                        const property_list &PropList,
-                                        bool JITCompilationIsRequired = false);
+  /// Builds a program from a given set of images or retrieves that program from
+  /// cache.
+  /// \param Img is the main image the program is built with.
+  /// \param Context is the context the program is built for.
+  /// \param Devs is a vector of devices the program is built for.
+  /// \param DeviceImagesToLink is a set of image dependencies required by the
+  /// main image.
+  /// \param AllImages is a vector of all images the program is built with.
+  /// \param DeviceImageImpl is an optional device_image_impl pointer that
+  /// represents the main image.
+  /// \param SpecConsts is an optional parameter containing spec constant values
+  /// the program should be built with.
+  ur_program_handle_t getBuiltURProgram(
+      const RTDeviceBinaryImage &Img, const context &Context,
+      const std::vector<device> &Devs,
+      const std::set<RTDeviceBinaryImage *> &DeviceImagesToLink,
+      const std::vector<const RTDeviceBinaryImage *> &AllImages,
+      const std::shared_ptr<device_image_impl> &DeviceImageImpl = nullptr,
+      const SerializedObj &SpecConsts = {});
 
   std::tuple<ur_kernel_handle_t, std::mutex *, const KernelArgMask *,
              ur_program_handle_t>

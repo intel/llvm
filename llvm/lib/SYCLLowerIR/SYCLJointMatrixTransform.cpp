@@ -26,8 +26,9 @@ static constexpr char MATRIX_TYPE[] = "spirv.CooperativeMatrixKHR";
 // its users and operands to make LLVM IR more SPIR-V friendly.
 bool transformAccessChain(Function *F) {
   bool ModuleChanged = false;
-  for (auto I : F->users()) {
-    auto *CI = dyn_cast<CallInst>(I);
+  for (auto I = F->user_begin(), E = F->user_end(); I != E;) {
+    User *U = *I++;
+    auto *CI = dyn_cast<CallInst>(U);
     if (!CI)
       continue;
 

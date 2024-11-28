@@ -29,6 +29,7 @@
 #include "llvm/IRReader/IRReader.h"
 #include "llvm/Linker/Linker.h"
 #include "llvm/Passes/PassBuilder.h"
+#include "llvm/SYCLLowerIR/AsanKernelMetadata.h"
 #include "llvm/SYCLLowerIR/CompileTimePropertiesPass.h"
 #include "llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h"
 #include "llvm/SYCLLowerIR/DeviceConfigFile.hpp"
@@ -40,7 +41,6 @@
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
 #include "llvm/SYCLLowerIR/SYCLJointMatrixTransform.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
-#include "llvm/SYCLLowerIR/SanitizeDeviceGlobal.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
 #include "llvm/SYCLLowerIR/Support.h"
 #include "llvm/Support/CommandLine.h"
@@ -791,10 +791,12 @@ processInputModule(std::unique_ptr<Module> M) {
   if (M->getTargetTriple().find("spir") != std::string::npos)
     Modified |= removeDeviceGlobalFromCompilerUsed(*M.get());
 
-  // Instrument each image scope device globals if the module has been
-  // instrumented by sanitizer pass.
-  if (isModuleUsingAsan(*M))
-    Modified |= runModulePass<SanitizeDeviceGlobalPass>(*M);
+  // AddressSanitizer specific passes
+  if (isModuleUsingAsan(*M)) {
+    // Fix attributes and metadata of the global variable
+    // "__AsanKernelMetadata"
+    Modified |= runModulePass<AsanKernelMetadataPass>(*M);
+  }
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
