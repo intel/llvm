@@ -205,8 +205,12 @@ public:
         return "ERROR";
       case llvm::DiagnosticSeverity::DS_Warning:
         return "WARNING";
-      default:
+      case llvm::DiagnosticSeverity::DS_Note:
         return "NOTE:";
+      case llvm::DiagnosticSeverity::DS_Remark:
+        return "REMARK:";
+      default:
+        llvm_unreachable("Unhandled case");
       }
     }(DI.getSeverity());
     LogPrinter << Prefix;
@@ -254,15 +258,14 @@ Expected<std::unique_ptr<llvm::Module>> jit_compiler::compileDeviceCode(
   IntrusiveRefCntPtr<DiagnosticOptions> DiagOpts{new DiagnosticOptions};
   ClangDiagnosticWrapper Wrapper(BuildLog, DiagOpts.get());
   Tool.setDiagnosticConsumer(Wrapper.consumer());
+  // Suppress message "Error while processing" being printed to stdout.
+  Tool.setPrintErrorMessage(false);
 
   // Set up in-memory filesystem.
   Tool.mapVirtualFile(SourceFile.Path, SourceFile.Contents);
   for (const auto &IF : IncludeFiles) {
     Tool.mapVirtualFile(IF.Path, IF.Contents);
   }
-
-  // Suppress message "Error while processing" being printed to stdout.
-  Tool.setPrintErrorMessage(false);
 
   // Reset argument adjusters to drop the `-fsyntax-only` flag which is added by
   // default by this API.
