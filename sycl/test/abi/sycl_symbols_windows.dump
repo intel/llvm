@@ -4057,6 +4057,7 @@
 ?get_nodes@modifiable_command_graph@detail@experimental@oneapi@ext@_V1@sycl@@QEBA?AV?$vector@Vnode@experimental@oneapi@ext@_V1@sycl@@V?$allocator@Vnode@experimental@oneapi@ext@_V1@sycl@@@std@@@std@@XZ
 ?get_num_channels@image_mem@experimental@oneapi@ext@_V1@sycl@@QEBAIXZ
 ?get_pipe_name@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AV?$basic_string@DU?$char_traits@D@std@@V?$allocator@D@2@@std@@PEBX@Z
+?get_pipe_name_impl@pipe_base@experimental@intel@ext@_V1@sycl@@KA?AVstring@detail@56@PEBX@Z
 ?get_pitch@image_plain@detail@_V1@sycl@@IEBA?AV?$range@$01@34@XZ
 ?get_platform@context@_V1@sycl@@QEBA?AVplatform@23@XZ
 ?get_platform@device@_V1@sycl@@QEBA?AVplatform@23@XZ
