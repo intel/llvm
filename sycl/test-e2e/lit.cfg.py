@@ -146,16 +146,6 @@ if config.extra_environment:
             llvm_config.with_environment(var, "")
 
 config.substitutions.append(("%sycl_libs_dir", config.sycl_libs_dir))
-if platform.system() == "Windows":
-    config.substitutions.append(
-        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
-    )
-    config.substitutions.append(("%obj_ext", ".obj"))
-    config.substitutions.append(("%sycl_include", "/imsvc " + config.sycl_include))
-elif platform.system() == "Linux":
-    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
-    config.substitutions.append(("%obj_ext", ".o"))
-    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
@@ -212,6 +202,20 @@ sp = subprocess.getstatusoutput(config.dpcpp_compiler + " /help")
 if sp[0] == 0:
     cl_options = True
     config.available_features.add("cl_options")
+
+if platform.system() == "Windows":
+    config.substitutions.append(
+        ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
+    )
+    config.substitutions.append(("%obj_ext", ".obj"))
+    if cl_options:
+        config.substitutions.append(("%sycl_include", "/imsvc " + config.sycl_include))
+    else:
+        config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
+elif platform.system() == "Linux":
+    config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
+    config.substitutions.append(("%obj_ext", ".o"))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # check if the compiler was built in NDEBUG configuration
 has_ndebug = False
