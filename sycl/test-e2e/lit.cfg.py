@@ -151,11 +151,11 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
-    config.substitutions.append(("/imsvc %sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "/imsvc " + config.sycl_include))
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
-    config.substitutions.append(("-isystem %sycl_include", config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
 
 # Intel GPU FAMILY availability
 if lit_config.params.get("gpu-intel-gen11", False):
