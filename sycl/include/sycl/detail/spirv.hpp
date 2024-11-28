@@ -796,13 +796,11 @@ AtomicMax(multi_ptr<T, AddressSpace, IsDecorated> MPtr, memory_scope Scope,
 //   variants for all scalar types
 #ifndef __NVPTX__
 
-using ProhibitedTypesForShuffleEmulation =
-    type_list<double, long, long long, unsigned long, unsigned long long, half>;
-
 template <typename T>
 struct TypeIsProhibitedForShuffleEmulation
-    : std::bool_constant<is_contained<
-          vector_element_t<T>, ProhibitedTypesForShuffleEmulation>::value> {};
+    : std::bool_constant<
+          check_type_in_v<vector_element_t<T>, double, long, long long,
+                          unsigned long, unsigned long long, half>> {};
 
 template <typename T>
 struct VecTypeIsProhibitedForShuffleEmulation

@@ -307,35 +307,6 @@ std::vector<kernel_id> get_kernel_ids() {
 bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
   if (KernelIDs.empty())
     return true;
-  // TODO: also need to check that the architecture specified by the
-  // "-fsycl-targets" flag matches the device when we are able to get the
-  // device's arch.
-  auto doesImageTargetMatchDevice = [](const device &Dev,
-                                       const detail::RTDeviceBinaryImage &Img) {
-    const char *Target = Img.getRawData().DeviceTargetSpec;
-    auto BE = Dev.get_backend();
-    if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64) == 0) {
-      return (BE == sycl::backend::opencl ||
-              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_X86_64) ==
-               0) {
-      return Dev.is_cpu();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_GEN) == 0) {
-      return Dev.is_gpu() && (BE == sycl::backend::opencl ||
-                              BE == sycl::backend::ext_oneapi_level_zero);
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_SPIRV64_FPGA) == 0) {
-      return Dev.is_accelerator();
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NVPTX64) == 0) {
-      return BE == sycl::backend::ext_oneapi_cuda;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_AMDGCN) == 0) {
-      return BE == sycl::backend::ext_oneapi_hip;
-    } else if (strcmp(Target, __SYCL_DEVICE_BINARY_TARGET_NATIVE_CPU) == 0) {
-      return BE == sycl::backend::ext_oneapi_native_cpu;
-    }
-
-    return false;
-  };
-
   // One kernel may be contained in several binary images depending on the
   // number of targets. This kernel is compatible with the device if there is
   // at least one image (containing this kernel) whose aspects are supported by
@@ -347,7 +318,7 @@ bool is_compatible(const std::vector<kernel_id> &KernelIDs, const device &Dev) {
     if (std::none_of(BinImages.begin(), BinImages.end(),
                      [&](const detail::RTDeviceBinaryImage *Img) {
                        return doesDevSupportDeviceRequirements(Dev, *Img) &&
-                              doesImageTargetMatchDevice(Dev, *Img);
+                              doesImageTargetMatchDevice(*Img, Dev);
                      }))
       return false;
   }

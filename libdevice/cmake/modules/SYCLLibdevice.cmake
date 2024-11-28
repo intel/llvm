@@ -35,6 +35,18 @@ string(CONCAT sycl_targets_opt
   "spir64-unknown-unknown,"
   "spirv64-unknown-unknown")
 
+string(CONCAT sycl_pvc_target_opt
+  "-fsycl-targets="
+  "intel_gpu_pvc")
+
+string(CONCAT sycl_cpu_target_opt
+  "-fsycl-targets="
+  "spir64_x86_64-unknown-unknown")
+
+string(CONCAT sycl_dg2_target_opt
+  "-fsycl-targets="
+  "spir64_gen-unknown-unknown")
+
 set(compile_opts
   # suppress an error about SYCL_EXTERNAL being used for
   # a function with a raw pointer parameter.
@@ -197,22 +209,17 @@ function(add_devicelibs filename)
   endforeach()
 
   foreach(arch IN LISTS devicelib_arch)
-    set(skip_idx -1)
-    set(skip_arch_list ${ARG_SKIP_ARCHS})
-    if (skip_arch_list)
-      list(FIND skip_arch_list ${arch} skip_idx)
+    if(arch IN_LIST ARG_SKIP_ARCHS)
+      continue()
     endif()
-    if (skip_idx EQUAL -1)
-      compile_lib(${filename}-${arch}
-        FILETYPE bc
-        SRC ${ARG_SRC}
-        DEPENDENCIES ${ARG_DEPENDENCIES}
-        EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
-                   ${compile_opts_${arch}})
-
+    compile_lib(${filename}-${arch}
+      FILETYPE bc
+      SRC ${ARG_SRC}
+      DEPENDENCIES ${ARG_DEPENDENCIES}
+      EXTRA_OPTS ${ARG_EXTRA_OPTS} ${bc_device_compile_opts}
+                 ${compile_opts_${arch}})
       append_to_property(${bc_binary_dir}/${filename}-${arch}.bc
         PROPERTY_NAME BC_DEVICE_LIBS_${arch})
-    endif()
   endforeach()
 endfunction()
 
@@ -224,12 +231,62 @@ set(imf_obj_deps device_imf.hpp imf_half.hpp imf_bf16.hpp imf_rounding_op.hpp im
 set(itt_obj_deps device_itt.h spirv_vars.h device.h sycl-compiler)
 set(bfloat16_obj_deps sycl-headers sycl-compiler)
 if (NOT MSVC AND UR_SANITIZER_INCLUDE_DIR)
-  set(sanitizer_obj_deps
+  set(asan_obj_deps
     device.h atomic.hpp spirv_vars.h spirv_decls.hpp
-    ${UR_SANITIZER_INCLUDE_DIR}/asan_libdevice.hpp
-    include/sanitizer_utils.hpp
+    ${UR_SANITIZER_INCLUDE_DIR}/asan/asan_libdevice.hpp
+    include/asan_rtl.hpp
     include/spir_global_var.hpp
     sycl-compiler)
+
+  set(sanitizer_generic_compile_opts ${compile_opts}
+                            -fno-sycl-instrument-device-code
+                            -I${UR_SANITIZER_INCLUDE_DIR}
+                            -I${CMAKE_CURRENT_SOURCE_DIR})
+
+  set(asan_pvc_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_pvc_target_opt}
+                                -D__LIBDEVICE_PVC__)
+
+  set(asan_cpu_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_cpu_target_opt}
+                                -D__LIBDEVICE_CPU__)
+
+  set(asan_dg2_compile_opts_obj -fsycl -c
+                                ${sanitizer_generic_compile_opts}
+                                ${sycl_dg2_target_opt}
+                                -D__LIBDEVICE_DG2__)
+
+  set(asan_pvc_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_PVC__)
+
+  set(asan_cpu_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_CPU__)
+
+  set(asan_dg2_compile_opts_bc  ${bc_device_compile_opts}
+                                ${sanitizer_generic_compile_opts}
+                                -D__LIBDEVICE_DG2__)
+
+  set(asan_pvc_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_pvc_target_opt}
+                                            -D__LIBDEVICE_PVC__)
+
+  set(asan_cpu_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_cpu_target_opt}
+                                            -D__LIBDEVICE_CPU__)
+
+  set(asan_dg2_compile_opts_obj-new-offload -fsycl -c --offload-new-driver
+                                            -foffload-lto=thin
+                                            ${sanitizer_generic_compile_opts}
+                                            ${sycl_dg2_target_opt}
+                                            -D__LIBDEVICE_DG2__)
 endif()
 set(gsort_obj_deps device.h spirv_decls.hpp spirv_vars.h group_helper.hpp sort_helper.hpp sycl-compiler)
 
@@ -293,10 +350,29 @@ if(MSVC)
     DEPENDENCIES ${cmath_obj_deps})
 else()
   if(UR_SANITIZER_INCLUDE_DIR)
-    add_devicelibs(libsycl-sanitizer
-      SRC sanitizer_utils.cpp
-      DEPENDENCIES ${sanitizer_obj_deps}
-      EXTRA_OPTS -fno-sycl-instrument-device-code -I${UR_SANITIZER_INCLUDE_DIR})
+    # asan jit
+    add_devicelibs(libsycl-asan
+      SRC sanitizer/asan_rtl.cpp
+      DEPENDENCIES ${asan_obj_deps}
+      SKIP_ARCHS nvptx64-nvidia-cuda
+                 amdgcn-amd-amdhsa
+      EXTRA_OPTS -fno-sycl-instrument-device-code
+                 -I${UR_SANITIZER_INCLUDE_DIR}
+                 -I${CMAKE_CURRENT_SOURCE_DIR})
+
+    # asan aot
+    set(asan_filetypes obj obj-new-offload bc)
+    set(asan_devicetypes pvc cpu dg2)
+
+    foreach(asan_ft IN LISTS asan_filetypes)
+      foreach(asan_device IN LISTS asan_devicetypes)
+        compile_lib_ext(libsycl-asan-${asan_device}
+                        SRC sanitizer/asan_rtl.cpp
+                        FILETYPE ${asan_ft}
+                        DEPENDENCIES ${asan_obj_deps}
+                        OPTS ${asan_${asan_device}_compile_opts_${asan_ft}})
+      endforeach()
+    endforeach()
   endif()
 endif()
 

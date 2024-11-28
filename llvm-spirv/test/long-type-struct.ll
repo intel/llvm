@@ -1,9 +1,20 @@
 ; RUN: llvm-as %s -o %t.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite %t.bc -o %t.spv
-; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefix=CHECK-SPIRV
+; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
 ; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
 ; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite -spirv-text %t.rev.bc -o %t2.spt
-; RUN: FileCheck --input-file=%t2.spt %s --check-prefix=CHECK-SPIRV
+; RUN: FileCheck --input-file=%t2.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-TYPED-PTR
+; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
+; TODO: run validator once it supports the extension
+; RUNx: spirv-val %t.spv
+
+; RUN: not llvm-spirv %t.bc -o %t.spv 2>&1 | FileCheck %s --check-prefix=CHECK-ERROR
+
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite,+SPV_KHR_untyped_pointers %t.bc -o %t.spv
+; RUN: llvm-spirv %t.spv --to-text -o - | FileCheck %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
+; RUN: llvm-spirv -r %t.spv -o %t.rev.bc
+; RUN: llvm-spirv --spirv-ext=+SPV_INTEL_long_constant_composite,+SPV_KHR_untyped_pointers -spirv-text %t.rev.bc -o %t2.spt
+; RUN: FileCheck --input-file=%t2.spt %s --check-prefixes=CHECK-SPIRV,CHECK-SPIRV-UNTYPED-PTR
 ; RUN: llvm-dis < %t.rev.bc | FileCheck %s --check-prefix=CHECK-LLVM
 ; TODO: run validator once it supports the extension
 ; RUNx: spirv-val %t.spv
@@ -13,7 +24,8 @@
 ; CHECK-SPIRV: Capability LongCompositesINTEL
 ; CHECK-SPIRV: Extension "SPV_INTEL_long_constant_composite"
 ; CHECK-SPIRV: TypeInt [[TInt:[0-9]+]] 8
-; CHECK-SPIRV: TypePointer [[TIntPtr:[0-9]+]] 8 [[TInt]]
+; CHECK-SPIRV-TYPED-PTR: TypePointer [[TIntPtr:[0-9]+]] 8 [[TInt]]
+; CHECK-SPIRV-UNTYPED-PTR: TypeUntypedPointerKHR [[TIntPtr:[0-9]+]] 8
 ; CHECK-SPIRV: TypeArray [[TArr:[0-9]+]]
 ; CHECK-SPIRV: 65535 TypeStruct [[TStruct:[0-9]+]] [[TIntPtr]] [[TIntPtr]] [[TArr]] [[TInt]] [[TInt]] [[TInt]]
 ; CHECK-SPIRV-NEXT: 10 TypeStructContinuedINTEL [[TInt]] [[TInt]] [[TInt]]

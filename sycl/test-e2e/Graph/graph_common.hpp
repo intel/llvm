@@ -1,3 +1,5 @@
+#pragma once
+
 #include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 

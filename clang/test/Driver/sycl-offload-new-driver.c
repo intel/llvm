@@ -34,7 +34,7 @@
 // RUN: %clangxx --target=x86_64-unknown-linux-gnu -fsycl --offload-new-driver \
 // RUN:          --sysroot=%S/Inputs/SYCL -### %s 2>&1 \
 // RUN:   | FileCheck -check-prefix WRAPPER_OPTIONS %s
-// WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cassert.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-gsort.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o"
+// WRAPPER_OPTIONS: clang-linker-wrapper{{.*}} "-sycl-device-libraries=libsycl-crt.new.o,libsycl-complex.new.o,libsycl-complex-fp64.new.o,libsycl-cmath.new.o,libsycl-cmath-fp64.new.o,libsycl-imf.new.o,libsycl-imf-fp64.new.o,libsycl-imf-bf16.new.o,libsycl-fallback-cassert.new.o,libsycl-fallback-cstring.new.o,libsycl-fallback-complex.new.o,libsycl-fallback-complex-fp64.new.o,libsycl-fallback-cmath.new.o,libsycl-fallback-cmath-fp64.new.o,libsycl-fallback-gsort.new.o,libsycl-fallback-imf.new.o,libsycl-fallback-imf-fp64.new.o,libsycl-fallback-imf-bf16.new.o,libsycl-itt-user-wrappers.new.o,libsycl-itt-compiler-wrappers.new.o,libsycl-itt-stubs.new.o"
 // WRAPPER_OPTIONS-SAME: "-sycl-device-library-location={{.*}}/lib"
 
 /// Verify phases used to generate SPIR-V instead of LLVM-IR
@@ -195,3 +195,19 @@
 // RUN:          --offload-new-driver 2>&1 \
 // RUN:   | FileCheck -check-prefix NVPTX_CUDA_PATH %s
 // NVPTX_CUDA_PATH: clang-linker-wrapper{{.*}} "--cuda-path={{.*}}Inputs/CUDA_80/usr/local/cuda"
+
+/// Check for -sycl-allow-device-image-dependencies transmission to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -###  --offload-new-driver \
+// RUN:          -fsycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_DYNAMIC_LINKING %s
+// CHECK_DYNAMIC_LINKING: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"
+
+/// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver \
+// RUN:          -fno-sycl-allow-device-image-dependencies %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+
+/// Check that -sycl-allow-device-image-dependencies is not passed to clang-linker-wrapper tool
+// RUN: %clangxx -fsycl -### --offload-new-driver %s 2>&1 \
+// RUN:  | FileCheck -check-prefix CHECK_NO_DYNAMIC_LINKING %s
+// CHECK_NO_DYNAMIC_LINKING-NOT: clang-linker-wrapper{{.*}} "-sycl-allow-device-image-dependencies"

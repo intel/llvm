@@ -3,6 +3,10 @@
 ; RUN: spirv-val %t.spv
 ; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
 
+; RUN: llvm-spirv %t.bc --spirv-ext=+SPV_KHR_untyped_pointers -o %t.spv
+; RUN: spirv-val %t.spv
+; RUN: llvm-spirv -to-text %t.spv -o - | FileCheck %s
+
 ; CHECK: TypeInt [[Int:[0-9]+]] 32 0
 ; CHECK-DAG: Constant [[Int]] [[MemSem_Relaxed:[0-9]+]] 0
 ; CHECK-DAG: Constant [[Int]] [[MemSem_Acquire:[0-9]+]] 2
@@ -11,8 +15,8 @@
 ; CHECK-DAG: Constant [[Int]] [[MemSem_SequentiallyConsistent:[0-9]+]] 16
 ; CHECK-DAG: Constant [[Int]] [[Value:[0-9]+]] 42
 ; CHECK: TypeFloat [[Float:[0-9]+]] 32
-; CHECK: Variable {{[0-9]+}} [[Pointer:[0-9]+]]
-; CHECK: Variable {{[0-9]+}} [[FPPointer:[0-9]+]]
+; CHECK: {{(Variable|UntypedVariableKHR)}} {{[0-9]+}} [[Pointer:[0-9]+]]
+; CHECK: {{(Variable|UntypedVariableKHR)}} {{[0-9]+}} [[FPPointer:[0-9]+]]
 ; CHECK: Constant [[Float]] [[FPValue:[0-9]+]] 1109917696
 
 target datalayout = "e-i64:64-v16:16-v24:32-v32:32-v48:64-v96:128-v192:256-v256:256-v512:512-v1024:1024"

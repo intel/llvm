@@ -1,7 +1,7 @@
-# commit ed9fe09f9987bbe86715f191e6dbe5695ebf0306
-# Merge: 09ae26af dc5246dd
+# commit 0a90db9b2c36960c9b28ce18557ca15760724c4d
+# Merge: c4d9fdb4 6e0bdeb9
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 8 10:29:25 2024 +0000
-#     Merge pull request #2279 from nrspruit/update_loader_1_18
-#     [L0] Update Level Zero Loader version to v1.18.5
-set(UNIFIED_RUNTIME_TAG ed9fe09f9987bbe86715f191e6dbe5695ebf0306)
+# Date:   Wed Nov 27 12:16:44 2024 +0000
+#     Merge pull request #2369 from Bensuo/ben/kernel-binary-update-l0
+#     [CMDBUF] Implement kernel binary update for L0 adapter
+set(UNIFIED_RUNTIME_TAG 0a90db9b2c36960c9b28ce18557ca15760724c4d)
