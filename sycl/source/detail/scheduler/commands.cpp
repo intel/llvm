@@ -3613,10 +3613,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
-  case CGType::None:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "CG type not implemented. " +
-                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
+  case CGType::None: {
+    if (RawEvents.empty()) {
+      // urEnqueueEventsWait with zero events acts like a barrier which is NOT
+      // what we want here. On the other hand, there is nothing to wait for, so
+      // we don't need to enqueue anything.
+      return UR_RESULT_SUCCESS;
+    }
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    ur_event_handle_t Event;
+    ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
+    MEvent->setHandle(Event);
+    return Result;
+  }
   }
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }

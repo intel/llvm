@@ -1,7 +1,7 @@
-# commit 38ee6ce2a0400573c0c7c5da782bc32ff578fcc4
-# Merge: c7086f7f 91b6db04
+# commit db83117e830406b0d9950e24892dba868acba354
+# Merge: 0a90db9b c79df596
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Mon Nov 25 11:04:37 2024 +0000
-#     Merge pull request #2303 from nrspruit/zeInitDrivers
-#     [L0] Implement Support for zeInitDrivers
-set(UNIFIED_RUNTIME_TAG 7222f79b160681434250bac74f3aae0e4abc46f0)
+# Date:   Wed Nov 27 16:04:19 2024 +0000
+#     Merge pull request #2261 from againull/againull/2d_block_exp
+#     Add new device descriptor to query 2D block array capabilities of the Intel GPU
+set(UNIFIED_RUNTIME_TAG db83117e830406b0d9950e24892dba868acba354)

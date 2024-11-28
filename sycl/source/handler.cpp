@@ -498,21 +498,8 @@ event handler::finalize() {
         MCodeLoc));
     break;
   case detail::CGType::None:
-    if (detail::ur::trace(detail::ur::TraceLevel::TRACE_ALL)) {
-      std::cout << "WARNING: An empty command group is submitted." << std::endl;
-    }
-
-    // Empty nodes are handled by Graph like standard nodes
-    // For Standard mode (non-graph),
-    // empty nodes are not sent to the scheduler to save time
-    if (impl->MGraph || (MQueue && MQueue->getCommandGraph())) {
-      CommandGroup.reset(new detail::CG(detail::CGType::None,
-                                        std::move(impl->CGData), MCodeLoc));
-    } else {
-      detail::EventImplPtr Event = std::make_shared<sycl::detail::event_impl>();
-      MLastEvent = detail::createSyclObjFromImpl<event>(Event);
-      return MLastEvent;
-    }
+    CommandGroup.reset(new detail::CG(detail::CGType::None,
+                                      std::move(impl->CGData), MCodeLoc));
     break;
   }
 
