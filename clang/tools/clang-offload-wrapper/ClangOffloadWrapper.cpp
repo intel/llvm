@@ -665,7 +665,8 @@ private:
   }
 
   Expected<std::pair<Constant *, Constant *>>
-  addDeclarationsForNativeCPU(StringRef EntriesFile, std::optional<util::PropertySet> NativeCPUProps) {
+  addDeclarationsForNativeCPU(StringRef EntriesFile,
+                              std::optional<util::PropertySet> NativeCPUProps) {
     Expected<MemoryBuffer *> MBOrErr = loadFile(EntriesFile);
     if (!MBOrErr)
       return MBOrErr.takeError();
@@ -711,8 +712,8 @@ private:
     auto *GVar = new GlobalVariable(M, CA->getType(), true,
                                     GlobalVariable::InternalLinkage, CA,
                                     "__sycl_native_cpu_decls");
-    auto *EntriesBegin = ConstantExpr::getGetElementPtr(GVar->getValueType(), GVar,
-                                                 getSizetConstPair(0u, 0u));
+    auto *EntriesBegin = ConstantExpr::getGetElementPtr(
+        GVar->getValueType(), GVar, getSizetConstPair(0u, 0u));
 
     // Add Native CPU specific properties to the nativecpu_program struct
     Constant *PropValue = NullPtr;
@@ -720,9 +721,11 @@ private:
       auto PropsOrErr = addSYCLPropertySetToModule(*NativeCPUProps);
       if (!PropsOrErr)
         return PropsOrErr.takeError();
-      auto *Category = addStringToModule(sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
-      auto S = ConstantStruct::get(
-          getSyclPropSetTy(), Category, PropsOrErr.get().first, PropsOrErr.get().second);
+      auto *Category = addStringToModule(
+          sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS, "SYCL_PropSetName");
+      auto S =
+          ConstantStruct::get(getSyclPropSetTy(), Category,
+                              PropsOrErr.get().first, PropsOrErr.get().second);
       auto T = addStructArrayToModule({S}, getSyclPropSetTy());
       PropValue = T.first;
     }
@@ -731,16 +734,17 @@ private:
     // We add it to a ConstantArray of length 1 because the SYCL runtime expects
     // a non-zero sized binary image, and this allows it to point the end of the
     // binary image to the end of the array.
-    auto *Program = ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
+    auto *Program =
+        ConstantStruct::get(NCPUProgramT, {EntriesBegin, PropValue});
     ArrayType *ProgramATy = ArrayType::get(NCPUProgramT, 1);
     Constant *CPA = ConstantArray::get(ProgramATy, {Program});
-    auto *ProgramGVar = new GlobalVariable(M, ProgramATy, true,
-                                    GlobalVariable::InternalLinkage, CPA,
-                                    "__sycl_native_cpu_program");
-    auto *ProgramBegin = ConstantExpr::getGetElementPtr(ProgramGVar->getValueType(), ProgramGVar,
-                                                 getSizetConstPair(0u, 0u));
-    auto *ProgramEnd = ConstantExpr::getGetElementPtr(ProgramGVar->getValueType(), ProgramGVar,
-                                                 getSizetConstPair(0u, 1u));
+    auto *ProgramGVar =
+        new GlobalVariable(M, ProgramATy, true, GlobalVariable::InternalLinkage,
+                           CPA, "__sycl_native_cpu_program");
+    auto *ProgramBegin = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 0u));
+    auto *ProgramEnd = ConstantExpr::getGetElementPtr(
+        ProgramGVar->getValueType(), ProgramGVar, getSizetConstPair(0u, 1u));
     return std::make_pair(ProgramBegin, ProgramEnd);
   }
 
@@ -975,8 +979,8 @@ private:
     for (const auto &PropSet : *PropRegistry) {
       // create content in the rightmost column and get begin/end pointers
       if (PropSet.first == sycl::PropSetRegTy::SYCL_NATIVE_CPU_PROPS) {
-        // We don't emit Native CPU specific properties in this section, but instead
-        // we emit them in the native_cpu_entry struct directly.
+        // We don't emit Native CPU specific properties in this section, but
+        // instead we emit them in the native_cpu_entry struct directly.
         SYCLNativeCPUPropSet = PropSet.second;
         continue;
       }
@@ -1142,7 +1146,8 @@ private:
       }
       std::pair<Constant *, Constant *> Fbin;
       if (Img.Tgt == "native_cpu") {
-        auto FBinOrErr = addDeclarationsForNativeCPU(Img.EntriesFile, SYCLNativeCPUPropSet);
+        auto FBinOrErr =
+            addDeclarationsForNativeCPU(Img.EntriesFile, SYCLNativeCPUPropSet);
         if (!FBinOrErr)
           return FBinOrErr.takeError();
         Fbin = *FBinOrErr;

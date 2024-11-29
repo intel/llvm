@@ -46,16 +46,7 @@ getSYCLESIMDSplitStatusFromMetadata(const Module &M) {
 } // namespace
 
 bool isModuleUsingAsan(const Module &M) {
-  for (const auto &F : M) {
-    if (F.getCallingConv() != CallingConv::SPIR_KERNEL)
-      continue;
-    if (F.arg_size() == 0)
-      continue;
-    const auto *LastArg = F.getArg(F.arg_size() - 1);
-    if (LastArg->getName() == "__asan_launch")
-      return true;
-  }
-  return false;
+  return M.getNamedGlobal("__AsanKernelMetadata");
 }
 
 // This function traverses over reversed call graph by BFS algorithm.
@@ -308,9 +299,11 @@ PropSetRegTy computeModuleProperties(const Module &M,
                     *MaxLinearWGSize);
       }
 
-      if (auto IsNDRange = getKernelSingleEltMetadata<bool>(Func, "is_nd_range")) {
+      if (auto IsNDRange =
+              getKernelSingleEltMetadata<bool>(Func, "is_nd_range")) {
         MetadataNames.push_back(Func.getName().str() + "@is_nd_range");
-        PropSet.add(PropSetRegTy::SYCL_NATIVE_CPU_PROPS, MetadataNames.back(), *IsNDRange);
+        PropSet.add(PropSetRegTy::SYCL_NATIVE_CPU_PROPS, MetadataNames.back(),
+                    *IsNDRange);
       }
     }
 

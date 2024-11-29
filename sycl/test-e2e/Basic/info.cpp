@@ -208,6 +208,7 @@ int main() {
   std::string separator(std::string(80, '-') + "\n");
   std::cout << separator << "Device information\n" << separator;
   device dev(default_selector_v);
+  backend backend{dev.get_backend()};
 
   print_info<info::device::device_type, info::device_type>(dev, "Device type");
   print_info<info::device::vendor_id, std::uint32_t>(dev, "Vendor ID");
@@ -322,7 +323,14 @@ int main() {
   print_info<info::device::name, std::string>(dev, "Name");
   print_info<info::device::vendor, std::string>(dev, "Vendor");
   print_info<info::device::driver_version, std::string>(dev, "Driver version");
-  print_info<info::device::profile, std::string>(dev, "Profile");
+  try {
+    print_info<info::device::profile, std::string>(dev, "Profile");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
   print_info<info::device::version, std::string>(dev, "Version");
   print_info<info::device::backend_version, std::string>(dev,
                                                          "Backend version");
@@ -332,11 +340,18 @@ int main() {
                                                                  "Extensions");
   print_info<info::device::printf_buffer_size, size_t>(dev,
                                                        "Printf buffer size");
-  print_info<info::device::preferred_interop_user_sync, bool>(
-      dev, "Preferred interop user sync");
+  try {
+    print_info<info::device::preferred_interop_user_sync, bool>(
+        dev, "Preferred interop user sync");
+    assert(backend == sycl::backend::opencl &&
+           "An exception is expected for non OpenCL backend");
+  } catch (const sycl::exception &e) {
+    assert(e.code() == sycl::errc::invalid &&
+           backend != sycl::backend::opencl && "Unexpected exception");
+  }
   try {
     print_info<info::device::parent_device, device>(dev, "Parent device");
-  } catch (sycl::exception e) {
+  } catch (const sycl::exception &e) {
     std::cout << "Expected exception has been caught: " << e.what()
               << std::endl;
   }

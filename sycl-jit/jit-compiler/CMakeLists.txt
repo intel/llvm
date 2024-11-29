@@ -31,6 +31,7 @@ add_llvm_library(sycl-jit
    Target
    TargetParser
    MC
+   SYCLLowerIR
    ${LLVM_TARGETS_TO_BUILD}
 
    LINK_LIBS
