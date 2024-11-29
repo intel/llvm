@@ -8867,9 +8867,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
                  ///< work-group work-items
     const size_t *
-        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
-    ///< offset used to calculate the global ID of a work-item
-    const size_t *
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
     ///< number of global work-items in workDim that will execute the kernel
     ///< function
@@ -8911,35 +8908,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     // convert loader handle to platform handle
     hKernel = reinterpret_cast<ur_kernel_object_t *>(hKernel)->handle;
 
-    // convert loader handles to platform handles
-    auto phEventWaitListLocal =
-        std::vector<ur_event_handle_t>(numEventsInWaitList);
-    for (size_t i = 0; i < numEventsInWaitList; ++i) {
-        phEventWaitListLocal[i] =
-            reinterpret_cast<ur_event_object_t *>(phEventWaitList[i])->handle;
-    }
-
     // forward to device-platform
-    result = pfnKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-        numEventsInWaitList, phEventWaitListLocal.data(), phEvent);
-
-    // In the event of ERROR_ADAPTER_SPECIFIC we should still attempt to wrap any output handles below.
-    if (UR_RESULT_SUCCESS != result &&
-        UR_RESULT_ERROR_ADAPTER_SPECIFIC != result) {
-        return result;
-    }
-    try {
-        // convert platform handle to loader handle
-        if (nullptr != phEvent) {
-            *phEvent = reinterpret_cast<ur_event_handle_t>(
-                context->factories.ur_event_factory.getInstance(*phEvent,
-                                                                dditable));
-        }
-    } catch (std::bad_alloc &) {
-        result = UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
-    }
+    result = pfnKernelLaunchCustomExp(hQueue, hKernel, workDim, pGlobalWorkSize,
+                                      pLocalWorkSize, numPropsInLaunchPropList,
+                                      launchPropList, numEventsInWaitList,
+                                      phEventWaitList, phEvent);
 
     return result;
 }

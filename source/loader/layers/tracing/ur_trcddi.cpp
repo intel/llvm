@@ -8699,9 +8699,6 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
         workDim, ///< [in] number of dimensions, from 1 to 3, to specify the global and
                  ///< work-group work-items
     const size_t *
-        pGlobalWorkOffset, ///< [in] pointer to an array of workDim unsigned values that specify the
-    ///< offset used to calculate the global ID of a work-item
-    const size_t *
         pGlobalWorkSize, ///< [in] pointer to an array of workDim unsigned values that specify the
     ///< number of global work-items in workDim that will execute the kernel
     ///< function
@@ -8733,17 +8730,11 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     }
 
     ur_enqueue_kernel_launch_custom_exp_params_t params = {
-        &hQueue,
-        &hKernel,
-        &workDim,
-        &pGlobalWorkOffset,
-        &pGlobalWorkSize,
-        &pLocalWorkSize,
-        &numPropsInLaunchPropList,
-        &launchPropList,
-        &numEventsInWaitList,
-        &phEventWaitList,
-        &phEvent};
+        &hQueue,          &hKernel,
+        &workDim,         &pGlobalWorkSize,
+        &pLocalWorkSize,  &numPropsInLaunchPropList,
+        &launchPropList,  &numEventsInWaitList,
+        &phEventWaitList, &phEvent};
     uint64_t instance =
         getContext()->notify_begin(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                                    "urEnqueueKernelLaunchCustomExp", &params);
@@ -8752,9 +8743,9 @@ __urdlllocal ur_result_t UR_APICALL urEnqueueKernelLaunchCustomExp(
     logger.info("   ---> urEnqueueKernelLaunchCustomExp\n");
 
     ur_result_t result = pfnKernelLaunchCustomExp(
-        hQueue, hKernel, workDim, pGlobalWorkOffset, pGlobalWorkSize,
-        pLocalWorkSize, numPropsInLaunchPropList, launchPropList,
-        numEventsInWaitList, phEventWaitList, phEvent);
+        hQueue, hKernel, workDim, pGlobalWorkSize, pLocalWorkSize,
+        numPropsInLaunchPropList, launchPropList, numEventsInWaitList,
+        phEventWaitList, phEvent);
 
     getContext()->notify_end(UR_FUNCTION_ENQUEUE_KERNEL_LAUNCH_CUSTOM_EXP,
                              "urEnqueueKernelLaunchCustomExp", &params, &result,
