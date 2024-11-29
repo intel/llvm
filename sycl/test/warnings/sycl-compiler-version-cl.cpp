@@ -7,7 +7,4 @@
 
 // CHECK: '__SYCL_COMPILER_VERSION': name was marked as #pragma deprecated
 #if __SYCL_COMPILER_VERSION >= 2024
-
 #endif
-
-int main() {}

@@ -189,7 +189,7 @@ set(SYCL_EXT_ONEAPI_BACKEND_HIP ${LLVM_HAS_AMDGPU_TARGET})
 
 # Configure SYCL version macro
 set(SYCL_ROOT_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(sycl_src_dir ${CMAKE_CURRENT_SOURCE_DIR}/source)
+set(sycl_src_dir ${SYCL_ROOT_SOURCE_DIR}/source)
 include(SYCLVersionFromVCS)
 configure_file("source/feature_test.hpp.in" "${SYCL_INCLUDE_BUILD_DIR}/sycl/feature_test.hpp")
 
@@ -216,7 +216,7 @@ install(FILES
 include(AddBoostMp11Headers)
 include(FetchBoostUnorderedHeaders)
 
-set(sycl_inc_dir ${CMAKE_CURRENT_SOURCE_DIR}/include)
+set(sycl_inc_dir ${SYCL_ROOT_SOURCE_DIR}/include)
 # This is workaround to detect changes (add or modify) in subtree which
 # are not detected by copy_directory command.
 # TODO: detect and process remove header/directory case
