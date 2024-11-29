@@ -334,15 +334,16 @@ public:
 
   SanitizerMask getSupportedSanitizers() const override;
 
+  const ToolChain &HostTC;
+  const bool IsSYCLNativeCPU;
+
+  SYCLInstallationDetector SYCLInstallation;
+
 protected:
   Tool *buildBackendCompiler() const override;
   Tool *buildLinker() const override;
 
 private:
-  const ToolChain &HostTC;
-  const bool IsSYCLNativeCPU;
-  SYCLInstallationDetector SYCLInstallation;
-
   void TranslateGPUTargetOpt(const llvm::opt::ArgList &Args,
                              llvm::opt::ArgStringList &CmdArgs,
                              llvm::opt::OptSpecifier Opt_EQ) const;

@@ -119,7 +119,7 @@ void test_ptr_arg_launch() {
   std::cout << __PRETTY_FUNCTION__ << std::endl;
   LaunchTest lt;
 
-  int *int_ptr;
+  int *int_ptr = nullptr;
 
   syclcompat::launch<int_ptr_kernel>(lt.range_1_, int_ptr);
   syclcompat::launch<int_ptr_kernel>(lt.range_2_, int_ptr);
