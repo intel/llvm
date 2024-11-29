@@ -65,6 +65,8 @@ struct ur_kernel_handle_t_ {
     args_size_t ParamSizes;
     args_index_t Indices;
     args_size_t OffsetPerIndex;
+    size_t WorkGroupMemory = 0;
+
     // A struct to keep track of memargs so that we can do dependency analysis
     // at urEnqueueKernelLaunch
     struct mem_obj_arg {
@@ -105,22 +107,28 @@ struct ur_kernel_handle_t_ {
       OffsetPerIndex[Index] = LocalSize;
     }
 
-    void addLocalArg(size_t Index, size_t Size) {
-      size_t LocalOffset = this->getLocalSize();
+    // maximum required alignment is the size of the largest vector type
+    static constexpr size_t MaxAlignment = sizeof(double) * 16;
 
-      // maximum required alignment is the size of the largest vector type
-      const size_t MaxAlignment = sizeof(double) * 16;
-
+    static size_t alignMemoryAllocation(size_t Size, size_t Offset) {
       // for arguments smaller than the maximum alignment simply align to the
       // size of the argument
       const size_t Alignment = std::min(MaxAlignment, Size);
 
       // align the argument
-      size_t AlignedLocalOffset = LocalOffset;
-      size_t Pad = LocalOffset % Alignment;
+      size_t AlignedLocalOffset = Offset;
+      size_t Pad = Offset % Alignment;
       if (Pad != 0) {
         AlignedLocalOffset += Alignment - Pad;
       }
+      return AlignedLocalOffset;
+    }
+
+    void addLocalArg(size_t Index, size_t Size) {
+      size_t LocalOffset = this->getLocalSize();
+
+      // align the argument
+      size_t AlignedLocalOffset = alignMemoryAllocation(Size, LocalOffset);
 
       addArg(Index, sizeof(size_t), (const void *)&(AlignedLocalOffset),
              Size + (AlignedLocalOffset - LocalOffset));
@@ -140,6 +148,24 @@ struct ur_kernel_handle_t_ {
       MemObjArgs.push_back(arguments::mem_obj_arg{hMem, Index, Flags});
     }
 
+    void setWorkGroupMemory(size_t MemSize) {
+      assert(WorkGroupMemory == 0 &&
+             "Work Group Memory size can only be set once");
+      // Ensure first offset is MaxAlignment aligned
+      WorkGroupMemory = alignMemoryAllocation(MaxAlignment, MemSize);
+
+      // Adjust local accessor setting
+      // the dynamic memory will start at offset 0 (allows us to keep accessing
+      // local memory as a GV) and accessors will use the rest of the range
+      for (size_t i = 0; i < OffsetPerIndex.size(); i++) {
+        // if offset is 0, it is not a local accessor argument.
+        if (!OffsetPerIndex[i])
+          continue;
+        assert(ParamSizes[i] == sizeof(size_t) && "Offset should be a size_t");
+        *reinterpret_cast<size_t *>(Indices[i]) += WorkGroupMemory;
+      }
+    }
+
     void setImplicitOffset(size_t Size, std::uint32_t *ImplicitOffset) {
       assert(Size == sizeof(std::uint32_t) * 3);
       std::memcpy(ImplicitOffsetArgs, ImplicitOffset, Size);
@@ -147,13 +173,15 @@ struct ur_kernel_handle_t_ {
 
     void clearLocalSize() {
       std::fill(std::begin(OffsetPerIndex), std::end(OffsetPerIndex), 0);
+      WorkGroupMemory = 0;
     }
 
     const args_index_t &getIndices() const noexcept { return Indices; }
 
     uint32_t getLocalSize() const {
       return std::accumulate(std::begin(OffsetPerIndex),
-                             std::end(OffsetPerIndex), 0);
+                             std::end(OffsetPerIndex), 0) +
+             WorkGroupMemory;
     }
   } Args;
 
@@ -238,6 +266,7 @@ struct ur_kernel_handle_t_ {
     return Args.getIndices();
   }
 
+  void setWorkGroupMemory(size_t MemSize) { Args.setWorkGroupMemory(MemSize); }
   uint32_t getLocalSize() const noexcept { return Args.getLocalSize(); }
 
   void clearLocalSize() { Args.clearLocalSize(); }
