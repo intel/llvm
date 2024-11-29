@@ -58,7 +58,7 @@ if(NATIVECPU_WITH_ONETBB)
   include(FetchContent)
   FetchContent_Declare(
     tbb
-    GIT_REPOSITORY https://github.com/oneapi-src/oneTBB.git
+    GIT_REPOSITORY https://github.com/uxlfoundation/oneTBB.git
     GIT_TAG bef1519a4216d77042637c3f48af2c060a5213d1
     CMAKE_ARGS "-DTBB_TEST:BOOL=OFF -DTBB_EXAMPLES:BOOL=OFF -DTBB_BENCH:BOOL=OFF"
     OVERRIDE_FIND_PACKAGE
