@@ -1,7 +1,7 @@
-# commit db83117e830406b0d9950e24892dba868acba354
-# Merge: 0a90db9b c79df596
+# commit eb076da108a49ef1426f38690547a71905f58015
+# Merge: d8d8ee90 46832dfd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Wed Nov 27 16:04:19 2024 +0000
-#     Merge pull request #2261 from againull/againull/2d_block_exp
-#     Add new device descriptor to query 2D block array capabilities of the Intel GPU
-set(UNIFIED_RUNTIME_TAG db83117e830406b0d9950e24892dba868acba354)
+# Date:   Fri Nov 29 15:54:31 2024 +0000
+#     Merge pull request #2396 from kswiecicki/init-results-fix
+#     [L0] Add nullopt check before init results access
+set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)
