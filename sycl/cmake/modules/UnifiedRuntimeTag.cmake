@@ -1,7 +1,7 @@
-# commit 1675f053176f0860388aa67fd009750a7e03b2c2
-# Merge: 0ea47d7c 22ca5ee2
+# commit db83117e830406b0d9950e24892dba868acba354
+# Merge: 0a90db9b c79df596
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 14:41:15 2024 +0000
-#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
-#     Fix the CL_CORE_FUNCTION macro on windows.
-set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)
+# Date:   Wed Nov 27 16:04:19 2024 +0000
+#     Merge pull request #2261 from againull/againull/2d_block_exp
+#     Add new device descriptor to query 2D block array capabilities of the Intel GPU
+set(UNIFIED_RUNTIME_TAG db83117e830406b0d9950e24892dba868acba354)

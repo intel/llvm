@@ -25,52 +25,6 @@ namespace detail {
 //  Type traits for USM allocation with property support
 ////
 
-// Merge a property list with the usm_kind property
-template <sycl::usm::alloc Kind, typename PropertyListT>
-using MergeUsmKind =
-    detail::merged_properties_t<PropertyListT,
-                                decltype(properties{usm_kind<Kind>})>;
-
-// Check if a property list contains the a certain property
-template <typename PropKey, typename PropertyListT>
-struct HasProperty
-    : std::bool_constant<PropertyListT::template has_property<PropKey>()> {};
-
-template <typename PropertyListT>
-using HasAlign = HasProperty<alignment_key, PropertyListT>;
-template <typename PropertyListT>
-using HasUsmKind = HasProperty<usm_kind_key, PropertyListT>;
-template <typename PropertyListT>
-using HasBufferLocation = HasProperty<buffer_location_key, PropertyListT>;
-
-template <typename PropKey, typename ConstType, typename DefaultPropVal,
-          typename... Props>
-struct GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                    detail::properties_t<Props...>>
-    : GetPropertyValueFromPropList<PropKey, ConstType, DefaultPropVal,
-                                   std::tuple<Props...>> {};
-
-// Get the value of alignment from a property list
-// If alignment is not present in the property list, set to default value 0
-template <typename PropertyListT>
-using GetAlignFromPropList =
-    GetPropertyValueFromPropList<alignment_key, size_t, decltype(alignment<0>),
-                                 PropertyListT>;
-// Get the value of usm_kind from a property list
-// The usm_kind is sycl::usm::alloc::unknown by default
-template <typename PropertyListT>
-using GetUsmKindFromPropList =
-    GetPropertyValueFromPropList<usm_kind_key, sycl::usm::alloc,
-                                 decltype(usm_kind<sycl::usm::alloc::unknown>),
-                                 PropertyListT>;
-// Get the value of buffer_location from a property list
-// The buffer location is -1 by default
-template <typename PropertyListT>
-using GetBufferLocationFromPropList = GetPropertyValueFromPropList<
-    buffer_location_key, int,
-    decltype(sycl::ext::intel::experimental::buffer_location<-1>),
-    PropertyListT>;
-
 // Check if a runtime property is valid
 template <typename Prop> struct IsRuntimePropertyValid : std::false_type {};
 
@@ -143,9 +97,10 @@ struct GetAnnotatedPtrPropertiesWithUsmKind<Kind,
   using filtered_input_properties_t =
       typename GetCompileTimeProperties<input_properties_t>::type;
 
-  static_assert(!HasUsmKind<input_properties_t>::value ||
-                    GetUsmKindFromPropList<input_properties_t>::value == Kind,
-                "Input property list contains conflicting USM kind.");
+  static_assert(
+      detail::get_property_or<usm_kind_key, input_properties_t>(usm_kind<Kind>)
+              .value == Kind,
+      "Input property list contains conflicting USM kind.");
 
   using type =
       detail::merged_properties_t<filtered_input_properties_t,
@@ -211,10 +166,10 @@ struct CheckTAndPropListsWithUsmKind<Kind, T, detail::properties_t<PropsA...>,
 // runtime). Right now only the `buffer_location<N>` has its corresponding USM
 // runtime property and is transformable
 template <typename PropertyListT> inline property_list get_usm_property_list() {
-  if constexpr (detail::HasBufferLocation<PropertyListT>::value) {
+  if constexpr (PropertyListT::template has_property<buffer_location_key>()) {
     return property_list{
         sycl::ext::intel::experimental::property::usm::buffer_location(
-            detail::GetBufferLocationFromPropList<PropertyListT>::value)};
+            PropertyListT::template get_property<buffer_location_key>().value)};
   }
   return {};
 }
