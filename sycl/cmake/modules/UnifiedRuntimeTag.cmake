@@ -1,7 +1,7 @@
-# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
-# Merge: b0f9293d b693389e
+# commit db83117e830406b0d9950e24892dba868acba354
+# Merge: 0a90db9b c79df596
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 22 15:27:05 2024 +0000
-#     Merge pull request #2370 from againull/multi_device_sanitizer
-#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
-set(UNIFIED_RUNTIME_TAG 2f479e01f62ed96a9466d19d9df1aabeda77b335)
+# Date:   Wed Nov 27 16:04:19 2024 +0000
+#     Merge pull request #2261 from againull/againull/2d_block_exp
+#     Add new device descriptor to query 2D block array capabilities of the Intel GPU
+set(UNIFIED_RUNTIME_TAG db83117e830406b0d9950e24892dba868acba354)

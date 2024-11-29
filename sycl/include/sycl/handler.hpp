@@ -67,18 +67,7 @@
 // 41(!!!) includes of SYCL headers + 10 includes of standard headers.
 // 3300+ lines of code
 
-// SYCL_LANGUAGE_VERSION is 4 digit year followed by 2 digit revision
-#if !SYCL_LANGUAGE_VERSION || SYCL_LANGUAGE_VERSION < 202001
-#define __SYCL_NONCONST_FUNCTOR__
-#endif
-
-// replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
-//                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAMTYPE KernelType
-#else
 #define _KERNELFUNCPARAMTYPE const KernelType &
-#endif
 #define _KERNELFUNCPARAM(a) _KERNELFUNCPARAMTYPE a
 
 #if defined(__SYCL_UNNAMED_LAMBDA__)
