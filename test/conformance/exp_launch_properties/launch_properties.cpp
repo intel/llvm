@@ -95,8 +95,8 @@ TEST_P(urEnqueueKernelLaunchCustomTest, Success) {
     AddPodArg(val);
 
     ASSERT_SUCCESS(urEnqueueKernelLaunchCustomExp(
-        queue, kernel, n_dimensions, &global_offset, &global_size, nullptr, 1,
-        &props[0], 0, nullptr, nullptr));
+        queue, kernel, n_dimensions, &global_size, nullptr, 1, &props[0], 0,
+        nullptr, nullptr));
     ASSERT_SUCCESS(urQueueFinish(queue));
     ValidateBuffer(buffer, sizeof(val) * global_size, val);
 }
