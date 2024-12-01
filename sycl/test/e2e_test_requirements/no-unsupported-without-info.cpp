@@ -54,7 +54,7 @@
 // tests to match the required format and in that case you should just update
 // (i.e. reduce) the number and the list below.
 //
-// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 382
+// NUMBER-OF-UNSUPPORTED-WITHOUT-INFO: 381
 //
 // List of improperly UNSUPPORTED tests.
 // Remove the CHECK once the test has been properly UNSUPPORTED.
@@ -62,6 +62,27 @@
 // CHECK: AOT/early_aot.cpp
 // CHECK-NEXT: AOT/gpu.cpp
 // CHECK-NEXT: AOT/multiple-devices.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-buffer.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
+// CHECK-NEXT: Adapters/enqueue-arg-order-image.cpp
+// CHECK-NEXT: Adapters/interop-l0-direct.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-buffer-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-buffer.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-get-native-mem.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-get-native-mem.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image-ownership.cpp
+// CHECK-NEXT: Adapters/interop-level-zero-image.cpp
+// CHECK-NEXT: Adapters/interop-level-zero.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_event_status.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero_batch_test_copy_with_compute.cpp
+// CHECK-NEXT: Adapters/level_zero_device_scope_events.cpp
+// CHECK-NEXT: Adapters/level_zero_dynamic_batch_test.cpp
+// CHECK-NEXT: Adapters/level_zero_imm_cmdlist_per_thread.cpp
+// CHECK-NEXT: Adapters/level_zero_queue_profiling.cpp
+// CHECK-NEXT: Adapters/level_zero_usm_device_read_only.cpp
+// CHECK-NEXT: Adapters/max_malloc.cpp
 // CHECK-NEXT: AddressCast/dynamic_address_cast.cpp
 // CHECK-NEXT: AddressCast/static_address_cast.cpp
 // CHECK-NEXT: AmdNvidiaJIT/kernel_and_bundle.cpp
@@ -282,31 +303,9 @@
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group.cpp
 // CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
-// CHECK-NEXT: OptionalKernelFeatures/fp64-conv-emu.cpp
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-buffer.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Plugin/enqueue-arg-order-image.cpp
-// CHECK-NEXT: Plugin/interop-l0-direct.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-buffer-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-buffer.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-get-native-mem.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-get-native-mem.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image-ownership.cpp
-// CHECK-NEXT: Plugin/interop-level-zero-image.cpp
-// CHECK-NEXT: Plugin/interop-level-zero.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_event_status.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_test.cpp
-// CHECK-NEXT: Plugin/level_zero_batch_test_copy_with_compute.cpp
-// CHECK-NEXT: Plugin/level_zero_device_scope_events.cpp
-// CHECK-NEXT: Plugin/level_zero_dynamic_batch_test.cpp
-// CHECK-NEXT: Plugin/level_zero_imm_cmdlist_per_thread.cpp
-// CHECK-NEXT: Plugin/level_zero_queue_profiling.cpp
-// CHECK-NEXT: Plugin/level_zero_usm_device_read_only.cpp
-// CHECK-NEXT: Plugin/max_malloc.cpp
 // CHECK-NEXT: Printf/char.cpp
 // CHECK-NEXT: Printf/double.cpp
 // CHECK-NEXT: Printf/float.cpp

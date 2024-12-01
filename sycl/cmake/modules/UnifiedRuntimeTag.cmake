@@ -1,7 +1,7 @@
-# commit 2f479e01f62ed96a9466d19d9df1aabeda77b335
-# Merge: b0f9293d b693389e
+# commit eb076da108a49ef1426f38690547a71905f58015
+# Merge: d8d8ee90 46832dfd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 22 15:27:05 2024 +0000
-#     Merge pull request #2370 from againull/multi_device_sanitizer
-#     [L0] Check that program is in exe state in urProgramGetGlobalVariablePointer
-set(UNIFIED_RUNTIME_TAG 2f479e01f62ed96a9466d19d9df1aabeda77b335)
+# Date:   Fri Nov 29 15:54:31 2024 +0000
+#     Merge pull request #2396 from kswiecicki/init-results-fix
+#     [L0] Add nullopt check before init results access
+set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)
