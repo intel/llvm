@@ -179,6 +179,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     additional_env_vars = validate_and_parse_env_args(args.env)
 
+    options.workdir = args.benchmark_directory
     options.verbose = args.verbose
     options.rebuild = not args.no_rebuild
     options.sycl = args.sycl
