@@ -802,6 +802,13 @@ for sycl_device in config.sycl_devices:
         for arch in architectures
         if get_device_name_from_arch(arch) is not None
     )
+
+    # Print the detected GPU family name.
+    if len(device_names) > 0:
+        lit_config.note(
+            "Detected GPU family for {}: {}".format(sycl_device, ", ".join(device_names))
+        )
+
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
