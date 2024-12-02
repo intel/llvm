@@ -308,15 +308,24 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
                                  StringRef Suff, StringRef Target = "") {
   auto PropSet =
-      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps, SplitMode);
+      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+
+  // When the split mode is none, the required work group size will be added
+  // to the whole module, which will make the runtime unable to
+  // launch the other kernels in the module that have different
+  // required work group sizes or no requried work group sizes. So we need to
+  // remove the required work group size metadata in this case.
+  if (SplitMode == module_split::SPLIT_NONE)
+    PropSet.remove(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
+                   "reqd_work_group_size_uint64_t");
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
     NewSuff += "_";
-    NewSuff += Target;
   }
+  NewSuff += Target;
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, NewSuff);

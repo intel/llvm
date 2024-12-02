@@ -230,6 +230,17 @@ public:
     PropSet.insert({PropName, PropertyValue(PropVal)});
   }
 
+  void remove(StringRef Category, StringRef PropName) {
+    auto PropertySetIt = PropSetMap.find(Category);
+    if (PropertySetIt == PropSetMap.end())
+      return;
+    auto &PropertySet = PropertySetIt->second;
+    auto PropIt = PropertySet.find(PropName);
+    if (PropIt == PropertySet.end())
+      return;
+    PropertySet.erase(PropIt);
+  }
+
   /// Parses from the given \p Buf a property set registry.
   static Expected<std::unique_ptr<PropertySetRegistry>>
   read(const MemoryBuffer *Buf);
