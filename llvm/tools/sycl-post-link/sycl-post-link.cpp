@@ -324,8 +324,8 @@ std::string saveModuleProperties(module_split::ModuleDesc &MD,
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS, "compile_target",
                 Target);
     NewSuff += "_";
+    NewSuff += Target;
   }
-  NewSuff += Target;
 
   std::error_code EC;
   std::string SCFile = makeResultFileName(".prop", I, NewSuff);
