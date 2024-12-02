@@ -17,15 +17,12 @@
 #include "llvm/SYCLLowerIR/DeviceGlobals.h"
 #include "llvm/SYCLLowerIR/HostPipes.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/SYCLLowerIR/SYCLKernelParamOptInfo.h"
-#include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
 #include "llvm/SYCLLowerIR/SYCLUtils.h"
 #include "llvm/SYCLLowerIR/SpecConstants.h"
-#include "llvm/Support/FileSystem.h"
-#include "llvm/Support/MemoryBuffer.h"
 #include <queue>
 #include <unordered_set>
-
 #ifndef NDEBUG
 constexpr int DebugModuleProps = 0;
 #endif
@@ -155,59 +152,14 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps,
-                                     const StringRef &DeviceLibSPVLoc) {
+                                     const GlobalBinImageProps &GlobProps) {
 
   PropSetRegTy PropSet;
-  // If sycl-post-link doesn't specify a valid fallback spv path, the param
-  // 'DeviceLibSPVLoc' is set to an empty string.
-  if (!DeviceLibSPVLoc.empty()) {
-    SmallVector<llvm::SYCLDeviceLibSPVMeta, 16> RequiredLibs;
-    llvm::getRequiredSYCLDeviceLibs(M, RequiredLibs);
-    for (auto ExtMeta : RequiredLibs) {
-      std::string SPVPath =
-          DeviceLibSPVLoc.str() + "/" + std::string(ExtMeta.SPVFileName);
-      if (!llvm::sys::fs::exists(SPVPath))
-        continue;
-
-      auto SPVMB = llvm::MemoryBuffer::getFile(SPVPath);
-      if (!SPVMB)
-        continue;
-
-      size_t SPVSize = (*SPVMB)->getBufferSize();
-      // std::aligned_alloc is not available in some pre-ci Windows machine.
-#if defined(_WIN32) || defined(_WIN64)
-      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(
-          _aligned_malloc(SPVSize + sizeof(uint32_t) * 2, alignof(uint32_t)));
-#else
-      uint8_t *SPVBuffer = reinterpret_cast<uint8_t *>(std::aligned_alloc(
-          alignof(uint32_t), SPVSize + sizeof(uint32_t) * 2));
-#endif
-
-      if (!SPVBuffer)
-        continue;
-
-      // The data embedded consists of 3 parts, overall layout is following:
-      // |--devicelib ext(4 byte)--|--IsNative Flag(4 byte)--|--spv raw data--|
-      *(reinterpret_cast<uint32_t *>(SPVBuffer)) =
-          static_cast<uint32_t>(ExtMeta.SPVExt);
-
-      *(reinterpret_cast<uint32_t *>(SPVBuffer + sizeof(uint32_t))) =
-          static_cast<uint32_t>(ExtMeta.IsNative);
-      std::memcpy(SPVBuffer + sizeof(uint32_t) * 2, (*SPVMB)->getBufferStart(),
-                  SPVSize);
-      llvm::SYCLDeviceLibSPVBinary SPVBinaryObj(SPVBuffer,
-                                                SPVSize + sizeof(uint32_t) * 2);
-      PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_BINS, ExtMeta.SPVFileName,
-                  SPVBinaryObj);
-#if defined(_WIN32) || defined(_WIN64)
-      _aligned_free(SPVBuffer);
-#else
-      std::free(SPVBuffer);
-#endif
-    }
+  {
+    uint32_t MRMask = getSYCLDeviceLibReqMask(M);
+    std::map<StringRef, uint32_t> RMEntry = {{"DeviceLibReqMask", MRMask}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
-
   {
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
                 computeDeviceRequirements(M, EntryPoints).asMap());
@@ -501,7 +453,7 @@ PropSetRegTy computeModuleProperties(const Module &M,
       }
 
       PropSet.add(PropSetRegTy::SYCL_VIRTUAL_FUNCTIONS,
-                  "uses-virtual-functions-set", AllSets);
+                   "uses-virtual-functions-set", AllSets);
     }
   }
 

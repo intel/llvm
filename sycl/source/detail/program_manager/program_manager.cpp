@@ -39,7 +39,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <sstream>
@@ -753,8 +752,7 @@ setSpecializationConstants(const std::shared_ptr<device_image_impl> &InputImpl,
   }
 }
 
-static inline void
-CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
+static inline void CheckAndDecompressImage([[maybe_unused]] RTDeviceBinaryImage *Img) {
 #ifndef SYCL_RT_ZSTD_NOT_AVAIABLE
   if (auto CompImg = dynamic_cast<CompressedRTDeviceBinaryImage *>(Img))
     if (CompImg->IsCompressed())
@@ -851,16 +849,18 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
         programReleaseInfo.getFuncPtrFromModule(ur::getURLoaderLibrary());
     ProgramPtr ProgramManaged(NativePrg, programRelease);
 
-    std::vector<const RTDeviceBinaryImage *> ImagesVec;
     // Link a fallback implementation of device libraries if they are not
     // supported by a device compiler.
     // Pre-compiled programs (after AOT compilation or read from persitent
     // cache) are supposed to be already linked.
+    // If device image is not SPIR-V, DeviceLibReqMask will be 0 which means
+    // no fallback device library will be linked.
+    uint32_t DeviceLibReqMask = 0;
     bool UseDeviceLibs = !DeviceCodeWasInCache &&
                          Img.getFormat() == SYCL_DEVICE_BINARY_TYPE_SPIRV &&
                          !SYCLConfig<SYCL_DEVICELIB_NO_FALLBACK>::get();
     if (UseDeviceLibs)
-      ImagesVec.push_back(&Img);
+      DeviceLibReqMask = getDeviceLibReqMask(Img);
 
     std::vector<ur_program_handle_t> ProgramsToLink;
     // If we had a program in cache, then it should have been the fully linked
@@ -868,7 +868,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
     if (!DeviceCodeWasInCache) {
       for (RTDeviceBinaryImage *BinImg : DeviceImagesToLink) {
         if (UseDeviceLibs)
-          ImagesVec.push_back(BinImg);
+          DeviceLibReqMask |= getDeviceLibReqMask(*BinImg);
 
         ur_program_handle_t NativePrg = createURProgram(*BinImg, Context, Devs);
 
@@ -885,7 +885,7 @@ ur_program_handle_t ProgramManager::getBuiltURProgram(
 
     ProgramPtr BuiltProgram = build(
         std::move(ProgramManaged), ContextImpl, CompileOpts, LinkOpts,
-        URDevices, ImagesVec, ProgramsToLink,
+        URDevices, DeviceLibReqMask, ProgramsToLink,
         /*CreatedFromBinary*/ Img.getFormat() != SYCL_DEVICE_BINARY_TYPE_SPIRV);
 
     // Those extra programs won't be used anymore, just the final linked result
@@ -1152,8 +1152,8 @@ ProgramManager::getProgramBuildLog(const ur_program_handle_t &Program,
 // TODO device libraries may use scpecialization constants, manifest files, etc.
 // To support that they need to be delivered in a different container - so that
 // sycl_device_binary_struct can be created for each of them.
-static bool loadDeviceLibLegacy(const ContextImplPtr Context, const char *Name,
-                                ur_program_handle_t &Prog) {
+static bool loadDeviceLib(const ContextImplPtr Context, const char *Name,
+                          ur_program_handle_t &Prog) {
   std::string LibSyclDir = OSUtil::getCurrentDSODir();
   std::ifstream File(LibSyclDir + OSUtil::DirSep + Name,
                      std::ifstream::in | std::ifstream::binary);
@@ -1170,13 +1170,6 @@ static bool loadDeviceLibLegacy(const ContextImplPtr Context, const char *Name,
 
   Prog =
       createSpirvProgram(Context, (unsigned char *)&FileContent[0], FileSize);
-  return Prog != nullptr;
-}
-
-static bool loadDeviceLib(const ContextImplPtr Context,
-                          ur_program_handle_t &Prog,
-                          const unsigned char *SPVBuffer, size_t SPVSize) {
-  Prog = createSpirvProgram(Context, SPVBuffer, SPVSize);
   return Prog != nullptr;
 }
 
@@ -1260,13 +1253,9 @@ static ur_result_t doCompile(const AdapterPtr &Adapter,
 static ur_program_handle_t
 loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
                       std::vector<ur_device_handle_t> &Devices,
-                      bool UseNativeLib, bool LegacyMode = true,
-                      const unsigned char *SPVBuffer = nullptr,
-                      size_t SPVSize = 0) {
+                      bool UseNativeLib) {
 
-  const char *LibFileName = nullptr;
-  if (LegacyMode)
-    LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
+  auto LibFileName = getDeviceLibFilename(Extension, UseNativeLib);
   auto LockedCache = Context->acquireCachedLibPrograms();
   auto &CachedLibPrograms = LockedCache.get();
   // Collect list of devices to compile the library for. Library was already
@@ -1303,20 +1292,10 @@ loadDeviceLibFallback(const ContextImplPtr Context, DeviceLibExt Extension,
   bool IsProgramCreated = !URProgram;
 
   // Create UR program for device lib if we don't have it yet.
-  if (LegacyMode) {
-    if (!URProgram && !loadDeviceLibLegacy(Context, LibFileName, URProgram)) {
-      EraseProgramForDevices();
-      throw exception(make_error_code(errc::build),
-                      std::string("Failed to load ") + LibFileName);
-    }
-  } else {
-    if (!URProgram && !loadDeviceLib(Context, URProgram, SPVBuffer, SPVSize)) {
-      EraseProgramForDevices();
-      const char *ExtStr = getDeviceLibExtensionStr(Extension);
-      throw exception(
-          make_error_code(errc::build),
-          std::string("Failed to load fallback device library for ") + ExtStr);
-    }
+  if (!URProgram && !loadDeviceLib(Context, LibFileName, URProgram)) {
+    EraseProgramForDevices();
+    throw exception(make_error_code(errc::build),
+                    std::string("Failed to load ") + LibFileName);
   }
 
   // Insert URProgram into the cache for all devices that we compiled it for.
@@ -1574,12 +1553,10 @@ static bool isDeviceLibRequired(DeviceLibExt Ext, uint32_t DeviceLibReqMask) {
   return ((DeviceLibReqMask & Mask) == Mask);
 }
 
-// TODO: Clear legacy getDeviceLibPrograms when developers upgrade to
-// latest version compiler.
 static std::vector<ur_program_handle_t>
-getDeviceLibProgramsLegacy(const ContextImplPtr Context,
-                           std::vector<ur_device_handle_t> &Devices,
-                           uint32_t DeviceLibReqMask) {
+getDeviceLibPrograms(const ContextImplPtr Context,
+                     std::vector<ur_device_handle_t> &Devices,
+                     uint32_t DeviceLibReqMask) {
   std::vector<ur_program_handle_t> Programs;
 
   std::pair<DeviceLibExt, bool> RequiredDeviceLibExt[] = {
@@ -1662,168 +1639,6 @@ getDeviceLibProgramsLegacy(const ContextImplPtr Context,
   return Programs;
 }
 
-static std::vector<ur_program_handle_t>
-getDeviceLibPrograms(const ContextImplPtr Context,
-                     std::vector<ur_device_handle_t> &Devices,
-                     const std::vector<const RTDeviceBinaryImage *> &Images) {
-  std::vector<ur_program_handle_t> Programs;
-  std::map<DeviceLibExt, bool> DeviceLibExtLoaded = {
-      {DeviceLibExt::cl_intel_devicelib_assert,
-       /* is fallback loaded? */ false},
-      {DeviceLibExt::cl_intel_devicelib_math, false},
-      {DeviceLibExt::cl_intel_devicelib_math_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_complex, false},
-      {DeviceLibExt::cl_intel_devicelib_complex_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_cstring, false},
-      {DeviceLibExt::cl_intel_devicelib_imf, false},
-      {DeviceLibExt::cl_intel_devicelib_imf_fp64, false},
-      {DeviceLibExt::cl_intel_devicelib_imf_bf16, false},
-      {DeviceLibExt::cl_intel_devicelib_bfloat16, false}};
-
-  // Check whether a specified extension is supported by ALL devices.
-  auto checkExtForDevices = [&Context, &Devices](const char *ExtStr) -> bool {
-    bool ExtAvailable = true;
-    for (auto SingleDevice : Devices) {
-      std::string DevExtList =
-          Context->getPlatformImpl()
-              ->getDeviceImpl(SingleDevice)
-              ->get_device_info_string(
-                  UrInfoCode<info::device::extensions>::value);
-      if (DevExtList.npos == DevExtList.find(ExtStr)) {
-        ExtAvailable = false;
-        break;
-      }
-    }
-    return ExtAvailable;
-  };
-
-  const bool fp64Support = checkExtForDevices("cl_khr_fp64");
-
-  for (auto Img : Images) {
-    if (!Img)
-      continue;
-    const RTDeviceBinaryImage::PropertyRange &NewRange =
-        Img->getDeviceLibReqBins();
-    if (!NewRange.isAvailable())
-      continue;
-
-    for (const auto &DeviceLibBinProp : NewRange) {
-      auto DeviceLibByteArray =
-          DeviceBinaryProperty(DeviceLibBinProp).asByteArray();
-      DeviceLibByteArray.dropBytes(8);
-      DeviceLibExt DeviceLibExtReq = static_cast<DeviceLibExt>(
-          (static_cast<uint32_t>(DeviceLibByteArray[3]) << 24) |
-          (static_cast<uint32_t>(DeviceLibByteArray[2]) << 16) |
-          (static_cast<uint32_t>(DeviceLibByteArray[1]) << 8) |
-          DeviceLibByteArray[0]);
-      if (DeviceLibExtLoaded.count(DeviceLibExtReq) != 1) {
-        if constexpr (DbgProgMgr > 0) {
-          std::cerr << "Unknown DeviceLib extension("
-                    << static_cast<uint32_t>(DeviceLibExtReq) << ")!"
-                    << std::endl;
-        }
-        continue;
-      }
-
-      if (DeviceLibExtLoaded[DeviceLibExtReq])
-        continue;
-
-      if ((DeviceLibExtReq == DeviceLibExt::cl_intel_devicelib_math_fp64 ||
-           DeviceLibExtReq == DeviceLibExt::cl_intel_devicelib_complex_fp64 ||
-           DeviceLibExtReq == DeviceLibExt::cl_intel_devicelib_imf_fp64) &&
-          !fp64Support)
-        continue;
-
-      DeviceLibByteArray.dropBytes(4);
-      DeviceLibIsNative IsNativeSPV = static_cast<DeviceLibIsNative>(
-          (static_cast<uint32_t>(DeviceLibByteArray[3]) << 24) |
-          (static_cast<uint32_t>(DeviceLibByteArray[2]) << 16) |
-          (static_cast<uint32_t>(DeviceLibByteArray[1]) << 8) |
-          DeviceLibByteArray[0]);
-      auto DeviceLibExtReqName = getDeviceLibExtensionStr(DeviceLibExtReq);
-      bool InhibitNativeImpl = false;
-      if (const char *Env = getenv("SYCL_DEVICELIB_INHIBIT_NATIVE")) {
-        InhibitNativeImpl = strstr(Env, DeviceLibExtReqName) != nullptr;
-      }
-
-      bool ExtReqAvailable = checkExtForDevices(DeviceLibExtReqName);
-
-      // Load fallback device library only when 1) or 2) is met:
-      // 1. underlying device doesn't support the extension
-      // 2. user explicitly ask to inhibit usage of native support
-      if (!ExtReqAvailable || InhibitNativeImpl) {
-        if (IsNativeSPV == DeviceLibIsNative::Yes)
-          continue;
-        DeviceLibByteArray.dropBytes(4);
-        Programs.push_back(loadDeviceLibFallback(
-            Context, DeviceLibExtReq, Devices,
-            /*UseNativeLib=*/false, false, DeviceLibByteArray.begin(),
-            DeviceLibByteArray.size()));
-      } else {
-        // bfloat16 spv has native and generic version, if native support is
-        // available in underlying device, we should use native version and
-        // ignore generic version.
-        if (IsNativeSPV != DeviceLibIsNative::Yes)
-          continue;
-        DeviceLibByteArray.dropBytes(4);
-        Programs.push_back(loadDeviceLibFallback(
-            Context, DeviceLibExtReq, Devices,
-            /*UseNativeLib=*/true, false, DeviceLibByteArray.begin(),
-            DeviceLibByteArray.size()));
-      }
-    }
-  }
-  return Programs;
-}
-
-static void
-checkDeviceLibsLinkMode(const std::vector<const RTDeviceBinaryImage *> &Images,
-                        bool &LinkDeviceLib, bool &LegacyLinkMode) {
-  bool ReqMaskAvailable = false, ReqBinsAvailable = false;
-  for (auto Img : Images) {
-    if (!Img)
-      continue;
-    const RTDeviceBinaryImage::PropertyRange &LegacyRange =
-        Img->getDeviceLibReqMask();
-    if (LegacyRange.isAvailable()) {
-      ReqMaskAvailable = true;
-      continue;
-    }
-
-    const RTDeviceBinaryImage::PropertyRange &NewRange =
-        Img->getDeviceLibReqBins();
-    if (NewRange.isAvailable())
-      ReqBinsAvailable = true;
-  }
-
-  // If both ReqBins and ReqMask are available, it means user's device image
-  // and the images in cache are built with different version compiler, we
-  // don't support such scenario.
-  if ((!ReqMaskAvailable && !ReqBinsAvailable) ||
-      (ReqMaskAvailable && ReqBinsAvailable)) {
-    LinkDeviceLib = false;
-    return;
-  }
-
-  LinkDeviceLib = true;
-  LegacyLinkMode = ReqMaskAvailable;
-}
-
-static uint32_t getDeviceLibReqMaskFromImages(
-    const std::vector<const RTDeviceBinaryImage *> &Images) {
-  uint32_t DeviceLibReqMask = 0;
-  for (auto Img : Images) {
-    if (!Img)
-      continue;
-    const RTDeviceBinaryImage::PropertyRange &ReqMaskRange =
-        Img->getDeviceLibReqMask();
-    if (ReqMaskRange.isAvailable())
-      DeviceLibReqMask |=
-          DeviceBinaryProperty(*(ReqMaskRange.begin())).asUint32();
-  }
-  return DeviceLibReqMask;
-}
-
 // Check if device image is compressed.
 static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 
@@ -1834,25 +1649,19 @@ static inline bool isDeviceImageCompressed(sycl_device_binary Bin) {
 ProgramManager::ProgramPtr ProgramManager::build(
     ProgramPtr Program, const ContextImplPtr Context,
     const std::string &CompileOptions, const std::string &LinkOptions,
-    std::vector<ur_device_handle_t> &Devices,
-    const std::vector<const RTDeviceBinaryImage *> &Images,
+    std::vector<ur_device_handle_t> &Devices, uint32_t DeviceLibReqMask,
     const std::vector<ur_program_handle_t> &ExtraProgramsToLink,
     bool CreatedFromBinary) {
 
   if constexpr (DbgProgMgr > 0) {
     std::cerr << ">>> ProgramManager::build(" << Program.get() << ", "
               << CompileOptions << ", " << LinkOptions << ", "
-              << VecToString(Devices) << ", " << std::dec << ", "
-              << VecToString(ExtraProgramsToLink) << ", " << CreatedFromBinary
-              << ")\n";
+              << VecToString(Devices) << ", " << std::hex << DeviceLibReqMask
+              << std::dec << ", " << VecToString(ExtraProgramsToLink) << ", "
+              << CreatedFromBinary << ")\n";
   }
 
-  bool LinkDeviceLibs = false;
-  bool LegacyDeviceLibLinkMode = false;
-  if (Images.size() == 0)
-    LinkDeviceLibs = false;
-  else
-    checkDeviceLibsLinkMode(Images, LinkDeviceLibs, LegacyDeviceLibLinkMode);
+  bool LinkDeviceLibs = (DeviceLibReqMask != 0);
 
   // TODO: this is a temporary workaround for GPU tests for ESIMD compiler.
   // We do not link with other device libraries, because it may fail
@@ -1863,13 +1672,7 @@ ProgramManager::ProgramPtr ProgramManager::build(
 
   std::vector<ur_program_handle_t> LinkPrograms;
   if (LinkDeviceLibs) {
-    if (LegacyDeviceLibLinkMode) {
-      uint32_t DeviceLibReqMask = getDeviceLibReqMaskFromImages(Images);
-      LinkPrograms =
-          getDeviceLibProgramsLegacy(Context, Devices, DeviceLibReqMask);
-    } else {
-      LinkPrograms = getDeviceLibPrograms(Context, Devices, Images);
-    }
+    LinkPrograms = getDeviceLibPrograms(Context, Devices, DeviceLibReqMask);
   }
 
   static const char *ForceLinkEnv = std::getenv("SYCL_FORCE_LINK");
@@ -2183,6 +1986,15 @@ void ProgramManager::dumpImage(const RTDeviceBinaryImage &Img,
   }
   Img.dump(F);
   F.close();
+}
+
+uint32_t ProgramManager::getDeviceLibReqMask(const RTDeviceBinaryImage &Img) {
+  const RTDeviceBinaryImage::PropertyRange &DLMRange =
+      Img.getDeviceLibReqMask();
+  if (DLMRange.isAvailable())
+    return DeviceBinaryProperty(*(DLMRange.begin())).asUint32();
+  else
+    return 0x0;
 }
 
 const KernelArgMask *
@@ -2973,12 +2785,11 @@ ur_kernel_handle_t ProgramManager::getOrCreateMaterializedKernel(
   // No linking of extra programs reqruired.
   std::vector<ur_program_handle_t> ExtraProgramsToLink;
   std::vector<ur_device_handle_t> Devs = {DeviceImpl->getHandleRef()};
-  std::vector<const RTDeviceBinaryImage *> ImagesVec;
-  // For non-spirv target, we don't need to link any fallback device library.
-  // An empty images vector will skip linking fallback device libraries.
   auto BuildProgram =
       build(std::move(ProgramManaged), detail::getSyclObjImpl(Context),
-            CompileOpts, LinkOpts, Devs, ImagesVec, ExtraProgramsToLink);
+            CompileOpts, LinkOpts, Devs,
+            /*For non SPIR-V devices DeviceLibReqdMask is always 0*/ 0,
+            ExtraProgramsToLink);
   ur_kernel_handle_t UrKernel{nullptr};
   Adapter->call<errc::kernel_not_supported, UrApiKind::urKernelCreate>(
       BuildProgram.get(), KernelName.c_str(), &UrKernel);

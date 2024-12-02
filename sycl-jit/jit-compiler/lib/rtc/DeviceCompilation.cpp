@@ -425,7 +425,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
       /*EmitExportedSymbols=*/true, /*EmitImportedSymbols=*/true,
       /*DeviceGlobals=*/false};
   PropertySetRegistry Properties =
-      computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq, "");
+      computeModuleProperties(MDesc.getModule(), MDesc.entries(), PropReq);
   // TODO: Manually add `compile_target` property as in
   //       `saveModuleProperties`?
   const auto &PropertySets = Properties.getPropSets();

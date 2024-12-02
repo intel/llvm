@@ -44,13 +44,8 @@
 /// PropertySetIO.h
 #define __SYCL_PROPERTY_SET_SPEC_CONST_DEFAULT_VALUES_MAP                      \
   "SYCL/specialization constants default values"
-/// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK is defined in legacy version
-/// compiler, we keep this property here and to be compatible with program
-/// built with these legacy version compiler.
-/// TODO: clear this deprecated property when users upgrade to latest compiler.
+/// PropertySetRegistry::SYCL_DEVICELIB_REQ_MASK defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_DEVICELIB_REQ_MASK "SYCL/devicelib req mask"
-/// PropertySetRegistry::SYCL_DEVICELIB_REQ_BINS defined in PropertySetIO.h
-#define __SYCL_PROPERTY_SET_DEVICELIB_REQ_BINS "SYCL/devicelib req bins"
 /// PropertySetRegistry::SYCL_KERNEL_PARAM_OPT_INFO defined in PropertySetIO.h
 #define __SYCL_PROPERTY_SET_KERNEL_PARAM_OPT_INFO "SYCL/kernel param opt"
 /// PropertySetRegistry::SYCL_KERNEL_PROGRAM_METADATA defined in PropertySetIO.h

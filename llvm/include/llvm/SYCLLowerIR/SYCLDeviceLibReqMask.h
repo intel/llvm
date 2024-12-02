@@ -1,4 +1,4 @@
-//===----- SYCLRequiredDeviceLibs.h - get SYCL devicelib required Info ----===//
+//===----- SYCLDeviceLibReqMask.h - get SYCL devicelib required Info -----=-==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -16,8 +16,6 @@
 
 #pragma once
 
-#include "llvm/ADT/SetVector.h"
-#include "llvm/ADT/StringRef.h"
 #include <cstdint>
 
 namespace llvm {
@@ -40,27 +38,6 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_bfloat16,
 };
 
-enum class DeviceLibIsNative : std::uint32_t { Yes, No, Ignore };
-
-struct SYCLDeviceLibSPVMeta {
-  DeviceLibExt SPVExt;
-  const char *SPVFileName;
-  DeviceLibIsNative IsNative;
-};
-
-struct SYCLDeviceLibSPVBinary {
-  typedef uint8_t value_type;
-  value_type *SPVRawBytes;
-  size_t SPVBytesNum;
-  SYCLDeviceLibSPVBinary(value_type *RawB, size_t BNum) {
-    SPVRawBytes = RawB;
-    SPVBytesNum = BNum;
-  }
-  value_type *data() const { return SPVRawBytes; }
-  size_t size() const { return SPVBytesNum; }
-};
-
-void getRequiredSYCLDeviceLibs(const Module &M,
-                               SmallVector<SYCLDeviceLibSPVMeta, 16> &ReqLibs);
+uint32_t getSYCLDeviceLibReqMask(const Module &M);
 
 } // namespace llvm

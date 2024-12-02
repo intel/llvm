@@ -71,9 +71,9 @@ class device_impl;
 using DeviceImplPtr = std::shared_ptr<device_impl>;
 class queue_impl;
 class event_impl;
-// DeviceLibExt and DeviceLibIsNaitve are shared between sycl runtime and
-// SYCL Post Link tool. If any update is made here, please sync with definition
-// in llvm/llvm/include/llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h
+// DeviceLibExt is shared between sycl runtime and sycl-post-link tool.
+// If any update is made here, need to sync with DeviceLibExt definition
+// in llvm/tools/sycl-post-link/sycl-post-link.cpp
 enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_assert,
   cl_intel_devicelib_math,
@@ -86,8 +86,6 @@ enum class DeviceLibExt : std::uint32_t {
   cl_intel_devicelib_imf_bf16,
   cl_intel_devicelib_bfloat16,
 };
-
-enum class DeviceLibIsNative : std::uint32_t { Yes, No, Ignore };
 
 // Provides single loading and building OpenCL programs with unique contexts
 // that is necessary for no interoperability cases with lambda.
@@ -192,6 +190,8 @@ public:
   void debugPrintBinaryImages() const;
   static std::string getProgramBuildLog(const ur_program_handle_t &Program,
                                         const ContextImplPtr Context);
+
+  uint32_t getDeviceLibReqMask(const RTDeviceBinaryImage &Img);
 
   /// Returns the mask for eliminated kernel arguments for the requested kernel
   /// within the native program.
@@ -321,7 +321,7 @@ private:
                    const std::string &CompileOptions,
                    const std::string &LinkOptions,
                    std::vector<ur_device_handle_t> &Devices,
-                   const std::vector<const RTDeviceBinaryImage *> &Images,
+                   uint32_t DeviceLibReqMask,
                    const std::vector<ur_program_handle_t> &ProgramsToLink,
                    bool CreatedFromBinary = false);
 

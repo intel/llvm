@@ -1,4 +1,4 @@
-//==---- SYCLRequiredDeviceLibs.cpp - get SYCL devicelib required Info -----==//
+//==----- SYCLDeviceLibReqMask.cpp - get SYCL devicelib required Info ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -14,8 +14,7 @@
 // SYCL runtime later.
 //===----------------------------------------------------------------------===//
 
-#include "llvm/SYCLLowerIR/SYCLRequiredDeviceLibs.h"
-#include "llvm/ADT/SmallSet.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/IR/Module.h"
 #include "llvm/TargetParser/Triple.h"
 
@@ -733,73 +732,46 @@ SYCLDeviceLibFuncMap SDLMap = {
      DeviceLibExt::cl_intel_devicelib_bfloat16},
 };
 
+// Each fallback device library corresponds to one bit in "require mask" which
+// is an unsigned int32. getDeviceLibBit checks which fallback device library
+// is required for FuncName and returns the corresponding bit. The corresponding
+// mask for each fallback device library is:
+// cl_intel_devicelib_assert:        0x1
+// cl_intel_devicelib_math:          0x2
+// cl_intel_devicelib_math_fp64:     0x4
+// cl_intel_devicelib_complex:       0x8
+// cl_intel_devicelib_complex_fp64:  0x10
+// cl_intel_devicelib_cstring :      0x20
+// cl_intel_devicelib_imf:           0x40
+// cl_intel_devicelib_imf_fp64:      0x80
+// cl_intel_devicelib_imf_bf16:      0x100
+// cl_intel_devicelib_bfloat16:      0x200
+uint32_t getDeviceLibBits(const std::string &FuncName) {
+  auto DeviceLibFuncIter = SDLMap.find(FuncName);
+  return ((DeviceLibFuncIter == SDLMap.end())
+              ? 0
+              : 0x1 << (static_cast<uint32_t>(DeviceLibFuncIter->second) -
+                        static_cast<uint32_t>(
+                            DeviceLibExt::cl_intel_devicelib_assert)));
+}
+
 } // namespace
 
-// One devicelib extension may correspond to multiple spv files, following
-// map stores corresponding index values in SPVMetaList for an extension.
-static std::unordered_map<DeviceLibExt, std::vector<size_t>>
-    DeviceLibSPVExtMap = {{DeviceLibExt::cl_intel_devicelib_assert, {0}},
-                          {DeviceLibExt::cl_intel_devicelib_math, {1}},
-                          {DeviceLibExt::cl_intel_devicelib_math_fp64, {2}},
-                          {DeviceLibExt::cl_intel_devicelib_complex, {3}},
-                          {DeviceLibExt::cl_intel_devicelib_complex_fp64, {4}},
-                          {DeviceLibExt::cl_intel_devicelib_cstring, {5}},
-                          {DeviceLibExt::cl_intel_devicelib_imf, {6}},
-                          {DeviceLibExt::cl_intel_devicelib_imf_fp64, {7}},
-                          {DeviceLibExt::cl_intel_devicelib_imf_bf16, {8}},
-                          {DeviceLibExt::cl_intel_devicelib_bfloat16, {9, 10}}};
-
-static SYCLDeviceLibSPVMeta SPVMetaList[] = {
-    {DeviceLibExt::cl_intel_devicelib_assert, "libsycl-fallback-cassert.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_math, "libsycl-fallback-cmath.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_math_fp64,
-     "libsycl-fallback-cmath-fp64.spv", DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_complex, "libsycl-fallback-complex.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_complex_fp64,
-     "libsycl-fallback-complex-fp64.spv", DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_cstring, "libsycl-fallback-cstring.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_imf, "libsycl-fallback-imf.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_imf_fp64, "libsycl-fallback-imf-fp64.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_imf_bf16, "libsycl-fallback-imf-bf16.spv",
-     DeviceLibIsNative::Ignore},
-    {DeviceLibExt::cl_intel_devicelib_bfloat16, "libsycl-fallback-bfloat16.spv",
-     DeviceLibIsNative::No},
-    {DeviceLibExt::cl_intel_devicelib_bfloat16, "libsycl-native-bfloat16.spv",
-     DeviceLibIsNative::Yes}};
-
-namespace llvm {
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
 // And we don't expect non-spirv functions with "__devicelib_" prefix.
-void getRequiredSYCLDeviceLibs(
-    const Module &M,
-    llvm::SmallVector<SYCLDeviceLibSPVMeta, 16> &ReqDeviceLibs) {
+uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
   // Device libraries will be enabled only for spir-v module.
   if (!Triple(M.getTargetTriple()).isSPIROrSPIRV())
-    return;
-
-  SmallSet<DeviceLibExt, 16> DeviceLibUsed;
+    return 0;
+  uint32_t ReqMask = 0;
   for (const Function &SF : M) {
     if (SF.getName().starts_with(DEVICELIB_FUNC_PREFIX) && SF.isDeclaration()) {
       assert(SF.getCallingConv() == CallingConv::SPIR_FUNC);
-      auto DeviceLibFuncIter = SDLMap.find(SF.getName().str());
-      if (DeviceLibFuncIter == SDLMap.end())
-        continue;
-      if (DeviceLibUsed.contains(DeviceLibFuncIter->second))
-        continue;
-
-      DeviceLibUsed.insert(DeviceLibFuncIter->second);
-      for (size_t idx : DeviceLibSPVExtMap[DeviceLibFuncIter->second]) {
-        ReqDeviceLibs.push_back(SPVMetaList[idx]);
-      }
+      uint32_t DeviceLibBits = getDeviceLibBits(SF.getName().str());
+      ReqMask |= DeviceLibBits;
     }
   }
+  return ReqMask;
 }
-} // namespace llvm
