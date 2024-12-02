@@ -655,6 +655,14 @@ ur_result_t urAdapterGetInfo(ur_adapter_handle_t, ur_adapter_info_t PropName,
     return ReturnValue(UR_ADAPTER_BACKEND_LEVEL_ZERO);
   case UR_ADAPTER_INFO_REFERENCE_COUNT:
     return ReturnValue(GlobalAdapter->RefCount.load());
+  case UR_ADAPTER_INFO_VERSION: {
+#ifdef UR_ADAPTER_LEVEL_ZERO_V2
+    uint32_t adapterVersion = 2;
+#else
+    uint32_t adapterVersion = 1;
+#endif
+    return ReturnValue(adapterVersion);
+  }
   default:
     return UR_RESULT_ERROR_INVALID_ENUMERATION;
   }
