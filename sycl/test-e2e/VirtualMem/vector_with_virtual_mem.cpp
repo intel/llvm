@@ -1,35 +1,16 @@
-// REQUIRES: aspect-ext_oneapi_virtual_mem, aspect-usm_shared_allocations
+// REQUIRES: aspect-usm_shared_allocations
 
-// XFAIL: linux && gpu-intel-dg2
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15812
+// UNSUPPORTED: linux && gpu-intel-dg2
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/15812
 
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
 
-#include <sycl/detail/core.hpp>
 #include <sycl/usm.hpp>
 
 #include <sycl/ext/oneapi/experimental/device_architecture.hpp>
-#include <sycl/ext/oneapi/virtual_mem/physical_mem.hpp>
-#include <sycl/ext/oneapi/virtual_mem/virtual_mem.hpp>
 
-namespace syclext = sycl::ext::oneapi::experimental;
-
-// Find the least common multiple of the context and device granularities. This
-// value can be used for aligning both physical memory allocations and for
-// reserving virtual memory ranges.
-size_t GetLCMGranularity(const sycl::device &Dev, const sycl::context &Ctx) {
-  size_t CtxGranularity = syclext::get_mem_granularity(Ctx);
-  size_t DevGranularity = syclext::get_mem_granularity(Dev, Ctx);
-
-  size_t GCD = CtxGranularity;
-  size_t Rem = DevGranularity % GCD;
-  while (Rem != 0) {
-    std::swap(GCD, Rem);
-    Rem %= GCD;
-  }
-  return (DevGranularity / GCD) * CtxGranularity;
-}
+#include "helpers.hpp"
 
 template <typename T> class VirtualVector {
 public:

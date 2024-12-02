@@ -149,8 +149,8 @@ template <typename T> bool tests(queue Q) {
 
 int main() {
   queue Q;
-  std::cout << "Running on " << Q.get_device().get_info<info::device::name>()
-            << "\n";
+  std::cout << "Running on "
+            << Q.get_device().get_info<sycl::info::device::name>() << "\n";
 
   bool Passed = true;
   Passed &= tests<int8_t>(Q);

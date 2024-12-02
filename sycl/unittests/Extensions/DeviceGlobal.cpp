@@ -11,8 +11,8 @@
 #include "detail/context_impl.hpp"
 #include "detail/kernel_program_cache.hpp"
 
+#include <helpers/MockDeviceImage.hpp>
 #include <helpers/MockKernelInfo.hpp>
-#include <helpers/UrImage.hpp>
 #include <helpers/UrMock.hpp>
 
 #include <gtest/gtest.h>
@@ -53,7 +53,7 @@ struct KernelInfo<DeviceGlobalImgScopeTestKernel>
 } // namespace _V1
 } // namespace sycl
 
-static sycl::unittest::UrImage generateDeviceGlobalImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -61,21 +61,21 @@ static sycl::unittest::UrImage generateDeviceGlobalImage() {
   sycl::detail::device_global_map::add(&DeviceGlobal, DeviceGlobalName);
 
   // Insert remaining device global info into the binary.
-  UrPropertySet PropSet;
-  UrProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalName, sizeof(int) * 2, 0);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 std::vector<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalTestKernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
-static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
+static sycl::unittest::MockDeviceImage generateDeviceGlobalImgScopeImage() {
   using namespace sycl::unittest;
 
   // Call device global map initializer explicitly to mimic the integration
@@ -84,24 +84,24 @@ static sycl::unittest::UrImage generateDeviceGlobalImgScopeImage() {
                                        DeviceGlobalImgScopeName);
 
   // Insert remaining device global info into the binary.
-  UrPropertySet PropSet;
-  UrProperty DevGlobInfo =
+  MockPropertySet PropSet;
+  MockProperty DevGlobInfo =
       makeDeviceGlobalInfo(DeviceGlobalImgScopeName, sizeof(int) * 2, 1);
   PropSet.insert(__SYCL_PROPERTY_SET_SYCL_DEVICE_GLOBALS,
-                 std::vector<UrProperty>{std::move(DevGlobInfo)});
+                 std::vector<MockProperty>{std::move(DevGlobInfo)});
 
-  std::vector<UrOffloadEntry> Entries =
+  std::vector<MockOffloadEntry> Entries =
       makeEmptyKernels({DeviceGlobalImgScopeTestKernelName});
 
-  UrImage Img(std::move(Entries), std::move(PropSet));
+  MockDeviceImage Img(std::move(Entries), std::move(PropSet));
 
   return Img;
 }
 
 namespace {
-sycl::unittest::UrImage Imgs[] = {generateDeviceGlobalImage(),
-                                  generateDeviceGlobalImgScopeImage()};
-sycl::unittest::UrImageArray<2> ImgArray{Imgs};
+sycl::unittest::MockDeviceImage Imgs[] = {generateDeviceGlobalImage(),
+                                          generateDeviceGlobalImgScopeImage()};
+sycl::unittest::MockDeviceImageArray<2> ImgArray{Imgs};
 
 // Trackers.
 thread_local DeviceGlobalElemType MockDeviceGlobalMem;

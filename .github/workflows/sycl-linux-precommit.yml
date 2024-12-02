@@ -80,6 +80,12 @@ jobs:
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_options: -u 1001 --gpus all --cap-add SYS_ADMIN
             target_devices: ext_oneapi_cuda:gpu
+          - name: AMD/HIP
+            runner: '["Linux", "amdgpu"]'
+            image: ghcr.io/intel/llvm/ubuntu2204_build:latest
+            image_options: -u 1001 --device=/dev/dri --device=/dev/kfd
+            target_devices: ext_oneapi_hip:gpu
+            reset_intel_gpu: false
           - name: Intel
             runner: '["Linux", "gen12"]'
             image: ghcr.io/intel/llvm/ubuntu2204_intel_drivers:latest
@@ -162,7 +168,6 @@ jobs:
             runner: '["Linux", "amdgpu"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest
             image_extra_opts: --device=/dev/dri --device=/dev/kfd
-            extra_cmake_args: -DHIP_PLATFORM="AMD" -DAMD_ARCH="gfx1031"
           - name: CUDA system
             runner: '["Linux", "cuda"]'
             image: ghcr.io/intel/llvm/ubuntu2204_build:latest

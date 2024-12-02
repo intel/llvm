@@ -132,6 +132,13 @@ void SemaSYCL::checkDeprecatedSYCLAttributeSpelling(const ParsedAttr &A,
     return;
   }
 
+  // Additionally, diagnose deprecated [[intel::reqd_sub_group_size]] spelling
+  if (A.getKind() == ParsedAttr::AT_IntelReqdSubGroupSize && A.getScopeName() &&
+      A.getScopeName()->isStr("intel")) {
+    diagnoseDeprecatedAttribute(A, "sycl", "reqd_sub_group_size");
+    return;
+  }
+
   // Diagnose SYCL 2020 spellings in later SYCL modes.
   if (getLangOpts().getSYCLVersion() >= LangOptions::SYCL_2020) {
     // All attributes in the cl vendor namespace are deprecated in favor of a

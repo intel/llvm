@@ -711,6 +711,13 @@ StringRef remove_leading_dotslash(StringRef Path, Style style) {
   return Path;
 }
 
+StringRef remove_leading_dotbackslash_only(StringRef Path) {
+  // Remove leading ".\\".
+  if (Path.size() > 2 && Path[0] == '.' && Path[1] == '\\')
+    Path = Path.substr(2);
+  return Path;
+}
+
 // Remove path traversal components ("." and "..") when possible, and
 // canonicalize slashes.
 bool remove_dots(SmallVectorImpl<char> &the_path, bool remove_dot_dot,

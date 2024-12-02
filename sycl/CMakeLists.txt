@@ -30,11 +30,6 @@ endif()
 # Option to enable JIT, this in turn makes kernel fusion and spec constant
 # materialization possible.
 option(SYCL_ENABLE_EXTENSION_JIT "Enable extension to JIT kernels" ON)
-if(SYCL_ENABLE_EXTENSION_JIT AND WIN32)
-  message(WARNING "Extension to JIT kernels not yet supported on Windows")
-  set(SYCL_ENABLE_EXTENSION_JIT OFF CACHE
-      BOOL "Extension to JIT kernels not yet supported on Windows" FORCE)
-endif()
 
 if (NOT XPTI_INCLUDES)
   set(XPTI_INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}/../xpti/include)

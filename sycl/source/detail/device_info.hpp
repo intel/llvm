@@ -626,6 +626,9 @@ constexpr std::pair<const char *, oneapi_exp_arch> NvidiaAmdGPUArchitectures[] =
         {"9.0", oneapi_exp_arch::nvidia_gpu_sm_90},
         {"gfx701", oneapi_exp_arch::amd_gpu_gfx701},
         {"gfx702", oneapi_exp_arch::amd_gpu_gfx702},
+        {"gfx703", oneapi_exp_arch::amd_gpu_gfx703},
+        {"gfx704", oneapi_exp_arch::amd_gpu_gfx704},
+        {"gfx705", oneapi_exp_arch::amd_gpu_gfx705},
         {"gfx801", oneapi_exp_arch::amd_gpu_gfx801},
         {"gfx802", oneapi_exp_arch::amd_gpu_gfx802},
         {"gfx803", oneapi_exp_arch::amd_gpu_gfx803},
@@ -838,8 +841,8 @@ struct get_device_info_impl<
       };
     else if ((architecture::intel_gpu_pvc == DeviceArch) ||
              (architecture::intel_gpu_bmg_g21 == DeviceArch) ||
-             (architecture::intel_gpu_lnl_m == DeviceArch))
-      return {
+             (architecture::intel_gpu_lnl_m == DeviceArch)) {
+      std::vector<ext::oneapi::experimental::matrix::combination> pvc_combs = {
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
           {8, 0, 0, 0, 16, 32, matrix_type::uint8, matrix_type::sint8,
@@ -947,10 +950,11 @@ struct get_device_info_impl<
           {8, 0, 0, 0, 16, 8, matrix_type::tf32, matrix_type::tf32,
            matrix_type::fp32, matrix_type::fp32},
       };
-    else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
-             (architecture::intel_gpu_dg2_g12 == DeviceArch) ||
-             (architecture::intel_gpu_arl_h == DeviceArch))
+      return pvc_combs;
+    } else if ((architecture::intel_gpu_dg2_g10 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g11 == DeviceArch) ||
+               (architecture::intel_gpu_dg2_g12 == DeviceArch) ||
+               (architecture::intel_gpu_arl_h == DeviceArch))
       return {
           {8, 0, 0, 0, 8, 32, matrix_type::uint8, matrix_type::uint8,
            matrix_type::sint32, matrix_type::sint32},
@@ -1408,6 +1412,32 @@ typename Param::return_type get_device_info(const DeviceImplPtr &Dev) {
 }
 
 template <>
+inline typename info::device::preferred_interop_user_sync::return_type
+get_device_info<info::device::preferred_interop_user_sync>(
+    const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(
+        errc::invalid,
+        "the info::device::preferred_interop_user_sync info descriptor can "
+        "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::preferred_interop_user_sync;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline typename info::device::profile::return_type
+get_device_info<info::device::profile>(const DeviceImplPtr &Dev) {
+  if (Dev->getBackend() != backend::opencl) {
+    throw sycl::exception(errc::invalid,
+                          "the info::device::profile info descriptor can "
+                          "only be queried with an OpenCL backend");
+  }
+  using Param = info::device::profile;
+  return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
 inline ext::intel::info::device::device_id::return_type
 get_device_info<ext::intel::info::device::device_id>(const DeviceImplPtr &Dev) {
   if (!Dev->has(aspect::ext_intel_device_id))
@@ -1557,6 +1587,25 @@ get_device_info<ext::intel::info::device::memory_bus_width>(
         "The device does not have the ext_intel_memory_bus_width aspect");
   using Param = ext::intel::info::device::memory_bus_width;
   return get_device_info_impl<Param::return_type, Param>::get(Dev);
+}
+
+template <>
+inline ext::intel::esimd::info::device::has_2d_block_io_support::return_type
+get_device_info<ext::intel::esimd::info::device::has_2d_block_io_support>(
+    const DeviceImplPtr &Dev) {
+  if (!Dev->has(aspect::ext_intel_esimd))
+    return false;
+
+  ur_exp_device_2d_block_array_capability_flags_t BlockArrayCapabilities;
+  Dev->getAdapter()->call<UrApiKind::urDeviceGetInfo>(
+      Dev->getHandleRef(),
+      UrInfoCode<
+          ext::intel::esimd::info::device::has_2d_block_io_support>::value,
+      sizeof(BlockArrayCapabilities), &BlockArrayCapabilities, nullptr);
+  return (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_LOAD) &&
+         (BlockArrayCapabilities &
+          UR_EXP_DEVICE_2D_BLOCK_ARRAY_CAPABILITY_FLAG_STORE);
 }
 
 // Returns the list of all progress guarantees that can be requested for

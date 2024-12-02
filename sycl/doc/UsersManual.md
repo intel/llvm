@@ -95,6 +95,9 @@ and not recommended to use in production environment.
     * amd_gpu_gfx700 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx701 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx702 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx703 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx704 - AMD GCN GFX7 (Sea Islands (CI)) architecture
+    * amd_gpu_gfx705 - AMD GCN GFX7 (Sea Islands (CI)) architecture
     * amd_gpu_gfx801 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx802 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
     * amd_gpu_gfx803 - AMD GCN GFX8 (Volcanic Islands (VI)) architecture
@@ -104,13 +107,13 @@ and not recommended to use in production environment.
     * amd_gpu_gfx902 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx904 - AMD GCN GFX9 (Vega) architecture
     * amd_gpu_gfx906 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx908 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx908 - AMD GCN GFX9 (CDNA1) architecture
     * amd_gpu_gfx909 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx90a - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx90a - AMD GCN GFX9 (CDNA2) architecture
     * amd_gpu_gfx90c - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx940 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx941 - AMD GCN GFX9 (Vega) architecture
-    * amd_gpu_gfx942 - AMD GCN GFX9 (Vega) architecture
+    * amd_gpu_gfx940 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx941 - AMD GCN GFX9 (CDNA3) architecture
+    * amd_gpu_gfx942 - AMD GCN GFX9 (CDNA3) architecture
     * amd_gpu_gfx1010 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1011 - AMD GCN GFX10.1 (RDNA 1) architecture
     * amd_gpu_gfx1012 - AMD GCN GFX10.1 (RDNA 1) architecture

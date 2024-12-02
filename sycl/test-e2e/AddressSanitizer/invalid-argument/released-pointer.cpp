@@ -1,8 +1,4 @@
-// REQUIRES: linux, gpu
-
-// XFAIL: gpu-intel-dg2 && linux
-// XFAIL-TRACKER: https://github.com/intel/llvm/issues/15648
-
+// REQUIRES: linux, cpu || (gpu && level_zero)
 // RUN: %{build} %device_asan_flags -O2 -g -o %t
 // RUN: env SYCL_PREFER_UR=1 UR_LAYER_ASAN_OPTIONS="quarantine_size_mb:1;detect_kernel_arguments:1" %{run} not %t 2>&1 | FileCheck %s
 
@@ -20,7 +16,7 @@ int main() {
   });
   Q.wait();
   // CHECK: ERROR: DeviceSanitizer: invalid-argument
-  // CHECK: The 1th argument {{.*}} is a released USM pointer
+  // CHECK: The {{[0-9]+}}th argument {{.*}} is a released USM pointer
   // CHECK: {{.*}} is located inside of Device USM region
   // CHECK: allocated here:
   // CHECK: freed here:
