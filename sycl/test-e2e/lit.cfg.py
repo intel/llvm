@@ -177,14 +177,22 @@ if lit_config.params.get("igc-dev", False):
 device_name_arch_map = {
     # <Device name> : Set of architectures types (and aliases)
     # DG1
-    "gpu-intel-dg1" : {"intel_gpu_dg1"},
+    "gpu-intel-dg1": {"intel_gpu_dg1"},
     # DG2
-    "gpu-intel-dg2" : {"intel_gpu_acm_g12","intel_gpu_dg2_g12","intel_gpu_acm_g11","intel_gpu_dg2_g11","intel_gpu_acm_g10","intel_gpu_dg2_g10"},
+    "gpu-intel-dg2": {
+        "intel_gpu_acm_g12",
+        "intel_gpu_dg2_g12",
+        "intel_gpu_acm_g11",
+        "intel_gpu_dg2_g11",
+        "intel_gpu_acm_g10",
+        "intel_gpu_dg2_g10",
+    },
     # Gen12
-    "gpu-intel-gen12" : {"intel_gpu_tgllp","intel_gpu_tgl"},
+    "gpu-intel-gen12": {"intel_gpu_tgllp", "intel_gpu_tgl"},
     # Gen11
-    "gpu-intel-gen11" : {"intel_gpu_icllp","intel_gpu_icl"},
+    "gpu-intel-gen11": {"intel_gpu_icllp", "intel_gpu_icl"},
 }
+
 
 def get_device_name_from_arch(arch):
     for device_name, arch_set in device_name_arch_map.items():
@@ -789,7 +797,11 @@ for sycl_device in config.sycl_devices:
     architecture_feature = set("arch-" + s for s in architectures)
     # Add device name features like intel-gpu-gen12, intel-gpu-dg2 based on
     # the architecture reported by sycl-ls.
-    device_names = set(get_device_name_from_arch(arch) for arch in architectures if get_device_name_from_arch(arch) is not None)
+    device_names = set(
+        get_device_name_from_arch(arch)
+        for arch in architectures
+        if get_device_name_from_arch(arch) is not None
+    )
     features = set()
     features.update(aspect_features)
     features.update(sg_size_features)
