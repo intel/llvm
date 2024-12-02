@@ -47,6 +47,7 @@ static const LangASMap FakeAddrSpaceMap = {
     11, // ptr32_uptr
     12, // ptr64
     13, // hlsl_groupshared
+    14, // hlsl_private
     20, // wasm_funcref
 };
 
@@ -572,6 +573,7 @@ void TargetInfo::adjust(DiagnosticsEngine &Diags, LangOptions &Opts) {
         0,  // ptr32_uptr
         0,  // ptr64
         0,  // hlsl_groupshared
+        14, // hlsl_private
         20, // wasm_funcref
     };
 
