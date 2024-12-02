@@ -458,15 +458,19 @@ dynParamAccessor.update(bufferB.get_access());
 Example showing how a graph with a dynamic command group node can be updated.
 
 ```cpp
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
+
 queue Queue{};
-exp_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
+sycl_ext::command_graph Graph{Queue.get_context(), Queue.get_device()};
 
 int *PtrA = malloc_device<int>(1024, Queue);
-int *PtrB = malloc_device<int>(1024, Queue)​;
+int *PtrB = malloc_device<int>(1024, Queue);
 
 auto CgfA = [&](handler &cgh) {
   cgh.parallel_for(1024, [=](item<1> Item) {
-    PtrA[Item.get_id()] = 1;​
+    PtrA[Item.get_id()] = 1;
   });
 };
 
@@ -477,18 +481,18 @@ auto CgfB = [&](handler &cgh) {
 };
 
 // Construct a dynamic command-group with CgfA as the active cgf (index 0).
-auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CgfA, CgfB});
+auto DynamicCG = sycl_ext::dynamic_command_group(Graph, {CgfA, CgfB});
 
 // Create a dynamic command-group graph node.
 auto DynamicCGNode = Graph.add(DynamicCG);
 
-auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
+auto ExecGraph = Graph.finalize(sycl_ext::property::graph::updatable{});
 
 // The graph will execute CgfA.
 Queue.ext_oneapi_graph(ExecGraph).wait();
 
 // Sets CgfB as active in the dynamic command-group (index 1).
-DynamicCG.set_active_cgf(1);
+DynamicCG.set_active_index(1);
 
 // Calls update to update the executable graph node with the changes to DynamicCG.
 ExecGraph.update(DynamicCGNode);
@@ -503,45 +507,49 @@ Example showing how a graph with a dynamic command group that uses dynamic
 parameters in a node can be updated.
 
 ```cpp
-size_t n = 1024;
-queue Queue{};
-auto myContext = Queue.get_context();
-auto myDevice = Queue.get_device();
-exp_ext::command_graph Graph{myContext, myDevice};
+...
+using namespace sycl;
+namespace sycl_ext = sycl::ext::oneapi::experimental;
 
-int *PtrA = malloc_device<int>(n, Queue);
-int *PtrB = malloc_device<int>(n, Queue)​;
+size_t N = 1024;
+queue Queue{};
+auto MyContext = Queue.get_context();
+auto MyDevice = Queue.get_device();
+sycl_ext::command_graph Graph{MyContext, MyDevice};
+
+int *PtrA = malloc_device<int>(N, Queue);
+int *PtrB = malloc_device<int>(N, Queue);
 
 // Kernels loaded from kernel bundle
-const std::vector<kernel_id> builtinKernelIds =
-      myDevice.get_info<info::device::built_in_kernel_ids>();
-kernel_bundle<bundle_state::executable> myBundle =
-      get_kernel_bundle<sycl::bundle_state::executable>(myContext, { myDevice }, builtinKernelIds);
+const std::vector<kernel_id> BuiltinKernelIds =
+      MyDevice.get_info<info::device::built_in_kernel_ids>();
+kernel_bundle<bundle_state::executable> MyBundle =
+      get_kernel_bundle<sycl::bundle_state::executable>(MyContext, { MyDevice }, BuiltinKernelIds);
 
-kernel builtinKernelA = myBundle.get_kernel(builtinKernelIds[0]);
-kernel builtinKernelB = myBundle.get_kernel(builtinKernelIds[1]);
+kernel BuiltinKernelA = MyBundle.get_kernel(BuiltinKernelIds[0]);
+kernel BuiltinKernelB = MyBundle.get_kernel(BuiltinKernelIds[1]);
 
 // Create a dynamic parameter with an initial value of PtrA
-exp_ext::dynamic_parameter DynamicPointerArg{Graph, PtrA};
+sycl_ext::dynamic_parameter DynamicPointerArg{Graph, PtrA};
 
 // Create command groups for both kernels which use DynamicPointerArg
 auto CgfA = [&](handler &cgh) {
   cgh.set_arg(0, DynamicPointerArg);
-  cgh.parallel_for(range {n}, builtinKernelA);
+  cgh.parallel_for(range {N}, BuiltinKernelA);
 };
 
 auto CgfB = [&](handler &cgh) {
   cgh.set_arg(0, DynamicPointerArg);
-  cgh.parallel_for(range {n / 2}, builtinKernelB);
+  cgh.parallel_for(range {N / 2}, BuiltinKernelB);
 };
 
 // Construct a dynamic command-group with CgfA as the active cgf (index 0).
-auto DynamicCG = exp_ext::dynamic_command_group(Graph, {CgfA, CgfB});
+auto DynamicCG = sycl_ext::dynamic_command_group(Graph, {CgfA, CgfB});
 
 // Create a dynamic command-group graph node.
 auto DynamicCGNode = Graph.add(DynamicCG);
 
-auto ExecGraph = Graph.finalize(exp_ext::property::graph::updatable{});
+auto ExecGraph = Graph.finalize(sycl_ext::property::graph::updatable{});
 
 // The graph will execute CgfA with PtrA.
 Queue.ext_oneapi_graph(ExecGraph).wait();
@@ -550,7 +558,7 @@ Queue.ext_oneapi_graph(ExecGraph).wait();
 DynamicPointerArg.update(PtrB);
 
 // Sets CgfB as active in the dynamic command-group (index 1).
-DynamicCG.set_active_cgf(1);
+DynamicCG.set_active_index(1);
 
 // Calls update to update the executable graph node with the changes to
 // DynamicCG and DynamicPointerArg.

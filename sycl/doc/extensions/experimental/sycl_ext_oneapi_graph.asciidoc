@@ -562,17 +562,20 @@ public:
       command_graph<graph_state::modifiable> &graph,
       const std::vector<std::function<void(handler &)>>& cgfList);
 
-  size_t get_active_cgf() const;
-  void set_active_cgf(size_t cgfIndex);
+  size_t get_active_index() const;
+  void set_active_index(size_t cgfIndex);
 };
 ----
 
-Dynamic command-groups can be added as nodes to a graph. They provide a mechanism that
-allows updating the command-group function of a node after the graph is finalized.
-There is always one command-group function in the dynamic command-group that is set
-as active. When a dynamic command-group node is executed, the kernel of the active
-command-group function will be run and all the other command-group functions in
-`cgfList` will be ignored.
+Dynamic command-groups can be added as nodes to a graph. They provide a
+mechanism that allows updating the command-group function of a node after the
+graph is finalized. There is always one command-group function in the dynamic
+command-group that is set as active, this is the kernel which will execute for
+the node when the graph is finalized into an executable state `command_graph`,
+and all the other command-group functions in `cgfList` will be ignored. The
+executable `command_graph` node can then be updated to a different kernel in
+`cgfList`, by selecting a new active index on the dynamic command-group object
+and calling the `update(node& node)` method on the executable `command_graph`.
 
 The `dynamic_command_group` class provides the {crs}[common reference semantics].
 
@@ -581,8 +584,9 @@ about updating command-groups.
 
 ===== Limitations
 
-Dynamic command-groups can only be used to update kernels. Trying to update a command-group
-function that contains other operations will result in an error.
+Dynamic command-groups can only contain kernel operations. Trying to construct
+a dynamic command-group with functions that contain other operations will
+result in an error.
 
 All the command-group functions in a dynamic command-group must have identical dependencies.
 It is not allowed for a dynamic command-group to have command-group functions that would
@@ -628,7 +632,7 @@ Exceptions:
 |
 [source,c++]
 ----
-size_t get_active_cgf() const;
+size_t get_active_index() const;
 ----
 |Returns the index of the currently active command-group function in this
 `dynamic_command_group`.
@@ -636,7 +640,7 @@ size_t get_active_cgf() const;
 |
 [source,c++]
 ----
-void set_active_cgf(size_t cgfIndex);
+void set_active_index(size_t cgfIndex);
 ----
 | Sets the command-group function with index `cgfIndex` as active. The index of the
 command-group function in a `dynamic_command_group` is identical to its index in the
@@ -902,7 +906,7 @@ Command-group updates are performed by creating an instance of the
 `dynamic_command_group` class. A dynamic command-group is created with a modifiable
 state graph and a list of possible command-group functions. Command-group functions
 within a dynamic command-group can then be set to active by using the member function
-`dynamic_command_group::set_active_cgf()`.
+`dynamic_command_group::set_active_index()`.
 
 Dynamic command-groups are compatible with dynamic parameters. This means that
 dynamic parameters can be used in command-group functions that are part of
@@ -910,12 +914,14 @@ dynamic command-groups. Updates to such dynamic parameters will be reflected
 in the command-group functions once they are activated.
 
 Note that the execution range is tied to the command-group, therefore updating
-the range of a node which uses a dynamic command-group shared by another node
-will also update the execution range of the nodes sharing the dynamic
-command-group. Activating a command-group with `set_active_cgf` to a
-command-group that previously had its execution range updated with
-`node::update_range()` or `node::update_nd_range()` will not reset the execution
-range to the original, but instead use the most recently updated value.
+the range of a node which uses a dynamic command-group will update the
+execution range of the currently active command-group. If the dynamic
+command-group is shared by another node, it will also update the execution
+range of the other nodes sharing that dynamic command-group. Activating a
+command-group with `set_active_index` to a command-group that previously had
+its execution range updated with `node::update_range()` or
+`node::update_nd_range()` will not reset the execution range to the original
+value, but instead use the most recently updated value.
 
 ====== Committing Updates
 

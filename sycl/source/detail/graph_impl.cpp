@@ -2075,10 +2075,10 @@ dynamic_command_group::dynamic_command_group(
   impl->finalizeCGFList(CGFList);
 }
 
-size_t dynamic_command_group::get_active_cgf() const {
+size_t dynamic_command_group::get_active_index() const {
   return impl->getActiveIndex();
 }
-void dynamic_command_group::set_active_cgf(size_t Index) {
+void dynamic_command_group::set_active_index(size_t Index) {
   return impl->setActiveIndex(Index);
 }
 } // namespace experimental
