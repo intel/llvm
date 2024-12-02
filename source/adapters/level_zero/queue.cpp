@@ -1563,24 +1563,23 @@ void ur_queue_handle_t_::clearEndTimeRecordings() {
   for (auto Entry : EndTimeRecordings) {
     auto &Event = Entry.first;
     auto &EndTimeRecording = Entry.second;
-    if (!Entry.second.EventHasDied) {
-      // Write the result back to the event if it is not dead.
-      uint64_t ContextEndTime =
-          (EndTimeRecording.RecordEventEndTimestamp & TimestampMaxValue) *
-          ZeTimerResolution;
 
-      // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
-      // Note, it will not report correct time if there were multiple wrap
-      // arounds, and the longer term plan is to enlarge the capacity of the
-      // HW timestamps.
-      if (ContextEndTime < Event->RecordEventStartTimestamp)
-        ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+    // Write the result back to the event if it is not dead.
+    uint64_t ContextEndTime =
+        (EndTimeRecording & TimestampMaxValue) * ZeTimerResolution;
 
-      // Store it in the event.
-      Event->RecordEventEndTimestamp = ContextEndTime;
-    }
+    // Handle a possible wrap-around (the underlying HW counter is < 64-bit).
+    // Note, it will not report correct time if there were multiple wrap
+    // arounds, and the longer term plan is to enlarge the capacity of the
+    // HW timestamps.
+    if (ContextEndTime < Event->RecordEventStartTimestamp)
+      ContextEndTime += TimestampMaxValue * ZeTimerResolution;
+
+    // Store it in the event.
+    Event->RecordEventEndTimestamp = ContextEndTime;
   }
   EndTimeRecordings.clear();
+  EvictedEndTimeRecordings.clear();
 }
 
 ur_result_t urQueueReleaseInternal(ur_queue_handle_t Queue) {
