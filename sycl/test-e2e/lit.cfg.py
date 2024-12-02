@@ -806,7 +806,9 @@ for sycl_device in config.sycl_devices:
     # Print the detected GPU family name.
     if len(device_names) > 0:
         lit_config.note(
-            "Detected GPU family for {}: {}".format(sycl_device, ", ".join(device_names))
+            "Detected GPU family for {}: {}".format(
+                sycl_device, ", ".join(device_names)
+            )
         )
 
     features = set()
