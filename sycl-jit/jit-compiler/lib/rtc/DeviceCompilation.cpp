@@ -7,6 +7,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "DeviceCompilation.h"
+#include "ESIMD.h"
 
 #include <clang/Basic/DiagnosticDriver.h>
 #include <clang/Basic/Version.h>
@@ -23,6 +24,8 @@
 #include <llvm/IRReader/IRReader.h>
 #include <llvm/Linker/Linker.h>
 #include <llvm/SYCLLowerIR/ComputeModuleRuntimeInfo.h>
+#include <llvm/SYCLLowerIR/ESIMD/LowerESIMD.h>
+#include <llvm/SYCLLowerIR/LowerInvokeSimd.h>
 #include <llvm/SYCLLowerIR/ModuleSplitter.h>
 #include <llvm/SYCLLowerIR/SYCLJointMatrixTransform.h>
 #include <llvm/Support/PropertySetIO.h>
@@ -376,42 +379,82 @@ template <class PassClass> static bool runModulePass(llvm::Module &M) {
   return !Res.areAllPreserved();
 }
 
-Expected<RTCBundleInfo> jit_compiler::performPostLink(
-    llvm::Module &Module, [[maybe_unused]] const InputArgList &UserArgList) {
+llvm::Expected<PostLinkResult> jit_compiler::performPostLink(
+    std::unique_ptr<llvm::Module> Module,
+    [[maybe_unused]] const llvm::opt::InputArgList &UserArgList) {
   // This is a simplified version of `processInputModule` in
   // `llvm/tools/sycl-post-link.cpp`. Assertions/TODOs point to functionality
   // left out of the algorithm for now.
 
-  assert(!Module.getGlobalVariable("llvm.used") &&
-         !Module.getGlobalVariable("llvm.compiler.used"));
+  // TODO: SplitMode can be controlled by the user.
+  const auto SplitMode = SPLIT_NONE;
+
+  // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
+  //       `shouldEmitOnlyKernelsAsEntryPoints` in
+  //       `clang/lib/Driver/ToolChains/Clang.cpp`.
+  const bool EmitOnlyKernelsAsEntryPoints = true;
+
+  // TODO: The optlevel passed to `sycl-post-link` is determined by
+  //       `getSYCLPostLinkOptimizationLevel` in
+  //       `clang/lib/Driver/ToolChains/Clang.cpp`.
+  const bool PerformOpts = true;
+
+  // Propagate ESIMD attribute to wrapper functions to prevent spurious splits
+  // and kernel link errors.
+  runModulePass<SYCLFixupESIMDKernelWrapperMDPass>(*Module);
+
+  assert(!Module->getGlobalVariable("llvm.used") &&
+         !Module->getGlobalVariable("llvm.compiler.used"));
   // Otherwise: Port over the `removeSYCLKernelsConstRefArray` and
   // `removeDeviceGlobalFromCompilerUsed` methods.
 
-  assert(!isModuleUsingAsan(Module));
+  assert(!isModuleUsingAsan(*Module));
   // Otherwise: Need to instrument each image scope device globals if the module
   // has been instrumented by sanitizer pass.
 
   // Transform Joint Matrix builtin calls to align them with SPIR-V friendly
   // LLVM IR specification.
-  runModulePass<SYCLJointMatrixTransformPass>(Module);
+  runModulePass<SYCLJointMatrixTransformPass>(*Module);
+
+  // Do invoke_simd processing before splitting because this:
+  // - saves processing time (the pass is run once, even though on larger IR)
+  // - doing it before SYCL/ESIMD splitting is required for correctness
+  if (runModulePass<SYCLLowerInvokeSimdPass>(*Module)) {
+    return createStringError("`invoke_simd` calls detected");
+  }
 
   // TODO: Implement actual device code splitting. We're just using the splitter
   //       to obtain additional information about the module for now.
-  // TODO: EmitOnlyKernelsAsEntryPoints is controlled by
-  //       `shouldEmitOnlyKernelsAsEntryPoints` in
-  //       `clang/lib/Driver/ToolChains/Clang.cpp`.
+
   std::unique_ptr<ModuleSplitterBase> Splitter = getDeviceCodeSplitter(
-      ModuleDesc{std::unique_ptr<llvm::Module>{&Module}}, SPLIT_NONE,
-      /*IROutputOnly=*/false,
-      /*EmitOnlyKernelsAsEntryPoints=*/true);
-  assert(Splitter->remainingSplits() == 1);
+      ModuleDesc{std::move(Module)}, SplitMode,
+      /*IROutputOnly=*/false, EmitOnlyKernelsAsEntryPoints);
+  assert(Splitter->hasMoreSplits());
+  if (Splitter->remainingSplits() > 1) {
+    return createStringError("Device code requires splitting");
+  }
 
   // TODO: Call `verifyNoCrossModuleDeviceGlobalUsage` if device globals shall
   //       be processed.
 
-  assert(Splitter->hasMoreSplits());
   ModuleDesc MDesc = Splitter->nextSplit();
-  assert(&Module == &MDesc.getModule());
+
+  // TODO: Call `MDesc.fixupLinkageOfDirectInvokeSimdTargets()` when
+  //       `invoke_simd` is supported.
+
+  SmallVector<ModuleDesc, 2> ESIMDSplits =
+      splitByESIMD(std::move(MDesc), EmitOnlyKernelsAsEntryPoints);
+  assert(!ESIMDSplits.empty());
+  if (ESIMDSplits.size() > 1) {
+    return createStringError("Mixing SYCL and ESIMD code is unsupported");
+  }
+  MDesc = std::move(ESIMDSplits.front());
+
+  if (MDesc.isESIMD()) {
+    // TODO: We're assuming ESIMD lowering is not deactivated (why would it?).
+    lowerEsimdConstructs(MDesc, PerformOpts);
+  }
+
   MDesc.saveSplitInformationAsMetadata();
 
   RTCBundleInfo BundleInfo;
@@ -448,10 +491,7 @@ Expected<RTCBundleInfo> jit_compiler::performPostLink(
     }
   };
 
-  // Regain ownership of the module.
-  MDesc.releaseModulePtr().release();
-
-  return std::move(BundleInfo);
+  return PostLinkResult{std::move(BundleInfo), MDesc.releaseModulePtr()};
 }
 
 Expected<InputArgList>
@@ -513,11 +553,9 @@ jit_compiler::parseUserArgs(View<const char *> UserArgs) {
     return createStringError("Device code splitting is not yet supported");
   }
 
-  if (AL.hasArg(OPT_fsycl_device_code_split_esimd,
-                OPT_fno_sycl_device_code_split_esimd)) {
-    // TODO: There are more ESIMD-related options.
-    return createStringError(
-        "Runtime compilation of ESIMD kernels is not yet supported");
+  if (!AL.hasFlag(OPT_fsycl_device_code_split_esimd,
+                  OPT_fno_sycl_device_code_split_esimd, true)) {
+    return createStringError("ESIMD device code split cannot be deactivated");
   }
 
   if (AL.hasFlag(OPT_fsycl_dead_args_optimization,

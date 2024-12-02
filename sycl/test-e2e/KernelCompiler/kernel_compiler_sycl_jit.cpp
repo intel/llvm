@@ -77,6 +77,27 @@ void ff_templated(T *ptr, T *unused) {
 }
 )===";
 
+auto constexpr ESIMDSource = R"===(
+#include <sycl/sycl.hpp>
+#include <sycl/ext/intel/esimd.hpp>
+
+using namespace sycl::ext::intel::esimd;
+
+constexpr int VL = 16;
+
+extern "C" SYCL_EXTERNAL SYCL_ESIMD_KERNEL SYCL_EXT_ONEAPI_FUNCTION_PROPERTY((sycl::ext::oneapi::experimental::nd_range_kernel<1>))
+void vector_add_esimd(float *A, float *B, float *C) {
+    sycl::nd_item<1> item = sycl::ext::oneapi::this_work_item::get_nd_item<1>();
+    unsigned int i = item.get_global_id(0);
+    unsigned int offset = i * VL ;
+
+    simd<float, VL> va(A + offset);
+    simd<float, VL> vb(B + offset);
+    simd<float, VL> vc = va + vb;
+    vc.copy_to(C + offset);
+}
+)===";
+
 void test_1(sycl::queue &Queue, sycl::kernel &Kernel, int seed) {
   constexpr int Range = 10;
   int *usmPtr = sycl::malloc_shared<int>(Range, Queue);
@@ -205,8 +226,73 @@ int test_unsupported_options() {
   CheckUnsupported({"-Xsycl-target-frontend=spir64", "-fsanitize=address"});
   CheckUnsupported({"-Xarch_device", "-fsanitize=address"});
   CheckUnsupported({"-fsycl-device-code-split=kernel"});
-  CheckUnsupported({"-fsycl-device-code-split-esimd"});
+  CheckUnsupported({"-fno-sycl-device-code-split-esimd"});
   CheckUnsupported({"-fsycl-dead-args-optimization"});
+
+  return 0;
+}
+
+int test_esimd() {
+  namespace syclex = sycl::ext::oneapi::experimental;
+  using source_kb = sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source>;
+  using exe_kb = sycl::kernel_bundle<sycl::bundle_state::executable>;
+
+  sycl::queue q;
+  sycl::context ctx = q.get_context();
+
+  if (!q.get_device().has(sycl::aspect::ext_intel_esimd)) {
+    std::cout << "Device does not support ESIMD" << std::endl;
+    return -1;
+  }
+
+  bool ok =
+      q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
+  if (!ok) {
+    return -1;
+  }
+
+  std::string log;
+
+  source_kb kbSrc = syclex::create_kernel_bundle_from_source(
+      ctx, syclex::source_language::sycl_jit, ESIMDSource);
+  exe_kb kbExe =
+      syclex::build(kbSrc, syclex::properties{syclex::save_log{&log}});
+
+  // extern "C" was used, so the name "vector_add_esimd" is not mangled and can
+  // be used directly.
+  sycl::kernel k = kbExe.ext_oneapi_get_kernel("vector_add_esimd");
+
+  // Now test it.
+  constexpr int VL = 16; // this constant also in ESIMDSource string.
+  constexpr int size = VL * 16;
+
+  float *A = sycl::malloc_shared<float>(size, q);
+  float *B = sycl::malloc_shared<float>(size, q);
+  float *C = sycl::malloc_shared<float>(size, q);
+  for (size_t i = 0; i < size; i++) {
+    A[i] = float(1);
+    B[i] = float(2);
+    C[i] = 0.0f;
+  }
+  sycl::range<1> GlobalRange{size / VL};
+  sycl::range<1> LocalRange{1};
+  sycl::nd_range<1> NDRange{GlobalRange, LocalRange};
+
+  q.submit([&](sycl::handler &h) {
+     h.set_arg(0, A);
+     h.set_arg(1, B);
+     h.set_arg(2, C);
+     h.parallel_for(NDRange, k);
+   }).wait();
+
+  // Check.
+  for (size_t i = 0; i < size; i++) {
+    assert(C[i] == 3.0f);
+  }
+
+  sycl::free(A, q);
+  sycl::free(B, q);
+  sycl::free(C, q);
 
   return 0;
 }
@@ -214,7 +300,7 @@ int test_unsupported_options() {
 int main() {
 
 #ifdef SYCL_EXT_ONEAPI_KERNEL_COMPILER
-  return test_build_and_run() || test_unsupported_options();
+  return test_build_and_run() || test_unsupported_options() || test_esimd();
 #else
   static_assert(false, "Kernel Compiler feature test macro undefined");
 #endif
