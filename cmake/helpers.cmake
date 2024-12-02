@@ -79,6 +79,13 @@ else()
     set(CXX_HAS_CFI_SANITIZE OFF)
 endif()
 
+set(CFI_FLAGS "")
+if (CFI_HAS_CFI_SANITIZE)
+    # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
+    # guarantee. -fsanitize=cfi depends on -flto
+    set(CFI_FLAGS "-flto -fsanitize=cfi -fno-sanitize=cfi-icall -fsanitize-ignorelist=${CMAKE_SOURCE_DIR}/sanitizer-ignorelist.txt")
+endif()
+
 function(add_ur_target_compile_options name)
     if(NOT MSVC)
         target_compile_definitions(${name} PRIVATE -D_FORTIFY_SOURCE=2)
@@ -95,9 +102,8 @@ function(add_ur_target_compile_options name)
             -fPIC
             -fstack-protector-strong
             -fvisibility=hidden
-            # cfi-icall requires called functions in shared libraries to also be built with cfi-icall, which we can't
-            # guarantee. -fsanitize=cfi depends on -flto
-            $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+
+            ${CFI_FLAGS}
             $<$<BOOL:${CXX_HAS_FCF_PROTECTION_FULL}>:-fcf-protection=full>
             $<$<BOOL:${CXX_HAS_FSTACK_CLASH_PROTECTION}>:-fstack-clash-protection>
 
@@ -135,7 +141,7 @@ function(add_ur_target_link_options name)
     if(NOT MSVC)
         if (NOT APPLE)
             target_link_options(${name} PRIVATE
-                $<$<BOOL:${CXX_HAS_CFI_SANITIZE}>:-flto -fsanitize=cfi -fno-sanitize=cfi-icall>
+                ${CFI_FLAGS}
                 "LINKER:-z,relro,-z,now,-z,noexecstack"
             )
             if (UR_DEVELOPER_MODE)
