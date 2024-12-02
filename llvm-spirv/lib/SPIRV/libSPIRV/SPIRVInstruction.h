@@ -4255,7 +4255,9 @@ public:
     validate();
   }
 
-  SPIRVUntypedPrefetchKHR() : SPIRVInstruction(OC) {
+  SPIRVUntypedPrefetchKHR()
+      : SPIRVInstruction(OC), PtrTy(SPIRVID_INVALID),
+        NumBytes(SPIRVID_INVALID) {
     setHasNoId();
     setHasNoType();
   }
