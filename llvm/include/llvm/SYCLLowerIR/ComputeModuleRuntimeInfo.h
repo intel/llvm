@@ -12,6 +12,7 @@
 
 #include "llvm/ADT/SetVector.h"
 #include "llvm/SYCLLowerIR/ModuleSplitter.h"
+#include "llvm/SYCLLowerIR/SYCLDeviceLibReqMask.h"
 #include "llvm/Support/PropertySetIO.h"
 #include <string>
 namespace llvm {

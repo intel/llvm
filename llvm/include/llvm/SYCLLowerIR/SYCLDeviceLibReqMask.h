@@ -17,6 +17,8 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+#include <vector>
 
 namespace llvm {
 
@@ -39,5 +41,7 @@ enum class DeviceLibExt : std::uint32_t {
 };
 
 uint32_t getSYCLDeviceLibReqMask(const Module &M);
-
+void getSYCLDeviceLibReqNames(unsigned int ReqMask,
+                              std::vector<std::string> &ReqNames);
+unsigned int getSYCLDeviceLibMeta(std::string &DeviceLibFn);
 } // namespace llvm

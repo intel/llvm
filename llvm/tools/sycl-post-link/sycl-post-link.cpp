@@ -12,7 +12,6 @@
 // - module splitter to split a big input module into smaller ones
 // - specialization constant intrinsic transformation
 //===----------------------------------------------------------------------===//
-
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Analysis/AssumptionCache.h"
@@ -311,9 +310,20 @@ std::string saveModuleIR(Module &M, int I, StringRef Suff) {
 
 std::string saveModuleProperties(module_split::ModuleDesc &MD,
                                  const GlobalBinImageProps &GlobProps, int I,
-                                 StringRef Suff, StringRef Target = "") {
-  auto PropSet =
-      computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+                                 StringRef Suff, StringRef Target = "",
+                                 bool IsDeviceLib = false) {
+  PropSetRegTy PropSet;
+
+  // For fallback devicelib module, no kernel included and no specialization
+  // constant used, skip regular Prop emit.
+  if (!IsDeviceLib)
+    PropSet = computeModuleProperties(MD.getModule(), MD.entries(), GlobProps);
+  else {
+    auto SYCLDeviceLibMeta = getSYCLDeviceLibMeta(MD.Name);
+    std::map<StringRef, unsigned int> RMEntry = {
+        {"DeviceLibMetaData", SYCLDeviceLibMeta}};
+    PropSet.add(PropSetRegTy::SYCL_DEVICELIB_METADATA, RMEntry);
+  }
 
   std::string NewSuff = Suff.str();
   if (!Target.empty()) {
@@ -421,17 +431,24 @@ void addTableRow(util::SimpleTable &Table,
 //   IR component saving is skipped, and this file name is recorded as such in
 //   the result.
 void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
-                module_split::ModuleDesc &MD, int I, StringRef IRFilename) {
+                module_split::ModuleDesc &MD, int I, StringRef IRFilename,
+                bool IsDeviceLib = false) {
   IrPropSymFilenameTriple BaseTriple;
   StringRef Suffix = getModuleSuffix(MD);
   MD.saveSplitInformationAsMetadata();
-  if (!IRFilename.empty()) {
-    // don't save IR, just record the filename
-    BaseTriple.Ir = IRFilename.str();
+  if (!IsDeviceLib) {
+    if (!IRFilename.empty()) {
+      // don't save IR, just record the filename
+      BaseTriple.Ir = IRFilename.str();
+    } else {
+      MD.cleanup();
+      BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
+    }
   } else {
-    MD.cleanup();
+    // For DeviceLib Modules, don't need to do clean up.
     BaseTriple.Ir = saveModuleIR(MD.getModule(), I, Suffix);
   }
+
   if (DoSymGen) {
     // save the names of the entry points - the symbol table
     BaseTriple.Sym = saveModuleSymbolTable(MD, I, Suffix);
@@ -445,11 +462,22 @@ void saveModule(std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
       GlobalBinImageProps Props = {EmitKernelParamInfo, EmitProgramMetadata,
                                    EmitExportedSymbols, EmitImportedSymbols,
                                    DeviceGlobals};
-      CopyTriple.Prop =
-          saveModuleProperties(MD, Props, I, Suffix, OutputFile.Target);
+      CopyTriple.Prop = saveModuleProperties(MD, Props, I, Suffix,
+                                             OutputFile.Target, IsDeviceLib);
     }
     addTableRow(*Table, CopyTriple);
   }
+}
+
+void saveDeviceLibModule(
+    std::vector<std::unique_ptr<util::SimpleTable>> &OutTables,
+    const std::string &IRFile, int I, LLVMContext &Context) {
+  SMDiagnostic Err;
+  StringRef DeviceLibLoc = DeviceLibDir;
+  std::string IRPath = DeviceLibLoc.str() + "/" + IRFile;
+  std::unique_ptr<Module> IRModule = parseIRFile(IRPath, Err, Context);
+  llvm::module_split::ModuleDesc LibIRMD(std::move(IRModule), IRFile);
+  saveModule(OutTables, LibIRMD, I, IRFile, true);
 }
 
 module_split::ModuleDesc link(module_split::ModuleDesc &&MD1,
@@ -747,7 +775,7 @@ bool isTargetCompatibleWithModule(const std::string &Target,
 }
 
 std::vector<std::unique_ptr<util::SimpleTable>>
-processInputModule(std::unique_ptr<Module> M) {
+processInputModule(std::unique_ptr<Module> M, LLVMContext &Context) {
   // Construct the resulting table which will accumulate all the outputs.
   SmallVector<StringRef, MAX_COLUMNS_IN_FILE_TABLE> ColumnTitles{
       StringRef(COL_CODE)};
@@ -775,6 +803,9 @@ processInputModule(std::unique_ptr<Module> M) {
   // Keeps track of any changes made to the input module and report to the user
   // if none were made.
   bool Modified = false;
+
+  // Keeps track of required device libraries by all device images.
+  unsigned int DeviceLibReqMask = 0;
 
   // Propagate ESIMD attribute to wrapper functions to prevent
   // spurious splits and kernel link errors.
@@ -887,6 +918,7 @@ processInputModule(std::unique_ptr<Module> M) {
                 "have been made\n";
     }
     for (module_split::ModuleDesc &IrMD : MMs) {
+      DeviceLibReqMask |= getSYCLDeviceLibReqMask(IrMD.getModule());
       saveModule(Tables, IrMD, ID, OutIRFileName);
     }
 
@@ -895,9 +927,19 @@ processInputModule(std::unique_ptr<Module> M) {
     if (!MMsWithDefaultSpecConsts.empty()) {
       for (size_t i = 0; i != MMsWithDefaultSpecConsts.size(); ++i) {
         module_split::ModuleDesc &IrMD = MMsWithDefaultSpecConsts[i];
+        DeviceLibReqMask |= getSYCLDeviceLibReqMask(IrMD.getModule());
         saveModule(Tables, IrMD, ID, OutIRFileName);
       }
 
+      ++ID;
+    }
+  }
+
+  if ((DeviceLibReqMask > 0) && (DeviceLibDir.getNumOccurrences() > 0)) {
+    string_vector DeviceLibReqNames;
+    getSYCLDeviceLibReqNames(DeviceLibReqMask, DeviceLibReqNames);
+    for (auto Fn : DeviceLibReqNames) {
+      saveDeviceLibModule(Tables, Fn, ID, Context);
       ++ID;
     }
   }
@@ -1044,7 +1086,7 @@ int main(int argc, char **argv) {
   }
 
   std::vector<std::unique_ptr<util::SimpleTable>> Tables =
-      processInputModule(std::move(M));
+      processInputModule(std::move(M), Context);
 
   // Input module was processed and a single output file was requested.
   if (IROutputOnly)

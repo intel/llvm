@@ -757,6 +757,28 @@ uint32_t getDeviceLibBits(const std::string &FuncName) {
 
 } // namespace
 
+static std::unordered_map<DeviceLibExt, std::vector<const char *>>
+    SYCLDeviceLibFn = {
+        {DeviceLibExt::cl_intel_devicelib_assert,
+         {"libsycl-fallback-cassert.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_math, {"libsycl-fallback-cmath.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_math_fp64,
+         {"libsycl-fallback-cmath-fp64.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_complex,
+         {"libsycl-fallback-complex.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_complex_fp64,
+         {"libsycl-fallback-complex-fp64.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_cstring,
+         {"libsycl-fallback-cstring.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_imf, {"libsycl-fallback-imf.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_imf_fp64,
+         {"libsycl-fallback-imf-fp64.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_imf_bf16,
+         {"libsycl-fallback-imf-bf16.bc"}},
+        {DeviceLibExt::cl_intel_devicelib_bfloat16,
+         {"libsycl-fallback-bfloat16.bc", "libsycl-native-bfloat16.bc"}},
+};
+
 // For each device image module, we go through all functions which meets
 // 1. The function name has prefix "__devicelib_"
 // 2. The function is declaration which means it doesn't have function body
@@ -774,4 +796,56 @@ uint32_t llvm::getSYCLDeviceLibReqMask(const Module &M) {
     }
   }
   return ReqMask;
+}
+
+void llvm::getSYCLDeviceLibReqNames(unsigned int ReqMask,
+                                    std::vector<std::string> &ReqNames) {
+  DeviceLibExt DeviceLibExts[] = {DeviceLibExt::cl_intel_devicelib_assert,
+                                  DeviceLibExt::cl_intel_devicelib_math,
+                                  DeviceLibExt::cl_intel_devicelib_math_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_complex,
+                                  DeviceLibExt::cl_intel_devicelib_complex_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_cstring,
+                                  DeviceLibExt::cl_intel_devicelib_imf,
+                                  DeviceLibExt::cl_intel_devicelib_imf_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_imf_bf16,
+                                  DeviceLibExt::cl_intel_devicelib_bfloat16};
+
+  unsigned int Temp;
+  for (auto Ext : DeviceLibExts) {
+    Temp =
+        0x1 << (static_cast<size_t>(Ext) -
+                static_cast<size_t>(DeviceLibExt::cl_intel_devicelib_assert));
+    if (Temp & ReqMask) {
+      for (auto Fn : SYCLDeviceLibFn[Ext])
+        ReqNames.push_back(std::string(Fn));
+    }
+  }
+}
+
+unsigned int llvm::getSYCLDeviceLibMeta(std::string &DeviceLibFn) {
+  DeviceLibExt DeviceLibExts[] = {DeviceLibExt::cl_intel_devicelib_assert,
+                                  DeviceLibExt::cl_intel_devicelib_math,
+                                  DeviceLibExt::cl_intel_devicelib_math_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_complex,
+                                  DeviceLibExt::cl_intel_devicelib_complex_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_cstring,
+                                  DeviceLibExt::cl_intel_devicelib_imf,
+                                  DeviceLibExt::cl_intel_devicelib_imf_fp64,
+                                  DeviceLibExt::cl_intel_devicelib_imf_bf16,
+                                  DeviceLibExt::cl_intel_devicelib_bfloat16};
+
+  unsigned int DeviceLibMeta = 0;
+  for (auto Ext : DeviceLibExts) {
+    for (auto Fn : SYCLDeviceLibFn[Ext]) {
+      if (DeviceLibFn == Fn) {
+        DeviceLibMeta = static_cast<unsigned int>(Ext);
+        if (DeviceLibFn == "libsycl-native-bfloat16.bc")
+          DeviceLibMeta |= 0x80000000ULL;
+        break;
+      }
+    }
+  }
+
+  return DeviceLibMeta;
 }
