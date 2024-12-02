@@ -28,7 +28,7 @@ int main() {
   });
   runTest(q, [](queue &q, buffer<int, 1> &buf) {
     kernel_bundle KB = get_kernel_bundle<sycl::bundle_state::executable>(
-        q.get_context() /*, {get_kernel_id<Kernel<2>>()}*/);
+        q.get_context(), {get_kernel_id<Kernel<2>>()});
     q.submit([&](handler &cgh) {
       auto acc = buf.get_access(cgh);
       cgh.use_kernel_bundle(KB);
@@ -37,7 +37,7 @@ int main() {
   });
   runTest(q, [](queue &q, buffer<int, 1> &buf) {
     kernel_bundle KBInput = get_kernel_bundle<sycl::bundle_state::input>(
-        q.get_context() /*,{get_kernel_id<Kernel<3>>()}*/);
+        q.get_context(), {get_kernel_id<Kernel<3>>()});
     kernel_bundle KBObject = compile(KBInput);
     kernel_bundle KBLinked = link(KBObject);
     q.submit([&](handler &cgh) {

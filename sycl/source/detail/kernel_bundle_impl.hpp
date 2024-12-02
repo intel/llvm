@@ -333,8 +333,7 @@ public:
                     SpecConst.second.back().Size);
         }
       };
-      std::for_each(MUniqueDeviceImages.begin(), MUniqueDeviceImages.end(),
-                    MergeSpecConstants);
+      std::for_each(begin(), end(), MergeSpecConstants);
     }
 
     for (const detail::KernelBundleImplPtr &Bundle : Bundles) {
@@ -752,15 +751,14 @@ public:
 
   bool contains_specialization_constants() const noexcept {
     return std::any_of(
-        MUniqueDeviceImages.begin(), MUniqueDeviceImages.end(),
-        [](const device_image_plain &DeviceImage) {
+        begin(), end(), [](const device_image_plain &DeviceImage) {
           return getSyclObjImpl(DeviceImage)->has_specialization_constants();
         });
   }
 
   bool native_specialization_constant() const noexcept {
     return contains_specialization_constants() &&
-           std::all_of(MUniqueDeviceImages.begin(), MUniqueDeviceImages.end(),
+           std::all_of(begin(), end(),
                        [](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->all_specialization_constant_native();
@@ -768,7 +766,7 @@ public:
   }
 
   bool has_specialization_constant(const char *SpecName) const noexcept {
-    return std::any_of(MUniqueDeviceImages.begin(), MUniqueDeviceImages.end(),
+    return std::any_of(begin(), end(),
                        [SpecName](const device_image_plain &DeviceImage) {
                          return getSyclObjImpl(DeviceImage)
                              ->has_specialization_constant(SpecName);
@@ -814,7 +812,7 @@ public:
 
   bool is_specialization_constant_set(const char *SpecName) const noexcept {
     bool SetInDevImg =
-        std::any_of(MUniqueDeviceImages.begin(), MUniqueDeviceImages.end(),
+        std::any_of(begin(), end(),
                     [SpecName](const device_image_plain &DeviceImage) {
                       return getSyclObjImpl(DeviceImage)
                           ->is_specialization_constant_set(SpecName);
