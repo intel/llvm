@@ -1977,14 +1977,20 @@ Removing this restriction is something we may look at for future revisions of
 The command submission functions defined in
 link:../experimental/sycl_ext_oneapi_enqueue_functions.asciidoc[sycl_ext_oneapi_enqueue_functions]
 can be used adding nodes to a graph when creating a graph from queue recording.
-New methods are also defined that enable submitting an executable graph, 
+New methods are also defined that enable submitting an executable graph,
 e.g. directly to a queue without returning an event.
 
 ==== sycl_ext_oneapi_free_function_kernels
 
-`sycl_ext_oneapi_free_function_kernels`, defined in 
+`sycl_ext_oneapi_free_function_kernels`, defined in
 link:../proposed/sycl_ext_oneapi_free_function_kernels.asciidoc[sycl_ext_oneapi_free_function_kernels]
-can be used with SYCL Graphs. 
+can be used with SYCL Graphs.
+
+==== sycl_ext_oneapi_work_group_memory
+
+Using the `work_group_memory` object defined in
+link:../experimental/sycl_ext_oneapi_work_group_memory.asciidoc[sycl_ext_oneapi_work_group_memory]
+inside graph kernel nodes is supported.
 
 == Examples and Usage Guide
 
