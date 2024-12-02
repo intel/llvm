@@ -1,7 +1,7 @@
-# commit 1675f053176f0860388aa67fd009750a7e03b2c2
-# Merge: 0ea47d7c 22ca5ee2
+# commit eb076da108a49ef1426f38690547a71905f58015
+# Merge: d8d8ee90 46832dfd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 19 14:41:15 2024 +0000
-#     Merge pull request #2337 from aarongreig/aaron/fixCoreFuncMacroWindows
-#     Fix the CL_CORE_FUNCTION macro on windows.
-set(UNIFIED_RUNTIME_TAG 1675f053176f0860388aa67fd009750a7e03b2c2)
+# Date:   Fri Nov 29 15:54:31 2024 +0000
+#     Merge pull request #2396 from kswiecicki/init-results-fix
+#     [L0] Add nullopt check before init results access
+set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)

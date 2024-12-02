@@ -1,12 +1,9 @@
 // RUN: %{build} -o %t.out
 // RUN: env SYCL_UR_TRACE=2 %{run} %t.out | FileCheck %s
 // Extra run to check for leaks in Level Zero using UR_L0_LEAKS_DEBUG
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=0 env SYCL_UR_TRACE=2 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 // Extra run to check for immediate-command-list in Level Zero
-// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
-
-// XFAIL: level_zero
-// XFAIL-TRACKER: OFNAAO-307
+// RUN: %if level_zero %{env SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 env SYCL_UR_TRACE=2 %{l0_leak_check} %{run} %t.out 2>&1 | FileCheck %s --implicit-check-not=LEAK %}
 
 // Tests updating a dynamic command-group with command-groups containing a
 // different number of arguments.
@@ -69,7 +66,7 @@ int main() {
   // CHECK: <--- urCommandBufferAppendKernelLaunchExp
   // CHECK-SAME: .hKernel = [[KERNEL_HANDLE1]]
   // CHECK-SAME: .numKernelAlternatives = 3
-  // CHECK-SAME: .phKernelAlternatives = {[[KERNEL_HANDLE2:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE3:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE4:[0-9a-fA-Fx]+]]}
+  // CHECK-SAME: .phKernelAlternatives = {{[0-9a-fA-Fx]* ?}}{[[KERNEL_HANDLE2:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE3:[0-9a-fA-Fx]+]], [[KERNEL_HANDLE4:[0-9a-fA-Fx]+]]}
   auto DynamicCG =
       exp_ext::dynamic_command_group(Graph, {CGFA, CGFB, CGFC, CGFD});
   auto DynamicCGNode = Graph.add(DynamicCG);

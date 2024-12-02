@@ -39,7 +39,6 @@ add_llvm_component_library(LLVMInstrumentation
   Core
   Demangle
   MC
-  SYCLLowerIR
   Support
   TargetParser
   TransformUtils

@@ -350,34 +350,6 @@ llvm::Type *CodeGenTypes::ConvertFunctionTypeInternal(QualType QFT) {
   return ResultType;
 }
 
-template <bool NeedTypeInterpret = false>
-llvm::Type *getJointMatrixINTELExtType(llvm::Type *CompTy,
-                                       ArrayRef<TemplateArgument> TemplateArgs,
-                                       const unsigned Val = 0) {
-  // TODO: we should actually have exactly 5 template parameters: 1 for
-  // type and 4 for type parameters. But in previous version of the SPIR-V
-  // spec we have Layout matrix type parameter, that was later removed.
-  // Once we update to the newest version of the spec - this should be updated.
-  assert((TemplateArgs.size() == 5 || TemplateArgs.size() == 6) &&
-         "Wrong JointMatrixINTEL template parameters number");
-  // This is required to represent optional 'Component Type Interpretation'
-  // parameter
-  std::vector<unsigned> Params;
-  for (size_t I = 1; I != TemplateArgs.size(); ++I) {
-    assert(TemplateArgs[I].getKind() == TemplateArgument::Integral &&
-           "Wrong JointMatrixINTEL template parameter");
-    Params.push_back(TemplateArgs[I].getAsIntegral().getExtValue());
-  }
-  // Don't add type interpretation for legacy matrices.
-  // Legacy matrices has 5 template parameters, while new representation
-  // has 6.
-  if (NeedTypeInterpret && TemplateArgs.size() != 5)
-    Params.push_back(Val);
-
-  return llvm::TargetExtType::get(CompTy->getContext(),
-                                  "spirv.JointMatrixINTEL", {CompTy}, Params);
-}
-
 llvm::Type *
 getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
                                ArrayRef<TemplateArgument> TemplateArgs) {
@@ -392,49 +364,6 @@ getCooperativeMatrixKHRExtType(llvm::Type *CompTy,
 
   return llvm::TargetExtType::get(
       CompTy->getContext(), "spirv.CooperativeMatrixKHR", {CompTy}, Params);
-}
-
-/// ConvertSYCLJointMatrixINTELType - Convert SYCL joint_matrix type
-/// which is represented as a pointer to a structure to LLVM extension type
-/// with the parameters that follow SPIR-V JointMatrixINTEL type.
-/// The expected representation is:
-/// target("spirv.JointMatrixINTEL", %element_type, %rows%, %cols%, %scope%,
-///        %use%, (optional) %element_type_interpretation%)
-llvm::Type *CodeGenTypes::ConvertSYCLJointMatrixINTELType(RecordDecl *RD) {
-  auto *TemplateDecl = cast<ClassTemplateSpecializationDecl>(RD);
-  ArrayRef<TemplateArgument> TemplateArgs =
-      TemplateDecl->getTemplateArgs().asArray();
-  assert(TemplateArgs[0].getKind() == TemplateArgument::Type &&
-         "1st JointMatrixINTEL template parameter must be type");
-  llvm::Type *CompTy = ConvertType(TemplateArgs[0].getAsType());
-
-  // Per JointMatrixINTEL spec the type can have an optional
-  // 'Component Type Interpretation' parameter. We should emit it in case
-  // if on SYCL level joint matrix accepts 'bfloat16' or 'tf32' objects as
-  // matrix's components. Yet 'bfloat16' should be represented as 'int16' and
-  // 'tf32' as 'float' types.
-  if (CompTy->isStructTy()) {
-    StringRef LlvmTyName = CompTy->getStructName();
-    // Emit half/int16/float for sycl[::*]::{half,bfloat16,tf32}
-    if (LlvmTyName.starts_with("class.sycl::") ||
-        LlvmTyName.starts_with("class.__sycl_internal::"))
-      LlvmTyName = LlvmTyName.rsplit("::").second;
-    if (LlvmTyName == "half") {
-      CompTy = llvm::Type::getHalfTy(getLLVMContext());
-      return getJointMatrixINTELExtType(CompTy, TemplateArgs);
-    } else if (LlvmTyName == "tf32") {
-      CompTy = llvm::Type::getFloatTy(getLLVMContext());
-      // 'tf32' interpretation is mapped to '0'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 0);
-    } else if (LlvmTyName == "bfloat16") {
-      CompTy = llvm::Type::getInt16Ty(getLLVMContext());
-      // 'bfloat16' interpretation is mapped to '1'
-      return getJointMatrixINTELExtType<true>(CompTy, TemplateArgs, 1);
-    } else {
-      llvm_unreachable("Wrong matrix base type!");
-    }
-  }
-  return getJointMatrixINTELExtType(CompTy, TemplateArgs);
 }
 
 /// ConvertSPVCooperativeMatrixType - Convert SYCL joint_matrix type
@@ -733,11 +662,7 @@ llvm::Type *CodeGenTypes::ConvertType(QualType T) {
       if (ClangETy && ClangETy->isStructureOrClassType()) {
         RecordDecl *RD = ClangETy->getAsCXXRecordDecl();
         if (RD && RD->getQualifiedNameAsString() ==
-                      "__spv::__spirv_JointMatrixINTEL") {
-          ResultType = ConvertSYCLJointMatrixINTELType(RD);
-          break;
-        } else if (RD && RD->getQualifiedNameAsString() ==
-                             "__spv::__spirv_CooperativeMatrixKHR") {
+                      "__spv::__spirv_CooperativeMatrixKHR") {
           ResultType = ConvertSPVCooperativeMatrixType(RD);
           break;
         } else if (RD && RD->getQualifiedNameAsString() ==

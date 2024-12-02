@@ -57,11 +57,8 @@
 // these macros are #undef immediately.
 // replace _KERNELFUNCPARAM(KernelFunc) with   KernelType KernelFunc
 //                                     or     const KernelType &KernelFunc
-#ifdef __SYCL_NONCONST_FUNCTOR__
-#define _KERNELFUNCPARAM(a) KernelType a
-#else
+
 #define _KERNELFUNCPARAM(a) const KernelType &a
-#endif
 
 namespace sycl {
 inline namespace _V1 {

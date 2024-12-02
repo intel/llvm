@@ -101,11 +101,11 @@ struct is_property_key_of<fir_key, syclObjectT> : std::true_type {};
 namespace detail {
 template <typename Properties>
 struct ConflictingProperties<boo_key, Properties>
-    : ContainsProperty<fir_key, Properties> {};
+    : std::bool_constant<Properties::template has_property<fir_key>()> {};
 
 template <typename Properties>
 struct ConflictingProperties<fir_key, Properties>
-    : ContainsProperty<boo_key, Properties> {};
+    : std::bool_constant<Properties::template has_property<boo_key>()> {};
 
 } // namespace detail
 } // namespace experimental
