@@ -132,8 +132,8 @@ protected:
 
   friend tangle<ParentGroup> get_tangle<ParentGroup>(ParentGroup);
 
-  friend sub_group_mask sycl::detail::GetMask<tangle<ParentGroup>>(
-      tangle<ParentGroup> Group);
+  friend sub_group_mask
+  sycl::detail::GetMask<tangle<ParentGroup>>(tangle<ParentGroup> Group);
 };
 
 template <typename Group>

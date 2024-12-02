@@ -62,8 +62,7 @@ struct is_tangle_or_opportunistic_group : std::false_type {};
 
 template <typename ParentGroup>
 struct is_tangle_or_opportunistic_group<
-    sycl::ext::oneapi::experimental::tangle<ParentGroup>>
-    : std::true_type {};
+    sycl::ext::oneapi::experimental::tangle<ParentGroup>> : std::true_type {};
 
 template <>
 struct is_tangle_or_opportunistic_group<
