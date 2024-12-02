@@ -1625,6 +1625,23 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   return UnsupportedOpts;
 }
 
+// Currently supported options by SYCL NativeCPU device compilation
+static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+                                        const OptSpecifier &Opt) {
+  if (!TC.IsSYCLNativeCPU)
+    return false;
+
+  switch (Opt.getID()) {
+  case options::OPT_fcoverage_mapping:
+  case options::OPT_fno_coverage_mapping:
+  case options::OPT_fprofile_instr_generate:
+  case options::OPT_fprofile_instr_generate_EQ:
+  case options::OPT_fno_profile_instr_generate:
+    return true;
+  }
+  return false;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1636,6 +1653,9 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
+      // Native CPU can support options unsupported by other targets.
+      if (SupportedByNativeCPU(*this, Opt))
+        continue;
       // All sanitizer options are not currently supported, except
       // AddressSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
@@ -1676,6 +1696,9 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
+        // NativeCPU should allow most normal cpu options.
+        if (SupportedByNativeCPU(*this, Opt.getID()))
+          continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();

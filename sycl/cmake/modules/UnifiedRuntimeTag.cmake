@@ -1,7 +1,7 @@
-# commit e0f22b54080411537e8a12fe42f06dbac5e7a2d2
-# Merge: ab3cc0b7 6ba65403
+# commit eb076da108a49ef1426f38690547a71905f58015
+# Merge: d8d8ee90 46832dfd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 26 13:32:11 2024 +0000
-#     Merge pull request #2351 from nrspruit/mcl_1_1
-#     [L0] Add support for the MCL 1.1 apis thru the spec extensions
-set(UNIFIED_RUNTIME_TAG e0f22b54080411537e8a12fe42f06dbac5e7a2d2)
+# Date:   Fri Nov 29 15:54:31 2024 +0000
+#     Merge pull request #2396 from kswiecicki/init-results-fix
+#     [L0] Add nullopt check before init results access
+set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)
