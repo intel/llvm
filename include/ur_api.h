@@ -967,6 +967,9 @@ typedef enum ur_adapter_info_t {
                                          ///< The reference count returned should be considered immediately stale.
                                          ///< It is unsuitable for general use in applications. This feature is
                                          ///< provided for identifying memory leaks.
+    UR_ADAPTER_INFO_VERSION = 2,         ///< [uint32_t] Specifies the adapter version, initial value of 1 and
+                                         ///< incremented unpon major changes, e.g. when multiple versions of an
+                                         ///< adapter may exist in parallel.
     /// @cond
     UR_ADAPTER_INFO_FORCE_UINT32 = 0x7fffffff
     /// @endcond
@@ -988,7 +991,7 @@ typedef enum ur_adapter_info_t {
 ///     - ::UR_RESULT_ERROR_INVALID_NULL_HANDLE
 ///         + `NULL == hAdapter`
 ///     - ::UR_RESULT_ERROR_INVALID_ENUMERATION
-///         + `::UR_ADAPTER_INFO_REFERENCE_COUNT < propName`
+///         + `::UR_ADAPTER_INFO_VERSION < propName`
 ///     - ::UR_RESULT_ERROR_UNSUPPORTED_ENUMERATION
 ///         + If `propName` is not supported by the adapter.
 ///     - ::UR_RESULT_ERROR_INVALID_SIZE
