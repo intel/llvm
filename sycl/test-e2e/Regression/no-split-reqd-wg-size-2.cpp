@@ -12,7 +12,8 @@ using namespace sycl;
 
 int main(int argc, char **argv) {
   queue q;
-  q.single_task([]{});
-  q.parallel_for(range<2>(24, 1), [=](auto) [[sycl::reqd_work_group_size(24,1)]] {});
+  q.single_task([] {});
+  q.parallel_for(range<2>(24, 1),
+                 [=](auto) [[sycl::reqd_work_group_size(24, 1)]] {});
   return 0;
 }
