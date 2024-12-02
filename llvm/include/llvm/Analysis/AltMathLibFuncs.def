@@ -44,7 +44,6 @@ TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_cos, Type::FloatTyID, FIXED(1), "__t
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_tan, Type::FloatTyID, FIXED(1), "__test_altmath_tanf_high", 1.0)
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(1), "__test_altmath_sqrtf_cr", 0.5)
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(1), "__test_altmath_sqrtf_med", 2.5)
-TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_sqrt, Type::FloatTyID, FIXED(1), "__test_altmath_sqrtf_rounded", 3.0)
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_rsqrt, Type::FloatTyID, FIXED(1), "__test_altmath_rsqrtf_cr", 0.5)
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_rsqrt, Type::FloatTyID, FIXED(1), "__test_altmath_rsqrtf_high", 1.0)
 TLI_DEFINE_ALTMATHFUNC(Intrinsic::fpbuiltin_rsqrt, Type::FloatTyID, FIXED(1), "__test_altmath_rsqrtf_low", 4096.0)
