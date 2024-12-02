@@ -4,4 +4,4 @@
 # Date:   Fri Nov 29 13:52:10 2024 +0000
 #     Merge pull request #1968 from Naghasan/work_group_static
 #     Add new launch property to support work_group_scratch_memory
-set(UNIFIED_RUNTIME_TAG db83117e830406b0d9950e24892dba868acba354)
+set(UNIFIED_RUNTIME_TAG 2d7b879dea99d2ae7e5598f8bd7d70001d4ff3c5)
