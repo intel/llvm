@@ -111,7 +111,7 @@ sycl::unittest::MockDeviceImage generateImage(
   sycl::unittest::addSpecConstants({SC}, std::move(SpecConstData), PropSet);
   return generateImage(KernelNames, ExportedSymbols, ImportedSymbols, Magic,
                        SYCL_DEVICE_BINARY_TYPE_SPIRV,
-                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, PropSet);
+                       __SYCL_DEVICE_BINARY_TARGET_SPIRV64, std::move(PropSet));
 }
 sycl::unittest::MockDeviceImage generateImage(
     std::initializer_list<std::string> KernelNames,
