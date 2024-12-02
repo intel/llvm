@@ -6,6 +6,8 @@
 //
 //===----------------------------------------------------------------------===//
 
+#define __SYCL_GRAPH_IMPL_CPP
+
 #include <detail/graph_impl.hpp>
 #include <detail/handler_impl.hpp>
 #include <detail/kernel_arg_mask.hpp>
@@ -1757,15 +1759,9 @@ void modifiable_command_graph::end_recording(
   }
 }
 
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
 void modifiable_command_graph::print_graph(sycl::detail::string_view pathstr,
-#else
-void modifiable_command_graph::print_graph(std::string path,
-#endif
                                            bool verbose) const {
-#ifdef __INTEL_PREVIEW_BREAKING_CHANGES
   std::string path{pathstr.data()};
-#endif
   graph_impl::ReadLock Lock(impl->MMutex);
   if (path.substr(path.find_last_of(".") + 1) == "dot") {
     impl->printGraphAsDot(path, verbose);
