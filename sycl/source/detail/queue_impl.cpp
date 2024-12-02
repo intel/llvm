@@ -412,13 +412,24 @@ event queue_impl::submit_impl(const std::function<void(handler &)> &CGF,
 template <typename HandlerFuncT>
 event queue_impl::submitWithHandler(const std::shared_ptr<queue_impl> &Self,
                                     const std::vector<event> &DepEvents,
+                                    bool CallerNeedsEvent,
                                     HandlerFuncT HandlerFunc) {
-  return submit(
+  SubmissionInfo SI{};
+  if (!CallerNeedsEvent && supportsDiscardingPiEvents()) {
+    submit_without_event(
+        [&](handler &CGH) {
+          CGH.depends_on(DepEvents);
+          HandlerFunc(CGH);
+        },
+        Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
+    return createDiscardedEvent();
+  }
+  return submit_with_event(
       [&](handler &CGH) {
         CGH.depends_on(DepEvents);
         HandlerFunc(CGH);
       },
-      Self, /*CodeLoc*/ {}, /*SubmissionInfo*/ {}, /*IsTopCodeLoc*/ true);
+      Self, SI, /*CodeLoc*/ {}, /*IsTopCodeLoc*/ true);
 }
 
 template <typename HandlerFuncT, typename MemOpFuncT, typename... MemOpArgTs>
@@ -446,7 +457,16 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
         NestedCallsTracker tracker;
         MemOpFunc(MemOpArgs..., getUrEvents(ExpandedDepEvents),
                   /*PiEvent*/ nullptr, /*EventImplPtr*/ nullptr);
-        return createDiscardedEvent();
+
+        event DiscardedEvent = createDiscardedEvent();
+        if (isInOrder()) {
+          // Store the discarded event for proper in-order dependency tracking.
+          auto &EventToStoreIn = MGraph.expired()
+                                     ? MDefaultGraphDeps.LastEventPtr
+                                     : MExtGraphDeps.LastEventPtr;
+          EventToStoreIn = detail::getSyclObjImpl(DiscardedEvent);
+        }
+        return DiscardedEvent;
       }
 
       event ResEvent = prepareSYCLEventAssociatedWithQueue(Self);
@@ -471,7 +491,7 @@ event queue_impl::submitMemOpHelper(const std::shared_ptr<queue_impl> &Self,
       return discard_or_return(ResEvent);
     }
   }
-  return submitWithHandler(Self, DepEvents, HandlerFunc);
+  return submitWithHandler(Self, DepEvents, CallerNeedsEvent, HandlerFunc);
 }
 
 void *queue_impl::instrumentationProlog(const detail::code_location &CodeLoc,

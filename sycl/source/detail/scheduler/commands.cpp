@@ -956,7 +956,7 @@ bool Command::enqueue(EnqueueResultT &EnqueueResult, BlockingT Blocking,
         EnqueueResultT(EnqueueResultT::SyclEnqueueFailed, this, Res);
   else {
     MEvent->setEnqueued();
-    if (MShouldCompleteEventIfPossible &&
+    if (MShouldCompleteEventIfPossible && !MEvent->isDiscarded() &&
         (MEvent->isHost() || MEvent->getHandle() == nullptr))
       MEvent->setComplete();
 
@@ -3054,6 +3054,10 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   ur_event_handle_t UREvent = nullptr;
   ur_event_handle_t *Event = DiscardUrEvent ? nullptr : &UREvent;
   detail::EventImplPtr EventImpl = DiscardUrEvent ? nullptr : MEvent;
+
+  // If we are discarding the UR event, we also need to mark the result event.
+  if (DiscardUrEvent)
+    MEvent->setStateDiscarded();
 
   switch (MCommandGroup->getType()) {
 
