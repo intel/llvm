@@ -129,8 +129,7 @@ class SYCLInstallationDetector {
 public:
   SYCLInstallationDetector(const Driver &D);
   void getSYCLDeviceLibPath(
-      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths,
-      bool GetSPV = false) const;
+      llvm::SmallVector<llvm::SmallString<128>, 4> &DeviceLibPaths) const;
   void AddSYCLIncludeArgs(const llvm::opt::ArgList &DriverArgs,
                           llvm::opt::ArgStringList &CC1Args) const;
   void print(llvm::raw_ostream &OS) const;

@@ -730,16 +730,12 @@ runSYCLPostLinkTool(ArrayRef<StringRef> InputFiles, const ArgList &Args) {
   const llvm::Triple Triple(Args.getLastArgValue(OPT_triple_EQ));
   Arg *SYCLDeviceLibLoc = Args.getLastArg(OPT_sycl_device_library_location_EQ);
   if (SYCLDeviceLibLoc && !Triple.isSPIRAOT()) {
-    std::string SYCLDeviceLibSPVLoc = SYCLDeviceLibLoc->getValue();
-    llvm::Triple HostTriple(Args.getLastArgValue(OPT_host_triple_EQ));
-    if (HostTriple.isOSWindows())
-      SYCLDeviceLibSPVLoc += "../bin";
-
-    std::string AssertSPVLoc =
-        SYCLDeviceLibSPVLoc + "/libsycl-fallback-cassert.spv";
-    if (llvm::sys::fs::exists(AssertSPVLoc)) {
-      SYCLDeviceLibSPVLoc = "--device-lib-spv-dir=" + SYCLDeviceLibSPVLoc;
-      CmdArgs.push_back(Args.MakeArgString(StringRef(SYCLDeviceLibSPVLoc)));
+    std::string SYCLDeviceLibLocParam = SYCLDeviceLibLoc->getValue();
+    std::string AssertDeviceLibLoc =
+        SYCLDeviceLibLocParam + "/libsycl-fallback-cassert.bc";
+    if (llvm::sys::fs::exists(AssertDeviceLibLoc)) {
+      SYCLDeviceLibLocParam = "--device-lib-dir=" + SYCLDeviceLibLocParam;
+      CmdArgs.push_back(Args.MakeArgString(StringRef(SYCLDeviceLibLocParam)));
     }
   }
   getTripleBasedSYCLPostLinkOpts(Args, CmdArgs, Triple);

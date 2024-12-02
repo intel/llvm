@@ -104,6 +104,11 @@ cl::opt<std::string> OutputDir{
         "Directory where files listed in the result file table will be output"),
     cl::value_desc("dirname"), cl::cat(PostLinkCat)};
 
+cl::opt<std::string> DeviceLibDir{
+    "device-lib-dir",
+    cl::desc("Directory where sycl fallback device libraries reside"),
+    cl::value_desc("dirname"), cl::cat(PostLinkCat)};
+
 struct TargetFilenamePair {
   std::string Target;
   std::string Filename;

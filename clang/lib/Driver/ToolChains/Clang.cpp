@@ -10947,15 +10947,15 @@ static void getNonTripleBasedSYCLPostLinkOpts(const ToolChain &TC,
   if (TC.getTriple().isSPIROrSPIRV() && !TC.getTriple().isSPIRAOT() &&
       !DeviceLibDisable) {
     SYCLInstallationDetector SYCLInstall(TC.getDriver());
-    SmallVector<SmallString<128>, 4> SpvLocCandidates;
-    SmallString<128> FallbackAssertName("libsycl-fallback-cassert.spv");
-    SYCLInstall.getSYCLDeviceLibPath(SpvLocCandidates, true);
-    for (const auto &SpvLoc : SpvLocCandidates) {
-      SmallString<128> FullLibName(SpvLoc);
+    SmallVector<SmallString<128>, 4> DeviceLibLocCandidates;
+    SmallString<128> FallbackAssertName("libsycl-fallback-cassert.bc");
+    SYCLInstall.getSYCLDeviceLibPath(DeviceLibLocCandidates);
+    for (const auto &DeviceLibLoc : DeviceLibLocCandidates) {
+      SmallString<128> FullLibName(DeviceLibLoc);
       llvm::sys::path::append(FullLibName, FallbackAssertName);
       if (llvm::sys::fs::exists(FullLibName)) {
-        SmallString<128> SYCLDeviceLibDir("--device-lib-spv-dir=");
-        SYCLDeviceLibDir += SpvLoc.str();
+        SmallString<128> SYCLDeviceLibDir("--device-lib-dir=");
+        SYCLDeviceLibDir += DeviceLibLoc.str();
         addArgs(PostLinkArgs, TCArgs, {SYCLDeviceLibDir.str()});
         break;
       }
