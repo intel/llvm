@@ -115,7 +115,7 @@ class ComputeBenchmark(Benchmark):
         parsed_results = self.parse_output(result)
         ret = []
         for label, mean, unit in parsed_results:
-            extra_label = " CPU count" if parse_unit_type(unit) == "CPU count" else ""
+            extra_label = " CPU count" if parse_unit_type(unit) == "instr" else ""
             ret.append(Result(label=self.name() + extra_label, value=mean, command=command, env=env_vars, stdout=result, unit=parse_unit_type(unit)))
         return ret
 
