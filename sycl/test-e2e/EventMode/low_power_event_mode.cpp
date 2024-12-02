@@ -14,10 +14,13 @@ namespace oneapiext = sycl::ext::oneapi::experimental;
 int main() {
   sycl::queue Q;
 
-  sycl::event E = oneapiext::submit_with_event(
-      Q, [&](sycl::handler &CGH) { oneapiext::barrier(CGH); });
+  oneapiext::properties Props{
+      oneapiext::event_mode{oneapiext::event_mode_enum::low_power}};
 
-  oneapiext::submit_with_event(Q, [&](sycl::handler &CGH) {
+  sycl::event E = oneapiext::submit_with_event(
+      Q, Props, [&](sycl::handler &CGH) { oneapiext::barrier(CGH); });
+
+  oneapiext::submit_with_event(Q, Props, [&](sycl::handler &CGH) {
     oneapiext::partial_barrier(CGH, {E});
   }).wait_and_throw();
 
