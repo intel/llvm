@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14868
 
 // The test verifies ESIMD API that adds 2 32-bit integer scalars/vectors with
 // carry returning the result as 2 parts: carry flag the input modified operand
@@ -123,7 +125,7 @@ bool test(sycl::queue Q) {
            }
 
          } // end for BI
-       }   // end for AI
+       } // end for AI
      }).wait();
   } catch (sycl::exception const &e) {
     std::cout << "SYCL exception caught: " << e.what() << '\n';
@@ -183,7 +185,7 @@ template <typename T> bool test(sycl::queue Q) {
 }
 
 int main() {
-  auto Q = queue{gpu_selector_v};
+  queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   esimd_test::printTestLabel(Q);
   bool Pass = true;
 

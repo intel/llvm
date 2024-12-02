@@ -3441,25 +3441,47 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
   case CGType::ProfilingTag: {
     assert(MQueue && "Profiling tag requires a valid queue");
     const auto &Adapter = MQueue->getAdapter();
-    // If the queue is not in-order, we need to insert a barrier. This barrier
-    // does not need output events as it will implicitly enforce the following
-    // enqueue is blocked until it finishes.
-    if (!MQueue->isInOrder()) {
-      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
-      //        not pass an output event to the UR call. Once that is fixed,
-      //        this immediately-deleted event can be removed.
-      ur_event_handle_t PreTimestampBarrierEvent{};
+
+    bool IsInOrderQueue = MQueue->isInOrder();
+    ur_event_handle_t *TimestampDeps = nullptr;
+    size_t NumTimestampDeps = 0;
+
+    // If the queue is not in-order, the implementation will need to first
+    // insert a marker event that the timestamp waits for.
+    ur_event_handle_t PreTimestampMarkerEvent{};
+    if (!IsInOrderQueue) {
+      // FIXME: urEnqueueEventsWait on the L0 adapter requires a double-release.
+      //        Use that instead once it has been fixed.
+      //        See https://github.com/oneapi-src/unified-runtime/issues/2347.
       Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
           MQueue->getHandleRef(),
           /*num_events_in_wait_list=*/0,
-          /*event_wait_list=*/nullptr, &PreTimestampBarrierEvent);
-      Adapter->call<UrApiKind::urEventRelease>(PreTimestampBarrierEvent);
+          /*event_wait_list=*/nullptr, &PreTimestampMarkerEvent);
+      TimestampDeps = &PreTimestampMarkerEvent;
+      NumTimestampDeps = 1;
     }
 
     Adapter->call<UrApiKind::urEnqueueTimestampRecordingExp>(
         MQueue->getHandleRef(),
-        /*blocking=*/false,
-        /*num_events_in_wait_list=*/0, /*event_wait_list=*/nullptr, Event);
+        /*blocking=*/false, NumTimestampDeps, TimestampDeps, Event);
+
+    // If the queue is not in-order, we need to insert a barrier. This barrier
+    // does not need output events as it will implicitly enforce the following
+    // enqueue is blocked until it finishes.
+    if (!IsInOrderQueue) {
+      // We also need to release the timestamp event from the marker.
+      Adapter->call<UrApiKind::urEventRelease>(PreTimestampMarkerEvent);
+      // FIXME: Due to a bug in the L0 UR adapter, we will leak events if we do
+      //        not pass an output event to the UR call. Once that is fixed,
+      //        this immediately-deleted event can be removed.
+      ur_event_handle_t PostTimestampBarrierEvent{};
+      Adapter->call<UrApiKind::urEnqueueEventsWaitWithBarrier>(
+          MQueue->getHandleRef(),
+          /*num_events_in_wait_list=*/0,
+          /*event_wait_list=*/nullptr, &PostTimestampBarrierEvent);
+      Adapter->call<UrApiKind::urEventRelease>(PostTimestampBarrierEvent);
+    }
+
     if (Event)
       MEvent->setHandle(*Event);
     return UR_RESULT_SUCCESS;
@@ -3570,10 +3592,21 @@ ur_result_t ExecCGCommand::enqueueImpQueue() {
 
     return UR_RESULT_SUCCESS;
   }
-  case CGType::None:
-    throw sycl::exception(sycl::make_error_code(sycl::errc::runtime),
-                          "CG type not implemented. " +
-                              codeToString(UR_RESULT_ERROR_INVALID_OPERATION));
+  case CGType::None: {
+    if (RawEvents.empty()) {
+      // urEnqueueEventsWait with zero events acts like a barrier which is NOT
+      // what we want here. On the other hand, there is nothing to wait for, so
+      // we don't need to enqueue anything.
+      return UR_RESULT_SUCCESS;
+    }
+    const detail::AdapterPtr &Adapter = MQueue->getAdapter();
+    ur_event_handle_t Event;
+    ur_result_t Result = Adapter->call_nocheck<UrApiKind::urEnqueueEventsWait>(
+        MQueue->getHandleRef(), RawEvents.size(),
+        RawEvents.size() ? &RawEvents[0] : nullptr, &Event);
+    MEvent->setHandle(Event);
+    return Result;
+  }
   }
   return UR_RESULT_ERROR_INVALID_OPERATION;
 }

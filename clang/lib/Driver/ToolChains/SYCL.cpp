@@ -650,48 +650,52 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
       addLibraries(SYCLDeviceBfloat16FallbackLib);
   }
 
+  // Link in ITT annotations library unless fsycl-no-instrument-device-code
+  // is specified. This ensures that we are ABI-compatible with the
+  // instrumented device code, which was the default not so long ago.
   if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, false))
+                   options::OPT_fno_sycl_instrument_device_code, true))
     addLibraries(SYCLDeviceAnnotationLibs);
 
 #if !defined(_WIN32)
+  std::string SanitizeVal;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
                                options::OPT_fno_sanitize_EQ)) {
     if (A->getOption().matches(options::OPT_fsanitize_EQ) &&
-        A->getValues().size() == 1) {
-      std::string SanitizeVal = A->getValue();
-      if (SanitizeVal == "address")
-        addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
-    }
+        A->getValues().size() == 1)
+      SanitizeVal = A->getValue();
   } else {
     // User can pass -fsanitize=address to device compiler via
     // -Xsycl-target-frontend, sanitize device library must be
     // linked with user's device image if so.
-    bool IsDeviceAsanEnabled = false;
-    auto SyclFEArg = Args.getAllArgValues(options::OPT_Xsycl_frontend);
-    IsDeviceAsanEnabled = (std::count(SyclFEArg.begin(), SyclFEArg.end(),
-                                      "-fsanitize=address") > 0);
-    if (!IsDeviceAsanEnabled) {
-      auto SyclFEArgEq = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
-      IsDeviceAsanEnabled = (std::count(SyclFEArgEq.begin(), SyclFEArgEq.end(),
-                                        "-fsanitize=address") > 0);
-    }
+    std::vector<std::string> EnabledDeviceSanitizers;
 
-    // User can also enable asan for SYCL device via -Xarch_device option.
-    if (!IsDeviceAsanEnabled) {
-      auto DeviceArchVals = Args.getAllArgValues(options::OPT_Xarch_device);
-      for (auto DArchVal : DeviceArchVals) {
-        if (DArchVal.find("-fsanitize=address") != std::string::npos) {
-          IsDeviceAsanEnabled = true;
-          break;
-        }
+    // NOTE: "-fsanitize=" applies to all device targets
+    auto SyclFEArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend);
+    auto SyclFEEQArgVals = Args.getAllArgValues(options::OPT_Xsycl_frontend_EQ);
+    auto ArchDeviceVals = Args.getAllArgValues(options::OPT_Xarch_device);
+
+    std::vector<std::string> ArgVals(
+        SyclFEArgVals.size() + SyclFEEQArgVals.size() + ArchDeviceVals.size());
+    ArgVals.insert(ArgVals.end(), SyclFEArgVals.begin(), SyclFEArgVals.end());
+    ArgVals.insert(ArgVals.end(), SyclFEEQArgVals.begin(),
+                   SyclFEEQArgVals.end());
+    ArgVals.insert(ArgVals.end(), ArchDeviceVals.begin(), ArchDeviceVals.end());
+
+    // Driver will report error if address sanitizer and memory sanitizer are
+    // both enabled, so we only need to check first one here.
+    for (const std::string &Arg : ArgVals) {
+      if (Arg.find("-fsanitize=address") != std::string::npos) {
+        SanitizeVal = "address";
+        break;
       }
     }
-
-    if (IsDeviceAsanEnabled)
-      addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
   }
+
+  if (SanitizeVal == "address")
+    addSingleLibrary(SYCLDeviceAsanLibs[sanitizer_lib_idx]);
+
 #endif
 
   if (isNativeCPU)
@@ -1614,6 +1618,23 @@ static std::vector<OptSpecifier> getUnsupportedOpts(void) {
   return UnsupportedOpts;
 }
 
+// Currently supported options by SYCL NativeCPU device compilation
+static inline bool SupportedByNativeCPU(const SYCLToolChain &TC,
+                                        const OptSpecifier &Opt) {
+  if (!TC.IsSYCLNativeCPU)
+    return false;
+
+  switch (Opt.getID()) {
+  case options::OPT_fcoverage_mapping:
+  case options::OPT_fno_coverage_mapping:
+  case options::OPT_fprofile_instr_generate:
+  case options::OPT_fprofile_instr_generate_EQ:
+  case options::OPT_fno_profile_instr_generate:
+    return true;
+  }
+  return false;
+}
+
 SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
                              const ToolChain &HostTC, const ArgList &Args)
     : ToolChain(D, Triple, Args), HostTC(HostTC),
@@ -1625,6 +1646,9 @@ SYCLToolChain::SYCLToolChain(const Driver &D, const llvm::Triple &Triple,
   // Diagnose unsupported options only once.
   for (OptSpecifier Opt : getUnsupportedOpts()) {
     if (const Arg *A = Args.getLastArg(Opt)) {
+      // Native CPU can support options unsupported by other targets.
+      if (SupportedByNativeCPU(*this, Opt))
+        continue;
       // All sanitizer options are not currently supported, except
       // AddressSanitizer
       if (A->getOption().getID() == options::OPT_fsanitize_EQ &&
@@ -1665,6 +1689,9 @@ SYCLToolChain::TranslateArgs(const llvm::opt::DerivedArgList &Args,
     bool Unsupported = false;
     for (OptSpecifier UnsupportedOpt : getUnsupportedOpts()) {
       if (Opt.matches(UnsupportedOpt)) {
+        // NativeCPU should allow most normal cpu options.
+        if (SupportedByNativeCPU(*this, Opt.getID()))
+          continue;
         if (Opt.getID() == options::OPT_fsanitize_EQ &&
             A->getValues().size() == 1) {
           std::string SanitizeVal = A->getValue();
@@ -1889,8 +1916,8 @@ void SYCLToolChain::AddImpliedTargetArgs(const llvm::Triple &Triple,
         DeviceName = DevArg;
       StringRef BackendOptName = SYCL::gen::getGenGRFFlag("auto");
       if (IsGen)
-        PerDeviceArgs.push_back(
-            {DeviceName, Args.MakeArgString(BackendOptName)});
+        PerDeviceArgs.push_back({Args.MakeArgString(DeviceName),
+                                 Args.MakeArgString(BackendOptName)});
       else if (IsJIT)
         BeArgs.push_back(Args.MakeArgString(RegAllocModeOptName + DeviceName +
                                             ":" + BackendOptName));

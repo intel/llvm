@@ -1,7 +1,7 @@
-# commit 9a209aa5fe6f438b682b3a999b9ee505e202f9b7
-# Merge: 2eae687a 9339e374
+# commit eb076da108a49ef1426f38690547a71905f58015
+# Merge: d8d8ee90 46832dfd
 # Author: Callum Fare <callum@codeplay.com>
-# Date:   Tue Nov 12 11:47:03 2024 +0000
-#     Merge pull request #2179 from Maetveis/wrap_icx_linker_flags
-#     Wrap linker flags on Windows for IntelLLLVM
-set(UNIFIED_RUNTIME_TAG 9a209aa5fe6f438b682b3a999b9ee505e202f9b7)
+# Date:   Fri Nov 29 15:54:31 2024 +0000
+#     Merge pull request #2396 from kswiecicki/init-results-fix
+#     [L0] Add nullopt check before init results access
+set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)

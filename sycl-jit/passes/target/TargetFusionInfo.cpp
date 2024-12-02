@@ -188,17 +188,16 @@ public:
       }
       if (InsertWrappers) {
         if (ReturnInst *RI = dyn_cast<ReturnInst>(BB.getTerminator())) {
-          auto *WrapperCall =
-              CallInst::Create(WrapperFuncTy, FinishWrapperFunc, "", RI->getIterator());
+          auto *WrapperCall = CallInst::Create(WrapperFuncTy, FinishWrapperFunc,
+                                               "", RI->getIterator());
           WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
         }
       }
     }
     if (InsertWrappers) {
-      KernelFunc->getEntryBlock().getFirstInsertionPt();
-      auto *WrapperCall =
-          CallInst::Create(WrapperFuncTy, StartWrapperFunc, "",
-                           KernelFunc->getEntryBlock().getFirstInsertionPt());
+      auto InsertionPt = KernelFunc->getEntryBlock().getFirstInsertionPt();
+      auto *WrapperCall = CallInst::Create(WrapperFuncTy, StartWrapperFunc, "",
+                                           InsertionPt->getIterator());
       WrapperCall->setCallingConv(CallingConv::SPIR_FUNC);
     }
   }

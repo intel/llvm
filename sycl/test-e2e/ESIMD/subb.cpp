@@ -7,6 +7,8 @@
 //===----------------------------------------------------------------------===//
 // RUN: %{build} -o %t.out
 // RUN: %{run} %t.out
+// UNSUPPORTED: windows
+// UNSUPPORTED-TRACKER: https://github.com/intel/llvm/issues/14868
 
 // The test verifies ESIMD API that substracts 2 32-bit integer scalars/vectors
 // with borrow returning the result as 2 parts: borrow flag the input modified
@@ -187,7 +189,7 @@ template <typename T> bool test(sycl::queue Q) {
 int main() {
   queue Q(esimd_test::ESIMDSelector, esimd_test::createExceptionHandler());
   auto D = Q.get_device();
-  std::cout << "Running on " << D.get_info<info::device::name>() << "\n";
+  std::cout << "Running on " << D.get_info<sycl::info::device::name>() << "\n";
 
   bool Pass = true;
   Pass &= test<uint32_t>(Q);
