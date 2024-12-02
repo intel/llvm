@@ -241,13 +241,19 @@ int test_esimd() {
   sycl::context ctx = q.get_context();
 
   if (!q.get_device().has(sycl::aspect::ext_intel_esimd)) {
-    std::cout << "Device does not support ESIMD" << std::endl;
-    return -1;
+    std::cout << "Device '"
+              << q.get_device().get_info<sycl::info::device::name>()
+              << "' does not support ESIMD, skipping test." << std::endl;
+    return 0;
   }
 
   bool ok =
       q.get_device().ext_oneapi_can_compile(syclex::source_language::sycl_jit);
   if (!ok) {
+    std::cout << "Apparently this device does not support `sycl_jit` source "
+                 "kernel bundle extension: "
+              << q.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
     return -1;
   }
 
