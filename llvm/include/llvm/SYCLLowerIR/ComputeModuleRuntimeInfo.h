@@ -34,7 +34,8 @@ using EntryPointSet = SetVector<Function *>;
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps);
+                                     const GlobalBinImageProps &GlobProps,
+                                     module_split::IRSplitMode SplitMode);
 
 std::string computeModuleSymbolTable(const Module &M,
                                      const EntryPointSet &EntryPoints);

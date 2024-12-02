@@ -40,7 +40,6 @@ SYCLDeviceRequirements
 llvm::computeDeviceRequirements(const Module &M,
                                 const SetVector<Function *> &EntryPoints) {
   SYCLDeviceRequirements Reqs;
-  bool MultipleReqdWGSize = false;
   // Process all functions in the module
   for (const Function &F : M) {
     if (auto *MDN = F.getMetadata("sycl_used_aspects")) {
@@ -81,8 +80,6 @@ llvm::computeDeviceRequirements(const Module &M,
             ExtractUnsignedIntegerFromMDNodeOperand(MDN, I));
       if (!Reqs.ReqdWorkGroupSize.has_value())
         Reqs.ReqdWorkGroupSize = NewReqdWorkGroupSize;
-      if (Reqs.ReqdWorkGroupSize != NewReqdWorkGroupSize)
-        MultipleReqdWGSize = true;
     }
 
     if (auto *MDN = F.getMetadata("sycl_joint_matrix")) {
@@ -119,13 +116,6 @@ llvm::computeDeviceRequirements(const Module &M,
     }
   }
 
-  // Usually, we would only expect one ReqdWGSize, as the module passed to
-  // this function would be split according to that. However, when splitting
-  // is disabled, this cannot be guaranteed. In this case, we reset the value,
-  // which makes so that no value is reqd_work_group_size data is attached in
-  // in the device image.
-  if (MultipleReqdWGSize)
-    Reqs.ReqdWorkGroupSize.reset();
   return Reqs;
 }
 

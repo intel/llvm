@@ -152,7 +152,8 @@ std::optional<T> getKernelSingleEltMetadata(const Function &Func,
 
 PropSetRegTy computeModuleProperties(const Module &M,
                                      const EntryPointSet &EntryPoints,
-                                     const GlobalBinImageProps &GlobProps) {
+                                     const GlobalBinImageProps &GlobProps,
+                                     module_split::IRSplitMode SplitMode) {
 
   PropSetRegTy PropSet;
   {
@@ -161,8 +162,16 @@ PropSetRegTy computeModuleProperties(const Module &M,
     PropSet.add(PropSetRegTy::SYCL_DEVICELIB_REQ_MASK, RMEntry);
   }
   {
+    // Usually, we would only expect one ReqdWGSize, as the module passed to
+    // this function would be split according to that. However, when splitting
+    // is disabled, this cannot be guaranteed. In this case, we reset the value,
+    // which makes so that no value is reqd_work_group_size data is attached in
+    // in the device image.
+    SYCLDeviceRequirements DeviceReqs = computeDeviceRequirements(M, EntryPoints);
+    if (SplitMode == module_split::SPLIT_NONE)
+      DeviceReqs.ReqdWorkGroupSize.reset();
     PropSet.add(PropSetRegTy::SYCL_DEVICE_REQUIREMENTS,
-                computeDeviceRequirements(M, EntryPoints).asMap());
+                DeviceReqs.asMap());
   }
 
   // extract spec constant maps per each module
