@@ -172,12 +172,19 @@ struct usm_memcpy_command_handle : ur_exp_command_buffer_command_handle_t_ {
 struct usm_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
   usm_fill_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
                           CUgraphNode Node, CUgraphNode SignalNode,
-                          const std::vector<CUgraphNode> &WaitNodes)
+                          const std::vector<CUgraphNode> &WaitNodes,
+                          const std::vector<CUgraphNode> &DecomposedNodes = {})
       : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
+                                                WaitNodes),
+        DecomposedNodes(std::move(DecomposedNodes)) {}
   CommandType getCommandType() const noexcept override {
     return CommandType::USMFill;
   }
+
+  // If this fill command was decomposed into multiple nodes, this vector
+  // contains all of those nodes in the order they were added to the graph.
+  // Currently unused but will be required for updating in future.
+  std::vector<CUgraphNode> DecomposedNodes;
 };
 
 struct buffer_copy_command_handle : ur_exp_command_buffer_command_handle_t_ {
@@ -250,14 +257,21 @@ struct buffer_write_rect_command_handle
 };
 
 struct buffer_fill_command_handle : ur_exp_command_buffer_command_handle_t_ {
-  buffer_fill_command_handle(ur_exp_command_buffer_handle_t CommandBuffer,
-                             CUgraphNode Node, CUgraphNode SignalNode,
-                             const std::vector<CUgraphNode> &WaitNodes)
+  buffer_fill_command_handle(
+      ur_exp_command_buffer_handle_t CommandBuffer, CUgraphNode Node,
+      CUgraphNode SignalNode, const std::vector<CUgraphNode> &WaitNodes,
+      const std::vector<CUgraphNode> &DecomposedNodes = {})
       : ur_exp_command_buffer_command_handle_t_(CommandBuffer, Node, SignalNode,
-                                                WaitNodes) {}
+                                                WaitNodes),
+        DecomposedNodes(std::move(DecomposedNodes)) {}
   CommandType getCommandType() const noexcept override {
     return CommandType::MemBufferFill;
   }
+
+  // If this fill command was decomposed into multiple nodes, this vector
+  // contains all of those nodes in the order they were added to the graph.
+  // Currently unused but will be required for updating in future.
+  std::vector<CUgraphNode> DecomposedNodes;
 };
 
 struct usm_prefetch_command_handle : ur_exp_command_buffer_command_handle_t_ {

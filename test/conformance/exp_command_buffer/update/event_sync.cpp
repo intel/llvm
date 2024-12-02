@@ -129,6 +129,68 @@ TEST_P(CommandEventSyncUpdateTest, USMFillExp) {
     }
 }
 
+// Test fill using a large pattern size since implementations may need to handle
+// this differently.
+TEST_P(CommandEventSyncUpdateTest, USMFillLargePatternExp) {
+    // Device ptrs are allocated in the test fixture with 32-bit values * num
+    // elements, since we are doubling the pattern size we want to treat those
+    // device pointers as if they were created with half the number of elements.
+    constexpr size_t modifiedElementSize = elements / 2;
+    // Get wait event from queue fill on ptr 0
+    uint64_t patternX = 42;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_ptrs[0], sizeof(patternX),
+                                    &patternX, allocation_size, 0, nullptr,
+                                    &external_events[0]));
+
+    // Test fill command overwriting ptr 0 waiting on queue event
+    uint64_t patternY = 0xA;
+    ASSERT_SUCCESS(urCommandBufferAppendUSMFillExp(
+        updatable_cmd_buf_handle, device_ptrs[0], &patternY, sizeof(patternY),
+        allocation_size, 0, nullptr, 1, &external_events[0], nullptr,
+        &external_events[1], &command_handles[0]));
+    ASSERT_NE(nullptr, command_handles[0]);
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+
+    // Queue read ptr 0 based on event returned from command-buffer command
+    std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
+                                      device_ptrs[0], allocation_size, 1,
+                                      &external_events[1], nullptr));
+
+    // Verify
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+
+    uint64_t patternZ = 666;
+    ASSERT_SUCCESS(urEnqueueUSMFill(queue, device_ptrs[0], sizeof(patternZ),
+                                    &patternZ, allocation_size, 0, nullptr,
+                                    &external_events[2]));
+
+    // Update command command-wait event to wait on fill of new value
+    ASSERT_SUCCESS(urCommandBufferUpdateWaitEventsExp(command_handles[0], 1,
+                                                      &external_events[2]));
+
+    // Get a new signal event for command-buffer
+    ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
+                                                       &external_events[3]));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+
+    ASSERT_SUCCESS(urEnqueueUSMMemcpy(queue, false, host_enqueue_ptr.data(),
+                                      device_ptrs[0], allocation_size, 1,
+                                      &external_events[3], nullptr));
+
+    // Verify update
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+}
+
 TEST_P(CommandEventSyncUpdateTest, MemBufferCopyExp) {
     // Get wait event from queue fill on buffer 0
     uint32_t patternX = 42;
@@ -528,6 +590,68 @@ TEST_P(CommandEventSyncUpdateTest, MemBufferWriteRectExp) {
     // Verify update
     ASSERT_SUCCESS(urQueueFinish(queue));
     for (size_t i = 0; i < elements; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+}
+
+// Test fill using a large pattern size since implementations may need to handle
+// this differently.
+TEST_P(CommandEventSyncUpdateTest, MemBufferFillLargePatternExp) {
+    // Device buffers are allocated in the test fixture with 32-bit values * num
+    // elements, since we are doubling the pattern size we want to treat those
+    // device pointers as if they were created with half the number of elements.
+    constexpr size_t modifiedElementSize = elements / 2;
+    // Get wait event from queue fill on buffer 0
+    uint64_t patternX = 42;
+    ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffers[0], &patternX,
+                                          sizeof(patternX), 0, allocation_size,
+                                          0, nullptr, &external_events[0]));
+
+    // Test fill command overwriting buffer 0 based on queue event
+    uint64_t patternY = 0xA;
+    ASSERT_SUCCESS(urCommandBufferAppendMemBufferFillExp(
+        updatable_cmd_buf_handle, buffers[0], &patternY, sizeof(patternY), 0,
+        allocation_size, 0, nullptr, 1, &external_events[0], nullptr,
+        &external_events[1], &command_handles[0]));
+    ASSERT_NE(nullptr, command_handles[0]);
+    ASSERT_SUCCESS(urCommandBufferFinalizeExp(updatable_cmd_buf_handle));
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+
+    // Queue read buffer 0 based on event returned from command-buffer command
+    std::array<uint64_t, modifiedElementSize> host_enqueue_ptr{};
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(
+        queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(),
+        1, &external_events[1], nullptr));
+
+    // Verify
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
+        ASSERT_EQ(host_enqueue_ptr[i], patternY);
+    }
+
+    uint64_t patternZ = 666;
+    ASSERT_SUCCESS(urEnqueueMemBufferFill(queue, buffers[0], &patternZ,
+                                          sizeof(patternZ), 0, allocation_size,
+                                          0, nullptr, &external_events[2]));
+
+    // Update command command-wait event to wait on fill of new value
+    ASSERT_SUCCESS(urCommandBufferUpdateWaitEventsExp(command_handles[0], 1,
+                                                      &external_events[2]));
+
+    // Get a new signal event for command-buffer
+    ASSERT_SUCCESS(urCommandBufferUpdateSignalEventExp(command_handles[0],
+                                                       &external_events[3]));
+
+    ASSERT_SUCCESS(urCommandBufferEnqueueExp(updatable_cmd_buf_handle, queue, 0,
+                                             nullptr, nullptr));
+    ASSERT_SUCCESS(urEnqueueMemBufferRead(
+        queue, buffers[0], false, 0, allocation_size, host_enqueue_ptr.data(),
+        1, &external_events[3], nullptr));
+
+    // Verify update
+    ASSERT_SUCCESS(urQueueFinish(queue));
+    for (size_t i = 0; i < modifiedElementSize; i++) {
         ASSERT_EQ(host_enqueue_ptr[i], patternY);
     }
 }
