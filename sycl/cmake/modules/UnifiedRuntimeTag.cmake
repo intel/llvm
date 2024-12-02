@@ -1,7 +1,6 @@
-# commit eb076da108a49ef1426f38690547a71905f58015
-# Merge: d8d8ee90 46832dfd
-# Author: Callum Fare <callum@codeplay.com>
-# Date:   Fri Nov 29 15:54:31 2024 +0000
-#     Merge pull request #2396 from kswiecicki/init-results-fix
-#     [L0] Add nullopt check before init results access
-set(UNIFIED_RUNTIME_TAG eb076da108a49ef1426f38690547a71905f58015)
+# commit 7a38cc3e21d83940622d63b0b902bf68f9539f6f
+# Merge: 2dac0daaf327 252b3822f0e8
+# Author: Martin Grant <martin.morrisongrant@codeplay.com>
+# Date:   Mon Dec 2 15:41:23 2024 +0000
+#     Merge pull request #2395 from pbalcer/fix-event-pooling
+#     fix event caching
