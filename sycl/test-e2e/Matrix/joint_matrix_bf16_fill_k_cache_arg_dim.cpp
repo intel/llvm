@@ -12,7 +12,8 @@
 
 // -ffp-model=precise is added to not depend on compiler defaults.
 
-// Waiting for the commit in IGC to be pulled into the driver to resolve the test.
+// Waiting for the commit in IGC to be pulled into the driver to resolve the
+// test.
 // XFAIL: gpu
 // XFAIL-TRACKER: CMPLRLLVM-63710
 
