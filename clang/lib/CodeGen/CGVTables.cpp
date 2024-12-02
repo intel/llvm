@@ -831,9 +831,16 @@ void CodeGenVTables::addVTableComponent(ConstantArrayBuilder &builder,
 
     // Pure virtual member functions.
     if (cast<CXXMethodDecl>(GD.getDecl())->isPureVirtual()) {
-      if (!PureVirtualFn)
-        PureVirtualFn =
-            getSpecialVirtualFn(CGM.getCXXABI().GetPureVirtualCallName());
+      if (!PureVirtualFn) {
+        // There is no guarantee that special function for handling pure virtual
+        // calls will be provided by a SYCL backend compiler and therefore we
+        // simply emit nullptr here.
+        if (CGM.getLangOpts().SYCLIsDevice)
+          PureVirtualFn = llvm::ConstantPointerNull::get(CGM.GlobalsInt8PtrTy);
+        else
+          PureVirtualFn =
+              getSpecialVirtualFn(CGM.getCXXABI().GetPureVirtualCallName());
+      }
       fnPtr = PureVirtualFn;
 
     // Deleted virtual member functions.
