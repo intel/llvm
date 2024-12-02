@@ -39,16 +39,15 @@ config.unsupported_features = []
 
 # test-mode: Set if tests should run normally or only build/run
 config.test_mode = lit_config.params.get("test-mode", "full")
-if config.test_mode == "run-only":
+if config.test_mode == "full":
+    config.available_features.add("run-mode")
+    config.available_features.add("build-and-run-mode")
+elif config.test_mode == "run-only":
     lit_config.note("run-only test mode enabled, only executing tests")
     config.available_features.add("run-mode")
 elif config.test_mode == "build-only":
     lit_config.note("build-only test mode enabled, only compiling tests")
     config.sycl_devices = []
-    arch_flag = ""
-elif config.test_mode == "full":
-    config.available_features.add("run-mode")
-    config.available_features.add("build-and-run-mode")
 else:
     lit_config.error("Invalid argument for test-mode")
 
@@ -656,6 +655,8 @@ for sycl_device in config.sycl_devices:
 # discovered already.
 config.sycl_dev_features = {}
 
+# Architecture flag for compiling for AMD HIP devices. Empty otherwise.
+arch_flag = ""
 # Version of the driver for a given device. Empty for non-Intel devices.
 config.intel_driver_ver = {}
 for sycl_device in config.sycl_devices:
@@ -797,9 +798,6 @@ for sycl_device in config.sycl_devices:
         )
     elif be == "hip" and config.hip_platform == "NVIDIA":
         config.available_features.add("hip_nvidia")
-        arch_flag = ""
-    else:
-        arch_flag = ""
 
     config.sycl_dev_features[sycl_device] = features.union(config.available_features)
     if is_intel_driver:
