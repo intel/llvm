@@ -32,6 +32,20 @@ struct initialize_to_identity_key
 };
 inline constexpr initialize_to_identity_key::value_t initialize_to_identity;
 
+namespace detail {
+struct reduction_property_check_anchor {};
+} // namespace detail
+
+template <>
+struct is_property_key_of<deterministic_key,
+                          detail::reduction_property_check_anchor>
+    : std::true_type {};
+
+template <>
+struct is_property_key_of<initialize_to_identity_key,
+                          detail::reduction_property_check_anchor>
+    : std::true_type {};
+
 } // namespace experimental
 } // namespace oneapi
 } // namespace ext
@@ -83,9 +97,17 @@ template <typename BinaryOperation>
 struct IsDeterministicOperator<DeterministicOperatorWrapper<BinaryOperation>>
     : std::true_type {};
 
+template <typename PropertyList>
+inline constexpr bool is_valid_reduction_prop_list =
+    ext::oneapi::experimental::detail::all_are_properties_of_v<
+        ext::oneapi::experimental::detail::reduction_property_check_anchor,
+        PropertyList>;
+
 } // namespace detail
 
-template <typename BufferT, typename BinaryOperation, typename PropertyList>
+template <typename BufferT, typename BinaryOperation, typename PropertyList,
+          typename = std::enable_if_t<
+              detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(BufferT vars, handler &cgh, BinaryOperation combiner,
                PropertyList properties) {
   detail::CheckReductionIdentity<typename BufferT::value_type, BinaryOperation>(
@@ -95,7 +117,9 @@ auto reduction(BufferT vars, handler &cgh, BinaryOperation combiner,
   return reduction(vars, cgh, WrappedOp, RuntimeProps);
 }
 
-template <typename T, typename BinaryOperation, typename PropertyList>
+template <typename T, typename BinaryOperation, typename PropertyList,
+          typename = std::enable_if_t<
+              detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(T *var, BinaryOperation combiner, PropertyList properties) {
   detail::CheckReductionIdentity<T, BinaryOperation>(properties);
   auto WrappedOp = detail::WrapOp(combiner, properties);
@@ -103,8 +127,10 @@ auto reduction(T *var, BinaryOperation combiner, PropertyList properties) {
   return reduction(var, WrappedOp, RuntimeProps);
 }
 
-template <typename T, size_t Extent, typename BinaryOperation,
-          typename PropertyList>
+template <
+    typename T, size_t Extent, typename BinaryOperation, typename PropertyList,
+    typename =
+        std::enable_if_t<detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(span<T, Extent> vars, BinaryOperation combiner,
                PropertyList properties) {
   detail::CheckReductionIdentity<T, BinaryOperation>(properties);
@@ -113,7 +139,9 @@ auto reduction(span<T, Extent> vars, BinaryOperation combiner,
   return reduction(vars, WrappedOp, RuntimeProps);
 }
 
-template <typename BufferT, typename BinaryOperation, typename PropertyList>
+template <typename BufferT, typename BinaryOperation, typename PropertyList,
+          typename = std::enable_if_t<
+              detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(BufferT vars, handler &cgh,
                const typename BufferT::value_type &identity,
                BinaryOperation combiner, PropertyList properties) {
@@ -122,7 +150,9 @@ auto reduction(BufferT vars, handler &cgh,
   return reduction(vars, cgh, identity, WrappedOp, RuntimeProps);
 }
 
-template <typename T, typename BinaryOperation, typename PropertyList>
+template <typename T, typename BinaryOperation, typename PropertyList,
+          typename = std::enable_if_t<
+              detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(T *var, const T &identity, BinaryOperation combiner,
                PropertyList properties) {
   auto WrappedOp = detail::WrapOp(combiner, properties);
@@ -130,8 +160,10 @@ auto reduction(T *var, const T &identity, BinaryOperation combiner,
   return reduction(var, identity, WrappedOp, RuntimeProps);
 }
 
-template <typename T, size_t Extent, typename BinaryOperation,
-          typename PropertyList>
+template <
+    typename T, size_t Extent, typename BinaryOperation, typename PropertyList,
+    typename =
+        std::enable_if_t<detail::is_valid_reduction_prop_list<PropertyList>>>
 auto reduction(span<T, Extent> vars, const T &identity,
                BinaryOperation combiner, PropertyList properties) {
   auto WrappedOp = detail::WrapOp(combiner, properties);
