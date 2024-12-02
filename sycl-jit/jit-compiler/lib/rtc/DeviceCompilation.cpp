@@ -451,7 +451,9 @@ llvm::Expected<PostLinkResult> jit_compiler::performPostLink(
   MDesc = std::move(ESIMDSplits.front());
 
   if (MDesc.isESIMD()) {
-    // TODO: We're assuming ESIMD lowering is not deactivated (why would it?).
+    // `sycl-post-link` has a `-lower-esimd` option, but there's no clang driver
+    // option to influence it. Rather, the driver sets it unconditionally in the
+    // multi-file output mode, which we are mimicking here.
     lowerEsimdConstructs(MDesc, PerformOpts);
   }
 

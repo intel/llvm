@@ -52,7 +52,7 @@ void jit_compiler::lowerEsimdConstructs(module_split::ModuleDesc &MD,
   FunctionPassManager MainFPM;
   MainFPM.addPass(ESIMDLowerLoadStorePass{});
 
-  if (!PerformOpts) {
+  if (PerformOpts) {
     MainFPM.addPass(SROAPass(SROAOptions::ModifyCFG));
     MainFPM.addPass(EarlyCSEPass(true));
     MainFPM.addPass(InstCombinePass{});
