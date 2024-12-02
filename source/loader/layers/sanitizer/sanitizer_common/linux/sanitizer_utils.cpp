@@ -31,6 +31,9 @@ uptr MmapNoReserve(uptr Addr, uptr Size) {
     Addr = RoundDownTo(Addr, EXEC_PAGESIZE);
     void *P = mmap((void *)Addr, Size, PROT_READ | PROT_WRITE,
                    MAP_PRIVATE | MAP_NORESERVE | MAP_ANONYMOUS, -1, 0);
+    if (P == MAP_FAILED) {
+        return 0;
+    }
     return (uptr)P;
 }
 

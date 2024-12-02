@@ -16,6 +16,8 @@
 #include "sanitizer_common/sanitizer_utils.hpp"
 #include "ur_sanitizer_layer.hpp"
 
+#include <errno.h>
+
 namespace ur_sanitizer_layer {
 namespace asan {
 
@@ -45,6 +47,7 @@ ur_result_t ShadowMemoryCPU::Setup() {
         size_t ShadowSize = GetShadowSize();
         ShadowBegin = MmapNoReserve(0, ShadowSize);
         if (ShadowBegin == 0) {
+            getContext()->logger.error("Mmap failed: {}", strerror(errno));
             return UR_RESULT_ERROR_OUT_OF_HOST_MEMORY;
         }
         DontCoredumpRange(ShadowBegin, ShadowSize);
