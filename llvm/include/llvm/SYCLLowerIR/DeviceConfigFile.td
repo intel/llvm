@@ -73,7 +73,7 @@ def AspectExt_intel_esimd : Aspect<"ext_intel_esimd">;
 def AspectExt_oneapi_ballot_group : Aspect<"ext_oneapi_ballot_group">;
 def AspectExt_oneapi_chunk : Aspect<"ext_oneapi_chunk">;
 def AspectExt_oneapi_opportunistic_group : Aspect<"ext_oneapi_opportunistic_group">;
-def AspectExt_oneapi_tangle_group : Aspect<"ext_oneapi_tangle_group">;
+def AspectExt_oneapi_tangle : Aspect<"ext_oneapi_tangle">;
 def AspectExt_intel_matrix : Aspect<"ext_intel_matrix">;
 def AspectExt_oneapi_is_composite : Aspect<"ext_oneapi_is_composite">;
 def AspectExt_oneapi_is_component : Aspect<"ext_oneapi_is_component">;
@@ -145,7 +145,7 @@ def : TargetInfo<"__TestAspectList",
     AspectExt_oneapi_bindless_sampled_image_fetch_3d,
     AspectExt_intel_esimd,
     AspectExt_oneapi_ballot_group, AspectExt_oneapi_chunk, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
+    AspectExt_oneapi_tangle, AspectExt_intel_matrix, AspectExt_oneapi_is_composite, AspectExt_oneapi_is_component,
     AspectExt_oneapi_graph, AspectExt_oneapi_limited_graph, AspectExt_oneapi_private_alloca, 
     AspectExt_oneapi_queue_profiling_tag, AspectExt_oneapi_virtual_mem, AspectExt_oneapi_cuda_cluster_group, 
     AspectExt_intel_fpga_task_sequence,
@@ -164,7 +164,7 @@ defvar IntelCpuAspects = [
     AspectExt_oneapi_srgb, AspectExt_oneapi_native_assert,
     AspectExt_intel_legacy_image, AspectExt_oneapi_ballot_group,
     AspectExt_oneapi_chunk, AspectExt_oneapi_opportunistic_group,
-    AspectExt_oneapi_tangle_group, AspectExt_oneapi_private_alloca
+    AspectExt_oneapi_tangle, AspectExt_oneapi_private_alloca
 ] # AllUSMAspects;
 
 def : TargetInfo<"spir64", [], [], "", "", 1>;

@@ -8,7 +8,7 @@
 // UNSUPPORTED: cuda || hip
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <vector>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -45,7 +45,7 @@ int main() {
             // Branches deliberately duplicated to test impact of optimizations.
             // This only reliably works with optimizations disabled right now.
             if (item.get_global_id() % 2 == 0) {
-              auto TangleGroup = syclex::get_tangle_group(SG);
+              auto TangleGroup = syclex::get_tangle(SG);
 
               bool Match = true;
               Match &= (TangleGroup.get_group_id() == 0);
@@ -56,7 +56,7 @@ int main() {
               MatchAcc[WI] = Match;
               LeaderAcc[WI] = TangleGroup.leader();
             } else {
-              auto TangleGroup = syclex::get_tangle_group(SG);
+              auto TangleGroup = syclex::get_tangle(SG);
 
               bool Match = true;
               Match &= (TangleGroup.get_group_id() == 0);

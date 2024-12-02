@@ -1,4 +1,4 @@
-//==------ tangle_group.hpp --- SYCL extension for non-uniform groups ------==//
+//==------ tangle.hpp --- SYCL extension for non-uniform groups ------==//
 //
 // Part of the LLVM Project, under the Apache License v2.0 with LLVM Exceptions.
 // See https://llvm.org/LICENSE.txt for license information.
@@ -25,17 +25,17 @@ namespace sycl {
 inline namespace _V1 {
 namespace ext::oneapi::experimental {
 
-template <typename ParentGroup> class tangle_group;
+template <typename ParentGroup> class tangle;
 
 template <typename Group>
 #ifdef __SYCL_DEVICE_ONLY__
-[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle_group)]]
+[[__sycl_detail__::__uses_aspects__(sycl::aspect::ext_oneapi_tangle)]]
 #endif
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        tangle_group<Group>> get_tangle_group(Group group);
+                        tangle<Group>> get_tangle(Group group);
 
-template <typename ParentGroup> class tangle_group {
+template <typename ParentGroup> class tangle {
 public:
   using id_type = id<1>;
   using range_type = range<1>;
@@ -128,19 +128,19 @@ public:
 protected:
   sub_group_mask Mask;
 
-  tangle_group(sub_group_mask m) : Mask(m) {}
+  tangle(sub_group_mask m) : Mask(m) {}
 
-  friend tangle_group<ParentGroup> get_tangle_group<ParentGroup>(ParentGroup);
+  friend tangle<ParentGroup> get_tangle<ParentGroup>(ParentGroup);
 
-  friend sub_group_mask sycl::detail::GetMask<tangle_group<ParentGroup>>(
-      tangle_group<ParentGroup> Group);
+  friend sub_group_mask sycl::detail::GetMask<tangle<ParentGroup>>(
+      tangle<ParentGroup> Group);
 };
 
 template <typename Group>
 inline std::enable_if_t<sycl::is_group_v<std::decay_t<Group>> &&
                             std::is_same_v<Group, sycl::sub_group>,
-                        tangle_group<Group>>
-get_tangle_group(Group group) {
+                        tangle<Group>>
+get_tangle(Group group) {
   (void)group;
 #ifdef __SYCL_DEVICE_ONLY__
 #if defined(__SPIR__) || defined(__SPIRV__)
@@ -149,12 +149,12 @@ get_tangle_group(Group group) {
   // We store the mask here because it is required to calculate IDs, not
   // because it is required to construct the group.
   sub_group_mask mask = sycl::ext::oneapi::group_ballot(group, true);
-  return tangle_group<sycl::sub_group>(mask);
+  return tangle<sycl::sub_group>(mask);
 #elif defined(__NVPTX__)
   // TODO: Construct from compiler-generated mask. Return an invalid group in
-  //       in the meantime. CUDA devices will report false for the tangle_group
+  //       in the meantime. CUDA devices will report false for the tangle
   //       support aspect so kernels launch should ensure this is never run.
-  return tangle_group<sycl::sub_group>(0);
+  return tangle<sycl::sub_group>(0);
 #endif
 #else
   throw exception(make_error_code(errc::runtime),
@@ -164,12 +164,12 @@ get_tangle_group(Group group) {
 } // namespace this_kernel
 
 template <typename ParentGroup>
-struct is_user_constructed_group<tangle_group<ParentGroup>> : std::true_type {};
+struct is_user_constructed_group<tangle<ParentGroup>> : std::true_type {};
 
 } // namespace ext::oneapi::experimental
 
 template <typename ParentGroup>
-struct is_group<ext::oneapi::experimental::tangle_group<ParentGroup>>
+struct is_group<ext::oneapi::experimental::tangle<ParentGroup>>
     : std::true_type {};
 
 } // namespace _V1

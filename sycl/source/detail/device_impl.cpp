@@ -664,8 +664,8 @@ bool device_impl::has(aspect Aspect) const {
            (this->getBackend() == backend::opencl) ||
            (this->getBackend() == backend::ext_oneapi_cuda);
   }
-  case aspect::ext_oneapi_tangle_group: {
-    // TODO: tangle_group is not currently supported for CUDA devices. Add when
+  case aspect::ext_oneapi_tangle: {
+    // TODO: tangle is not currently supported for CUDA devices. Add when
     //       implemented.
     return (this->getBackend() == backend::ext_oneapi_level_zero) ||
            (this->getBackend() == backend::opencl);

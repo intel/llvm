@@ -6,13 +6,13 @@
 //
 // REQUIRES: cpu || gpu
 // REQUIRES: sg-32
-// REQUIRES: aspect-ext_oneapi_tangle_group
+// REQUIRES: aspect-ext_oneapi_tangle
 // UNSUPPORTED: cuda || windows
 // Tangle groups exhibit unpredictable behavior on Windows.
 // The test is disabled while we investigate the root cause.
 
 #include <sycl/detail/core.hpp>
-#include <sycl/ext/oneapi/experimental/tangle_group.hpp>
+#include <sycl/ext/oneapi/experimental/tangle.hpp>
 #include <sycl/group_algorithm.hpp>
 #include <sycl/group_barrier.hpp>
 #include <vector>
@@ -120,13 +120,13 @@ int main() {
           // Split into three groups of different sizes, using control flow
           // Body of each branch is deliberately duplicated
           if (WI < 4) {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::get_tangle(SG);
             size_t TangleLeader = 0;
             size_t TangleSize = 4;
             auto IsMember = [](size_t Other) { return (Other < 4); };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else if (WI < 24) {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::get_tangle(SG);
             size_t TangleLeader = 4;
             size_t TangleSize = 20;
             auto IsMember = [](size_t Other) {
@@ -134,7 +134,7 @@ int main() {
             };
             BranchBody(WI, Tangle, TangleLeader, TangleSize, IsMember);
           } else /* if WI < 32) */ {
-            auto Tangle = syclex::get_tangle_group(SG);
+            auto Tangle = syclex::get_tangle(SG);
             size_t TangleLeader = 24;
             size_t TangleSize = 8;
             auto IsMember = [](size_t Other) {

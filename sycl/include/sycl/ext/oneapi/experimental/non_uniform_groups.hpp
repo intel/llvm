@@ -74,7 +74,7 @@ namespace ext::oneapi::experimental {
 // Forward declarations of non-uniform group types for algorithm definitions
 template <typename ParentGroup> class ballot_group;
 template <size_t ChunkSize, typename ParentGroup> class chunk;
-template <typename ParentGroup> class tangle_group;
+template <typename ParentGroup> class tangle;
 class opportunistic_group;
 
 } // namespace ext::oneapi::experimental

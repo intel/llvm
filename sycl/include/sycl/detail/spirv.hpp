@@ -28,7 +28,7 @@ namespace experimental {
 template <typename ParentGroup> class ballot_group;
 template <size_t ChunkSize, typename ParentGroup> class chunk;
 template <int Dimensions> class root_group;
-template <typename ParentGroup> class tangle_group;
+template <typename ParentGroup> class tangle;
 class opportunistic_group;
 } // namespace experimental
 } // namespace oneapi
@@ -62,7 +62,7 @@ struct is_tangle_or_opportunistic_group : std::false_type {};
 
 template <typename ParentGroup>
 struct is_tangle_or_opportunistic_group<
-    sycl::ext::oneapi::experimental::tangle_group<ParentGroup>>
+    sycl::ext::oneapi::experimental::tangle<ParentGroup>>
     : std::true_type {};
 
 template <>
@@ -112,7 +112,7 @@ struct group_scope<
 };
 
 template <typename ParentGroup>
-struct group_scope<sycl::ext::oneapi::experimental::tangle_group<ParentGroup>> {
+struct group_scope<sycl::ext::oneapi::experimental::tangle<ParentGroup>> {
   static constexpr __spv::Scope::Flag value = group_scope<ParentGroup>::value;
 };
 
@@ -184,7 +184,7 @@ bool GroupAll(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
       static_cast<uint32_t>(pred), ChunkSize);
 }
 template <typename ParentGroup>
-bool GroupAll(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
+bool GroupAll(ext::oneapi::experimental::tangle<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAll(group_scope<ParentGroup>::value, pred);
 }
 
@@ -219,7 +219,7 @@ bool GroupAny(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup>,
       static_cast<uint32_t>(pred), ChunkSize);
 }
 template <typename ParentGroup>
-bool GroupAny(ext::oneapi::experimental::tangle_group<ParentGroup>, bool pred) {
+bool GroupAny(ext::oneapi::experimental::tangle<ParentGroup>, bool pred) {
   return __spirv_GroupNonUniformAny(group_scope<ParentGroup>::value, pred);
 }
 bool GroupAny(const ext::oneapi::experimental::opportunistic_group &,
@@ -347,7 +347,7 @@ GroupBroadcast(ext::oneapi::experimental::chunk<ChunkSize, ParentGroup> g, T x,
 }
 template <typename ParentGroup, typename T, typename IdT>
 EnableIfNativeBroadcast<T, IdT>
-GroupBroadcast(ext::oneapi::experimental::tangle_group<ParentGroup> g, T x,
+GroupBroadcast(ext::oneapi::experimental::tangle<ParentGroup> g, T x,
                IdT local_id) {
   // Remap local_id to its original numbering in ParentGroup.
   auto LocalId = detail::IdToMaskPosition(g, local_id);

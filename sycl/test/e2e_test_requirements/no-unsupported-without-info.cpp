@@ -301,8 +301,8 @@
 // CHECK-NEXT: NewOffloadDriver/spirv_device_obj_smoke.cpp
 // CHECK-NEXT: NonUniformGroups/ballot_group.cpp
 // CHECK-NEXT: NonUniformGroups/opportunistic_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group.cpp
-// CHECK-NEXT: NonUniformGroups/tangle_group_algorithms.cpp
+// CHECK-NEXT: NonUniformGroups/tangle.cpp
+// CHECK-NEXT: NonUniformGroups/tangle_algorithms.cpp
 // CHECK-NEXT: OptionalKernelFeatures/is_compatible/is_compatible_with_aspects.cpp
 // CHECK-NEXT: OptionalKernelFeatures/large-reqd-work-group-size.cpp
 // CHECK-NEXT: OptionalKernelFeatures/no-fp64-optimization-declared-aspects.cpp
