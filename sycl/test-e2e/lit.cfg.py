@@ -208,10 +208,7 @@ if platform.system() == "Windows":
         ("%sycl_static_libs_dir", config.sycl_libs_dir + "/../lib")
     )
     config.substitutions.append(("%obj_ext", ".obj"))
-    if cl_options:
-        config.substitutions.append(("%sycl_include", "/imsvc " + config.sycl_include))
-    else:
-        config.substitutions.append(("%sycl_include", "-isystem " + config.sycl_include))
+    config.substitutions.append(("%sycl_include", "-Xclang -isystem -Xclang " + config.sycl_include))
 elif platform.system() == "Linux":
     config.substitutions.append(("%sycl_static_libs_dir", config.sycl_libs_dir))
     config.substitutions.append(("%obj_ext", ".o"))
