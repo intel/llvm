@@ -51,7 +51,6 @@ jobs:
         include:
           - name: Intel GEN12 Graphics with Level Zero
             runner: '["Linux", "gen12"]'
-            extra_lit_opts: --param gpu-intel-gen12=True
             target_devices: level_zero:gpu;opencl:fpga
             reset_intel_gpu: true
           - name: Intel Arc A-Series Graphics with Level Zero
