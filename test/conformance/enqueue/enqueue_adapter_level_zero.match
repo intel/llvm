@@ -20,7 +20,7 @@
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin1D/*
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin2D/*
 {{OPT}}urEnqueueMemImageReadTest.InvalidOrigin3D/*
-{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest/*
+{{OPT}}urEnqueueEventsWaitMultiDeviceMTTest*
 {{OPT}}urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependencies/*
 {{OPT}}urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesBarrierOnly/*
 {{OPT}}urEnqueueEventsWaitWithBarrierOrderingTest.SuccessEventDependenciesLaunchOnly/*
