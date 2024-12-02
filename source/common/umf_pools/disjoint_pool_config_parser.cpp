@@ -215,6 +215,8 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
         }
     }
 
+    AllConfigs.EnableBuffers = EnableBuffers;
+
     AllConfigs.limits = std::shared_ptr<umf_disjoint_pool_shared_limits_t>(
         umfDisjointPoolSharedLimitsCreate(MaxSize),
         umfDisjointPoolSharedLimitsDestroy);
@@ -222,10 +224,6 @@ DisjointPoolAllConfigs parseDisjointPoolConfig(const std::string &config,
     for (auto &Config : AllConfigs.Configs) {
         Config.SharedLimits = AllConfigs.limits.get();
         Config.PoolTrace = trace;
-    }
-
-    if (!EnableBuffers) {
-        return {};
     }
 
     if (!trace) {
