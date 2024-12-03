@@ -1922,6 +1922,9 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_adapter_info_t value) 
     case UR_ADAPTER_INFO_REFERENCE_COUNT:
         os << "UR_ADAPTER_INFO_REFERENCE_COUNT";
         break;
+    case UR_ADAPTER_INFO_VERSION:
+        os << "UR_ADAPTER_INFO_VERSION";
+        break;
     default:
         os << "unknown enumerator";
         break;
@@ -1951,6 +1954,18 @@ inline ur_result_t printTagged(std::ostream &os, const void *ptr, ur_adapter_inf
         os << ")";
     } break;
     case UR_ADAPTER_INFO_REFERENCE_COUNT: {
+        const uint32_t *tptr = (const uint32_t *)ptr;
+        if (sizeof(uint32_t) > size) {
+            os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";
+            return UR_RESULT_ERROR_INVALID_SIZE;
+        }
+        os << (const void *)(tptr) << " (";
+
+        os << *tptr;
+
+        os << ")";
+    } break;
+    case UR_ADAPTER_INFO_VERSION: {
         const uint32_t *tptr = (const uint32_t *)ptr;
         if (sizeof(uint32_t) > size) {
             os << "invalid size (is: " << size << ", expected: >=" << sizeof(uint32_t) << ")";

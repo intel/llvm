@@ -136,6 +136,11 @@ etors:
             [uint32_t] Reference count of the adapter.
             The reference count returned should be considered immediately stale.
             It is unsuitable for general use in applications. This feature is provided for identifying memory leaks.
+    - name: VERSION
+      desc: >
+          [uint32_t] Specifies the adapter version, initial value of 1 and
+          incremented unpon major changes, e.g. when multiple versions of an
+          adapter may exist in parallel.
 --- #--------------------------------------------------------------------------
 type: function
 desc: "Retrieves information about the adapter"
