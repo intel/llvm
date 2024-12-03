@@ -7184,3 +7184,12 @@ void SemaSYCL::performSYCLDelayedAttributesAnalaysis(const FunctionDecl *FD) {
           << KernelAttr;
   }
 }
+
+void SemaSYCL::handleKernelEntryPointAttr(Decl *D, const ParsedAttr &AL) {
+  ParsedType PT = AL.getTypeArg();
+  TypeSourceInfo *TSI = nullptr;
+  (void)SemaRef.GetTypeFromParser(PT, &TSI);
+  assert(TSI && "no type source info for attribute argument");
+  D->addAttr(::new (SemaRef.Context)
+                 SYCLKernelEntryPointAttr(SemaRef.Context, AL, TSI));
+}

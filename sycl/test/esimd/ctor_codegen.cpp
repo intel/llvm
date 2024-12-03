@@ -85,7 +85,7 @@ SYCL_EXTERNAL auto gee() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z3geev({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd<float, 2> val(-7);
   return val;
-// CHECK: store <2 x float> <float -7.000000e+00, float -7.000000e+00>, ptr addrspace(4) %[[RES]]
+// CHECK: store <2 x float> splat (float -7.000000e+00), ptr addrspace(4) %[[RES]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }
@@ -105,7 +105,7 @@ SYCL_EXTERNAL auto geemask() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z7geemaskv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd_mask<2> val(1);
   return val;
-// CHECK: store <2 x i16> <i16 1, i16 1>, ptr addrspace(4) %[[RES]]
+// CHECK: store <2 x i16> splat (i16 1), ptr addrspace(4) %[[RES]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }
@@ -130,7 +130,7 @@ SYCL_EXTERNAL auto geehalf() SYCL_ESIMD_FUNCTION {
 // CHECK: define dso_local spir_func void @_Z7geehalfv({{.*}} %[[RES:[a-zA-Z0-9_\.]+]]){{.*}} {
   simd<half, 2> val(-7);
   return val;
-// CHECK: store <2 x half> <half 0xHC700, half 0xHC700>, ptr addrspace(4) %[[RES]]
+// CHECK: store <2 x half> splat (half 0xHC700), ptr addrspace(4) %[[RES]]
 // CHECK-NEXT: ret void
 // CHECK-NEXT: }
 }

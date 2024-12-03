@@ -576,6 +576,29 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     }
   };
 
+  addLibraries(SYCLDeviceWrapperLibs);
+  if (IsSpirvAOT)
+    addLibraries(SYCLDeviceFallbackLibs);
+
+  bool NativeBfloatLibs;
+  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
+  if (NeedBfloatLibs) {
+    // Add native or fallback bfloat16 library.
+    if (NativeBfloatLibs)
+      addLibraries(SYCLDeviceBfloat16NativeLib);
+    else
+      addLibraries(SYCLDeviceBfloat16FallbackLib);
+  }
+
+  // Link in ITT annotations library unless fsycl-no-instrument-device-code
+  // is specified. This ensures that we are ABI-compatible with the
+  // instrumented device code, which was the default not so long ago.
+  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
+                   options::OPT_fno_sycl_instrument_device_code, true))
+    addLibraries(SYCLDeviceAnnotationLibs);
+
+#if !defined(_WIN32)
+
   auto addSingleLibrary = [&](const DeviceLibOptInfo &Lib) {
     if (!DeviceLibLinkInfo[Lib.DeviceLibOption])
       return;
@@ -636,28 +659,6 @@ SYCL::getDeviceLibraries(const Compilation &C, const llvm::Triple &TargetTriple,
     return JIT;
   };
 
-  addLibraries(SYCLDeviceWrapperLibs);
-  if (IsSpirvAOT)
-    addLibraries(SYCLDeviceFallbackLibs);
-
-  bool NativeBfloatLibs;
-  bool NeedBfloatLibs = selectBfloatLibs(TargetTriple, C, NativeBfloatLibs);
-  if (NeedBfloatLibs) {
-    // Add native or fallback bfloat16 library.
-    if (NativeBfloatLibs)
-      addLibraries(SYCLDeviceBfloat16NativeLib);
-    else
-      addLibraries(SYCLDeviceBfloat16FallbackLib);
-  }
-
-  // Link in ITT annotations library unless fsycl-no-instrument-device-code
-  // is specified. This ensures that we are ABI-compatible with the
-  // instrumented device code, which was the default not so long ago.
-  if (Args.hasFlag(options::OPT_fsycl_instrument_device_code,
-                   options::OPT_fno_sycl_instrument_device_code, true))
-    addLibraries(SYCLDeviceAnnotationLibs);
-
-#if !defined(_WIN32)
   std::string SanitizeVal;
   size_t sanitizer_lib_idx = getSingleBuildTarget();
   if (Arg *A = Args.getLastArg(options::OPT_fsanitize_EQ,
