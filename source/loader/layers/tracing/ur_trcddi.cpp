@@ -9284,7 +9284,8 @@ __urdlllocal ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
         getContext()->notify_begin(UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP,
                                    "urTensorMapEncodeIm2ColExp", &params);
 
-    getContext()->logger.info("---> urTensorMapEncodeIm2ColExp");
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urTensorMapEncodeIm2ColExp\n");
 
     ur_result_t result = pfnEncodeIm2ColExp(
         hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
@@ -9296,10 +9297,13 @@ __urdlllocal ur_result_t UR_APICALL urTensorMapEncodeIm2ColExp(
                              "urTensorMapEncodeIm2ColExp", &params, &result,
                              instance);
 
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP, &params);
-    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP, &params);
+        logger.info("   <--- urTensorMapEncodeIm2ColExp({}) -> {};\n",
+                    args_str.str(), result);
+    }
 
     return result;
 }
@@ -9354,7 +9358,8 @@ __urdlllocal ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
         getContext()->notify_begin(UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP,
                                    "urTensorMapEncodeTiledExp", &params);
 
-    getContext()->logger.info("---> urTensorMapEncodeTiledExp");
+    auto &logger = getContext()->logger;
+    logger.info("   ---> urTensorMapEncodeTiledExp\n");
 
     ur_result_t result = pfnEncodeTiledExp(
         hDevice, TensorMapType, TensorRank, GlobalAddress, GlobalDim,
@@ -9365,10 +9370,13 @@ __urdlllocal ur_result_t UR_APICALL urTensorMapEncodeTiledExp(
                              "urTensorMapEncodeTiledExp", &params, &result,
                              instance);
 
-    std::ostringstream args_str;
-    ur::extras::printFunctionParams(
-        args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP, &params);
-    getContext()->logger.info("({}) -> {};\n", args_str.str(), result);
+    if (logger.getLevel() <= logger::Level::INFO) {
+        std::ostringstream args_str;
+        ur::extras::printFunctionParams(
+            args_str, UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP, &params);
+        logger.info("   <--- urTensorMapEncodeTiledExp({}) -> {};\n",
+                    args_str.str(), result);
+    }
 
     return result;
 }

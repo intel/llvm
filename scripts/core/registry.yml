@@ -559,8 +559,14 @@ etors:
 - name: BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP
   desc: Enumerator for $xBindlessImagesReleaseExternalMemoryExp
   value: '230'
+- name: TENSOR_MAP_ENCODE_IM_2_COL_EXP
+  desc: Enumerator for $xTensorMapEncodeIm2ColExp
+  value: '230'
 - name: COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP
   desc: Enumerator for $xCommandBufferAppendUSMMemcpyExp
+  value: '231'
+- name: TENSOR_MAP_ENCODE_TILED_EXP
+  desc: Enumerator for $xTensorMapEncodeTiledExp
   value: '231'
 - name: COMMAND_BUFFER_APPEND_USM_FILL_EXP
   desc: Enumerator for $xCommandBufferAppendUSMFillExp
@@ -607,12 +613,6 @@ etors:
 - name: ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT
   desc: Enumerator for $xEnqueueEventsWaitWithBarrierExt
   value: '246'
-- name: TENSOR_MAP_ENCODE_IM_2_COL_EXP
-  desc: Enumerator for $xTensorMapEncodeIm2ColExp
-  value: '230'
-- name: TENSOR_MAP_ENCODE_TILED_EXP
-  desc: Enumerator for $xTensorMapEncodeTiledExp
-  value: '231'
 ---
 type: enum
 desc: Defines structure types

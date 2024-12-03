@@ -940,8 +940,14 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
     case UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP:
         os << "UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP";
         break;
+    case UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP:
+        os << "UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP";
+        break;
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP";
+        break;
+    case UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP:
+        os << "UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP";
         break;
     case UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP:
         os << "UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP";
@@ -987,12 +993,6 @@ inline std::ostream &operator<<(std::ostream &os, enum ur_function_t value) {
         break;
     case UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT:
         os << "UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT";
-        break;
-    case UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP:
-        os << "UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP";
-        break;
-    case UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP:
-        os << "UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP";
         break;
     default:
         os << "unknown enumerator";

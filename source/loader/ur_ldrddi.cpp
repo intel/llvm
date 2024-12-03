@@ -10693,6 +10693,11 @@ UR_DLLEXPORT ur_result_t UR_APICALL urGetTensorMapExpProcAddrTable(
 
     // Load the device-platform DDI tables
     for (auto &platform : ur_loader::getContext()->platforms) {
+        // statically linked adapter inside of the loader
+        if (platform.handle == nullptr) {
+            continue;
+        }
+
         if (platform.initStatus != UR_RESULT_SUCCESS) {
             continue;
         }
