@@ -324,6 +324,17 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       }
     }
 
+    UseNative = false;
+
+    // Check for intel_gpu_pvc as the target
+    if (Arg *SYCLTarget = Args.getLastArg(options::OPT_fsycl_targets_EQ)) {
+      if (SYCLTarget->getValues().size() == 1) {
+        StringRef SYCLTargetStr = SYCLTarget->getValue();
+        if (SYCLTargetStr == "intel_gpu_pvc")
+          UseNative = true;
+      }
+    }
+
     auto checkBF = [](StringRef Device) {
       return Device.starts_with("pvc") || Device.starts_with("ats");
     };
@@ -334,8 +345,7 @@ static bool selectBfloatLibs(const llvm::Triple &Triple, const Compilation &C,
       Params += Arg;
     }
     size_t DevicesPos = Params.find("-device ");
-    UseNative = false;
-    if (DevicesPos != std::string::npos) {
+    if (!UseNative && DevicesPos != std::string::npos) {
       UseNative = true;
       std::istringstream Devices(Params.substr(DevicesPos + 8));
       for (std::string S; std::getline(Devices, S, ',');)
