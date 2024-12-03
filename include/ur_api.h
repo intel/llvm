@@ -215,9 +215,7 @@ typedef enum ur_function_t {
     UR_FUNCTION_ENQUEUE_NATIVE_COMMAND_EXP = 228,                         ///< Enumerator for ::urEnqueueNativeCommandExp
     UR_FUNCTION_LOADER_CONFIG_SET_MOCKING_ENABLED = 229,                  ///< Enumerator for ::urLoaderConfigSetMockingEnabled
     UR_FUNCTION_BINDLESS_IMAGES_RELEASE_EXTERNAL_MEMORY_EXP = 230,        ///< Enumerator for ::urBindlessImagesReleaseExternalMemoryExp
-    UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP = 230,                     ///< Enumerator for ::urTensorMapEncodeIm2ColExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_MEMCPY_EXP = 231,               ///< Enumerator for ::urCommandBufferAppendUSMMemcpyExp
-    UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP = 231,                        ///< Enumerator for ::urTensorMapEncodeTiledExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_USM_FILL_EXP = 232,                 ///< Enumerator for ::urCommandBufferAppendUSMFillExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_COPY_EXP = 233,          ///< Enumerator for ::urCommandBufferAppendMemBufferCopyExp
     UR_FUNCTION_COMMAND_BUFFER_APPEND_MEM_BUFFER_WRITE_EXP = 234,         ///< Enumerator for ::urCommandBufferAppendMemBufferWriteExp
@@ -233,6 +231,8 @@ typedef enum ur_function_t {
     UR_FUNCTION_COMMAND_BUFFER_UPDATE_WAIT_EVENTS_EXP = 244,              ///< Enumerator for ::urCommandBufferUpdateWaitEventsExp
     UR_FUNCTION_BINDLESS_IMAGES_MAP_EXTERNAL_LINEAR_MEMORY_EXP = 245,     ///< Enumerator for ::urBindlessImagesMapExternalLinearMemoryExp
     UR_FUNCTION_ENQUEUE_EVENTS_WAIT_WITH_BARRIER_EXT = 246,               ///< Enumerator for ::urEnqueueEventsWaitWithBarrierExt
+    UR_FUNCTION_TENSOR_MAP_ENCODE_IM_2_COL_EXP = 247,                     ///< Enumerator for ::urTensorMapEncodeIm2ColExp
+    UR_FUNCTION_TENSOR_MAP_ENCODE_TILED_EXP = 248,                        ///< Enumerator for ::urTensorMapEncodeTiledExp
     /// @cond
     UR_FUNCTION_FORCE_UINT32 = 0x7fffffff
     /// @endcond
